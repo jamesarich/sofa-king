@@ -40,7 +40,9 @@ private val log = LoggerFactory.getLogger(LibraryService::class.java)
 /** The scan job's id on the Jobs page. */
 internal const val LIBRARY_SCAN_JOB = "library-scan"
 
-/** A folder a library may be added from: [root] is where the operator mounted media, [label] how the portal names it. */
+/**
+ * A folder a library may be added from: [root] is where the operator mounted media, [label] how the portal names it.
+ */
 data class MediaRoot(val label: String, val root: Path)
 
 /** A folder whose name says what it holds, offered as a library to add with one click. */
@@ -85,7 +87,9 @@ class LibraryService(
     private val trigger = Channel<Unit>(Channel.CONFLATED)
     private val pending = ConcurrentHashMap.newKeySet<String>()
 
-    /** Held while a scan writes items and while a library is removed; listing, probing and the TMDB pass run without it. */
+    /**
+     * Held while a scan writes items and while a library is removed; listing, probing and the TMDB pass run without it.
+     */
     private val scanLock = Mutex()
 
     /** One scan at a time, TMDB pass included. */
@@ -297,9 +301,7 @@ class LibraryService(
             ?: throw ApiFailure(
                 400,
                 "INVALID_REQUEST",
-                "A library folder must be inside ${roots.joinToString(" or ") {
-                    it.root.toString()
-                }}",
+                "A library folder must be inside ${roots.joinToString(" or ") { it.root.toString() }}",
             )
         if (!Files.isDirectory(candidate)) throw ApiFailure(400, "INVALID_REQUEST", "No folder at that path")
         // A link inside the root must not lead the scan outside it.

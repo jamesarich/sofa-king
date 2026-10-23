@@ -268,7 +268,10 @@ fun SettingsScreen(
     pairing: PairingUi = PairingUi(),
     /** The update check's answer, or null while none has run. */
     update: UpdateState? = null,
-    /** The page behind Settings the viewer just came back from ([CHANNELS_FOCUS_KEY], [STARTUP_FOCUS_KEY]); its button takes focus. */
+    /**
+     * The page behind Settings the viewer just came back from ([CHANNELS_FOCUS_KEY],
+     * [STARTUP_FOCUS_KEY]); its button takes focus.
+     */
     returnedFrom: String? = null,
     /** The servers on the network, collected (and so browsed for) only while the server fields are open. */
     discoveredServers: Flow<List<DiscoveredServer>> = noServers,
@@ -491,7 +494,8 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item { ScreenTitle(stringResource(Res.string.settings_title), onBack, backFocus) }
-            // A device with no server starts here; a configured one keeps the server near the end, as it seldom changes.
+            // A device with no server starts here; a configured one keeps the server near
+            // the end, as it seldom changes.
             if (unconfigured) serverSection()
             item { SectionHeader(stringResource(Res.string.settings_section_general)) }
             item {
@@ -832,7 +836,8 @@ fun SettingsScreen(
             if (!unconfigured) serverSection()
             item { SectionHeader(stringResource(Res.string.settings_section_lock)) }
             item { LockSection(locked = settings.settingsLocked, onPinChanged = actions.onSettingsPinChanged) }
-            // About: the app, its version and what is loaded, then where the build stands against the published snapshot.
+            // About: the app, its version and what is loaded, then where the build stands
+            // against the published snapshot.
             item { SectionHeader(stringResource(Res.string.settings_section_about)) }
             item {
                 val suffix = versionSuffix()
@@ -876,7 +881,10 @@ fun SettingsScreen(
 
 private val noServers: Flow<List<DiscoveredServer>> = flowOf(emptyList())
 
-/** Save & reload is on only for a valid address and token that differ from what is stored, since saving the same server reloads for nothing. */
+/**
+ * Save & reload is on only for a valid address and token that differ from what is stored, since saving the
+ * same server reloads for nothing.
+ */
 internal fun canSaveServer(stored: AppSettings, url: String?, token: String?): Boolean =
     url != null && token != null && (url != stored.serverUrl || token != stored.apiToken)
 
@@ -974,7 +982,8 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit, keepInView
         Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (update is UpdateState.Available) {
                 if (installer != null && update.latest.apkUrl != null) {
-                    // Stays enabled while busy, since a disabled button drops focus to another row; install ignores the press.
+                    // Stays enabled while busy, since a disabled button drops focus to another
+                    // row; install ignores the press.
                     SofaButton(onClick = { installer.install(update.latest) }) {
                         Text(stringResource(Res.string.settings_update_install))
                     }

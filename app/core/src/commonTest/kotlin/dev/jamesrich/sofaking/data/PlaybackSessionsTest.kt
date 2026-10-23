@@ -101,7 +101,9 @@ class PlaybackSessionsTest {
 
         private fun Session.body() =
             """{"id":"$id","channelId":"$channelId","intent":"$intent","expiresAt":"2026-10-10T10:00:00Z",""" +
-                """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/sessions/$id/$epoch/root.m3u8","epoch":$epoch}}"""
+                """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/""" +
+                """sessions/""" +
+                """$id/$epoch/root.m3u8","epoch":$epoch}}"""
     }
 
     /** A configured [PlaybackSessions] renewing every 100 ms on the test's virtual clock, beside its [FakeServer]. */

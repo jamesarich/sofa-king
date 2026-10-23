@@ -513,19 +513,22 @@ private val MEDIA_ACTIONS = listOf("play", "pause", "nexttrack", "previoustrack"
 /** An action the browser doesn't know throws; it is skipped, as the spec advises. */
 private fun setMediaAction(action: String, handler: () -> Unit) {
     js(
-        "if ('mediaSession' in navigator) { try { navigator.mediaSession.setActionHandler(action, function () { handler(); }); } catch (e) {} }",
+        "if ('mediaSession' in navigator) { try { navigator.mediaSession.setActionHandler(action, function () { " +
+            "handler(); }); } catch (e) {} }",
     )
 }
 
 private fun clearMediaAction(action: String) {
     js(
-        "if ('mediaSession' in navigator) { try { navigator.mediaSession.setActionHandler(action, null); } catch (e) {} }",
+        "if ('mediaSession' in navigator) { try { navigator.mediaSession.setActionHandler(action, null); } catch (e) " +
+            "{} }",
     )
 }
 
 private fun setMediaMetadata(title: String, artist: String, artworkUrl: String?) {
     js(
-        "if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title: title, artist: artist, artwork: artworkUrl ? [{ src: artworkUrl }] : [] }); }",
+        "if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title: title, " +
+            "artist: artist, artwork: artworkUrl ? [{ src: artworkUrl }] : [] }); }",
     )
 }
 

@@ -42,7 +42,8 @@ data class RecordingTitle(
  * Where recordings go under the recordings folder, in the layout Plex, Jellyfin, Emby and Kodi scan without help:
  *
  * - an episode the guide numbers by season and episode: `TV/Show/Season 01/Show - S01E02 - Episode.ts`
- * - one it does not (an episode number alone, news, sports, talk): `TV/Show/Season 2026/Show - 2026-10-17 - Episode.ts`, the date-based form
+ * - one it does not (an episode number alone, news, sports, talk): `TV/Show/Season 2026/Show - 2026-10-17 -
+ * Episode.ts`, the date-based form
  * - a movie: `Movies/Title (Year)/Title (Year).ts`
  *
  * Names keep to characters every file system and SMB share accepts. A recording is written under the hidden
@@ -97,7 +98,10 @@ object RecordingLayout {
         return Path.of(TV, show, "Season ${date.year}") to name
     }
 
-    /** [text] without path separators (`Title: Part` reads `Title - Part`), characters Windows and SMB refuse, control characters, or trailing dots. */
+    /**
+     * [text] without path separators (`Title: Part` reads `Title - Part`), characters Windows and SMB refuse,
+     * control characters, or trailing dots.
+     */
     internal fun clean(text: String): String {
         val replaced = text.replace(": ", " - ").map { c ->
             when {

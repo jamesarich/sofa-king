@@ -63,7 +63,8 @@ class AdultSwimClientTest {
                                 "the live HLS asset, not the VOD mp4",
                             )
                             assertEquals(
-                                "fields=title,type,duration,collection_title,poster,stream,title_id,auth,media_id,launch_date,auth_launch_date,disable_ads,season_number,episode_number",
+                                "fields=title,type,duration,collection_title,poster,stream,title_id,auth,media_id," +
+                                    "launch_date,auth_launch_date,disable_ads,season_number,episode_number",
                                 fixture.lastQuery["/api/shows/v1/videos/jqX79_YeQkm3I9kHJYGAXA"],
                             )
                             client.resolve("rick-and-morty")

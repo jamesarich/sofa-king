@@ -33,7 +33,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import kotlin.system.exitProcess
 
-/** What a setup write answers: the file it wrote, the starter policy when it wrote one too, and that the server is restarting to read them. */
+/**
+ * What a setup write answers: the file it wrote, the starter policy when it wrote one too, and that the
+ * server is restarting to read them.
+ */
 @Serializable data class SetupResult(val path: String, val restarting: Boolean, val policyPath: String? = null)
 
 /**
@@ -47,7 +50,10 @@ class SetupService(
     config: ServerConfig,
     private val restart: () -> Unit = ::exitForRestart,
     private val environment: Map<String, String> = System.getenv(),
-    /** Asks TMDB whether it takes a token, failing with [TmdbFailure]; the runtime passes a [dev.jamesrich.sofaking.backend.library.TmdbClient] check. */
+    /**
+     * Asks TMDB whether it takes a token, failing with [TmdbFailure]; the runtime passes a
+     * [dev.jamesrich.sofaking.backend.library.TmdbClient] check.
+     */
     private val checkTmdb: suspend (TmdbConfig) -> Unit = {},
 ) {
     private val log = LoggerFactory.getLogger(SetupService::class.java)

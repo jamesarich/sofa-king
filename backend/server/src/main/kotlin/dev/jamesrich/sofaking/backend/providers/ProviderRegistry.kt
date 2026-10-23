@@ -123,7 +123,10 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
 
     fun client(providerId: String): ProviderClient? = clients[providerId]
 
-    /** The provider's channels as a parsed playlist: ids derived like an M3U channel's, every offering behind `svc://` with the client's protocol. */
+    /**
+     * The provider's channels as a parsed playlist: ids derived like an M3U channel's, every offering behind
+     * `svc://` with the client's protocol.
+     */
     suspend fun channels(config: FeedConfig): ParsedPlaylist {
         val client =
             clients[config.id] ?: throw ProviderFailure("No client for provider ${config.id}", transient = false)

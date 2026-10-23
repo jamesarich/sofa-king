@@ -49,7 +49,10 @@ internal fun initialGuideRow(
     return visible.indexOfFirst { it.guideId == wanted }
 }
 
-/** True when the channel the player was left on is in the lineup but hidden by the filter or search, which then give way. */
+/**
+ * True when the channel the player was left on is in the lineup but hidden by the filter
+ * or search, which then give way.
+ */
 internal fun watchedIsHidden(returnedFrom: String?, visible: List<Channel>, all: List<Channel>): Boolean =
     returnedFrom != null && visible.none { it.guideId == returnedFrom } && all.any { it.guideId == returnedFrom }
 
@@ -112,7 +115,8 @@ internal class GuideState(
 ) {
     // The live window holds while now is inside it, so the grid does not jump every half hour; it rolls over
     // once the clock leaves it (a TV left on the guide for a day), along with the time cursor. The grid shows
-    // the live window or one a whole number of days after it (Fast Forward), which comes back to the live one when it rolls.
+    // the live window or one a whole number of days after it (Fast Forward), which comes back
+    // to the live one when it rolls.
     var liveStartSecond by liveStartSecond
         private set
     var dayOffset by dayOffset
@@ -206,7 +210,9 @@ internal class GuideState(
         return away >= REALIGN_AFTER && dayOffset == 0
     }
 
-    /** A cell took focus: the preview shows it, the first focus has landed, and a cursor outside it moves to its start. */
+    /**
+     * A cell took focus: the preview shows it, the first focus has landed, and a cursor outside it moves to its start.
+     */
     fun cellFocused(channel: Channel, cell: GuideCell) {
         focused = FocusedCell(channel, cell)
         initialFocusDone = true
@@ -256,7 +262,10 @@ internal class GuideState(
         if (searchOpen) closeSearch() else searchOpen = true
     }
 
-    /** The recognizer answered: the [spoken] words become the query and its first row takes focus; none leaves the field to type in. */
+    /**
+     * The recognizer answered: the [spoken] words become the query and its first row takes focus;
+     * none leaves the field to type in.
+     */
     fun voiceSearched(spoken: String?) {
         searchOpen = true
         if (spoken != null) {

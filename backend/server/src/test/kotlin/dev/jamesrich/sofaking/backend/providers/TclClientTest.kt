@@ -31,7 +31,8 @@ class TclClientTest {
         }
         json(
             "/api/metadata/v1/format-stream-url",
-            """{"stream_url":"$base/tcl/master.m3u8?device%5Bdid%5D=REPLACE_ME&ads.device_id=%7BDEVICE_ID%7D&ads.us_privacy=1YN-&ads.app_name=%7BAPP_NAME%7D&ads.ifa=%5BIFA%5D"}""",
+            """{"stream_url":"$base/tcl/master.m3u8?device%5Bdid%5D=REPLACE_ME&ads.device_id=%7BDEVICE_ID%7D&""" +
+                """ads.us_privacy=1YN-&ads.app_name=%7BAPP_NAME%7D&ads.ifa=%5BIFA%5D"}""",
         )
     }
 
@@ -111,7 +112,8 @@ class TclClientTest {
                         val resolved = client.resolve("XU233757")
                         val deviceId = store.providerState("tcl", ProviderContext.DEVICE_ID)!!.value
                         assertEquals(
-                            "${fixture.base}/tcl/master.m3u8?device%5Bdid%5D=REPLACE_ME&ads.device_id=$deviceId&ads.us_privacy=1YN-&ads.app_name=&ads.ifa=%5BIFA%5D",
+                            "${fixture.base}/tcl/master.m3u8?device%5Bdid%5D=REPLACE_ME&ads.device_id=$deviceId&" +
+                                "ads.us_privacy=1YN-&ads.app_name=&ads.ifa=%5BIFA%5D",
                             resolved.url,
                         )
                         assertEquals(clock.now.plus(Duration.ofHours(1)), resolved.expiresAt)

@@ -69,7 +69,10 @@ internal fun readSecretFiles(
 internal class SecretsFile(val path: Path, private val random: SecureRandom = SecureRandom()) {
     private val prettyJson = Json { prettyPrint = true }
 
-    /** The stored value of each of [names] (`apiToken`, `adminToken`, `outputToken`), generating and storing those missing; the second set names the generated ones. */
+    /**
+     * The stored value of each of [names] (`apiToken`, `adminToken`, `outputToken`), generating and storing those
+     * missing; the second set names the generated ones.
+     */
     fun resolve(names: List<String>): Pair<Map<String, String>, Set<String>> {
         val stored = read().toMutableMap()
         val generated = names.filter { it !in stored }.toSet()

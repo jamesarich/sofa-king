@@ -79,7 +79,8 @@ class RecordingScheduleTest {
                 seen.method == "POST" -> {
                     scheduled = true
                     json(
-                        """{"id":"r9","channelId":"c1","title":"Film","startsAt":"2026-10-18T20:00:00Z","endsAt":"2026-10-18T22:00:00Z","state":"scheduled"}""",
+                        """{"id":"r9","channelId":"c1","title":"Film","startsAt":"2026-10-18T20:00:""" +
+                            """00Z","endsAt":"2026-10-18T22:00:00Z","state":"scheduled"}""",
                         201,
                     )
                 }
@@ -92,7 +93,8 @@ class RecordingScheduleTest {
                 seen.path == "/api/v1/recordings" -> json(
                     if (scheduled) {
                         """{"recordings":[{"id":"r9","channelId":"c1","title":"Film",""" +
-                            """"startsAt":"2026-10-18T20:00:00Z","endsAt":"2026-10-18T22:00:00Z","state":"scheduled"}]}"""
+                            """"startsAt":"2026-10-18T20:00:00Z","endsAt":"2026-10-18T22:00:""" +
+                            """00Z","state":"scheduled"}]}"""
                     } else {
                         "{}"
                     },

@@ -32,11 +32,8 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
         val now = context.clock.instant()
         val programmes = ArrayList<GuideProgramme>()
         for (batch in ids.chunked(EPG_BATCH)) {
-            val url = "$epgUrl?channelIds=${batch.joinToString(
-                ",",
-            )}&startTime=${now.toEpochMilli()}&endTime=${now.plus(
-                EPG_HORIZON,
-            ).toEpochMilli()}&langCode=en&countryCode=US"
+            val url = "$epgUrl?channelIds=${batch.joinToString(",")}&startTime=${now.toEpochMilli()}&" +
+                "endTime=${now.plus(EPG_HORIZON).toEpochMilli()}&langCode=en&countryCode=US"
             val data = authorized { token -> context.http.get(url, HEADERS + ("token" to token)) }.json()["data"].array
             for (row in data) {
                 val channelId = row.str("chlId") ?: continue
@@ -91,7 +88,8 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
         }.json()
         val categories = payload["data"].array
         val result = LinkedHashMap<String, Listed>()
-        // Every channel also sits in the "All" bucket; the themed buckets name its group, "All" only catches stragglers.
+        // Every channel also sits in the "All" bucket; the themed buckets name its group,
+        // "All" only catches stragglers.
         for (category in categories.filterNot { it.str("ctgName") in UNGROUPED } +
             categories.filter { it.str("ctgName") in UNGROUPED }) {
             val group = category.str("ctgName")?.takeUnless { it in UNGROUPED }

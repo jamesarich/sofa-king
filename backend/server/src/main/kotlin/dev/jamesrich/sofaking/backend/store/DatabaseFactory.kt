@@ -53,9 +53,10 @@ internal fun closeDatabase(database: Database) {
 /**
  * Keeps one physical SQLite connection for the database's life and hands out sqlite-jdbc's pooled handles to it:
  * the close Exposed sends after each transaction returns the handle, and the physical connection, with its pragmas,
- * stays open. Every transaction on a connection runs on that connection's one thread, so a larger pool would buy nothing, while
- * opening a connection per transaction re-applies the pragmas and checkpoints the WAL each time the last one closes.
- * A handle that reports a connection error drops the physical connection, so the next transaction reopens it.
+ * stays open. Every transaction on a connection runs on that connection's one thread, so a larger pool would
+ * buy nothing, while opening a connection per transaction re-applies the pragmas and checkpoints the WAL
+ * each time the last one closes. A handle that reports a connection error drops the physical connection, so
+ * the next transaction reopens it.
  */
 internal class PinnedConnectionSource(private val delegate: SQLiteConnectionPoolDataSource) :
     DataSource,

@@ -8,7 +8,10 @@ suspend fun pollUntil(timeoutMillis: Long, everyMillis: Long = 20, done: suspend
     withTimeout(timeoutMillis) { while (!done()) delay(everyMillis) }
 }
 
-/** Reads [value] every [everyMillis] until it is not null and returns it; past [timeoutMillis] the wait fails with a timeout. */
+/**
+ * Reads [value] every [everyMillis] until it is not null and returns it; past [timeoutMillis]
+ * the wait fails with a timeout.
+ */
 suspend fun <T : Any> pollFor(timeoutMillis: Long, everyMillis: Long = 20, value: suspend () -> T?): T =
     withTimeout(timeoutMillis) {
         var current = value()

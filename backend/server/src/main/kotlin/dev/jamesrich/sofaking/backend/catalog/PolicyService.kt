@@ -136,7 +136,8 @@ class PolicyService(
         val health = store.allHealth()
         val previous = store.stationAvailability()
         val now = clock.instant()
-        // A first policy run counts the lineup it replaces as verified, so turning a policy on never hides channels already watched.
+        // A first policy run counts the lineup it replaces as verified, so turning a policy on never
+        // hides channels already watched.
         val seed = if (previous.isEmpty()) {
             lineup.entries().filter {
                 it.enabled && it.createdBy != "policy"
@@ -224,10 +225,9 @@ class PolicyService(
         val enabled = enabledChannels(result)
         val needed = sizing.needed(enabled)
         if (needed <= sizing.devices) return result.findings
-        return (
-            result.findings +
-                "hdhr: $enabled enabled stations need $needed devices of ${sizing.deviceSize} channels, ${sizing.devices} configured; add ports to SOFA_HDHR_EXTRA_PORTS"
-            ).sorted()
+        val finding = "hdhr: $enabled enabled stations need $needed devices of ${sizing.deviceSize} channels, " +
+            "${sizing.devices} configured; add ports to SOFA_HDHR_EXTRA_PORTS"
+        return (result.findings + finding).sorted()
     }
 
     /**
@@ -364,7 +364,8 @@ class PolicyService(
         }
         for ((from, to) in result.learned) log.info("lineup policy learned alias from={} to={}", from, to)
         log.info(
-            "lineup policy run cause={} stations={} changed={} changes={} assigned={} learned={} findings={} durationMs={}",
+            "lineup policy run cause={} stations={} changed={} changes={} assigned={} learned={} findings={} " +
+                "durationMs={}",
             cause, next.size, changed, changes.size, numbers.size, result.learned.size, findings.size,
             Duration.between(
                 started,

@@ -21,7 +21,10 @@ fun Route.plexRoutes(plex: PlexSync?) {
     post("/plex/sync") { call.respond(loaded().sync("api")) }
 }
 
-/** Who may reach the HDHomeRun emulation under the admin route: the lists and the refused clients, and the portal's list replaced. */
+/**
+ * Who may reach the HDHomeRun emulation under the admin route: the lists and the refused clients,
+ * and the portal's list replaced.
+ */
 fun Route.hdhrAccessRoutes(access: HdhrAccess, enabled: Boolean) {
     get("/hdhr/access") { call.respond(access.status(enabled)) }
     put("/hdhr/access") {

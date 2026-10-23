@@ -37,7 +37,8 @@ class XmltvProgrammeTest {
                 "<icon src=\"https://img.test/a.jpg?w=1&amp;h=2\"/>" +
                 "<episode-num system=\"xmltv_ns\">1.4.</episode-num><episode-num " +
                 "system=\"dd_progid\">EP01234567.0005</episode-num>" +
-                "<previously-shown start=\"20200101000000 +0000\"/><new/><rating system=\"VCHIP\"><value>TV-14</value></rating></programme>\n",
+                "<previously-shown start=\"20200101000000 +0000\"/><new/><rating " +
+                "system=\"VCHIP\"><value>TV-14</value></rating></programme>\n",
             xmltvProgramme("c", programme, "Kids & Family"),
         )
     }
@@ -45,7 +46,8 @@ class XmltvProgrammeTest {
     @Test fun `a programme without numbering keeps the group categories and the synthesized air date`() {
         assertEquals(
             head +
-                "<title>Morning</title><category lang=\"en\">News</category><episode-num system=\"original-air-date\">2026-10-10 13:00:00</episode-num></programme>\n",
+                "<title>Morning</title><category lang=\"en\">News</category><episode-num " +
+                "system=\"original-air-date\">2026-10-10 13:00:00</episode-num></programme>\n",
             xmltvProgramme("c", GuideProgramme("x", start, end, "Morning"), "News"),
         )
         assertEquals(
@@ -61,7 +63,8 @@ class XmltvProgrammeTest {
         val byGroup = xmltvProgramme("c", GuideProgramme("x", start, end, "Film"), "Movies")
         assertEquals(
             head +
-                "<title>Film</title><category lang=\"en\">Movie</category><category lang=\"en\">Movies</category></programme>\n",
+                "<title>Film</title><category lang=\"en\">Movie</category><category " +
+                "lang=\"en\">Movies</category></programme>\n",
             byGroup,
         )
         val bySource =

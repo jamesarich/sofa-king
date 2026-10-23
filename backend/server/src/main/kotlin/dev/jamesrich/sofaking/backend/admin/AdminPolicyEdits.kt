@@ -59,7 +59,9 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
-/** One edit to the policy file's JSON, named for the notice and the confirm step, and the page [section] it belongs to. */
+/**
+ * One edit to the policy file's JSON, named for the notice and the confirm step, and the page [section] it belongs to.
+ */
 internal class PolicyEdit(val describe: String, val section: String, val change: (JsonObject) -> JsonObject)
 
 private fun bad(message: String): Nothing = throw ApiFailure(400, "INVALID_REQUEST", message)
@@ -90,7 +92,10 @@ private fun MutableMap<String, JsonElement>.arrayAt(key: String, edit: (MutableL
 
 private fun category(raw: String): String = raw.trim().lowercase()
 
-/** The taxonomy edits the groups page offers: number blocks, the default group, the category map, the weak list and name patterns. */
+/**
+ * The taxonomy edits the groups page offers: number blocks, the default group, the category map,
+ * the weak list and name patterns.
+ */
 internal fun groupsEdit(form: Parameters): PolicyEdit = when (val op = form["op"]) {
     "block" -> {
         val group = form.text("group", "A group name")
@@ -216,7 +221,9 @@ internal fun groupsEdit(form: Parameters): PolicyEdit = when (val op = form["op"
     else -> bad("Unknown edit ${op ?: ""}".trim())
 }
 
-/** The provider-entry edits the providers page offers: order, the default for stations an entry leads, add and remove. */
+/**
+ * The provider-entry edits the providers page offers: order, the default for stations an entry leads, add and remove.
+ */
 internal fun providersEdit(form: Parameters, policy: LineupPolicy): PolicyEdit {
     val entries = policy.providers
     fun entryAt(index: Int) = entries.getOrNull(index) ?: bad("That provider entry is gone; reload the page")
@@ -349,7 +356,8 @@ internal fun FlowContent.confirmDialog(chrome: Chrome, confirm: Confirm?) {
             }
             if (confirm.stale) {
                 notice(
-                    "The policy changed since this page loaded, so nothing was saved. This is what the edit does against the policy as it is now.",
+                    "The policy changed since this page loaded, so nothing was saved. This is what the edit does " +
+                        "against the policy as it is now.",
                     tone = Tone.WARN,
                 )
             }
@@ -538,7 +546,8 @@ internal fun groupsPage(
 ): String = layout("Groups", chrome, "/admin/groups") {
     pageHead(
         "Groups",
-        "How stations are grouped and numbered. Each change is written into the lineup policy and applied; a change that moves channels asks first.",
+        "How stations are grouped and numbered. Each change is written into the lineup policy and applied; a change " +
+            "that moves channels asks first.",
     )
     if (view == null) {
         div("notice warn") {
@@ -552,9 +561,8 @@ internal fun groupsPage(
     panel("Groups and number blocks", id = "blocks", aside = {
         span("muted") {
             +(
-                "Blocks hold up to ${thousands(
-                    p.numbering.groupSize,
-                )} numbers; off stations number from ${thousands(p.numbering.floor)}" +
+                "Blocks hold up to ${thousands(p.numbering.groupSize)} numbers; off stations number from " +
+                    "${thousands(p.numbering.floor)}" +
                     if (p.numbering.followGroup) "; stations follow their group" else ""
                 )
         }
@@ -918,7 +926,10 @@ internal fun groupsPage(
     confirmDialog(chrome, confirm)
 }
 
-/** The providers page's policy section: the entries in priority order, with the edits that reorder, hide, add and remove them. */
+/**
+ * The providers page's policy section: the entries in priority order, with the edits that
+ * reorder, hide, add and remove them.
+ */
 internal fun MAIN.providerEntries(chrome: Chrome, view: ProvidersView, errors: EditErrors?, confirm: Confirm?) {
     val entries = view.entries ?: return
     val revision = view.revision ?: return

@@ -13,7 +13,10 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-/** `SOFA_TMDB_TOKEN` and `SOFA_TMDB_LANGUAGE`: TMDB lookups for movies and shows, in [language] (an IETF tag such as `en-US`). */
+/**
+ * `SOFA_TMDB_TOKEN` and `SOFA_TMDB_LANGUAGE`: TMDB lookups for movies and shows, in [language]
+ * (an IETF tag such as `en-US`).
+ */
 data class TmdbConfig(val token: String, val language: String = "en-US") {
     /** The country whose certification is the content rating: `US` for `en-US`. */
     val region: String get() = language.substringAfter('-', "US").uppercase()
@@ -21,7 +24,10 @@ data class TmdbConfig(val token: String, val language: String = "en-US") {
     override fun toString(): String = "TmdbConfig(token=****, language=$language)"
 }
 
-/** A failed TMDB call; [code] is a short class for job notes (`TMDB_AUTH`, `TMDB_RATE_LIMITED`, `TMDB_HTTP_500`), with no URL or token. */
+/**
+ * A failed TMDB call; [code] is a short class for job notes (`TMDB_AUTH`, `TMDB_RATE_LIMITED`,
+ * `TMDB_HTTP_500`), with no URL or token.
+ */
 class TmdbFailure(val code: String) : RuntimeException(code)
 
 private val tmdbJson = Json {

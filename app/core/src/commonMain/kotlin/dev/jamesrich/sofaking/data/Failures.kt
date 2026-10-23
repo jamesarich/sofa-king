@@ -22,6 +22,7 @@ internal fun <S> failedLoad(what: String, failure: Throwable, loaded: S?, failed
 
 /**
  * Logs a coroutine failure nothing else handles, such as a settings write the store refused, rather than letting it
- * crash the process. It applies to coroutines launched under a supervisor, as `viewModelScope` and the connection's scope are.
+ * crash the process. It applies to coroutines launched under a supervisor, as `viewModelScope`
+ * and the connection's scope are.
  */
 internal val logFailures = CoroutineExceptionHandler { _, e -> log.e(e) { "unhandled failure: ${e.describe()}" } }

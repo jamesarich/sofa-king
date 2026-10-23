@@ -131,10 +131,12 @@ class LineupStorageTest {
                     // What an import that died after writing part of the next generation leaves behind.
                     store.query {
                         exec(
-                            "INSERT INTO guide_channel(guide_id, generation, channel_id, display_name) VALUES ('g', 2, 'c9', 'Partial')",
+                            "INSERT INTO guide_channel(guide_id, generation, channel_id, display_name) VALUES ('g', " +
+                                "2, 'c9', 'Partial')",
                         )
                         exec(
-                            "INSERT INTO guide_programme(guide_id, generation, channel_id, starts_at, ends_at, title) VALUES ('g', 2, 'c0', ${t.epochSecond}, ${t.epochSecond + 60}, 'Partial')",
+                            "INSERT INTO guide_programme(guide_id, generation, channel_id, starts_at, ends_at, " +
+                                "title) VALUES ('g', 2, 'c0', ${t.epochSecond}, ${t.epochSecond + 60}, 'Partial')",
                         )
                     }
                     assertEquals(

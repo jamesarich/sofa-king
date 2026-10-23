@@ -48,9 +48,8 @@ class PlexSyncTest {
               {"key":"20","uuid":"${uuid("ABCDEF01")}","uri":"http://192.168.1.3:8080","title":null},
               {"key":"21","uuid":"${uuid("FFFF0000")}","uri":"http://192.168.1.9"},
               {"key":"22","uuid":"${uuid("12345678")}","uri":"http://192.168.1.3:8081"}]},
-            {"key":"11","lineup":"lineup://tv.plex.providers.epg.cloud/us","Device":{"key":"23","uuid":"${uuid(
-            "FFFF0001",
-        )}"}}]}}"""
+            {"key":"11","lineup":"lineup://tv.plex.providers.epg.cloud/us",
+              "Device":{"key":"23","uuid":"${uuid("FFFF0001")}"}}]}}"""
         val channelMaps = mutableMapOf(
             uuid("ABCDEF01") to
                 mappings(
@@ -86,9 +85,8 @@ class PlexSyncTest {
                         )
 
                         request.method == HttpMethod.Get && path == "/livetv/epg/channelmap" -> {
-                            val body = """{"MediaContainer":{"ChannelMapping":[${channelMaps[request.url.parameters["device"]].orEmpty().joinToString(
-                                ",",
-                            )}]}}"""
+                            val body = """{"MediaContainer":{"ChannelMapping":[""" +
+                                """${channelMaps[request.url.parameters["device"]].orEmpty().joinToString(",")}]}}"""
                             respond(body, headers = json(body))
                         }
 

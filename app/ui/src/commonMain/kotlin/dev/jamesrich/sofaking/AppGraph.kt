@@ -15,7 +15,8 @@ import kotlinx.coroutines.flow.first
 
 /**
  * The app's objects over a platform's [storage]: one settings store per file and one connection to the server it
- * names, shared by every ViewModel. They live as long as the process; the ViewModels, per screen host, read through them.
+ * names, shared by every ViewModel. They live as long as the process; the ViewModels, per
+ * screen host, read through them.
  */
 internal class AppGraph(
     private val storage: AppStorage,

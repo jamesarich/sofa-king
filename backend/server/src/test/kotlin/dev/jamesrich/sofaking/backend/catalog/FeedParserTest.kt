@@ -272,7 +272,8 @@ class FeedParserTest {
 
         val utf16 = (
             "\uFEFF" +
-                """<?xml version="1.0" encoding="UTF-16"?><tv><channel id="ü"><display-name>Ünïcode</display-name></channel></tv>"""
+                """<?xml version="1.0" encoding="UTF-16"?><tv><channel """ +
+                """id="ü"><display-name>Ünïcode</display-name></channel></tv>"""
             ).toByteArray(Charsets.UTF_16BE)
         val wide = FeedParser.guide(java.io.ByteArrayInputStream(utf16)) { true }
         assertEquals(GuideChannel("ü", "Ünïcode", null), wide.channels.single())
@@ -289,12 +290,14 @@ class FeedParserTest {
     @Test fun `XMLTV never fetches the DTD or resolves external entities`() {
         Fixture().use { fixture ->
             val external = FeedParser.guide(
-                """<!DOCTYPE tv SYSTEM "${fixture.base}/xmltv.dtd"><tv><channel id="a"><display-name>A</display-name></channel></tv>""",
+                """<!DOCTYPE tv SYSTEM "${fixture.base}/xmltv.dtd"><tv><channel """ +
+                    """id="a"><display-name>A</display-name></channel></tv>""",
             )
             assertEquals("A", external.channels.single().displayName, "an external DTD is skipped, not fetched")
 
             val parameter = FeedParser.guide(
-                """<!DOCTYPE tv [<!ENTITY % ext SYSTEM "${fixture.base}/xmltv.dtd"> %ext;]><tv><channel id="b"/></tv>""",
+                """<!DOCTYPE tv [<!ENTITY % ext SYSTEM "${fixture.base}/xmltv.dtd"> %ext;]><tv><channel """ +
+                    """id="b"/></tv>""",
             )
             assertEquals("b", parameter.channels.single().id, "a parameter entity in the internal subset is ignored")
 
@@ -305,7 +308,9 @@ class FeedParserTest {
             for (target in listOf("${fixture.base}/entity.txt", secret.toUri().toString())) {
                 val failure = assertFails {
                     FeedParser.guide(
-                        """<!DOCTYPE tv [<!ENTITY xxe SYSTEM "$target">]><tv><programme channel="station" start="20261010080000 +0000" stop="20261010090000 +0000"><title>&xxe;</title></programme></tv>""",
+                        """<!DOCTYPE tv [<!ENTITY xxe SYSTEM "$target">]><tv><programme channel="station" """ +
+                            """start="20261010080000 +0000" stop="20261010090000 """ +
+                            """+0000"><title>&xxe;</title></programme></tv>""",
                     )
                 }
                 assertTrue(
@@ -325,9 +330,9 @@ class FeedParserTest {
 <tv generator-info-name="synthetic"><channel id="kept"><display-name>Kept</display-name></channel><channel id="bulk"><display-name>Bulk</display-name></channel>
 <programme channel="kept" start="20261010080000 +0000" stop="20261010090000 +0000"><title>Kept programme</title></programme>
 """
-        val programme = """<programme channel="bulk" start="20261010080000 +0000" stop="20261010090000 +0000"><title>Bulk programme title</title><desc>${"x".repeat(
-            400,
-        )}</desc></programme>
+        val desc = "x".repeat(400)
+        val programme = """<programme channel="bulk" start="20261010080000 +0000" stop="20261010090000 +0000">""" +
+            """<title>Bulk programme title</title><desc>$desc</desc></programme>
 """
         val repeats = (110L shl 20) / programme.length + 1
         val input = SyntheticGuideStream(head.toByteArray(), programme.toByteArray(), repeats, "</tv>\n".toByteArray())
@@ -412,7 +417,8 @@ class FeedParserTest {
 
     @Test fun `guide icons are encoded and relative ones resolve against the guide`() {
         val xml = "<tv><channel id=\"a\"><display-name>A</display-name><icon src=\"/icons/a b.png\"/></channel>" +
-            "<channel id=\"b\"><icon src=\"http://i.test/b.png\"/></channel><channel id=\"c\"><icon src=\"c.png\"/></channel></tv>"
+            "<channel id=\"b\"><icon src=\"http://i.test/b.png\"/></channel><channel id=\"c\"><icon " +
+            "src=\"c.png\"/></channel></tv>"
         val guide = FeedParser.guide(xml.byteInputStream(), "http://g.test/epg/guide.xml") { true }
         assertEquals(
             listOf("http://g.test/icons/a%20b.png", "http://i.test/b.png", "http://g.test/epg/c.png"),
@@ -481,9 +487,8 @@ class FeedParserTest {
         }
         val xml =
             "<tv><programme channel=\"a\" start=\"20261010080000 +0000\" stop=\"20261010090000 " +
-                "+0000\"><title>T</title><sub-title>${"s".repeat(
-                    5000,
-                )}</sub-title><episode-num system=\"onscreen\">${"9".repeat(65)}</episode-num>$many</programme></tv>"
+                "+0000\"><title>T</title><sub-title>${"s".repeat(5000)}</sub-title><episode-num " +
+                "system=\"onscreen\">${"9".repeat(65)}</episode-num>$many</programme></tv>"
         val programme = FeedParser.guide(xml).programmes.single()
         assertEquals(GuideProgramme.TITLE_LIMIT, programme.subTitle!!.length)
         assertEquals(GuideProgramme.CATEGORY_LIMIT, programme.categories.size)

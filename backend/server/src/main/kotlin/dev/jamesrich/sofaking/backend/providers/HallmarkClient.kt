@@ -37,9 +37,8 @@ class HallmarkClient(private val context: ProviderContext) : ProviderClient {
             val contentId =
                 catalog[channel.identifier]?.first
                     ?: throw ProviderFailure("Hallmark catalog does not list ${channel.identifier}")
-            val url = "$apiBase/channels/$contentId/schedule?from=${TIMESTAMP.format(
-                from,
-            )}&until=${TIMESTAMP.format(from.plus(GUIDE_HORIZON))}&locale=en"
+            val url = "$apiBase/channels/$contentId/schedule?from=${TIMESTAMP.format(from)}&" +
+                "until=${TIMESTAMP.format(from.plus(GUIDE_HORIZON))}&locale=en"
             for (item in context.http.get(url, HEADERS).require("Hallmark schedule").json()["data"].array) {
                 val start = item["schedule"].str("startsAt")?.let(::instantOrNull) ?: continue
                 val end = item["schedule"].str("endsAt")?.let(::instantOrNull) ?: continue
@@ -92,7 +91,10 @@ class HallmarkClient(private val context: ProviderContext) : ProviderClient {
             "Referer" to "https://www.hallmarkplus.com/",
         )
 
-        /** The channels and their CDN hosts; the catalog's content ids have been renamed before, so only the identifier is trusted. */
+        /**
+         * The channels and their CDN hosts; the catalog's content ids have been renamed before, so
+         * only the identifier is trusted.
+         */
         private val KNOWN = listOf(
             Known("hallmark_hits", "HLIVE_HMH", "Non-Stop Hallmark Hits", "9001", "hits"),
             Known("hallmark_romcoms", "HLIVE_ROMCOM", "Non-Stop Rom-Coms", "9002", "nsrc"),

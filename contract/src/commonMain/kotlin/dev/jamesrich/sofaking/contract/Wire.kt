@@ -1,6 +1,9 @@
 package dev.jamesrich.sofaking.contract
 
-/** Values the server sends and clients branch on. They stay strings on the wire: a client reads an unknown one as its fallback. */
+/**
+ * Values the server sends and clients branch on. They stay strings on the wire: a client reads
+ * an unknown one as its fallback.
+ */
 object Wire {
     object Intent {
         const val PREVIEW = "preview"
@@ -91,7 +94,10 @@ object Wire {
         const val RECENT = "recent"
     }
 
-    /** How a server advertises itself on the LAN over mDNS (DNS-SD): this service type, the API's port, and a TXT record. */
+    /**
+     * How a server advertises itself on the LAN over mDNS (DNS-SD): this service type, the
+     * API's port, and a TXT record.
+     */
     object Discovery {
         const val SERVICE_TYPE = "_sofaking._tcp"
 

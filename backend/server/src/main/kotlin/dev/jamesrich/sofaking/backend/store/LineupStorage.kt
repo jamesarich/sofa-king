@@ -42,7 +42,10 @@ import java.time.Instant
 /** SQLite binds at most 32,766 variables per statement; multi-row inserts stay well under that. */
 private const val INSERT_CHUNK = 2000
 
-/** Rows a guide import writes or deletes per transaction: big enough to keep imports quick, small enough that other writes wait at most about a second. */
+/**
+ * Rows a guide import writes or deletes per transaction: big enough to keep imports quick, small enough that other
+ * writes wait at most about a second.
+ */
 private const val PROGRAMMES_PER_TRANSACTION = 20_000
 
 suspend fun BackendStore.lineup(): List<LineupEntryRecord> = read {
@@ -224,7 +227,8 @@ private suspend fun BackendStore.deleteGuideRows(guideId: String, except: Long?)
     while (true) {
         val deleted = query {
             exec(
-                "DELETE FROM guide_programme WHERE rowid IN (SELECT rowid FROM guide_programme WHERE guide_id = ? AND generation <> ? LIMIT ?)",
+                "DELETE FROM guide_programme WHERE rowid IN (SELECT rowid FROM guide_programme WHERE guide_id = ? " +
+                    "AND generation <> ? LIMIT ?)",
                 args,
             )
             exec("SELECT changes()") {

@@ -24,7 +24,10 @@ private const val MAX_DEPTH = 10
 /** One video file found under a library folder; [relative] uses `/` on every platform. */
 internal data class FoundFile(val relative: String, val size: Long, val modifiedAt: String)
 
-/** What a scan decided: rows new or changed since the last scan to write whole, ids newly missing, ids gone long enough to delete. */
+/**
+ * What a scan decided: rows new or changed since the last scan to write whole, ids newly missing,
+ * ids gone long enough to delete.
+ */
 class ScanPlan(
     val save: List<LibraryItemRecord>,
     val missing: List<String>,
@@ -91,7 +94,8 @@ class LibraryScanner(
                 }
             }.awaitAll()
         }
-        // A show or season takes the newest add time of what it holds, so a new episode brings its show up in Recently added.
+        // A show or season takes the newest add time of what it holds, so a new episode brings
+        // its show up in Recently added.
         val parents = items.associate { it.id to it.parentId }
         val newest = HashMap<String, String>()
         for (item in items) {
@@ -109,7 +113,8 @@ class LibraryScanner(
             old.missingSince?.let { Duration.between(Instant.parse(it), now) >= missingGrace } ==
                 true
         }.map { it.id }
-        // An unchanged row is not rewritten, so a rescan of a big library is not one long write on the database's only thread.
+        // An unchanged row is not rewritten, so a rescan of a big library is not one long write
+        // on the database's only thread.
         return ScanPlan(
             saved.filter {
                 it != byId[it.id]
@@ -241,7 +246,10 @@ class LibraryScanner(
         )
     }
 
-    /** Shows are the library's top folders (or the name before the numbers of a loose file), seasons their season folders. */
+    /**
+     * Shows are the library's top folders (or the name before the numbers of a loose
+     * file), seasons their season folders.
+     */
     private fun shows(libraryId: String, root: Path, files: List<FoundFile>): List<LibraryItemRecord> {
         val items = ArrayList<LibraryItemRecord>()
         val shows = LinkedHashMap<String, LibraryItemRecord>()

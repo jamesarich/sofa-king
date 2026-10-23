@@ -246,7 +246,10 @@ class IntroDetector(
         return IntroResult(read, failed, shows.size, intros, credits)
     }
 
-    /** [span] of an episode's end read from [tailStartMs], from the start of its file and taken to its end when close to it. */
+    /**
+     * [span] of an episode's end read from [tailStartMs], from the start of its file and
+     * taken to its end when close to it.
+     */
     private fun credits(span: IntroSpan, tailStartMs: Long, durationMs: Long?): IntroSpan {
         val end = tailStartMs + span.endMs
         return IntroSpan(

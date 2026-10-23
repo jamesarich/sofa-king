@@ -74,8 +74,8 @@ import kotlinx.serialization.Serializable
 /**
  * New numbers come from [floor] upward, or the leading channel's own number with [keepProviderNumbers]. With
  * [groups] (group to first number), a station takes the next free number in its group's block of [groupSize],
- * then the floor once the block is full; provider numbers are not kept. [assigned] lists, sorted, the station keys whose
- * number the server wrote; those numbers are reclaimed once the station has been gone for keepMissingDays.
+ * then the floor once the block is full; provider numbers are not kept. [assigned] lists, sorted, the station keys
+ * whose number the server wrote; those numbers are reclaimed once the station has been gone for keepMissingDays.
  */
 @Serializable data class PolicyNumbering(
     val floor: Int = 1000,
@@ -158,7 +158,9 @@ data class PolicyUnmappedCategory(val provider: String, val category: String, va
 /** A current entry the policy would not produce. */
 @Serializable data class PolicyRemoval(val key: String, val entryId: String, val name: String)
 
-/** Several current entries landing in one station ([entryIds] into [key]), or one entry spread over several stations. */
+/**
+ * Several current entries landing in one station ([entryIds] into [key]), or one entry spread over several stations.
+ */
 @Serializable data class PolicyRegrouping(val keys: List<String>, val entryIds: List<String>)
 
 /** What a run would change against the current lineup; nothing is written. */
@@ -175,7 +177,10 @@ data class PolicyUnmappedCategory(val provider: String, val category: String, va
     val counts: Map<String, Int> = emptyMap(),
     val findings: List<String> = emptyList(),
     val suggestedAliases: List<String> = emptyList(),
-    /** Aliases this run learned from matching schedules, `from` key to station key; an apply writes them to `names.learned`. */
+    /**
+     * Aliases this run learned from matching schedules, `from` key to station key; an apply
+     * writes them to `names.learned`.
+     */
     val learned: Map<String, String> = emptyMap(),
     /** With HDHomeRun range devices: the devices the enabled stations need, and the devices configured. */
     val devicesNeeded: Int? = null,

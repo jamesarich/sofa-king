@@ -307,7 +307,8 @@ class LibraryApiTest {
         val process = ProcessBuilder(
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-f", "lavfi", "-i",
             "testsrc2=size=320x180:rate=15",
-            // The frames carry the tags too: newer FFmpeg writes the filter graph's color properties, not the output options.
+            // The frames carry the tags too: newer FFmpeg writes the filter graph's color
+            // properties, not the output options.
             "-t", "2", "-vf", "setparams=color_trc=smpte2084:color_primaries=bt2020:colorspace=bt2020nc",
             "-pix_fmt", "yuv420p", "-c:v", "mpeg2video", "-color_trc", "smpte2084", "-color_primaries", "bt2020",
             "-colorspace", "bt2020nc",

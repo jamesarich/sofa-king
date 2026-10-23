@@ -86,7 +86,10 @@ internal class UserDefaultsStorage(private val defaults: NSUserDefaults, private
     }
 }
 
-/** Moves the preferences an older build kept in the DataStore file [file] under Caches into the new store, then deletes it. */
+/**
+ * Moves the preferences an older build kept in the DataStore file [file] under Caches into
+ * the new store, then deletes it.
+ */
 internal class CachesFileMigration(private val file: Path) : DataMigration<Preferences> {
     override suspend fun shouldMigrate(currentData: Preferences): Boolean = SystemFileSystem.exists(file)
 

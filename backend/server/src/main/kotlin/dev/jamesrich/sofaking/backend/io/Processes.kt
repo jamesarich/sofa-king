@@ -11,7 +11,8 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * Starts the process and returns it; a caller canceled while it forks gets the cancellation and the process is ended,
- * since the result of a dispatcher switch is dropped on a canceled return. Forking blocks, so it runs on [Dispatchers.IO].
+ * since the result of a dispatcher switch is dropped on a canceled return. Forking blocks,
+ * so it runs on [Dispatchers.IO].
  */
 internal suspend fun ProcessBuilder.startOwned(): Process {
     var started: Process? = null
@@ -36,7 +37,9 @@ internal suspend fun ProcessBuilder.runFor(timeout: Duration): Int? {
     }
 }
 
-/** Asks the process to end, kills it when it has not within [grace], and waits for the exit without blocking a thread. */
+/**
+ * Asks the process to end, kills it when it has not within [grace], and waits for the exit without blocking a thread.
+ */
 internal suspend fun Process.terminate(grace: Duration = 2.seconds) {
     if (!isAlive) return
     withContext(NonCancellable) {

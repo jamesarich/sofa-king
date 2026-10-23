@@ -18,7 +18,8 @@ internal actual fun rememberIsTelevision(): Boolean = false
 internal actual fun rememberSystem24HourClock(): Boolean = remember { !localeUsesTwelveHourClock() }
 
 private fun localeUsesTwelveHourClock(): Boolean = js(
-    "(function () { try { var o = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions(); return o.hour12 === true || o.hourCycle === 'h12' || o.hourCycle === 'h11'; } catch (e) { return true; } })()",
+    "(function () { try { var o = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions(); return " +
+        "o.hour12 === true || o.hourCycle === 'h12' || o.hourCycle === 'h11'; } catch (e) { return true; } })()",
 )
 
 /** Browsers do not report a touch-exploring screen reader; the preview may open full screen. */

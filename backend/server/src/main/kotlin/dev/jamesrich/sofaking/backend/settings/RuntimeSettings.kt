@@ -95,14 +95,13 @@ data class RuntimeValues(
                 throw ApiFailure(
                     400,
                     "INVALID_REQUEST",
-                    "$LEARNED_BREAKS must be one of ${LearnedBreaks.entries.joinToString {
-                        it.setting
-                    }}",
+                    "$LEARNED_BREAKS must be one of ${LearnedBreaks.entries.joinToString { it.setting }}",
                 )
             }
             val sessions = int(MAX_SESSIONS, environment.maxSessions, 1..16)
             val tuners = int(HDHR_TUNERS, environment.hdhrTuners, 1..16)
-            // The environment's own pair is the server's to live with (startup validated it); only a saved value is held to the rule.
+            // The environment's own pair is the server's to live with (startup validated it); only a
+            // saved value is held to the rule.
             if ((HDHR_TUNERS in overrides || MAX_SESSIONS in overrides) && tuners > sessions) {
                 throw ApiFailure(
                     400,

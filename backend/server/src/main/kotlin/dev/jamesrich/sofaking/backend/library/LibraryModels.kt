@@ -102,7 +102,10 @@ data class ScanResult(
     }
 }
 
-/** What TMDB says about a movie, show, season or episode; [poster] and [backdrop] are TMDB image paths such as `/abc.jpg`. */
+/**
+ * What TMDB says about a movie, show, season or episode; [poster] and [backdrop] are TMDB
+ * image paths such as `/abc.jpg`.
+ */
 @Serializable
 data class MetadataFacts(
     val title: String? = null,

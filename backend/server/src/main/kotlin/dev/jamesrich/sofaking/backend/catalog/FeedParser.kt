@@ -36,7 +36,10 @@ data class ParsedPlaylist(
     }.joinToString(", ") { "${it.key}=${it.value}" }.ifEmpty { null }
 }
 
-/** [controlCharacters] counts bytes XML 1.0 forbids (C0 controls other than tab, LF and CR) that were dropped before parsing. */
+/**
+ * [controlCharacters] counts bytes XML 1.0 forbids (C0 controls other than tab, LF and CR)
+ * that were dropped before parsing.
+ */
 data class ParsedGuide(
     val channels: List<GuideChannel>,
     val programmes: List<GuideProgramme>,

@@ -32,7 +32,10 @@ internal class AdMarks(private val limit: Int = 256) {
     private val durations = ArrayList<Long>()
     private val runs = ArrayList<Run>()
 
-    /** Adds one window: its [tags], its segments numbered from [mediaSequence], starting at [startsMs] and lasting [durationsMs]. */
+    /**
+     * Adds one window: its [tags], its segments numbered from [mediaSequence], starting at
+     * [startsMs] and lasting [durationsMs].
+     */
     fun add(tags: List<String>, mediaSequence: Long, startsMs: List<Long>, durationsMs: List<Long>) {
         if (startsMs.isEmpty() || startsMs.size != durationsMs.size) return
         val offset = mediaSequence - first

@@ -27,7 +27,10 @@ import platform.UIKit.UIApplicationOpenSettingsURLString
 @Composable
 internal actual fun rememberIsTelevision(): Boolean = false
 
-/** The current locale's hour template: a pattern without an AM/PM marker means a 24-hour clock, which iOS's own setting feeds. */
+/**
+ * The current locale's hour template: a pattern without an AM/PM marker means a 24-hour clock,
+ * which iOS's own setting feeds.
+ */
 @Composable
 internal actual fun rememberSystem24HourClock(): Boolean = remember {
     val pattern = NSDateFormatter.dateFormatFromTemplate("j", 0u, NSLocale.currentLocale) ?: ""

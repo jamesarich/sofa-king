@@ -43,7 +43,8 @@ import java.util.concurrent.ConcurrentHashMap
  * keys come back to the lease too. FFmpeg so connects nowhere but here, and never holds the provider's headers.
  *
  * The listener binds 127.0.0.1 on a port of its own, started with the first lease, so its one route is no part of the
- * public routes or the API, and nothing off this machine reaches it. An unknown lease or a wrong credential answers 401.
+ * public routes or the API, and nothing off this machine reaches it. An unknown lease or a
+ * wrong credential answers 401.
  */
 class LoopbackRelay(
     private val http: HttpClient,
@@ -91,8 +92,8 @@ class LoopbackRelay(
     fun active(): Int = leases.size
 
     /**
-     * Runs [block] with a lease on [stream], whose [protocol] names the root's suffix; the lease ends with the block, and
-     * any request FFmpeg makes after that answers 401.
+     * Runs [block] with a lease on [stream], whose [protocol] names the root's suffix; the lease ends with the block,
+     * and any request FFmpeg makes after that answers 401.
      */
     suspend fun <T> reading(stream: ResolvedStream, protocol: String, block: suspend (FfmpegSource) -> T): T {
         val port = start()
@@ -144,7 +145,8 @@ class LoopbackRelay(
 
                     cause is ApiFailure -> call.respond(HttpStatusCode.fromValue(cause.status))
 
-                    // A 4xx other than 401, 403 and 429, so a probe counts a source that points at a refused address against the source.
+                    // A 4xx other than 401, 403 and 429, so a probe counts a source that points at a
+                    // refused address against the source.
                     cause is UpstreamRejectedException -> call.respond(HttpStatusCode.UnprocessableEntity)
 
                     clientAbort(cause) -> {}
@@ -170,7 +172,8 @@ class LoopbackRelay(
                         return@get
                     }
                 permits.withPermit {
-                    // FFmpeg's own messages name the status, which the probe's failure classes read; so it gets the upstream's.
+                    // FFmpeg's own messages name the status, which the probe's failure classes
+                    // read; so it gets the upstream's.
                     relayResource(http, policy, call, url, lease.stream, path = lease::path, refused = { status ->
                         throw ApiFailure(
                             if (status in
@@ -189,7 +192,10 @@ class LoopbackRelay(
         }
     }
 
-    /** Stops the listener, unless Ktor's shutdown hook already has; the server is shutting down, after every FFmpeg has been killed. */
+    /**
+     * Stops the listener, unless Ktor's shutdown hook already has; the server is shutting down,
+     * after every FFmpeg has been killed.
+     */
     fun close() {
         closed = true
         server?.let { running ->

@@ -81,10 +81,16 @@ class BackendStore internal constructor(
     private val closed = AtomicBoolean(false)
     private val policy = HealthPolicy()
 
-    /** Mirror of provider_state; [ProviderStateStorage] replaces entries after each commit, so a tune never reads SQLite for it. */
+    /**
+     * Mirror of provider_state; [ProviderStateStorage] replaces entries after each commit, so a
+     * tune never reads SQLite for it.
+     */
     internal val providerStates = AtomicReference<Map<Pair<String, String>, ProviderStateValue>>(emptyMap())
 
-    /** Mirror of offering_health; only [writeHealth] replaces it, after the DB commit, so health reads never touch SQLite. */
+    /**
+     * Mirror of offering_health; only [writeHealth] replaces it, after the DB commit, so
+     * health reads never touch SQLite.
+     */
     private val healthSnapshot = AtomicReference<Map<String, HealthState>>(emptyMap())
 
     /** The table's state at open and the writes since, so [healthVersion] never queries SQLite on the catalog route. */
@@ -173,7 +179,10 @@ class BackendStore internal constructor(
             }
         }
 
-    /** Deletes observation history older than [before]; health state and strikes live in offering_health and are unaffected. */
+    /**
+     * Deletes observation history older than [before]; health state and strikes live in
+     * offering_health and are unaffected.
+     */
     suspend fun pruneObservations(before: Instant): Int = query {
         HealthObservations.deleteWhere { observedAt less before.toString() }
     }
@@ -251,7 +260,10 @@ class BackendStore internal constructor(
         }
     }
 
-    /** The last Plex sync's status, kept so it outlives a restart; null before the first sync or when it no longer decodes. */
+    /**
+     * The last Plex sync's status, kept so it outlives a restart; null before the first
+     * sync or when it no longer decodes.
+     */
     suspend fun plexStatus(): PlexStatus? {
         val encoded =
             query { Metadata.selectAll().where { Metadata.key eq PLEX_STATUS_KEY }.singleOrNull()?.get(Metadata.value) }
@@ -332,7 +344,10 @@ class BackendStore internal constructor(
         }
     }
 
-    /** Runs [block] in one transaction, then [publish] on the same thread after the commit, so mirrors change in commit order. */
+    /**
+     * Runs [block] in one transaction, then [publish] on the same thread after the commit, so
+     * mirrors change in commit order.
+     */
     internal suspend fun <T> queryThen(block: JdbcTransaction.() -> T, publish: (T) -> Unit): T = databaseWork {
         timed(block) {
             transaction(database) {
@@ -356,7 +371,10 @@ class BackendStore internal constructor(
         }
     }
 
-    /** Logs a transaction that held its connection for longer than [SLOW_TRANSACTION_MS], named by the file its block is in. */
+    /**
+     * Logs a transaction that held its connection for longer than [SLOW_TRANSACTION_MS],
+     * named by the file its block is in.
+     */
     private inline fun <T> timed(block: Any, work: () -> T): T {
         val started = System.nanoTime()
         try {

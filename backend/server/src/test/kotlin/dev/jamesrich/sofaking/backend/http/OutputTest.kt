@@ -63,7 +63,10 @@ class OutputTest {
         val channels: List<Channel>,
     )
 
-    /** The fixture's HLS station (5, News, guided) and TS station (6) adopted into the lineup, served with the output token. */
+    /**
+     * The fixture's HLS station (5, News, guided) and TS station (6) adopted into the
+     * lineup, served with the output token.
+     */
     private suspend fun ApplicationTestBuilder.serve(
         fixture: Fixture,
         dir: java.nio.file.Path,
@@ -127,11 +130,13 @@ class OutputTest {
                     val body = playlist.bodyAsText()
                     val lines = body.lines()
                     assertEquals(
-                        "#EXTM3U url-tvg=\"$base/output/guide.xml?token=$output\" x-tvg-url=\"$base/output/guide.xml?token=$output\"",
+                        "#EXTM3U url-tvg=\"$base/output/guide.xml?token=$output\" " +
+                            "x-tvg-url=\"$base/output/guide.xml?token=$output\"",
                         lines[0],
                     )
                     assertEquals(
-                        "#EXTINF:-1 tvg-id=\"${hls.id}\" tvg-chno=\"5\" tvg-name=\"Station\" group-title=\"News\",Station",
+                        "#EXTINF:-1 tvg-id=\"${hls.id}\" tvg-chno=\"5\" tvg-name=\"Station\" " +
+                            "group-title=\"News\",Station",
                         lines[1],
                     )
                     assertEquals("$base/output/stream/${hls.id}.m3u8?token=$output", lines[2])
@@ -149,19 +154,22 @@ class OutputTest {
                     assertTrue(xml.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<tv "))
                     assertTrue(
                         xml.contains(
-                            "<channel id=\"${hls.id}\"><display-name>Station</display-name><display-name>5</display-name></channel>",
+                            "<channel id=\"${hls.id}\"><display-name>Station</display-name><display-name>5</" +
+                                "display-name></channel>",
                         ),
                     )
                     assertTrue(
                         xml.contains(
-                            "<channel id=\"${ts.id}\"><display-name>TS Station</display-name><display-name>6</display-name></channel>",
+                            "<channel id=\"${ts.id}\"><display-name>TS " +
+                                "Station</display-name><display-name>6</display-name></channel>",
                         ),
                     )
                     assertTrue(
                         xml.contains(
                             "<programme start=\"20261010130000 +0000\" stop=\"20261010140000 +0000\" " +
                                 "channel=\"${hls.id}\"><title>Morning</title>" +
-                                "<category lang=\"en\">News</category><episode-num system=\"original-air-date\">2026-10-10 13:00:00</episode-num></programme>",
+                                "<category lang=\"en\">News</category><episode-num " +
+                                "system=\"original-air-date\">2026-10-10 13:00:00</episode-num></programme>",
                         ),
                     )
                     assertFalse(xml.contains("Elsewhere"))
@@ -169,7 +177,8 @@ class OutputTest {
                         xml.contains(
                             "<programme start=\"20261010100000 +0000\" stop=\"20261010110000 +0000\" " +
                                 "channel=\"${ts.id}\"><title>TS Station</title>" +
-                                "<category lang=\"en\">Series</category><episode-num system=\"original-air-date\">2026-10-10 10:00:00</episode-num></programme>",
+                                "<category lang=\"en\">Series</category><episode-num " +
+                                "system=\"original-air-date\">2026-10-10 10:00:00</episode-num></programme>",
                         ),
                         "a channel with no programmes gets hourly placeholders",
                     )

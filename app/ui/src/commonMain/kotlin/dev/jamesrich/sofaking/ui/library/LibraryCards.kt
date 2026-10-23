@@ -310,7 +310,9 @@ private fun cardLabel(title: String, subtitle: String?): String = listOfNotNull(
     },
 ).joinToString(", ")
 
-/** A poster's second line: a show's season or episode count would need the details, so the year, or the episode number. */
+/**
+ * A poster's second line: a show's season or episode count would need the details, so the year, or the episode number.
+ */
 private fun posterSubtitle(item: MediaItem): String? = item.episodeLabel ?: item.year?.toString()
 
 /** The remote's Play and Play/Pause keys start [onPlay], as Plex does on its cards; OK still opens the details. */

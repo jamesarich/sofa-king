@@ -36,7 +36,9 @@ import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** Buttons that turn off or go away under a D-pad press keep focus on the page instead of dropping it to another row. */
+/**
+ * Buttons that turn off or go away under a D-pad press keep focus on the page instead of dropping it to another row.
+ */
 @OptIn(ExperimentalTestApi::class)
 class SettingsButtonFocusTest {
     private fun ComposeUiTest.show(content: @Composable () -> Unit) {

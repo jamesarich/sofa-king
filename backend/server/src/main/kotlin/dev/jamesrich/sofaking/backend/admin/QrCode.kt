@@ -34,8 +34,7 @@ internal fun qrSvg(text: String, title: String): String {
             ).append(' ').append(y).append('h').append(x - start).append("v1h-").append(x - start).append('z')
         }
     }
-    return """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${matrix.width} ${matrix.height}" role="img" aria-label="${xml(
-        title,
-    )}" shape-rendering="crispEdges">""" +
+    return """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${matrix.width} ${matrix.height}" role="img" """ +
+        """aria-label="${xml(title)}" shape-rendering="crispEdges">""" +
         """<rect width="${matrix.width}" height="${matrix.height}" fill="#fff"/><path fill="#000" d="$path"/></svg>"""
 }

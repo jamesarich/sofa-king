@@ -101,7 +101,9 @@ data class UpdateRecording(val protected: Boolean? = null, val positionMs: Long?
     val priority: Int = 0,
 )
 
-/** `PATCH /api/v1/recording-rules/{id}`: each set field replaces the stored one; [anyChannel] true clears the channel. */
+/**
+ * `PATCH /api/v1/recording-rules/{id}`: each set field replaces the stored one; [anyChannel] true clears the channel.
+ */
 @Serializable data class UpdateRecordingRule(
     val channelId: String? = null,
     val anyChannel: Boolean? = null,

@@ -100,7 +100,8 @@ class HdhrStreamTest {
                                 assertEquals(1, stack.runtime.remux.active())
                                 assertEquals(1, stack.runtime.sessions.count())
                                 assertEquals(1, ffmpegChildren())
-                                // Longer than the player idle lease would matter for: the request itself holds the session.
+                                // Longer than the player idle lease would matter for: the
+                                // request itself holds the session.
                                 delay(2500)
                                 val later = body.readHead(188 * 5)
                                 assertEquals(1, stack.runtime.sessions.count())

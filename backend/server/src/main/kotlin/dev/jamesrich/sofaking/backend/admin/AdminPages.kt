@@ -261,7 +261,9 @@ internal class PlexView(
     val access: HdhrAccessStatus? = null,
 )
 
-/** A configured provider: its import status, what kind it is, and the policy entries that take its channels, by index. */
+/**
+ * A configured provider: its import status, what kind it is, and the policy entries that take its channels, by index.
+ */
 internal class ProviderRow(
     val status: ProviderStatus,
     val kind: String,
@@ -388,7 +390,8 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
             }
         }
     }
-    // A server with a lineup made by hand is set up in its own way; the steps stay only while there is nothing to watch.
+    // A server with a lineup made by hand is set up in its own way; the steps stay only
+    // while there is nothing to watch.
     view.setup?.takeIf {
         !it.hasSources || (!it.hasPolicy && view.stations == 0)
     }?.let { setupCards(chrome, it, view.providersTotal) }
@@ -435,9 +438,10 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
             span("label") { +"Guide coverage" }
             span("value") { +"${view.guide.percent}%" }
             span("sub") {
-                +"${thousands(
-                    view.guide.available,
-                )} of ${thousands(view.guide.total)} on-air channels have programs ahead"
+                +(
+                    "${thousands(view.guide.available)} of ${thousands(view.guide.total)} on-air channels have " +
+                        "programs ahead"
+                    )
             }
         }
         val plex = view.plex
@@ -662,7 +666,8 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
                 +(
                     "Sent counts the bytes relayed to the player over a live session. Direct play serves the file as " +
                         "it " +
-                        "is; remux and transcode run FFmpeg, and transcodes count toward the conversion limit. Stop ends the session; the player sees its stream end and may open a new one."
+                        "is; remux and transcode run FFmpeg, and transcodes count toward the conversion limit. Stop " +
+                        "ends the session; the player sees its stream end and may open a new one."
                     )
             }
         }
@@ -722,7 +727,9 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
                 +(
                     "Writes a lineup policy: one station per channel, the first service that carries a channel " +
                         "leading " +
-                        "it and the others as fallbacks, the channels grouped and numbered in blocks, each coming on once a source of it has played. Then the server restarts and is back in a few seconds; you stay signed in."
+                        "it and the others as fallbacks, the channels grouped and numbered in blocks, each coming on " +
+                        "once a source of it has played. Then the server restarts and is back in a few seconds; " +
+                        "you stay signed in."
                     )
             }
             p("muted small") { +"The policy is a file you can edit later, and the Channels pages change it for you." }
@@ -938,7 +945,8 @@ internal fun lineupPage(chrome: Chrome, view: LineupView): String = layout("Chan
         }
     } else {
         div("panel tight") {
-            // The row checkboxes belong to this form through their form attribute, so the row actions stay their own forms.
+            // The row checkboxes belong to this form through their form attribute, so the
+            // row actions stay their own forms.
             form(action = "/admin/lineup/bulk", method = FormMethod.post, classes = "bulk") {
                 id = "bulk"
                 attributes["aria-label"] = "Selected channels"
@@ -1438,7 +1446,8 @@ internal fun mergesPage(chrome: Chrome, view: MergesView?, error: String? = null
     layout("Merges", chrome, "/admin/merges") {
         pageHead(
             "Merges",
-            "Stations that are probably one channel under two names. Accepting writes an alias into the policy; dismissing or never merging keeps the pair apart for good. Each choice applies the policy.",
+            "Stations that are probably one channel under two names. Accepting writes an alias into the policy; " +
+                "dismissing or never merging keeps the pair apart for good. Each choice applies the policy.",
         )
         if (view == null) {
             noPolicy("Merging stations")
@@ -1678,9 +1687,10 @@ internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() 
         }
         panel("Channel providers", id = "imports", aside = {
             span("muted") {
-                +"${view.rows.count {
-                    it.status.errorCode == null && it.status.lastSuccessAt != null
-                }} of ${view.rows.size} importing"
+                +(
+                    "${view.rows.count { it.status.errorCode == null && it.status.lastSuccessAt != null }} of " +
+                        "${view.rows.size} importing"
+                    )
             }
         }) {
             div("scroll") {
@@ -1780,7 +1790,8 @@ internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() 
 internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex", chrome, "/admin/plex") {
     pageHead(
         "Plex and other players",
-        "Plex reaches the lineup through emulated HDHomeRun tuners; other players take the M3U playlist and XMLTV guide.",
+        "Plex reaches the lineup through emulated HDHomeRun tuners; other players take the M3U playlist and XMLTV " +
+            "guide.",
     )
     tabs(chrome, "/admin/plex", PLAYER_TABS)
     panel("Plex sync", id = "sync") {
@@ -1857,9 +1868,10 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex", c
             return@panel
         }
         p {
-            +"${thousands(
-                view.enabledChannels,
-            )} channels on, across ${plural(view.devices.size, "device")} of up to ${view.tuners} streams each"
+            +(
+                "${thousands(view.enabledChannels)} channels on, across ${plural(view.devices.size, "device")} of up " +
+                    "to ${view.tuners} streams each"
+                )
             if (view.devicesNeeded != null) {
                 +"; the lineup needs ${view.devicesNeeded}. "
                 if (view.devicesNeeded > view.devices.size) {
@@ -1954,7 +1966,8 @@ private fun DIV.tunerAccess(access: HdhrAccessStatus, chrome: Chrome) {
         p { +"Every address may use the tuners: the server listens on this host only." }
     } else if (access.configured.isEmpty() && access.allowed.isEmpty()) {
         notice(
-            "No address may use the tuners yet. Allow the Plex server's address below, or add the tuner in Plex and allow the address it is refused from.",
+            "No address may use the tuners yet. Allow the Plex server's address below, or add the tuner in Plex and " +
+                "allow the address it is refused from.",
             tone = Tone.WARN,
         )
     }

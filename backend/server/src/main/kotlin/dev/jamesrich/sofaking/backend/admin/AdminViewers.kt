@@ -52,7 +52,8 @@ internal fun viewersPage(chrome: Chrome, view: ViewersView): String = layout("De
     val now = chrome.now
     pageHead(
         "Devices",
-        "The devices running the Sofa King app against this server: pair a new one with a code instead of typing the API token, and see what each keeps on this server.",
+        "The devices running the Sofa King app against this server: pair a new one with a code instead of typing the " +
+            "API token, and see what each keeps on this server.",
     )
     tabs(chrome, "/admin/viewers", PLAYER_TABS)
     panel("Pair a device", id = "pair") {
@@ -188,7 +189,8 @@ internal fun viewersPage(chrome: Chrome, view: ViewersView): String = layout("De
             +(
                 "Hidden channels, the favorites order and the recent list are the device's own; the lineup every " +
                     "device " +
-                    "sees is on the Channels page. Forget drops what the server keeps for a device; the device keeps its settings and saves them again on its next change."
+                    "sees is on the Channels page. Forget drops what the server keeps for a device; the device keeps " +
+                    "its settings and saves them again on its next change."
                 )
         }
     }

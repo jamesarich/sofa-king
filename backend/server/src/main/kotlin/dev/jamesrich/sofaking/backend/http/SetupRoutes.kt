@@ -13,8 +13,9 @@ import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 
 /**
- * Setup under the admin route: the source file as written and its replacement, the starter policy, and the TMDB token. A write
- * restarts the server once the response is sent, since providers and the policy are built from the files at start.
+ * Setup under the admin route: the source file as written and its replacement, the starter policy, and the
+ * TMDB token. A write restarts the server once the response is sent, since providers and the policy are
+ * built from the files at start.
  */
 fun Route.setupRoutes(setup: SetupService?) {
     fun service(): SetupService =

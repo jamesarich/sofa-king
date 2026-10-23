@@ -18,7 +18,9 @@ import kotlin.time.Duration.Companion.milliseconds
 
 class CommercialsTest {
     companion object {
-        /** A stand-in for Comskip that writes [edl] for its input into the `--output` folder, the way Comskip names it. */
+        /**
+         * A stand-in for Comskip that writes [edl] for its input into the `--output` folder, the way Comskip names it.
+         */
         fun fakeComskip(dir: Path, edl: String, exit: Int = 0): Path {
             val script = dir.resolve("comskip-$exit.sh")
             Files.writeString(
@@ -111,7 +113,10 @@ class CommercialsTest {
             }
         }
 
-    /** Real Comskip on a programme, three 30-second ads between black frames, and the programme again; skipped without Comskip. */
+    /**
+     * Real Comskip on a programme, three 30-second ads between black frames, and the programme
+     * again; skipped without Comskip.
+     */
     @Test fun `Comskip finds the ad block in a generated recording`() = runBlocking<Unit> {
         assumeTrue(
             runCatching {

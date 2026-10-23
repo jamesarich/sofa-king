@@ -282,7 +282,8 @@ class StationBuilderTest {
         assertTrue(
             kept.findings.any {
                 it ==
-                    "nfl network: required source missing: masq/tvg-id:NFLNetwork.us; keeping 1 last known sources of retained channel m1"
+                    "nfl network: required source missing: masq/tvg-id:NFLNetwork.us; keeping 1 last known sources " +
+                    "of retained channel m1"
             },
             "${kept.findings}",
         )

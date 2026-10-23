@@ -86,7 +86,9 @@ class MediaRelay(
         }
     }
 
-    /** LL-HLS players append delivery directives to the playlist URL they were given; forward them to the real playlist. */
+    /**
+     * LL-HLS players append delivery directives to the playlist URL they were given; forward them to the real playlist.
+     */
     private fun withDeliveryDirectives(url: String, call: ApplicationCall): String {
         val directives =
             listOf("_HLS_msn", "_HLS_part", "_HLS_skip").mapNotNull { name ->
@@ -96,7 +98,9 @@ class MediaRelay(
         return url + (if (URI(url).rawQuery == null) "?" else "&") + directives.joinToString("&")
     }
 
-    /** The descriptor promised one protocol and the body carries the other: bump the epoch so the player re-reads it. */
+    /**
+     * The descriptor promised one protocol and the body carries the other: bump the epoch so the player re-reads it.
+     */
     private suspend fun protocolMismatch(id: String, epoch: Int, job: Job, protocol: String): Nothing {
         sessions.protocolObserved(id, epoch, protocol, job)
         throw ApiFailure(
@@ -168,7 +172,8 @@ class MediaRelay(
         resource: MediaResource,
         stream: ResolvedStream,
     ) {
-        // The root token maps to the offering's own URL, which for a native source is the resolved one; children are absolute already.
+        // The root token maps to the offering's own URL, which for a native source is the resolved one;
+        // children are absolute already.
         val root = resource.url == resource.offering.url
         val url = if (root) stream.url else resource.url
         val ads = resource.ads
@@ -207,7 +212,10 @@ private const val SEGMENT_READ = 64 * 1024
 /** The most of a segment kept for [TappedSegment.bytes]; a longer one is not kept. */
 private const val SEGMENT_KEEP_LIMIT = 32 * 1024 * 1024
 
-/** What [relayResource] read from a transport stream segment: its SCTE-35 [cues], and its [bytes] when asked to keep them. */
+/**
+ * What [relayResource] read from a transport stream segment: its SCTE-35 [cues], and its
+ * [bytes] when asked to keep them.
+ */
 internal class TappedSegment(val cues: SegmentCues, val bytes: ByteArray?)
 
 /** A gzip-encoded resource is buffered to be inflated; keys are bytes, anything near this is not a key. */

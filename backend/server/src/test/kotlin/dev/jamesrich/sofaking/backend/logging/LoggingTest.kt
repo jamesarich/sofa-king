@@ -68,7 +68,8 @@ class LoggingTest {
         assertTrue(
             lines[0].matches(
                 Regex(
-                    """\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z INFO  \[[^\]]+] \S*Test - import provider=fixture channels=3 requestId=0123abcd""",
+                    """\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z INFO  \[[^\]]+] \S*Test - import provider=fixture """ +
+                        """channels=3 requestId=0123abcd""",
                 ),
             ),
             lines[0],

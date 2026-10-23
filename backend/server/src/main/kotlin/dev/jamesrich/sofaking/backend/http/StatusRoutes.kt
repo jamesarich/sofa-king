@@ -12,7 +12,9 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 
-/** The summary `GET /api/v1/admin/status` answers, built from what the services hold in memory and two small queries. */
+/**
+ * The summary `GET /api/v1/admin/status` answers, built from what the services hold in memory and two small queries.
+ */
 internal suspend fun serverStatus(runtime: LiveRuntime, clock: Clock, revision: String): ServerStatus {
     val now = clock.instant()
     val entries = runtime.lineup.entries()

@@ -3,10 +3,16 @@ package dev.jamesrich.sofaking.ui.player
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.orderedFavorites
 
-/** The channel list's filter chips: the channels watched lately, the starred ones, the guide filter the player was opened from, or every channel. */
+/**
+ * The channel list's filter chips: the channels watched lately, the starred ones, the guide filter the player was
+ * opened from, or every channel.
+ */
 internal enum class MiniGuideFilter { RECENT, FAVORITES, SCOPE, ALL }
 
-/** The chips the panel shows: Recent only once something was watched, Scope only when the player was opened from a guide filter. */
+/**
+ * The chips the panel shows: Recent only once something was watched, Scope only when the player
+ * was opened from a guide filter.
+ */
 internal fun miniGuideFilters(hasRecent: Boolean, scoped: Boolean): List<MiniGuideFilter> = buildList {
     if (hasRecent) add(MiniGuideFilter.RECENT)
     add(MiniGuideFilter.FAVORITES)

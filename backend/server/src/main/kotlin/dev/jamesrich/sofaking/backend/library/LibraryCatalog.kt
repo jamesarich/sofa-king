@@ -125,7 +125,10 @@ class LibraryCatalog internal constructor(
 ) {
     @Volatile private var snapshot: Snapshot? = null
 
-    /** The watch state, read again only after a library change or one of this catalog's own writes, so browsing reads no table. */
+    /**
+     * The watch state, read again only after a library change or one of this catalog's own
+     * writes, so browsing reads no table.
+     */
     @Volatile private var states: Pair<Pair<Long, Long>, Map<String, PlayStateRecord>>? = null
     private val stateWrites = AtomicLong()
     private val building = Mutex()
@@ -281,7 +284,10 @@ class LibraryCatalog internal constructor(
         )
     }
 
-    /** The intro and credits found in the episode's file as it is now; those found in a file since replaced are not offered. */
+    /**
+     * The intro and credits found in the episode's file as it is now; those found in a file
+     * since replaced are not offered.
+     */
     private suspend fun segments(record: LibraryItemRecord): List<MediaSegment> {
         val found = store.libraryIntro(record.id)?.takeIf { it.fileKey == fileKey(record) } ?: return emptyList()
         return listOfNotNull(
@@ -308,8 +314,8 @@ class LibraryCatalog internal constructor(
     }
 
     /**
-     * Records where playback of [id] stopped. A stop in the first 5% leaves the item where it was; one past 90% marks it
-     * watched. Marking a show or season watched or unwatched marks every episode in it.
+     * Records where playback of [id] stopped. A stop in the first 5% leaves the item where it was; one past 90% marks
+     * it watched. Marking a show or season watched or unwatched marks every episode in it.
      */
     suspend fun updatePlayState(id: String, update: UpdatePlayState): LibraryItem = writing.withLock {
         val snapshot = snapshot()
@@ -438,7 +444,8 @@ class LibraryCatalog internal constructor(
             tmdb.takeUnless { it.isNullOrEmpty() } ?: own.orEmpty()
         }
         val title = if (nfo) record.title else facts?.title ?: record.title
-        // A file with no picture of its own shows a frame from it, as an episode's or a video's still and a movie's backdrop.
+        // A file with no picture of its own shows a frame from it, as an episode's or a
+        // video's still and a movie's backdrop.
         val frame = record.path?.takeIf { record.media?.video != null && record.kind in FRAMED }?.let {
             ArtSource.Frame(
                 root,
@@ -508,8 +515,8 @@ class LibraryCatalog internal constructor(
     }
 
     /**
-     * The items stopped part way, rewatches included, newest first, with the next episode of each show whose last-played
-     * episode was finished.
+     * The items stopped part way, rewatches included, newest first, with the next episode of each show whose
+     * last-played episode was finished.
      */
     private fun continueWatching(snapshot: Snapshot, states: Map<String, PlayStateRecord>): List<View> {
         val picks = LinkedHashMap<String, Pair<View, String>>()

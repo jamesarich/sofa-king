@@ -57,7 +57,8 @@ fun configureLogging(
         } else {
             PatternLayoutEncoder().apply {
                 pattern =
-                    "%d{yyyy-MM-dd'T'HH:mm:ss.SSS'Z',UTC} %-5level [%thread] %logger{36} - %msg%replace( %mdc){'^ \$', ''}%n"
+                    "%d{yyyy-MM-dd'T'HH:mm:ss.SSS'Z',UTC} %-5level [%thread] %logger{36} - %msg%replace( %mdc){'^ " +
+                    "\$', ''}%n"
             }
         }
     encoder.context = context

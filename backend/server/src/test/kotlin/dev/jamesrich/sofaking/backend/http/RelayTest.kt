@@ -499,7 +499,8 @@ class RelayTest {
                     assertEquals(HttpStatusCode.Gone, mismatch.status)
                     assertEquals("STREAM_CHANGED", Json.decodeFromString<ApiError>(mismatch.bodyAsText()).code)
                     assertEquals(mapOf(offering.id to "hls"), store.offeringProtocols())
-                    // The relay releases the shared upstream after the 410 is sent, so the count settles just after the response.
+                    // The relay releases the shared upstream after the 410 is sent, so the count
+                    // settles just after the response.
                     pollUntil(10_000) { runtime.relay.shared.active() == 0 }
                     val corrected = Json.decodeFromString<PlaybackSession>(
                         client.get("/api/v1/playback-sessions/${opened.id}") {

@@ -91,13 +91,16 @@ class XumoClientTest {
                         val resolved = client.resolve(inTouch)
                         val deviceId = store.providerState("xumo", ProviderContext.DEVICE_ID)!!.value
                         assertEquals(
-                            "${fixture.base}/xumo/10001/$inTouch/hls/playlist.m3u8?ads.xumo_channelId=99951481&ads.csid=xumo_web_ssai&ads._fw_did=$deviceId&ads._fw_is_lat=0&ads.lat=&ads._fw_us_privacy=1---",
+                            "${fixture.base}/xumo/10001/$inTouch/hls/playlist.m3u8?ads.xumo_channelId=99951481&" +
+                                "ads.csid=xumo_web_ssai&ads._fw_did=$deviceId&ads._fw_is_lat=0&ads.lat=&" +
+                                "ads._fw_us_privacy=1---",
                             resolved.url,
                         )
                         assertEquals("hour=13", fixture.lastQuery["/v2/channels/channel/$inTouch/broadcast.json"])
                         assertEquals(clock.now.plus(Duration.ofHours(1)), resolved.expiresAt)
                         assertEquals(
-                            "${fixture.base}/xumo/10001/99991635/hls/playlist.m3u8?ads.xumo_channelId=99991635&ads._fw_did=$deviceId&ads.amznappId=&ads.genre=Reality%E2%80%91TV,Reality%20Shows",
+                            "${fixture.base}/xumo/10001/99991635/hls/playlist.m3u8?ads.xumo_channelId=99991635&" +
+                                "ads._fw_did=$deviceId&ads.amznappId=&ads.genre=Reality%E2%80%91TV,Reality%20Shows",
                             client.resolve(liveNow).url,
                             "the space and the non-ASCII hyphen in the source's ad parameters are encoded",
                         )

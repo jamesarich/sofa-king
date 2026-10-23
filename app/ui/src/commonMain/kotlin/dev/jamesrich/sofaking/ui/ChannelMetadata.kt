@@ -61,7 +61,10 @@ internal fun Channel.noListingText(guideLoading: Boolean): String = stringResour
 /** Between the parts of a programme's detail line, such as its time range and episode. */
 internal const val DETAIL_SEPARATOR = "  ·  "
 
-/** The channel's logo in a [width] by [height] slot that stays empty without one, so names line up. Decorative: the name is beside it. */
+/**
+ * The channel's logo in a [width] by [height] slot that stays empty without one, so names line up.
+ * Decorative: the name is beside it.
+ */
 @Composable
 internal fun ChannelLogo(channel: Channel, width: Dp, height: Dp, modifier: Modifier = Modifier) {
     val logo = channel.logo

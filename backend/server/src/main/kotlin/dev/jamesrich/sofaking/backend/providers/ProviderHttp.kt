@@ -274,7 +274,9 @@ internal fun jsonArrayAfter(text: String, key: String): JsonArray? {
 
 private val NEXT_DATA = Regex("""<script id="__NEXT_DATA__"[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
 
-/** A Next.js page's `__NEXT_DATA__` state; [what] names the page in the failure when it has none, or none that parses. */
+/**
+ * A Next.js page's `__NEXT_DATA__` state; [what] names the page in the failure when it has none, or none that parses.
+ */
 internal fun nextData(html: String, what: String): JsonElement {
     val match = NEXT_DATA.find(html) ?: throw ProviderFailure("$what has no __NEXT_DATA__")
     return try {

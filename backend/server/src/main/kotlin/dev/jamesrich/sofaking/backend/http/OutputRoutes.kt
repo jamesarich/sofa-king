@@ -43,12 +43,12 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
             call.respondTextWriter(ContentType.parse("audio/x-mpegurl").withCharset(Charsets.UTF_8)) {
                 write("#EXTM3U url-tvg=\"$base/output/guide.xml$query\" x-tvg-url=\"$base/output/guide.xml$query\"\n")
                 for (channel in channels) {
-                    // Players infer the stream type from the suffix; a channel with no eligible source lists as TS and fails at play time.
+                    // Players infer the stream type from the suffix; a channel with no eligible source
+                    // lists as TS and fails at play time.
                     val suffix = if (preferred[channel.id]?.protocol == "hls") "m3u8" else "ts"
                     write(
-                        "#EXTINF:-1 tvg-id=\"${channel.id}\" tvg-chno=\"${attribute(
-                            channel.displayNumber,
-                        )}\" tvg-name=\"${attribute(channel.name)}\"",
+                        "#EXTINF:-1 tvg-id=\"${channel.id}\" tvg-chno=\"${attribute(channel.displayNumber)}\" " +
+                            "tvg-name=\"${attribute(channel.name)}\"",
                     )
                     channel.logo?.let { write(" tvg-logo=\"${runtime.logos.publicUrl(base, it)}\"") }
                     entries[channel.id]?.group?.let { write(" group-title=\"${attribute(it)}\"") }
@@ -79,18 +79,16 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
                 write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<tv generator-info-name=\"sofa-king-backend\">\n")
                 for (channel in channels) {
                     write(
-                        "<channel id=\"${xml(
-                            channel.id,
-                        )}\"><display-name>${xml(
-                            channel.name,
-                        )}</display-name><display-name>${xml(channel.displayNumber)}</display-name>",
+                        "<channel id=\"${xml(channel.id)}\"><display-name>${xml(channel.name)}</" +
+                            "display-name><display-name>${xml(channel.displayNumber)}</display-name>",
                     )
                     channel.logo?.let { write("<icon src=\"${xml(runtime.logos.publicUrl(base, it))}\"/>") }
                     write("</channel>\n")
                 }
                 for (channel in channels) {
                     val group = entries[channel.id]?.group
-                    // A channel with nothing in the window gets hourly placeholders, so Plex lists and records it like the rest.
+                    // A channel with nothing in the window gets hourly placeholders, so Plex
+                    // lists and records it like the rest.
                     val listed = programmes[channel.id].orEmpty().ifEmpty {
                         placeholders(channel.id, channel.name, from, to)
                     }
@@ -185,7 +183,10 @@ internal fun authorizeOutput(call: ApplicationCall, outputToken: String?, apiTok
 
 private val HOST_HEADER = Regex("[A-Za-z0-9.\\-\\[\\]:]{1,253}")
 
-/** The address the player reached us by, so generated URLs work through port mappings; `X-Forwarded-Proto` names a TLS proxy. */
+/**
+ * The address the player reached us by, so generated URLs work through port mappings;
+ * `X-Forwarded-Proto` names a TLS proxy.
+ */
 internal fun publicBase(call: ApplicationCall): String {
     val host = call.request.headers[HttpHeaders.Host]?.takeIf { it.matches(HOST_HEADER) }
         ?: "${call.request.origin.localAddress}:${call.request.origin.localPort}"
@@ -228,9 +229,8 @@ private val PLEX_KINDS = listOf(XMLTV_MOVIE, "Sports", "News", "Children", "Seri
 internal fun xmltvProgramme(channelId: String, programme: GuideProgramme, group: String?): String = buildString {
     val lang = programme.language?.let { " lang=\"${xml(it)}\"" }.orEmpty()
     append(
-        "<programme start=\"${xmltvTime(
-            programme.startsAt,
-        )}\" stop=\"${xmltvTime(programme.endsAt)}\" channel=\"${xml(channelId)}\">",
+        "<programme start=\"${xmltvTime(programme.startsAt)}\" stop=\"${xmltvTime(programme.endsAt)}\" " +
+            "channel=\"${xml(channelId)}\">",
     )
     append("<title$lang>${xml(programme.title)}</title>")
     programme.subTitle?.let { append("<sub-title$lang>${xml(it)}</sub-title>") }
@@ -270,7 +270,9 @@ internal fun xmltvProgramme(channelId: String, programme: GuideProgramme, group:
     append("</programme>\n")
 }
 
-/** A station group's XMLTV categories: the kind Plex sorts by (Movie, Sports, News, Children or Series), then the group. */
+/**
+ * A station group's XMLTV categories: the kind Plex sorts by (Movie, Sports, News, Children or Series), then the group.
+ */
 internal fun xmltvCategories(group: String?): List<String> {
     val kind = when (group?.lowercase()) {
         "movies" -> XMLTV_MOVIE

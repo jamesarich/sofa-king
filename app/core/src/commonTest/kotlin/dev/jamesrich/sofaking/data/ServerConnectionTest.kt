@@ -58,7 +58,8 @@ class ServerConnectionTest {
 
                 "/api/v1/playback-sessions" -> json(
                     """{"id":"$server-s1","channelId":"c1","intent":"watch","expiresAt":"2026-10-10T10:00:00Z",""" +
-                        """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/1/root.m3u8","epoch":1}}""",
+                        """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/""" +
+                        """1/root.m3u8","epoch":1}}""",
                     status = 201,
                 )
 

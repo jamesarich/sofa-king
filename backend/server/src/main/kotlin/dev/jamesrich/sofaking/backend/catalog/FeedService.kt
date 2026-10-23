@@ -166,7 +166,8 @@ class FeedService(
 
     /**
      * What to fetch for [offering]: its URL with the provider's headers, or for a native `svc://` source the URL
-     * its service client resolves now, with that client's headers. Throws [ProviderFailure] when the service cannot answer.
+     * its service client resolves now, with that client's headers. Throws [ProviderFailure]
+     * when the service cannot answer.
      */
     suspend fun playable(offering: Offering): ResolvedStream = if (NativeServices.isNative(offering.url)) {
         checkNotNull(providers) { "Native source without a registry" }.resolve(offering)
@@ -200,7 +201,8 @@ class FeedService(
                 require(channels.isNotEmpty() || config.allowEmpty) { "Empty playlist requires explicit allowEmpty" }
                 val succeededAt = clock.instant().toString()
                 val firstSinceStart = statuses.get().firstOrNull { it.id == config.id }?.lastSuccessAt == null
-                // Only publishing takes the shared lock, so a slow provider holds up neither another's import nor a protocol record.
+                // Only publishing takes the shared lock, so a slow provider holds up neither
+                // another's import nor a protocol record.
                 val unchanged = mutex.withLock {
                     val previous = published.get().feeds.find { it.providerId == config.id }
                     val retainedChannels = (channels + previous?.channels.orEmpty()).distinctBy { it.id }

@@ -113,7 +113,9 @@ class LogoCache(
         directory.resolve(record.key).takeIf { Files.isRegularFile(it) }
     }
 
-    /** Fetches every wanted logo that is missing or due, [parallelism] at a time, and deletes the ones no longer wanted. */
+    /**
+     * Fetches every wanted logo that is missing or due, [parallelism] at a time, and deletes the ones no longer wanted.
+     */
     suspend fun sweep() = jobs.record("logos") {
         val now = clock.instant()
         val wanted = wantedByKey()
@@ -196,7 +198,8 @@ class LogoCache(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    // Logo URLs are not secrets, but like every upstream URL they stay out of the log, so the message is redacted.
+                    // Logo URLs are not secrets, but like every upstream URL they stay out of the
+                    // log, so the message is redacted.
                     log.info(
                         "logo fetch failed key={} class={} message=\"{}\" cached={}",
                         key,

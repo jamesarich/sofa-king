@@ -98,7 +98,10 @@ internal class AppDriver(
     /** Waits for the focused node's label to become [label], and fails with the screen saved when it does not. */
     fun assertFocused(label: String?) = assertFocused("\"$label\"") { it == label }
 
-    /** Waits for the focused node's label to match [what], described by [expected], and fails with the screen saved when it does not. */
+    /**
+     * Waits for the focused node's label to match [what], described by [expected], and fails with the
+     * screen saved when it does not.
+     */
     fun assertFocused(expected: String, what: (String?) -> Boolean) {
         val reached = runCatching { ui.waitUntil(timeoutMillis = SETTLE_MS) { what(focusedLabel()) } }.isSuccess
         if (!reached) failWith("expected focus on $expected, found \"${focusedLabel()}\"")

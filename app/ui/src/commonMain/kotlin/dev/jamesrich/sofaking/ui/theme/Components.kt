@@ -173,7 +173,9 @@ fun SofaButton(
 private const val DISABLED_CONTAINER_ALPHA = 0.12f
 private const val DISABLED_CONTENT_ALPHA = 0.38f
 
-/** A Material 3 filter chip in the label type, with the D-pad focus cue: the guide's filters and the library's choices. */
+/**
+ * A Material 3 filter chip in the label type, with the D-pad focus cue: the guide's filters and the library's choices.
+ */
 @Composable
 internal fun SofaChip(selected: Boolean, onClick: () -> Unit, label: String, modifier: Modifier = Modifier) {
     FilterChip(

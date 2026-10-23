@@ -122,7 +122,10 @@ class SofaKingTv {
     @Throws(Exception::class)
     suspend fun release() = viewModel.sessions.release()
 
-    /** Like an open, a reopen still running when the player leaves is canceled by [stopWatching], so it holds nothing after. */
+    /**
+     * Like an open, a reopen still running when the player leaves is canceled by
+     * [stopWatching], so it holds nothing after.
+     */
     @Throws(Exception::class)
     suspend fun reopen(): PlaybackStream? = opening { viewModel.sessions.reopen() }
 
@@ -326,7 +329,9 @@ class SofaKingTv {
         viewModel.setLiveBreaks(mode)
     }
 
-    /** Counts [ms] more of ads the break screen covered on [day], a local date as `2026-10-22`, toward Ads dodged today. */
+    /**
+     * Counts [ms] more of ads the break screen covered on [day], a local date as `2026-10-22`, toward Ads dodged today.
+     */
     fun addAdsDodged(day: String, ms: Long) {
         viewModel.addAdsDodged(day, ms)
     }

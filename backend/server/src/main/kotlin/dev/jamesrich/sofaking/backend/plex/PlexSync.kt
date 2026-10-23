@@ -118,7 +118,8 @@ class PlexSync(
                 trigger.onReceive { it }
                 onTimeout(intervalMillis) { "interval" }
             }
-            // A sync the operator asked for starts at once; a lineup change waits out the debounce so a burst is one sync.
+            // A sync the operator asked for starts at once; a lineup change waits out the
+            // debounce so a burst is one sync.
             if (cause != "interval" && cause != "now") {
                 delay(debounceMillis)
                 trigger.tryReceive()
@@ -270,7 +271,10 @@ class PlexSync(
         return Device(key, device.text("uuid") ?: return null)
     }
 
-    /** Adds [device] at the tuner base to [dvr]; refuses a device that reports another DeviceID, before it joins the DVR. */
+    /**
+     * Adds [device] at the tuner base to [dvr]; refuses a device that reports another
+     * DeviceID, before it joins the DVR.
+     */
     private suspend fun add(dvr: Dvr, device: HdhrDevice): Device {
         val uri = "${config.tunerBase}:${device.port}"
         val created =
@@ -318,7 +322,8 @@ class PlexSync(
         val url = url("/media/grabbers/devices/${device.key.encodeURLPathPart()}/channelmap", parameters)
         if (url.length > PLEX_URL_LIMIT) {
             findings +=
-                "plex: device ${mine.id} has ${mappings.size} channels, too many for Plex to save; lower SOFA_HDHR_DEVICE_SIZE or add ports"
+                "plex: device ${mine.id} has ${mappings.size} channels, too many for Plex to save; lower " +
+                "SOFA_HDHR_DEVICE_SIZE or add ports"
             return 0
         }
         request(HttpMethod.Put, url, "/media/grabbers/devices/${device.key}/channelmap")

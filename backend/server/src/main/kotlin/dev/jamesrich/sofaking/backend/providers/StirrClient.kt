@@ -11,8 +11,8 @@ import java.time.Instant
 
 /**
  * STIRR's live channels as stirr.com uses them: one `videos/list` document of every live channel, the `epg` endpoint
- * without a channel for the whole guide (only channels with programmes are listed), and a `playable` POST per resolve that answers an ad-stitched HLS URL carrying a
- * short-lived `vx_token`. Channels marked `drm_protected` are left out.
+ * without a channel for the whole guide (only channels with programmes are listed), and a `playable` POST per resolve
+ * that answers an ad-stitched HLS URL carrying a short-lived `vx_token`. Channels marked `drm_protected` are left out.
  */
 class StirrClient(private val context: ProviderContext) : ProviderClient {
     override val service: String get() = "stirr"

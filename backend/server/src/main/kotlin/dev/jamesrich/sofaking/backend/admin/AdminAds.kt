@@ -48,7 +48,8 @@ internal fun adsPage(chrome: Chrome, view: AdsView): String = layout("Ads", chro
     val now = chrome.now
     pageHead(
         "Ads",
-        "What the server knows about each channel's ad breaks: the breaks its provider marks, the ads it has learned to recognize, and the channels it listens to in the background to learn more.",
+        "What the server knows about each channel's ad breaks: the breaks its provider marks, the ads it has learned " +
+            "to recognize, and the channels it listens to in the background to learn more.",
     )
     tabs(chrome, "/admin/ads", SOURCE_TABS)
     panel("Learning", id = "learning") {
@@ -67,10 +68,10 @@ internal fun adsPage(chrome: Chrome, view: AdsView): String = layout("Ads", chro
             if (library != null) {
                 dt { +"Ads learned" }
                 dd {
-                    +"${plural(
-                        library.entries,
-                        "ad",
-                    )}, ${thousands(library.blanking)} trusted to blank, ${thousands(library.blocked)} blocked"
+                    +(
+                        "${plural(library.entries, "ad")}, ${thousands(library.blanking)} trusted to blank, " +
+                            "${thousands(library.blocked)} blocked"
+                        )
                 }
                 dt { +"Canary precision (24 h)" }
                 dd {

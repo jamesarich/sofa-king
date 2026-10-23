@@ -40,9 +40,8 @@ class XumoClient(private val context: ProviderContext) : ProviderClient {
             val block = firstBlock.plusHours(6L * step)
             var offset = 0
             do {
-                val url = "$apiBase/v2/epg/$market/${DATE.format(
-                    block,
-                )}/${block.hour / 6}.json?f=asset.title&f=asset.descriptions&limit=$PAGE&offset=$offset"
+                val url = "$apiBase/v2/epg/$market/${DATE.format(block)}/${block.hour / 6}.json?f=asset.title&" +
+                    "f=asset.descriptions&limit=$PAGE&offset=$offset"
                 val fetched = context.http.get(url, HEADERS)
                 if (fetched.status == 400) break
                 val page = fetched.require("Xumo guide").json()

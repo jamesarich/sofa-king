@@ -30,11 +30,8 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
                 it.channel.id
         }
         val now = context.clock.instant()
-        val url = "$apiBase/airings/?start=${TIMESTAMP.format(
-            now,
-        )}&end=${TIMESTAMP.format(
-            now.plus(EPG_HORIZON),
-        )}&startChannel=${channels.first().channel.id}&channelCount=${channels.size}"
+        val url = "$apiBase/airings/?start=${TIMESTAMP.format(now)}&end=${TIMESTAMP.format(now.plus(EPG_HORIZON))}&" +
+            "startChannel=${channels.first().channel.id}&channelCount=${channels.size}"
         val airings = context.http.get(url, HEADERS).require("Vizio airings").json()["airings"].array
         val programmes = ArrayList<GuideProgramme>()
         for (airing in airings) {
@@ -82,7 +79,8 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
             val logo =
                 httpOrNull(channel.str("channelIcon")) ?: httpOrNull(channel.str("portraitIcon"))
                     ?: httpOrNull(channel.str("bwIcon"))
-            // FEATURED slots keep their id while the programme in them rotates; the tag tells curation apart from a station.
+            // FEATURED slots keep their id while the programme in them rotates; the tag tells
+            // curation apart from a station.
             val tags = listOf("us") + if (id.uppercase().startsWith("FEATURED")) listOf("featured") else emptyList()
             result[id] =
                 Listed(

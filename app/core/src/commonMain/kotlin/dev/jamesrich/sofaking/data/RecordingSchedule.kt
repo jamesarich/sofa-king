@@ -27,7 +27,10 @@ sealed interface RecordingsState {
     /** The server does not record, or is too old to. */
     data object Unavailable : RecordingsState
 
-    /** Every recording but cancelled ones, soonest scheduled first, then the rest newest first, and the series rules, oldest first. */
+    /**
+     * Every recording but cancelled ones, soonest scheduled first, then the rest newest first, and
+     * the series rules, oldest first.
+     */
     data class Ready(
         val recordings: List<DvrRecording>,
         val space: RecordingSpace,
@@ -130,7 +133,10 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
     private fun failed(e: Exception): RecordingsState =
         failedLoad("recordings", e, _state.value as? RecordingsState.Ready, RecordingsState::Failed)
 
-    /** Records [programme], or cancels its recording when it has one. False when the server refused or could not be reached. */
+    /**
+     * Records [programme], or cancels its recording when it has one. False when the server
+     * refused or could not be reached.
+     */
     suspend fun toggle(programme: Programme): Boolean = records && change("recording a program") {
         val id = _marks.value.recordings[recordingKey(programme.channelId, programme.start)]
         if (id != null) {

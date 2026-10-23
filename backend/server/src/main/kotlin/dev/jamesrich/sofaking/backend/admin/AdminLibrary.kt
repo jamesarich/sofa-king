@@ -208,7 +208,8 @@ internal fun libraryPage(chrome: Chrome, view: LibraryView): String = layout("Li
                 +(
                     "Movies and shows get their titles, plots, genres, ratings, cast, posters and backdrops from " +
                         "TMDB " +
-                        "after each scan; episodes get their names, plots and stills. A .nfo file beside a video, or local artwork, wins over TMDB. A {tmdb-123} tag in a folder name pins the match."
+                        "after each scan; episodes get their names, plots and stills. A .nfo file beside a video, or " +
+                        "local artwork, wins over TMDB. A {tmdb-123} tag in a folder name pins the match."
                     )
             }
         } else {
@@ -216,7 +217,8 @@ internal fun libraryPage(chrome: Chrome, view: LibraryView): String = layout("Li
                 +(
                     "Details come from file names, .nfo files and local artwork only. Add a TMDB API read access " +
                         "token " +
-                        "to fill in plots, ratings, cast, posters and backdrops: it is free from themoviedb.org, under Settings, then API."
+                        "to fill in plots, ratings, cast, posters and backdrops: it is free from themoviedb.org, " +
+                        "under Settings, then API."
                     )
             }
         }

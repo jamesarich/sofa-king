@@ -34,7 +34,9 @@ import kotlinx.io.IOException
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 
-/** An error answer from the server: HTTP [status] with the API's [code], or `HTTP_<status>` when the body was not one. */
+/**
+ * An error answer from the server: HTTP [status] with the API's [code], or `HTTP_<status>` when the body was not one.
+ */
 class SofaKingException(val status: Int, val code: String, message: String) : IOException(message)
 
 /** The catalog as the server sent it, or [NotModified] when the ETag offered still matches. */
@@ -102,7 +104,10 @@ class SofaKingApi(
         http.patch(sessionPath(id)) { json(UpdatePlaybackDto(intent)) }.decode()
     }
 
-    /** Whether the session's player shows an ad, for an engine that cannot read the playlist's marks; [aheadMs] is what it loaded past the picture. */
+    /**
+     * Whether the session's player shows an ad, for an engine that cannot read the playlist's marks; [aheadMs] is
+     * what it loaded past the picture.
+     */
     internal suspend fun adBreak(id: String, aheadMs: Long): AdBreakStateDto = call {
         http.get(sessionPath(id) + "/ad-break") { parameter("aheadMs", aheadMs) }.decode()
     }
@@ -111,7 +116,10 @@ class SofaKingApi(
         http.delete(sessionPath(id)).checkSuccess()
     }
 
-    /** Claims a pairing code; the client built for this has no token yet. A wrong or spent code is a [SofaKingException] with [Wire.ErrorCode.PAIRING_INVALID]. */
+    /**
+     * Claims a pairing code; the client built for this has no token yet. A wrong or spent code is a [SofaKingException]
+     * with [Wire.ErrorCode.PAIRING_INVALID].
+     */
     internal suspend fun pair(claim: PairingClaimDto): PairingResultDto = call {
         http.post("pair") { json(claim) }.decode()
     }
@@ -178,7 +186,9 @@ class SofaKingApi(
         }
     }
 
-    /** Saves where the household stopped in [id], or marks it (a show or season: every episode in it) watched or not. */
+    /**
+     * Saves where the household stopped in [id], or marks it (a show or season: every episode in it) watched or not.
+     */
     internal suspend fun updatePlayState(id: String, update: UpdatePlayStateDto): LibraryItemDto = call {
         http.put(itemPath(id) + "/play-state") { json(update) }.decode()
     }
@@ -296,7 +306,10 @@ class SofaKingApi(
         throw SofaKingException(code, error.code, error.message)
     }
 
-    /** Engines throw their own transport errors (Darwin's NSError, a browser's TypeError); every one becomes an [IOException]. */
+    /**
+     * Engines throw their own transport errors (Darwin's NSError, a browser's TypeError);
+     * every one becomes an [IOException].
+     */
     private suspend inline fun <T> call(block: () -> T): T = try {
         block()
     } catch (e: CancellationException) {
@@ -327,6 +340,9 @@ internal fun mediaMimeType(descriptor: PlaybackDescriptorDto): String = if (desc
     descriptor.mimeType
 }
 
-/** The HLS MIME type the players are handed; Media3 matches it exactly, and the other players compare it case-insensitively. */
+/**
+ * The HLS MIME type the players are handed; Media3 matches it exactly, and the other players
+ * compare it case-insensitively.
+ */
 const val HLS_MIME_TYPE = "application/x-mpegURL"
 private val HLS_MIME_TYPES = setOf("application/vnd.apple.mpegurl", "application/x-mpegurl")

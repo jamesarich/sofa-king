@@ -21,7 +21,8 @@ class LgClientTest {
             ProviderFixture().use { fixture ->
                 ProviderFixture.httpClient().use { http ->
                     openStore(dir).use { store ->
-                        // The fixture is the real base64-of-zlib shape with a BASE placeholder inside; rebuild it for this server's address.
+                        // The fixture is the real base64-of-zlib shape with a BASE placeholder inside;
+                        // rebuild it for this server's address.
                         val json = LgClient.decode(
                             ProviderFixture.resource("lg-schedulelist.b64"),
                         ).toString().replace("BASE", fixture.base)
@@ -77,7 +78,8 @@ class LgClientTest {
                         val deviceId = store.providerState("lg", ProviderContext.DEVICE_ID)!!.value
                         val ua = URLEncoder.encode(BROWSER_USER_AGENT, Charsets.UTF_8)
                         assertEquals(
-                            "${fixture.base}/lg/master.m3u8?ads.deviceid=$deviceId&ads.ua=$ua&ads.country=US&ads.nonce=${clock.now.epochSecond}&ads.hotel=&ads.ifa=",
+                            "${fixture.base}/lg/master.m3u8?ads.deviceid=$deviceId&ads.ua=$ua&ads.country=US&" +
+                                "ads.nonce=${clock.now.epochSecond}&ads.hotel=&ads.ifa=",
                             resolved.url,
                         )
                         assertEquals(clock.now.plus(Duration.ofHours(1)), resolved.expiresAt)

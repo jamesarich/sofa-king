@@ -82,7 +82,10 @@ private fun validateHeaders(headers: Map<String, String>) {
     }
 }
 
-/** One XMLTV guide source, plain or gzip, or (with [provider]) the guide a native provider's service publishes through its API. */
+/**
+ * One XMLTV guide source, plain or gzip, or (with [provider]) the guide a native provider's
+ * service publishes through its API.
+ */
 @Serializable data class GuideConfig(
     val id: String,
     val url: String? = null,
@@ -100,7 +103,10 @@ private fun validateHeaders(headers: Map<String, String>) {
 }
 
 data class SourceConfig(val providers: List<FeedConfig> = emptyList(), val guides: List<GuideConfig> = emptyList()) {
-    /** Explicit guides first, then one implicit guide per provider: its `guideUrl`, the service's published XMLTV, or the service's own guide. */
+    /**
+     * Explicit guides first, then one implicit guide per provider: its `guideUrl`, the service's published
+     * XMLTV, or the service's own guide.
+     */
     val allGuides: List<GuideConfig> get() = guides + providers.mapNotNull { provider ->
         val url = provider.effectiveGuideUrl
         when {
@@ -149,7 +155,10 @@ fun readSourceDocument(path: Path): SourceDocument {
     }
 }
 
-/** [document] with `${NAME}` references replaced from [environment], checked the way the server checks the file at start. */
+/**
+ * [document] with `${NAME}` references replaced from [environment], checked the way the
+ * server checks the file at start.
+ */
 fun validateSources(document: SourceDocument, environment: Map<String, String> = System.getenv()): SourceConfig {
     val expanded = configJson.decodeFromJsonElement<SourceDocument>(
         expandVariables(configJson.encodeToJsonElement(document), environment),
@@ -166,7 +175,10 @@ fun validateSources(document: SourceDocument, environment: Map<String, String> =
     return config
 }
 
-/** [document] as the server writes a source file: an object with `providers` and `guides`, two-space indent, defaults left out. */
+/**
+ * [document] as the server writes a source file: an object with `providers` and `guides`,
+ * two-space indent, defaults left out.
+ */
 fun sourceBytes(document: SourceDocument): ByteArray = (
     writtenSourceJson.encodeToString(SourceDocument.serializer(), document) + "\n"
     ).toByteArray()
@@ -217,7 +229,10 @@ fun stableId(value: String): String = java.util.UUID.nameUUIDFromBytes(value.toB
 /** An XMLTV `<channel>`, or a channel id seen only on programmes (then [displayName] is the id). */
 data class GuideChannel(val id: String, val displayName: String, val icon: String? = null)
 
-/** One XMLTV `<episode-num>`: its `system` (`xmltv_ns`, `onscreen`, `dd_progid` and so on) and its value as the source wrote it. */
+/**
+ * One XMLTV `<episode-num>`: its `system` (`xmltv_ns`, `onscreen`, `dd_progid` and so on) and
+ * its value as the source wrote it.
+ */
 @Serializable data class EpisodeNumber(val system: String, val value: String)
 
 /** A content rating such as `TV-14`, with the rating system (`VCHIP`, `MPAA`) when the source names one. */

@@ -106,7 +106,8 @@ class OutputStreamTest {
                             assertEquals("video/mp2t", response.headers[HttpHeaders.ContentType])
                             val body = response.bodyAsChannel()
                             val early = body.readHead(188 * 3)
-                            // Longer than the fan-out's linger: the request itself is what holds the session and the upstream.
+                            // Longer than the fan-out's linger: the request itself is what
+                            // holds the session and the upstream.
                             delay(2500)
                             val later = body.readHead(188 * 3)
                             assertEquals(1, stack.runtime.sessions.count())
@@ -144,7 +145,8 @@ class OutputStreamTest {
                         ).execute { response ->
                             assertEquals(HttpStatusCode.OK, response.status)
                             response.bodyAsChannel().readHead(188 * 3)
-                            // The zap took the only slot from the idle HLS session; while TS streams, nothing else fits.
+                            // The zap took the only slot from the idle HLS session; while
+                            // TS streams, nothing else fits.
                             assertEquals(HttpStatusCode.Gone, http.get(idle).status)
                             val refused = http.get("${stack.server.base}/output/stream/${hls.id}.m3u8?token=$output")
                             assertEquals(HttpStatusCode.TooManyRequests, refused.status)

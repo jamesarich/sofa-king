@@ -17,7 +17,10 @@ class ServiceInfo(
     val options: List<ServiceOption> = emptyList(),
     startsOn: Boolean = true,
 ) {
-    /** Whether a fresh server ticks the service before anything is set: it needs no option, and lists channels without one. */
+    /**
+     * Whether a fresh server ticks the service before anything is set: it needs no option,
+     * and lists channels without one.
+     */
     val startsOn: Boolean = startsOn && options.none { it.required }
 }
 

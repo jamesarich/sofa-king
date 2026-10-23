@@ -39,7 +39,8 @@ data class MetadataResult(
 /**
  * Fills in what TMDB knows about a library's movies and shows, and a show's seasons and episodes. An id from a
  * `.nfo` or a `{tmdb-N}` tag pins the match; otherwise the title and year are searched. Lookups are kept in the
- * database and fetched again after [MATCHED_FOR]; a refused token, a rate limit or three lookups in a row that cannot reach TMDB end the run, to resume on the next.
+ * database and fetched again after [MATCHED_FOR]; a refused token, a rate limit or three lookups in a row that cannot
+ * reach TMDB end the run, to resume on the next.
  */
 class LibraryMetadata internal constructor(
     private val store: BackendStore,
@@ -108,7 +109,8 @@ class LibraryMetadata internal constructor(
                 if (e.code == "TMDB_AUTH" || e.code == "TMDB_RATE_LIMITED") {
                     return MetadataResult(fetched, matched, unmatched, failed, e.code)
                 }
-                // With the network down every lookup waits out its timeout; a few in a row end the run until the next scan.
+                // With the network down every lookup waits out its timeout; a few in a row
+                // end the run until the next scan.
                 if (e.code.startsWith("TMDB_UNREACHABLE") && ++unreachable >= UNREACHABLE_STOP) {
                     return MetadataResult(fetched, matched, unmatched, failed + 1, "TMDB_UNREACHABLE")
                 }
@@ -192,7 +194,10 @@ class LibraryMetadata internal constructor(
 /** Letters and digits only, lower case, so `Alien³` and `Alien 3` or `Mr. Robot` and `Mr Robot` compare equal. */
 private fun normalized(title: String): String = title.lowercase().filter { it.isLetterOrDigit() }
 
-/** The result whose title and year agree with [item]'s, else the one whose title does, else a lone result whose year does. */
+/**
+ * The result whose title and year agree with [item]'s, else the one whose title does, else
+ * a lone result whose year does.
+ */
 internal fun pickMovie(results: List<TmdbMovieResult>, item: LibraryItemRecord): Int? = pick(
     results.map { Triple(it.id, listOf(it.title, it.originalTitle), it.releaseDate?.take(4)?.toIntOrNull()) },
     item,

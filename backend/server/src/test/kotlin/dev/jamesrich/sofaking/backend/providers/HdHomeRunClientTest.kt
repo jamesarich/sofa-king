@@ -17,7 +17,9 @@ class HdHomeRunClientTest {
     private fun ProviderFixture.tuner() {
         json(
             "/discover.json",
-            """{"FriendlyName":"HDHomeRun FLEX 4K","ModelNumber":"HDFX-4K","DeviceID":"10AFFFFF","DeviceAuth":"abc/def+","BaseURL":"$base","LineupURL":"$base/lineup.json","TunerCount":4}""",
+            """{"FriendlyName":"HDHomeRun FLEX """ +
+                """4K","ModelNumber":"HDFX-4K","DeviceID":"10AFFFFF","DeviceAuth":"abc/""" +
+                """def+","BaseURL":"$base","LineupURL":"$base/lineup.json","TunerCount":4}""",
         )
         json(
             "/lineup.json",

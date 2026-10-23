@@ -35,7 +35,8 @@ class LibraryViewModelTest {
     fun tearDown() = fixture.tearDown()
 
     private fun item(id: String, kind: String = "movie", extra: String = "") =
-        """{"id":"$id","libraryId":"lib","kind":"$kind","title":"Title $id","addedAt":"2026-10-10T13:00:00Z","poster":"/artwork/$id/poster?v=1"$extra}"""
+        """{"id":"$id","libraryId":"lib","kind":"$kind","title":"Title """ +
+            """$id","addedAt":"2026-10-10T13:00:00Z","poster":"/artwork/$id/poster?v=1"$extra}"""
 
     /** The model on [server], stopped as the test ends. */
     private suspend fun TestScope.viewModel(
@@ -52,14 +53,12 @@ class LibraryViewModelTest {
 
     @Test
     fun `the home maps shelves and libraries and resolves artwork against the server`() = fixture.viewModelTest {
+        val playState = """"playState":{"positionMs":600000,"durationMs":2400000,"watched":false}"""
+        val inProgress = item("e1", "episode", ""","showTitle":"Show","season":2,"episode":5,$playState""")
         val server = RouteServer(this) { method, path, _ ->
             if (method == "GET" && path == "/api/v1/library/home") {
                 200 to """{"shelves":[
-                {"id":"continue","title":"Continue watching","items":[${item(
-                    "e1",
-                    "episode",
-                    ""","showTitle":"Show","season":2,"episode":5,"playState":{"positionMs":600000,"durationMs":2400000,"watched":false}""",
-                )}]},
+                {"id":"continue","title":"Continue watching","items":[$inProgress]},
                 {"id":"recent","title":"Recently added in Movies","libraryId":"lib","items":[]}],
                 "libraries":[{"id":"lib","name":"Movies","kind":"movies","items":3},{"id":"new","name":"Odd","kind":"photos"}]}"""
             } else {
@@ -95,15 +94,13 @@ class LibraryViewModelTest {
 
     @Test
     fun `every Recently added row has its own key`() = fixture.viewModelTest {
+        val show = item("s1", "show")
         val server = RouteServer(this) { _, path, _ ->
             if (path == "/api/v1/library/home") {
                 200 to """{"shelves":[
                 {"id":"continue","title":"Continue watching","items":[${item("e1", "episode")}]},
                 {"id":"recent","title":"Recently added in Movies","libraryId":"movies","items":[${item("m1")}]},
-                {"id":"recent","title":"Recently added in TV shows","libraryId":"shows","items":[${item(
-                    "s1",
-                    "show",
-                )}]}],
+                {"id":"recent","title":"Recently added in TV shows","libraryId":"shows","items":[$show]}],
                 "libraries":[{"id":"movies","name":"Movies","kind":"movies"},{"id":"shows","name":"TV shows","kind":"shows"}]}"""
             } else {
                 null
@@ -178,9 +175,8 @@ class LibraryViewModelTest {
                     "/api/v1/libraries/lib/items" -> when (pages++) {
                         0 ->
                             200 to
-                                """{"items":[${item(
-                                    "m1",
-                                )}],"total":3,"next":"1","letters":[{"letter":"A","count":1},{"letter":"B","count":1},{"letter":"A","count":1}]}"""
+                                """{"items":[${item("m1")}],"total":3,"next":"1","letters":[{"letter":"A","count":""" +
+                                """1},{"letter":"B","count":1},{"letter":"A","count":1}]}"""
 
                         1 -> 200 to """{"items":[${item("m2")}],"total":3,"next":"2"}"""
 
@@ -333,7 +329,10 @@ class LibraryViewModelTest {
                 method == "POST" && path == "/api/v1/vod-sessions" -> {
                     opens += body
                     201 to
-                        """{"id":"v1","itemId":"m1","mode":"direct","descriptor":{"protocol":"file","mimeType":"video/mp4","url":"/media/vod/v1/1/k/file.mp4","epoch":1}}"""
+                        """{"id":"v1","itemId":"m1","mode":"direct","descriptor":""" +
+                        """{"protocol":"file","mimeType":"video/mp4","url":"/media/vod/v1/1/k/""" +
+                        """file.mp4","epoch":""" +
+                        """1}}"""
                 }
 
                 else -> null
@@ -374,10 +373,8 @@ class LibraryViewModelTest {
 
                 "/api/v1/library/items/s1" ->
                     200 to
-                        """{"item":${item(
-                            "s1",
-                            "season",
-                        )},"children":[${episode("e1", "s1")},${episode("e2", "s1")}]}"""
+                        """{"item":${item("s1", "season")},"children":[${episode("e1", "s1")},""" +
+                        """${episode("e2", "s1")}]}"""
 
                 "/api/v1/library/items/s2" ->
                     200 to
@@ -385,14 +382,8 @@ class LibraryViewModelTest {
 
                 "/api/v1/library/items/show" ->
                     200 to
-                        """{"item":${item(
-                            "show",
-                            "show",
-                        )},"children":[${item(
-                            "s1",
-                            "season",
-                            ""","season":1""",
-                        )},${item("s2", "season", ""","season":2""")}]}"""
+                        """{"item":${item("show", "show")},"children":[${item("s1", "season", ""","season":1""")},""" +
+                        """${item("s2", "season", ""","season":2""")}]}"""
 
                 else -> null
             }
@@ -433,11 +424,9 @@ class LibraryViewModelTest {
 
                     path == "/api/v1/library/items/s1" ->
                         200 to
-                            """{"item":${item(
-                                "s1",
-                                "season",
-                                ""","parentId":"show","showId":"show"""",
-                            )},"children":[${episode()}]}"""
+                            """{"item":${item("s1", "season", ""","parentId":"show","showId":"show"""")},"childre""" +
+                            """n":""" +
+                            """[${episode()}]}"""
 
                     path == "/api/v1/library/items/show" -> 200 to """{"item":${show()}}"""
 
@@ -538,10 +527,9 @@ class LibraryViewModelTest {
 
                     "/api/v1/library/items/e1" ->
                         200 to
-                            """{"item":${item(
-                                "e1",
-                                "episode",
-                            )},"segments":[{"kind":"recap","startMs":0,"endMs":500},{"kind":"credits","startMs":1300000,"endMs":1400000},{"kind":"intro","startMs":600,"endMs":53100}]}"""
+                            """{"item":${item("e1", "episode")},"segments":[{"kind":"recap","startMs":0,"endMs":""" +
+                            """500},{"kind":"credits","startMs":1300000,"endMs":1400000},""" +
+                            """{"kind":"intro","startMs":600,"endMs":53100}]}"""
 
                     "/api/v1/library/items/e2" -> 200 to """{"item":${item("e2", "episode")}}"""
 

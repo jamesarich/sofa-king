@@ -65,7 +65,8 @@ class FreeLiveSportsClientTest {
                             val resolved = client.resolve("6902789463cbad62d1ce4a43")
                             val deviceId = store.providerState("fls", ProviderContext.DEVICE_ID)!!.value
                             assertEquals(
-                                "${fixture.base}/fls/master.m3u8?ads.us_privacy=&ads.device_id=$deviceId&ads.cb=${clock.now.epochSecond}&ads.ref=https%3A%2F%2Fwww.freelivesports.tv%2F",
+                                "${fixture.base}/fls/master.m3u8?ads.us_privacy=&ads.device_id=$deviceId&" +
+                                    "ads.cb=${clock.now.epochSecond}&ads.ref=https%3A%2F%2Fwww.freelivesports.tv%2F",
                                 resolved.url,
                             )
                             clock.now = clock.now.plusSeconds(5)

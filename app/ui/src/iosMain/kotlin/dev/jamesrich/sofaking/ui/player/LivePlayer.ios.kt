@@ -220,7 +220,9 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         readAudioTracks(item)
     }
 
-    /** AVFoundation reports the picture size and the stream's indicated bitrate; the codec and frame rate stay unknown. */
+    /**
+     * AVFoundation reports the picture size and the stream's indicated bitrate; the codec and frame rate stay unknown.
+     */
     override fun streamInfo(): StreamInfo {
         val item = av.currentItem ?: return StreamInfo()
         val (width, height) = item.presentationSize.useContents { width.toInt() to height.toInt() }
@@ -292,7 +294,10 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
             0L
         }
 
-    /** A finished file reports its duration; a growing recording's is indefinite, so the end of its seekable range stands in. */
+    /**
+     * A finished file reports its duration; a growing recording's is indefinite, so the end
+     * of its seekable range stands in.
+     */
     override val durationMs: Long?
         get() {
             val item = av.currentItem?.takeIf { isSeekable } ?: return null

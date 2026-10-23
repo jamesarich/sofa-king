@@ -34,10 +34,8 @@ class RokuClient(private val context: ProviderContext) : ProviderClient {
             }
         }
         val playId = context.cached("play:$channelId", PLAY_ID_LIFETIME) {
-            val proxy = "$webBase/api/v2/homescreen/content/${URLEncoder.encode(
-                contentBase + channelId,
-                Charsets.UTF_8,
-            )}"
+            val proxy = "$webBase/api/v2/homescreen/content/" +
+                "${URLEncoder.encode(contentBase + channelId, Charsets.UTF_8)}"
             val content = session { context.http.get(proxy, apiHeaders(it)) }.require("Roku content").json()
             content["viewOptions"][0].str("playId")
                 ?: throw ProviderFailure("Roku content has no playId", transient = false)

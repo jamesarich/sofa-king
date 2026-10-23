@@ -8,7 +8,10 @@ import java.time.Instant
 /** One guide programme on one lineup channel, as a rule sees it. */
 data class Airing(val channelId: String, val channelName: String, val programme: GuideProgramme)
 
-/** What the scheduler does to the stored recordings after one pass: airings to add and rule-scheduled recordings to drop. */
+/**
+ * What the scheduler does to the stored recordings after one pass: airings to add and
+ * rule-scheduled recordings to drop.
+ */
 data class Plan(val add: List<Pair<StoredRule, Airing>>, val drop: List<StoredRecording>)
 
 /**
@@ -144,7 +147,10 @@ object DvrPlanner {
         return out.values.toList()
     }
 
-    /** The order the culler deletes in when space runs short: watched before unwatched, then oldest first; never a protected one. */
+    /**
+     * The order the culler deletes in when space runs short: watched before unwatched, then
+     * oldest first; never a protected one.
+     */
     fun byCullOrder(recordings: List<StoredRecording>): List<StoredRecording> =
         recordings.filter { it.state == Wire.RecordingState.COMPLETED && !it.protected }
             .sortedWith(compareByDescending<StoredRecording> { it.watched }.thenBy { it.startsAt })

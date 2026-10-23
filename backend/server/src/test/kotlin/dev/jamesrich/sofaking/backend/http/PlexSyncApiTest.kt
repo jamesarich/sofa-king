@@ -71,14 +71,16 @@ class PlexSyncApiTest {
                 get("/livetv/dvrs") {
                     call.record()
                     call.respondText(
-                        """{"MediaContainer":{"Dvr":[{"key":"10","lineup":"lineup://xmltv#Sofa","Device":[{"key":"20","uuid":"device://tv.plex.grabbers.hdhomerun/ABCDEF01","title":null}]}]}}""",
+                        """{"MediaContainer":{"Dvr":[{"key":"10","lineup":"lineup://xmltv#Sofa","Device":[""" +
+                            """{"key":"20","uuid":"device://tv.plex.grabbers.hdhomerun/ABCDEF01","title":null}]}]}}""",
                         ContentType.Application.Json,
                     )
                 }
                 get("/livetv/epg/channelmap") {
                     call.record()
                     call.respondText(
-                        """{"MediaContainer":{"ChannelMapping":[{"deviceIdentifier":"5","lineupIdentifier":"five","channelKey":"5-key"}]}}""",
+                        """{"MediaContainer":{"ChannelMapping":[""" +
+                            """{"deviceIdentifier":"5","lineupIdentifier":"five","channelKey":"5-key"}]}}""",
                         ContentType.Application.Json,
                     )
                 }
@@ -164,8 +166,8 @@ class PlexSyncApiTest {
                             runtime.jobs.snapshot().none { it.id == "plex" && it.running }
                     }
 
-                    // A sync request of its own after the apply: had the apply asked for one, the loop would already be in that
-                    // sync's debounce, swallow this request and sync with the cause "policy".
+                    // A sync request of its own after the apply: had the apply asked for one, the loop would already be
+                    // in that sync's debounce, swallow this request and sync with the cause "policy".
                     assertFalse(
                         json.decodeFromString<PolicyApplyResult>(
                             client.post("/api/v1/admin/policy/apply") {

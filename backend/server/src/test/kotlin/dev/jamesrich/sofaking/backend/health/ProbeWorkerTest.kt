@@ -132,7 +132,8 @@ class ProbeWorkerTest {
                             clock.now.toString(),
                         ),
                     )
-                    // Without a provider registry a native source's resolve throws IllegalStateException, not ProviderFailure.
+                    // Without a provider registry a native source's resolve throws
+                    // IllegalStateException, not ProviderFailure.
                     val feeds = FeedService(listOf(FeedConfig("p", "http://example.test/feed.m3u")), store, http, clock)
                     feeds.initialize()
                     val worker =
@@ -259,7 +260,8 @@ class ProbeWorkerTest {
                             val catalog = lineupStack(feeds, store, clock, http).catalog
                             val offering = feeds.offerings().single()
                             assertEquals("mpegts", offering.protocol)
-                            // No FFmpeg here: the decode tier fails as LOCAL, which neither strikes nor hides the HTTP tier's detection.
+                            // No FFmpeg here: the decode tier fails as LOCAL, which neither strikes nor
+                            // hides the HTTP tier's detection.
                             val worker = ProbeWorker(feeds, store, clock, "unused", http)
                             assertTrue(worker.step())
                             assertEquals(mapOf(offering.id to "hls"), store.offeringProtocols())
@@ -496,7 +498,8 @@ class ProbeWorkerTest {
                         assertEquals(
                             listOf("c", "e", "b", "a"),
                             probed,
-                            "first sources of unverified stations, their other sources, then the rest; d is no station's",
+                            "first sources of unverified stations, their other sources, then the rest; d is no " +
+                                "station's",
                         )
                     }
                 }

@@ -90,7 +90,10 @@ internal class Flash(val message: String, val tone: Tone = Tone.OK, val target: 
 
 internal enum class Tone(val css: String) { OK("ok"), WARN("warn"), BAD("bad"), OFF("off") }
 
-/** The stylesheet's path, public like the icon, and the href pages link, versioned by the sheet's content so the day-long cache never pairs an old sheet with a new page. */
+/**
+ * The stylesheet's path, public like the icon, and the href pages link, versioned by the sheet's content so the
+ * day-long cache never pairs an old sheet with a new page.
+ */
 internal const val STYLESHEET_PATH = "/admin/static/admin.css"
 private val STYLESHEET_HREF: String =
     STYLESHEET_PATH + "?v=" + Chrome::class.java.classLoader.getResourceAsStream("admin/admin.css")!!.use { sheet ->
@@ -99,7 +102,13 @@ private val STYLESHEET_HREF: String =
 
 /** The crown-on-a-sofa mark of the TV app's banner, drawn inline so it needs no image request. */
 private const val MARK = """<svg viewBox="0 0 120 120" aria-hidden="true" focusable="false"><path fill="#B3A1EA" """ +
-    """d="M22,46 Q22,40 28,40 L92,40 Q98,40 98,46 L98,70 L22,70 Z"/><path fill="#C9B8FF" d="M10,62 Q10,58 14,58 L106,58 Q110,58 110,62 L110,92 L10,92 Z"/><path fill="#C9B8FF" d="M6,58 Q6,52 12,52 L20,52 L20,96 L6,96 Z"/><path fill="#C9B8FF" d="M100,52 L108,52 Q114,52 114,58 L114,96 L100,96 Z"/><path fill="#9C8AD4" d="M20,72 L100,72 L100,75 L20,75 Z M14,96 L14,104 L20,104 L20,96 Z M100,96 L100,104 L106,104 L106,96 Z"/><path fill="#FFB547" d="M36,46 L36,30 L48,38 L60,20 L72,38 L84,30 L84,46 Z"/><path fill="#E0902A" d="M36,40 L84,40 L84,46 L36,46 Z"/><path fill="#14111F" d="M60,42 L62,44 L60,46 L58,44 Z"/></svg>"""
+    """d="M22,46 Q22,40 28,40 L92,40 Q98,40 98,46 L98,70 L22,70 Z"/><path fill="#C9B8FF" d="M10,62 Q10,58 14,58 """ +
+    """L106,58 Q110,58 110,62 L110,92 L10,92 Z"/><path fill="#C9B8FF" d="M6,58 Q6,52 12,52 L20,52 L20,96 L6,96 """ +
+    """Z"/><path fill="#C9B8FF" d="M100,52 L108,52 Q114,52 114,58 L114,96 L100,96 Z"/><path fill="#9C8AD4" """ +
+    """d="M20,72 L100,72 L100,75 L20,75 Z M14,96 L14,104 L20,104 L20,96 Z M100,96 L100,104 L106,104 """ +
+    """L106,96 Z"/><path fill="#FFB547" d="M36,46 L36,30 L48,38 L60,20 L72,38 L84,30 L84,46 """ +
+    """Z"/><path fill="#E0902A" d="M36,40 L84,40 L84,46 L36,46 Z"/><path fill="#14111F" """ +
+    """d="M60,42 L62,44 L60,46 L58,44 Z"/></svg>"""
 
 /** The browser chrome's colour beside each scheme's page background. */
 private const val DARK_THEME_COLOR = "#14111F"
@@ -108,9 +117,13 @@ private const val LIGHT_THEME_COLOR = "#F7F4FC"
 private const val HTMX_CONFIG =
     """{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false,"historyCacheSize":0,""" +
         """"refreshOnHistoryMiss":true,""" +
-        """"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"4..","swap":true,"error":false},{"code":"...","swap":false,"error":true}]}"""
+        """"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"4..","swap":""" +
+        """true,"error":false},{"code":"...","swap":false,"error":true}]}"""
 
-/** One of the portal's destinations: where it starts, its label, the badge key its count comes from, and the page paths it holds. */
+/**
+ * One of the portal's destinations: where it starts, its label, the badge key its count comes
+ * from, and the page paths it holds.
+ */
 internal class Section(
     val href: String,
     val label: String,
@@ -123,7 +136,10 @@ internal class Section(
 /** One page inside a section, shown as a tab on every page of that section. */
 internal class Tab(val href: String, val label: String, val badge: String? = null)
 
-/** The portal's destinations: the home page, the lineup, where channels come from, what plays them, the settings and the server itself. */
+/**
+ * The portal's destinations: the home page, the lineup, where channels come from, what plays them, the
+ * settings and the server itself.
+ */
 internal val NAV: List<Section> = listOf(
     Section("/admin", "Home"),
     Section(
@@ -240,7 +256,8 @@ internal fun layout(
                     }
                 }
                 if (chrome != null) {
-                    // On a phone the nav folds into this disclosure; on a wide screen the stylesheet shows it open with no summary.
+                    // On a phone the nav folds into this disclosure; on a wide screen the stylesheet
+                    // shows it open with no summary.
                     details("menu") {
                         val here = NAV.firstOrNull { it.holds(current) }
                         summary {

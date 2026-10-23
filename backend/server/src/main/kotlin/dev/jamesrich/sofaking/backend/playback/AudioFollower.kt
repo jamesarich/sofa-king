@@ -12,11 +12,12 @@ private val log = LoggerFactory.getLogger(AudioFollower::class.java)
 
 /**
  * Reads the audio of one [AdClock]'s segments, in the order they were fetched, and hands [heard] (the clock's
- * [AdClock.heard]) each one's levels and the Chromaprint points that are new with it, placed by [placement]. A playlist's audio is one stream from segment to segment, so
- * its points fall on one grid wherever a segment starts, as if the whole stream were fingerprinted at once: each read
- * starts at the next point due and keeps the audio after the last point it gave for the next segment. A segment that
- * is not the one after the last read of its playlist starts the stream again. Segments are queued, a few at most; one
- * that does not fit is dropped, and the one after it starts the stream again.
+ * [AdClock.heard]) each one's levels and the Chromaprint points that are new with it, placed by [placement]. A
+ * playlist's audio is one stream from segment to segment, so its points fall on one grid wherever a segment starts,
+ * as if the whole stream were fingerprinted at once: each read starts at the next point due and keeps the audio
+ * after the last point it gave for the next segment. A segment that is not the one after the last read of its
+ * playlist starts the stream again. Segments are queued, a few at most; one that does not fit is dropped, and the
+ * one after it starts the stream again.
  */
 internal class AudioFollower(
     private val audio: SegmentAudio,

@@ -41,7 +41,8 @@ class SubtitlesTest {
     fun `a break tag is a new line even without its bracket or escaped`() {
         val subtitles = parseWebVtt(
             "WEBVTT\n\n00:01.000 --> 00:02.000\none<br\ntwo <BR/> three\n\n" +
-                "00:03.000 --> 00:04.000\nfour &lt;br&gt; five <br six\n\n00:05.000 --> 00:06.000\na < b <i>and</i> c > d <00:05.500>e\n",
+                "00:03.000 --> 00:04.000\nfour &lt;br&gt; five <br six\n\n00:05.000 --> 00:06.000\na < b <i>and</i> " +
+                "c > d <00:05.500>e\n",
         )
         assertEquals(listOf("one\ntwo\nthree", "four\nfive\nsix", "a < b and c > d e"), subtitles.cues.map { it.text })
     }

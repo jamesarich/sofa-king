@@ -39,7 +39,10 @@ suspend fun BackendStore.libraryIntro(itemId: String): IntroRecord? = read {
         .where { LibraryIntroRows.itemId eq itemId }.singleOrNull()?.intro(withFingerprint = false)
 }
 
-/** Keeps newly read fingerprints; the intro and credits of the file they replace are dropped until the show is matched again. */
+/**
+ * Keeps newly read fingerprints; the intro and credits of the file they replace are dropped
+ * until the show is matched again.
+ */
 suspend fun BackendStore.saveLibraryFingerprint(record: IntroRecord) = query {
     LibraryIntroRows.upsert {
         it[itemId] = record.itemId

@@ -85,10 +85,13 @@ class LibraryMetadataTest {
             calls,
             routes = mapOf(
                 "/search/movie" to
-                    """{"results":[{"id":9,"title":"Alien Nation","release_date":"1988-10-07"},{"id":348,"title":"Alien","release_date":"1979-05-25"}]}""",
+                    """{"results":[{"id":9,"title":"Alien """ +
+                    """Nation","release_date":"1988-10-07"},{"id":""" +
+                    """348,"title":"Alien","release_date":"1979-05-25"}]}""",
                 "/movie/348" to
                     """{"id":348,"title":"Alien","release_date":"1979-05-25","overview":"In space.","genres":[{"name":"Horror"}],"vote_average":8.149,
-                "poster_path":"/poster.jpg","backdrop_path":"/back.jpg","credits":{"cast":[{"name":"Sigourney Weaver"}],"crew":[{"name":"Ridley Scott","job":"Director"}]},
+                "poster_path":"/poster.jpg","backdrop_path":"/back.jpg",
+                "credits":{"cast":[{"name":"Sigourney Weaver"}],"crew":[{"name":"Ridley Scott","job":"Director"}]},
                 "release_dates":{"results":[{"iso_3166_1":"US","release_dates":[{"certification":""},{"certification":"R"}]}]}}""",
             ),
         )
@@ -155,9 +158,12 @@ class LibraryMetadataTest {
             calls,
             routes = mapOf(
                 "/tv/2316" to
-                    """{"id":2316,"name":"The Office","first_air_date":"2005-03-24","overview":"Paper.","content_ratings":{"results":[{"iso_3166_1":"US","rating":"TV-14"}]}}""",
+                    """{"id":2316,"name":"The """ +
+                    """Office","first_air_date":"2005-03-24","overview":"Paper.","content_ratings":{"results":[""" +
+                    """{"iso_3166_1":"US","rating":"TV-14"}]}}""",
                 "/tv/2316/season/2" to
-                    """{"name":"Season 2","episodes":[{"episode_number":1,"name":"The Dundies","air_date":"2005-09-20","still_path":"/still.jpg"}]}""",
+                    """{"name":"Season 2","episodes":[{"episode_number":1,"name":"The """ +
+                    """Dundies","air_date":"2005-09-20","still_path":"/still.jpg"}]}""",
             ),
         )
         val (store, service) = service(root, http)

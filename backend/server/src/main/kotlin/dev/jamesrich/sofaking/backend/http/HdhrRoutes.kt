@@ -117,7 +117,8 @@ fun Route.hdhrRoutes(
             val capacity = config.devices * config.deviceSize
             if (enabled.size > capacity && overflowWarned.getAndSet(enabled.size) != enabled.size) {
                 log.warn(
-                    "HDHomeRun devices hold {} channels but {} are enabled; the rest go on the last device, add ports to SOFA_HDHR_EXTRA_PORTS",
+                    "HDHomeRun devices hold {} channels but {} are enabled; the rest go on the last device, add " +
+                        "ports to SOFA_HDHR_EXTRA_PORTS",
                     capacity,
                     enabled.size,
                 )
@@ -192,7 +193,8 @@ fun Route.hdhrRoutes(
         }
         try {
             serveExternal(call, runtime, entry.id, shareHls = false) { session ->
-                // FFmpeg reads the source through the loopback relay, not the session, so this request is what holds the session.
+                // FFmpeg reads the source through the loopback relay, not the session, so this
+                // request is what holds the session.
                 runtime.sessions.attach(session.id, coroutineContext.job)
                 val offering = runtime.sessions.offeringOf(session.id)
                 val stream = try {
@@ -214,7 +216,10 @@ fun Route.hdhrRoutes(
     }
 }
 
-/** The DeviceID Plex knows [device] by: the configured or server-derived ID for device 0, then one derived from it per extra port. */
+/**
+ * The DeviceID Plex knows [device] by: the configured or server-derived ID for device 0, then one
+ * derived from it per extra port.
+ */
 fun hdhrDeviceId(config: HdhrConfig, serverId: String, device: Int): String {
     val first = config.deviceId ?: hash(serverId).take(8).uppercase()
     return if (device == 0) first else hash("$first:$device").take(8).uppercase()

@@ -78,7 +78,8 @@ internal val PREVIEW_HEIGHT = 144.dp
 /** The whole top band, exactly the preview's height; see the row budget in GuideScreen. */
 internal val PREVIEW_BAND_HEIGHT = 144.dp
 
-// Long enough to skip rows passed under a held D-pad (repeats every 50-150 ms); each tune opens a session and cold-starts a relay.
+// Long enough to skip rows passed under a held D-pad (repeats every 50-150 ms); each tune opens a
+// session and cold-starts a relay.
 private const val PREVIEW_DEBOUNCE_MS = 350L
 
 // How often a 410 from the relay reopens the same channel before the preview gives up on it.
@@ -177,10 +178,10 @@ private val DETAIL_IMAGE_HEIGHT = 90.dp
  * [PREVIEW_DEBOUNCE_MS] after focus rests on a different channel; a stream the player already holds (the
  * channel just watched) keeps playing and its session goes back to preview intent. The player belongs to
  * the app, which stops it in the background and releases it. Captions are the full screen's, scaled to the box.
- * [muted] follows the guide's rest timers, and sound plays at the players' volume, while [ownsVolume]: the guide stays composed for a frame under the full
- * screen it hands the player to, and its focus leaving the grid mutes the rest timers, which must not silence the
- * full screen. [failed] is the guide's record that the preview has no picture, set through
- * [onFailedChanged].
+ * [muted] follows the guide's rest timers, and sound plays at the players' volume, while [ownsVolume]: the guide
+ * stays composed for a frame under the full screen it hands the player to, and its focus leaving the grid mutes the
+ * rest timers, which must not silence the full screen. [failed] is the guide's record that the preview has no
+ * picture, set through [onFailedChanged].
  */
 @Composable
 internal fun PreviewVideo(
@@ -201,7 +202,8 @@ internal fun PreviewVideo(
     LaunchedEffect(muted, ownsVolume, gain) { if (ownsVolume) player.volume = if (muted) 0f else gain }
     // Bumped when the relay answers 410, so the tune effect reopens the channel at once instead of after the debounce.
     var retune by remember { mutableIntStateOf(0) }
-    // The channel whose stream the player holds; until it is the focused one, the card covers the last channel's picture.
+    // The channel whose stream the player holds; until it is the focused one, the card
+    // covers the last channel's picture.
     var showing by remember { mutableStateOf(player.currentChannelId) }
 
     val lifecycle = appLifecycleOwner.lifecycle

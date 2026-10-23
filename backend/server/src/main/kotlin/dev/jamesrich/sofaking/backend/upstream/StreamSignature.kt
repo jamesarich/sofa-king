@@ -6,7 +6,10 @@ import io.ktor.utils.io.readAvailable
 internal const val TS_PACKET = 188
 internal const val TS_SYNC = 0x47.toByte()
 
-/** "hls" for an extended M3U head, "mpegts" for three aligned sync bytes, otherwise null; [size] bounds a working buffer. */
+/**
+ * "hls" for an extended M3U head, "mpegts" for three aligned sync bytes, otherwise null;
+ * [size] bounds a working buffer.
+ */
 internal fun sniffProtocol(head: ByteArray, size: Int = head.size): String? {
     var start = 0
     if (size >= 3 && head[0] == 0xEF.toByte() && head[1] == 0xBB.toByte() && head[2] == 0xBF.toByte()) start = 3

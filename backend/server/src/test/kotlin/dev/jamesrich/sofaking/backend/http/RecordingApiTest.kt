@@ -50,7 +50,9 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** The DVR's writes over HTTP: what each answers, the error shapes of bad requests, and stopping a running recording. */
+/**
+ * The DVR's writes over HTTP: what each answers, the error shapes of bad requests, and stopping a running recording.
+ */
 class RecordingApiTest {
     private val json = Json { ignoreUnknownKeys = true }
     private val token = "secret".repeat(8)
@@ -69,9 +71,8 @@ class RecordingApiTest {
         val start = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(3600)
         val body = (
             "<?xml version=\"1.0\"?><tv><channel id=\"live\"><display-name>Live</display-name></channel>" +
-                "<programme channel=\"live\" start=\"${xmltvTime.format(
-                    start,
-                )}\" stop=\"${xmltvTime.format(start.plusSeconds(7200))}\"><title>Movie Night</title></programme></tv>"
+                "<programme channel=\"live\" start=\"${xmltvTime.format(start)}\" " +
+                "stop=\"${xmltvTime.format(start.plusSeconds(7200))}\"><title>Movie Night</title></programme></tv>"
             ).toByteArray()
         val guide = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
             createContext("/guide.xml") { exchange ->
@@ -84,7 +85,8 @@ class RecordingApiTest {
             val feed = media.feed.copy(guideUrl = "http://127.0.0.1:${guide.address.port}/guide.xml")
             val sources = dir.resolve("sources.json")
             Files.writeString(sources, Json.encodeToString(listOf(feed)))
-            // No space floor, so cleanup never deletes the recordings the test writes; no Comskip, so nothing scans them.
+            // No space floor, so cleanup never deletes the recordings the test writes; no
+            // Comskip, so nothing scans them.
             val config = ServerConfig(
                 "127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true,
                 hdhr = HdhrConfig(
@@ -342,7 +344,8 @@ class RecordingApiTest {
             val rulesBody = send(HttpMethod.Get, "/api/v1/recording-rules").bodyAsText()
             assertKeepsWireFixture("v1/recording-rule-list.json", rulesBody)
 
-            // A kept episode with every field the server fills: guide facts, a file, a short-stop reason and commercial breaks.
+            // A kept episode with every field the server fills: guide facts, a file, a
+            // short-stop reason and commercial breaks.
             val start = Instant.now().truncatedTo(ChronoUnit.SECONDS).minus(Duration.ofDays(1))
             runtime.store.addRecording(
                 StoredRecording(

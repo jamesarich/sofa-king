@@ -121,7 +121,8 @@ private const val ICON_PATH = "/admin/static/icon.svg"
 /** The sign-in form, the brand icon its tab shows and the stylesheet; everything else needs a session. */
 private val PUBLIC_PATHS = setOf("/admin", "/admin/login", ICON_PATH, STYLESHEET_PATH)
 private const val CSP =
-    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; form-action " +
+        "'self'; frame-ancestors 'none'; base-uri 'none'"
 
 /** Whether [path], as routing resolves it, belongs to the portal. */
 internal fun isPortalPath(path: String): Boolean = path == "/admin" || path.startsWith("/admin/")
@@ -709,7 +710,8 @@ class AdminPortal(
                     call.html(
                         restartingPage(
                             theme(call),
-                            "Saved the TMDB token to ${setup.secretsPath}. The libraries scan again once the server is back and fill in details and artwork.",
+                            "Saved the TMDB token to ${setup.secretsPath}. The libraries scan again once the server " +
+                                "is back and fill in details and artwork.",
                         ),
                     )
                 } catch (e: ApiFailure) {
@@ -850,7 +852,8 @@ class AdminPortal(
                 )
             }
             action("/settings/runtime/check") { _, form ->
-                // The form asks, on every change, whether its values differ from what the server uses; the answer is the Save control alone.
+                // The form asks, on every change, whether its values differ from what the server uses; the
+                // answer is the Save control alone.
                 val proposed = form.names().associateWith { form[it].orEmpty() }
                 call.html(runtimeSaveFragment(runtimeChanged(runtime.settings.current, proposed)))
             }
@@ -939,7 +942,10 @@ class AdminPortal(
         }
     }
 
-    /** The posted form; a body that is not a form reads as an empty one, so it fails the token checks instead of erroring. */
+    /**
+     * The posted form; a body that is not a form reads as an empty one, so it fails the
+     * token checks instead of erroring.
+     */
     private suspend fun ApplicationCall.formOrEmpty(): Parameters = try {
         receiveParameters()
     } catch (
@@ -972,7 +978,8 @@ class AdminPortal(
         config?.revision ?: "unknown",
         runtime.startedAt,
         theme(call),
-        // A page answering a POST sends a theme change back to the section it belongs to; the posted path is the action.
+        // A page answering a POST sends a theme change back to the section it belongs to;
+        // the posted path is the action.
         if (call.request.httpMethod == HttpMethod.Get) call.request.uri else "/admin",
     )
 
@@ -1062,12 +1069,8 @@ class AdminPortal(
                 now,
             ).seconds.coerceAtLeast(0),
             runtime.store.schemaVersion(),
-            "${Runtime.version()} (${System.getProperty(
-                "java.vendor",
-            )})",
-            "${System.getProperty(
-                "os.name",
-            )} ${System.getProperty("os.version")} ${System.getProperty("os.arch")}",
+            "${Runtime.version()} (${System.getProperty("java.vendor")})",
+            "${System.getProperty("os.name")} ${System.getProperty("os.version")} ${System.getProperty("os.arch")}",
             ffmpeg.get() ?: ffmpegVersion(config?.ffmpeg ?: "ffmpeg").also(ffmpeg::set),
             config?.dataDirectory?.toAbsolutePath()?.toString(), runtime.settings.current.logLevel,
             config?.logging?.format ?: "text",
@@ -1091,7 +1094,10 @@ class AdminPortal(
         return AboutView(snapshot.server, snapshot.status, snapshot.toJson(), runtime.updates?.state())
     }
 
-    /** Nav and tab counts from in-memory state only, so every page stays cheap; a section's count is the sum of its tabs'. */
+    /**
+     * Nav and tab counts from in-memory state only, so every page stays cheap; a section's
+     * count is the sum of its tabs'.
+     */
     private suspend fun badges(): Map<String, Int> {
         val applied = runtime.policy?.lastApplied()
         val plex = plexStatus?.status()
@@ -1311,9 +1317,8 @@ class AdminPortal(
         }
         session.flash.set(
             Flash(
-                "Saved: ${edit.describe}. ${thousands(
-                    result.enabledStations,
-                )} channels on of ${thousands(result.stations)}.",
+                "Saved: ${edit.describe}. ${thousands(result.enabledStations)} channels on of " +
+                    "${thousands(result.stations)}.",
             ),
         )
         seeOther(call, back ?: "$page#${edit.section}")
@@ -1400,9 +1405,7 @@ class AdminPortal(
                 add(
                     Attention(
                         Tone.WARN,
-                        "Waiting for the first import of ${waiting.joinToString {
-                            it.id
-                        }}",
+                        "Waiting for the first import of ${waiting.joinToString { it.id }}",
                         null,
                         "/admin/providers#imports",
                         "Sources",
@@ -1417,10 +1420,8 @@ class AdminPortal(
                     Attention(
                         failingTone(badGuides.map { it.lastSuccessAt }, now),
                         if (badGuides.size == 1) {
-                            "Guide ${badGuides[0].id} ${failingFor(
-                                badGuides[0].lastSuccessAt,
-                                now,
-                            ) ?: "failed its last import"}"
+                            "Guide ${badGuides[0].id} " +
+                                "${failingFor(badGuides[0].lastSuccessAt, now) ?: "failed its last import"}"
                         } else {
                             "${badGuides.size} guides failed their last import"
                         },
@@ -1454,7 +1455,9 @@ class AdminPortal(
                     Attention(
                         Tone.BAD,
                         "The server cannot write the recordings folder",
-                        "${dvr.root}: every recording fails until the user the container runs as owns it. On the host: sudo chown -R UID:GID ./recordings, with the UID and GID from .env (1000 by default).",
+                        "${dvr.root}: every recording fails until the user the container runs as owns it. On the " +
+                            "host: sudo chown -R UID:GID ./recordings, with the UID and GID from .env (1000 by " +
+                            "default).",
                         "/admin/recordings",
                         "Recordings",
                         "recordings-unwritable",
@@ -1530,8 +1533,9 @@ class AdminPortal(
                     ),
                 )
             }
-            // Run findings, unmapped categories (their stations fall to the default group) and stations waiting for a probe are
-            // normal operation: the Merges and Groups tabs and the Sources tile carry them, so the home page does not nag.
+            // Run findings, unmapped categories (their stations fall to the default group) and stations
+            // waiting for a probe are normal operation: the Merges and Groups tabs and the Sources tile carry
+            // them, so the home page does not nag.
             val unmapped = applied?.result?.unmappedCategories?.size ?: 0
             if (unmapped > 0) {
                 add(
@@ -1660,10 +1664,9 @@ class AdminPortal(
             val keys = ids.mapNotNull { stations[it]?.key }
             if (keys.size < ids.size) {
                 refuse(
-                    "${plural(
-                        ids.size - keys.size,
-                        "selected channel",
-                    )} ${if (ids.size - keys.size == 1) "is" else "are"} not in the last policy run; reload the page.",
+                    "${plural(ids.size - keys.size, "selected channel")} " +
+                        "${if (ids.size - keys.size == 1) "is" else "are"} not in the last policy run; reload the " +
+                        "page.",
                 )
                 return
             }
@@ -2163,7 +2166,10 @@ internal class StationRow(
             (station?.disabledReason ?: entry.autoDisabledReason ?: "hidden")
     }
 
-    /** The row's tint: bad for an on-air station with sources and none healthy, warn for one whose guide ended; null otherwise. */
+    /**
+     * The row's tint: bad for an on-air station with sources and none healthy, warn for one
+     * whose guide ended; null otherwise.
+     */
     val tint: Tone? get() = when {
         !entry.enabled -> null
         entry.offeringIds.isNotEmpty() && healthy == 0 -> Tone.BAD
@@ -2181,7 +2187,10 @@ internal fun isOverride(key: String, station: StationOverride, policy: LineupPol
         (number != null && key !in policy.numbering.assigned)
 }
 
-/** The tone of a failing import: warn while every last success is under a day old, bad after that or with no success at all. */
+/**
+ * The tone of a failing import: warn while every last success is under a day old, bad after
+ * that or with no success at all.
+ */
 internal fun failingTone(lastSuccesses: List<String?>, now: Instant): Tone = if (lastSuccesses.all {
         it != null && Duration.between(Instant.parse(it), now) < Duration.ofDays(1)
     }
@@ -2191,7 +2200,10 @@ internal fun failingTone(lastSuccesses: List<String?>, now: Instant): Tone = if 
     Tone.BAD
 }
 
-/** "has failed for 3 days" once a day has passed since [lastSuccessAt]; "has never imported" without one; null under a day. */
+/**
+ * "has failed for 3 days" once a day has passed since [lastSuccessAt]; "has never imported"
+ * without one; null under a day.
+ */
 internal fun failingFor(lastSuccessAt: String?, now: Instant): String? {
     val since = lastSuccessAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return "has never imported"
     val days = Duration.between(since, now).toDays()

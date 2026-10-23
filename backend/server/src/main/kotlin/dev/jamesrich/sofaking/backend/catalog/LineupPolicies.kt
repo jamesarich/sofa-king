@@ -200,7 +200,8 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
     for ((pin, keys) in pins.entries.sortedBy { it.key }) {
         if (keys.size > 1) {
             errors +=
-                "pin $pin is claimed by ${keys.distinct().joinToString()}${if (keys.distinct().size == 1) " more than once" else ""}"
+                "pin $pin is claimed by " +
+                "${keys.distinct().joinToString()}${if (keys.distinct().size == 1) " more than once" else ""}"
         }
     }
     return errors

@@ -62,7 +62,10 @@ class ProbeWorker(
      * ranks before health status (lower first). Offerings it leaves out are never probed. Null without a policy.
      */
     private val targets: (() -> Map<String, Int>)? = null,
-    /** The relay the decode tier's FFmpeg reads sources through; without one, the decode tier fails as [FailureClass.LOCAL]. */
+    /**
+     * The relay the decode tier's FFmpeg reads sources through; without one, the decode tier
+     * fails as [FailureClass.LOCAL].
+     */
     private val relay: LoopbackRelay? = null,
     private val qualifier: (suspend (Offering, Map<String, String>) -> FailureClass?)? = null,
 ) {
@@ -315,18 +318,22 @@ private val AUTH_ERROR = Regex("(?i)(HTTP error |server returned )(401|403)\\b")
 private val RATE_LIMIT_ERROR = Regex("(?i)(HTTP error |server returned )429\\b")
 private val PROVIDER_ERROR =
     Regex(
-        "(?i)HTTP error 5[0-9]{2}|server returned 5(XX|[0-9]{2})|connection refused|failed to resolve|network is unreachable|connection timed out|connection reset|broken pipe|TLS handshake",
+        "(?i)HTTP error 5[0-9]{2}|server returned 5(XX|[0-9]{2})|connection refused|failed to resolve|network is " +
+            "unreachable|connection timed out|connection reset|broken pipe|TLS handshake",
     )
 private val LOCAL_ERROR =
     Regex(
-        "(?i)decoder .*not found|unknown decoder|permission denied|no space left|cannot allocate memory|resource temporarily unavailable|protocol not found",
+        "(?i)decoder .*not found|unknown decoder|permission denied|no space left|cannot allocate memory|resource " +
+            "temporarily unavailable|protocol not found",
     )
 
 /** Lines of FFmpeg's `-progress` output. */
 private val FRAME_LINE = Regex("(?m)^frame=(\\d+)$")
 private val OUT_TIME_LINE = Regex("(?m)^out_time_us=(\\d+)$")
 
-/** The FFmpeg command that reads [seconds] of [source]'s first video stream, decoding it or, with [copy], copying it. */
+/**
+ * The FFmpeg command that reads [seconds] of [source]'s first video stream, decoding it or, with [copy], copying it.
+ */
 internal fun decodeCommand(
     ffmpeg: String,
     source: FfmpegSource,

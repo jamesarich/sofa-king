@@ -112,7 +112,8 @@ class SegmentAudioTest {
             }
             val points = heard.flatMap { it.first.toList() }
             assertTrue(points.size in whole.size - 3..whole.size, "${points.size} points of ${whole.size}")
-            // Each segment decodes on its own, so a few samples at its edges may differ from the whole; the points barely do.
+            // Each segment decodes on its own, so a few samples at its edges may differ from
+            // the whole; the points barely do.
             val close = points.indices.count { Integer.bitCount(points[it] xor whole[it]) <= 6 }
             assertTrue(close >= points.size * 0.95, "$close of ${points.size} points match the whole stream's")
             assertEquals(0L, heard.first().second)

@@ -12,7 +12,10 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** The playlists here are ones Pluto, Tubi, Xumo, Plex, Roku, Whale and Stirr served on 2026-10-22 and 23, with their paths shortened and their tokens removed. */
+/**
+ * The playlists here are ones Pluto, Tubi, Xumo, Plex, Roku, Whale and Stirr served on 2026-10-22 and 23, with their
+ * paths shortened and their tokens removed.
+ */
 class AdBreaksTest {
     private val plutoBase = URI("https://siloh-ns1.plutotv.net/v2/stitch/hls/channel/5f1ac1f1/master.m3u8")
     private val tubiBase = URI("https://aegis-cloudfront-1.tubi.video/b18a776e/master_5.m3u8")
@@ -98,7 +101,10 @@ https://siloh-ns1.plutotv.net/182_CBS_TV/clip/6126d98b_CSI_S2E15/720p/hls/hls_60
         assertEquals(listOf(AdRun(123, 124)), AdBreaks.runs(back, plutoBase))
     }
 
-    /** No program dates; a `CUE-OUT` with the planned length on a splice-cut boundary, `CUE-OUT-CONT` on each ad segment. */
+    /**
+     * No program dates; a `CUE-OUT` with the planned length on a splice-cut boundary,
+     * `CUE-OUT-CONT` on each ad segment.
+     */
     private val tubi = """#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-TARGETDURATION:6
@@ -197,7 +203,8 @@ https://xumo-xumoent-ch827-uj0ch.fast.nbcuni.com/live/master_6/00350/master_6_04
 """
         val xumoBase =
             URI(
-                "https://d1example.cloudfront.net/v1/manifest/0123456789abcdef0123456789abcdef01234567/prod_default_xumo-nbcu-linear/00000000-0000-4000-8000-000000000001/5.m3u8",
+                "https://d1example.cloudfront.net/v1/manifest/0123456789abcdef0123456789abcdef01234567/" +
+                    "prod_default_xumo-nbcu-linear/00000000-0000-4000-8000-000000000001/5.m3u8",
             )
         assertEquals(listOf(false, false, true, true), ads(xumo, xumoBase))
         val plex = """#EXTM3U
@@ -245,14 +252,16 @@ https://example.com/osbt/v1/bas/use2/1/2/3/5
 """
         val rokuBase =
             URI(
-                "https://gcp-live-5014-013.delivery.roku.com/00000000-0000-4000-8000-000000000003/t2-origin/out/v1/live_216_low.m3u8",
+                "https://gcp-live-5014-013.delivery.roku.com/00000000-0000-4000-8000-000000000003/t2-origin/out/v1/" +
+                    "live_216_low.m3u8",
             )
         assertEquals(listOf(false, true, true, true, false, false), ads(roku, rokuBase))
     }
 
     @Test fun `Amagi's beacon segments marked M are ads and those marked C are not`() {
         fun beacon(type: String, n: Int) =
-            "https://amg00000-example-plex-us-0000.playouts.now.amagi.tv/ts-us-w1-n2/beacon/amg00000-example/0123456789abcdef$n?bcn=0&dur=6.000000&media_type=$type&seen-ad=1&seg_id=$n"
+            "https://amg00000-example-plex-us-0000.playouts.now.amagi.tv/ts-us-w1-n2/beacon/amg00000-example/" +
+                "0123456789abcdef$n?bcn=0&dur=6.000000&media_type=$type&seen-ad=1&seg_id=$n"
         val whale =
             "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:40\n" +
                 listOf("C", "M", "M", "C").withIndex().joinToString("") { (n, type) ->
@@ -260,7 +269,8 @@ https://example.com/osbt/v1/bas/use2/1/2/3/5
                 }
         val base =
             URI(
-                "https://amg00000-example-plex-us-0000.playouts.now.amagi.tv/ts-us-w1-n2/playlist/amg00000-example/playlist.m3u8",
+                "https://amg00000-example-plex-us-0000.playouts.now.amagi.tv/ts-us-w1-n2/playlist/amg00000-example/" +
+                    "playlist.m3u8",
             )
         assertEquals(listOf(false, true, true, false), ads(whale, base))
         // Plex puts one of its own parts between Amagi's segments; one between two ads belongs to the break.
@@ -328,8 +338,8 @@ $host/not-a-token.ts
     }
 
     @Test fun `Ottera's ad host is an ad and a Plex part between two of its segments joins the break`() {
-        fun ad(n: Int) =
-            "https://stream.ads.ottera.tv/mf2/640x360_800000?u=https%3A%2F%2Fexample.cloudfront.net%2Fcreative%2Fprog_index_11-$n.ts&a=0&s=$n&d=120"
+        fun ad(n: Int) = "https://stream.ads.ottera.tv/mf2/640x360_800000?" +
+            "u=https%3A%2F%2Fexample.cloudfront.net%2Fcreative%2Fprog_index_11-$n.ts&a=0&s=$n&d=120"
         val own = "https://bas-example.otteravision.com/bas/example/example_360/00043/example_360_08615.ts"
         val part = "https://epg.provider.plex.tv/library/parts/0123-4567/segment"
         val plex = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:9\n" + listOf(part, own, part, ad(1), part, ad(2), part, own)

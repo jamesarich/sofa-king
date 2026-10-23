@@ -47,7 +47,8 @@ class UpdateCheckerTest {
                         HttpStatusCode.Unauthorized,
                         headersOf(
                             HttpHeaders.WWWAuthenticate,
-                            """Bearer realm="https://ghcr.io/token",service="ghcr.io",scope="repository:jamesarich/sofa-king:pull"""",
+                            """Bearer realm="https://ghcr.io/token",service="ghcr.io",scope="repository:jamesarich/""" +
+                                """sofa-king:pull"""",
                         ),
                     )
                 } else {
@@ -111,7 +112,8 @@ class UpdateCheckerTest {
         val request = dir.resolve(UpdateChecker.REQUEST_FILE)
         fun report(outcome: String, candidate: String) = Files.writeString(
             dir.resolve(UpdateChecker.STATUS_FILE),
-            """{"checkedAt":"2026-10-21T17:00:00Z","running":"abc1234","candidate":"$candidate","outcome":"$outcome"}""",
+            """{"checkedAt":"2026-10-21T17:00:""" +
+                """00Z","running":"abc1234","candidate":"$candidate","outcome":"$outcome"}""",
         )
         HttpClient(registry()).use { http ->
             val jobs = Jobs(clock)
@@ -187,7 +189,9 @@ class UpdateCheckerTest {
         val dir = Files.createTempDirectory("sofa-update-")
         Files.writeString(
             dir.resolve(UpdateChecker.STATUS_FILE),
-            """{"checkedAt":"2026-10-16T11:50:00Z","image":"ghcr.io/jamesarich/sofa-king:main","running":"abc1234","candidate":"abc1234","outcome":"up-to-date","message":"running abc1234"}""",
+            """{"checkedAt":"2026-10-16T11:50:00Z","image":"ghcr.io/jamesarich/sofa-king:""" +
+                """main","running":"abc1234","candidate":"abc1234","outcome":"up-to-date","message":"running """ +
+                """abc1234"}""",
         )
         HttpClient(MockEngine { respond("", HttpStatusCode.NotFound) }).use { http ->
             val checker = UpdateChecker(http, clock, dir, null, RunningBuild("abc1234", "1.3.0"), Jobs(clock))

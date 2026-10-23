@@ -19,7 +19,9 @@ import kotlin.time.TimeSource
 
 private val processStart = TimeSource.Monotonic.markNow()
 
-/** Milliseconds on a monotonic clock that does not jump with the wall clock; the rest timers and pause rules read it. */
+/**
+ * Milliseconds on a monotonic clock that does not jump with the wall clock; the rest timers and pause rules read it.
+ */
 internal fun uptimeMs(): Long = processStart.elapsedNow().inWholeMilliseconds
 
 private val twelveHourFormat = LocalTime.Format {

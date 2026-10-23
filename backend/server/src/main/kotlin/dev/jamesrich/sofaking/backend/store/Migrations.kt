@@ -38,7 +38,8 @@ internal fun applyMigrations(database: Database, migrations: List<Migration>, cl
             buildList { while (rows.next()) add(rows.getInt(1)) }
         }.orEmpty().toSet()
         check(applied.all { it in versions }) {
-            "Unsupported database schema $applied; this server knows versions $versions. Use a compatible server or restore a backup."
+            "Unsupported database schema $applied; this server knows versions $versions. Use a compatible server or " +
+                "restore a backup."
         }
         for (migration in migrations.filter { it.version !in applied }) {
             migration.sql.split(';').map(String::trim).filter(String::isNotEmpty).forEach { exec(it) }

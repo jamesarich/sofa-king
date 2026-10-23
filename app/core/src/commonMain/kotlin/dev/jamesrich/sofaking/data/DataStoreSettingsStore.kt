@@ -25,7 +25,10 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
-/** [SettingsStore] on a preferences [DataStore]; there must be only one per file, which the DI graph's single instance guarantees. */
+/**
+ * [SettingsStore] on a preferences [DataStore]; there must be only one per file, which the DI
+ * graph's single instance guarantees.
+ */
 class DataStoreSettingsStore(
     private val dataStore: DataStore<Preferences>,
     /** How long an unreadable store waits before it is read again. */

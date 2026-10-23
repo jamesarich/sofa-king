@@ -43,7 +43,9 @@ class AppKeyFuzzTest {
                 val started = System.nanoTime()
                 walk()
                 println(
-                    "Key fuzz (${out.name}): seed $seed, $steps keys in ${(System.nanoTime() - started) / 1_000_000_000} s, ${server.sessionsOpened.get()} sessions opened, ${server.guideQueries.get()} guide queries, ${visited.size} focus targets",
+                    "Key fuzz (${out.name}): seed $seed, $steps keys in " +
+                        "${(System.nanoTime() - started) / 1_000_000_000} s, ${server.sessionsOpened.get()} sessions " +
+                        "opened, ${server.guideQueries.get()} guide queries, ${visited.size} focus targets",
                 )
                 out.resolve("visited-$seed.txt")
                     .writeText(
@@ -80,9 +82,8 @@ class AppKeyFuzzTest {
         fun failAt(reason: String, cause: Throwable? = null): Nothing {
             out.resolve("trace-$seed.txt").writeText(trace.joinToString("\n"))
             failWith(
-                "$reason (seed $seed, step ${pressed.size}); last keys: ${pressed.takeLast(
-                    KEY_TRAIL,
-                ).joinToString(" ")}",
+                "$reason (seed $seed, step ${pressed.size}); last keys: " +
+                    "${pressed.takeLast(KEY_TRAIL).joinToString(" ")}",
                 cause,
             )
         }

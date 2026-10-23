@@ -38,7 +38,9 @@ import java.time.Instant
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.seconds
 
-/** What a recording run came to: the bytes now in the file, and the last reason the source could not be read, if any. */
+/**
+ * What a recording run came to: the bytes now in the file, and the last reason the source could not be read, if any.
+ */
 data class RecordedTake(val bytes: Long, val lastFailure: String?)
 
 /**
@@ -57,7 +59,10 @@ class Recorder internal constructor(
     private val relay: LoopbackRelay,
     /** How long to wait before reopening a source that ended or could not be opened. */
     private val retryDelay: Duration = Duration.ofSeconds(5),
-    /** Joins an MPEG-TS source's one shared upstream connection, the one players of it read; null records every source through FFmpeg. */
+    /**
+     * Joins an MPEG-TS source's one shared upstream connection, the one players of it read; null
+     * records every source through FFmpeg.
+     */
     private val shared: (suspend (Offering, ResolvedStream) -> TsFanout.Reader)? = null,
 ) {
     private val log = LoggerFactory.getLogger(Recorder::class.java)
@@ -170,7 +175,8 @@ class Recorder internal constructor(
     /**
      * Appends the source's shared MPEG-TS connection to [file] until [until], so a recording of a channel someone
      * watches opens no second connection; the packets are already MPEG-TS, so nothing remuxes them. Returns "" when
-     * the source ended on its own, a failure reason, or null when the body is not MPEG-TS after all and FFmpeg should read it.
+     * the source ended on its own, a failure reason, or null when the body is not MPEG-TS after
+     * all and FFmpeg should read it.
      */
     private suspend fun copyShared(
         join: suspend (Offering, ResolvedStream) -> TsFanout.Reader,

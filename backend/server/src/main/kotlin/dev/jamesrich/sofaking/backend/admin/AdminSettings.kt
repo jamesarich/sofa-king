@@ -56,12 +56,17 @@ import kotlinx.html.time
 import kotlinx.html.title
 import kotlinx.html.tr
 
-/** One effective setting: the variable that sets it, its value as the server uses it, and whether that is the default. */
+/**
+ * One effective setting: the variable that sets it, its value as the server uses it, and whether that is the default.
+ */
 internal class Setting(val name: String, val value: String, val isDefault: Boolean, val note: String? = null)
 
 internal class SettingGroup(val title: String, val settings: List<Setting>)
 
-/** A provider or guide from the source file, described without its URL's path, query, headers' values or options' values. */
+/**
+ * A provider or guide from the source file, described without its URL's path, query,
+ * headers' values or options' values.
+ */
 internal class SourceSummary(
     val id: String,
     val kind: String,
@@ -100,7 +105,9 @@ internal class SettingsView(
     /** The API token, only on the page answering the reveal action. */
     val revealedApiToken: String? = null,
     val runtime: RuntimeSettingsView? = null,
-    /** Whether the Advanced section starts open: after an action inside it, or when the page is asked for `advanced=1`. */
+    /**
+     * Whether the Advanced section starts open: after an action inside it, or when the page is asked for `advanced=1`.
+     */
     val openAdvanced: Boolean = false,
 ) {
     constructor(
@@ -139,9 +146,8 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
 
             SecretOrigin.ENVIRONMENT -> "Set in the environment. "
 
-            SecretOrigin.SAVED -> "Saved from the portal in ${config.secretsFile ?: config.dataDirectory.resolve(
-                SecretsFile.NAME,
-            )}. "
+            SecretOrigin.SAVED ->
+                "Saved from the portal in ${config.secretsFile ?: config.dataDirectory.resolve(SecretsFile.NAME)}. "
 
             null -> ""
         }
@@ -281,7 +287,9 @@ private fun every(seconds: Long): String = when {
     else -> "every $seconds s"
 }
 
-/** The Save control of the runtime settings form: "No changes" and disabled while the fields match what the server uses. */
+/**
+ * The Save control of the runtime settings form: "No changes" and disabled while the fields match what the server uses.
+ */
 internal fun FlowContent.runtimeSave(changed: Boolean) = div("actions") {
     id = "runtime-save"
     button(type = ButtonType.submit, classes = "primary") {
@@ -317,7 +325,8 @@ private fun FlowContent.runtimePanel(chrome: Chrome, view: RuntimeSettingsView) 
         if (view.errors.isNotEmpty()) notice("Not saved:", view.errors)
         form(action = "/admin/settings/runtime", method = FormMethod.post, classes = "stack") {
             id = "runtime-form"
-            // With JavaScript, every change asks the server whether the form differs from what runs; without it the button is Save.
+            // With JavaScript, every change asks the server whether the form differs from what runs;
+            // without it the button is Save.
             attributes["hx-post"] = "/admin/settings/runtime/check"
             attributes["hx-trigger"] = "change, load"
             attributes["hx-target"] = "#runtime-save"
@@ -490,7 +499,11 @@ private fun FlowContent.runtimePanel(chrome: Chrome, view: RuntimeSettingsView) 
                 +(
                     "Plex reads a device's tuner count when it adds the device, so a change here shows in Plex after " +
                         "the " +
-                        "device is re-added; the server enforces it at once. Streams per device cannot exceed the sessions at once. Learned ad breaks are ones the server finds in a stream with no ad markers, such as a long silent slate: shadow only logs them (ADDETECT), on also shows the break screen over them. The ad listener plays channels nobody is watching, headless, so the server learns their ads."
+                        "device is re-added; the server enforces it at once. Streams per device cannot exceed the " +
+                        "sessions at once. Learned ad breaks are ones the server finds in a stream with no ad " +
+                        "markers, such as a long silent slate: shadow only logs them (ADDETECT), on also " +
+                        "shows the break screen over them. The ad listener plays channels nobody is " +
+                        "watching, headless, so the server learns their ads."
                     )
             }
             runtimeSave(view.proposed != null && runtimeChanged(view.current, view.proposed))
@@ -551,7 +564,8 @@ internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("
     val now = chrome.now
     pageHead(
         "Settings",
-        "The settings that change at once. Everything else the server runs with, and the lineup policy's file, is under Advanced.",
+        "The settings that change at once. Everything else the server runs with, and the lineup policy's file, is " +
+            "under Advanced.",
     )
     view.runtime?.let { runtimePanel(chrome, it) }
     details("advanced") {

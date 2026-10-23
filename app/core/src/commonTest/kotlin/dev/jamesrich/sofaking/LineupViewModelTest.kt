@@ -74,14 +74,17 @@ class LineupViewModelTest {
                 "/api/v1/guide/query" -> {
                     if (failGuide) return@FakeHttp apiError(503, "NOT_READY")
                     guideRequests++
-                    // One programme per channel at the start of the window asked for, so a second day reads apart from the first.
+                    // One programme per channel at the start of the window asked for, so a second
+                    // day reads apart from the first.
                     val from = Regex(""""from":"([^"]+)"""").find(request.body)?.groupValues?.get(1)
                     val start = from?.let { Instant.parse(it) } ?: Instant.parse("2026-10-10T10:00:00Z")
                     val rows = channelIds.joinToString(",") { id ->
                         if (id in removed) {
                             """{"channelId":"$id","status":"removed","programmes":[]}"""
                         } else {
-                            """{"channelId":"$id","status":"available","programmes":[{"id":"p-$id","channelId":"$id","startsAt":"$start","endsAt":"${start + 1.hours}","title":"Show $id"}]}"""
+                            """{"channelId":"$id","status":"available","programmes":[""" +
+                                """{"id":"p-$id","channelId":"$id","startsAt":"$start","endsA""" +
+                                """t":"${start + 1.hours}","title":"Show $id"}]}"""
                         }
                     }
                     json("""{"revision":"r","from":"x","to":"y","channels":[$rows]}""")

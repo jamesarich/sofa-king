@@ -236,7 +236,8 @@ private fun GuideCellItem(
                 if (it.hasFocus) env.onCellFocused(channel, cell)
             }
             .semantics(mergeDescendants = true) {
-                // Built only when the semantics tree is read, so a grid of hundreds of cells formats nothing for sighted use.
+                // Built only when the semantics tree is read, so a grid of hundreds of cells
+                // formats nothing for sighted use.
                 contentDescription = cellDescription(env, channel, programme, airing)
                 // Favorite stays a direct action for screen readers; sighted use goes through the details.
                 customActions = listOf(

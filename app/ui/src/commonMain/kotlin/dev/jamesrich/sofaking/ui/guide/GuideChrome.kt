@@ -54,7 +54,10 @@ import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
-/** Visible time range above the channel names, for example "Today 1:00 PM - 2:30 PM" or "Tomorrow 9:00 AM - 10:30 AM". Reads scroll in its own scope. */
+/**
+ * Visible time range above the channel names, for example "Today 1:00 PM - 2:30 PM" or "Tomorrow 9:00 AM - 10:30 AM".
+ * Reads scroll in its own scope.
+ */
 @Composable
 internal fun VisibleRange(
     scrollState: ScrollState,

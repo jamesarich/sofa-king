@@ -64,14 +64,12 @@ class RecordingsViewModelTest {
 
     @Test
     fun `the list maps each recording with its breaks and the folder's space`() = fixture.viewModelTest {
+        val breaks = """[{"startMs":900000,"endMs":1080000},{"startMs":30000,"endMs":90000},{"startMs":5,"endMs":5}]"""
+        val completed = ""","episodeTitle":"","bytes":2000,"positionMs":60000,"breaks":$breaks"""
         val server = recordingServer { method, path, _ ->
             if (method == "GET" && path == "/api/v1/recordings") {
                 200 to """{"recordings":[
-                ${recording(
-                    "r1",
-                    "completed",
-                    ""","episodeTitle":"","bytes":2000,"positionMs":60000,"breaks":[{"startMs":900000,"endMs":1080000},{"startMs":30000,"endMs":90000},{"startMs":5,"endMs":5}]""",
-                )},
+                ${recording("r1", "completed", completed)},
                 ${recording("r2", "archived")},
                 {"id":"bad","channelId":"c1","title":"x","startsAt":"soon","endsAt":"later","state":"scheduled"}],
                 "storage":{"freeBytes":10,"totalBytes":100,"usedBytes":5}}"""
@@ -107,7 +105,8 @@ class RecordingsViewModelTest {
     @Test
     fun `series rules load with the list and change in place and stop and the guide follows`() = fixture.viewModelTest {
         var rules = """{"id":"s1","title":"Evening """ +
-            """News","channelId":"c1","newOnly":true,"keep":0,"startPaddingSeconds":60,"endPaddingSeconds":120,"priority":0,"createdAt":"2026-10-18T00:00:00Z"}"""
+            """News","channelId":"c1","newOnly":true,"keep":0,"startPaddingSeconds":60,"endPaddingSeconds":""" +
+            """120,"priority":0,"createdAt":"2026-10-18T00:00:00Z"}"""
         val server = recordingServer { method, path, body ->
             when {
                 method == "GET" && path == "/api/v1/recordings" -> 200 to """{"recordings":[]}"""
@@ -185,10 +184,7 @@ class RecordingsViewModelTest {
                             if (deleted) {
                                 """{"recordings":[]}"""
                             } else {
-                                """{"recordings":[${recording(
-                                    "r1",
-                                    "completed",
-                                )}]}"""
+                                """{"recordings":[${recording("r1", "completed")}]}"""
                             }
                             )
 
@@ -216,7 +212,8 @@ class RecordingsViewModelTest {
                     201 to
                         """{"id":"v1","itemId":"","recordingId":"r1","mode":"remux","startMs":120000,""" +
                         """"durationMs":1800000,""" +
-                        """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/vod/v1/1/k/index.m3u8","epoch":1}}"""
+                        """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/""" +
+                        """vod/v1/1/k/index.m3u8","epoch":1}}"""
 
                 method == "PATCH" && path == "/api/v1/recordings/r1" ->
                     200 to

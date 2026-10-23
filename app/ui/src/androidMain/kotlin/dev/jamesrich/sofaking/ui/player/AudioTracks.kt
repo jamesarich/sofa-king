@@ -10,7 +10,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import java.util.Locale
 
-/** The stream's audio tracks as the stream card lists them; a track's id is its group and index, which [selectAudioTrack] reads back. */
+/**
+ * The stream's audio tracks as the stream card lists them; a track's id is its group and index, which
+ * [selectAudioTrack] reads back.
+ */
 internal fun audioTracksOf(tracks: Tracks): List<AudioTrack> = buildList {
     tracks.groups.forEachIndexed { groupIndex, group ->
         if (group.type != C.TRACK_TYPE_AUDIO) return@forEachIndexed
@@ -39,7 +42,9 @@ private fun Format.audioLabel(ordinal: Int): String {
     return "Track $ordinal"
 }
 
-/** Points the audio selection at the track [id] from [audioTracksOf]; an id that no longer matches a group is ignored. */
+/**
+ * Points the audio selection at the track [id] from [audioTracksOf]; an id that no longer matches a group is ignored.
+ */
 @OptIn(UnstableApi::class)
 internal fun selectAudioTrack(player: ExoPlayer, id: String) {
     val (groupIndex, trackIndex) = id.split(':').mapNotNull { it.toIntOrNull() }.takeIf { it.size == 2 } ?: return

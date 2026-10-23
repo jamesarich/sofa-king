@@ -206,7 +206,9 @@ internal fun CaptionToastPill(outcome: CaptionToggleOutcome, timingMs: Int?) {
     }
 }
 
-/** A short status over the video, announced to screen readers; stack several in a Column. [busy] leads with the loader. */
+/**
+ * A short status over the video, announced to screen readers; stack several in a Column. [busy] leads with the loader.
+ */
 @Composable
 internal fun StatusPill(text: String, style: TextStyle = MaterialTheme.typography.titleMedium, busy: Boolean = false) {
     Row(
@@ -222,7 +224,9 @@ internal fun StatusPill(text: String, style: TextStyle = MaterialTheme.typograph
     }
 }
 
-/** The digits being typed, or the miss notice for them, top right; keyed on presence so each digit updates it in place. */
+/**
+ * The digits being typed, or the miss notice for them, top right; keyed on presence so each digit updates it in place.
+ */
 @Composable
 internal fun BoxScope.ChannelNumberBadge(numbers: ChannelNumberInput) {
     val miss = numbers.miss
@@ -276,7 +280,10 @@ internal fun failureCode(e: Exception): String = (e as? SofaKingException)?.code
 
 private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 
-/** What the card says under the headline: a channel with no working source gets its own line, and an item has no reconnect. */
+/**
+ * What the card says under the headline: a channel with no working source gets its own
+ * line, and an item has no reconnect.
+ */
 internal fun failureHintRes(code: String, live: Boolean = true): StringResource = when {
     !live -> Res.string.vod_cant_play_retry
     SOURCE_UNAVAILABLE in code -> Res.string.no_working_source_hint
@@ -340,7 +347,10 @@ internal fun PausePill(status: PauseStatus?) {
     StatusPill(text)
 }
 
-/** Thin primary-colored bar; [fraction] is 0..1. [color] is the filled part, for rows whose background is already primary. */
+/**
+ * Thin primary-colored bar; [fraction] is 0..1. [color] is the filled part, for rows whose
+ * background is already primary.
+ */
 @Composable
 internal fun ProgressBar(fraction: Float, color: Color = MaterialTheme.colorScheme.primary) {
     LinearProgressIndicator(
@@ -636,7 +646,8 @@ internal fun BoxScope.StreamCard(
     onSelectTrack: (String) -> Unit,
 ) {
     val unknown = stringResource(Res.string.stream_card_unknown)
-    // Focus starts on the playing track's row, so OK and Up/Down act on the tracks at once; with none, the card itself holds it.
+    // Focus starts on the playing track's row, so OK and Up/Down act on the tracks at once; with
+    // none, the card itself holds it.
     val focusRequester = remember { FocusRequester() }
     val focusTrack = tracks.indexOfFirst { it.selected }.coerceAtLeast(0)
     LaunchedEffect(Unit) { requestFocusWhenAttached(focusRequester) }

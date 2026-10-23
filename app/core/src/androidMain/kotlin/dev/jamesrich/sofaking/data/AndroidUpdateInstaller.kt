@@ -155,7 +155,8 @@ private class AndroidUpdateInstaller(private val app: Context) : UpdateInstaller
         } catch (e: CancellationException) {
             throw e
         } catch (e: RuntimeException) {
-            // The package manager and installer throw IllegalStateException and kin too; nothing here may crash the app.
+            // The package manager and installer throw IllegalStateException and kin too;
+            // nothing here may crash the app.
             log.w { "update install failed: ${e.message}" }
             return InstallState.Failed(InstallFailure.INSTALLER, e.message)
         } finally {

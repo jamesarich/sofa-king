@@ -31,7 +31,10 @@ import kotlin.uuid.Uuid
 /** The server did not answer a session open in time; an [IOException], so the caller backs off and retries. */
 class SessionTimeoutException(message: String) : IOException(message)
 
-/** What a playback session is for; a preview holds a 45 s lease and is the first evicted at capacity, a watch holds 90 s. */
+/**
+ * What a playback session is for; a preview holds a 45 s lease and is the first evicted at
+ * capacity, a watch holds 90 s.
+ */
 enum class PlaybackIntent(internal val wire: String) {
     PREVIEW(Wire.Intent.PREVIEW),
     WATCH(Wire.Intent.WATCH),
@@ -145,7 +148,8 @@ class PlaybackSessions(
 
     /**
      * The ad break the held live channel's player shows, as the server places it from the segments the player fetched
-     * and [aheadMs], what it has loaded past the picture; null outside one, between channels and before a server is set.
+     * and [aheadMs], what it has loaded past the picture; null outside one, between
+     * channels and before a server is set.
      */
     suspend fun adBreak(aheadMs: Long): AdBreakNow? {
         val api = api ?: return null
@@ -184,7 +188,9 @@ class PlaybackSessions(
         }
     }
 
-    /** [release] on this instance's own scope, for callers that cannot suspend or whose scope may already be canceled. */
+    /**
+     * [release] on this instance's own scope, for callers that cannot suspend or whose scope may already be canceled.
+     */
     fun releaseAsync(forget: Boolean = false, itemId: String? = null) {
         scope.launch { release(forget, itemId) }
     }
@@ -346,8 +352,9 @@ class PlaybackSessions(
                 val renewed = kind.renew(api, held)
                 mutex.withLock {
                     if (_current.value?.sessionId != sessionId) return
-                    // A restart, intent change or re-read published a newer stream while this renewal was out; the server
-                    // may have answered the renewal before that, so its answer is stale and the next renewal reads afresh.
+                    // A restart, intent change or re-read published a newer stream while this renewal was
+                    // out; the server may have answered the renewal before that, so its answer is stale and
+                    // the next renewal reads afresh.
                     if (_current.value != held) continue
                     _current.value = renewed
                     if (renewed.url != held.url) _replaced.tryEmit(renewed)

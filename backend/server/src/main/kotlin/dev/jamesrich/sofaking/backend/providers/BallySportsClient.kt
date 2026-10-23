@@ -86,7 +86,10 @@ class BallySportsClient(private val context: ProviderContext) : ProviderClient {
         private val PUSH = Regex("""self\.__next_f\.push\((\[.*?])\)""", RegexOption.DOT_MATCHES_ALL)
         private val DATE = Regex("\"\\\$D([^\"]+)\"")
 
-        /** The `channelData` and `epgData` (or `epgItems`) arrays from the page's RSC chunks; each may sit in a different chunk. */
+        /**
+         * The `channelData` and `epgData` (or `epgItems`) arrays from the page's RSC chunks;
+         * each may sit in a different chunk.
+         */
         internal fun parse(
             html: String,
         ): Pair<List<kotlinx.serialization.json.JsonElement>, List<kotlinx.serialization.json.JsonElement>> {

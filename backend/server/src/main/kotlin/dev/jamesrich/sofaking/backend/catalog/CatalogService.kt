@@ -23,7 +23,9 @@ class CatalogService(
     private val store: BackendStore,
     private val clock: Clock,
 ) {
-    /** Lineup, feeds, guide coverage, health version and which guides are still current: everything the body depends on. */
+    /**
+     * Lineup, feeds, guide coverage, health version and which guides are still current: everything the body depends on.
+     */
     suspend fun catalogRevision(): String {
         val now = clock.instant()
         val coverage = guides.coverage()

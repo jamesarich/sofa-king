@@ -32,7 +32,10 @@ class LineupCacheFileTest {
         SystemFileSystem.delete(dir, mustExist = false)
     }
 
-    /** A fresh store over the file, as a cold start opens one; the previous store is closed first, since DataStore allows one per file. */
+    /**
+     * A fresh store over the file, as a cold start opens one; the previous store is closed first, since
+     * DataStore allows one per file.
+     */
     private suspend fun cache(): LineupCache {
         scope?.let {
             it.cancel()

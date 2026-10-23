@@ -53,7 +53,9 @@ class SofaKingApplication : Application() {
     }
 }
 
-/** Draws edge to edge on every API level, as API 35 and later require; the screens keep clear of the bars themselves. */
+/**
+ * Draws edge to edge on every API level, as API 35 and later require; the screens keep clear of the bars themselves.
+ */
 class MainActivity : ComponentActivity() {
     /** A `sofaking://pair` link this activity was opened with, until the app has claimed it. */
     private val pairing = mutableStateOf<PairingRequest?>(null)

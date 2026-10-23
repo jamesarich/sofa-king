@@ -20,7 +20,10 @@ data class ProviderChannel(
     val tags: List<String> = emptyList(),
 )
 
-/** A URL the relay can fetch, the headers every request to it needs, and when it stops working (null: it does not expire). */
+/**
+ * A URL the relay can fetch, the headers every request to it needs, and when it stops
+ * working (null: it does not expire).
+ */
 data class ResolvedStream(
     val url: String,
     val headers: Map<String, String> = emptyMap(),
@@ -43,7 +46,10 @@ interface ProviderClient {
 
     suspend fun channels(): List<ProviderChannel>
 
-    /** The service's guide: every channel in the index, programmes only for the ids in [wanted]. Null when the service has none. */
+    /**
+     * The service's guide: every channel in the index, programmes only for the ids in [wanted].
+     * Null when the service has none.
+     */
     suspend fun guide(wanted: Set<String>): ParsedGuide? = null
 
     suspend fun resolve(channelId: String): ResolvedStream

@@ -71,7 +71,8 @@ class LoopbackRelayTest {
 
     /**
      * The MediaFixture's playlists and segments served from [host], recording every request, plus playlists whose
-     * redirect, variant, segments or key point at [targets] by name: `/redirect-trap.m3u8`, `/key-metadata.m3u8` and so on.
+     * redirect, variant, segments or key point at [targets] by name: `/redirect-trap.m3u8`,
+     * `/key-metadata.m3u8` and so on.
      */
     private class Upstream(host: String, private val media: MediaFixture, private val targets: Map<String, String>) :
         AutoCloseable {
@@ -151,7 +152,10 @@ class LoopbackRelayTest {
 
         private fun vod(): String = String(fetch(media.base, "/vod.m3u8"))
 
-        /** Channel 1 the live playlist, 2 the VOD one, 3 MPEG-TS, 4 a playlist that answers 404, and from 10 the shaped playlists. */
+        /**
+         * Channel 1 the live playlist, 2 the VOD one, 3 MPEG-TS, 4 a playlist that answers 404,
+         * and from 10 the shaped playlists.
+         */
         private fun feedText(): String = buildString {
             append("#EXTM3U\n")
             append("#EXTINF:-1 tvg-id=\"live\" tvg-chno=\"1\",Live\n$base/live.m3u8\n")
@@ -300,7 +304,8 @@ class LoopbackRelayTest {
                                 }
                                 stack.settled()
                             }
-                            // MPEG-TS over HTTP goes through the relay too: the recorder reads it with FFmpeg when no fan-out is given.
+                            // MPEG-TS over HTTP goes through the relay too: the recorder reads it with
+                            // FFmpeg when no fan-out is given.
                             val file = dir.resolve("recording.ts")
                             val take = stack.recorder().record(stack.number("3"), file, Instant.now().plusSeconds(3))
                             assertTrue(take.bytes > 0, "recorded ${take.bytes} bytes, last failure ${take.lastFailure}")
@@ -319,7 +324,8 @@ class LoopbackRelayTest {
 
                             val media = upstream.seen.filter { it.path != "/feed.m3u" }
                             assertTrue(media.any { SEGMENT_PATH.matches(it.path) }, "segments were read: $media")
-                            // FFmpeg sends Icy-MetaData and its own Lavf agent; the relay sends neither, and the provider's headers instead.
+                            // FFmpeg sends Icy-MetaData and its own Lavf agent; the relay sends neither, and
+                            // the provider's headers instead.
                             for (request in media) {
                                 assertEquals(USER_AGENT, request.userAgent, request.toString())
                                 assertEquals(PROVIDER_SECRET, request.providerKey, request.toString())
@@ -356,7 +362,8 @@ class LoopbackRelayTest {
 
     @Test fun `a redirect, a variant, a segment or a key at a refused address fails instead of being fetched`() =
         runBlocking<Unit> {
-            // The upstream must look like any LAN or public host, so loopback stays refused; the trap listens on loopback.
+            // The upstream must look like any LAN or public host, so loopback stays
+            // refused; the trap listens on loopback.
             val outside = outsideAddress()
             assumeTrue(outside != null, "this machine has no address but loopback")
             val dir = Files.createTempDirectory("sofa-loopback-refused-")
@@ -369,7 +376,8 @@ class LoopbackRelayTest {
                                 val names = shapes(targets.keys)
                                 val worker = stack.probe()
                                 HttpClient(CIO).use { http ->
-                                    // The same stack plays an allowed upstream, so each failure below is the refused hop.
+                                    // The same stack plays an allowed upstream, so each
+                                    // failure below is the refused hop.
                                     assertEquals(188 * 3, http.remux(stack, "2", 188 * 3).size)
                                     stack.settled()
                                     for ((index, name) in names.withIndex()) {
@@ -382,7 +390,8 @@ class LoopbackRelayTest {
                                             ),
                                             "$name: the probe fails",
                                         )
-                                        // A connection to the address would wait out FFmpeg's 15-second read timeout; a refused hop fails at once.
+                                        // A connection to the address would wait out FFmpeg's 15-second read
+                                        // timeout; a refused hop fails at once.
                                         assertTrue(
                                             System.nanoTime() - started < 10_000_000_000L,
                                             "$name: the probe failed within 10 s",
@@ -518,7 +527,8 @@ class LoopbackRelayTest {
                                     }
                                     assertEquals(0x47.toByte(), segment.readRawBytes().first())
                                     // The listener is on loopback alone.
-                                    // A host firewall in stealth mode drops the attempt instead of refusing it, so it times out instead.
+                                    // A host firewall in stealth mode drops the attempt instead of
+                                    // refusing it, so it times out instead.
                                     outsideAddress()?.let { address ->
                                         assertFailsWith<java.io.IOException> {
                                             Socket().use {
@@ -569,7 +579,10 @@ class LoopbackRelayTest {
                 targets.map { "$shape-$it" }
             }
 
-        /** An IPv4 address of this machine other than loopback or link-local, which the address policy allows; null when there is none. */
+        /**
+         * An IPv4 address of this machine other than loopback or link-local, which the address policy
+         * allows; null when there is none.
+         */
         fun outsideAddress(): String? = NetworkInterface.networkInterfaces().filter { it.isUp && !it.isLoopback }
             .flatMap { it.inetAddresses() }.filter {
                 it is Inet4Address && !it.isLinkLocalAddress && !it.isLoopbackAddress

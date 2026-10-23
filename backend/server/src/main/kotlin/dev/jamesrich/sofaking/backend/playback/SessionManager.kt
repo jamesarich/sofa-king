@@ -37,13 +37,18 @@ internal class LiveSession(
     var offering: Offering,
     var expires: Instant,
     val external: Boolean = false,
-    /** Whether a second external player may join it; a recording's session ends with its attempt, so it is never shared. */
+    /**
+     * Whether a second external player may join it; a recording's session ends with its attempt, so it is never shared.
+     */
     val shareable: Boolean = external,
     /** When the session opened, for the portal's Watching now. */
     val startedAt: Instant = expires,
     /** The address of the player that opened it, or of its last media request. */
     @Volatile var client: String? = null,
-    /** The app's own sessions mark the ads in their playlists and say where the player is among them; players outside the app get the source's playlists as they are. */
+    /**
+     * The app's own sessions mark the ads in their playlists and say where the player is among them; players outside
+     * the app get the source's playlists as they are.
+     */
     val ads: AdClock? = if (external) null else AdClock(),
 ) {
     var epoch = 1
@@ -99,7 +104,10 @@ internal fun resourceToken(url: String, suffix: String? = null): String {
     return "${UUID.randomUUID()}.${suffix ?: if (extension in RESOURCE_SUFFIXES) extension else "ts"}"
 }
 
-/** O(1) in both directions. Pinned entries (root and playlists) never leave; the rest is a bounded LRU of segments and keys. */
+/**
+ * O(1) in both directions. Pinned entries (root and playlists) never leave; the rest is a
+ * bounded LRU of segments and keys.
+ */
 internal class ResourceMap(private val segmentLimit: Int = 4096) {
     private val pinned = HashMap<String, String>()
     private val segments = object : java.util.LinkedHashMap<String, String>(16, 0.75f, true) {
@@ -147,13 +155,19 @@ class SessionManager(
     /** How many sessions may be open at once; the runtime settings change it without a restart. */
     @Volatile var capacity: Int = capacity
 
-    /** What the app's sessions do with the breaks they learn (see [AdClock]); the runtime settings change it without a restart. */
+    /**
+     * What the app's sessions do with the breaks they learn (see [AdClock]); the runtime
+     * settings change it without a restart.
+     */
     @Volatile var learnedBreaks: LearnedBreaks = LearnedBreaks.SHADOW
 
     /** The break library the app's sessions learn into and match against; none until the runtime sets it. */
     @Volatile var library: BreakLibrary? = null
 
-    /** Gets what each app session that played found on its channel, as it ends: the channel, its provider and the census. */
+    /**
+     * Gets what each app session that played found on its channel, as it ends: the
+     * channel, its provider and the census.
+     */
     @Volatile var onCensus: (String, String, AdCensus) -> Unit = { _, _, _ -> }
     private val mutex = Mutex()
     private val sessions = linkedMapOf<String, LiveSession>()
@@ -203,7 +217,10 @@ class SessionManager(
         session.descriptor()
     }
 
-    /** A watch session for a player that sends no API calls; it lives while media requests keep arriving. [shareable] false keeps [externalFor] from handing it to another player. */
+    /**
+     * A watch session for a player that sends no API calls; it lives while media requests keep arriving. [shareable]
+     * false keeps [externalFor] from handing it to another player.
+     */
     suspend fun openExternal(channelId: String, client: String? = null, shareable: Boolean = true): PlaybackSession =
         mutex.withLock {
             reap()
@@ -226,7 +243,10 @@ class SessionManager(
             session.descriptor()
         }
 
-    /** An external HLS session already playing [channelId]; a second player shares it. A TS root replaces its reader, so it is never shared. */
+    /**
+     * An external HLS session already playing [channelId]; a second player shares it. A TS root replaces its
+     * reader, so it is never shared.
+     */
     suspend fun externalFor(channelId: String): PlaybackSession? = mutex.withLock {
         reap()
         sessions.values.firstOrNull {
@@ -330,7 +350,9 @@ class SessionManager(
         } != null
     }
 
-    /** What a media request the session let go of answers: what the player's next request would, if the session is gone. */
+    /**
+     * What a media request the session let go of answers: what the player's next request would, if the session is gone.
+     */
     suspend fun letGo(id: String): ApiFailure = mutex.withLock {
         if (id in sessions) {
             ApiFailure(410, Wire.ErrorCode.STREAM_CHANGED, "Fetch the current session descriptor", true)
@@ -348,7 +370,10 @@ class SessionManager(
         }
     }
 
-    /** The first fetch found [protocol] instead of the descriptor's; the source keeps it, across restarts, for later sessions. */
+    /**
+     * The first fetch found [protocol] instead of the descriptor's; the source keeps it,
+     * across restarts, for later sessions.
+     */
     suspend fun protocolObserved(id: String, epoch: Int, protocol: String, job: Job) {
         val offeringId = mutex.withLock {
             val session = active(id)

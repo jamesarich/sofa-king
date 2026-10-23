@@ -46,7 +46,8 @@ class SofaKingRepository(
 
     /**
      * Programmes for [channels] over the guide window starting at [from] (the one that contains now unless the
-     * guide asked for a later day). Chunks share one catalog revision; a revision that moves under them restarts without one.
+     * guide asked for a later day). Chunks share one catalog revision; a revision that moves
+     * under them restarts without one.
      */
     suspend fun loadGuide(channels: List<Channel>, from: Instant = GuideWindow.start(now())): GuideLoad {
         val to = GuideWindow.end(from)
@@ -59,7 +60,10 @@ class SofaKingRepository(
         }
     }
 
-    /** The first chunk answers the revision the rest pin; the rest run [GUIDE_PARALLEL] at a time, and any failure cancels them all. */
+    /**
+     * The first chunk answers the revision the rest pin; the rest run [GUIDE_PARALLEL] at a time,
+     * and any failure cancels them all.
+     */
     private suspend fun query(chunks: List<List<String>>, from: Instant, to: Instant, pinRevision: Boolean): GuideLoad {
         if (chunks.isEmpty()) return GuideLoad(emptyMap(), emptySet())
         val first = api.guide(GuideQueryDto(chunks.first(), from.toString(), to.toString(), null))

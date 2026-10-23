@@ -6,10 +6,16 @@ import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
-/** What one run came to: whether it [ok] and a short [note] with no URL or secret in it, such as "1,234 channels" or "IMPORT_FAILED (IOException)". */
+/**
+ * What one run came to: whether it [ok] and a short [note] with no URL or secret in it, such as "1,234 channels" or
+ * "IMPORT_FAILED (IOException)".
+ */
 class JobOutcome(val ok: Boolean, val note: String? = null)
 
-/** One background job as the admin portal lists it: what it is, whether it is running, its last run and when it is next due. */
+/**
+ * One background job as the admin portal lists it: what it is, whether it is running, its
+ * last run and when it is next due.
+ */
 class JobStatus(
     val id: String,
     val label: String,
@@ -66,7 +72,10 @@ class Jobs(private val clock: Clock) {
         }
     }
 
-    /** Runs [block] as one run of [id], recording its start, end and outcome; an exception records a failed run by class and is rethrown. */
+    /**
+     * Runs [block] as one run of [id], recording its start, end and outcome; an exception records a
+     * failed run by class and is rethrown.
+     */
     suspend fun record(id: String, block: suspend () -> JobOutcome) {
         val entry = entry(id)
         val started = clock.instant()

@@ -70,9 +70,8 @@ class StatusApiTest {
             val sources = dir.resolve("sources.json")
             Files.writeString(
                 sources,
-                """{"providers":${json.encodeToString(
-                    listOf(fixture.feed, fixture.altFeed),
-                )},"guides":${json.encodeToString(listOf(fixture.gzipGuide, fixture.brokenGuide))}}""",
+                """{"providers":${json.encodeToString(listOf(fixture.feed, fixture.altFeed))},"guides":""" +
+                    """${json.encodeToString(listOf(fixture.gzipGuide, fixture.brokenGuide))}}""",
             )
             val clock = MutableClock()
             val config =

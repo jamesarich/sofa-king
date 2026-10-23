@@ -7,7 +7,9 @@ import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.upsert
 import java.time.Instant
 
-/** One value a native provider keeps across restarts: its device id, a session token. [expiresAt] null never expires. */
+/**
+ * One value a native provider keeps across restarts: its device id, a session token. [expiresAt] null never expires.
+ */
 data class ProviderStateValue(val value: String, val expiresAt: Instant?, val updatedAt: Instant)
 
 internal fun ResultRow.providerState() = ProviderStateValue(
@@ -16,7 +18,9 @@ internal fun ResultRow.providerState() = ProviderStateValue(
     Instant.parse(this[ProviderStates.updatedAt]),
 )
 
-/** Read from memory: the table is loaded when the store opens and every write below replaces its entry after the commit. */
+/**
+ * Read from memory: the table is loaded when the store opens and every write below replaces its entry after the commit.
+ */
 fun BackendStore.providerState(providerId: String, key: String): ProviderStateValue? = providerStates.get()[
     providerId to
         key,

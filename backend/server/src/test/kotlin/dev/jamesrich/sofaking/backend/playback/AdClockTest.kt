@@ -305,7 +305,8 @@ master_5_5535913.ts
         on.annotate(whale(204), whaleBase)
         on.listen(200, 200..203, adFromMs = 6_000, adUntilMs = 36_000)
         assertTrue(found.single().marked, found.toString())
-        // The match starts just past 9 s, the middle of segment 201, so the marks start with 202: a little ad shows, never show.
+        // The match starts just past 9 s, the middle of segment 201, so the marks start with 202:
+        // a little ad shows, never show.
         val marks = on.annotate(whale(200), whaleBase)
         assertTrue(marks.endsWith("#EXT-X-SOFA-AD:FIRST=202,LAST=203\n"), marks)
     }

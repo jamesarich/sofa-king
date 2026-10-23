@@ -163,9 +163,8 @@ internal fun apiPage(chrome: Chrome, reference: ApiReference): String = layout("
     tabs(chrome, "/admin/api", SYSTEM_TABS)
     div("summary") {
         span {
-            +"${reference.title}, version ${reference.version}, ${reference.sections.sumOf {
-                it.operations.size
-            }} operations"
+            val operations = reference.sections.sumOf { it.operations.size }
+            +"${reference.title}, version ${reference.version}, $operations operations"
         }
         span("muted small") {
             a("/admin/api/openapi.json") {

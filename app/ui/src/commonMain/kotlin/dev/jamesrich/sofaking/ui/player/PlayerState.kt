@@ -187,7 +187,10 @@ internal class PlayerState(
         miniGuideOpen = false
     }
 
-    /** Moves [step] channels through the lineup, wrapping at its ends; positive is down the guide, as [PlayerAction.zapStep] gives it. */
+    /**
+     * Moves [step] channels through the lineup, wrapping at its ends; positive is down the guide, as
+     * [PlayerAction.zapStep] gives it.
+     */
     fun zapStep(step: Int) {
         val size = channels.size
         if (size > 0) zapTo((index + step).mod(size))
@@ -286,7 +289,10 @@ internal class PlayerState(
     fun captionAdvance(stored: (Channel) -> Int): Int =
         currentChannel?.let { advanceOverrides[it.guideId] ?: stored(it) } ?: 0
 
-    /** One step earlier (Right) or later (Left) from [advance] for this channel; the toast restarts its window at the new timing. */
+    /**
+     * One step earlier (Right) or later (Left) from [advance] for this channel; the toast
+     * restarts its window at the new timing.
+     */
     fun adjustCaptionTiming(direction: Int, advance: Int, onChanged: (Channel, Int) -> Unit) {
         val channel = currentChannel ?: return
         val toast = captionToast ?: return
@@ -316,7 +322,9 @@ internal class PlayerState(
         streamCardActivity++
     }
 
-    /** A new info bar shows: it carries the key legend for the first few bars; returns the count to save when it does. */
+    /**
+     * A new info bar shows: it carries the key legend for the first few bars; returns the count to save when it does.
+     */
     fun legendForNewBar(): Int? {
         legendOnThisBar = legendCount < AppSettings.KEY_LEGEND_BARS
         return if (legendOnThisBar) ++legendCount else null
@@ -347,7 +355,10 @@ internal class PlayerState(
         return false
     }
 
-    /** A tap or click on the video: the stream card or the channel list closes, or the info bar and its touch controls toggle. */
+    /**
+     * A tap or click on the video: the stream card or the channel list closes, or the info bar
+     * and its touch controls toggle.
+     */
     fun tap() {
         if (streamCardOpen) {
             streamCardOpen = false
@@ -448,7 +459,8 @@ internal class PlayerState(
         repeatCount: Int?,
         controls: PlayerControls,
     ): Boolean {
-        // With the mini-guide open, its focused row, chip or button takes OK; the press still counts against its idle timer.
+        // With the mini-guide open, its focused row, chip or button takes OK; the press still
+        // counts against its idle timer.
         if (miniGuideOpen) {
             miniGuideActivity++
             return false

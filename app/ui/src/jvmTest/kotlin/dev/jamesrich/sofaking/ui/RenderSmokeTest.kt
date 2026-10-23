@@ -123,7 +123,9 @@ class RenderSmokeTest {
         },
     )
 
-    /** Runs the scene on this thread's event loop, so effects resume where the frames draw; each frame yields to them. */
+    /**
+     * Runs the scene on this thread's event loop, so effects resume where the frames draw; each frame yields to them.
+     */
     private fun render(name: String, content: @Composable () -> Unit): Image = runBlocking {
         val image = ImageComposeScene(
             width = 1920,
@@ -150,7 +152,9 @@ class RenderSmokeTest {
         image
     }
 
-    /** True when the image has pixels other than the top-left one's color, i.e. something was drawn on the background. */
+    /**
+     * True when the image has pixels other than the top-left one's color, i.e. something was drawn on the background.
+     */
     private fun Image.hasContent(): Boolean {
         val bitmap = org.jetbrains.skia.Bitmap.makeFromImage(this)
         val background = bitmap.getColor(0, 0)
@@ -361,7 +365,8 @@ class RenderSmokeTest {
                 )
             }
         }
-        // A long name once squeezed the captions badge until it wrapped a letter a line and stretched the bar up the screen.
+        // A long name once squeezed the captions badge until it wrapped a letter a line and
+        // stretched the bar up the screen.
         assertTrue(image.firstContentRow() > image.height / 3)
     }
 

@@ -106,7 +106,8 @@ class AdListener(
         playing.entries.drop(wanted).forEach { it.value.cancel() }
         val free = wanted - playing.count { it.value.isActive && it.key !in watching }
         if (free <= 0) return
-        // A channel that cannot be listened to gives its turn to the next in line, so a run of them never stalls the rest.
+        // A channel that cannot be listened to gives its turn to the next in line, so a run
+        // of them never stalls the rest.
         val now = clock.instant()
         resting.values.removeIf { !it.isAfter(now) }
         val usable = { offering: Offering ->

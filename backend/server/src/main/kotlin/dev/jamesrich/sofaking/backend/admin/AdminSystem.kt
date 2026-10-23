@@ -137,7 +137,8 @@ private val UPDATER_FRESH: Duration = Duration.ofHours(1)
 internal suspend fun ffmpegVersion(ffmpeg: String): String = withContext(Dispatchers.IO) {
     try {
         val process = ProcessBuilder(ffmpeg, "-version").redirectErrorStream(true).start()
-        // The few lines it prints fit the pipe's buffer, so the exit comes first and an FFmpeg that hangs never holds the page.
+        // The few lines it prints fit the pipe's buffer, so the exit comes first and an FFmpeg
+        // that hangs never holds the page.
         if (!process.waitFor(5, TimeUnit.SECONDS)) {
             process.destroyForcibly()
             return@withContext "not readable at $ffmpeg"
@@ -171,7 +172,8 @@ internal fun jobsPage(chrome: Chrome, view: JobsView): String = layout("Jobs", c
     val now = chrome.now
     pageHead(
         "Jobs",
-        "The server's background work: provider and guide imports, lineup policy runs, Plex sync, the logo sweep and the update check. Run now starts one without waiting for its turn.",
+        "The server's background work: provider and guide imports, lineup policy runs, Plex sync, the logo sweep and " +
+            "the update check. Run now starts one without waiting for its turn.",
     )
     tabs(chrome, "/admin/system/jobs", SYSTEM_TABS)
     if (view.jobs.isEmpty()) {
@@ -276,9 +278,8 @@ internal fun eventsPage(chrome: Chrome, view: EventsView): String = layout("Even
     val now = chrome.now
     pageHead(
         "Events",
-        "The newest ${thousands(
-            view.capacity,
-        )} log lines at INFO and above since the server started, newest first. The same lines go to the container's log.",
+        "The newest ${thousands(view.capacity)} log lines at INFO and above since the server started, newest first. " +
+            "The same lines go to the container's log.",
     )
     tabs(chrome, "/admin/system/events", SYSTEM_TABS)
     form(action = "/admin/system/events", method = FormMethod.get, classes = "filters events-filters") {
@@ -456,11 +457,10 @@ internal fun aboutPage(chrome: Chrome, view: AboutView): String = layout("About"
             dl("kv") {
                 dt { +"Channels" }
                 dd {
-                    +"${thousands(
-                        status.channels.enabled,
-                    )} on of ${thousands(
-                        status.channels.total,
-                    )}, ${thousands(status.channels.eligible)} with a playable source"
+                    +(
+                        "${thousands(status.channels.enabled)} on of ${thousands(status.channels.total)}, " +
+                            "${thousands(status.channels.eligible)} with a playable source"
+                        )
                 }
                 dt { +"Sources" }
                 dd {
@@ -475,24 +475,20 @@ internal fun aboutPage(chrome: Chrome, view: AboutView): String = layout("About"
                 }
                 dt { +"Providers" }
                 dd {
-                    +"${thousands(
-                        status.providers.total - status.providers.failing.size - status.providers.pending,
-                    )} of ${thousands(status.providers.total)} importing"
+                    val importing = status.providers.total - status.providers.failing.size - status.providers.pending
+                    +"${thousands(importing)} of ${thousands(status.providers.total)} importing"
                     if (status.providers.failing.isNotEmpty()) {
-                        +", failing: ${status.providers.failing.joinToString {
-                            it.id
-                        }}"
+                        +", failing: ${status.providers.failing.joinToString { it.id }}"
                     }
                 }
                 dt { +"Guides" }
                 dd {
-                    +"${thousands(
-                        status.guides.total - status.guides.failing.size - status.guides.pending,
-                    )} of ${thousands(status.guides.total)} importing"
+                    +(
+                        "${thousands(status.guides.total - status.guides.failing.size - status.guides.pending)} of " +
+                            "${thousands(status.guides.total)} importing"
+                        )
                     if (status.guides.failing.isNotEmpty()) {
-                        +", failing: ${status.guides.failing.joinToString {
-                            it.id
-                        }}"
+                        +", failing: ${status.guides.failing.joinToString { it.id }}"
                     }
                 }
                 dt { +"Policy" }

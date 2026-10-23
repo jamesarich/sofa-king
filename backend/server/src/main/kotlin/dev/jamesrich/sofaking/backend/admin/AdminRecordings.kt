@@ -84,7 +84,8 @@ internal fun recordingsPage(chrome: Chrome, view: RecordingsView): String =
         val now = chrome.now
         pageHead(
             "Recordings",
-            "What the server records from the guide: series rules, the schedule they make, and the recordings on disk with the space they take.",
+            "What the server records from the guide: series rules, the schedule they make, and the recordings on " +
+                "disk with the space they take.",
         )
         val storage = view.list.storage
         panel("Storage", id = "storage") {
@@ -272,9 +273,10 @@ internal fun recordingsPage(chrome: Chrome, view: RecordingsView): String =
                                     td { +(if (rule.newOnly) "New only" else "All airings") }
                                     td("num") { +(if (rule.keep == 0) "All" else thousands(rule.keep)) }
                                     td("nowrap") {
-                                        +"${minutes(
-                                            rule.startPaddingSeconds,
-                                        )} before, ${minutes(rule.endPaddingSeconds)} after"
+                                        +(
+                                            "${minutes(rule.startPaddingSeconds)} before, " +
+                                                "${minutes(rule.endPaddingSeconds)} after"
+                                            )
                                     }
                                     td("num") { +rule.priority.toString() }
                                     td("nowrap") {
@@ -334,7 +336,8 @@ internal fun recordingsPage(chrome: Chrome, view: RecordingsView): String =
             p("muted small") {
                 +(
                     "A rule records every guide airing whose title matches, ignoring case, and skips an episode it " +
-                        "already holds. Keep deletes the rule's oldest recordings beyond that count. Padding starts early and runs late, in minutes; when recordings conflict, the higher priority gets the slot."
+                        "already holds. Keep deletes the rule's oldest recordings beyond that count. Padding starts " +
+                        "early and runs late, in minutes; when recordings conflict, the higher priority gets the slot."
                     )
             }
         }
@@ -391,7 +394,10 @@ internal fun recordingsPage(chrome: Chrome, view: RecordingsView): String =
         }
     }
 
-/** The whole number a recordings form sent as [name], [default] when it sent none, or a 400 naming the field as the form labels it. */
+/**
+ * The whole number a recordings form sent as [name], [default] when it sent none, or a 400 naming
+ * the field as the form labels it.
+ */
 internal fun formInt(form: io.ktor.http.Parameters, name: String, label: String, default: Int? = null): Int {
     val text = form[name]?.trim()
     if (text.isNullOrEmpty() && default != null) return default
@@ -405,7 +411,10 @@ internal fun formInt(form: io.ktor.http.Parameters, name: String, label: String,
 
 private fun minutes(seconds: Int): String = if (seconds % 60 == 0) "${seconds / 60} min" else "$seconds s"
 
-/** A rule's channel, episodes, keep, padding and priority fields; [rule] fills them for an edit, null for a new rule's defaults. */
+/**
+ * A rule's channel, episodes, keep, padding and priority fields; [rule] fills them for an edit,
+ * null for a new rule's defaults.
+ */
 private fun FORM.ruleFields(prefix: String, view: RecordingsView, rule: RecordingRule?) {
     div("field") {
         label {

@@ -71,7 +71,10 @@ fun textSubtitles(detail: MediaItemDetail): List<MediaTrackInfo> = detail.subtit
  */
 fun isPictureSubtitle(track: MediaTrackInfo): Boolean = track.codec !in TEXT_SUBTITLE_CODECS
 
-/** Where the server numbers the subtitle files beside a video, such as the ones Bazarr downloads, after the file's own streams. */
+/**
+ * Where the server numbers the subtitle files beside a video, such as the ones Bazarr
+ * downloads, after the file's own streams.
+ */
 const val SUBTITLE_FILE_BASE = 1000
 
 /** True for a subtitle file beside the video rather than a stream inside it. */
@@ -161,7 +164,9 @@ fun initialSubtitle(detail: MediaItemDetail, choice: TrackChoice?): MediaTrackIn
         ?: initialSubtitle(detail)
 }
 
-/** What the viewer picked, by language: the audio track [audioIndex] and the subtitle track [subtitleIndex], or none. */
+/**
+ * What the viewer picked, by language: the audio track [audioIndex] and the subtitle track [subtitleIndex], or none.
+ */
 fun trackChoice(detail: MediaItemDetail, audioIndex: Int?, subtitleIndex: Int?): TrackChoice {
     val subtitle = subtitleIndex?.let { index -> detail.subtitles.firstOrNull { it.index == index } }
     return TrackChoice(

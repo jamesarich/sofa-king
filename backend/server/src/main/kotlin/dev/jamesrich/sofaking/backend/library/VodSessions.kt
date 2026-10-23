@@ -48,7 +48,8 @@ internal fun segmentCount(durationMs: Long): Int = maxOf(1, ((durationMs + SEGME
 /** A VOD playlist of every segment of an item [durationMs] long, the last one as long as what is left. */
 internal fun wholePlaylist(durationMs: Long): String = buildString {
     append(
-        "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:${SEGMENT_SECONDS + 1}\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-INDEPENDENT-SEGMENTS\n",
+        "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:${SEGMENT_SECONDS + 1}\n#EXT-X-MEDIA-SEQUENCE:" +
+            "0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-INDEPENDENT-SEGMENTS\n",
     )
     val count = segmentCount(durationMs)
     for (i in 0 until count) {
@@ -168,7 +169,10 @@ class VodSessions(
     private val mutex = Mutex()
     private val random = SecureRandom()
 
-    /** A lock per subtitle file while anyone wants it, so one file is never extracted twice at once and a slow one holds up no other. */
+    /**
+     * A lock per subtitle file while anyone wants it, so one file is never extracted twice at once
+     * and a slow one holds up no other.
+     */
     private val extracting = HashMap<String, ExtractionLock>()
 
     /** Each extraction reads a whole file, so only a few run at once. */
@@ -192,7 +196,10 @@ class VodSessions(
         withContext(NonCancellable) { while (true) stop(retired.poll() ?: break) }
     }
 
-    /** Takes [state] out of the sessions and signals its FFmpeg; [dispose] finishes it off the lock. Its id is never reused, so its folder is its own. */
+    /**
+     * Takes [state] out of the sessions and signals its FFmpeg; [dispose] finishes it off the lock. Its id is never
+     * reused, so its folder is its own.
+     */
     private fun retire(state: VodState) {
         sessions.remove(state.id)
         state.process?.destroy()
@@ -366,7 +373,8 @@ class VodSessions(
         } else {
             vodMode(media, if (growing) request.profile.copy(containers = emptyList()) else request.profile, audio)
         }
-        // Only a conversion cuts segments where it likes; a copy cuts at the file's own key frames, which nothing lists.
+        // Only a conversion cuts segments where it likes; a copy cuts at the file's own
+        // key frames, which nothing lists.
         val whole =
             request.wholePlaylist && mode == Wire.VodMode.TRANSCODE && !growing && durationMs != null && durationMs > 0
         return locked {

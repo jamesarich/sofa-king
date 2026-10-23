@@ -114,7 +114,10 @@ private const val ON_NOW_REFRESH_SECONDS = 300L
 /** How often the initial focus is retried after the row refused it, before the header keeps focus. */
 private const val INITIAL_FOCUS_ATTEMPTS = 3
 
-/** What the preview's rest timers watch: the channel under focus, the last key press, whether the preview failed and whether sound is on. */
+/**
+ * What the preview's rest timers watch: the channel under focus, the last key press, whether the preview
+ * failed and whether sound is on.
+ */
 private data class DwellInput(val channelId: String?, val nonce: Int, val failed: Boolean, val sound: Boolean)
 
 /** The guide's test tag; Android exposes it as a resource id for the Baseline Profile generator. */
@@ -180,7 +183,8 @@ fun GuideScreen(
     LaunchedEffect(now) { state.rollWindow(now) }
     val timeFormat = rememberTimeFormatter()
 
-    // What is on now is read every few minutes, not every minute, so the chips and their lists hold still while browsing.
+    // What is on now is read every few minutes, not every minute, so the chips and their
+    // lists hold still while browsing.
     val onNowSlot = now.epochSeconds / ON_NOW_REFRESH_SECONDS
     val kindsOnNow = remember(lineup.channels, lineup.guide, onNowSlot) { channelsOnNow(lineup, now) }
     val filters = remember(lineup.channels, kindsOnNow.keys) { guideFilters(lineup.channels, kindsOnNow.keys) }
@@ -417,7 +421,8 @@ fun GuideScreen(
 
     val onGridKey: (KeyEvent) -> Boolean = { event -> state.onGridKey(event.key, event.type, items, focusRow) }
 
-    // Now goes to the focused channel's row, which the chips keep, else the first row on screen; a day ahead comes back to the live window.
+    // Now goes to the focused channel's row, which the chips keep, else the first row on screen; a day ahead
+    // comes back to the live window.
     val onNow: () -> Unit = {
         val guideId =
             state.focused?.channel?.guideId ?: items.getOrNull(listState.firstVisibleItemIndex)?.channel?.guideId
@@ -435,7 +440,8 @@ fun GuideScreen(
             state.focused?.channel?.guideId?.let { requestJump(it, state.cursor) }
         }
     }
-    // The details of the focused programme, on the Info key or a held OK; Watch plays it and Back or Close returns focus to its cell.
+    // The details of the focused programme, on the Info key or a held OK; Watch plays it and Back or
+    // Close returns focus to its cell.
     val onCloseDetails: () -> Unit = {
         state.details = null
         state.focused?.channel?.guideId?.let { requestJump(it, state.cursor) }

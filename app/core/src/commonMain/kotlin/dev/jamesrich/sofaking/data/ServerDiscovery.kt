@@ -6,7 +6,10 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 
-/** A Sofa King server advertising itself on the device's network: its name, its address as Settings stores it, and its version. */
+/**
+ * A Sofa King server advertising itself on the device's network: its name, its address as
+ * Settings stores it, and its version.
+ */
 data class DiscoveredServer(val name: String, val url: String, val version: String? = null)
 
 /**

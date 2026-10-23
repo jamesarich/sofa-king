@@ -120,7 +120,10 @@ class LineupViewModel(
     val settings: StateFlow<AppSettings?> = store.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    /** The servers advertising themselves on the network; it browses only while collected, as Settings' server fields are. */
+    /**
+     * The servers advertising themselves on the network; it browses only while collected,
+     * as Settings' server fields are.
+     */
     val discoveredServers: StateFlow<List<DiscoveredServer>> = discovery.servers()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(DISCOVERY_LINGER_MS), emptyList())
 
@@ -300,9 +303,8 @@ class LineupViewModel(
                 val started = TimeSource.Monotonic.markNow()
                 val guide = repository.loadGuide(lineup.channels, windowStart)
                 log.i {
-                    "guide: day $windowStart ${guide.programmes.values.sumOf {
-                        it.size
-                    }} programmes in ${started.elapsedNow()}"
+                    "guide: day $windowStart ${guide.programmes.values.sumOf { it.size }} programmes in " +
+                        "${started.elapsedNow()}"
                 }
                 // A day that arrives after Settings named another server is the old server's, so it is dropped.
                 if (extraDaysServer == server) extraDays.update { it + (windowStart to guide.programmes) }
@@ -316,7 +318,10 @@ class LineupViewModel(
         }
     }
 
-    /** Loads [found]'s lineup, cache first, then from the network every [REFRESH_INTERVAL]; [onCatalog] gets the first load's catalog, or null when it fails. */
+    /**
+     * Loads [found]'s lineup, cache first, then from the network every [REFRESH_INTERVAL]; [onCatalog] gets the first
+     * load's catalog, or null when it fails.
+     */
     private suspend fun FlowCollector<LineupState>.load(
         found: Pair<Server, SofaKingRepository>?,
         onCatalog: (Lineup?) -> Unit,
@@ -338,7 +343,8 @@ class LineupViewModel(
             cache.open()?.let { cached ->
                 log.i { "cache: ${cached.channels.size} channels in ${cacheStarted.elapsedNow()}" }
                 emit(LineupState.Ready(Lineup(cached.channels, emptyMap(), guideLoading = true)))
-                // A guide that failed to decode, or whose programmes have all ended, is still on its way from the server.
+                // A guide that failed to decode, or whose programmes have all ended, is
+                // still on its way from the server.
                 val guide = cached.guide()
                 val full = Lineup(cached.channels, guide.orEmpty(), guideLoading = guide.isNullOrEmpty())
                 log.i { "cache: ${full.guide.values.sumOf { it.size }} programmes in ${cacheStarted.elapsedNow()}" }
@@ -366,9 +372,8 @@ class LineupViewModel(
                 onCatalog(interim ?: last)
                 val guide = repository.loadGuide(channels)
                 log.i {
-                    "guide: ${guide.programmes.values.sumOf {
-                        it.size
-                    }} programmes for ${guide.programmes.size} channels in ${started.elapsedNow()}"
+                    "guide: ${guide.programmes.values.sumOf { it.size }} programmes for ${guide.programmes.size} " +
+                        "channels in ${started.elapsedNow()}"
                 }
                 // The lineup changed between the catalog and the guide: drop what left and read the catalog again soon.
                 lineupMoved = guide.removed.isNotEmpty()
@@ -594,7 +599,9 @@ class LineupViewModel(
         viewModelScope.launch(logFailures) { write() }
     }
 
-    /** [live] plus every day in [extra], per channel in start order without repeats, so a day loaded twice reads once. */
+    /**
+     * [live] plus every day in [extra], per channel in start order without repeats, so a day loaded twice reads once.
+     */
     private fun mergeGuides(
         live: Map<String, List<Programme>>,
         extra: Collection<Map<String, List<Programme>>>,

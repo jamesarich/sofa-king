@@ -95,7 +95,8 @@ class PlexClientTest {
                         val client = PlexClient(ProviderFixture.context("plex", options(fixture), http, store, clock))
                         assertEquals(listOf("Bingeworthy", "Movies"), client.channels().map { it.group })
                         fixture.route("/epg/") { Canned("{}", 500) }
-                        // A new client over the same store is the server after a restart, with nothing fetched in memory.
+                        // A new client over the same store is the server after a restart,
+                        // with nothing fetched in memory.
                         val restarted =
                             PlexClient(ProviderFixture.context("plex", options(fixture), http, store, clock))
                         assertEquals(
@@ -127,7 +128,8 @@ class PlexClientTest {
                         val resolved = client.resolve(cw)
                         assertEquals(1, fixture.hits("/auth"))
                         assertEquals(
-                            "${fixture.base}/epg$cwPart?includeAllStreams=1&X-Plex-Product=Plex+Mediaverse&X-Plex-Token=fixture-token-2",
+                            "${fixture.base}/epg$cwPart?includeAllStreams=1&X-Plex-Product=Plex+Mediaverse&" +
+                                "X-Plex-Token=fixture-token-2",
                             resolved.url,
                         )
                         assertEquals(clock.now.plus(Duration.ofHours(1)), resolved.expiresAt)

@@ -39,10 +39,16 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicReference
 
-/** The build this process runs: the commit and the product version the image was built from, `unknown` outside the image. */
+/**
+ * The build this process runs: the commit and the product version the image was built
+ * from, `unknown` outside the image.
+ */
 data class RunningBuild(val revision: String, val version: String)
 
-/** What the registry publishes under the image's tag: the commit and version from the index annotations, and the index digest. */
+/**
+ * What the registry publishes under the image's tag: the commit and version from the index
+ * annotations, and the index digest.
+ */
 data class PublishedBuild(val revision: String?, val version: String?, val digest: String?) {
     /** Whether [running] is this build; null when neither side names a commit. */
     fun isCurrent(running: RunningBuild): Boolean? = if (revision == null || running.revision == "unknown") {
@@ -65,7 +71,10 @@ data class PublishedBuild(val revision: String?, val version: String?, val diges
     val message: String? = null,
 )
 
-/** The update picture the portal shows: what runs, what is published, when that was checked, and what the updater did last. */
+/**
+ * The update picture the portal shows: what runs, what is published, when that was checked,
+ * and what the updater did last.
+ */
 class UpdateState(
     val running: RunningBuild,
     /** The image the registry is asked about; null when the check is off. */
@@ -123,7 +132,9 @@ class UpdateChecker(
         UpdateState(running, image, published.get(), checkedAt.get(), error.get(), updaterReport(), requestedAt())
     }
 
-    /** Asks the registry now; the result is kept for [state]. A failure is recorded, logged by class, and never thrown. */
+    /**
+     * Asks the registry now; the result is kept for [state]. A failure is recorded, logged by class, and never thrown.
+     */
     suspend fun check(): UpdateState {
         val target = image ?: return state()
         mutex.withLock {
@@ -344,7 +355,8 @@ class UpdateChecker(
         const val REVISION = "org.opencontainers.image.revision"
         const val VERSION = "org.opencontainers.image.version"
         private const val MANIFEST_TYPES =
-            "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json"
+            "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, " +
+                "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json"
         private val CHALLENGE_FIELD = Regex("""(\w+)="([^"]*)"""")
         private val TAG = Regex("[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}")
         private val json = Json { ignoreUnknownKeys = true }

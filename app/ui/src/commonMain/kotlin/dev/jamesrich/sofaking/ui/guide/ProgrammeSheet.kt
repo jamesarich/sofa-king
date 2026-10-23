@@ -165,14 +165,16 @@ internal fun ProgrammeSheet(
             Modifier
                 .fillMaxSize()
                 // Compose turns the remote's Back into a focus exit before BackHandler sees it, and the panel cancels
-                // exits, so Back is taken here. It closes on key-up, so no part of the press reaches the guide under it.
+                // exits, so Back is taken here. It closes on key-up, so no part of the
+                // press reaches the guide under it.
                 .onPreviewKeyEvent { event ->
                     if (!event.key.closesDetails()) return@onPreviewKeyEvent false
                     if (event.type == KeyEventType.KeyUp) back()
                     true
                 }
                 .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f))
-                // The scrim takes a tap or click, so touch on a TV closes it as Back does; no focus cue, it is not a control.
+                // The scrim takes a tap or click, so touch on a TV closes it as Back does; no
+                // focus cue, it is not a control.
                 .clickable(
                     interactionSource = remember {
                         MutableInteractionSource()

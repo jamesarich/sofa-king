@@ -14,7 +14,8 @@ import java.time.Instant
 /**
  * Local Now as localnow.com uses it: the page's runtime config carries a public app token and the data-store host,
  * the `live/epg` document lists every channel for a DMA and market with its next few programmes, and `video/play`
- * answers each channel's ad-stitched HLS master. Channels that are not `unlocked` or that carry a DRM config are left out.
+ * answers each channel's ad-stitched HLS master. Channels that are not `unlocked` or that
+ * carry a DRM config are left out.
  */
 class LocalNowClient(private val context: ProviderContext) : ProviderClient {
     override val service: String get() = "localnow"

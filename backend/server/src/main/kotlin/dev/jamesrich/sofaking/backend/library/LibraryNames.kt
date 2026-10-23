@@ -64,7 +64,8 @@ private val RELEASE_GROUP = Regex("""(?<=[\]}])\s*-[A-Za-z0-9]+$""")
 
 /** An unbracketed quality at the end, with its release group: `Title WEBDL-1080p`, `Title Bluray-720p Proper-GROUP`. */
 private val QUALITY = Regex(
-    """(?i)\s+(?:WEB[-. ]?DL|WEB[-. ]?Rip|Blu-?ray|BDRip|BRRip|HDTV|SDTV|DVD(?:Rip)?|Remux|Raw-HD)(?:[-. ](?:480|576|720|1080|2160)p)?(?:\s+(?:Proper|Repack))*(?:-[A-Za-z0-9]+)?$""",
+    """(?i)\s+(?:WEB[-. ]?DL|WEB[-. ]?Rip|Blu-?ray|BDRip|BRRip|HDTV|SDTV|DVD(?:Rip)?|Remux|Raw-HD)(?:[-. """ +
+        """](?:480|576|720|1080|2160)p)?(?:\s+(?:Proper|Repack))*(?:-[A-Za-z0-9]+)?$""",
 )
 
 private fun clean(title: String): String =

@@ -86,7 +86,9 @@ class BackendStoreTest {
         DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
             connection.createStatement().use { stmt ->
                 stmt.execute(
-                    """INSERT INTO metadata(key, value) VALUES ('feed:p', '{"providerId":"p","channels":[],"offerings":[],"programmes":[{"id":"x"}],"importedAt":"2026-10-10T00:00:00Z"}')""",
+                    """INSERT INTO metadata(key, value) VALUES ('feed:p', """ +
+                        """'{"providerId":"p","channels":[],"offerings":[],"programmes":[""" +
+                        """{"id":"x"}],"importedAt":"2026-10-10T00:00:00Z"}')""",
                 )
             }
         }
@@ -237,7 +239,8 @@ class BackendStoreTest {
         openStore(dir).use { it.registerOffering("p:s") }
         DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
             connection.createStatement().use {
-                // Versions 3 and 4 are replayed while 10 stays applied: the gap-tolerant migrator fills only what is missing.
+                // Versions 3 and 4 are replayed while 10 stays applied: the gap-tolerant
+                // migrator fills only what is missing.
                 it.execute("DELETE FROM schema_version WHERE version IN (3, 4)")
                 it.execute("DROP TABLE offering_protocol")
                 it.execute("DROP TABLE probe_attempt")

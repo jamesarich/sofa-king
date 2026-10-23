@@ -11,7 +11,8 @@ import androidx.compose.ui.unit.dp
 /**
  * The player's icons that the core Material icon set lacks, copied from Material Icons 1.7.3 (Apache 2.0). The
  * extended set is a dependency the Kotlin/JS production build cannot shrink in a reasonable time: minifying it took
- * the web distribution from one minute to over twenty, so the icons the player and the app's tabs need live here instead.
+ * the web distribution from one minute to over twenty, so the icons the player and the
+ * app's tabs need live here instead.
  */
 internal object SofaIcons {
     val Audiotrack: ImageVector by lazy {
@@ -340,7 +341,9 @@ internal object SofaIcons {
     val Speed: ImageVector by lazy {
         pathIcon(
             "Filled.Speed",
-            "M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z",
+            "M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 " +
+                "0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 " +
+                "5.66a2 2 0 0 0 0 2.83z",
         )
     }
 

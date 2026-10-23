@@ -45,7 +45,9 @@ class MdnsAdvertiser(
         }
     }
 
-    /** Starts a responder on each new address and closes the ones on addresses that are gone; logs when the set changes. */
+    /**
+     * Starts a responder on each new address and closes the ones on addresses that are gone; logs when the set changes.
+     */
     @Synchronized internal fun refresh() {
         if (closed) return
         val found = runCatching(addresses).getOrElse { emptyList() }.toSet()

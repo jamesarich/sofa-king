@@ -12,7 +12,8 @@ internal val PIN_WIDTH = 240.dp
 internal val COMPACT_PIN_WIDTH = 104.dp
 internal val MINUTE_WIDTH = 6.dp
 
-// 1080p TV budget (540dp tall): app header 27 + ~46 + 16 spacing, band 144 + 8, header 32 + 4 gaps leave four 56dp rows above the overscan.
+// 1080p TV budget (540dp tall): app header 27 + ~46 + 16 spacing, band 144 + 8, header 32 + 4 gaps leave
+// four 56dp rows above the overscan.
 internal val ROW_HEIGHT = 56.dp
 
 /** The compact density's row: one more channel on a 1080p TV, with the row's type a step smaller. */

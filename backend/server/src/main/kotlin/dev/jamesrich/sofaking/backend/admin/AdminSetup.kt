@@ -48,7 +48,10 @@ import kotlinx.html.tr
 import kotlinx.html.ul
 import kotlinx.html.urlInput
 
-/** One native service on the Sources page: the catalog's description, whether the source file has it, and its options as written. */
+/**
+ * One native service on the Sources page: the catalog's description, whether the source file has
+ * it, and its options as written.
+ */
 internal class ServiceRow(val info: ServiceInfo, val on: Boolean, val options: Map<String, String>)
 
 /** A change the Save confirmation lists. */
@@ -84,7 +87,10 @@ internal class SetupView(
         this(view.services, view.playlists, view.hasSources, view.path, errors, proposed, confirm, view.canBuildStarter)
 
     companion object {
-        /** The view of [document], the source file as written; with no file, every service that works without options starts checked. */
+        /**
+         * The view of [document], the source file as written; with no file, every service that works
+         * without options starts checked.
+         */
         fun of(document: SourceDocument, setup: SetupService): SetupView {
             val native = document.providers.filter { it.native }.groupBy { it.service!! }
             val fresh = !setup.hasSources && document.providers.isEmpty()
@@ -232,7 +238,8 @@ internal fun FlowContent.servicesPanel(chrome: Chrome, view: SetupView) = panel(
             if (view.hasSources) {
                 "Every free service the server can read. Tick the ones you want; each brings its channels and guide."
             } else {
-                "No source file yet. Tick the services you want and save; the server then imports their channels and guides."
+                "No source file yet. Tick the services you want and save; the server then imports their channels and " +
+                    "guides."
             }
             )
     }
@@ -452,7 +459,10 @@ internal fun FlowContent.setupCards(chrome: Chrome, setup: SetupService, provide
         }
     }
 
-/** The page a setup write answers: the server is going down to read what it wrote. The browser returns to the portal on its own. */
+/**
+ * The page a setup write answers: the server is going down to read what it wrote. The browser
+ * returns to the portal on its own.
+ */
 internal fun restartingPage(theme: String?, what: String): String =
     layout("Restarting", null, null, theme, refreshSeconds = 20) {
         div("panel signin") {

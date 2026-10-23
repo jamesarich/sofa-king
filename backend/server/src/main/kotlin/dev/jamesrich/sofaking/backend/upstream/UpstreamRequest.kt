@@ -24,7 +24,8 @@ data class UpstreamPolicy(val allowLoopback: Boolean = false) {
             throw UpstreamRejectedException("Unsupported upstream address")
         }
         val host = target.host.trim('[', ']').lowercase().removeSuffix(".")
-        // The C resolver FFmpeg uses reads 0x7f000001, 0177.0.0.1 and 2130706433 as 127.0.0.1; only a plain dotted quad is a literal here.
+        // The C resolver FFmpeg uses reads 0x7f000001, 0177.0.0.1 and 2130706433 as 127.0.0.1; only a plain
+        // dotted quad is a literal here.
         if (!host.contains(':') && host.split('.').all { NUMERIC_PART.matches(it) } && !DOTTED_QUAD.matches(host)) {
             throw UpstreamRejectedException("Unsupported upstream address")
         }

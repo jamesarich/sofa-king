@@ -35,7 +35,8 @@ class SamsungClientTest {
                                 Canned(
                                     status = 302,
                                     location = "${fixture.base}/sis/sc-xv9.m3u8?ads.device_did=%7BPSID%7D&" +
-                                        "ads.device_dnt=%7BTARGETOPT%7D&ads.us_privacy=%7BUS_PRIVACY%7D&ads.app_name=%7BAPP_NAME%7D&ads.service_id=USBA370000104",
+                                        "ads.device_dnt=%7BTARGETOPT%7D&ads.us_privacy=%7BUS_PRIVACY%7D&" +
+                                        "ads.app_name=%7BAPP_NAME%7D&ads.service_id=USBA370000104",
                                 )
                             }
                             fixture.route("/stvp-USBC39000171G") { Canned(status = 404) }
@@ -62,7 +63,8 @@ class SamsungClientTest {
                             val resolved = client.resolve("USBA370000104")
                             val deviceId = store.providerState("samsung", ProviderContext.DEVICE_ID)!!.value
                             assertEquals(
-                                "${fixture.base}/sis/sc-xv9.m3u8?ads.device_did=$deviceId&ads.device_dnt=0&ads.us_privacy=1---&ads.app_name=&ads.service_id=USBA370000104",
+                                "${fixture.base}/sis/sc-xv9.m3u8?ads.device_did=$deviceId&ads.device_dnt=0&" +
+                                    "ads.us_privacy=1---&ads.app_name=&ads.service_id=USBA370000104",
                                 resolved.url,
                             )
                             assertEquals(clock.now.plus(Duration.ofHours(1)), resolved.expiresAt)

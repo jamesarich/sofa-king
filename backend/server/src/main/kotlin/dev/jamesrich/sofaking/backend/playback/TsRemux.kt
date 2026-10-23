@@ -41,7 +41,10 @@ class TsRemux(private val ffmpeg: String, private val relay: LoopbackRelay) {
 
     fun active(): Int = processes.size
 
-    /** Streams [stream] remuxed to `video/mp2t` into [call]; returns when the client hangs up or FFmpeg exits. [sent] is told each chunk's size as it goes to the player. */
+    /**
+     * Streams [stream] remuxed to `video/mp2t` into [call]; returns when the client hangs up or FFmpeg exits. [sent] is
+     * told each chunk's size as it goes to the player.
+     */
     suspend fun stream(call: ApplicationCall, stream: ResolvedStream, sent: (Int) -> Unit = {}) =
         relay.reading(stream, "hls") { source -> stream(call, source, sent) }
 
@@ -62,7 +65,8 @@ class TsRemux(private val ffmpeg: String, private val relay: LoopbackRelay) {
             call.response.header(HttpHeaders.CacheControl, "no-store")
             call.respondBytesWriter(contentType = ContentType.parse("video/mp2t")) {
                 coroutineScope {
-                    // A blocked pipe read ignores cancellation; killing the process is what unblocks it when the client leaves.
+                    // A blocked pipe read ignores cancellation; killing the process is what
+                    // unblocks it when the client leaves.
                     val watchdog = launch {
                         try {
                             awaitCancellation()
@@ -81,7 +85,8 @@ class TsRemux(private val ffmpeg: String, private val relay: LoopbackRelay) {
                             sent(read)
                             flush()
                         }
-                        // The watchdog killing FFmpeg for a client that left also ends the read; only a read still wanted is the source ending.
+                        // The watchdog killing FFmpeg for a client that left also ends the read; only a read
+                        // still wanted is the source ending.
                         ended = isActive
                     }
                     watchdog.cancel()

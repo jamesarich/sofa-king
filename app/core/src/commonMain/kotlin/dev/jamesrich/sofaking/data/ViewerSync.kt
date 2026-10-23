@@ -31,7 +31,9 @@ internal data class SyncedPreferences(val hidden: Set<String>, val favorites: Li
         fun of(dto: ViewerPreferencesDto) =
             SyncedPreferences(dto.hidden.toSet(), dto.favorites.distinct(), dto.recent.distinct())
 
-        /** The starred ids in the viewer's order, then the rest as stored, so the server's list carries the order too. */
+        /**
+         * The starred ids in the viewer's order, then the rest as stored, so the server's list carries the order too.
+         */
         private fun orderedFavoriteIds(settings: AppSettings): List<String> =
             settings.favoritesOrder.filter { it in settings.favorites } +
                 settings.favorites.filterNot { it in settings.favoritesOrder }.sorted()

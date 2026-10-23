@@ -19,7 +19,9 @@ interface WindowFullScreen {
     fun toggle()
 }
 
-/** The window's full screen, or null where the app cannot switch it (Android and iOS, whose players fill the screen). */
+/**
+ * The window's full screen, or null where the app cannot switch it (Android and iOS, whose players fill the screen).
+ */
 val LocalWindowFullScreen = staticCompositionLocalOf<WindowFullScreen?> { null }
 
 /** True while the app shows in the system's picture-in-picture window, where the players draw only the picture. */

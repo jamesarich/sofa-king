@@ -42,7 +42,9 @@ fun Context.isTelevision(): Boolean =
     getSystemService<UiModeManager>()?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
         packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
 
-/** The system's "Use 24-hour format" setting; read once, as the zone is, so the guide does not reformat under the user. */
+/**
+ * The system's "Use 24-hour format" setting; read once, as the zone is, so the guide does not reformat under the user.
+ */
 @Composable
 internal actual fun rememberSystem24HourClock(): Boolean {
     val context = LocalContext.current

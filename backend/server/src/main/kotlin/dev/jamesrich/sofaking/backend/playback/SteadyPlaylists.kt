@@ -42,7 +42,10 @@ class SteadyPlaylists(private val limit: Int = 16) {
         private var sequenceOffset = 0L
         private var discontinuityOffset = 0L
 
-        /** The numbers, as sent, of segments a restart put a discontinuity in front of, while they may still be in a window. */
+        /**
+         * The numbers, as sent, of segments a restart put a discontinuity in front of, while
+         * they may still be in a window.
+         */
         private val restarts = ArrayList<Long>()
 
         /** The segments sent lately, to tell a stale copy from a restart. */
@@ -52,7 +55,8 @@ class SteadyPlaylists(private val limit: Int = 16) {
             val previous = sent
             if (previous != null && window.sequence + sequenceOffset < first) {
                 if (recent.containsAll(window.uris)) return previous
-                // A restart: its first segment follows the last one sent, and the discontinuities sent so far have left the window.
+                // A restart: its first segment follows the last one sent, and the discontinuities
+                // sent so far have left the window.
                 sequenceOffset = first + count - window.sequence
                 restarts += first + count
                 discontinuityOffset =
@@ -91,7 +95,10 @@ class SteadyPlaylists(private val limit: Int = 16) {
         val uris: List<String>,
         val discontinuities: Int,
     ) {
-        /** [text] numbered from [sequence], its discontinuities from [discontinuitySequence], with a discontinuity before each segment index in [breaks]. */
+        /**
+         * [text] numbered from [sequence], its discontinuities from [discontinuitySequence], with a discontinuity
+         * before each segment index in [breaks].
+         */
         fun renumbered(sequence: Long, discontinuitySequence: Long, breaks: Set<Int>): String {
             val out = StringBuilder()
             var index = 0

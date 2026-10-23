@@ -21,7 +21,10 @@ import kotlinx.coroutines.plus
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-/** A server address and token the API can be built from, and the one API client built from them, which the connection closes. */
+/**
+ * A server address and token the API can be built from, and the one API client built from
+ * them, which the connection closes.
+ */
 internal data class Server(val url: String, val token: String, val api: SofaKingApi)
 
 /**
@@ -42,7 +45,10 @@ class ServerConnection(
 ) {
     private val work = scope + logFailures
 
-    /** The server as Settings has it, with one API client for the sessions and the repositories, or null while the address is not a usable URL. */
+    /**
+     * The server as Settings has it, with one API client for the sessions and the repositories, or null while
+     * the address is not a usable URL.
+     */
     internal val server: SharedFlow<Server?> = settings.filterNotNull()
         .map { s -> ServerAddress.normalizeUrl(s.serverUrl)?.let { it to s.apiToken } }
         .distinctUntilChanged()
@@ -70,7 +76,10 @@ class ServerConnection(
         if (viewerSync != null) work.launch { viewerSync.run(api) }
     }
 
-    /** What the server offers beyond live TV, from its bootstrap: nothing until it answers, or on a server too old to say. */
+    /**
+     * What the server offers beyond live TV, from its bootstrap: nothing until it answers,
+     * or on a server too old to say.
+     */
     @OptIn(ExperimentalCoroutinesApi::class)
     val capabilities: StateFlow<ServerCapabilities> = server
         .transformLatest { found ->

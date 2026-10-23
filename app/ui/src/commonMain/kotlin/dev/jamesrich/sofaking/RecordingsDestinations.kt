@@ -47,7 +47,10 @@ internal fun RecordingsDestination(
     )
 }
 
-/** A recording full screen, skipping its commercial breaks when Settings says so; one gone from the list sends the viewer back. */
+/**
+ * A recording full screen, skipping its commercial breaks when Settings says so; one gone from
+ * the list sends the viewer back.
+ */
 @Composable
 internal fun RecordingDestination(
     route: Route.Recording,

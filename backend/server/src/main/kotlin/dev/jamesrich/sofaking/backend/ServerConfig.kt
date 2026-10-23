@@ -25,11 +25,15 @@ data class HdhrConfig(
     /** Eight hex digits; null derives one from the server identity. */
     val deviceId: String? = null,
     val friendlyName: String = "Sofa King",
-    /** Client IPs or CIDR blocks from `SOFA_HDHR_ALLOW`; the portal adds more at run time ([dev.jamesrich.sofaking.backend.http.HdhrAccess]). */
+    /**
+     * Client IPs or CIDR blocks from `SOFA_HDHR_ALLOW`; the portal adds more at run time
+     * ([dev.jamesrich.sofaking.backend.http.HdhrAccess]).
+     */
     val allow: List<String> = emptyList(),
     /**
      * Further listening ports, each one more device carrying its share of the lineup: by a stable hash of the entry
-     * ID, or with a lineup policy by range in lineup order. Plex cannot save a channel map of several hundred channels on one device.
+     * ID, or with a lineup policy by range in lineup order. Plex cannot save a channel map of several
+     * hundred channels on one device.
      */
     val extraPorts: List<Int> = emptyList(),
     /** Channels per device when the lineup policy splits devices by range. */
@@ -43,7 +47,10 @@ data class HdhrConfig(
     fun publicPorts(port: Int): List<Int> = publicPorts.ifEmpty { listOf(port) + extraPorts }
 }
 
-/** Plex Live TV sync: the Plex server, its token, how often to sync, and where Plex reaches the tuners when it must add one. */
+/**
+ * Plex Live TV sync: the Plex server, its token, how often to sync, and where Plex reaches
+ * the tuners when it must add one.
+ */
 class PlexConfig(
     /** Scheme, host and port, without a trailing slash. */
     val url: String,
@@ -91,7 +98,9 @@ data class ServerConfig(
      * set empty, which turns the check off.
      */
     val updateImage: String? = DEFAULT_UPDATE_IMAGE,
-    /** `SOFA_CORS_ORIGINS`: the browser origins that may call the API from another origin; empty sends no CORS headers. */
+    /**
+     * `SOFA_CORS_ORIGINS`: the browser origins that may call the API from another origin; empty sends no CORS headers.
+     */
     val corsOrigins: List<CorsOrigin> = emptyList(),
     /** `SOFA_RECORDINGS_DIR`, where the DVR writes recordings; unset, `recordings` in the data directory. */
     val recordingsDirectory: Path = dataDirectory.resolve("recordings"),
@@ -103,7 +112,10 @@ data class ServerConfig(
     val maxTranscodes: Int = 2,
     /** `SOFA_HWACCEL` and `SOFA_HWACCEL_DEVICE`: the GPU encoder library conversions use; software when unset. */
     val videoEncoder: VideoEncoder = VideoEncoder(),
-    /** `SOFA_RECORDINGS_FREE_GIB`: the space the DVR keeps free on the recordings folder's disk by deleting the oldest recordings. */
+    /**
+     * `SOFA_RECORDINGS_FREE_GIB`: the space the DVR keeps free on the recordings folder's disk by
+     * deleting the oldest recordings.
+     */
     val recordingsFreeGib: Int = 10,
     /** `SOFA_RECORDINGS_KEEP_DAYS`: the days the DVR keeps a recording; 0 keeps it until space runs short. */
     val recordingsKeepDays: Int = 0,
@@ -124,10 +136,10 @@ data class ServerConfig(
         private val LEGACY_DATA_DIRECTORY: Path = Path.of("/data")
 
         /**
-         * The configuration the server starts with: [fromEnvironment] after reading `NAME_FILE` secrets, then the source
-         * and policy files found in the data directory when their variables are unset, and, on a non-loopback bind, the
-         * API, admin and output tokens the environment leaves unset from [SecretsFile], generated on first use. [log]
-         * gets one line per decision and never a token.
+         * The configuration the server starts with: [fromEnvironment] after reading `NAME_FILE` secrets, then the
+         * source and policy files found in the data directory when their variables are unset, and, on a non-loopback
+         * bind, the API, admin and output tokens the environment leaves unset from [SecretsFile], generated on first
+         * use. [log] gets one line per decision and never a token.
          */
         fun load(
             environment: Map<String, String>,
@@ -144,7 +156,8 @@ data class ServerConfig(
                     Files.exists(directory.resolve("backend.sqlite")) || !Files.isRegularFile(legacyDatabase),
             ) {
                 "$legacyDatabase exists but SOFA_DATA_DIR ($directory) holds no database. " +
-                    "Move the contents of $legacyDataDirectory into $directory, or set SOFA_DATA_DIR=$legacyDataDirectory"
+                    "Move the contents of $legacyDataDirectory into $directory, or set " +
+                    "SOFA_DATA_DIR=$legacyDataDirectory"
             }
             val found = mutableSetOf<String>()
             fun pick(name: String, set: Path?, fileName: String, what: String): Path? {
@@ -183,7 +196,8 @@ data class ServerConfig(
                         generated
                     ) {
                         log(
-                            "secrets: generated SOFA_API_TOKEN and stored it in ${file.path}; reveal it in the admin portal under Settings",
+                            "secrets: generated SOFA_API_TOKEN and stored it in ${file.path}; reveal it in the admin " +
+                                "portal under Settings",
                         )
                     } else {
                         log("secrets: SOFA_API_TOKEN from ${file.path}")
@@ -210,7 +224,8 @@ data class ServerConfig(
                         generated
                     ) {
                         log(
-                            "secrets: generated SOFA_OUTPUT_TOKEN and stored it in ${file.path}; the portal's Plex page shows the player URLs with it",
+                            "secrets: generated SOFA_OUTPUT_TOKEN and stored it in ${file.path}; the portal's Plex " +
+                                "page shows the player URLs with it",
                         )
                     } else {
                         log("secrets: SOFA_OUTPUT_TOKEN from ${file.path}")
@@ -346,7 +361,8 @@ data class ServerConfig(
                         publicPorts.distinct().size == publicPorts.size
                     ),
             ) {
-                "SOFA_HDHR_PUBLIC_PORTS must list one distinct port per device: SOFA_PORT's, then each of SOFA_HDHR_EXTRA_PORTS"
+                "SOFA_HDHR_PUBLIC_PORTS must list one distinct port per device: SOFA_PORT's, then each of " +
+                    "SOFA_HDHR_EXTRA_PORTS"
             }
             val plex = plexConfig(environment, hdhrEnabled)
             val recordings = environment["SOFA_RECORDINGS_DIR"]?.let {
@@ -411,7 +427,8 @@ data class ServerConfig(
                         uri.rawUserInfo == null &&
                         uri.rawPath.isNullOrEmpty() && uri.rawQuery == null && uri.rawFragment == null,
                 ) {
-                    "SOFA_CORS_ORIGINS takes origins like https://tv.example.com or http://host:8080, separated by commas: $origin"
+                    "SOFA_CORS_ORIGINS takes origins like https://tv.example.com or http://host:8080, separated by " +
+                        "commas: $origin"
                 }
                 val host = uri.host.lowercase()
                 CorsOrigin(scheme, if (uri.port == -1) host else "$host:${uri.port}")

@@ -67,7 +67,10 @@ data class CaptionCue(
     }
 }
 
-/** One audio track the stream offers, as the stream card lists it; [id] is the engine's own handle for [selectAudioTrack]. */
+/**
+ * One audio track the stream offers, as the stream card lists it; [id] is the engine's own
+ * handle for [selectAudioTrack].
+ */
 @Immutable
 data class AudioTrack(val id: String, val label: String, val selected: Boolean)
 
@@ -152,7 +155,10 @@ interface LivePlayer {
     /** True when the current stream offers a caption track the player can show. */
     val hasTextTrack: Boolean
 
-    /** The audio tracks the stream offers, with the playing one marked; empty while there is no choice or the engine cannot list them. */
+    /**
+     * The audio tracks the stream offers, with the playing one marked; empty while there is no choice
+     * or the engine cannot list them.
+     */
     val audioTracks: StateFlow<List<AudioTrack>>
 
     /** Plays the audio track [id] from [audioTracks]; the choice lasts for the current item. */
@@ -179,7 +185,9 @@ interface LivePlayer {
     /** The decoder and buffer choices, applied from the next [setStream]; engines without the knobs ignore them. */
     fun setPlaybackPreferences(preferences: PlaybackPreferences) = Unit
 
-    /** A new item for [stream], tagged with its channel; [nowPlaying] goes to the media session. Call [prepare] after. */
+    /**
+     * A new item for [stream], tagged with its channel; [nowPlaying] goes to the media session. Call [prepare] after.
+     */
     fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying? = null)
 
     /** The held item at [stream]'s new URL, keeping its channel tag and metadata. Call [prepare] after. */
@@ -190,7 +198,10 @@ interface LivePlayer {
     /** Stops and resets the renderers; the item and [playWhenReady] are kept for the next [prepare]. */
     fun stop()
 
-    /** Resumes, at the live edge when a live stream's pause outlasted [LIVE_RESUME_AFTER_MS]; a seekable item resumes where it paused. */
+    /**
+     * Resumes, at the live edge when a live stream's pause outlasted [LIVE_RESUME_AFTER_MS]; a
+     * seekable item resumes where it paused.
+     */
     fun play()
 
     fun pause()
@@ -204,7 +215,10 @@ interface LivePlayer {
     /** The position from the start of a seekable item; 0 otherwise. */
     val positionMs: Long get() = 0L
 
-    /** The length of a seekable item so far, which grows while a recording is being made; null when unknown or not seekable. */
+    /**
+     * The length of a seekable item so far, which grows while a recording is being made;
+     * null when unknown or not seekable.
+     */
     val durationMs: Long? get() = null
 
     /** Moves a seekable item to [positionMs], clamped to its length; does nothing otherwise. */
@@ -213,7 +227,10 @@ interface LivePlayer {
     /** True where the engine plays faster than normal through [setSpeed], keeping the voices' pitch. */
     val speedAdjustable: Boolean get() = false
 
-    /** Plays at [rate] times normal speed (1 is normal) until set again, across new streams too; ignored where not [speedAdjustable]. */
+    /**
+     * Plays at [rate] times normal speed (1 is normal) until set again, across new streams too;
+     * ignored where not [speedAdjustable].
+     */
     fun setSpeed(rate: Float) = Unit
 
     /**
@@ -222,10 +239,16 @@ interface LivePlayer {
      */
     fun adBreak(): AdBreakNow? = null
 
-    /** True where the engine reads the playlist's ad marks itself (Media3); the others have the server place the picture by [loadedAheadMs]. */
+    /**
+     * True where the engine reads the playlist's ad marks itself (Media3); the others have the server place
+     * the picture by [loadedAheadMs].
+     */
     val readsAdMarks: Boolean get() = false
 
-    /** How much of a live stream the engine has loaded past the picture, for the server to place the picture among the ads; null when it cannot say. */
+    /**
+     * How much of a live stream the engine has loaded past the picture, for the server to place the picture among
+     * the ads; null when it cannot say.
+     */
     val loadedAheadMs: Long? get() = null
 
     /**
@@ -243,14 +266,19 @@ interface LivePlayer {
     /** Opens the system media session; next and previous from it zap through [onZapStep] (+1 next, -1 previous). */
     fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle
 
-    /** The picture in [modifier]'s bounds as [zoom] says, cropped to them; [shutter] covers it from a reset until the next first frame. */
+    /**
+     * The picture in [modifier]'s bounds as [zoom] says, cropped to them; [shutter] covers it from a
+     * reset until the next first frame.
+     */
     @Composable
     fun Video(modifier: Modifier, zoom: VideoZoom, shutter: @Composable () -> Unit)
 
     fun release()
 }
 
-/** The platform's player for the app's one playback pipeline; remembered for the host's lifetime and released with it. */
+/**
+ * The platform's player for the app's one playback pipeline; remembered for the host's lifetime and released with it.
+ */
 @Composable
 expect fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer
 

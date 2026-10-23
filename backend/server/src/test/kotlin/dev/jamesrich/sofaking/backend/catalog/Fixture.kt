@@ -48,7 +48,9 @@ class Fixture : AutoCloseable {
     val dtdRequests = AtomicInteger()
     val tsFeed = FeedConfig("ts", "$base/ts-feed.m3u", probe = false)
 
-    /** A third provider carrying a channel named like the station but under another `tvg-id`, for equivalence evidence. */
+    /**
+     * A third provider carrying a channel named like the station but under another `tvg-id`, for equivalence evidence.
+     */
     val twinFeed = FeedConfig("twin", "$base/twin-feed.m3u", probe = false)
 
     /** An HLS master served from an extensionless path with a generic content type. */
@@ -82,7 +84,10 @@ class Fixture : AutoCloseable {
     /** While set, `/logo.png` answers 503. */
     @Volatile var logoBroken = false
 
-    /** While set, `/key` and the media playlists are served gzip-encoded with a `Content-Encoding` header, as some CDNs do unasked. */
+    /**
+     * While set, `/key` and the media playlists are served gzip-encoded with a `Content-Encoding`
+     * header, as some CDNs do unasked.
+     */
     @Volatile var gzipEncoded = false
     val tsConnections = AtomicInteger()
     val tsClosed = AtomicInteger()
@@ -93,7 +98,10 @@ class Fixture : AutoCloseable {
     /** Raw query string of the last media playlist request, for delivery-directive checks. */
     @Volatile var lastMediaQuery: String? = null
 
-    /** While set, the guide's `Morning` programme carries a sub-title, season and episode numbering, a rating and `<new/>`. */
+    /**
+     * While set, the guide's `Morning` programme carries a sub-title, season and episode
+     * numbering, a rating and `<new/>`.
+     */
     @Volatile var guideMetadata = false
     init {
         server.executor = executor
@@ -238,9 +246,13 @@ class Fixture : AutoCloseable {
                     } else if (withdrawn) {
                         "#EXTM3U\n"
                     } else if (partial) {
-                        "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" group-title=\"News\",Station\n$base/master.m3u8\n#EXTINF:-1 tvg-chno=\"9\",Nameless Id\n$base/other.m3u8\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" group-title=\"News\",Station\n$base/master.m3u8?token=dup\n"
+                        "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" " +
+                            "group-title=\"News\",Station\n$base/master.m3u8\n#EXTINF:-1 tvg-chno=\"9\",Nameless " +
+                            "Id\n$base/other.m3u8\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" " +
+                            "group-title=\"News\",Station\n$base/master.m3u8?token=dup\n"
                     } else {
-                        "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" group-title=\"News\",Station\n$base/master.m3u8\n"
+                        "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" " +
+                            "group-title=\"News\",Station\n$base/master.m3u8\n"
                     }
 
                 "/alt-feed.m3u" ->
@@ -251,7 +263,8 @@ class Fixture : AutoCloseable {
 
                 "/twin-feed.m3u" ->
                     "#EXTM3U\n#EXTINF:-1 tvg-id=\"twin-station\" tvg-chno=\"5\" group-title=\"US: " +
-                        "News\",STATION\n$base/twin.m3u8\n#EXTINF:-1 tvg-id=\"twin-sports\" tvg-chno=\"12\" group-title=\"US: Sports\",Twin Sports\n$base/twin-sports.m3u8\n"
+                        "News\",STATION\n$base/twin.m3u8\n#EXTINF:-1 tvg-id=\"twin-sports\" tvg-chno=\"12\" " +
+                        "group-title=\"US: Sports\",Twin Sports\n$base/twin-sports.m3u8\n"
 
                 "/ext-feed.m3u" ->
                     "#EXTM3U\n#EXTINF:-1 tvg-id=\"ext-station\" tvg-chno=\"7\",Extensionless\n$base/resolve?id=1\n"
@@ -272,11 +285,13 @@ class Fixture : AutoCloseable {
 
                 "/learn-feed.m3u" ->
                     "#EXTM3U\n#EXTINF:-1 tvg-id=\"learn-show\" tvg-chno=\"30\",Learn " +
-                        "Show\n$base/learn-show.m3u8\n#EXTINF:-1 tvg-id=\"nfl-network\" tvg-chno=\"31\",NFL Network\n$base/nfl-network.m3u8\n"
+                        "Show\n$base/learn-show.m3u8\n#EXTINF:-1 tvg-id=\"nfl-network\" tvg-chno=\"31\",NFL " +
+                        "Network\n$base/nfl-network.m3u8\n"
 
                 "/learn2-feed.m3u" ->
                     "#EXTM3U\n#EXTINF:-1 tvg-id=\"show-tv\" tvg-chno=\"40\",Learn Show " +
-                        "TV\n$base/show-tv.m3u8\n#EXTINF:-1 tvg-id=\"nfl-channel\" tvg-chno=\"41\",NFL Channel\n$base/nfl-channel.m3u8\n"
+                        "TV\n$base/show-tv.m3u8\n#EXTINF:-1 tvg-id=\"nfl-channel\" tvg-chno=\"41\",NFL " +
+                        "Channel\n$base/nfl-channel.m3u8\n"
 
                 "/learn-guide.xml" -> scheduleXml(
                     mapOf(
@@ -295,7 +310,8 @@ class Fixture : AutoCloseable {
 
                 "/master.m3u8" ->
                     "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"English\"," +
-                        "URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=100000,AUDIO=\"audio\"\nmedia.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=200000\nloop\n"
+                        "URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=100000," +
+                        "AUDIO=\"audio\"\nmedia.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=200000\nloop\n"
 
                 "/media.m3u8", "/audio.m3u8" ->
                     "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-KEY:METHOD=AES-128," +
@@ -339,21 +355,26 @@ class Fixture : AutoCloseable {
         append("<tv>")
         if (withChannels) {
             append(
-                "<channel id=\"station\"><display-name>Station HD</display-name><icon src=\"$base/station.png\"/></channel><channel id=\"other\"><display-name>Other</display-name></channel>",
+                "<channel id=\"station\"><display-name>Station HD</display-name><icon " +
+                    "src=\"$base/station.png\"/></channel><channel " +
+                    "id=\"other\"><display-name>Other</display-name></channel>",
             )
         }
         val metadata = if (guideMetadata) {
             "<sub-title>Pilot &amp; Plans</sub-title><category lang=\"en\">Sports</category><episode-num " +
                 "system=\"xmltv_ns\">1.4.</episode-num>" +
-                "<episode-num system=\"onscreen\">S02E05</episode-num><new/><rating system=\"VCHIP\"><value>TV-PG</value></rating>"
+                "<episode-num system=\"onscreen\">S02E05</episode-num><new/><rating " +
+                "system=\"VCHIP\"><value>TV-PG</value></rating>"
         } else {
             ""
         }
         append(
-            "<programme channel=\"station\" start=\"20261010080000 -0500\" stop=\"20261010090000 -0500\"><title>Morning</title>$metadata</programme>",
+            "<programme channel=\"station\" start=\"20261010080000 -0500\" stop=\"20261010090000 " +
+                "-0500\"><title>Morning</title>$metadata</programme>",
         )
         append(
-            "<programme channel=\"other\" start=\"20261010080000 -0500\" stop=\"20261010090000 -0500\"><title>Elsewhere</title></programme>",
+            "<programme channel=\"other\" start=\"20261010080000 -0500\" stop=\"20261010090000 " +
+                "-0500\"><title>Elsewhere</title></programme>",
         )
         append("</tv>")
     }
@@ -364,7 +385,8 @@ class Fixture : AutoCloseable {
         for ((channel, titles) in channels) {
             titles.forEachIndexed { hour, title ->
                 append(
-                    "<programme channel=\"$channel\" start=\"202610101${3 + hour}0000 +0000\" stop=\"202610101${4 + hour}0000 +0000\"><title>$title</title></programme>",
+                    "<programme channel=\"$channel\" start=\"202610101${3 + hour}0000 +0000\" " +
+                        "stop=\"202610101${4 + hour}0000 +0000\"><title>$title</title></programme>",
                 )
             }
         }

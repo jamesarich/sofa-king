@@ -42,7 +42,8 @@ private fun requestLock() {
 
 private fun requestWakeLock(onGranted: (JsAny) -> Unit) {
     js(
-        "if ('wakeLock' in navigator) { navigator.wakeLock.request('screen').then(function (lock) { onGranted(lock); }, function () {}); }",
+        "if ('wakeLock' in navigator) { navigator.wakeLock.request('screen').then(function (lock) { onGranted(lock); " +
+            "}, function () {}); }",
     )
 }
 

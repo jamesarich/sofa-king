@@ -3,8 +3,8 @@ package dev.jamesrich.sofaking.contract
 import kotlinx.serialization.Serializable
 
 /**
- * [viewers] says the server pairs clients (`/api/v1/pair`) and keeps their preferences (`/api/v1/preferences/{clientId}`);
- * [recordings] that it records (`/api/v1/recordings`, `/api/v1/recording-rules`).
+ * [viewers] says the server pairs clients (`/api/v1/pair`) and keeps their preferences
+ * (`/api/v1/preferences/{clientId}`); [recordings] that it records (`/api/v1/recordings`, `/api/v1/recording-rules`).
  */
 @Serializable data class Capabilities(
     val catalog: Boolean = false,

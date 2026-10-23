@@ -26,7 +26,8 @@ class MigrationsTest {
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery(
-                        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('partial','schema_version')",
+                        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN " +
+                            "('partial','schema_version')",
                     ).use { rows ->
                         assertTrue(rows.next())
                         assertEquals(0, rows.getInt(1))
@@ -83,10 +84,14 @@ class MigrationsTest {
                     applyMigrations(db, foundationMigrations().filter { it.version < 40 })
                     transaction(db) {
                         exec(
-                            "INSERT INTO lineup_entry(id, position, number, name, group_name, logo, enabled, guide_id, guide_channel, updated_at) VALUES ('b0f6d2f4-0000-4000-8000-000000000001', 0, '5', 'First', 'News', NULL, 1, 'g', 'x', '2026-10-10T00:00:00Z')",
+                            "INSERT INTO lineup_entry(id, position, number, name, group_name, logo, enabled, " +
+                                "guide_id, guide_channel, updated_at) VALUES " +
+                                "('b0f6d2f4-0000-4000-8000-000000000001', " +
+                                "0, '5', 'First', 'News', NULL, 1, 'g', 'x', '2026-10-10T00:00:00Z')",
                         )
                         exec(
-                            "INSERT INTO lineup_offering(entry_id, position, offering_id) VALUES ('b0f6d2f4-0000-4000-8000-000000000001', 0, 'o1')",
+                            "INSERT INTO lineup_offering(entry_id, position, offering_id) VALUES " +
+                                "('b0f6d2f4-0000-4000-8000-000000000001', 0, 'o1')",
                         )
                     }
                 } finally {
@@ -162,24 +167,38 @@ class MigrationsTest {
                 applyMigrations(db, foundationMigrations().filter { it.version < 70 })
                 transaction(db) {
                     exec(
-                        "INSERT INTO lineup_entry(id, position, number, name, group_name, logo, enabled, guide_id, guide_channel, updated_at, pinned, created_by, auto_disabled_at, auto_disabled_reason) VALUES ('b0f6d2f4-0000-4000-8000-000000000001', 0, '5', 'First', 'News', NULL, 0, NULL, NULL, '2026-10-10T00:00:00Z', 'group,name', 'policy', '2026-10-09T00:00:00Z', 'unavailable')",
+                        "INSERT INTO lineup_entry(id, position, number, name, group_name, logo, enabled, guide_id, " +
+                            "guide_channel, updated_at, pinned, created_by, auto_disabled_at, auto_disabled_reason) " +
+                            "VALUES ('b0f6d2f4-0000-4000-8000-000000000001', 0, '5', 'First', 'News', NULL, 0, " +
+                            "NULL, NULL, '2026-10-10T00:00:00Z', 'group,name', 'policy', " +
+                            "'2026-10-09T00:00:00Z', 'unavailable')",
                     )
                     exec(
-                        "INSERT INTO lineup_offering(entry_id, position, offering_id) VALUES ('b0f6d2f4-0000-4000-8000-000000000001', 0, 'o1')",
+                        "INSERT INTO lineup_offering(entry_id, position, offering_id) VALUES " +
+                            "('b0f6d2f4-0000-4000-8000-000000000001', 0, 'o1')",
                     )
                     exec("INSERT INTO curation_rule(id, kind, position, rule_json) VALUES ('r', 'group', 0, '{}')")
                     exec(
-                        "INSERT INTO curation_entry_state(entry_id, unavailable_since) VALUES ('b0f6d2f4-0000-4000-8000-000000000001', '2026-10-09T00:00:00Z')",
+                        "INSERT INTO curation_entry_state(entry_id, unavailable_since) VALUES " +
+                            "('b0f6d2f4-0000-4000-8000-000000000001', '2026-10-09T00:00:00Z')",
                     )
                     exec(
-                        "INSERT INTO curation_adopted(channel_id, entry_id, adopted_at) VALUES ('c', 'b0f6d2f4-0000-4000-8000-000000000001', '2026-10-09T00:00:00Z')",
+                        "INSERT INTO curation_adopted(channel_id, entry_id, adopted_at) VALUES ('c', " +
+                            "'b0f6d2f4-0000-4000-8000-000000000001', '2026-10-09T00:00:00Z')",
                     )
                     exec("INSERT INTO metadata(key, value) VALUES ('curation:settings', '{}')")
                     exec(
-                        """INSERT INTO curation_change(applied_at, entry_id, action_json) VALUES ('2026-10-09T00:00:00Z', NULL, '{"kind":"regroup","entryName":"Old","reason":"rule"}')""",
+                        """INSERT INTO curation_change(applied_at, entry_id, action_json) VALUES """ +
+                            """('2026-10-09T00:00:00Z', NULL, """ +
+                            """'{"kind":"regroup","entryName":"Old","reason":"rule"}')""",
                     )
                     exec(
-                        """INSERT INTO curation_change(applied_at, entry_id, action_json) VALUES ('2026-10-10T00:00:00Z', 'b0f6d2f4-0000-4000-8000-000000000001', '{"kind":"policy","entryId":"b0f6d2f4-0000-4000-8000-000000000001","entryName":"First","field":"enabled","before":"true","after":"false","reason":"health: unavailable","ruleId":null,"offeringIds":[],"key":"first"}')""",
+                        """INSERT INTO curation_change(applied_at, entry_id, action_json) VALUES """ +
+                            """('2026-10-10T00:00:00Z', 'b0f6d2f4-0000-4000-8000-000000000001', """ +
+                            """'{"kind":"policy","entryId":"b0f6d2f4-0000-4000-8000-000000000001","entryNam""" +
+                            """e":"F""" +
+                            """irst","field":"enabled","before":"true","after":"false","reason":"health: """ +
+                            """unavailable","ruleId":null,"offeringIds":[],"key":"first"}')""",
                     )
                 }
             } finally {
@@ -248,7 +267,8 @@ class MigrationsTest {
                     transaction(db) {
                         exec("INSERT INTO guide_import(guide_id, imported_at) VALUES ('g', '2026-10-10T00:00:00Z')")
                         exec(
-                            "INSERT INTO guide_programme(guide_id, channel_id, starts_at, ends_at, title, description) VALUES ('g', 'c', 1791640800, 1791644400, 'Old', 'Kept')",
+                            "INSERT INTO guide_programme(guide_id, channel_id, starts_at, ends_at, title, " +
+                                "description) VALUES ('g', 'c', 1791640800, 1791644400, 'Old', 'Kept')",
                         )
                     }
                 } finally {

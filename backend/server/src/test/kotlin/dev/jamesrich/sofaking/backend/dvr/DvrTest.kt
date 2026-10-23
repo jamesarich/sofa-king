@@ -45,7 +45,9 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** The DVR end to end on the live HLS fixture: a rule schedules from the guide, FFmpeg records, the file lands in place. */
+/**
+ * The DVR end to end on the live HLS fixture: a rule schedules from the guide, FFmpeg records, the file lands in place.
+ */
 class DvrTest {
     private val xmltvTime = DateTimeFormatter.ofPattern("yyyyMMddHHmmss Z").withZone(ZoneOffset.UTC)
 
@@ -55,9 +57,8 @@ class DvrTest {
             append("<?xml version=\"1.0\"?><tv><channel id=\"live\"><display-name>Live</display-name></channel>")
             for ((title, start, end) in programmes) {
                 append(
-                    "<programme channel=\"live\" start=\"${xmltvTime.format(
-                        start,
-                    )}\" stop=\"${xmltvTime.format(end)}\"><title>$title</title></programme>",
+                    "<programme channel=\"live\" start=\"${xmltvTime.format(start)}\" " +
+                        "stop=\"${xmltvTime.format(end)}\"><title>$title</title></programme>",
                 )
             }
             append("</tv>")
@@ -346,7 +347,8 @@ class DvrTest {
             try {
                 val root = dir.resolve("recordings")
                 val gib = 1024L * 1024 * 1024
-                // Free space falls once the recording has written anything: the disk is full apart from what cleanup frees.
+                // Free space falls once the recording has written anything: the disk is full
+                // apart from what cleanup frees.
                 var free = 20 * gib
                 // Its own store, so the runtime's DVR never sees, and records, the same recording.
                 val store = openStore(dir.resolve("own"))
@@ -483,7 +485,8 @@ class DvrTest {
                         completed("b", 9, watched = true), completed("c", 8), completed("d", 7), completed("e", 6),
                     )
                     all.forEach { runtime.store.addRecording(it) }
-                    // 11 files leave 1 GiB free: KEEP takes news-3, AGE takes old, then SPACE takes b (watched) and a to reach 5 GiB.
+                    // 11 files leave 1 GiB free: KEEP takes news-3, AGE takes old, then SPACE takes b
+                    // (watched) and a to reach 5 GiB.
                     dvr.cull("test")
                     val left = dvr.recordings().recordings.map { it.id }.toSet()
                     assertEquals(setOf("news-1", "news-2", "news-4", "old-kept", "c", "d", "e"), left)
@@ -594,7 +597,8 @@ class DvrTest {
     }
 
     @Test fun `cancelling a rule airing while the tick starts it keeps it cancelled`() = ticking {
-        // Recordings launch on this test's event loop, with the DVR's own loops stopped, so only these two calls interleave.
+        // Recordings launch on this test's event loop, with the DVR's own loops stopped, so
+        // only these two calls interleave.
         val scope = CoroutineScope(currentCoroutineContext() + SupervisorJob())
         dvr.start(scope).forEach { it.cancel() }
         try {

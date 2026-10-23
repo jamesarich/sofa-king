@@ -163,7 +163,10 @@ fun VodPlayerScreen(
     onPlayNext: () -> Unit = {},
     /** The audio and subtitle tracks to pick from; none hides the picker. */
     tracks: VodTracks = VodTracks(),
-    /** A recording's captions, which the player draws, on or off; null for a library item, whose subtitles are in [tracks]. */
+    /**
+     * A recording's captions, which the player draws, on or off; null for a library item,
+     * whose subtitles are in [tracks].
+     */
     captionsOn: Boolean? = null,
     onToggleCaptions: () -> Unit = {},
     captionStyle: CaptionStyle = CaptionStyle.SYSTEM,
@@ -861,7 +864,8 @@ fun VodPlayerScreen(
                                 VodButton.NEXT -> onPlayNext()
                             }
                             state.showInfo()
-                            // A seek moves on and the picture takes the keys again; Captions, Zoom, Sleep and Speed stay for another press.
+                            // A seek moves on and the picture takes the keys again; Captions, Zoom, Sleep
+                            // and Speed stay for another press.
                             if (button !in STAYING_BUTTONS) focus.requestFocus()
                         },
                     )
@@ -1077,7 +1081,10 @@ private fun DrawScope.drawSeekTrack(
     }
 }
 
-/** The row's button for [button], with a recording's captions shown as [captionsOn], the picture at [zoom], the [sleep] timer and the [speed]. */
+/**
+ * The row's button for [button], with a recording's captions shown as [captionsOn], the picture at [zoom], the
+ * [sleep] timer and the [speed].
+ */
 @Composable
 private fun vodButtonItem(
     button: VodButton,
@@ -1140,7 +1147,10 @@ private val SKIP_BUTTONS = setOf(VodButton.SKIP_BREAK, VodButton.SKIP_INTRO, Vod
 private val STAYING_BUTTONS =
     setOf(VodButton.CAPTIONS, VodButton.ZOOM, VodButton.SLEEP, VodButton.SPEED, VodButton.TRACKS)
 
-/** A CC or Zoom press's answer, [text] with [arg] in it if any, shown for a moment; compared by identity so a repeated press restarts it. */
+/**
+ * A CC or Zoom press's answer, [text] with [arg] in it if any, shown for a moment; compared by identity
+ * so a repeated press restarts it.
+ */
 private class VodToast(val text: StringResource, val arg: StringResource? = null)
 
 @Composable

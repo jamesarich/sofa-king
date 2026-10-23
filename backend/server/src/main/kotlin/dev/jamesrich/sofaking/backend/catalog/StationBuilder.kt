@@ -69,7 +69,9 @@ class BuildResult(
     val learned: Map<String, String> = emptyMap(),
     /** Raw categories the group map and patterns do not name, most stations first. */
     val unmappedCategories: List<PolicyUnmappedCategory> = emptyList(),
-    /** Keys that left the lineup this run after keepMissingDays; a write-back reclaims their server-assigned numbers. */
+    /**
+     * Keys that left the lineup this run after keepMissingDays; a write-back reclaims their server-assigned numbers.
+     */
     val reclaimed: Set<String> = emptySet(),
     /** Server-numbered stations that followGroup moved into their group's block, key to new number. */
     val renumbered: Map<String, String> = emptyMap(),
@@ -177,9 +179,8 @@ object StationBuilder {
                         key
                     ) {
                         findings +=
-                            "$key: pin ${pinIdentity(
-                                pin,
-                            )} also matches channel ${candidate.channel.id}, which ${owner.first} pins first"
+                            "$key: pin ${pinIdentity(pin)} also matches channel ${candidate.channel.id}, which " +
+                            "${owner.first} pins first"
                     }
                 }
             }
@@ -448,7 +449,8 @@ object StationBuilder {
         fun nameGroup(draft: Draft): String? = (draft.override?.name ?: draft.leading?.candidate?.channel?.name)
             ?.let { name -> namePatterns.firstOrNull { it.first.containsMatchIn(name) }?.second }
 
-        // Each provider counts once per group; a tie goes to the group whose first vote comes earliest in leading order.
+        // Each provider counts once per group; a tie goes to the group whose first vote
+        // comes earliest in leading order.
         fun elect(votes: List<Pair<String, String>>): String? {
             val tally = votes.distinct().groupingBy { it.second }.eachCount()
             val best = tally.values.maxOrNull() ?: return null
@@ -468,8 +470,9 @@ object StationBuilder {
                 ?: draft.leading?.let(::rawOf)
         }
 
-        // Pass one reserves every number the file holds, including a station that has just left, and the numbers missing
-        // stations still hold; pass two assigns the rest, in the station's group block when numbering.groups names its group.
+        // Pass one reserves every number the file holds, including a station that has just left, and the numbers
+        // missing stations still hold; pass two assigns the rest, in the station's group block when
+        // numbering.groups names its group.
         val used = HashSet<String>()
         for (override in overrides.values) override.number?.let { used += canonicalNumber(it) }
         for (draft in drafts.filter { it.number == null && it.missing?.lastNumber != null }.sortedBy { it.key }) {
@@ -523,7 +526,8 @@ object StationBuilder {
             val provider = draft.leading?.candidate?.channel?.displayNumber?.takeIf {
                 it.matches(STATION_NUMBER)
             }?.let(::canonicalNumber)
-            // An unverified station holds a floor number that is never written, so its block keeps for a verified station.
+            // An unverified station holds a floor number that is never written, so its
+            // block keeps for a verified station.
             val temporary = draft.baseEnabled && draft.key in unverified
             // Stations the policy keeps off number from the floor, so group blocks hold only what viewers can see.
             val block = if (draft.baseEnabled) numbering.groups[groupFor(draft)] else null
@@ -613,9 +617,8 @@ object StationBuilder {
         )
         if (unmappedCategories.isNotEmpty()) {
             findings +=
-                "groups: ${unmappedCategories.size} categories have no mapping (${unmappedRows.distinctBy {
-                    it.key
-                }.size} stations); see unmappedCategories"
+                "groups: ${unmappedCategories.size} categories have no mapping " +
+                "(${unmappedRows.distinctBy { it.key }.size} stations); see unmappedCategories"
         }
 
         return BuildResult(

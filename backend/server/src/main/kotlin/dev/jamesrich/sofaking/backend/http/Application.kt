@@ -100,7 +100,9 @@ private val wireJson = Json { encodeDefaults = true }
 internal val ADMIN_LOGIN_LIMIT = RateLimitName("admin-login")
 internal const val ADMIN_LOGINS_PER_MINUTE = 10
 
-/** Every request body is capped at [CONTROL_BODY_LIMIT], except the policy writes, which may carry a whole policy file. */
+/**
+ * Every request body is capped at [CONTROL_BODY_LIMIT], except the policy writes, which may carry a whole policy file.
+ */
 internal fun requestBodyLimit(method: HttpMethod, path: String?): Long = when {
     method == HttpMethod.Put && path == "/api/v1/admin/policy" -> POLICY_BODY_LIMIT
     method == HttpMethod.Post && (path == "/admin/providers/edit" || path == "/admin/groups/edit") -> POLICY_BODY_LIMIT
@@ -109,7 +111,10 @@ internal fun requestBodyLimit(method: HttpMethod, path: String?): Long = when {
 
 private val accessLog = LoggerFactory.getLogger("dev.jamesrich.sofaking.backend.http.Access")
 
-/** Whether a request to the routed [path] gets an access log line: not media, logos, artwork, player streams or health checks. */
+/**
+ * Whether a request to the routed [path] gets an access log line: not media, logos, artwork,
+ * player streams or health checks.
+ */
 internal fun accessLogged(path: String?): Boolean = path == null || !(
     path.startsWith("/media/") || path.startsWith("/logos/") || path.startsWith("/artwork/") ||
         path.startsWith("/output/stream/") ||
@@ -151,7 +156,8 @@ fun Application.backendModule(
                 "status=${call.response.status()?.value ?: "-"} durationMs=${call.processingTimeMillis()}"
         }
     }
-    // Bearer tokens, not cookies, authorize the API, so credentials stay off; the portal's cookie never crosses origins.
+    // Bearer tokens, not cookies, authorize the API, so credentials stay off; the portal's
+    // cookie never crosses origins.
     config?.corsOrigins?.takeIf { it.isNotEmpty() }?.let { origins ->
         install(CORS) {
             origins.forEach { allowHost(it.host, schemes = listOf(it.scheme)) }
@@ -252,7 +258,8 @@ fun Application.backendModule(
             // A pairing claim carries no token yet; the code it presents is checked by its route.
             val isApi = path == "/api" || path.startsWith("/api/")
             if (isApi && expected == null && !call.request.fromThisMachine()) {
-                // Without a token the API is open, so only this machine may use it: no other site's page, no rebound name, no proxy.
+                // Without a token the API is open, so only this machine may use it: no other site's
+                // page, no rebound name, no proxy.
                 call.respond(
                     HttpStatusCode.Forbidden,
                     ApiError("LOOPBACK_ONLY", "Without a token the API answers only this machine", false),

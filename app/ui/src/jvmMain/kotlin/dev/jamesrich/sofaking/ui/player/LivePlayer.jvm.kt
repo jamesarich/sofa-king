@@ -232,7 +232,10 @@ internal class VlcLivePlayer(
         )
     }
 
-    /** The audio tracks libVLC lists, without its "Disable" entry; on the command thread, since the list is read from libVLC. */
+    /**
+     * The audio tracks libVLC lists, without its "Disable" entry; on the command thread,
+     * since the list is read from libVLC.
+     */
     private fun readAudioTracks() {
         if (!isCurrent) return
         val current = vlc.audio().track()
@@ -273,7 +276,9 @@ internal class VlcLivePlayer(
 
     // libVLC answers these from its own state without blocking, so they are read on the caller's thread.
 
-    /** libVLC decodes nearly every container and codec in software, at any bit depth; it does not map HDR to the screen. */
+    /**
+     * libVLC decodes nearly every container and codec in software, at any bit depth; it does not map HDR to the screen.
+     */
     override val playbackProfile = PlaybackProfile(
         containers = listOf("mp4", "mkv", "webm", "ts", "avi", "mov"),
         videoCodecs = listOf("h264", "hevc", "vp8", "vp9", "av1", "mpeg2video", "mpeg4", "vc1"),
@@ -429,9 +434,9 @@ internal class VlcLivePlayer(
         }
 
         /**
-         * libVLC reports the device as each audio stream starts. On PulseAudio and PipeWire a volume set while no stream
-         * exists is lost, and the new stream takes the volume the server last saw for the app, often the guide's muted
-         * preview, so the player's volume is set again on the new stream.
+         * libVLC reports the device as each audio stream starts. On PulseAudio and PipeWire a volume set while no
+         * stream exists is lost, and the new stream takes the volume the server last saw for the app, often the guide's
+         * muted preview, so the player's volume is set again on the new stream.
          */
         override fun audioDeviceChanged(mediaPlayer: MediaPlayer, audioDevice: String?) {
             command { applyVolume() }
@@ -450,7 +455,9 @@ internal class VlcLivePlayer(
             mutableStatus.update { it.copy(state = PlaybackState.READY, isPlaying = false) }
         }
 
-        /** libVLC reports its cache filling throughout playback; only a cache short of full before playing is buffering. */
+        /**
+         * libVLC reports its cache filling throughout playback; only a cache short of full before playing is buffering.
+         */
         override fun buffering(mediaPlayer: MediaPlayer, newCache: Float) {
             if (!isCurrent) return
             mutableStatus.update {

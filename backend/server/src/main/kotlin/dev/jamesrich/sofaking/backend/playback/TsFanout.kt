@@ -91,7 +91,10 @@ internal class TsFanout(
     @Volatile var reconnects = 0
         private set
 
-    /** Starts reading the source; the first [addReader] must follow within the linger, or the stream stops as if its last reader left. */
+    /**
+     * Starts reading the source; the first [addReader] must follow within the linger, or the stream
+     * stops as if its last reader left.
+     */
     fun start() {
         // Only the registry, under its lock, has this stream yet, so nothing races the linger set here.
         linger = scope.launch(CoroutineName("ts-linger")) {
@@ -124,7 +127,9 @@ internal class TsFanout(
         }
     }
 
-    /** Under [mutex]: once the last reader is gone, by leaving or by falling behind, the stream stops after the linger. */
+    /**
+     * Under [mutex]: once the last reader is gone, by leaving or by falling behind, the stream stops after the linger.
+     */
     private fun lingerIfIdle() {
         if (readers.isNotEmpty() || ended || linger != null) return
         linger =
@@ -212,7 +217,8 @@ internal class TsFanout(
             throw e
         } catch (e: Exception) {
             cause = e
-            // A body that carries the other protocol is a detection the reader turns into 410 STREAM_CHANGED, not a failure.
+            // A body that carries the other protocol is a detection the reader turns into 410
+            // STREAM_CHANGED, not a failure.
             if (e is UpstreamProtocolException) {
                 log.info("relay upstream protocol offering={} protocol={}", key, e.protocol)
             } else {

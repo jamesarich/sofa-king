@@ -172,7 +172,8 @@ class LibraryViewModel(
                     it.libraryId == libraryId
                 }?.genres.orEmpty(),
             )
-        // A grid whose next page failed keeps its pages, and loadMore retries that page; only a failed first page loads afresh.
+        // A grid whose next page failed keeps its pages, and loadMore retries that page; only a
+        // failed first page loads afresh.
         if (open != null && open.sameQuery(wanted) && (open.error == null || open.items.isNotEmpty())) return
         gridJob?.cancel()
         loadTarget = null

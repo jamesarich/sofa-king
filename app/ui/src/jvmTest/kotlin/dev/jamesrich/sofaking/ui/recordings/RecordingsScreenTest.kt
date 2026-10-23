@@ -63,7 +63,8 @@ class RecordingsScreenTest {
                 waitForIdle()
             }
             waitForIdle()
-            // The desktop scene moves focus with Tab, in the order a D-pad walks the rows: Play, Stop, then Resume, From start.
+            // The desktop scene moves focus with Tab, in the order a D-pad walks the rows: Play,
+            // Stop, then Resume, From start.
             press(Key.Enter)
             press(Key.Tab)
             press(Key.Enter)

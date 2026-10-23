@@ -56,7 +56,8 @@ class VizioClientTest {
                         val resolved = client.resolve("93FoxNewsNow")
                         val deviceId = store.providerState("vizio", ProviderContext.DEVICE_ID)!!.value
                         assertEquals(
-                            "${fixture.base}/vizio/master.m3u8?did=$deviceId&us_privacy=1---&app_name=VIZIO&w=1080&iu=&vizdartoken=fixture",
+                            "${fixture.base}/vizio/master.m3u8?did=$deviceId&us_privacy=1---&app_name=VIZIO&w=1080&" +
+                                "iu=&vizdartoken=fixture",
                             resolved.url,
                         )
                         assertEquals(
@@ -106,7 +107,8 @@ class VizioClientTest {
                         val query = fixture.lastQuery["/api/airings/"]!!
                         assertTrue(
                             query.startsWith(
-                                "start=2026-10-10T13:00:00.000Z&end=2026-10-11T13:00:00.000Z&startChannel=93FoxNewsNow&channelCount=2",
+                                "start=2026-10-10T13:00:00.000Z&end=2026-10-11T13:00:00.000Z&" +
+                                    "startChannel=93FoxNewsNow&channelCount=2",
                             ),
                             query,
                         )
@@ -119,7 +121,8 @@ class VizioClientTest {
                         assertNull(first.subTitle, "a sub-title equal to the title says nothing")
                         assertTrue(first.episodeNumbers.isEmpty(), "season and episode 0 mean unnumbered")
                         assertEquals(
-                            "LIVE 24/7. Always On. Raw & unfiltered breaking news, live events and stories from across the nation.",
+                            "LIVE 24/7. Always On. Raw & unfiltered breaking news, live events and stories from " +
+                                "across the nation.",
                             first.description,
                         )
                     }

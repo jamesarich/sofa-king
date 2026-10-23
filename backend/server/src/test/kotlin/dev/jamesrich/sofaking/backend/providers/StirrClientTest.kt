@@ -94,7 +94,8 @@ class StirrClientTest {
                             )
                         val resolved = client.resolve("5735")
                         assertEquals(
-                            "${fixture.base}/ssai/stream.m3u8?cb=1&AV_APPNAME=STIRR&AV_CONTENT_ID=5735&AV_NONCE=&vx_token=fixture-token",
+                            "${fixture.base}/ssai/stream.m3u8?cb=1&AV_APPNAME=STIRR&AV_CONTENT_ID=5735&AV_NONCE=&" +
+                                "vx_token=fixture-token",
                             resolved.url,
                         )
                         assertEquals(clock.now.plus(Duration.ofHours(1)), resolved.expiresAt)

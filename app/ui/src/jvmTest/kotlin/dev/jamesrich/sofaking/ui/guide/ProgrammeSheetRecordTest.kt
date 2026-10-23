@@ -68,7 +68,8 @@ class ProgrammeSheetRecordTest {
                 waitForIdle()
             }
             waitForIdle()
-            // The desktop scene moves focus with Tab, in the order a D-pad walks the two rows: Watch, Favorite, Close, Record, Record series.
+            // The desktop scene moves focus with Tab, in the order a D-pad walks the two rows: Watch,
+            // Favorite, Close, Record, Record series.
             repeat(3) { press(Key.Tab) }
             press(Key.Enter)
             press(Key.Tab)

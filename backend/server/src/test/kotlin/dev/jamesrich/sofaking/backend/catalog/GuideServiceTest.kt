@@ -145,7 +145,9 @@ class GuideServiceTest {
     @Test fun `a failed import logs the message without URLs`() {
         val cause =
             IllegalStateException(
-                "Guide fetch failed for https://guide.example/epg.xml.gz?token=secret123 [url=http://x.test/a?k=v]\n  after retry",
+                "Guide fetch failed for https://guide.example/epg.xml.gz?token=secret123 " +
+                    "[url=http://x.test/a?k=v]\n  " +
+                    "after retry",
             )
         assertEquals("Guide fetch failed for <url> [url=<url>] after retry", redactedMessage(cause))
         assertEquals(

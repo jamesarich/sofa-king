@@ -20,7 +20,8 @@ class SourceConfigTest {
     @Test fun `legacy provider array still loads and a guideUrl becomes an implicit guide`() {
         val config =
             load(
-                """[{"id":"p","playlistUrl":"http://feeds.test/p.m3u","guideUrl":"http://feeds.test/p.xml","refreshSeconds":120}]""",
+                """[{"id":"p","playlistUrl":"http://feeds.test/p.m3u","guideUrl":"http://feeds.test/""" +
+                    """p.xml","refreshSeconds":120}]""",
             )
         assertEquals("p", config.providers.single().id)
         assertTrue(config.guides.isEmpty())
@@ -34,7 +35,8 @@ class SourceConfigTest {
         val config = load(
             """{"providers":[{"id":"masq","playlistUrl":"http://192.168.1.3:3000/${'$'}{MASQ_PATH}.m3u","probe":true}],
                "guides":[{"id":"gracenote","url":"http://192.168.1.3:3000/x/epg/playlist.xml","refreshSeconds":3600},
-                         {"id":"plex","url":"https://i.mjh.nz/Plex/us.xml.gz","headers":{"X-Key":"${'$'}{PLEX_KEY}"}}]}""",
+                         {"id":"plex","url":"https://i.mjh.nz/Plex/us.xml.gz",
+                          "headers":{"X-Key":"${'$'}{PLEX_KEY}"}}]}""",
             mapOf("MASQ_PATH" to "secret-token", "PLEX_KEY" to "k"),
         )
         assertEquals("http://192.168.1.3:3000/secret-token.m3u", config.providers.single().playlistUrl)
@@ -47,7 +49,8 @@ class SourceConfigTest {
     @Test fun `renewable query parameters are configurable per provider`() {
         val config =
             load(
-                """[{"id":"p","playlistUrl":"http://feeds.test/p.m3u","renewableQuery":["Token","pl"]},{"id":"q","playlistUrl":"http://feeds.test/q.m3u"}]""",
+                """[{"id":"p","playlistUrl":"http://feeds.test/p.m3u","renewableQuery":["Token","pl"]},""" +
+                    """{"id":"q","playlistUrl":"http://feeds.test/q.m3u"}]""",
             )
         assertEquals(setOf("token", "pl"), config.providers[0].renewable)
         assertEquals(DEFAULT_RENEWABLE_QUERY, config.providers[1].renewable)
@@ -62,7 +65,8 @@ class SourceConfigTest {
         }
         assertFailsWith<IllegalArgumentException> {
             load(
-                """{"providers":[{"id":"p","playlistUrl":"http://feeds.test/p.m3u","guideUrl":"http://feeds.test/p.xml"}],"guides":[{"id":"p","url":"http://feeds.test/g.xml"}]}""",
+                """{"providers":[{"id":"p","playlistUrl":"http://feeds.test/p.m3u","guideUrl":"http://feeds.test/""" +
+                    """p.xml"}],"guides":[{"id":"p","url":"http://feeds.test/g.xml"}]}""",
             )
         }
         assertFailsWith<IllegalArgumentException> {

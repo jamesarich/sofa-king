@@ -116,11 +116,13 @@ class WireFixturesTest {
         val catalog = client.decodeFromString<Catalog>("""{"channels":[{"id":"c","displayNumber":"2","name":"PBS"}]}""")
         assertEquals(Wire.GuideStatus.AVAILABLE, catalog.channels.single().guideStatus)
         val window = client.decodeFromString<GuideWindow>(
-            """{"revision":"r","channels":[{"channelId":"c","programmes":[{"startsAt":"a","endsAt":"b","title":"News"}]}]}""",
+            """{"revision":"r","channels":[{"channelId":"c","programmes":[""" +
+                """{"startsAt":"a","endsAt":"b","title":"News"}]}]}""",
         )
         assertEquals("News", window.channels.single().programmes.single().title)
         val session = client.decodeFromString<PlaybackSession>(
-            """{"id":"s","channelId":"c","intent":"watch","descriptor":{"protocol":"hls","mimeType":"m","url":"/u","epoch":1}}""",
+            """{"id":"s","channelId":"c","intent":"watch","descriptor":{"protocol":"hls","mimeType":"m","url":"/""" +
+                """u","epoch":1}}""",
         )
         assertEquals("", session.expiresAt)
         assertEquals(false, client.decodeFromString<ApiError>("""{"code":"X","message":"m"}""").retryable)
@@ -146,13 +148,15 @@ class WireFixturesTest {
             OpenVodPlayback("i", ClientProfile(listOf("mp4"), listOf("h264"), listOf("aac"), 1080), 5000),
         )
         assertEquals(
-            """{"itemId":"i","profile":{"containers":["mp4"],"videoCodecs":["h264"],"audioCodecs":["aac"],"maxHeight":1080},"startMs":5000}""",
+            """{"itemId":"i","profile":{"containers":["mp4"],"videoCodecs":["h264"],"audioCodecs":""" +
+                """["aac"],"maxHeight":1080},"startMs":5000}""",
             body,
         )
         assertEquals(
             VodSession("s", "i", "direct", PlaybackDescriptor("file", "video/mp4", "/u", 1)),
             client.decodeFromString<VodSession>(
-                """{"id":"s","itemId":"i","mode":"direct","descriptor":{"protocol":"file","mimeType":"video/mp4","url":"/u","epoch":1}}""",
+                """{"id":"s","itemId":"i","mode":"direct","descriptor":{"protocol":"file","mimeType":"video/""" +
+                    """mp4","url":"/u","epoch":1}}""",
             ),
         )
     }

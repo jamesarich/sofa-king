@@ -38,7 +38,10 @@ import kotlinx.serialization.Serializable
     val isNew: Boolean = false,
     val rating: String? = null,
     val icon: String? = null,
-    /** The guide's genres for the program as its source names them, such as `Movies` or `Sports`; older servers send none. */
+    /**
+     * The guide's genres for the program as its source names them, such as `Movies` or
+     * `Sports`; older servers send none.
+     */
     val categories: List<String> = emptyList(),
 )
 
@@ -65,7 +68,10 @@ data class GuideQuery(val channelIds: List<String>, val from: String, val to: St
 
 @Serializable data class PlaybackDescriptor(val protocol: String, val mimeType: String, val url: String, val epoch: Int)
 
-/** [providerId] names the source the server picked for the session, for the app's stream card; older servers leave it empty. */
+/**
+ * [providerId] names the source the server picked for the session, for the app's stream
+ * card; older servers leave it empty.
+ */
 @Serializable data class PlaybackSession(
     val id: String,
     val channelId: String,

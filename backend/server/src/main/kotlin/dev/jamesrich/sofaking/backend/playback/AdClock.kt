@@ -36,8 +36,8 @@ import kotlin.math.roundToLong
  * library is checked against the markers (the canary, see [BreakLibrary]). On a playlist without markers, a match of
  * [BreakLibrary.MIN_LEARN_POINTS] reaching the newest audio starts a learned break from where the match starts; it
  * follows the entry while the audio keeps matching, and a match just after one ends needs only
- * [CONTINUE_POINTS], since breaks run ad after ad. Only an entry that may blank ([BreakEntry.blanking]) is marked, under
- * [LearnedBreaks.ON], while the canary is not [BreakLibrary.frozen].
+ * [CONTINUE_POINTS], since breaks run ad after ad. Only an entry that may blank ([BreakEntry.blanking]) is marked,
+ * under [LearnedBreaks.ON], while the canary is not [BreakLibrary.frozen].
  */
 class AdClock(
     private val segmentLimit: Int = 1024,
@@ -57,7 +57,9 @@ class AdClock(
         val starts = TreeMap<Long, Long>()
         val durations = HashMap<Long, Long>()
 
-        /** The runs seen, by first segment, each with where the stream planned its end on this timeline, when it said. */
+        /**
+         * The runs seen, by first segment, each with where the stream planned its end on this timeline, when it said.
+         */
         val runs = TreeMap<Long, Run>()
         var lastServed: Long? = null
         var servedAt = 0L
@@ -77,7 +79,10 @@ class AdClock(
         /** The learned breaks that may be marked, in order. */
         val learnedMarks = ArrayList<TimedBreak>()
 
-        /** The Chromaprint points heard, the marked runs already learned, by first segment, and the library entry followed now. */
+        /**
+         * The Chromaprint points heard, the marked runs already learned, by first segment, and
+         * the library entry followed now.
+         */
         val points = PointLog()
         val learnedRuns = HashSet<Long>()
         var following: Following? = null
@@ -301,7 +306,10 @@ class AdClock(
         join(timeline, timeline.splices)
     }
 
-    /** The segments already listed that [breaks] cover join the runs now, for [at]; later ones are marked as their playlists arrive. */
+    /**
+     * The segments already listed that [breaks] cover join the runs now, for [at]; later ones are
+     * marked as their playlists arrive.
+     */
     private fun join(timeline: Timeline, breaks: List<TimedBreak>) {
         for (timed in breaks) {
             val inside = timeline.starts.entries.filter { (segment, start) ->
@@ -319,7 +327,10 @@ class AdClock(
         }
     }
 
-    /** The playlist carried a marker: what was being learned on it is dropped, since the markers say where its breaks are. */
+    /**
+     * The playlist carried a marker: what was being learned on it is dropped, since the
+     * markers say where its breaks are.
+     */
     private fun exact(timeline: Timeline) {
         timeline.exact = true
         timeline.quiet.clear()
@@ -335,10 +346,10 @@ class AdClock(
     }
 
     /**
-     * The player fetched [url], whose audio had [levels] in dBFS, one per [LOUDNESS_WINDOW_MS], and gave the Chromaprint
-     * [points] new with it, the first at [firstPointMs] on the timeline (see [AudioFollower]): its silent stretches
-     * join the ones heard before it on its playlist's timeline, a stretch long enough becomes a slate break, and the
-     * points are learned from or matched (see the class notes).
+     * The player fetched [url], whose audio had [levels] in dBFS, one per [LOUDNESS_WINDOW_MS], and gave the
+     * Chromaprint [points] new with it, the first at [firstPointMs] on the timeline (see [AudioFollower]): its silent
+     * stretches join the ones heard before it on its playlist's timeline, a stretch long enough becomes a slate break,
+     * and the points are learned from or matched (see the class notes).
      */
     @Synchronized
     internal fun heard(url: String, levels: FloatArray, points: IntArray? = null, firstPointMs: Long = 0L) {
@@ -369,7 +380,8 @@ class AdClock(
             val silent = index < levels.size && levels[index] < SILENCE_DB
             if (silent && from < 0) from = index
             if (!silent && from >= 0) {
-                // A stretch running to the last level runs to the segment's end, which its audio may fall a little short of.
+                // A stretch running to the last level runs to the segment's end, which its
+                // audio may fall a little short of.
                 quiet(
                     timeline,
                     start + from * LOUDNESS_WINDOW_MS,
@@ -544,7 +556,9 @@ class AdClock(
         timeline.quiet[start] = Quiet(start, end, slate)
     }
 
-    /** What the session found so far, for the census: its playlists' most, since audio renditions repeat the video's. */
+    /**
+     * What the session found so far, for the census: its playlists' most, since audio renditions repeat the video's.
+     */
     @Synchronized
     fun census(): AdCensus = AdCensus(
         timelines.values.maxOfOrNull { it.playedMs } ?: 0L,
@@ -565,7 +579,8 @@ class AdClock(
         val last = timeline.lastServed ?: return AdBreakState()
         val lastStart = timeline.starts[last] ?: return AdBreakState()
         val position = lastStart + (timeline.durations[last] ?: 0L) - aheadMs.coerceAtLeast(0L)
-        // Starts grow with the sequence number, so the segment on screen is the last one starting at or before the position.
+        // Starts grow with the sequence number, so the segment on screen is the last one
+        // starting at or before the position.
         val (sequence, start) = timeline.starts.descendingMap().entries.firstOrNull { it.value <= position }?.let {
             it.key to
                 it.value
@@ -698,7 +713,9 @@ private const val OPEN_CUE_LIMIT_MS = 240_000L
 /** How close before a break's start a cue still names the same break. */
 private const val REPEAT_SLACK_MS = 2_000L
 
-/** How far a cue's splice time may be from its segment's first frame; one further off counts from the segment itself. */
+/**
+ * How far a cue's splice time may be from its segment's first frame; one further off counts from the segment itself.
+ */
 private const val SPLICE_REACH_TICKS = 60L * 90_000
 
 /**
@@ -712,5 +729,8 @@ internal fun spliceOffsetMs(firstPtsTicks: Long?, ptsTicks: Long?): Long {
     return if (ticks in -SPLICE_REACH_TICKS..SPLICE_REACH_TICKS) ticks / 90 else 0L
 }
 
-/** How many segments of other playlists may have been served since a marked playlist's last one for it to still be playing. */
+/**
+ * How many segments of other playlists may have been served since a marked playlist's last
+ * one for it to still be playing.
+ */
 private const val RECENT_SERVES = 6

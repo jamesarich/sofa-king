@@ -146,7 +146,8 @@ class GuideService(
                     checkNotNull(client.guide(wantedIds)) { "Service has no guide" }
                 } else {
                     val url = checkNotNull(config.url)
-                    // Guides run to tens of megabytes; only socket inactivity bounds the download, never a total request timeout.
+                    // Guides run to tens of megabytes; only socket inactivity bounds the download,
+                    // never a total request timeout.
                     http.withUpstreamResponse(
                         url,
                         url,
@@ -249,6 +250,9 @@ private val whitespace = Regex("\\s+")
 internal fun redactedMessage(e: Throwable): String =
     redactedMessage(e.message?.takeIf { it.isNotBlank() } ?: e.cause?.message ?: return "")
 
-/** [message] with every URL replaced by `<url>`, on one line, bounded; FFmpeg's and the fetchers' lines carry tokens in URLs. */
+/**
+ * [message] with every URL replaced by `<url>`, on one line, bounded; FFmpeg's and the
+ * fetchers' lines carry tokens in URLs.
+ */
 internal fun redactedMessage(message: String): String =
     urlInMessage.replace(message, "<url>").replace(whitespace, " ").trim().take(300)

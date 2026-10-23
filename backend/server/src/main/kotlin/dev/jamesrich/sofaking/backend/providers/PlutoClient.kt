@@ -37,9 +37,8 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
         for (batch in channels.map { it.channel.id }.filter { it in wanted }.chunked(GUIDE_BATCH)) {
             val data = authorized { session ->
                 context.http.get(
-                    "${session.channels}/v2/guide/timelines?start=$start&channelIds=${batch.joinToString(
-                        ",",
-                    )}&duration=$GUIDE_MINUTES",
+                    "${session.channels}/v2/guide/timelines?start=$start&channelIds=${batch.joinToString(",")}&" +
+                        "duration=$GUIDE_MINUTES",
                     headers(session),
                 )
             }.json()["data"].array
@@ -56,7 +55,10 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
         return ParsedGuide(index, programmes)
     }
 
-    /** A timeline entry and its `episode`: the episode name, season and number, genres, rating and poster; a `film` series is a movie. */
+    /**
+     * A timeline entry and its `episode`: the episode name, season and number, genres, rating and
+     * poster; a `film` series is a movie.
+     */
     private fun programme(
         id: String,
         from: Instant,
@@ -149,10 +151,8 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
             "appName=web&appVersion=$APP_VERSION&deviceVersion=122.0.0&deviceModel=web&deviceMake=chrome&" +
                 "deviceType=web" +
                 "&clientModelNumber=1.0.0&serverSideAds=false&drmCapabilities=&blockingMode=&notificationVersion=1&" +
-                "appLaunchCount=&lastAppLaunchDate=&clientID=$clientId&clientTime=${URLEncoder.encode(
-                    now.truncatedTo(ChronoUnit.SECONDS).toString(),
-                    Charsets.UTF_8,
-                )}"
+                "appLaunchCount=&lastAppLaunchDate=&clientID=$clientId&" +
+                "clientTime=${URLEncoder.encode(now.truncatedTo(ChronoUnit.SECONDS).toString(), Charsets.UTF_8)}"
         val boot = context.http.get(
             "$bootUrl?$query",
             STREAM_HEADERS + ("Accept" to "application/json"),

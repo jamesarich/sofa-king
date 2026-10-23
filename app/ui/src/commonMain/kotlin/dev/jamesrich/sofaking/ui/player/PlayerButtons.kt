@@ -144,8 +144,9 @@ internal enum class LiveButton {
 
 /**
  * The live player's buttons, in the bar's order: the channel list first, the previous channel once there is one
- * ([hasPrevious]), then what the CC, Play/Pause, Info and Zoom keys do, the sleep timer, Record where the server records and there is a program on, the star where favorites can change, and the guide.
- * A finger or a mouse has play and pause beside the channel buttons instead ([pointer]).
+ * ([hasPrevious]), then what the CC, Play/Pause, Info and Zoom keys do, the sleep timer, Record where the server
+ * records and there is a program on, the star where favorites can change, and the guide. A finger or a mouse has play
+ * and pause beside the channel buttons instead ([pointer]).
  */
 internal fun liveButtons(
     pointer: Boolean,
@@ -194,7 +195,10 @@ internal fun Key.inButtonRow(): ButtonRowKey = when (this) {
     else -> ButtonRowKey.PLAYER
 }
 
-/** Where a double tap on a touch screen's picture seeks: its left third back (-1), its right third forward (1), the middle not at all (0). */
+/**
+ * Where a double tap on a touch screen's picture seeks: its left third back (-1), its right third forward
+ * (1), the middle not at all (0).
+ */
 internal fun doubleTapSeek(x: Float, width: Float): Int = when {
     width <= 0f -> 0
     x < width / 3 -> -1

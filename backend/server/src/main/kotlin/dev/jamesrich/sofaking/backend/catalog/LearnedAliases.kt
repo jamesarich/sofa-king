@@ -13,7 +13,8 @@ private val START_TOLERANCE: Duration = Duration.ofMinutes(5)
 
 /**
  * What schedule evidence decided in one run. [learned] maps each new `from` key to the station key it joins;
- * [suggestions] are loose pairs no schedule could settle; [findings] are merges the evidence wanted but the policy blocked.
+ * [suggestions] are loose pairs no schedule could settle; [findings] are merges the evidence
+ * wanted but the policy blocked.
  */
 class Learning(
     val learned: Map<String, String> = emptyMap(),
@@ -124,14 +125,14 @@ fun learnAliases(result: BuildResult, policy: LineupPolicy, schedules: Map<Strin
         }
         if (apart.isNotEmpty()) {
             findings +=
-                "$into: schedules match ${members.filter {
-                    it != into
-                }.joinToString()}, but names.never keeps ${apart.joinToString()} apart; not merged"
+                "$into: schedules match ${members.filter { it != into }.joinToString()}, but names.never keeps " +
+                "${apart.joinToString()} apart; not merged"
             continue
         }
         for (from in members.filter { it != into }) {
             val override = policy.stations[from]
-            // A number the household set is never released, so a merge would lose it; one the server wrote goes with the key.
+            // A number the household set is never released, so a merge would lose it; one the
+            // server wrote goes with the key.
             val handNumbered = override?.number != null && from !in policy.numbering.assigned
             if (numberOnly(override) && !handNumbered) {
                 learned[from] = into

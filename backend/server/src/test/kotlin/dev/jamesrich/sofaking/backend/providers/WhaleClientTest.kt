@@ -63,7 +63,8 @@ class WhaleClientTest {
                         assertEquals("News", mojo.group)
                         assertEquals("0105", mojo.number)
                         assertEquals(
-                            "https://d3b6luslimvglo.cloudfront.net/images/79/rlaxximages/channels-rescaled/icon-white/watchmojo_white.png",
+                            "https://d3b6luslimvglo.cloudfront.net/images/79/rlaxximages/channels-rescaled/" +
+                                "icon-white/watchmojo_white.png",
                             mojo.logo,
                         )
                         assertEquals("Sports", channels[1].group)

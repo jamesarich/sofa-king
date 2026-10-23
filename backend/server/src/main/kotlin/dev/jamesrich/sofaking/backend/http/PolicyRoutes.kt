@@ -20,7 +20,10 @@ internal const val POLICY_BODY_LIMIT = 4 * 1024 * 1024L
 internal fun ApplicationCall.ifMatch(): String? =
     request.headers[HttpHeaders.IfMatch]?.trim()?.removePrefix("W/")?.trim('"')?.takeIf { it.isNotEmpty() }
 
-/** The lineup policy under the admin route: the document and its writes, preview, apply, findings, the change log and one station's candidates. */
+/**
+ * The lineup policy under the admin route: the document and its writes, preview, apply, findings, the change
+ * log and one station's candidates.
+ */
 fun Route.policyRoutes(policy: PolicyService?) {
     fun loaded(): PolicyService =
         policy ?: throw ApiFailure(404, "POLICY_NOT_CONFIGURED", "No lineup policy is configured; set SOFA_POLICY")

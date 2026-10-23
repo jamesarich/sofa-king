@@ -171,7 +171,9 @@ private val BREAK_QUIPS = listOf(
     Res.string.break_quip_recline,
 )
 
-/** What the break screen remembers from one break to the next while the app runs: the next line, and the corners seen. */
+/**
+ * What the break screen remembers from one break to the next while the app runs: the next line, and the corners seen.
+ */
 private object BreakTally {
     val quips = Deck(BREAK_QUIPS.size)
     var corners = 0
@@ -267,7 +269,8 @@ internal fun BreakScreen(
                 .offset { IntOffset(bounce.x.roundToInt(), bounce.y.roundToInt()) }
                 .onSizeChanged { unit = it }
                 .graphicsLayer {
-                    // The pop grows out of the corner just hit, which the mark is now heading away from, so it stays on screen.
+                    // The pop grows out of the corner just hit, which the mark is now heading
+                    // away from, so it stays on screen.
                     transformOrigin = TransformOrigin(if (bounce.right) 0f else 1f, if (bounce.down) 0f else 1f)
                     scaleX = pop.value
                     scaleY = pop.value

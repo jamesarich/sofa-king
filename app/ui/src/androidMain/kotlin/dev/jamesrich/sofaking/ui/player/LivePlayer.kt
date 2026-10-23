@@ -295,7 +295,10 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
     /** Made for the first session; it listens to [exo] until the player is released, so later sessions reuse it. */
     private val sessionPlayer by lazy { LivePlayerWrapper(this) }
 
-    /** Live video through media3-ui-compose: `ContentFrame` sizes a SurfaceView to the picture and shows [shutter] after each reset. */
+    /**
+     * Live video through media3-ui-compose: `ContentFrame` sizes a SurfaceView to the picture and
+     * shows [shutter] after each reset.
+     */
     @Composable
     override fun Video(modifier: Modifier, zoom: VideoZoom, shutter: @Composable () -> Unit) {
         ContentFrame(

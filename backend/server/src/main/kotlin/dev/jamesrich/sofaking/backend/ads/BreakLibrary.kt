@@ -195,7 +195,9 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
         if (pointCount > MAX_POINTS) evict()
     }
 
-    /** The longest match of [query] of [minPoints] or more, against any entry not learned by the clock tagged [exclude]. */
+    /**
+     * The longest match of [query] of [minPoints] or more, against any entry not learned by the clock tagged [exclude].
+     */
     @Synchronized
     fun match(query: IntArray, minPoints: Int, exclude: String? = null): BreakMatch? =
         best(query, minPoints, null, exclude)

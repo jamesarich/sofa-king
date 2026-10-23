@@ -57,7 +57,8 @@ class SubtitleExtractionTest {
             // An FFmpeg that writes part of the slow file's track and then hangs, and converts the fast one at once.
             val ffmpeg = dir.file(
                 "ffmpeg",
-                "#!/bin/sh\nfor out; do :; done\ncase \"$*\" in\n  *Slow*) echo partial > \"\$out\"; exec sleep 60 ;;\n  *) printf 'WEBVTT\\n\\n00:00.000 --> 00:01.000\\nHi\\n' > \"\$out\" ;;\nesac\n",
+                "#!/bin/sh\nfor out; do :; done\ncase \"$*\" in\n  *Slow*) echo partial > \"\$out\"; exec sleep 60 " +
+                    ";;\n  *) printf 'WEBVTT\\n\\n00:00.000 --> 00:01.000\\nHi\\n' > \"\$out\" ;;\nesac\n",
             ).also { it.toFile().setExecutable(true) }
             val transcode = dir.resolve("transcode")
             val vod = VodSessions(service.catalog, clock, ffmpeg.toString(), transcode)

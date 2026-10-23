@@ -32,7 +32,8 @@ class LineupService(
         val revision =
             hash(
                 entries.joinToString("\n") {
-                    "${it.id}|${it.number}|${it.name}|${it.group}|${it.logo}|${it.enabled}|${it.guide}|${it.offeringIds}"
+                    "${it.id}|${it.number}|${it.name}|${it.group}|${it.logo}|${it.enabled}|${it.guide}|" +
+                        "${it.offeringIds}"
                 },
             )
         val wanted: Map<String, Set<String>> = entries.mapNotNull {

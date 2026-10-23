@@ -177,7 +177,8 @@ class ViewerApiTest {
                     ).single().preferences?.hidden?.size,
                 )
 
-                // A device that never paired appears once it saves, newest first; bad ids and oversized lists are refused.
+                // A device that never paired appears once it saves, newest first; bad ids
+                // and oversized lists are refused.
                 clock.now = clock.now.plusSeconds(60)
                 assertEquals(
                     HttpStatusCode.OK,

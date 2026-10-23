@@ -96,7 +96,10 @@ internal class SpliceReader {
         }
     }
 
-    /** The splice a `splice_info_section` announces, or null for a keepalive, a cancel, an encrypted one or another command. */
+    /**
+     * The splice a `splice_info_section` announces, or null for a keepalive, a cancel, an
+     * encrypted one or another command.
+     */
     private fun spliceInfo(s: ByteArray): Splice? {
         if (s.size < 17 || s[4].u and 0x80 != 0) return null
         val adjust = (s[4].u.toLong() and 1 shl 32) or s.uint(5, 4)
@@ -134,7 +137,10 @@ internal class SpliceReader {
         return Splice(out, pts, duration)
     }
 
-    /** A `time_signal`: a splice only when one of its segmentation descriptors starts or ends a break, ad or placement opportunity. */
+    /**
+     * A `time_signal`: a splice only when one of its segmentation descriptors starts or ends a
+     * break, ad or placement opportunity.
+     */
     private fun timeSignal(s: ByteArray, at: Int, descriptorsAt: Int): Splice? {
         val pts = spliceTime(s, at)
         if (descriptorsAt + 2 > s.size) return null
@@ -151,7 +157,10 @@ internal class SpliceReader {
         return null
     }
 
-    /** From a segmentation descriptor's body: whether it leaves for a break (true) or returns (false), and the length it plans. */
+    /**
+     * From a segmentation descriptor's body: whether it leaves for a break (true) or returns
+     * (false), and the length it plans.
+     */
     private fun segmentation(s: ByteArray, from: Int, to: Int): Pair<Boolean, Long?>? {
         // identifier "CUEI" (4), segmentation_event_id (4), then the cancel flag.
         var i = from + 8
@@ -262,7 +271,10 @@ private const val STREAM_H264 = 0x1B
 private const val STREAM_H265 = 0x24
 private const val PTS_MASK = (1L shl 33) - 1
 
-/** Segmentation types that begin a break: break, provider and distributor ad, provider and distributor placement opportunity. */
+/**
+ * Segmentation types that begin a break: break, provider and distributor ad, provider and
+ * distributor placement opportunity.
+ */
 private val BREAK_STARTS = setOf(0x22, 0x30, 0x32, 0x34, 0x36)
 
 /** The types that end them. */

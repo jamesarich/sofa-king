@@ -77,6 +77,7 @@ private fun pageVisible(): Boolean = js("document.visibilityState === 'visible'"
 /** The answer is not read: a session the server already let go answers 404 or 410, and the lease covers a miss. */
 private fun sendRelease(url: String, token: String) {
     js(
-        "fetch(url, { method: 'DELETE', keepalive: true, headers: token ? { 'Authorization': 'Bearer ' + token } : {} }).catch(function () {});",
+        "fetch(url, { method: 'DELETE', keepalive: true, headers: token ? { 'Authorization': 'Bearer ' + token } : " +
+            "{} }).catch(function () {});",
     )
 }

@@ -328,7 +328,10 @@ private fun seriesSummary(rule: SeriesRule): String = listOfNotNull(
 /** The keep counts the Keep button steps through, all first. */
 internal val KEEP_STEPS = listOf(0, 1, 3, 5, 10)
 
-/** The keep count after [keep]: the next step up, back to all after the last; a count set elsewhere goes to the next step above it. */
+/**
+ * The keep count after [keep]: the next step up, back to all after the last; a count set elsewhere
+ * goes to the next step above it.
+ */
 internal fun nextKeep(keep: Int): Int = KEEP_STEPS.firstOrNull { it > keep } ?: 0
 
 @Composable
@@ -458,7 +461,10 @@ internal fun recordingGroups(recordings: List<DvrRecording>): List<Pair<Recordin
     }
 }
 
-/** The episode, when the guide gave one, then the channel and when it aired, such as "S2 E5 · News 4 · Sun Oct 18, 6:00 PM". */
+/**
+ * The episode, when the guide gave one, then the channel and when it aired, such as "S2 E5 ·
+ * News 4 · Sun Oct 18, 6:00 PM".
+ */
 internal fun recordingSubtitle(recording: DvrRecording, time: TimeFormatter): String {
     val number = listOfNotNull(
         recording.season?.let {
@@ -467,9 +473,8 @@ internal fun recordingSubtitle(recording: DvrRecording, time: TimeFormatter): St
         recording.episode?.let { "E$it" },
     ).joinToString(" ").ifEmpty { null }
     val local = recording.startsAt.toLocalDateTime(time.zone)
-    val aired = "${time.day(
-        recording.startsAt,
-    )} ${MonthNames.ENGLISH_ABBREVIATED.names[local.month.ordinal]} ${local.day}, ${time.format(recording.startsAt)}"
+    val aired = "${time.day(recording.startsAt)} ${MonthNames.ENGLISH_ABBREVIATED.names[local.month.ordinal]} " +
+        "${local.day}, ${time.format(recording.startsAt)}"
     return listOfNotNull(
         number,
         recording.episodeTitle,

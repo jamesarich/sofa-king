@@ -27,7 +27,10 @@ import kotlin.math.roundToLong
  * `#EXT-X-CUE-OUT` has left the window is carried on by [AdClock], which sees every refresh.
  */
 internal object AdBreaks {
-    /** One media segment: its media sequence number, length, whether it is an ad, its absolute URL, and whether a `#EXT-X-CUE-IN` comes before it in this window. */
+    /**
+     * One media segment: its media sequence number, length, whether it is an ad, its absolute URL, and whether a
+     * `#EXT-X-CUE-IN` comes before it in this window.
+     */
     data class Segment(
         val sequence: Long,
         val durationMs: Long,
@@ -39,14 +42,17 @@ internal object AdBreaks {
     private val ATTRIBUTE = Regex("""([A-Za-z0-9-]+)=("[^"]*"|[^,]*)""")
 
     /**
-     * Pluto's ad muxer serves stitched creatives under `/v1/mp4/…` and `/mp4/v1/…`, and some creatives come straight from
-     * their store, `/<n>_ad/creative/…`, the same path the muxer wraps; its own bumpers are `…adbumper…` clips.
+     * Pluto's ad muxer serves stitched creatives under `/v1/mp4/…` and `/mp4/v1/…`, and some creatives come straight
+     * from their store, `/<n>_ad/creative/…`, the same path the muxer wraps; its own bumpers are `…adbumper…` clips.
      */
     private val PLUTO_MUXER = Regex("""^/(?:v1/mp4|mp4/v1)/""")
     private val PLUTO_CREATIVE = Regex("""^/\d+_ad/creative/""")
     private val PLUTO_BUMPER = Regex("""ad_?bumper""", RegexOption.IGNORE_CASE)
 
-    /** [text] with a [AdRun.TAG] line for each run of ad segments it holds; a playlist with none, or a multivariant one, comes back as it was. */
+    /**
+     * [text] with a [AdRun.TAG] line for each run of ad segments it holds; a playlist with none, or a
+     * multivariant one, comes back as it was.
+     */
     fun annotate(text: String, base: URI): String = annotate(text, runs(text, base))
 
     /** [text] with a [AdRun.TAG] line for each of [runs]. */
@@ -76,8 +82,8 @@ internal object AdBreaks {
     }
 
     /**
-     * A parsed media playlist: its segments, the planned end of a break, in ms after the segment it begins at, by segment
-     * index, and whether a cue is still open after the last segment.
+     * A parsed media playlist: its segments, the planned end of a break, in ms after the segment it begins at, by
+     * segment index, and whether a cue is still open after the last segment.
      */
     class Parsed(val segments: List<Segment>, val plannedEndMs: Map<Int, Long>, val cueOpenAtEnd: Boolean = false)
 
@@ -113,7 +119,8 @@ internal object AdBreaks {
                 }
 
                 line.startsWith("#EXT-X-CUE-OUT-CONT") -> {
-                    // Each ad segment carries one; when the CUE-OUT has left the window, the first is where the break shows.
+                    // Each ad segment carries one; when the CUE-OUT has left the window, the
+                    // first is where the break shows.
                     val (elapsed, planned) = contValues(line.substringAfter(':', ""))
                     if (!cueOpen && planned != null) pendingEnd = (planned - (elapsed ?: 0L)).coerceAtLeast(0)
                     cueOpen = true
@@ -157,7 +164,8 @@ internal object AdBreaks {
             }
         }
         // Plex alternates its own part segments with the stream's, so a stitched break reads ad, part, ad: a single
-        // segment between two stitched ads (MediaTailor, Amagi, Ottera, Google or Wurl), with no cue-in before it, belongs to the break.
+        // segment between two stitched ads (MediaTailor, Amagi, Ottera, Google or Wurl), with no cue-in
+        // before it, belongs to the break.
         for (index in 1 until segments.size - 1) {
             val segment = segments[index]
             if (!segment.ad && !segment.cueIn && stitched[index - 1] && stitched[index + 1]) {
@@ -174,13 +182,15 @@ internal object AdBreaks {
     }
 
     /**
-     * MediaTailor serves the ads it stitches through its segment route, `/v1/segment/<hash>/<configuration>/<session>/<n>/<sequence>`
-     * on `*.mediatailor.<region>.amazonaws.com` or a CDN in front of it (Xumo's NBCU channels drop the `/v1`); the show stays on
-     * its origin. Seen on 2026-10-22 as 60 to 120 s runs after a discontinuity.
+     * MediaTailor serves the ads it stitches through its segment route,
+     * `/v1/segment/<hash>/<configuration>/<session>/<n>/<sequence>` on `*.mediatailor.<region>.amazonaws.com` or a CDN
+     * in front of it (Xumo's NBCU channels drop the `/v1`); the show stays on its origin. Seen on 2026-10-22 as 60 to
+     * 120 s runs after a discontinuity.
      */
     private val MEDIATAILOR_SEGMENT =
         Regex(
-            """^(?:/v1)?/segment/[0-9a-f]{32,}/[^/]+/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/\d+/\d+$""",
+            """^(?:/v1)?/segment/[0-9a-f]{32,}/[^/]+/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/""" +
+                """\d+/\d+$""",
         )
 
     /** True for a segment MediaTailor stitched in. */
@@ -195,8 +205,8 @@ internal object AdBreaks {
     }
 
     /**
-     * Roku's live channels play from `gcp-live-*.delivery.roku.com` and stitch their breaks from elsewhere: house promos
-     * and some spots from `osm-ads*.delivery.roku.com` (`…/hls/transcode_OVP_SSAI_MANAGER_…`), other spots from
+     * Roku's live channels play from `gcp-live-*.delivery.roku.com` and stitch their breaks from elsewhere: house
+     * promos and some spots from `osm-ads*.delivery.roku.com` (`…/hls/transcode_OVP_SSAI_MANAGER_…`), other spots from
      * `osm-<region>.sr.roku.com/osbt/…`. Seen on 2026-10-23 on eight channels as 30 to 160 s runs, all of them breaks.
      */
     private fun roku(base: URI, reference: String): Boolean {
@@ -211,8 +221,9 @@ internal object AdBreaks {
     }
 
     /**
-     * Ottera stitches its breaks from `stream.ads.ottera.tv` (`/mf2/<rendition>?u=<creative>&…&d=<break seconds>`) between
-     * its channels' own segments on `*.otteravision.com`. Seen on 2026-10-23 on Plex's Bassmaster as a 120 s break.
+     * Ottera stitches its breaks from `stream.ads.ottera.tv` (`/mf2/<rendition>?u=<creative>&…&d=<break
+     * seconds>`) between its channels' own segments on `*.otteravision.com`. Seen on 2026-10-23 on
+     * Plex's Bassmaster as a 120 s break.
      */
     private fun ottera(base: URI, reference: String): Boolean {
         val host =
@@ -226,8 +237,8 @@ internal object AdBreaks {
 
     /**
      * Google Ad Manager's dynamic ad insertion serves each break's pod, ads and slate alike, from
-     * `dai.google.com/linear/pods/…` while the show plays from the publisher's CDN. Seen on 2026-10-23 on Plex's 48 Hours
-     * and Samsung's CBS News, inside the playlists' own `#EXT-X-CUE-OUT` and `#EXT-X-CUE-IN`.
+     * `dai.google.com/linear/pods/…` while the show plays from the publisher's CDN. Seen on 2026-10-23 on Plex's 48
+     * Hours and Samsung's CBS News, inside the playlists' own `#EXT-X-CUE-OUT` and `#EXT-X-CUE-IN`.
      */
     private fun daiPod(base: URI, reference: String): Boolean {
         val uri = try {
@@ -324,7 +335,10 @@ internal object AdBreaks {
             ("_Pluto_TV_OandO/" in path && PLUTO_BUMPER.containsMatchIn(path))
     }
 
-    /** A `#EXT-X-DATERANGE` marking an SCTE-35 splice out, as the program-date span it covers; open-ended ones are left alone. */
+    /**
+     * A `#EXT-X-DATERANGE` marking an SCTE-35 splice out, as the program-date span it covers;
+     * open-ended ones are left alone.
+     */
     private fun dateRange(attributes: String): LongRange? {
         val values = ATTRIBUTE.findAll(attributes).associate { it.groupValues[1] to it.groupValues[2].trim('"') }
         if (values["SCTE35-OUT"] == null) return null

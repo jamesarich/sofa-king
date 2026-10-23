@@ -97,13 +97,17 @@ class LibraryPlaybackTest {
 
         private fun liveBody(id: String) =
             """{"id":"$id","channelId":"c1","intent":"watch","expiresAt":"2026-10-10T10:00:00Z",""" +
-                """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/sessions/$id/1/root.m3u8","epoch":1}}"""
+                """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/""" +
+                """sessions/""" +
+                """$id/1/root.m3u8","epoch":1}}"""
 
         private fun Vod.body(): String {
             val descriptor = if (mode == "direct") {
-                """{"protocol":"file","mimeType":"video/x-matroska","url":"/media/vod/$id/$epoch/k/file.mkv","epoch":$epoch}"""
+                """{"protocol":"file","mimeType":"video/x-matroska","url":"/media/vod/$id/$epoch/k/""" +
+                    """file.mkv","epoch":$epoch}"""
             } else {
-                """{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/vod/$id/$epoch/k/index.m3u8","epoch":$epoch}"""
+                """{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/vod/$id/$epoch/k/""" +
+                    """index.m3u8","epoch":$epoch}"""
             }
             val recording = recordingId?.let { ""","recordingId":"$it"""" }.orEmpty()
             return """{"id":"$id","itemId":"$itemId","mode":"$mode","descriptor":$descriptor,"startMs":$startMs,""" +

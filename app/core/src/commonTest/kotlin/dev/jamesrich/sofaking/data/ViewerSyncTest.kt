@@ -87,7 +87,8 @@ class ViewerSyncTest {
     fun `a server copy this device has not seen is taken over and not pushed back`() = runTest {
         val server = FakeServer(this)
         server.stored =
-            """{"hidden":["x"],"favorites":["b","a"],"recent":["a","b"],"name":"Old TV","platform":"tvos","updatedAt":"2026-10-15T20:00:00Z"}"""
+            """{"hidden":["x"],"favorites":["b","a"],"recent":["a","b"],"name":"Old """ +
+            """TV","platform":"tvos","updatedAt":"2026-10-15T20:00:00Z"}"""
         store.toggleFavorite("local")
         start(server)
 

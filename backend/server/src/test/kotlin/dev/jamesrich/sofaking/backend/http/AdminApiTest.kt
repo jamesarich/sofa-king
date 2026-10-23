@@ -52,9 +52,8 @@ class AdminApiTest {
             val sources = dir.resolve("sources.json")
             Files.writeString(
                 sources,
-                """{"providers":${json.encodeToString(
-                    listOf(fixture.feed, fixture.altFeed),
-                )},"guides":${json.encodeToString(listOf(fixture.gzipGuide))}}""",
+                """{"providers":${json.encodeToString(listOf(fixture.feed, fixture.altFeed))},"guides":""" +
+                    """${json.encodeToString(listOf(fixture.gzipGuide))}}""",
             )
             val store = openStore(dir)
             val runtime = LiveRuntime.create(

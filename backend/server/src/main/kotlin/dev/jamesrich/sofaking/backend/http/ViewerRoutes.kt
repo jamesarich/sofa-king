@@ -120,7 +120,9 @@ private fun ids(list: List<String>, field: String): List<String> {
     return list.distinct()
 }
 
-/** [body] trimmed to what the server stores: bounded lists of distinct ids, bounded labels; the server stamps the time. */
+/**
+ * [body] trimmed to what the server stores: bounded lists of distinct ids, bounded labels; the server stamps the time.
+ */
 internal fun validPreferences(body: ViewerPreferences): ViewerPreferences = ViewerPreferences(
     hidden = ids(body.hidden, "hidden"),
     favorites = ids(body.favorites, "favorites"),

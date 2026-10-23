@@ -36,7 +36,10 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** The library and recordings player as a remote drives it: an intro or a break brings up its skip button, focused, and OK skips it. */
+/**
+ * The library and recordings player as a remote drives it: an intro or a break brings up its skip
+ * button, focused, and OK skips it.
+ */
 @OptIn(ExperimentalTestApi::class)
 class VodIntroSkipTest {
     /** A file played as it is, whose position the test moves on as playback would. */

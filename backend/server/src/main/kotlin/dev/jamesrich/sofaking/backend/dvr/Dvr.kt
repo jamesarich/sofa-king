@@ -108,13 +108,18 @@ class Dvr(
         }
     }
 
-    /** Whether the server can write the recordings folder, made when it is missing; false means every recording fails. */
+    /**
+     * Whether the server can write the recordings folder, made when it is missing; false means every recording fails.
+     */
     fun writable(): Boolean = runCatching {
         Files.createDirectories(root)
         Files.isWritable(root)
     }.getOrDefault(false)
 
-    /** Runs the scheduler on guide imports, rule changes and every [SCHEDULE_EVERY], and starts and ends recordings every [TICK]. */
+    /**
+     * Runs the scheduler on guide imports, rule changes and every [SCHEDULE_EVERY], and starts
+     * and ends recordings every [TICK].
+     */
     fun start(scope: CoroutineScope): List<Job> {
         this.scope = scope
         return listOf(
@@ -245,7 +250,10 @@ class Dvr(
 
     // Recordings
 
-    /** Every recording but cancelled ones: scheduled and running soonest first, then the rest newest first, with conflicts marked. */
+    /**
+     * Every recording but cancelled ones: scheduled and running soonest first, then the rest
+     * newest first, with conflicts marked.
+     */
     suspend fun recordings(): RecordingList {
         val all = store.recordings().filter { it.state != CANCELLED }
         val conflicts = DvrPlanner.conflicts(all, store.recordingRules().associate { it.id to it.priority }, capacity())
@@ -424,7 +432,10 @@ class Dvr(
 
     // Recording
 
-    /** Starts the recordings whose window has opened, fails the ones whose window passed unrecorded, and resumes any a restart left running. */
+    /**
+     * Starts the recordings whose window has opened, fails the ones whose window passed unrecorded, and
+     * resumes any a restart left running.
+     */
     suspend fun tick() {
         val now = clock.instant()
         mutex.withLock {
@@ -502,7 +513,8 @@ class Dvr(
                 )
                 take = recorder.record(current.channelId, root.resolve(current.path!!), current.recordUntil)
             } finally {
-                // A shutdown cancels the whole scope: the row stays RECORDING in its in-progress file, and the next start resumes it.
+                // A shutdown cancels the whole scope: the row stays RECORDING in its in-progress file,
+                // and the next start resumes it.
                 if (this@Dvr.scope.isActive) withContext(NonCancellable) { finish(current, take) }
             }
         }
@@ -511,7 +523,9 @@ class Dvr(
         job.start()
     }
 
-    /** Moves the file into place and records the outcome; an empty or missing file fails the recording and is removed. */
+    /**
+     * Moves the file into place and records the outcome; an empty or missing file fails the recording and is removed.
+     */
     private suspend fun finish(recording: StoredRecording, take: RecordedTake?) = mutex.withLock {
         val now = clock.instant()
         val stopReason = stopReasons.remove(recording.id)
@@ -651,7 +665,10 @@ class Dvr(
         log.info("recording culled id={} title=\"{}\" reason={}", recording.id, recording.title, reason)
     }
 
-    /** True when a file on disk takes [relative], in place or in progress; [except] is the caller's own in-progress path. */
+    /**
+     * True when a file on disk takes [relative], in place or in progress; [except] is the
+     * caller's own in-progress path.
+     */
     private fun taken(relative: Path, except: String? = null): Boolean {
         val running = RecordingLayout.inProgress(relative)
         return Files.exists(root.resolve(relative)) ||
@@ -740,7 +757,10 @@ class Dvr(
         /** The longest window a manual recording may span. */
         val MAX_MANUAL: Duration = Duration.ofHours(12)
 
-        /** Below this much free space running recordings stop, whatever the cleanup floor, so the database can still write. */
+        /**
+         * Below this much free space running recordings stop, whatever the cleanup floor,
+         * so the database can still write.
+         */
         const val MIN_FREE_BYTES = 512L * 1024 * 1024
 
         /** How often a running recording may make cleanup run for space. */

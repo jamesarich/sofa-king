@@ -110,15 +110,21 @@ private const val LINEUP_SYNC_MS = 2_000L
 /** How often the player looks for an ad in its own playlist; a break is several segments of a few seconds each. */
 private const val AD_BREAK_POLL_MS = 500L
 
-/** How often an engine that cannot read the playlist asks the server instead, and how long it waits after a failed ask. */
+/**
+ * How often an engine that cannot read the playlist asks the server instead, and how long it waits after a failed ask.
+ */
 private const val AD_BREAK_ASK_MS = 1_000L
 private const val AD_BREAK_RETRY_MS = 15_000L
 private val log = Logger.withTag("SofaKing")
 
-/** How long a zap rests before the new channel is tuned, so pressing through channels does not open a session per press. */
+/**
+ * How long a zap rests before the new channel is tuned, so pressing through channels does not open a session per press.
+ */
 internal const val ZAP_SETTLE_MS = 400L
 
-/** A zap from a tuned channel waits [ZAP_SETTLE_MS]; the first tune, which may take over the preview's stream, does not. */
+/**
+ * A zap from a tuned channel waits [ZAP_SETTLE_MS]; the first tune, which may take over the preview's stream, does not.
+ */
 internal fun zapSettleMs(tuned: Channel?, next: Channel): Long =
     if (tuned == null || tuned.guideId == next.guideId) 0L else ZAP_SETTLE_MS
 
@@ -269,7 +275,8 @@ fun PlayerScreen(
             val shown = if (stalled) watch.stalled() else watch.shown(found)
             if (found == null && shown != null && lastFound != null) {
                 log.d {
-                    "ad break: ${if (stalled) "picture stalled" else "reading lost it"}, holding ${shown.remainingMs ?: "?"} ms"
+                    "ad break: ${if (stalled) "picture stalled" else "reading lost it"}, holding " +
+                        "${shown.remainingMs ?: "?"} ms"
                 }
             }
             lastFound = found
@@ -419,7 +426,8 @@ fun PlayerScreen(
             )
             if (++tick % 8 == 0) {
                 log.d {
-                    "captions: buffered=${player.bufferedMs}ms lead=${captionSync.effectiveUs / 1000}ms of ${captionSync.advanceUs / 1000}ms"
+                    "captions: buffered=${player.bufferedMs}ms lead=${captionSync.effectiveUs / 1000}ms of " +
+                        "${captionSync.advanceUs / 1000}ms"
                 }
             }
         }
@@ -489,7 +497,8 @@ fun PlayerScreen(
     // Focus returns to the player surface whenever a panel closes, including after its list is removed, and when the
     // bar leaves while one of its buttons has it.
     LaunchedEffect(state.miniGuideOpen, state.streamCardOpen, state.overlayVisible) {
-        // Retried until the surface is placed: on entry it may not be yet, and a refused request would leave nothing focused.
+        // Retried until the surface is placed: on entry it may not be yet, and a refused
+        // request would leave nothing focused.
         if (!state.miniGuideOpen && !state.streamCardOpen && !(state.overlayVisible && state.buttonsFocused)) {
             requestFocusWhenAttached(focus)
         }
@@ -633,9 +642,9 @@ fun PlayerScreen(
                     hasAudioTracks = audioTracks.isNotEmpty(),
                 )
             }
-            // A tap or click on the video: the channel list closes, or the info bar and its touch controls toggle. Focus
-            // stays on the player surface, so the remote and keyboard keep working after a pointer has been used. A
-            // double click switches a window the app can make full screen.
+            // A tap or click on the video: the channel list closes, or the info bar and its touch controls toggle.
+            // Focus stays on the player surface, so the remote and keyboard keep working after a pointer has been used.
+            // A double click switches a window the app can make full screen.
             .pointerInput(fullScreen) {
                 detectTapGestures(
                     onDoubleTap = fullScreen?.let { { _ -> it.toggle() } },
@@ -755,7 +764,8 @@ private fun PlayerTimers(state: PlayerState, player: LivePlayer, paused: Boolean
             delay(1_000)
         }
     }
-    // The pause pill counts how far behind live the picture is; a resume past the live-resume rule says "Live" for a moment.
+    // The pause pill counts how far behind live the picture is; a resume past the live-resume
+    // rule says "Live" for a moment.
     LaunchedEffect(paused) {
         if (!paused) {
             val wasPaused = state.pauseState

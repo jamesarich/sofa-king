@@ -252,7 +252,10 @@ internal fun VodDestination(
     }
 }
 
-/** What the player shows for a library item: an episode under its show and number, a movie with its year, and its [intro] and [credits]. */
+/**
+ * What the player shows for a library item: an episode under its show and number, a movie with its year,
+ * and its [intro] and [credits].
+ */
 private fun MediaItem.vodTitle(intro: IntroSpan?, credits: IntroSpan?): VodTitle {
     val subtitle = when (kind) {
         ItemKind.EPISODE -> listOfNotNull(showTitle, episodeLabel).joinToString(" · ").ifEmpty { null }

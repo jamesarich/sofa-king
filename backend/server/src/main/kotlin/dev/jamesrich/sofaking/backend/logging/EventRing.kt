@@ -5,7 +5,10 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.AppenderBase
 import java.time.Instant
 
-/** One log line as the portal's Events page shows it: the message as it was written, with the request id when there was one. */
+/**
+ * One log line as the portal's Events page shows it: the message as it was written, with the
+ * request id when there was one.
+ */
 class LogEvent(
     val at: Instant,
     val level: String,
@@ -35,12 +38,17 @@ class EventRing(val capacity: Int = 500) {
     fun clear() = synchronized(lock) { ring.clear() }
 
     companion object {
-        /** The ring every logger context appends to; one per process, since logback configures itself before anything is wired. */
+        /**
+         * The ring every logger context appends to; one per process, since logback configures
+         * itself before anything is wired.
+         */
         val shared = EventRing()
     }
 }
 
-/** Appends every event at INFO and above to [ring]; an exception adds its class to the line, never its message or trace. */
+/**
+ * Appends every event at INFO and above to [ring]; an exception adds its class to the line, never its message or trace.
+ */
 class RingAppender(private val ring: EventRing) : AppenderBase<ILoggingEvent>() {
     override fun append(event: ILoggingEvent) {
         if (!event.level.isGreaterOrEqual(Level.INFO)) return

@@ -88,8 +88,9 @@ class ApplicationTest {
 
         val events = java.util.concurrent.ConcurrentLinkedQueue<SubstituteLoggingEvent>()
         testApplication {
-            // The test host delivers a body writer's failure to the client channel only, so the hang-up is raised before the
-            // body here; the status page sees the same exception either way. Its own fallback is told not to rethrow.
+            // The test host delivers a body writer's failure to the client channel only, so the hang-up is
+            // raised before the body here; the status page sees the same exception either way. Its own
+            // fallback is told not to rethrow.
             environment {
                 log = SubstituteLogger("test", events, false)
                 config = MapApplicationConfig("ktor.test.throwOnException" to "false")

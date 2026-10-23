@@ -71,7 +71,8 @@ class PolicyFile(initial: LoadedPolicy, private val providerIds: Set<String>, pr
                 throw ApiFailure(
                     400,
                     "INVALID_POLICY",
-                    "The policy is not valid JSON for this schema: ${e.message?.lineSequence()?.firstOrNull().orEmpty()}",
+                    "The policy is not valid JSON for this schema: " +
+                        "${e.message?.lineSequence()?.firstOrNull().orEmpty()}",
                 )
             }
             val errors = validatePolicy(policy, providerIds)

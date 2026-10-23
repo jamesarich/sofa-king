@@ -26,7 +26,10 @@ internal object SofaKingMapper {
             )
         }.sortedBy { it.number }
 
-    /** Programmes per channel id, sorted by start; ones with unreadable times or no duration are dropped, as are channels left with none. */
+    /**
+     * Programmes per channel id, sorted by start; ones with unreadable times or no duration are dropped,
+     * as are channels left with none.
+     */
     fun programmes(window: GuideWindowDto): Map<String, List<Programme>> = buildMap {
         for (channel in window.channels) {
             val programmes = channel.programmes.mapNotNull { toProgramme(channel.channelId, it) }.sortedBy { it.start }

@@ -74,16 +74,22 @@ private val runtimeLog = LoggerFactory.getLogger(LiveRuntime::class.java)
 /** How often the break library saves what it learned. */
 private const val LIBRARY_FLUSH_MS = 300_000L
 
-/** The runtime's scope: a background coroutine that fails is logged by its name and exception class, and the others keep running. */
+/**
+ * The runtime's scope: a background coroutine that fails is logged by its name and exception
+ * class, and the others keep running.
+ */
 internal fun backgroundScope(report: (String) -> Unit = runtimeLog::error): CoroutineScope = CoroutineScope(
     SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { context, failure ->
         report(
-            "background coroutine failed name=${context[CoroutineName]?.name ?: "unnamed"} class=${failure.javaClass.simpleName}",
+            "background coroutine failed name=${context[CoroutineName]?.name ?: "unnamed"} " +
+                "class=${failure.javaClass.simpleName}",
         )
     },
 )
 
-/** Runs [action] every [periodMillis] until cancelled; a failed run is logged by exception class and the loop goes on. */
+/**
+ * Runs [action] every [periodMillis] until cancelled; a failed run is logged by exception class and the loop goes on.
+ */
 internal fun CoroutineScope.launchEvery(
     name: String,
     periodMillis: Long,
@@ -130,7 +136,10 @@ class LiveRuntime(
     val probes: ProbeWorker? = null,
     /** The pairing codes the portal issues and `POST /api/v1/pair` claims. */
     val pairing: PairingService = PairingService(Clock.systemUTC()),
-    /** The published-image check and the hand-off to the host's updater; null when the runtime was built without a config. */
+    /**
+     * The published-image check and the hand-off to the host's updater; null when the
+     * runtime was built without a config.
+     */
     val updates: UpdateChecker? = null,
     /** Setup from the portal and the API: the source file, the starter policy and the restart that reads them. */
     val setup: SetupService? = null,
@@ -142,7 +151,9 @@ class LiveRuntime(
     val dvr: Dvr? = null,
     /** The loopback relay the remux, the recorder and the probes' FFmpeg read sources through. */
     val loopback: LoopbackRelay = LoopbackRelay(http, feeds.upstream, relay.permits),
-    /** Who may reach the HDHomeRun emulation; the default admits everyone, as a loopback bind with no allow-list does. */
+    /**
+     * Who may reach the HDHomeRun emulation; the default admits everyone, as a loopback bind with no allow-list does.
+     */
     val hdhrAccess: HdhrAccess = HdhrAccess(emptyList(), openWhenEmpty = true, store, Clock.systemUTC()),
     /** The background ad listener, for the portal's Ads page; null for a runtime built without a config. */
     val listener: AdListener? = null,
@@ -156,7 +167,10 @@ class LiveRuntime(
         http.close()
     }
     companion object {
-        /** [probes] false keeps the probe worker from starting, for tests over fixtures; [restart] is what a setup write ends the process with. */
+        /**
+         * [probes] false keeps the probe worker from starting, for tests over fixtures; [restart] is what a
+         * setup write ends the process with.
+         */
         suspend fun create(
             store: BackendStore,
             config: ServerConfig,
@@ -183,7 +197,8 @@ class LiveRuntime(
             val jobs = Jobs(clock)
             val settings = RuntimeSettings(store, RuntimeValues.of(config), clock)
             for (problem in settings.load()) runtimeLog.warn("runtime settings: dropped a saved value: {}", problem)
-            // The level the operator saved outranks the environment's from here on; logback read the environment's at start.
+            // The level the operator saved outranks the environment's from here on; logback
+            // read the environment's at start.
             settings.onChange { applyLogLevel(it.logLevel) }
             try {
                 val policy = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
@@ -299,7 +314,8 @@ class LiveRuntime(
                     }, slots = { settings.current.adListeners }, mode = { sessions.learnedBreaks },
                 ).also { it.start(scope) }
                 val loopback = LoopbackRelay(http, policy, relay.permits)
-                // Under a policy the worker probes what the lineup's stations reference, whatever the providers' probe flags.
+                // Under a policy the worker probes what the lineup's stations reference,
+                // whatever the providers' probe flags.
                 val service = policyService
                 val worker = if (probes && (service != null || sources.providers.any { it.probe })) {
                     val probeConfig =

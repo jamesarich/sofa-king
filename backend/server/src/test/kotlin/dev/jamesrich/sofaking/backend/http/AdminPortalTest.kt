@@ -90,7 +90,10 @@ class AdminPortalTest {
         val dataDirectory: Path,
     )
 
-    /** A runtime over the fixture's feeds, with [policy] when given, and a browser that keeps cookies and never follows redirects. */
+    /**
+     * A runtime over the fixture's feeds, with [policy] when given, and a browser that keeps
+     * cookies and never follows redirects.
+     */
     private suspend fun ApplicationTestBuilder.portal(
         policy: String? = null,
         feeds: (Fixture) -> List<FeedConfig> = { listOf(it.feed, it.altFeed, it.twinFeed, it.tsFeed) },
@@ -104,9 +107,8 @@ class AdminPortalTest {
             val sources = dir.resolve("sources.json")
             Files.writeString(
                 sources,
-                """{"providers":${json.encodeToString(
-                    feeds(fixture),
-                )},"guides":${json.encodeToString(guides(fixture))}}""",
+                """{"providers":${json.encodeToString(feeds(fixture))},"guides":""" +
+                    """${json.encodeToString(guides(fixture))}}""",
             )
             val policyFile = policy?.let { text ->
                 Files.createDirectories(dir.resolve("policy")).resolve("policy.json").also {
@@ -114,7 +116,8 @@ class AdminPortalTest {
                 }
             }
             val store = openStore(dir)
-            // No update image: the registry is never asked from a test; the update check itself is tested over a mock registry.
+            // No update image: the registry is never asked from a test; the update check itself
+            // is tested over a mock registry.
             val config =
                 ServerConfig(
                     "127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin,
@@ -129,7 +132,8 @@ class AdminPortalTest {
                 restart = restart,
             )
             try {
-                // The portal is told of a Plex token and the output token the runtime never uses, so redaction is checked against them.
+                // The portal is told of a Plex token and the output token the runtime never uses, so
+                // redaction is checked against them.
                 val shown =
                     show(
                         config.copy(
@@ -1132,7 +1136,8 @@ class AdminPortalTest {
     @Test fun `accepting a merge folds the merged-away key's override into the kept one`() = testApplication {
         val stations =
             """{"numberonly":{"number":"870","required":false,"sources":[]},"keptnumber":{"number":"1976"},""" +
-                """"named":{"name":"Renamed"},"plain":{"number":"40"},"both":{"name":"One"},"other":{"group":"Sports"}}"""
+                """"named":{"name":"Renamed"},"plain":{"number":"40"},"both":{"name":"One"},"other":""" +
+                """{"group":"Sports"}}"""
         portal(basePolicy.dropLast(1) + ""","stations":$stations}""") {
             browser.signIn()
             suspend fun accept(from: String, to: String): HttpResponse {
@@ -1519,7 +1524,10 @@ class AdminPortalTest {
                 assertFalse(before.contains("/admin/system/update/request"), "no updater, no Update now")
                 Files.writeString(
                     dataDirectory.resolve("update-status.json"),
-                    """{"checkedAt":"2026-01-01T00:00:00Z","image":"ghcr.io/jamesarich/sofa-king:main","running":"abc1234","candidate":"def5678","outcome":"rolled-back","message":"def5678 was not healthy after 180s; running abc1234 again"}""",
+                    """{"checkedAt":"2026-01-01T00:00:00Z","image":"ghcr.io/jamesarich/sofa-king:""" +
+                        """main","running":"abc1234","candidate":"def5678","outcome":"rolled-back","message":"def5""" +
+                        """67""" +
+                        """8 was not healthy after 180s; running abc1234 again"}""",
                 )
                 val reported = browser.get("/admin/system/about").bodyAsText()
                 assertTrue(reported.contains("Tried def5678 and went back to abc1234"), reported.take(4000))

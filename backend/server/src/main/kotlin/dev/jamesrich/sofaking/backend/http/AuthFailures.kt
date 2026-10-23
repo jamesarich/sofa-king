@@ -10,7 +10,8 @@ private val authLog = LoggerFactory.getLogger("dev.jamesrich.sofaking.backend.ht
 
 /**
  * `auth failed route=... remote=...` lines for rejected tokens, at most [perMinute] in each clock minute; the first
- * line after a dropped one carries `suppressed=N`. The route is the routed path, never the query, and no token is logged.
+ * line after a dropped one carries `suppressed=N`. The route is the routed path, never the
+ * query, and no token is logged.
  */
 internal class AuthFailureLog(
     private val clock: Clock,

@@ -199,7 +199,9 @@ internal fun BoxScope.InfoBarPanel(
     focus: FocusRequester,
     entry: FocusRequester,
 ) {
-    /** A button's action, after which the bar stays up for another while; [toPicture] hands focus back to the picture. */
+    /**
+     * A button's action, after which the bar stays up for another while; [toPicture] hands focus back to the picture.
+     */
     fun control(toPicture: Boolean = pointerDriven, action: () -> Unit): () -> Unit = {
         action()
         state.keepInfo()

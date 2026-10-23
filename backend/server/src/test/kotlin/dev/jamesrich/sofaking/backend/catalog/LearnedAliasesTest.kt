@@ -149,7 +149,8 @@ class LearnedAliasesTest {
         assertTrue(learning.learned.isEmpty())
         assertEquals(
             listOf(
-                "ghosthunterschannel: schedule matches ghosthunters, but its station override holds more than a number; not merged",
+                "ghosthunterschannel: schedule matches ghosthunters, but its station override holds more than a " +
+                    "number; not merged",
             ),
             learning.findings,
         )

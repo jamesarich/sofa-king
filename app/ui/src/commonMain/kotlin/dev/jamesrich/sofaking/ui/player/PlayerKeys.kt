@@ -19,7 +19,10 @@ internal fun Key.digitValue(): Int? = when (this) {
 /** What a short OK press does in the player. */
 internal enum class PlayerOk { COMMIT_NUMBER, RETRY, OPEN_CHANNEL_LIST, SHOW_INFO }
 
-/** Typed digits commit first, then a failed stream retries; otherwise the info bar shows, and OK on it opens the channel list. */
+/**
+ * Typed digits commit first, then a failed stream retries; otherwise the info bar shows, and
+ * OK on it opens the channel list.
+ */
 internal fun playerOk(hasDigits: Boolean, failed: Boolean, infoVisible: Boolean): PlayerOk = when {
     hasDigits -> PlayerOk.COMMIT_NUMBER
     failed -> PlayerOk.RETRY
@@ -30,7 +33,9 @@ internal fun playerOk(hasDigits: Boolean, failed: Boolean, infoVisible: Boolean)
 /** A key that leaves the player for the guide, and where in the guide it lands. */
 internal enum class PlayerExit { GUIDE_AT_NOW, SEARCH }
 
-/** The Guide key, or Menu on remotes without one, opens the guide at the current time; Search opens its search by voice. */
+/**
+ * The Guide key, or Menu on remotes without one, opens the guide at the current time; Search opens its search by voice.
+ */
 internal fun Key.playerExit(): PlayerExit? = when (this) {
     Key.Guide, Key.Menu -> PlayerExit.GUIDE_AT_NOW
     Key.Search -> PlayerExit.SEARCH
@@ -38,8 +43,8 @@ internal fun Key.playerExit(): PlayerExit? = when (this) {
 }
 
 /**
- * What a key does in the player once exits and digits are taken. [LEFT] and [RIGHT] go by [playerSideKey]; [TOGGLE_INFO]
- * is a short Info press, since Info held opens the stream card.
+ * What a key does in the player once exits and digits are taken. [LEFT] and [RIGHT] go by [playerSideKey];
+ * [TOGGLE_INFO] is a short Info press, since Info held opens the stream card.
  */
 internal enum class PlayerAction {
     TOGGLE_CAPTIONS,
@@ -136,7 +141,9 @@ internal fun Key.inStreamCard(): StreamCardKey = when (this) {
     else -> StreamCardKey.PLAYER
 }
 
-/** OK on the stream card: a focused audio track row takes it; with no tracks to pick, it closes the card as Back does. */
+/**
+ * OK on the stream card: a focused audio track row takes it; with no tracks to pick, it closes the card as Back does.
+ */
 internal fun streamCardOk(hasTracks: Boolean): StreamCardKey =
     if (hasTracks) StreamCardKey.CARD else StreamCardKey.CLOSE
 

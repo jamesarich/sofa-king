@@ -73,7 +73,9 @@ class PolicyApplyTest {
 
     private class Setup(val dir: Path, val policyFile: Path, val runtime: LiveRuntime, val fixture: Fixture)
 
-    /** A runtime over the fixture's feeds with [policy] in its own directory; the policy loop never fires on its own. */
+    /**
+     * A runtime over the fixture's feeds with [policy] in its own directory; the policy loop never fires on its own.
+     */
     private suspend fun ApplicationTestBuilder.withPolicy(
         policy: String = basePolicy,
         feeds: (Fixture) -> List<FeedConfig> = { listOf(it.feed, it.altFeed, it.twinFeed, it.tsFeed) },
@@ -303,7 +305,9 @@ class PolicyApplyTest {
             val patched = client.patch("/api/v1/admin/lineup/${stationId("station")}") {
                 asAdmin()
                 setBody(
-                    """{"name":"Station East","group":"Local","logo":"https://logo.test/s.png","enabled":true,"offerings":["$fixtureOffering"]}""",
+                    """{"name":"Station """ +
+                        """East","group":"Local","logo":"https://logo.test/s.png","enabled":true,"offerings":""" +
+                        """["$fixtureOffering"]}""",
                 )
             }
             assertEquals(HttpStatusCode.OK, patched.status, patched.bodyAsText())
@@ -380,7 +384,8 @@ class PolicyApplyTest {
     @Test fun `findings report a required station without a source, and the preview carries the same suggestions`() =
         testApplication {
             withPolicy(
-                """{"names":{"version":1},"providers":[{"id":"fixture"}],"stations":{"nfl network":{"required":true,"sources":[{"provider":"alt","tvgId":"nfl"}]}}}""",
+                """{"names":{"version":1},"providers":[{"id":"fixture"}],"stations":{"nfl """ +
+                    """network":{"required":true,"sources":[{"provider":"alt","tvgId":"nfl"}]}}}""",
             ) {
                 val findings = Json.decodeFromString<PolicyFindings>(
                     client.get("/api/v1/admin/policy/findings") {
@@ -514,7 +519,8 @@ class PolicyApplyTest {
         testApplication {
             val long = MutableClock().now.minus(Duration.ofDays(8))
             val policy = """{"names":{"version":1},"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},""" +
-                """{"id":"ts"}],"health":{"requireVerified":false},"numbering":{"floor":100,"keepProviderNumbers":false,"assigned":["gone"]},"stations":{"gone":{"number":"50"},"human":{"number":"51"}}}"""
+                """{"id":"ts"}],"health":{"requireVerified":false},"numbering":{"floor":100,"keepProviderNumbers":""" +
+                """false,"assigned":["gone"]},"stations":{"gone":{"number":"50"},"human":{"number":"51"}}}"""
             withPolicy(policy) {
                 runtime.store.saveStationAvailability(
                     mapOf(
@@ -587,7 +593,8 @@ class PolicyApplyTest {
                     """"health":{"requireVerified":false},""" +
                     """"numbering":{"floor":1000,"groups":{"News":10,"Sports":500},"followGroup":true,""" +
                     """"assigned":["station"]},""" +
-                    """"stations":{"station":{"number":"501","group":"News"},"ts station":{"number":"502","group":"News"}}}"""
+                    """"stations":{"station":{"number":"501","group":"News"},"ts """ +
+                    """station":{"number":"502","group":"News"}}}"""
             withPolicy(policy) {
                 val applied = runtime.policy!!.apply("test")
                 assertEquals("10", applied.assigned["station"])

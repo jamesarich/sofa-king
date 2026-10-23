@@ -92,7 +92,8 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
             url = "$apiBase$key?includeAllStreams=1&X-Plex-Product=${encode(PRODUCT)}&X-Plex-Token=${encode(token)}"
             context.http.get(url, STREAM_HEADERS, limit = MANIFEST_LIMIT, follow = false)
         }
-        // Some parts redirect to their CDN master. A part Plex answers 400 for is not served to anyone; asking again never changes that.
+        // Some parts redirect to their CDN master. A part Plex answers 400 for is not served to anyone;
+        // asking again never changes that.
         val target = if (answer.status in 300..399 && answer.location != null) {
             val location = try {
                 URI(answer.url).resolve(answer.location).toString()

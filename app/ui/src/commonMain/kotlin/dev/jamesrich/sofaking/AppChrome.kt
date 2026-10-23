@@ -273,7 +273,10 @@ private fun HeaderTab(label: String, selected: Boolean, tabFocus: FocusRequester
     }
 }
 
-/** App bar above the guide and the library, with the TV's [tabs], inside the overscan margins; the mark sits within the buttons' height so no grid row is lost. */
+/**
+ * App bar above the guide and the library, with the TV's [tabs], inside the overscan margins; the mark sits within the
+ * buttons' height so no grid row is lost.
+ */
 @Composable
 private fun Header(
     refreshing: Boolean,

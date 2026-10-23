@@ -213,7 +213,8 @@ private fun SofaKingApp(
     }
     val sessions = vm.sessions
     val scope = rememberCoroutineScope()
-    // The window's; in a browser, held to the tab's visibility and slow to count a flash of it (rememberAppLifecycleOwner).
+    // The window's; in a browser, held to the tab's visibility and slow to count a flash of
+    // it (rememberAppLifecycleOwner).
     val lifecycleOwner = rememberAppLifecycleOwner(LocalLifecycleOwner.current)
     val lifecycle = lifecycleOwner.lifecycle
     // The server replaced the stream under the held session (new epoch, or a session it dropped and the app
@@ -243,7 +244,8 @@ private fun SofaKingApp(
     LaunchedEffect(playback) {
         if (playback != null) player.setPlaybackPreferences(playback)
     }
-    // Only the full screen asks for a display mode: the guide's preview zaps too often for a set that blanks on each switch.
+    // Only the full screen asks for a display mode: the guide's preview zaps too often for a
+    // set that blanks on each switch.
     MatchDisplayFrameRate(player, enabled = playback?.matchFrameRate == true && top.playsFullScreen)
     val inPictureInPicture = rememberPlayerWindow(player, active = top.playsFullScreen)
     // The preview starts without a caption lead; the full screen sets each channel's own. Settings may change
@@ -260,7 +262,8 @@ private fun SofaKingApp(
 
             is Route.Player, is Route.Vod, is Route.Recording -> Unit
 
-            // The library and the recordings play nothing until one is picked, so the guide's preview stops on the way in.
+            // The library and the recordings play nothing until one is picked, so the
+            // guide's preview stops on the way in.
             Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, is Route.LibraryItem, Route.Recordings -> {
                 player.stop()
                 sessions.release(forget = true)
@@ -427,7 +430,8 @@ private fun SofaKingApp(
                         if (event.type == KeyEventType.KeyDown) volume.press(volumeKey)
                         return@onPreviewKeyEvent true
                     }
-                    // Guide (or Menu) means live TV from any page a viewer browses; the players and Settings keep their keys.
+                    // Guide (or Menu) means live TV from any page a viewer browses; the
+                    // players and Settings keep their keys.
                     val browsing =
                         shell.nav.tab != Tab.LIVE && !shell.nav.top.playsFullScreen && !shell.nav.top.isSettings
                     if (!browsing || event.key.guideShortcut() != GuideShortcut.NOW) return@onPreviewKeyEvent false

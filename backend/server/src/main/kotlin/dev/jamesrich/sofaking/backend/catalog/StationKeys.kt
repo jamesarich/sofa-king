@@ -64,7 +64,9 @@ fun neverMerges(never: List<List<String>>, a: String, b: String): Boolean = neve
     it.size == 2 && ((it[0] == a && it[1] == b) || (it[0] == b && it[1] == a))
 }
 
-/** The learned aliases a run applies: those a [PolicyNames.never] pair does not block and an alias does not override. */
+/**
+ * The learned aliases a run applies: those a [PolicyNames.never] pair does not block and an alias does not override.
+ */
 fun effectiveLearned(names: PolicyNames): Map<String, String> =
     names.learned.filter { (from, to) -> from !in names.aliases && !neverMerges(names.never, from, to) }
 

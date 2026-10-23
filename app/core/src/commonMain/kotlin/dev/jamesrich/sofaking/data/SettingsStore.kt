@@ -11,9 +11,13 @@ data class AppSettings(
     val favorites: Set<String> = emptySet(),
     /** [Channel.guideId] of the channel watched most recently, to reopen on launch. */
     val lastChannel: String? = null,
-    /** The channels watched most recently, newest first, at most [RECENT_CHANNELS]; the guide's Recent chip lists them. */
+    /**
+     * The channels watched most recently, newest first, at most [RECENT_CHANNELS]; the guide's Recent chip lists them.
+     */
     val recentChannels: List<String> = emptyList(),
-    /** The guide filter last chosen, as the guide keys it (see `GuideFilter.key`), or null for All; reopened on launch. */
+    /**
+     * The guide filter last chosen, as the guide keys it (see `GuideFilter.key`), or null for All; reopened on launch.
+     */
     val guideFilter: String? = null,
     val captionsEnabled: Boolean = false,
     /** How many milliseconds ahead captions render, to offset live captioning delay; negative delays them instead. */
@@ -52,16 +56,26 @@ data class AppSettings(
     val autoSkipIntros: Boolean = false,
     /** Whether an episode not started yet keeps its overview back and its still blurred ([hidesSpoilers]). */
     val hideSpoilers: Boolean = false,
-    /** What the live player does in an ad break a streaming channel marks: plays it, or covers it with the break screen. */
+    /**
+     * What the live player does in an ad break a streaming channel marks: plays it, or covers it with the break screen.
+     */
     val liveBreaks: LiveBreaks = LiveBreaks.PLAY,
     /** How long the break screen has covered ads today on this device; never synced. */
     val adsDodged: AdsDodged = AdsDodged(),
-    /** The favorites in the order the user put them (see [orderedFavorites]); starred channels not listed follow by number. */
+    /**
+     * The favorites in the order the user put them (see [orderedFavorites]); starred
+     * channels not listed follow by number.
+     */
     val favoritesOrder: List<String> = emptyList(),
     val playback: PlaybackPreferences = PlaybackPreferences(),
-    /** This installation's id on the server, under which it keeps the viewer's preferences; made once by [SettingsStore.ensureClientId]. */
+    /**
+     * This installation's id on the server, under which it keeps the viewer's preferences; made once by
+     * [SettingsStore.ensureClientId].
+     */
     val clientId: String = "",
-    /** The `updatedAt` of the server's preferences document this device last pushed or took over; empty before any sync. */
+    /**
+     * The `updatedAt` of the server's preferences document this device last pushed or took over; empty before any sync.
+     */
     val preferencesSyncedAt: String = "",
     /** The hash of the PIN that locks Settings (see [SettingsPin]), empty while there is no lock; never synced. */
     val settingsPin: String = "",
@@ -90,7 +104,8 @@ data class AppSettings(
             "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, autoSkipIntros=$autoSkipIntros, " +
             "hideSpoilers=$hideSpoilers, liveBreaks=$liveBreaks, adsDodged=$adsDodged, " +
             "favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
-            "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, trackChoices=${trackChoices.size})"
+            "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, " +
+            "trackChoices=${trackChoices.size})"
 
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
@@ -126,7 +141,10 @@ enum class TopLevelTab { LIVE, LIBRARY, RECORDINGS }
 /** How captions are drawn; SYSTEM defers to the platform's CaptioningManager settings. */
 enum class CaptionStyle { SYSTEM, LARGE_HIGH_CONTRAST }
 
-/** The live player in an ad break: [PLAY] shows it; the others cover it with the break screen, with or without its sound. */
+/**
+ * The live player in an ad break: [PLAY] shows it; the others cover it with the break
+ * screen, with or without its sound.
+ */
 enum class LiveBreaks(val covers: Boolean, val muted: Boolean) {
     PLAY(covers = false, muted = false),
     SCREEN_MUTED(covers = true, muted = true),

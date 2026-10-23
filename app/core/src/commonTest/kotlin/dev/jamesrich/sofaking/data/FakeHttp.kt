@@ -18,7 +18,9 @@ import kotlinx.coroutines.test.TestScope
 /** The address every fake server answers on. */
 internal const val FAKE_BASE = "http://sofa.test/"
 
-/** A request as the fake server saw it: `METHOD /path body`, the body only when there is one, and its encoded [query]. */
+/**
+ * A request as the fake server saw it: `METHOD /path body`, the body only when there is one, and its encoded [query].
+ */
 internal data class SeenRequest(
     val method: String,
     val path: String,

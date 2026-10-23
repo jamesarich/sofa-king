@@ -51,7 +51,8 @@ class SteadyPlaylistsTest {
         val restarted = playlists.steady(window(0, "b0", "b1", "b2"), source)
 
         assertEquals(
-            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:64\n#EXTINF:5,\n#EXT-X-DISCONTINUITY\nb0.ts\n#EXTINF:5,\nb1.ts\n#EXTINF:5,\nb2.ts\n",
+            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:64\n#EXTINF:5," +
+                "\n#EXT-X-DISCONTINUITY\nb0.ts\n#EXTINF:5,\nb1.ts\n#EXTINF:5,\nb2.ts\n",
             restarted,
         )
     }
@@ -64,7 +65,8 @@ class SteadyPlaylistsTest {
         val next = playlists.steady(window(1, "b1", "b2", "b3"), source)
 
         assertEquals(
-            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:65\n#EXT-X-DISCONTINUITY-SEQUENCE:1\n#EXTINF:5,\nb1.ts\n#EXTINF:5,\nb2.ts\n#EXTINF:5,\nb3.ts\n",
+            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:65\n#EXT-X-DISCONTINUITY-SEQUENCE:1\n#EXTINF:5," +
+                "\nb1.ts\n#EXTINF:5,\nb2.ts\n#EXTINF:5,\nb3.ts\n",
             next,
         )
     }
@@ -85,12 +87,14 @@ class SteadyPlaylistsTest {
         playlists.steady(before, source)
 
         val restarted = playlists.steady(
-            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-DISCONTINUITY-SEQUENCE:0\n#EXT-X-MEDIA-SEQUENCE:5\n#EXTINF:5,\nb5.ts\n",
+            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-DISCONTINUITY-SEQUENCE:0\n#EXT-X-MEDIA-SEQUENCE:5\n#EXTINF:5," +
+                "\nb5.ts\n",
             source,
         )
 
         assertEquals(
-            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-DISCONTINUITY-SEQUENCE:14\n#EXT-X-MEDIA-SEQUENCE:392\n#EXTINF:5,\n#EXT-X-DISCONTINUITY\nb5.ts\n",
+            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-DISCONTINUITY-SEQUENCE:14\n#EXT-X-MEDIA-SEQUENCE:392\n#EXTINF:" +
+                "5,\n#EXT-X-DISCONTINUITY\nb5.ts\n",
             restarted,
         )
     }

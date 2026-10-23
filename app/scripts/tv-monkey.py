@@ -30,6 +30,9 @@ SERVER = ROOT / 'backend/server/build/install/server/bin/server'
 PACKAGE = 'dev.jamesrich.sofaking'
 TOKEN = 'local-fixture-token-' * 3
 CHANNELS = 8
+# Back on the Live tab leaves the app, as it should; the keys go in short scripts, and the app comes back between them.
+CHUNK = 25
+ACTIVITY = PACKAGE + '/.MainActivity'
 
 # The remote's keys, weighted as AppDriver.REMOTE weighs them for the JVM fuzz; LongPress() is a held OK.
 KEYS = [
@@ -115,15 +118,28 @@ def fixtures(media, upstream):
     (media / 'guide.xml').write_text('<tv>' + ''.join(programmes) + '</tv>')
 
 
-def key_script(path, count, seed):
-    """A monkey script of [count] weighted random keys, a quarter second apart."""
+def key_scripts(directory, count, seed):
+    """[count] weighted random keys a quarter second apart, as monkey scripts of [CHUNK] keys each, in order."""
     rng = random.Random(seed)
     names, weights = zip(*KEYS)
-    lines = ['type= raw events', f'count= {count}', 'speed= 1.0', 'start data >>']
-    for name in rng.choices(names, weights, k=count):
-        lines.append('LongPress()' if name == 'LongPress' else f'DispatchPress({name})')
-        lines.append('UserWait(250)')
-    path.write_text('\n'.join(lines) + '\n')
+    keys = rng.choices(names, weights, k=count)
+    directory.mkdir(parents=True, exist_ok=True)
+    scripts = []
+    for start in range(0, count, CHUNK):
+        lines = ['type= raw events', f'count= {min(CHUNK, count - start)}', 'speed= 1.0', 'start data >>']
+        for name in keys[start:start + CHUNK]:
+            lines.append('LongPress()' if name == 'LongPress' else f'DispatchPress({name})')
+            lines.append('UserWait(250)')
+        script = directory / f'{len(scripts):03d}.txt'
+        script.write_text('\n'.join(lines) + '\n')
+        scripts.append(script)
+    return scripts
+
+
+def in_front():
+    """Whether the app's activity is the resumed one."""
+    activities = subprocess.run(['adb', 'shell', 'dumpsys', 'activity', 'activities'], capture_output=True, text=True).stdout
+    return any(PACKAGE + '/' in line for line in activities.splitlines() if 'ResumedActivity' in line)
 
 
 def main():
@@ -177,14 +193,28 @@ def main():
             # The guide loads and its preview opens a session once the lineup is in.
             wait_for('the guide preview', lambda: request(base, '/api/v1/admin/sessions'), 60)
 
-            script = out / 'remote-keys.txt'
-            key_script(script, args.keys, args.seed)
-            adb('push', str(script), '/data/local/tmp/remote-keys.txt')
-            monkey = subprocess.run(['adb', 'shell', 'monkey', '-p', PACKAGE, '-f', '/data/local/tmp/remote-keys.txt',
-                                     '-v', '-v', '1'], capture_output=True, text=True, timeout=args.keys * 3 + 300)
-            (out / 'monkey.txt').write_text(monkey.stdout + monkey.stderr)
+            scripts = key_scripts(out / 'remote-keys', args.keys, args.seed)
+            adb('push', str(out / 'remote-keys'), '/data/local/tmp/')
+            relaunches = 0
+            unfinished = False
+            with (out / 'monkey.txt').open('w') as monkey_log:
+                for script in scripts:
+                    if not in_front():
+                        relaunches += 1
+                        adb('shell', 'am', 'start', '-W', '-n', ACTIVITY, timeout=120)
+                    monkey = subprocess.run(['adb', 'shell', 'monkey', '-p', PACKAGE, '-f', f'/data/local/tmp/remote-keys/{script.name}',
+                                             '-v', '-v', '1'], capture_output=True, text=True, timeout=CHUNK * 3 + 120)
+                    monkey_log.write(f'=== {script.name}\n{monkey.stdout}{monkey.stderr}')
+                    if '// Monkey finished' not in monkey.stdout:
+                        unfinished = True
+                        break
             subprocess.run(['adb', 'exec-out', 'screencap', '-p'], stdout=(out / 'screen.png').open('wb'), timeout=30)
             alive = bool(subprocess.run(['adb', 'shell', 'pidof', PACKAGE], capture_output=True, text=True).stdout.strip())
+
+            # The app in front for the last check, as after a relaunch its guide opens a preview again.
+            if alive and not in_front():
+                adb('shell', 'am', 'start', '-W', '-n', ACTIVITY, timeout=120)
+            time.sleep(10)
 
             # Behind another app, the player stops and releases its session.
             adb('shell', 'input', 'keyevent', 'KEYCODE_HOME')
@@ -210,7 +240,7 @@ def main():
         failures.append('the app crashed')
     if '// NOT RESPONDING' in monkey_out or f'ANR in {PACKAGE}' in log:
         failures.append('the app stopped responding (ANR)')
-    if 'Monkey finished' not in monkey_out and not failures:
+    if unfinished and not failures:
         failures.append('the monkey did not finish')
     if not alive and not failures:
         failures.append('the app was not running after the keys')
@@ -221,6 +251,7 @@ def main():
 
     summary = [f'## TV monkey: seed {args.seed}, {args.keys} keys', '',
                f'- Result: {"; ".join(failures) if failures else "no crash, ANR or session left open"}',
+               f'- The app was brought back {relaunches} times after a key left it',
                f'- StrictMode violations logged: {len(strict)} (strictmode.txt in the artifact)']
     print('\n'.join(summary))
     if os.environ.get('GITHUB_STEP_SUMMARY'):

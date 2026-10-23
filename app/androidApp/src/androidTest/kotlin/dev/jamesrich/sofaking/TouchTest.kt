@@ -86,18 +86,31 @@ class TouchTest {
         eventually("the guide, and the channel closed") { device.hasObject(By.res(GUIDE)) && server.watching().isEmpty() }
     }
 
-    /** A back swipe let go at the edge leaves the player as it was; one carried through returns to the guide. */
+    /**
+     * In the full-screen player, with the system bars hidden, the first swipe from the edge only brings the bars back,
+     * as Android does for immersive apps; a back swipe let go at the edge then leaves the player as it was, and one
+     * carried through returns to the guide and closes the channel.
+     */
     @Test
     fun predictiveBack() {
         play("Sofa Sports")
         val middle = device.displayHeight / 2
         val edge = Point(1, middle)
-        device.swipe(arrayOf(edge, Point(device.displayWidth / 3, middle), edge), SWIPE_STEPS)
+        device.swipe(edge.x, middle, device.displayWidth / 2, middle, SWIPE_STEPS)
+        check(device.hasObject(By.res(PLAYER))) { "The first swipe from the edge left the player" }
+        device.swipe(arrayOf(edge, Point(device.displayWidth / 3, middle), edge), SWIPE_STEPS / 2)
         Thread.sleep(SETTLE_MS)
         check(device.hasObject(By.res(PLAYER)) && server.watching().isNotEmpty()) { "A cancelled back swipe left the player" }
 
-        device.swipe(edge.x, middle, device.displayWidth / 2, middle, SWIPE_STEPS)
-        eventually("a back swipe to return to the guide") { device.hasObject(By.res(GUIDE)) }
+        // The bars hide again after a few seconds, so a swipe that only brings them back is tried again.
+        var swipes = 0
+        while (swipes < BACK_SWIPES && !device.hasObject(By.res(GUIDE))) {
+            device.swipe(edge.x, middle, device.displayWidth / 2, middle, SWIPE_STEPS)
+            swipes++
+            device.wait(Until.hasObject(By.res(GUIDE)), SETTLE_MS)
+        }
+        println("Predictive back: the guide after $swipes back swipes")
+        check(device.hasObject(By.res(GUIDE))) { "$BACK_SWIPES back swipes did not return to the guide" }
         eventually("the channel to close") { server.watching().isEmpty() }
     }
 
@@ -179,6 +192,7 @@ class TouchTest {
         const val SETTLE_MS = 2_000L
         const val IDLE_MS = 1_000L
         const val SWIPE_STEPS = 30
+        const val BACK_SWIPES = 3
         const val WALK_STEPS = 150
 
         private fun UiDevice.point(random: Random) =

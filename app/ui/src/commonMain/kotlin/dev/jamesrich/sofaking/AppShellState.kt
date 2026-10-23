@@ -114,6 +114,18 @@ internal class AppShellState(
         }
     }
 
+    /**
+     * A `sofaking://vod` link, from the home screen's Watch Next row, plays [itemId] over the Library tab, so Back
+     * leaves for the Library, and takes the place of an item already playing there. On a cold start it is the
+     * start's page, in place of the channel last watched.
+     */
+    fun playItem(itemId: String) {
+        val from = if (launchDecided) nav.closeSettings() else Navigation()
+        launchDecided = true
+        val library = if (from.tab == Tab.LIBRARY) from else from.open(Tab.LIBRARY)
+        nav = if (library.top is Route.Vod) library.replaceTop(Route.Vod(itemId)) else library.push(Route.Vod(itemId))
+    }
+
     /** The guide and the player lock Settings again; the pages behind Settings keep it open. */
     fun relockUnlessInSettings() {
         if (!top.isSettings) settingsUnlocked = false

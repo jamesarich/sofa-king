@@ -19,7 +19,9 @@ import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.NsdServerDiscovery
 import dev.jamesrich.sofaking.data.PairingRequest
+import dev.jamesrich.sofaking.data.WatchNext
 import dev.jamesrich.sofaking.data.inDirectory
+import dev.jamesrich.sofaking.data.parseItemLink
 import dev.jamesrich.sofaking.data.parsePairingLink
 import dev.jamesrich.sofaking.ui.isTelevision
 
@@ -41,8 +43,9 @@ class SofaKingApplication : Application() {
                     .build(),
             )
         }
-        val client = ClientInfo(platform = if (isTelevision()) "android-tv" else "android", deviceName = Build.MODEL)
-        initSofaKing(AppStorage.inDirectory(filesDir.absolutePath, client), NsdServerDiscovery(this))
+        val tv = isTelevision()
+        val client = ClientInfo(platform = if (tv) "android-tv" else "android", deviceName = Build.MODEL)
+        initSofaKing(AppStorage.inDirectory(filesDir.absolutePath, client), NsdServerDiscovery(this), if (tv) WatchNextPublisher(this) else WatchNext.None)
     }
 }
 
@@ -50,6 +53,9 @@ class SofaKingApplication : Application() {
 class MainActivity : ComponentActivity() {
     /** A `sofaking://pair` link this activity was opened with, until the app has claimed it. */
     private val pairing = mutableStateOf<PairingRequest?>(null)
+
+    /** The item a `sofaking://vod` link from the Watch Next row asked to play, until the app has opened it. */
+    private val playItem = mutableStateOf<String?>(null)
 
     // A denial leaves the app as it was: the server cannot be reached until the permission is given in system settings.
     private val localNetwork = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -62,8 +68,8 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightStatusBars = false
             isAppearanceLightNavigationBars = false
         }
-        // A restored activity keeps its intent, but the claim it carried was made the first time.
-        if (savedInstanceState == null) takePairing(intent)
+        // A restored activity keeps its intent, but the link it carried was followed the first time.
+        if (savedInstanceState == null) takeLink(intent)
         // Android 17 blocks the local network, where the server is, until the viewer allows it.
         if (Build.VERSION.SDK_INT >= LOCAL_NETWORK_SDK && checkSelfPermission(ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED) {
             localNetwork.launch(ACCESS_LOCAL_NETWORK)
@@ -74,17 +80,21 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.semantics { testTagsAsResourceId = true },
                 pairing = pairing.value,
                 onPairingHandled = { pairing.value = null },
+                playItem = playItem.value,
+                onPlayItemHandled = { playItem.value = null },
             )
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        takePairing(intent)
+        takeLink(intent)
     }
 
-    private fun takePairing(intent: Intent?) {
-        if (intent?.action == Intent.ACTION_VIEW) pairing.value = intent.dataString?.let(::parsePairingLink)
+    private fun takeLink(intent: Intent?) {
+        val link = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.dataString ?: return
+        parsePairingLink(link)?.let { pairing.value = it }
+        parseItemLink(link)?.let { playItem.value = it }
     }
 }
 

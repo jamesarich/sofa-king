@@ -65,6 +65,35 @@ class AppShellStateTest {
     }
 
     @Test
+    fun `a Watch Next link on a cold start plays the item over the Library in place of the last channel`() {
+        shell.playItem("e1")
+        assertTrue(shell.launchDecided)
+        assertEquals(Tab.LIBRARY, shell.nav.tab)
+        assertEquals(listOf(Route.Library, Route.Vod("e1")), shell.nav.stack(Tab.LIBRARY))
+
+        shell.decideLaunch(LaunchTarget.Player("a"))
+        assertEquals(Route.Vod("e1"), shell.top)
+        shell.back()
+        assertEquals(Route.Library, shell.top)
+        shell.back()
+        assertEquals(Route.Guide, shell.top, "no live player waits underneath")
+    }
+
+    @Test
+    fun `a Watch Next link while the app runs leaves Settings and keeps the Library pages`() {
+        shell.decideLaunch(LaunchTarget.OpenTab(Tab.LIBRARY))
+        shell.push(Route.LibraryGrid("tv"))
+        shell.push(Route.Settings)
+        shell.playItem("e1")
+        assertEquals(listOf(Route.Library, Route.LibraryGrid("tv"), Route.Vod("e1")), shell.nav.stack(Tab.LIBRARY))
+
+        shell.openTab(Tab.LIVE)
+        shell.playItem("e2")
+        assertEquals(Route.Vod("e2"), shell.top)
+        assertEquals(listOf(Route.Library, Route.LibraryGrid("tv"), Route.Vod("e2")), shell.nav.stack(Tab.LIBRARY), "the item playing gives way")
+    }
+
+    @Test
     fun `Settings locks again once the viewer leaves for the guide or the player`() {
         shell.push(Route.Settings)
         shell.settingsUnlocked = true

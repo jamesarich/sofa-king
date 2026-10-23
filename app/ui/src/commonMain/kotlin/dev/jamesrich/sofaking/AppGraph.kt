@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.data.ServerConnection
 import dev.jamesrich.sofaking.data.ServerDiscovery
 import dev.jamesrich.sofaking.data.SettingsStore
 import dev.jamesrich.sofaking.data.ViewerSync
+import dev.jamesrich.sofaking.data.WatchNext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -15,7 +16,7 @@ import kotlinx.coroutines.cancel
  * The app's objects over a platform's [storage]: one settings store per file and one connection to the server it
  * names, shared by every ViewModel. They live as long as the process; the ViewModels, per screen host, read through them.
  */
-internal class AppGraph(private val storage: AppStorage, private val discovery: ServerDiscovery) {
+internal class AppGraph(private val storage: AppStorage, private val discovery: ServerDiscovery, val watchNext: WatchNext) {
     private val settings: SettingsStore = DataStoreSettingsStore(storage.settings)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -51,11 +52,12 @@ internal val appGraph: AppGraph
 /**
  * Starts the app's object graph over [storage]; each platform's entry point calls it once per process, before
  * the first [App], because DataStore allows one instance per file and composition can be recreated. [discovery]
- * finds servers on the network for Settings, where the platform can browse.
+ * finds servers on the network for Settings, where the platform can browse; [watchNext] is the platform's row of what
+ * to watch next outside the app, where it has one.
  */
-fun initSofaKing(storage: AppStorage, discovery: ServerDiscovery = ServerDiscovery.None) {
+fun initSofaKing(storage: AppStorage, discovery: ServerDiscovery = ServerDiscovery.None, watchNext: WatchNext = WatchNext.None) {
     check(graph == null) { "initSofaKing runs once per process" }
-    graph = AppGraph(storage, discovery)
+    graph = AppGraph(storage, discovery, watchNext)
 }
 
 /** Ends the graph [initSofaKing] started, so a test can start the app again on fresh storage. */

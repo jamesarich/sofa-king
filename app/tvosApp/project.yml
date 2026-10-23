@@ -57,6 +57,21 @@ targets:
         script: |
           cd "$SRCROOT/.."
           ./gradlew :core:embedAndSignAppleFrameworkForXcode
+    # `xcodebuild test` runs the remote tests; they skip without the fixture server (docs/development.md).
+    scheme:
+      testTargets: [SofaKingTVUITests]
+  # The app driven with the Siri Remote against app/scripts/fixture_server.py.
+  SofaKingTVUITests:
+    type: bundle.ui-testing
+    platform: tvOS
+    sources: [SofaKingTVUITests]
+    dependencies:
+      - target: SofaKingTV
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jamesrich.sofaking.tv.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        "EXCLUDED_ARCHS[sdk=appletvsimulator*]": x86_64
   # The Top Shelf extension shows the recent channels; it reads them from the app group, so it needs no Kotlin framework.
   TopShelf:
     type: app-extension

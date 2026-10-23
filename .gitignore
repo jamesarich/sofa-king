@@ -9,3 +9,5 @@ captures/
 
 # Kotlin/JS and Kotlin/Wasm write their Yarn lockfiles here; they are not kept.
 kotlin-js-store/
+# Python's bytecode caches, from the scripts.
+__pycache__/

@@ -18,6 +18,7 @@ on:
   pull_request:
     paths:
       - "app/scripts/tv-monkey.py"
+      - "app/scripts/fixture_server.py"
       - ".github/workflows/tv-monkey.yml"
 
 concurrency:

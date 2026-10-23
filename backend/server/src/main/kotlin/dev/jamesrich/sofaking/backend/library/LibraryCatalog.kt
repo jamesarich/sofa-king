@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.store.libraries
 import dev.jamesrich.sofaking.backend.store.libraryIntro
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.libraryMetadata
+import dev.jamesrich.sofaking.backend.store.libraryScrub
 import dev.jamesrich.sofaking.backend.store.playStates
 import dev.jamesrich.sofaking.backend.store.savePlayStates
 import dev.jamesrich.sofaking.contract.Library
@@ -18,6 +19,7 @@ import dev.jamesrich.sofaking.contract.LibraryShelf
 import dev.jamesrich.sofaking.contract.MediaSegment
 import dev.jamesrich.sofaking.contract.MediaTrack
 import dev.jamesrich.sofaking.contract.PlayState
+import dev.jamesrich.sofaking.contract.ScrubThumbnails
 import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.Wire
 import kotlinx.coroutines.Dispatchers
@@ -281,6 +283,23 @@ class LibraryCatalog internal constructor(
             container = media?.container,
             videoCodec = media?.video?.codec,
             segments = if (view.record.kind == ItemKind.EPISODE) segments(view.record) else emptyList(),
+            scrub = if (view.record.path != null) scrub(view.record) else null,
+        )
+    }
+
+    /** The scrub thumbnails made from the item's file as it is now; those of a file since replaced are not offered. */
+    private suspend fun scrub(record: LibraryItemRecord): ScrubThumbnails? {
+        val made =
+            store.libraryScrub(record.id)?.takeIf { it.fileKey == fileKey(record) && it.sheets > 0 } ?: return null
+        val version = made.madeAt.hashCode().toUInt().toString(16)
+        return ScrubThumbnails(
+            made.intervalMs,
+            made.tileWidth,
+            made.tileHeight,
+            made.columns,
+            made.rows,
+            made.frames,
+            List(made.sheets) { "/artwork/${record.id}/scrub/$it?v=$version" },
         )
     }
 

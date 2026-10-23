@@ -43,6 +43,17 @@ class LibraryRepository(private val api: SofaKingApi) {
             videoCodec = dto.videoCodec,
             intro = segment(dto.segments, Wire.SegmentKind.INTRO),
             credits = segment(dto.segments, Wire.SegmentKind.CREDITS),
+            scrub = dto.scrub?.let {
+                ScrubTiles(
+                    it.intervalMs,
+                    it.tileWidth,
+                    it.tileHeight,
+                    it.columns,
+                    it.rows,
+                    it.frames,
+                    it.sheets.mapNotNull(api::logoUrl),
+                )
+            },
         )
     }
 

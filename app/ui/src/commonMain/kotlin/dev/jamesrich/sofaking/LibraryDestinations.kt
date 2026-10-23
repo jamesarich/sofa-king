@@ -13,6 +13,7 @@ import dev.jamesrich.sofaking.data.IntroSpan
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
+import dev.jamesrich.sofaking.data.ScrubTiles
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialAudio
@@ -224,7 +225,7 @@ internal fun VodDestination(
                 } ?: VodTracks()
             }
             VodPlayerScreen(
-                title = item.vodTitle(ready?.intro, ready?.credits),
+                title = item.vodTitle(ready?.intro, ready?.credits, ready?.scrub),
                 player = player,
                 sessions = vm.sessions,
                 itemId = item.id,
@@ -256,9 +257,9 @@ internal fun VodDestination(
 
 /**
  * What the player shows for a library item: an episode under its show and number, a movie with its year,
- * and its [intro] and [credits].
+ * its [intro] and [credits], and its [scrub] thumbnails.
  */
-private fun MediaItem.vodTitle(intro: IntroSpan?, credits: IntroSpan?): VodTitle {
+private fun MediaItem.vodTitle(intro: IntroSpan?, credits: IntroSpan?, scrub: ScrubTiles?): VodTitle {
     val subtitle = when (kind) {
         ItemKind.EPISODE -> listOfNotNull(showTitle, episodeLabel).joinToString(" · ").ifEmpty { null }
         else -> year?.toString()
@@ -267,7 +268,7 @@ private fun MediaItem.vodTitle(intro: IntroSpan?, credits: IntroSpan?): VodTitle
         intro?.let { VodMarker(it.startMs, it.endMs, VodMarkerKind.INTRO) },
         credits?.let { VodMarker(it.startMs, it.endMs, VodMarkerKind.CREDITS) },
     )
-    return VodTitle(title, subtitle, artworkUrl = backdrop ?: poster, markers = markers)
+    return VodTitle(title, subtitle, artworkUrl = backdrop ?: poster, markers = markers, scrub = scrub)
 }
 
 /** The Up next card for an episode: its number and title under the show, with its still. */

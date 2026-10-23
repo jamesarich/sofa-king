@@ -21,6 +21,7 @@ import dev.jamesrich.sofaking.backend.http.HdhrAccess
 import dev.jamesrich.sofaking.backend.http.hdhrDeviceId
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.FfmpegFingerprinter
+import dev.jamesrich.sofaking.backend.library.FfmpegSheetMaker
 import dev.jamesrich.sofaking.backend.library.IntroDetector
 import dev.jamesrich.sofaking.backend.library.LibraryArtwork
 import dev.jamesrich.sofaking.backend.library.LibraryMetadata
@@ -28,6 +29,7 @@ import dev.jamesrich.sofaking.backend.library.LibraryScanner
 import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.library.MediaProbe
 import dev.jamesrich.sofaking.backend.library.MediaRoot
+import dev.jamesrich.sofaking.backend.library.ScrubSheets
 import dev.jamesrich.sofaking.backend.library.TmdbClient
 import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.backend.library.ffprobeBeside
@@ -359,14 +361,12 @@ class LiveRuntime(
                     )
                 updates.start(scope)
                 val libraries = LibraryService(
-                    store,
-                    clock,
+                    store, clock,
                     listOf(
                         MediaRoot("Media", config.mediaDirectory),
                         MediaRoot("Recordings", config.recordingsDirectory),
                     ),
-                    LibraryScanner(MediaProbe(ffprobeBeside(config.ffmpeg))::probe),
-                    jobs,
+                    LibraryScanner(MediaProbe(ffprobeBeside(config.ffmpeg))::probe), jobs,
                     metadata = config.tmdb?.let { LibraryMetadata(store, TmdbClient(http, it), clock, it.region) },
                     artwork = LibraryArtwork(http, config.dataDirectory.resolve("artwork"), ffmpeg = config.ffmpeg),
                     intros = IntroDetector(
@@ -374,6 +374,15 @@ class LiveRuntime(
                         clock,
                         jobs,
                         FfmpegFingerprinter(config.ffmpeg, config.dataDirectory.resolve("intros")),
+                    ).also {
+                        it.start(scope)
+                    },
+                    scrub = ScrubSheets(
+                        store,
+                        clock,
+                        jobs,
+                        FfmpegSheetMaker(config.ffmpeg),
+                        config.dataDirectory.resolve("scrub"),
                     ).also {
                         it.start(scope)
                     },

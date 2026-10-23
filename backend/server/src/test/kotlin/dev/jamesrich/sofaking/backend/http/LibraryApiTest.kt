@@ -7,10 +7,12 @@ import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.library.IntroRecord
 import dev.jamesrich.sofaking.backend.library.IntroSpan
 import dev.jamesrich.sofaking.backend.library.LibraryKind
+import dev.jamesrich.sofaking.backend.library.ScrubRecord
 import dev.jamesrich.sofaking.backend.library.fileKey
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.saveLibraryFingerprint
+import dev.jamesrich.sofaking.backend.store.saveLibraryScrub
 import dev.jamesrich.sofaking.contract.Bootstrap
 import dev.jamesrich.sofaking.contract.Library
 import dev.jamesrich.sofaking.contract.LibraryHome
@@ -18,6 +20,7 @@ import dev.jamesrich.sofaking.contract.LibraryItem
 import dev.jamesrich.sofaking.contract.LibraryItemDetail
 import dev.jamesrich.sofaking.contract.LibraryPage
 import dev.jamesrich.sofaking.contract.MediaSegment
+import dev.jamesrich.sofaking.contract.ScrubThumbnails
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
@@ -43,6 +46,7 @@ import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -150,13 +154,31 @@ class LibraryApiTest {
                     credits = IntroSpan(1_300_000, 1_380_000),
                 ),
             )
+            // And the scrub thumbnails made from it, served like artwork with no token.
+            store.saveLibraryScrub(
+                ScrubRecord(pilot.id, fileKey(pilotRecord), 10_000, 240, 136, 10, 10, 1, 3, "2026-10-10T13:00:00Z"),
+            )
+            val sheet = Files.createDirectories(dir.resolve("scrub/${pilot.id}")).resolve("0.jpg")
+            Files.write(sheet, byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte()))
             val episodeBody = get("/api/v1/library/items/${pilot.id}").bodyAsText()
+            val episode = json.decodeFromString<LibraryItemDetail>(episodeBody)
             assertEquals(
                 listOf(
                     MediaSegment(Wire.SegmentKind.INTRO, 5_000, 65_000),
                     MediaSegment(Wire.SegmentKind.CREDITS, 1_300_000, 1_380_000),
                 ),
-                json.decodeFromString<LibraryItemDetail>(episodeBody).segments,
+                episode.segments,
+            )
+            val scrub = assertNotNull(episode.scrub)
+            assertEquals(ScrubThumbnails(10_000, 240, 136, 10, 10, 3, scrub.sheets), scrub)
+            val served = client.get(scrub.sheets.single())
+            assertEquals(HttpStatusCode.OK, served.status)
+            assertEquals(ContentType.Image.JPEG, served.contentType())
+            assertEquals(HttpStatusCode.NotFound, client.get("/artwork/${pilot.id}/scrub/1").status)
+            assertEquals(HttpStatusCode.NotFound, client.get("/artwork/${second.id}/scrub/0").status)
+            assertEquals(HttpStatusCode.NotFound, client.get("/artwork/a.b/scrub/0").status)
+            assertNull(
+                json.decodeFromString<LibraryItemDetail>(get("/api/v1/library/items/${second.id}").bodyAsText()).scrub,
             )
             assertKeepsWireFixture("v1/library-episode-detail.json", episodeBody)
             assertKeepsWireFixture("v1/library-home.json", homeBody)

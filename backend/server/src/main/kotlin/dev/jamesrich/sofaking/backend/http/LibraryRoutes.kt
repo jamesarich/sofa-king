@@ -53,10 +53,20 @@ fun Route.libraryRoutes(libraries: LibraryService) {
 }
 
 /**
- * Posters and backdrops under `/artwork/{item}/{poster|backdrop}`. Image loaders fetch these with no credentials,
- * like logos, so the route takes none; it serves only the image the library holds for that item.
+ * Posters and backdrops under `/artwork/{item}/{poster|backdrop}`, and scrub thumbnail sheets under
+ * `/artwork/{item}/scrub/{n}`. Image loaders fetch these with no credentials, like logos, so the routes take none;
+ * they serve only the images the library holds for that item.
  */
 fun Route.artworkRoutes(libraries: LibraryService) {
+    get("/artwork/{id}/scrub/{sheet}") {
+        val sheet = call.parameters["sheet"]?.toIntOrNull()
+            ?.let { libraries.scrub?.sheet(call.parameters["id"]!!, it) }
+            ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown artwork")
+        // The URL carries the version of the sheets, which a changed file replaces.
+        call.response.header(HttpHeaders.CacheControl, "public, max-age=604800")
+        call.response.header("X-Content-Type-Options", "nosniff")
+        call.respond(LocalPathContent(sheet, ContentType.Image.JPEG))
+    }
     get("/artwork/{id}/{role}") {
         val artwork = libraries.artwork ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown artwork")
         val view =

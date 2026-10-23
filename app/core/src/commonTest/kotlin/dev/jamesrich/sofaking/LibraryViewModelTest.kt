@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.PlayProgress
 import dev.jamesrich.sofaking.data.PlaybackProfile
+import dev.jamesrich.sofaking.data.ScrubTile
 import dev.jamesrich.sofaking.data.SofaKingApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -546,5 +547,35 @@ class LibraryViewModelTest {
             assertEquals(IntroSpan(1_300_000, 1_400_000), assertIs<ItemDetailState.Ready>(first.value).detail.credits)
             assertNull(assertIs<ItemDetailState.Ready>(second.value).detail.intro)
             assertNull(assertIs<ItemDetailState.Ready>(second.value).detail.credits)
+        }
+
+    @Test
+    fun `an item's page carries its scrub thumbnails with their sheets resolved against the server`() =
+        fixture.viewModelTest {
+            val scrub =
+                """{"intervalMs":10000,"tileWidth":240,"tileHeight":136,"columns":10,"rows":10,"frames":150,""" +
+                    """"sheets":["/artwork/m1/scrub/0?v=a","/artwork/m1/scrub/1?v=a"]}"""
+            val server = RouteServer(this) { _, path, _ ->
+                when (path) {
+                    "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+                    "/api/v1/library/items/m1" -> 200 to """{"item":${item("m1", "movie")},"scrub":$scrub}"""
+                    else -> null
+                }
+            }
+            val model = viewModel(server)
+            runCurrent()
+            val page = model.detail("m1")
+            runCurrent()
+            advanceTimeBy(1.seconds)
+            val tiles = assertNotNull(assertIs<ItemDetailState.Ready>(page.value).detail.scrub)
+            assertEquals(
+                listOf("${FAKE_BASE}artwork/m1/scrub/0?v=a", "${FAKE_BASE}artwork/m1/scrub/1?v=a"),
+                tiles.sheets,
+            )
+            assertEquals(ScrubTile("${FAKE_BASE}artwork/m1/scrub/0?v=a", 0, 0), tiles.tileAt(4_000))
+            assertEquals(ScrubTile("${FAKE_BASE}artwork/m1/scrub/0?v=a", 3, 1), tiles.tileAt(130_000))
+            assertEquals(ScrubTile("${FAKE_BASE}artwork/m1/scrub/1?v=a", 0, 0), tiles.tileAt(1_000_000))
+            // Past the last frame the last tile stands.
+            assertEquals(ScrubTile("${FAKE_BASE}artwork/m1/scrub/1?v=a", 9, 4), tiles.tileAt(9_000_000))
         }
 }

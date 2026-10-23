@@ -63,6 +63,7 @@ import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.player.PlayerVolume
 import dev.jamesrich.sofaking.ui.player.rememberLivePlayer
 import dev.jamesrich.sofaking.ui.player.volumeKey
+import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
 import dev.jamesrich.sofaking.ui.rememberAppLifecycleOwner
 import dev.jamesrich.sofaking.ui.rememberLastInput
 import dev.jamesrich.sofaking.ui.rememberLayoutProfile
@@ -248,6 +249,16 @@ private fun SofaKingApp(
     // set that blanks on each switch.
     MatchDisplayFrameRate(player, enabled = playback?.matchFrameRate == true && top.playsFullScreen)
     val inPictureInPicture = rememberPlayerWindow(player, active = top.playsFullScreen)
+    // Without the preview band (a phone, a short window) the guide plays nothing: the stream the full screen leaves
+    // behind stops and its session goes free, rather than playing on unseen and holding a tuner.
+    val guidePlays = PREVIEW_ENABLED && LocalLayoutProfile.current.showsPreviewBand
+    val plays = if (top is Route.Guide) guidePlays else top.playsLive
+    LaunchedEffect(top is Route.Guide, guidePlays) {
+        if (top is Route.Guide && !guidePlays) {
+            player.stop()
+            sessions.release(forget = true)
+        }
+    }
     // The preview starts without a caption lead; the full screen sets each channel's own. Settings may change
     // the server, so it releases the session outright rather than keeping it to reopen.
     LaunchedEffect(top) {
@@ -277,14 +288,14 @@ private fun SofaKingApp(
     // in front. The item and playWhenReady survive; on return a fresh session is opened for the same channel
     // and intent and the item is prepared at its URL, at the live edge or still paused. A library item's screen
     // reopens it itself, where it was, and the library's other pages hold no stream.
-    val currentTop by rememberUpdatedState(top)
+    val currentPlays by rememberUpdatedState(plays)
     LifecycleEventEffect(Lifecycle.Event.ON_STOP, lifecycleOwner) {
         player.stop()
         sessions.releaseAsync()
     }
     ReleaseOnPageExit(sessions)
     LifecycleEventEffect(Lifecycle.Event.ON_START, lifecycleOwner) {
-        if (currentTop.playsLive && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
+        if (currentPlays && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
             captionSync.effectiveUs = captionSync.advanceUs
             scope.launch { resume(player, sessions) }
         }

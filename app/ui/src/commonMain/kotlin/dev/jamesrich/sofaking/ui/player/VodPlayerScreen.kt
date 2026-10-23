@@ -757,7 +757,13 @@ fun VodPlayerScreen(
             )
         }
         TransportDisc(state.transport, state.transportPulse)
-        SeekBadge(state.scrubTarget.takeIf { !barVisible && state.failure == null }, positionMs = { state.positionMs })
+        SeekBadge(
+            state.scrubTarget.takeIf {
+                !barVisible && state.failure == null
+            },
+            positionMs = { state.positionMs },
+            scrub = title.scrub,
+        )
 
         InfoBar(barVisible) {
             Column(
@@ -805,23 +811,29 @@ fun VodPlayerScreen(
                     }
                 }
                 val length = state.durationMs?.takeIf { it > 0 }
-                if (pointerDriven && length != null) {
-                    VodSeekSlider(
-                        positionMs = { state.positionMs },
-                        lengthMs = length,
-                        markers = title.markers,
-                        onScrub = state::dragTo,
-                        onSeek = { target ->
-                            state.endScrub()
-                            seekItem(target)
-                            state.showInfo()
-                            focus.requestFocus()
-                        },
-                    )
-                } else {
-                    VodSeekBar(positionMs = {
-                        state.positionMs
-                    }, durationMs = state.durationMs, scrubMs = state.scrubTarget, markers = title.markers)
+                Box(Modifier.fillMaxWidth()) {
+                    if (pointerDriven && length != null) {
+                        VodSeekSlider(
+                            positionMs = { state.positionMs },
+                            lengthMs = length,
+                            markers = title.markers,
+                            onScrub = state::dragTo,
+                            onSeek = { target ->
+                                state.endScrub()
+                                seekItem(target)
+                                state.showInfo()
+                                focus.requestFocus()
+                            },
+                        )
+                    } else {
+                        VodSeekBar(positionMs = {
+                            state.positionMs
+                        }, durationMs = state.durationMs, scrubMs = state.scrubTarget, markers = title.markers)
+                    }
+                    val target = state.scrubTarget
+                    if (title.scrub != null && target != null && length != null) {
+                        ScrubThumbnailOverBar(title.scrub, target, length)
+                    }
                 }
                 VodTimes(positionMs = {
                     state.positionMs

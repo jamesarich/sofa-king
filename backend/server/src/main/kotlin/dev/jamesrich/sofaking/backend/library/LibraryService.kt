@@ -61,7 +61,8 @@ private val SUGGESTED_KINDS = mapOf(
 /**
  * The media libraries: adding, renaming and removing them, and scanning their folders. A library's folder must sit
  * inside one of [roots]; the server only reads it. Scans run one at a time on the scan loop, every [every] for all
- * libraries and on request for one. A scan of a TV shows library then asks [intros] to read its new episodes.
+ * libraries and on request for one. A scan of a TV shows library then asks [intros] to read its new episodes, and every
+ * scan asks [scrub] to make thumbnails for its new files.
  */
 class LibraryService(
     private val store: BackendStore,
@@ -77,6 +78,8 @@ class LibraryService(
     val artwork: LibraryArtwork? = null,
     /** Finds TV episodes' intros after each scan of a TV shows library. */
     private val intros: IntroDetector? = null,
+    /** Makes scrub thumbnails after each scan; `/artwork` serves them. */
+    val scrub: ScrubSheets? = null,
 ) {
     /** Counts changes to what the libraries hold, so [catalog] rebuilds its view only after one. */
     private val revision = AtomicLong()
@@ -195,6 +198,8 @@ class LibraryService(
             if (!store.deleteLibrary(id)) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
         }
         revision.incrementAndGet()
+        // Its scrub thumbnails go with the next pass, which finds their items gone.
+        scrub?.request(null)
     }
 
     /** Queues a scan of [id], or of every library when null; requests before the loop runs coalesce. */
@@ -241,6 +246,7 @@ class LibraryService(
             }
             revision.incrementAndGet()
             if (library.kind == LibraryKind.SHOWS && !plan.result.unavailable) intros?.request(library.id)
+            if (!plan.result.unavailable) scrub?.request(library.id)
             result = plan.result
             JobOutcome(!plan.result.unavailable && looked?.stopped == null, "${library.name}: $note")
         }

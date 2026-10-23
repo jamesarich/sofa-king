@@ -244,7 +244,7 @@ class LibraryServiceTest {
     }
 
     @Test fun `removing a library does not wait for its files to be probed, and the scan then writes nothing`() =
-        runBlocking {
+        runBlocking<Unit> {
             val dir = Files.createTempDirectory("sofa-library-")
             val root = Files.createDirectories(dir.resolve("media"))
             val clock = MutableClock()

@@ -15,6 +15,7 @@ from pathlib import Path
 import random
 import shutil
 import subprocess
+import time
 from datetime import datetime, timedelta, timezone
 from xml.sax.saxutils import escape
 
@@ -122,7 +123,16 @@ VERSION = hashlib.sha256(json.dumps([2, FILMS, EPISODES, SHOW, CHANNELS, CLIP_SE
 
 
 def ffmpeg(*args, timeout=600):
-    subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', *map(str, args)], check=True, timeout=timeout)
+    """Runs FFmpeg; one reading from the web tries again, three times with longer waits, as the films' hosts turn away a
+    burst of requests for a while."""
+    command = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', *map(str, args)]
+    for wait in (30, 90, 240, None):
+        try:
+            return subprocess.run(command, check=True, timeout=timeout)
+        except subprocess.CalledProcessError:
+            if wait is None or not any(arg.startswith('https://') for arg in command):
+                raise
+            time.sleep(wait)
 
 
 @functools.cache

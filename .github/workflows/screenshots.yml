@@ -26,8 +26,38 @@ env:
   SOFAKING_CACHE_PASSWORD: ${{ secrets.SOFAKING_CACHE_PASSWORD }}
 
 jobs:
+  # The films are cut once, here, and every other job restores the cut: six jobs reading the films at once get turned
+  # away by their hosts.
+  showcase:
+    name: Showcase
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - id: version
+        name: Read the showcase's version
+        working-directory: app/scripts
+        run: echo "version=$(python3 -c 'import showcase; print(showcase.VERSION)')" >> "$GITHUB_OUTPUT"
+      - id: cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/sofa-king-showcase
+          key: showcase-${{ steps.version.outputs.version }}
+          enableCrossOsArchive: true
+      - name: Cut the showcase
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: app/scripts
+        run: python3 -c 'import showcase; showcase.prepare()'
+
   linux:
     name: Web and desktop
+    needs: showcase
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -49,14 +79,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg vlc xvfb openbox xdotool imagemagick
           pip install playwright
-      - id: showcase
-        name: Read the showcase's version
-        working-directory: app/scripts
-        run: echo "version=$(python3 -c 'import showcase; print(showcase.VERSION)')" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/sofa-king-showcase
-          key: showcase-${{ steps.showcase.outputs.version }}
+          key: showcase-${{ needs.showcase.outputs.version }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
       - name: Build the server distribution
         working-directory: backend
         run: ./gradlew --console=plain :server:installDist
@@ -78,6 +106,7 @@ jobs:
 
   android:
     name: Android (${{ matrix.kind }})
+    needs: showcase
     strategy:
       fail-fast: false
       matrix:
@@ -107,18 +136,12 @@ jobs:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       - name: Install FFmpeg
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
-      - id: showcase
-        name: Read the showcase's version
-        working-directory: app/scripts
-        run: echo "version=$(python3 -c 'import showcase; print(showcase.VERSION)')" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/sofa-king-showcase
-          key: showcase-${{ steps.showcase.outputs.version }}
-      # Cut before the emulator starts, so a cold cache does not keep it waiting.
-      - name: Prepare the showcase
-        working-directory: app/scripts
-        run: python3 -c 'import showcase; showcase.prepare()'
+          key: showcase-${{ needs.showcase.outputs.version }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
       - name: Build the server distribution
         working-directory: backend
         run: ./gradlew --console=plain :server:installDist
@@ -150,6 +173,7 @@ jobs:
 
   apple:
     name: iPhone, iPad and Apple TV
+    needs: showcase
     runs-on: macos-latest
     timeout-minutes: 75
     steps:
@@ -175,14 +199,12 @@ jobs:
           restore-keys: konan-${{ runner.os }}-
       - name: Install the tools
         run: brew install ffmpeg xcodegen
-      - id: showcase
-        name: Read the showcase's version
-        working-directory: app/scripts
-        run: echo "version=$(python3 -c 'import showcase; print(showcase.VERSION)')" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/sofa-king-showcase
-          key: showcase-${{ steps.showcase.outputs.version }}
+          key: showcase-${{ needs.showcase.outputs.version }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
       - name: Build the server distribution
         working-directory: backend
         run: ./gradlew --console=plain :server:installDist

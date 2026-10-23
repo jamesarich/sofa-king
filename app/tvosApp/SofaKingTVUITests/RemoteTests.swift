@@ -14,16 +14,16 @@ final class RemoteTests: XCTestCase {
     @MainActor
     private var remote: XCUIRemote { .shared }
 
-    /// Plays a channel from the list, records the program on now and switches channels from the transport bar's
+    /// Plays a live channel from the list, records the program on now and switches channels from the transport bar's
     /// menu (#191), and leaves the player, which releases its session.
     @MainActor
     func testPlayerTransportMenu() throws {
         try launchToList()
-        // News Now is the first row: below the search field on a first launch, above the last channel's row after one.
-        let news = row("News Now")
-        focus(news, by: Array(repeating: XCUIRemote.Button.down, count: 4) + Array(repeating: XCUIRemote.Button.up, count: 8))
+        // Sofa Sports is live (News Now is a ten-second HLS clip that ends): the second row, below the search field.
+        let sports = row("Sofa Sports")
+        focus(sports, by: Array(repeating: XCUIRemote.Button.down, count: 5) + Array(repeating: XCUIRemote.Button.up, count: 8))
         remote.press(.select)
-        eventually("News Now to open a playback session", timeout: 30) { !server.sessions().isEmpty }
+        eventually("Sofa Sports to open a playback session", timeout: 30) { !server.sessions().isEmpty }
         let tuned = server.sessions().first?["channelId"] as? String
 
         let record = control("Record")
@@ -38,30 +38,31 @@ final class RemoteTests: XCTestCase {
         XCTAssertTrue(all.waitForExistence(timeout: 5), "Channels opened no All channels\n\(screen)")
         focus(all, pressing: .down)
         remote.press(.select)
-        let sports = menuItem("3 Sofa Sports")
-        XCTAssertTrue(sports.waitForExistence(timeout: 5), "All channels listed no Sofa Sports\n\(screen)")
-        focus(sports, pressing: .down, presses: 16)
+        let movies = menuItem("4 Movies")
+        XCTAssertTrue(movies.waitForExistence(timeout: 5), "All channels listed no Movies\n\(screen)")
+        focus(movies, pressing: .down, presses: 16)
         remote.press(.select)
-        eventually("the player to switch to Sofa Sports", timeout: 30) {
+        eventually("the player to switch to Movies", timeout: 30) {
             server.sessions().contains { $0["channelId"] as? String != tuned }
         }
 
         leavePlayer()
     }
 
-    /// Each tab takes focus from the tab bar, and Down moves into it without losing focus.
+    /// Moving along the tab bar opens each tab, Down moves focus into it, and Up brings focus back to the tab bar.
     @MainActor
     func testTabs() throws {
         try launchToList()
-        let live = app.tabBars.buttons["Live"]
-        focus(live, pressing: .up)
-        for name in ["Recordings", "Settings", "Live"] {
+        focus(app.tabBars.buttons["Live"], pressing: .up)
+        let moves: [(String, XCUIRemote.Button)] = [("Recordings", .right), ("Settings", .right), ("Live", .left)]
+        for (name, move) in moves {
             let tab = app.tabBars.buttons[name]
             XCTAssertTrue(tab.waitForExistence(timeout: 10), "No \(name) tab\n\(screen)")
-            focus(tab, pressing: name == "Live" ? .left : .right, presses: 4)
+            focus(tab, pressing: move, presses: 3)
+            eventually("\(name) to open") { tab.isSelected }
             remote.press(.down)
-            XCTAssertTrue(focused.exists, "Nothing has focus after Down on \(name)\n\(screen)")
-            focus(tab, pressing: .up, presses: 6)
+            eventually("Down to move focus into \(name)", timeout: 5) { focused.exists && !tab.hasFocus }
+            focus(tab, pressing: .up, presses: 8)
         }
     }
 
@@ -119,10 +120,16 @@ final class RemoteTests: XCTestCase {
         app.launchArguments = ["-serverUrl", server.url.absoluteString, "-apiToken", server.token]
         app.launch()
         let news = row("News Now")
-        eventually("the channel list or the last channel", timeout: 60) { news.exists || !server.sessions().isEmpty }
-        // The launch decision opens the last channel once the lineup is in.
+        eventually("the channel list, another tab or the last channel", timeout: 60) {
+            news.exists || app.tabBars.buttons["Live"].exists || !server.sessions().isEmpty
+        }
+        // The launch decision opens the last channel once the lineup is in, and a start reopens the last tab.
         RunLoop.current.run(until: Date().addingTimeInterval(3))
         if !server.sessions().isEmpty { leavePlayer() }
+        if !news.exists {
+            focus(app.tabBars.buttons["Live"], by: Array(repeating: XCUIRemote.Button.up, count: 6) + Array(repeating: XCUIRemote.Button.left, count: 3))
+            remote.press(.down)
+        }
         XCTAssertTrue(news.waitForExistence(timeout: 10), "No channel list\n\(screen)")
     }
 
@@ -140,17 +147,17 @@ final class RemoteTests: XCTestCase {
         XCTFail("Menu did not leave the player and release its session\n\(screen)")
     }
 
-    /// Shows the player's transport bar and moves focus to `element` in it: Down from the scrubber, then along the row.
+    /// Shows the player's transport bar and moves focus to `element` in it: Up from the scrubber, then along the row.
     @MainActor
     private func reachInTransportBar(_ element: XCUIElement) {
-        let moves: [XCUIRemote.Button] = [.down, .down] + Array(repeating: XCUIRemote.Button.right, count: 5) + Array(repeating: XCUIRemote.Button.left, count: 8)
+        let moves: [XCUIRemote.Button] = [.up, .up] + Array(repeating: XCUIRemote.Button.right, count: 5) + Array(repeating: XCUIRemote.Button.left, count: 8)
         for move in moves {
             if !element.exists {
                 // A click shows the bar; the system hides it again after a few idle seconds.
                 remote.press(.select)
                 _ = element.waitForExistence(timeout: 3)
             }
-            if element.exists && element.hasFocus { return }
+            if settled(element.exists && element.hasFocus) { return }
             print("[remote] looking for \(element.description), pressing \(move.rawValue) next:\n\(outline())")
             remote.press(move)
         }
@@ -167,10 +174,17 @@ final class RemoteTests: XCTestCase {
     @MainActor
     private func focus(_ element: XCUIElement, by moves: [XCUIRemote.Button]) {
         for move in moves {
-            if element.exists && element.hasFocus { return }
+            if settled(element.exists && element.hasFocus) { return }
             remote.press(move)
         }
         XCTAssertTrue(element.exists && element.hasFocus, "Remote presses never focused \(element.description)\n\(screen)")
+    }
+
+    /// `check` once focus has had a moment to settle after a press.
+    @MainActor
+    private func settled(_ check: @autoclosure () -> Bool) -> Bool {
+        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        return check()
     }
 
     @MainActor

@@ -86,7 +86,7 @@ jobs:
           ./gradlew --continue
           :core:allTests :ui:jvmTest :ui:testAndroidHostTest :ui:jsNodeTest
           :core:compileTestKotlinLinuxX64 :core:compileKotlinLinuxArm64 :ui:compileTestKotlinIosSimulatorArm64
-          :androidApp:lintDebug :androidApp:assembleRelease
+          :androidApp:lintDebug :androidApp:assembleRelease :androidApp:testDebugScreenshotTestDefaultTestSuite
           :ui:wasmJsBrowserDistribution :ui:jsBrowserDistribution
       # A restored older distribution would otherwise be saved again under the new key, and the entry would grow.
       - name: Keep only the current Kotlin/Native distribution
@@ -103,6 +103,7 @@ jobs:
             app/*/build/reports/
             app/*/build/test-results/
             app/ui/build/fuzz/
+            app/ui/build/journeys/
       - name: Upload render screenshots
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -13,7 +13,7 @@ printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
 Then build and test:
 
 ```sh
-./gradlew :core:allTests :ui:jvmTest :ui:testAndroidHostTest :ui:jsNodeTest :androidApp:lintDebug :androidApp:assembleRelease
+./gradlew :core:allTests :ui:jvmTest :ui:testAndroidHostTest :ui:jsNodeTest :androidApp:lintDebug :androidApp:assembleRelease :androidApp:testDebugScreenshotTestDefaultTestSuite
 ```
 
 `:core:allTests` runs the data layer's tests on the JVM, Android, Linux, js and wasm (on Node); Apple targets run theirs only on a Mac. The UI's common tests run on the JVM, as Android host tests and on JS; Compose's wasm test binary needs a browser, so the UI has no wasm test run. Before a change to common code, also compile the Native tests, which reject what the JVM accepts (commas or parentheses in backtick test names, JVM-only APIs):
@@ -33,6 +33,12 @@ Unit tests cover the API client, catalog and guide mapping, the server connectio
 ```sh
 SOFAKING_FUZZ_SEED=7 SOFAKING_FUZZ_STEPS=2000 ./gradlew :ui:jvmTest --tests 'dev.jamesrich.sofaking.AppKeyFuzzTest' --rerun
 SOFAKING_FUZZ_KEYS=Down,Back,Down,Up ./gradlew :ui:jvmTest --tests 'dev.jamesrich.sofaking.AppKeyFuzzTest.random remote*' --rerun
+```
+
+The screenshot tests are Google's [Compose Preview Screenshot Testing](https://developer.android.com/studio/preview/compose-screenshot-testing-with-testsuites), run as the `androidApp` module's `screenshotTest` test suite. `androidApp/src/screenshotTest` holds `@PreviewTest` previews of the guide, a program's details, the player's info bar, the Library tab, a show's page and Settings, on a 1080p TV and a phone; the screens and their sample data are in `ui`'s `androidMain` (`dev.jamesrich.sofaking.previews`), on a clock stopped at one evening in UTC. Android Studio shows them as previews. `:androidApp:testDebugScreenshotTestDefaultTestSuite` renders them with the Android layout library on the JVM and fails on a pixel that differs from the reference images in `androidApp/src/screenshotTestDefaultDebug/reference`; its report, with the differences, is in `androidApp/build/reports/tests/testDebugScreenshotTestDefaultTestSuite`. After an intended change to how a screen looks, write the references again and commit them with the change:
+
+```sh
+./gradlew :androidApp:updateDebugScreenshotTestDefaultTestSuite
 ```
 
 To look at the TV layout without a TV, run the desktop app with `./gradlew :ui:run -Psofaking.tv=true`; the keyboard's arrows, Enter and Escape are the remote's.

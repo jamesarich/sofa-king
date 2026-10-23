@@ -5,8 +5,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
@@ -29,6 +32,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.ui.theme.tvFocus
@@ -112,9 +116,11 @@ internal fun <T> ChoiceRow(
     Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, style = MaterialTheme.typography.titleSmall)
         val selectedFocus = remember { FocusRequester() }
+        // Where a name wraps (a phone), every segment takes the tallest one's height, so the row keeps one outline.
         SingleChoiceSegmentedButtonRow(
             Modifier
                 .fillMaxWidth()
+                .height(IntrinsicSize.Min)
                 .focusProperties { onEnter = { selectedFocus.requestFocus() } }
                 .focusGroup(),
         ) {
@@ -125,10 +131,11 @@ internal fun <T> ChoiceRow(
                     onClick = { onSelect(choice) },
                     shape = shape,
                     modifier = Modifier
+                        .fillMaxHeight()
                         .then(if (choice == selected) Modifier.focusRequester(selectedFocus) else Modifier)
                         .tvFocus(shape, focusedScale = 1f),
                 ) {
-                    Text(choiceLabel(choice))
+                    Text(choiceLabel(choice), textAlign = TextAlign.Center)
                 }
             }
         }

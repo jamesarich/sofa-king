@@ -22,6 +22,14 @@ android {
         unitTests {
             isIncludeAndroidResources = true
         }
+        screenshotTests.create("screenshotTest") {
+            engineVersion = libs.versions.screenshot.get()
+            targetVariants.add("debug")
+            dependencies {
+                implementation(libs.compose.ui.tooling)
+                implementation(libs.screenshot.validation.api)
+            }
+        }
     }
 
     buildTypes {

@@ -29,6 +29,9 @@ import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.inDirectory
+import dev.jamesrich.sofaking.ui.player.UnavailableLivePlayer
+import dev.jamesrich.sofaking.ui.player.VlcLivePlayer
+import dev.jamesrich.sofaking.ui.player.newDesktopLivePlayer
 import java.io.File
 import java.net.InetSocketAddress
 import java.nio.file.Files
@@ -78,6 +81,7 @@ class AppKeyFuzzTest {
         try {
             val data = Files.createTempDirectory("sofaking-fuzz").toString()
             initSofaKing(AppStorage.inDirectory(data, ClientInfo("desktop", "fuzz")))
+            newDesktopLivePlayer = { UnavailableLivePlayer(it, code = "VLC_NOT_INSTALLED") }
             runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
                 setContent {
                     // A window turns an Escape nothing took into a back event; the test scene has no window, so this does.
@@ -97,6 +101,7 @@ class AppKeyFuzzTest {
                 File("build/fuzz/trace-$seed.txt").writeText(trace.joinToString("\n"))
             }
         } finally {
+            newDesktopLivePlayer = ::VlcLivePlayer
             watchdog.cancel()
             Thread.setDefaultUncaughtExceptionHandler(previousHandler)
             server.stop()

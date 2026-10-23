@@ -31,7 +31,7 @@ SOFAKING_FUZZ_SEED=7 SOFAKING_FUZZ_STEPS=2000 ./gradlew :ui:jvmTest --tests 'dev
 SOFAKING_FUZZ_KEYS=Down,Back,Down,Up ./gradlew :ui:jvmTest --tests 'dev.jamesrich.sofaking.AppKeyFuzzTest' --rerun
 ```
 
-Keys go through the scene as a window sends them, so an open popup, menu or sheet takes them first and an Escape nothing took is a back event; a held key repeats. The JVM lays the app out as a desktop window, not a TV, and has no decoder, so the player shows its failure card.
+Keys go through the scene as a window sends them, so an open popup, menu or sheet takes them first and an Escape nothing took is a back event; a held key repeats. The JVM lays the app out as a desktop window, not a TV, and the test leaves libVLC out, so the player shows its failure card.
 
 ## Android Studio
 

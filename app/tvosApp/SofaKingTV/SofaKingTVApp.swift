@@ -27,6 +27,10 @@ final class AppModel {
     private(set) var recordingMarks: RecordingMarks?
     /// The library item the player shows, from whichever library page asked for it.
     var vod: VodRequest?
+    /// The players' sleep timer, which lasts through Up next until the viewer leaves the player.
+    var sleep = SleepTimer()
+    /// The items Up next played by itself since the viewer last pressed anything, for "Still watching?".
+    var autoplays = 0
     /// Whether the one cold-start decision, opening the last channel, has been made.
     var launchDecided = false
     /// A channel a `sofaking://channel/<guideId>` link (the Top Shelf) asked for; the list or the player takes it and clears it.

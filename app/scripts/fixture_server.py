@@ -89,10 +89,11 @@ def wait_for(what, check, seconds):
         time.sleep(0.5)
 
 
-def fixtures(media, upstream):
-    """A ten-second clip for the TS channels, the same clip as HLS for the first channel, an M3U and six hours of guide."""
+def fixtures(media, upstream, quiet=False):
+    """A ten-second clip for the TS channels, the same clip as HLS for the first channel, an M3U and six hours of guide.
+    The clip's tone is silent when [quiet], for a simulator that plays through the Mac's speakers."""
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=25',
-                    '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', str(CLIP_SECONDS), '-c:v', 'libx264',
+                    '-f', 'lavfi', '-i', f'sine=frequency=440:sample_rate=48000,volume={0 if quiet else 1}', '-t', str(CLIP_SECONDS), '-c:v', 'libx264',
                     '-preset', 'ultrafast', '-g', '25', '-c:a', 'aac', '-f', 'mpegts', str(media / 'clip.ts')],
                    check=True, timeout=60)
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', str(media / 'clip.ts'), '-c', 'copy',
@@ -144,10 +145,10 @@ def intros(base, library):
 
 
 @contextlib.contextmanager
-def serve(out, shows=False, **settings):
+def serve(out, shows=False, quiet=False, **settings):
     """Starts the fixture channels and the server, with its log in <out>/server.log and any further `SOFA_` [settings],
     and yields the server's base URL once the lineup is adopted, and with [shows] the fixture show's intros found; stops
-    both on the way out."""
+    both on the way out. [quiet] silences the channels; the show's theme keeps its sound, which finds the intros."""
     if not SERVER.exists():
         raise SystemExit('Build :server:installDist in backend/ first')
     with tempfile.TemporaryDirectory(prefix='sofa-fixture-') as temporary:
@@ -157,7 +158,7 @@ def serve(out, shows=False, **settings):
         fixture = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Upstream, directory=str(media)))
         threading.Thread(target=fixture.serve_forever, daemon=True).start()
         upstream = f'http://127.0.0.1:{fixture.server_port}'
-        fixtures(media, upstream)
+        fixtures(media, upstream, quiet)
         library = directory / 'library'
         library.mkdir()
         if shows:
@@ -201,13 +202,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--out', required=True)
     parser.add_argument('--shows', action='store_true', help='also serve a TV shows library whose episodes have an intro')
+    parser.add_argument('--quiet', action='store_true', help="silence the channels' tone")
     args = parser.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     ready = out / 'server.env'
     ready.unlink(missing_ok=True)
     signal.signal(signal.SIGTERM, stop)
-    with serve(out, shows=args.shows) as base:
+    with serve(out, shows=args.shows, quiet=args.quiet) as base:
         ready.write_text(f'SOFAKING_SERVER={base}\nSOFAKING_TOKEN={TOKEN}\n')
         print(f'Serving {base}', flush=True)
         try:

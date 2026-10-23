@@ -54,8 +54,9 @@ Every platform's app against the same server, playing a showcase lineup of the B
 **Android tablet**
 
 <p>
-  <img src="docs/images/android-tablet-player.webp" width="49%" alt="The player on an Android tablet with its info bar and buttons">
-  <img src="docs/images/android-tablet-show.webp" width="49%" alt="A show's page on an Android tablet">
+  <img src="docs/images/android-tablet-guide.webp" width="32%" alt="The guide on an Android tablet: nothing has focus on a touch screen, so the preview waits for a tap">
+  <img src="docs/images/android-tablet-player.webp" width="32%" alt="The player on an Android tablet with its info bar and buttons">
+  <img src="docs/images/android-tablet-show.webp" width="32%" alt="A show's page on an Android tablet">
 </p>
 
 **Desktop (Linux)**

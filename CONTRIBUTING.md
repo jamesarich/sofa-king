@@ -34,6 +34,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): 
 
 ## Pull requests
 
+- Write in US English, in prose and in names; the root [AGENTS.md](AGENTS.md) lists the external names that keep their British spelling.
 - Keep one change per pull request. Describe why it is needed first; the diff already shows what changed.
 - Add or update tests with any behavior change. Name tests for the behavior they check.
 - Keep documentation describing the current behavior, in the same pull request, including any changed route, setting, control or variable. The server's [configuration table](backend/docs/live-tv.md#server-settings) is the one place its environment variables are listed. Put the reasoning behind a change in the commit or the pull request.

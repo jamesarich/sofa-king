@@ -68,5 +68,5 @@ class KotlinConventionPlugin : Plugin<Project> {
     }
 }
 
-/** Holds no state; its `maxParallelUsages` of one serialises the tasks that use it. */
+/** Holds no state; its `maxParallelUsages` of one serializes the tasks that use it. */
 abstract class NpmInstallLock : BuildService<BuildServiceParameters.None>

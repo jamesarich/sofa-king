@@ -74,7 +74,7 @@ class PolicyService(
     fun lastApplied(): AppliedRun? = lastApplied.get()
 
     /**
-     * Guide channels to keep programmes for beyond the ones the lineup maps, by guide id: every candidate of a station
+     * Guide channels to keep programs for beyond the ones the lineup maps, by guide id: every candidate of a station
      * whose guide has nothing ahead, so a run can see another guide that does, and the first candidate of a station
      * that moved off it, so a run can move back once it fills again.
      */
@@ -118,13 +118,13 @@ class PolicyService(
         return if (learning.learned.isEmpty()) first.with(learning) else build(withLearned(loaded.policy, learning.learned)).with(learning)
     }
 
-    /** The programmes in the learning window of every station in a loose pair that has a guide, by station key. */
-    private suspend fun schedules(result: BuildResult, policy: LineupPolicy, now: Instant): Map<String, List<GuideProgramme>> {
+    /** The programs in the learning window of every station in a loose pair that has a guide, by station key. */
+    private suspend fun schedules(result: BuildResult, policy: LineupPolicy, now: Instant): Map<String, List<GuideProgram>> {
         val keys = loosePairs(result, policy.names.never).flatMap { listOf(it.first, it.second) }.toSet()
         val mapped = result.stations.filter { it.key in keys && it.guide != null }.associate { it.key to it.guide!! }
         val byGuide = mapped.values.groupBy({ it.guideId }, { it.channelId })
-        val programmes = byGuide.mapValues { (guideId, channels) -> guides.programmes(guideId, channels.toSet(), now, now.plus(LEARN_WINDOW)) }
-        return mapped.mapValues { (_, guide) -> programmes[guide.guideId]?.get(guide.channelId).orEmpty() }
+        val programs = byGuide.mapValues { (guideId, channels) -> guides.programs(guideId, channels.toSet(), now, now.plus(LEARN_WINDOW)) }
+        return mapped.mapValues { (_, guide) -> programs[guide.guideId]?.get(guide.channelId).orEmpty() }
     }
 
     suspend fun preview(): PolicyPreview {

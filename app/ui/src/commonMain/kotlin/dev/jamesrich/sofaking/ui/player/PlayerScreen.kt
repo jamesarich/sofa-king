@@ -56,7 +56,7 @@ import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackSessions
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
@@ -151,7 +151,7 @@ fun PlayerScreen(
     /** The server's scheduled recordings, for the bar's Record; null where it does not record. */
     recordingMarks: RecordingMarks? = null,
     /** Records the program, or cancels its recording; false when the server did not take it. */
-    onRecord: suspend (Programme) -> Boolean = { false },
+    onRecord: suspend (Program) -> Boolean = { false },
     /** How the picture meets the screen, and the next one picked from the bar or the Zoom key. */
     zoom: VideoZoom = VideoZoom.FIT,
     onZoom: (VideoZoom) -> Unit = {},
@@ -360,7 +360,7 @@ fun PlayerScreen(
         }
     }
 
-    // Moves the session's programme title on with the minute clock when the show changes; the stream is not touched.
+    // Moves the session's program title on with the minute clock when the show changes; the stream is not touched.
     LaunchedEffect(state.index, now, mediaSession) {
         val channel = state.currentChannel ?: return@LaunchedEffect
         mediaSession?.publish(nowPlayingFor(channel))
@@ -472,9 +472,9 @@ fun PlayerScreen(
         delay(NOTICE_MS)
         notice = null
     }
-    fun recordFor(programme: Programme?): LiveRecord? {
+    fun recordFor(program: Program?): LiveRecord? {
         val marks = recordingMarks ?: return null
-        val on = programme ?: return null
+        val on = program ?: return null
         val recording = marks.of(on).recording
         return LiveRecord(recording) {
             if (recordBusy) return@LiveRecord
@@ -657,7 +657,7 @@ fun PlayerScreen(
                 hasAudioChoice = audioTracks.isNotEmpty(),
                 record = recordFor(lineup.nowAndNext(channel, now).first),
                 sleep = sleep,
-                programmeEnd = lineup.nowAndNext(channel, now).first?.stop,
+                programEnd = lineup.nowAndNext(channel, now).first?.stop,
                 zoom = zoom,
                 favorite = if (onToggleFavorite != null) channel.guideId in favorites else null,
                 onToggleFavorite = { currentOnToggleFavorite?.invoke(channel) },

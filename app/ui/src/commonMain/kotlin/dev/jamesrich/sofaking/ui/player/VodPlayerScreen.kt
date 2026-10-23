@@ -75,6 +75,7 @@ import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
@@ -127,6 +128,8 @@ fun VodPlayerScreen(
     autoSkipBreaks: Boolean = false,
     /** Skip an intro after a countdown on Skip intro, rather than waiting for a press. */
     autoSkipIntros: Boolean = false,
+    /** How the item's text subtitles look. */
+    subtitleLook: SubtitleLook = SubtitleLook(),
     /** What plays after this item, asked for when it ends; null ends as [onEnded] says. */
     upNext: suspend () -> VodUpNext? = { null },
     onPlayNext: () -> Unit = {},
@@ -756,7 +759,10 @@ fun VodPlayerScreen(
         }
         // Drawn over the bar and clear of its top edge; it waits while a card would cover it.
         if (!state.tracksOpen && state.failure == null && state.next == null) {
-            subtitles?.let { cues -> VodSubtitle(cues, { state.positionMs - subtitleOffsetMs }, bottom = if (barVisible) barHeight + SUBTITLE_GAP else SUBTITLE_GAP) }
+            subtitles?.let { cues ->
+                val gap = SUBTITLE_GAP + subtitleLook.raise.height
+                VodSubtitle(cues, { state.positionMs - subtitleOffsetMs }, bottom = if (barVisible) barHeight + gap else gap, look = subtitleLook)
+            }
         }
         if (state.tracksOpen) {
             TracksCard(
@@ -794,8 +800,8 @@ private fun VodTimes(positionMs: () -> Long, scrubMs: Long?, durationMs: Long?, 
 }
 
 @Composable
-private fun BoxScope.VodSubtitle(cues: Subtitles, positionMs: () -> Long, bottom: Dp) {
-    cues.textAt(positionMs())?.let { SubtitleText(it, bottom = bottom) }
+private fun BoxScope.VodSubtitle(cues: Subtitles, positionMs: () -> Long, bottom: Dp, look: SubtitleLook) {
+    cues.textAt(positionMs())?.let { SubtitleText(it, bottom = bottom, look = look) }
 }
 
 /** The bar under the title for the remote: what has played, the breaks, and where a scrub would land. */

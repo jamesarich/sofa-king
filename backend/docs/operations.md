@@ -97,7 +97,7 @@ The tag `compose.yaml` runs now holds the previous image until `docker compose p
 | `GET /readyz` | The database answers; `503 NOT_READY` otherwise. The Docker health check uses it. No token |
 | `GET /api/v1/admin/status` | One summary: the revision, uptime and schema version, channel and source counts, failing provider and guide imports, the last lineup policy run and Plex sync, and active sessions. See [server status](api.md#server-status) |
 | `GET /api/v1/providers` | Per provider: `lastSuccessAt`, `channels`, `sources`, `skippedEntries`, `skipReasons` and `notes`. An `errorCode` of `IMPORT_FAILED` means the last import failed and the previous snapshot is still in use |
-| `GET /api/v1/admin/guides` | The same for each guide, with the retained `programmes` count. An `IMPORT_FAILED` guide keeps the previous data |
+| `GET /api/v1/admin/guides` | The same for each guide, with the retained `programs` count. An `IMPORT_FAILED` guide keeps the previous data |
 | `GET /api/v1/sources` | Health state of every source (`HEALTHY`, `UNVERIFIED`, `SUSPECT`, `QUARANTINED`, `PROBATION`) |
 | `GET /api/v1/admin/sessions` | Live playback sessions. An empty list means nothing is playing |
 | `GET /api/v1/admin/policy/changes` | What lineup policy runs changed, newest first |

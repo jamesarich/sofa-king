@@ -74,6 +74,7 @@ internal fun SettingsDestination(
                     onSkipCommercialsChanged = vm::setSkipCommercials,
                     onAutoSkipIntrosChanged = vm::setAutoSkipIntros,
                     onHideSpoilersChanged = vm::setHideSpoilers,
+                    onSubtitleLookChanged = vm::setSubtitleLook,
                     onLiveBreaksChanged = vm::setLiveBreaks,
                     onReload = {
                         vm.refresh()

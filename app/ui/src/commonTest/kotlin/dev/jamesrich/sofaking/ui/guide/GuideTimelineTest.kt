@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.ui.guide
 
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -15,7 +15,7 @@ class GuideTimelineTest {
     /** Minutes relative to [base]; negative values start before the window. */
     private fun at(minutes: Long): Instant = (base + (minutes * 60).seconds)
 
-    private fun show(title: String, startMin: Long, stopMin: Long, channelId: String = "1") = Programme(
+    private fun show(title: String, startMin: Long, stopMin: Long, channelId: String = "1") = Program(
         channelId = channelId,
         start = at(startMin),
         stop = at(stopMin),
@@ -23,8 +23,8 @@ class GuideTimelineTest {
         description = null,
     )
 
-    private fun cells(vararg programmes: Programme, end: Instant = windowEnd) =
-        GuideTimeline.cellsFor(programmes.toList(), base, end)
+    private fun cells(vararg programs: Program, end: Instant = windowEnd) =
+        GuideTimeline.cellsFor(programs.toList(), base, end)
 
     private fun assertTiles(cells: List<GuideCell>, from: Long, to: Long) {
         assertEquals(from, cells.first().startMinute)
@@ -126,10 +126,10 @@ class GuideTimelineTest {
     // cellsFor
 
     @Test
-    fun `empty programme list yields one no-listing gap spanning the window`() {
+    fun `empty program list yields one no-listing gap spanning the window`() {
         val result = cells()
         assertEquals(1, result.size)
-        assertNull(result[0].programme)
+        assertNull(result[0].program)
         assertEquals(0L, result[0].startMinute)
         assertEquals(1440L, result[0].endMinute)
     }
@@ -141,114 +141,114 @@ class GuideTimelineTest {
     }
 
     @Test
-    fun `programme inside the window is bracketed by gaps`() {
+    fun `program inside the window is bracketed by gaps`() {
         val result = cells(show("News", 60, 120))
         assertEquals(3, result.size)
-        assertNull(result[0].programme)
+        assertNull(result[0].program)
         assertEquals(0L to 60L, result[0].startMinute to result[0].endMinute)
-        assertEquals("News", result[1].programme?.title)
+        assertEquals("News", result[1].program?.title)
         assertEquals(60L to 120L, result[1].startMinute to result[1].endMinute)
-        assertNull(result[2].programme)
+        assertNull(result[2].program)
         assertEquals(120L to 1440L, result[2].startMinute to result[2].endMinute)
         assertTiles(result, 0, 1440)
     }
 
     @Test
-    fun `programme starting before the window is clipped to its start`() {
+    fun `program starting before the window is clipped to its start`() {
         val result = cells(show("Late night", -30, 60))
-        assertEquals("Late night", result[0].programme?.title)
+        assertEquals("Late night", result[0].program?.title)
         assertEquals(0L to 60L, result[0].startMinute to result[0].endMinute)
         assertTiles(result, 0, 1440)
     }
 
     @Test
-    fun `programme ending after the window is clipped to its end`() {
+    fun `program ending after the window is clipped to its end`() {
         val result = cells(show("Long film", 1380, 1500))
         assertEquals(2, result.size)
-        assertNull(result[0].programme)
-        assertEquals("Long film", result[1].programme?.title)
+        assertNull(result[0].program)
+        assertEquals("Long film", result[1].program?.title)
         assertEquals(1380L to 1440L, result[1].startMinute to result[1].endMinute)
         assertTiles(result, 0, 1440)
     }
 
     @Test
-    fun `programme covering the whole window fills it`() {
+    fun `program covering the whole window fills it`() {
         val result = cells(show("Marathon", -600, 3000))
         assertEquals(1, result.size)
-        assertEquals("Marathon", result[0].programme?.title)
+        assertEquals("Marathon", result[0].program?.title)
         assertEquals(0L to 1440L, result[0].startMinute to result[0].endMinute)
     }
 
     @Test
-    fun `programme entirely before the window is dropped`() {
+    fun `program entirely before the window is dropped`() {
         val result = cells(show("Gone", -120, -1))
         assertEquals(1, result.size)
-        assertNull(result[0].programme)
+        assertNull(result[0].program)
         assertTiles(result, 0, 1440)
     }
 
     @Test
-    fun `programme entirely after the window is dropped`() {
+    fun `program entirely after the window is dropped`() {
         val result = cells(show("Tomorrow", 1500, 1560))
         assertEquals(1, result.size)
-        assertNull(result[0].programme)
+        assertNull(result[0].program)
         assertTiles(result, 0, 1440)
     }
 
     @Test
-    fun `programme ending exactly at the window start is dropped`() {
+    fun `program ending exactly at the window start is dropped`() {
         val result = cells(show("Just before", -60, 0))
         assertEquals(1, result.size)
-        assertNull(result[0].programme)
+        assertNull(result[0].program)
     }
 
     @Test
-    fun `back to back programmes leave no gaps`() {
+    fun `back to back programs leave no gaps`() {
         val result = cells(show("A", 0, 30), show("B", 30, 90), show("C", 90, 1440))
-        assertEquals(listOf("A", "B", "C"), result.map { it.programme?.title })
+        assertEquals(listOf("A", "B", "C"), result.map { it.program?.title })
         assertTiles(result, 0, 1440)
     }
 
     @Test
-    fun `unsorted programmes are placed by start time`() {
+    fun `unsorted programs are placed by start time`() {
         val result = cells(show("Second", 60, 120), show("First", 0, 60))
-        assertEquals(listOf("First", "Second"), result.mapNotNull { it.programme?.title })
+        assertEquals(listOf("First", "Second"), result.mapNotNull { it.program?.title })
         assertTiles(result, 0, 1440)
     }
 
     @Test
-    fun `overlap keeps the earlier programme and trims the later one`() {
+    fun `overlap keeps the earlier program and trims the later one`() {
         val result = cells(show("Early", 30, 90), show("Overlap", 60, 120))
-        assertEquals(listOf("Early", "Overlap"), result.mapNotNull { it.programme?.title })
+        assertEquals(listOf("Early", "Overlap"), result.mapNotNull { it.program?.title })
         assertEquals(90L to 120L, result[2].startMinute to result[2].endMinute)
         assertTiles(result, 0, 1440)
     }
 
     @Test
-    fun `a later programme fully inside an earlier one is dropped`() {
+    fun `a later program fully inside an earlier one is dropped`() {
         val result = cells(show("Long", 0, 120), show("Inside", 30, 60))
-        assertEquals(listOf("Long"), result.mapNotNull { it.programme?.title })
+        assertEquals(listOf("Long"), result.mapNotNull { it.program?.title })
         assertTiles(result, 0, 1440)
     }
 
     @Test
-    fun `inverted and zero-length programmes are dropped`() {
+    fun `inverted and zero-length programs are dropped`() {
         val result = cells(show("Backwards", 90, 60), show("Instant", 120, 120))
         assertEquals(1, result.size)
-        assertNull(result[0].programme)
+        assertNull(result[0].program)
         assertTiles(result, 0, 1440)
     }
 
     @Test
     fun `cells tile a shorter window exactly`() {
         val result = cells(show("A", -10, 45), show("B", 45, 500), end = at(60))
-        assertEquals(listOf("A", "B"), result.map { it.programme?.title })
+        assertEquals(listOf("A", "B"), result.map { it.program?.title })
         assertTiles(result, 0, 60)
     }
 
     @Test
-    fun `programme keeps the channel id it was given`() {
+    fun `program keeps the channel id it was given`() {
         val result = cells(show("A", 0, 30, channelId = "7"))
-        assertEquals("7", result.first { it.programme != null }.programme?.channelId)
+        assertEquals("7", result.first { it.program != null }.program?.channelId)
     }
 }

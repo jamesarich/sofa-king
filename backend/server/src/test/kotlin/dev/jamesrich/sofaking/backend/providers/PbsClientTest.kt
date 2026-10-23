@@ -27,12 +27,12 @@ class PbsClientTest {
             assertEquals(2, guide.channels.size)
             assertEquals(2, fixture.hits("/api/livestream-schedule/$station/"), "today and tomorrow")
             assertEquals("date=2026-10-10&timezone=America/Chicago", fixture.lastQuery["/api/livestream-schedule/$station/"]!!.replace("date=2026-10-11", "date=2026-10-10"))
-            assertEquals(listOf("A Craftsman's Legacy"), guide.programmes.map { it.title }.distinct(), "the main channel's listings are not wanted")
-            assertEquals(2, guide.programmes.size, "the same fixture day twice collapses to one set")
-            assertEquals("2026-10-10T05:30:00Z", guide.programmes[0].endsAt.toString())
-            assertEquals("The Shoe Makers", guide.programmes[0].subTitle, "the episode title is the sub-title")
-            assertEquals("Making shoes.", guide.programmes[0].description)
-            assertEquals("The Furniture Maker", guide.programmes[1].subTitle)
+            assertEquals(listOf("A Craftsman's Legacy"), guide.programs.map { it.title }.distinct(), "the main channel's listings are not wanted")
+            assertEquals(2, guide.programs.size, "the same fixture day twice collapses to one set")
+            assertEquals("2026-10-10T05:30:00Z", guide.programs[0].endsAt.toString())
+            assertEquals("The Shoe Makers", guide.programs[0].subTitle, "the episode title is the sub-title")
+            assertEquals("Making shoes.", guide.programs[0].description)
+            assertEquals("The Furniture Maker", guide.programs[1].subTitle)
             assertEquals(1, fixture.hits("/localize/zipcode/50309/"))
         } } } } finally { dir.toFile().deleteRecursively() }
     }

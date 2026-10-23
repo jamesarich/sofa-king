@@ -42,7 +42,7 @@ Open `http://SERVER_HOST:9193/admin`, or `http://sofa-king.local:9193/admin` on 
 
 ## 3. Choose services and build the lineup
 
-On the home page, choose Choose services. The Sources page lists every [native service](providers.md) as a switch, with the ones that need no option already ticked. For this tutorial, untick everything but Whale TV+, Tubi and Pluto TV, three services that need no account. Leave Build the starter lineup too ticked, and choose Save and restart.
+On the home page, choose Choose services. The Sources page lists every [native service](providers.md) as a switch, with the ones that need no option already on. For this tutorial, turn off everything but Whale TV+, Tubi and Pluto TV, three services that need no account. Leave Build the starter lineup too checked, and choose Save and restart.
 
 The confirmation names the three services and the starter lineup. The server writes `config/sources.json` and the [starter policy](starter-lineup.md) in `config/policy.json`, which takes every channel of the three services in its priority order, groups them with the shipped category map and numbers each group in its own block. Then it restarts, and the page returns to the portal in twenty seconds, still signed in.
 

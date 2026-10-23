@@ -324,7 +324,7 @@ final class RemoteTests: XCTestCase {
         app.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true")).firstMatch
     }
 
-    /// The screen as a failure message gives it: a screenshot kept in the result bundle, and the labelled and focused
+    /// The screen as a failure message gives it: a screenshot kept in the result bundle, and the labeled and focused
     /// elements as an outline.
     @MainActor
     private var screen: String {

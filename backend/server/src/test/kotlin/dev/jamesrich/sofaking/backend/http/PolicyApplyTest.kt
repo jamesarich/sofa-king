@@ -208,7 +208,7 @@ class PolicyApplyTest {
         withPolicy("""{"health":{"requireVerified":false},"providers":[{"id":"learn"},{"id":"learn2"}]}""", feeds = { listOf(it.learnFeed, it.learnTwinFeed) }) {
             for (guide in runtime.guides.configs) runtime.guides.refresh(guide)
             val first = runtime.policy!!.apply("test")
-            assertTrue(first.learned.isEmpty(), "no programmes are kept before the lineup maps the guides")
+            assertTrue(first.learned.isEmpty(), "no programs are kept before the lineup maps the guides")
             assertEquals(listOf("learnshowtv: possible alias of learnshow", "nflnetwork: possible alias of nflchannel"), first.suggestedAliases)
             assertEquals(setOf("learnshow", "learnshowtv", "nflnetwork", "nflchannel"), stationsIn(policyFile).keys)
 

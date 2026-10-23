@@ -25,7 +25,7 @@ KEYS = [
     ('Up', 12), ('Down', 14), ('Left', 10), ('Right', 12), ('Return', 10), ('held Return', 1), ('Escape', 8),
     ('Menu', 1), ('Prior', 2), ('Next', 2), ('space', 1),
 ]
-# A screenshot this small is one colour: the app drew nothing.
+# A screenshot this small is one color: the app drew nothing.
 BLANK_BYTES = 6000
 # What the app's log shows for a failure: an exception nothing caught, a coroutine's (Failures.kt) or a JVM crash.
 FAILURES = ('Exception in thread', 'unhandled failure', 'A fatal error has been detected')

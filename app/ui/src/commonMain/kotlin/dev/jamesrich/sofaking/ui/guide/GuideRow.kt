@@ -49,7 +49,7 @@ import dev.jamesrich.sofaking.ui.theme.tvFocus
 import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideDensity
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.ui.ChannelLogo
 import dev.jamesrich.sofaking.ui.NoListing
 import dev.jamesrich.sofaking.ui.noListing
@@ -73,7 +73,7 @@ internal class GuideRowEnv(
     val timeFormat: TimeFormatter,
     val noListing: String,
     val listingLoading: String,
-    /** [Lineup.guideLoading]: a stretch with no programme may yet get one. */
+    /** [Lineup.guideLoading]: a stretch with no program may yet get one. */
     val guideLoading: Boolean,
     val noGuide: String,
     val guideOutOfDate: String,
@@ -85,14 +85,14 @@ internal class GuideRowEnv(
     val onCellFocused: (Channel, GuideCell) -> Unit,
     val onPlay: (Channel) -> Unit,
     val onToggleFavorite: (Channel) -> Unit,
-    /** A held OK, or the Info key, opens the programme's details. */
+    /** A held OK, or the Info key, opens the program's details. */
     val onOpenDetails: (Channel, GuideCell) -> Unit,
     val detailsLabel: String,
     val laterLabel: String,
-    /** A Later line's programme was chosen: the grid jumps to its cell. */
-    val onJumpTo: (Channel, Programme) -> Unit,
+    /** A Later line's program was chosen: the grid jumps to its cell. */
+    val onJumpTo: (Channel, Program) -> Unit,
 ) {
-    /** The text of a stretch with no programme, as [noListing] decides. */
+    /** The text of a stretch with no program, as [noListing] decides. */
     fun noListingFor(channel: Channel): String = when (channel.noListing(guideLoading)) {
         NoListing.NO_GUIDE -> noGuide
         NoListing.OUT_OF_DATE -> guideOutOfDate
@@ -104,7 +104,7 @@ internal class GuideRowEnv(
 @Composable
 internal fun ChannelRow(
     channel: Channel,
-    programmes: List<Programme>,
+    programs: List<Program>,
     isFavorite: Boolean,
     windowStart: Instant,
     windowEnd: Instant,
@@ -114,11 +114,11 @@ internal fun ChannelRow(
     jump: GuideJump?,
     onJumpHandled: (landed: Boolean) -> Unit,
 ) {
-    val cells = remember(programmes, windowStart, windowEnd) {
-        GuideTimeline.cellsFor(programmes, windowStart, windowEnd)
+    val cells = remember(programs, windowStart, windowEnd) {
+        GuideTimeline.cellsFor(programs, windowStart, windowEnd)
     }
     val initialIndex = if (initialFocus == null) -1 else {
-        cells.indexOfFirst { it.programme != null && it.covers(nowMinute) }.coerceAtLeast(0)
+        cells.indexOfFirst { it.program != null && it.covers(nowMinute) }.coerceAtLeast(0)
     }
     val ownFocus = remember(cells) { List(cells.size) { FocusRequester() } }
     // The first row's airing cell answers to the guide's initial-focus requester; a jump must request that one,
@@ -181,7 +181,7 @@ internal fun ChannelRow(
                     GuideCellItem(
                         channel = channel,
                         cell = cell,
-                        airing = cell.programme != null && cell.covers(nowMinute),
+                        airing = cell.program != null && cell.covers(nowMinute),
                         env = env,
                         compact = compact,
                         focusRequester = cellFocus[index],
@@ -204,7 +204,7 @@ private fun GuideCellItem(
     modifier: Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val programme = cell.programme
+    val program = cell.program
     val colors = MaterialTheme.colorScheme
     val cellStartPx = cell.startMinute * env.minutePx
     val interactions = remember { MutableInteractionSource() }
@@ -226,7 +226,7 @@ private fun GuideCellItem(
             }
             .semantics(mergeDescendants = true) {
                 // Built only when the semantics tree is read, so a grid of hundreds of cells formats nothing for sighted use.
-                contentDescription = cellDescription(env, channel, programme, airing)
+                contentDescription = cellDescription(env, channel, program, airing)
                 // Favorite stays a direct action for screen readers; sighted use goes through the details.
                 customActions = listOf(
                     CustomAccessibilityAction(env.toggleFavoriteLabel) {
@@ -239,7 +239,7 @@ private fun GuideCellItem(
                     },
                 )
             }
-            // OK plays and a held OK opens the programme's details, from the D-pad, a keyboard, touch or a mouse.
+            // OK plays and a held OK opens the program's details, from the D-pad, a keyboard, touch or a mouse.
             .combinedClickable(
                 interactionSource = interactions,
                 indication = null,
@@ -256,14 +256,14 @@ private fun GuideCellItem(
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                programme?.title ?: env.noListingFor(channel),
+                program?.title ?: env.noListingFor(channel),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
             )
-            if (focused && programme != null) {
+            if (focused && program != null) {
                 Text(
-                    env.timeFormat.range(programme.start, programme.stop),
+                    env.timeFormat.range(program.start, program.stop),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodySmall.copy(
@@ -276,14 +276,14 @@ private fun GuideCellItem(
     }
 }
 
-private fun cellDescription(env: GuideRowEnv, channel: Channel, programme: Programme?, airing: Boolean): String = when {
-    programme == null -> formatTemplate(env.cellNone, channel.name, env.noListingFor(channel))
+private fun cellDescription(env: GuideRowEnv, channel: Channel, program: Program?, airing: Boolean): String = when {
+    program == null -> formatTemplate(env.cellNone, channel.name, env.noListingFor(channel))
     else -> formatTemplate(
         if (airing) env.cellAiring else env.cellLater,
         channel.name,
-        programme.title,
-        env.timeFormat.format(programme.start),
-        env.timeFormat.format(programme.stop),
+        program.title,
+        env.timeFormat.format(program.start),
+        env.timeFormat.format(program.stop),
     )
 }
 
@@ -300,11 +300,11 @@ private fun Modifier.stickyStart(scrollState: ScrollState, cellStartPx: Float, m
         layout(cellWidth, placeable.height) { placeable.place(shift, 0) }
     }
 
-internal fun isAiring(programme: Programme, now: Instant): Boolean =
-    programme.start <= now && programme.stop > now
+internal fun isAiring(program: Program, now: Instant): Boolean =
+    program.start <= now && program.stop > now
 
 /**
- * The search's "Later today" line under a channel: one chip per upcoming programme that matches, "8:00 PM Title",
+ * The search's "Later today" line under a channel: one chip per upcoming program that matches, "8:00 PM Title",
  * which OK jumps the grid to. [firstFocus] lets the grid's Up and Down land on the first chip.
  */
 @Composable
@@ -329,12 +329,12 @@ internal fun LaterRow(
             )
         }
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            item.programmes.forEachIndexed { index, programme ->
+            item.programs.forEachIndexed { index, program ->
                 AssistChip(
-                    onClick = { env.onJumpTo(item.channel, programme) },
+                    onClick = { env.onJumpTo(item.channel, program) },
                     label = {
                         Text(
-                            "${env.timeFormat.format(programme.start)}  ${programme.title}",
+                            "${env.timeFormat.format(program.start)}  ${program.title}",
                             style = MaterialTheme.typography.labelLarge,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,

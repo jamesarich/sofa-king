@@ -2,7 +2,7 @@ package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import java.time.Duration
 import java.time.Instant
@@ -30,7 +30,7 @@ class HallmarkClient(private val context: ProviderContext) : ProviderClient {
         val index = KNOWN.map { GuideChannel(it.id, it.name, catalog[it.identifier]?.second) }
         val now = context.clock.instant()
         val from = now.minus(Duration.ofHours(1)).truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-        val programmes = ArrayList<GuideProgramme>()
+        val programs = ArrayList<GuideProgram>()
         for (channel in KNOWN.filter { it.id in wanted }) {
             val contentId = catalog[channel.identifier]?.first ?: throw ProviderFailure("Hallmark catalog does not list ${channel.identifier}")
             val url = "$apiBase/channels/$contentId/schedule?from=${TIMESTAMP.format(from)}&until=${TIMESTAMP.format(from.plus(GUIDE_HORIZON))}&locale=en"
@@ -39,10 +39,10 @@ class HallmarkClient(private val context: ProviderContext) : ProviderClient {
                 val end = item["schedule"].str("endsAt")?.let(::instantOrNull) ?: continue
                 val title = item["display"]["epg"].str("title") ?: item.str("title") ?: continue
                 if (end <= start) continue
-                programmes += GuideProgramme(channel.id, start, end, title, item.str("description") ?: item["display"]["epg"].str("description"))
+                programs += GuideProgram(channel.id, start, end, title, item.str("description") ?: item["display"]["epg"].str("description"))
             }
         }
-        return ParsedGuide(index, programmes)
+        return ParsedGuide(index, programs)
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {

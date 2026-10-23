@@ -13,14 +13,14 @@ enum class SleepChoice(val minutes: Int?) {
     MINUTES_60(60),
     MINUTES_90(90),
 
-    /** The end of the live programme on now, or of the library item or recording playing. */
+    /** The end of the live program on now, or of the library item or recording playing. */
     END(null),
 }
 
 /**
  * The players' sleep timer. It lasts through a zap and through Up next, and the app turns it off when the viewer
  * leaves the full-screen player. A number of minutes stops playback at [stopAtMs], on the wall clock;
- * [SleepChoice.END] stops it as the live programme on now ends, or as the item playing ends, in place of Up next.
+ * [SleepChoice.END] stops it as the live program on now ends, or as the item playing ends, in place of Up next.
  * Stopping leaves the player, as Back does.
  */
 @Stable
@@ -33,16 +33,16 @@ class SleepTimer {
         private set
 
     /**
-     * One step on from [choice], at [nowMs]. End is offered with a live programme's [programmeEndMs], or for an item
+     * One step on from [choice], at [nowMs]. End is offered with a live program's [programEndMs], or for an item
      * with [endOfItem]; otherwise the step after 90 minutes turns the timer off.
      */
-    fun step(nowMs: Long, programmeEndMs: Long? = null, endOfItem: Boolean = false) {
+    fun step(nowMs: Long, programEndMs: Long? = null, endOfItem: Boolean = false) {
         var next = SleepChoice.entries[(choice.ordinal + 1) % SleepChoice.entries.size]
-        if (next == SleepChoice.END && (programmeEndMs == null || programmeEndMs <= nowMs) && !endOfItem) next = SleepChoice.OFF
+        if (next == SleepChoice.END && (programEndMs == null || programEndMs <= nowMs) && !endOfItem) next = SleepChoice.OFF
         choice = next
         stopAtMs = when {
             next.minutes != null -> nowMs + next.minutes * MINUTE_MS
-            next == SleepChoice.END -> programmeEndMs?.takeIf { !endOfItem }
+            next == SleepChoice.END -> programEndMs?.takeIf { !endOfItem }
             else -> null
         }
     }

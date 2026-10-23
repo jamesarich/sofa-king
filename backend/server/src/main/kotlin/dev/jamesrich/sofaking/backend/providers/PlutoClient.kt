@@ -2,7 +2,7 @@ package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import java.net.URLEncoder
 import java.time.Duration
@@ -33,7 +33,7 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
         val channels = listed()
         val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
         val start = context.clock.instant().truncatedTo(ChronoUnit.HOURS)
-        val programmes = ArrayList<GuideProgramme>()
+        val programs = ArrayList<GuideProgram>()
         for (batch in channels.map { it.channel.id }.filter { it in wanted }.chunked(GUIDE_BATCH)) {
             val data = authorized { session ->
                 context.http.get("${session.channels}/v2/guide/timelines?start=${start}&channelIds=${batch.joinToString(",")}&duration=$GUIDE_MINUTES", headers(session))
@@ -44,17 +44,17 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
                     val from = item.str("start")?.let(::instantOrNull) ?: continue
                     val until = item.str("stop")?.let(::instantOrNull) ?: continue
                     val title = item.str("title") ?: continue
-                    if (until > from) programmes += programme(id, from, until, title, item["episode"])
+                    if (until > from) programs += program(id, from, until, title, item["episode"])
                 }
             }
         }
-        return ParsedGuide(index, programmes)
+        return ParsedGuide(index, programs)
     }
 
     /** A timeline entry and its `episode`: the episode name, season and number, genres, rating and poster; a `film` series is a movie. */
-    private fun programme(id: String, from: Instant, until: Instant, title: String, episode: JsonElement?): GuideProgramme {
+    private fun program(id: String, from: Instant, until: Instant, title: String, episode: JsonElement?): GuideProgram {
         val movie = episode["series"].str("type") == "film"
-        return GuideProgramme(
+        return GuideProgram(
             id, from, until, title, episode.str("description"),
             subTitle = episode.str("name")?.takeIf { !movie && !it.equals(title, ignoreCase = true) },
             episodeNumbers = if (movie) emptyList() else seasonEpisode(episode["season"].long, episode["number"].long),

@@ -1,12 +1,12 @@
 package dev.jamesrich.sofaking.backend.dvr
 
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.contract.Wire
 import java.time.Duration
 import java.time.Instant
 
-/** One guide programme on one lineup channel, as a rule sees it. */
-data class Airing(val channelId: String, val channelName: String, val programme: GuideProgramme)
+/** One guide program on one lineup channel, as a rule sees it. */
+data class Airing(val channelId: String, val channelName: String, val program: GuideProgram)
 
 /** What the scheduler does to the stored recordings after one pass: airings to add and rule-scheduled recordings to drop. */
 data class Plan(val add: List<Pair<StoredRule, Airing>>, val drop: List<StoredRecording>)
@@ -20,12 +20,12 @@ object DvrPlanner {
     private val HELD = setOf(Wire.RecordingState.SCHEDULED, Wire.RecordingState.RECORDING, Wire.RecordingState.COMPLETED)
 
     /** A guide that marks neither `new` nor `previously-shown` makes every airing new. */
-    fun isNew(programme: GuideProgramme): Boolean = programme.isNew || programme.previouslyShown == null
+    fun isNew(program: GuideProgram): Boolean = program.isNew || program.previouslyShown == null
 
     fun matches(rule: StoredRule, airing: Airing): Boolean =
-        airing.programme.title.trim().equals(rule.title.trim(), ignoreCase = true) &&
+        airing.program.title.trim().equals(rule.title.trim(), ignoreCase = true) &&
             (rule.channelId == null || rule.channelId == airing.channelId) &&
-            (!rule.newOnly || isNew(airing.programme))
+            (!rule.newOnly || isNew(airing.program))
 
     /**
      * What makes two airings of a show the same episode: its season and episode numbers, else its episode title.
@@ -41,7 +41,7 @@ object DvrPlanner {
     }
 
     private fun key(airing: Airing): String? {
-        val name = RecordingTitle.of(airing.programme)
+        val name = RecordingTitle.of(airing.program)
         return episodeKey(name.show, name.numbering?.season, name.numbering?.episode, name.episodeTitle)
     }
 
@@ -58,10 +58,10 @@ object DvrPlanner {
         val add = mutableListOf<Pair<StoredRule, Airing>>()
         val wanted = HashSet<Pair<String, Instant>>()
         for (rule in rules.sortedByDescending { it.priority }) {
-            for (airing in airings.filter { matches(rule, it) }.sortedBy { it.programme.startsAt }) {
-                val slot = airing.channelId to airing.programme.startsAt
+            for (airing in airings.filter { matches(rule, it) }.sortedBy { it.program.startsAt }) {
+                val slot = airing.channelId to airing.program.startsAt
                 wanted += slot
-                if (airing.programme.endsAt <= now || slot in taken) continue
+                if (airing.program.endsAt <= now || slot in taken) continue
                 val episode = key(airing)
                 if (episode != null && !episodes.add(episode)) continue
                 taken += slot

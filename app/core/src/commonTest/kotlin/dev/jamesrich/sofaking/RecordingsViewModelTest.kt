@@ -2,7 +2,7 @@ package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.data.CommercialBreak
 import dev.jamesrich.sofaking.data.PlaybackProfile
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingSchedule
 import dev.jamesrich.sofaking.data.RecordingSpace
 import dev.jamesrich.sofaking.data.RecordingState
@@ -92,7 +92,7 @@ class RecordingsViewModelTest {
         val schedule = schedule(server)
         val model = viewModel(server, schedule)
         runCurrent()
-        val news = Programme("c1", Instant.parse("2026-10-18T18:00:00Z"), Instant.parse("2026-10-18T18:30:00Z"), "Evening News", null)
+        val news = Program("c1", Instant.parse("2026-10-18T18:00:00Z"), Instant.parse("2026-10-18T18:30:00Z"), "Evening News", null)
         assertTrue(schedule.marks.value.of(news).series)
 
         val rule = assertIs<RecordingsState.Ready>(model.state.value).rules.single()

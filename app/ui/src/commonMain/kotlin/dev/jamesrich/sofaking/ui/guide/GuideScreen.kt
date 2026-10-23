@@ -48,7 +48,7 @@ import dev.jamesrich.sofaking.data.airingsOf
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.orderedFavorites
 import dev.jamesrich.sofaking.data.ProgramKind
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.data.RecordingMarks
@@ -137,7 +137,7 @@ fun GuideScreen(
     onToggleFavorite: (Channel) -> Unit,
     /** The viewer chose a filter chip; its key is saved for the next launch. */
     onFilterChanged: (String?) -> Unit,
-    /** The grid moved to a day whose programmes may not be loaded; the window starts at the given instant. */
+    /** The grid moved to a day whose programs may not be loaded; the window starts at the given instant. */
     onLoadGuideWindow: (Instant) -> Unit,
     previewPlayer: LivePlayer,
     sessions: PlaybackSessions,
@@ -145,12 +145,12 @@ fun GuideScreen(
     captionStyle: CaptionStyle,
     autoOpenDelay: AutoOpenDelay,
     previewSound: Boolean,
-    /** How programmes are set to record; null on a server that does not record, which hides the record buttons. */
+    /** How programs are set to record; null on a server that does not record, which hides the record buttons. */
     recordingMarks: RecordingMarks? = null,
-    /** Records the programme or cancels its recording; false when the server did not take it. */
-    onRecord: suspend (Programme) -> Boolean = { false },
-    /** Records the programme's series or stops it; false when the server did not take it. */
-    onRecordSeries: suspend (Programme) -> Boolean = { false },
+    /** Records the program or cancels its recording; false when the server did not take it. */
+    onRecord: suspend (Program) -> Boolean = { false },
+    /** Records the program's series or stops it; false when the server did not take it. */
+    onRecordSeries: suspend (Program) -> Boolean = { false },
     /** The header's open tab, which Back from the chips focuses; null when the header has no tabs. */
     headerFocus: FocusRequester? = null,
     startInHeader: Boolean = false,
@@ -194,7 +194,7 @@ fun GuideScreen(
     val currentZapScope by rememberUpdatedState(zapScope)
     val currentOnPlay by rememberUpdatedState(onPlay)
     val play: (Channel) -> Unit = remember { { channel -> currentOnPlay(channel, currentZapScope, false) } }
-    // Search also matches programmes later in the window; those channels get a "Later" line under their row.
+    // Search also matches programs later in the window; those channels get a "Later" line under their row.
     val upcoming = remember(byFilter, lineup.guide, query, searchNow, windowEnd) {
         if (searchNow == null) {
             emptyMap()
@@ -217,7 +217,7 @@ fun GuideScreen(
                     query = query,
                     number = channel.number,
                     name = channel.name,
-                    programmeTitle = lineup.nowAndNext(channel, searchNow).first?.title,
+                    programTitle = lineup.nowAndNext(channel, searchNow).first?.title,
                 )
             }
         }
@@ -255,7 +255,7 @@ fun GuideScreen(
     val grid = remember { FocusRequester() }
 
     // Scrolls the timeline so [minute] is inside the visible strip, leaving a half hour of room on the left.
-    // Kept after focus leaves so the preview holds the last programme while focus is on the chips.
+    // Kept after focus leaves so the preview holds the last program while focus is on the chips.
     val revealMinute: (Long) -> Unit = { minute ->
         val px = minute * minutePx
         val viewStart = scrollState.value.toFloat()
@@ -313,7 +313,7 @@ fun GuideScreen(
         if (state.jump == waiting) state.jumpHandled(false)
     }
 
-    // The guide fills in after the channels, so the focused cell's programmes change under it without a focus
+    // The guide fills in after the channels, so the focused cell's programs change under it without a focus
     // event: the band is refreshed from the new row, and focus is put back on the cell at the cursor.
     LaunchedEffect(lineup.guide) {
         val current = state.focused ?: return@LaunchedEffect
@@ -381,7 +381,7 @@ fun GuideScreen(
             state.focused?.channel?.guideId?.let { requestJump(it, state.cursor) }
         }
     }
-    // The details of the focused programme, on the Info key or a held OK; Watch plays it and Back or Close returns focus to its cell.
+    // The details of the focused program, on the Info key or a held OK; Watch plays it and Back or Close returns focus to its cell.
     val onCloseDetails: () -> Unit = {
         state.details = null
         state.focused?.channel?.guideId?.let { requestJump(it, state.cursor) }
@@ -431,8 +431,8 @@ fun GuideScreen(
     }
     val currentRequestJump by rememberUpdatedState(requestJump)
     val currentWindowStart by rememberUpdatedState(windowStart)
-    val onJumpTo: (Channel, Programme) -> Unit = remember {
-        { channel, programme -> currentRequestJump(channel.guideId, GuideTimeline.offsetMinutes(currentWindowStart, programme.start)) }
+    val onJumpTo: (Channel, Program) -> Unit = remember {
+        { channel, program -> currentRequestJump(channel.guideId, GuideTimeline.offsetMinutes(currentWindowStart, program.start)) }
     }
     val env = rememberGuideRowEnv(
         timeFormat = timeFormat,
@@ -491,7 +491,7 @@ fun GuideScreen(
         dwell.restart(uptimeMs())
         state.dwellNonce++
         // Back after half an hour or more, the grid shows now again: the window rolls on if it must and the
-        // focused row jumps to the programme on now.
+        // focused row jumps to the program on now.
         val at = Clock.System.now()
         if (state.cameBack(at)) {
             state.rollWindow(at)
@@ -615,7 +615,7 @@ fun GuideScreen(
         }
         ChannelNumberBadge(state.numbers)
         state.details?.let { shown ->
-            ProgrammeSheet(
+            ProgramSheet(
                 details = shown,
                 now = now,
                 isFavorite = shown.channel.guideId in favorites,
@@ -626,11 +626,11 @@ fun GuideScreen(
                 },
                 onToggleFavorite = onToggleFavorite,
                 onDismiss = onCloseDetails,
-                recording = recordingMarks?.let { marks -> shown.programme?.let(marks::of) ?: RecordingMark() },
+                recording = recordingMarks?.let { marks -> shown.program?.let(marks::of) ?: RecordingMark() },
                 onRecord = onRecord,
                 onRecordSeries = onRecordSeries,
-                airings = remember(lineup, shown.programme, onNowSlot) { shown.programme?.let { lineup.airingsOf(it, now) }.orEmpty() },
-                onShowAiring = { airing -> state.details = ProgrammeDetails(airing.channel, airing.programme) },
+                airings = remember(lineup, shown.program, onNowSlot) { shown.program?.let { lineup.airingsOf(it, now) }.orEmpty() },
+                onShowAiring = { airing -> state.details = ProgramDetails(airing.channel, airing.program) },
             )
         }
     }

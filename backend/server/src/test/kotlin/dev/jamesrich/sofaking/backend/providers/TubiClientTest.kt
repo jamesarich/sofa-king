@@ -17,7 +17,7 @@ class TubiClientTest {
 
     private fun options(fixture: ProviderFixture) = mapOf("pageUrl" to "${fixture.base}/live", "epgUrl" to "${fixture.base}/oz/epg/programming")
 
-    @Test fun `lists the page's linear channels without login or DRM ones and keeps their programmes`() = runBlocking<Unit> {
+    @Test fun `lists the page's linear channels without login or DRM ones and keeps their programs`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-tubi-")
         try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->
             fixture.tubi()
@@ -29,7 +29,7 @@ class TubiClientTest {
             assertTrue(channels[0].logo!!.startsWith("https://canvas-lb.tubitv.com/"))
             assertEquals("content_id=613761,711410,555129,999999", fixture.lastQuery["/oz/epg/programming"], "themed containers first, each id once")
             val guide = client.guide(setOf(nfl))
-            assertEquals(listOf("Weekly Game Previews", "NFL Game Re-Airs"), guide.programmes.map { it.title })
+            assertEquals(listOf("Weekly Game Previews", "NFL Game Re-Airs"), guide.programs.map { it.title })
             assertEquals(1, fixture.hits("/oz/epg/programming"), "the guide reuses the listing")
         } } } } finally { dir.toFile().deleteRecursively() }
     }

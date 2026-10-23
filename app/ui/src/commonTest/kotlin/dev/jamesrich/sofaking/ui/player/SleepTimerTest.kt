@@ -12,20 +12,20 @@ class SleepTimerTest {
 
     @Test
     fun `each press steps through the minutes and then the end of the program and off`() {
-        val programmeEnd = 40 * minute
-        sleep.step(0, programmeEnd)
+        val programEnd = 40 * minute
+        sleep.step(0, programEnd)
         assertEquals(SleepChoice.MINUTES_15, sleep.choice)
         assertEquals(15 * minute, sleep.stopAtMs)
-        sleep.step(minute, programmeEnd)
+        sleep.step(minute, programEnd)
         assertEquals(31 * minute, sleep.stopAtMs, "each step counts from the press")
-        sleep.step(minute, programmeEnd)
-        sleep.step(minute, programmeEnd)
+        sleep.step(minute, programEnd)
+        sleep.step(minute, programEnd)
         assertEquals(SleepChoice.MINUTES_90, sleep.choice)
-        sleep.step(minute, programmeEnd)
+        sleep.step(minute, programEnd)
         assertEquals(SleepChoice.END, sleep.choice)
-        assertEquals(programmeEnd, sleep.stopAtMs)
+        assertEquals(programEnd, sleep.stopAtMs)
         assertFalse(sleep.atEndOfItem)
-        sleep.step(minute, programmeEnd)
+        sleep.step(minute, programEnd)
         assertEquals(SleepChoice.OFF, sleep.choice)
         assertNull(sleep.stopAtMs)
     }
@@ -35,8 +35,8 @@ class SleepTimerTest {
         repeat(4) { sleep.step(0) }
         sleep.step(0)
         assertEquals(SleepChoice.OFF, sleep.choice)
-        repeat(4) { sleep.step(0, programmeEndMs = 0) }
-        sleep.step(minute, programmeEndMs = 0)
+        repeat(4) { sleep.step(0, programEndMs = 0) }
+        sleep.step(minute, programEndMs = 0)
         assertEquals(SleepChoice.OFF, sleep.choice, "a program already over is no end to wait for")
     }
 

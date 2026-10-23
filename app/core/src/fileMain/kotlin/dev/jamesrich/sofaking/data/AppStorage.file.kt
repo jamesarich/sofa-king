@@ -24,7 +24,7 @@ fun AppStorage.Companion.inDirectory(directory: String, client: ClientInfo = Cli
 /**
  * A lineup cache in [file]; a file that does not decode, such as one written before the cache moved to DataStore, is
  * replaced with an empty cache and the lineup refetched. DataStore allows one open store per file, so create one as a
- * DI single; [scope] runs its reads and writes, and cancelling it closes the store.
+ * DI single; [scope] runs its reads and writes, and canceling it closes the store.
  */
 fun lineupCacheDataStore(
     file: String,

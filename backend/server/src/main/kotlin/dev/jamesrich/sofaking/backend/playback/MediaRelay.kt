@@ -10,6 +10,7 @@ import dev.jamesrich.sofaking.backend.upstream.inflateHead
 import dev.jamesrich.sofaking.backend.upstream.isGzip
 import dev.jamesrich.sofaking.backend.upstream.readHead
 import dev.jamesrich.sofaking.backend.upstream.sniffProtocol
+import dev.jamesrich.sofaking.backend.upstream.tsSyncOffset
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.HttpClient
@@ -24,6 +25,7 @@ import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondBytesWriter
 import io.ktor.server.response.respondText
 import io.ktor.utils.io.copyTo
+import io.ktor.utils.io.readAvailable
 import io.ktor.utils.io.readBuffer
 import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.CoroutineScope
@@ -154,6 +156,7 @@ class MediaRelay(
         // The root token maps to the offering's own URL, which for a native source is the resolved one; children are absolute already.
         val root = resource.url == resource.offering.url
         val url = if (root) stream.url else resource.url
+        var cues: SegmentCues? = null
         permits.withPermit {
             relayResource(
                 http, feeds.upstream, call, withDeliveryDirectives(url, call), stream,
@@ -161,11 +164,15 @@ class MediaRelay(
                 sent = { resource.bytes.addAndGet(it) },
                 manifest = { text, source -> resource.playlists.steady(text, source).let { resource.ads?.annotate(it, source) ?: it } },
                 sniffed = { protocol -> if (root && protocol == "mpegts") protocolMismatch(id, epoch, job, "mpegts") },
+                cues = resource.ads?.let { { found -> cues = found } },
             )
         }
-        resource.ads?.served(url)
+        resource.ads?.served(url, cues)
     }
 }
+
+/** How much of a segment read for cues passes through at a time. */
+private const val SEGMENT_READ = 64 * 1024
 
 /** A gzip-encoded resource is buffered to be inflated; keys are bytes, anything near this is not a key. */
 private const val ENCODED_LIMIT = 8 * 1024 * 1024
@@ -177,7 +184,8 @@ private const val ENCODED_LIMIT = 8 * 1024 * 1024
  * server, a gzip-encoded small resource inflated, and anything else streamed as the upstream sent it. [manifest] may
  * add to a manifest's text, given the URL it came from, before the rewrite. [sniffed] sees
  * the protocol of the body's head before anything is answered, [sent] each count of bytes answered, and [refused]
- * an upstream status other than 200 or 206.
+ * an upstream status other than 200 or 206. Given [cues], a transport stream segment is read for SCTE-35 cues as it
+ * streams (see [SpliceReader]), and [cues] gets what it carried once all of it is answered.
  */
 internal suspend fun relayResource(
     http: HttpClient,
@@ -190,6 +198,7 @@ internal suspend fun relayResource(
     refused: (Int) -> Nothing = { throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true) },
     sniffed: suspend (String?) -> Unit = {},
     manifest: (String, URI) -> String = { text, _ -> text },
+    cues: ((SegmentCues) -> Unit)? = null,
 ) {
     http.withUpstreamResponse(
         url,
@@ -236,11 +245,27 @@ internal suspend fun relayResource(
             } else {
                 response.headers[HttpHeaders.ContentRange]?.let { call.response.header(HttpHeaders.ContentRange, it) }
                 response.headers[HttpHeaders.AcceptRanges]?.let { call.response.header(HttpHeaders.AcceptRanges, it) }
+                val sync = if (cues != null && protocol == "mpegts") tsSyncOffset(head, 3) else null
+                val reader = sync?.let { SpliceReader() }
                 call.respondBytesWriter(contentType = contentType, status = response.status) {
                     writeFully(head)
                     sent(head.size.toLong())
-                    sent(body.copyTo(this))
+                    if (reader == null) {
+                        sent(body.copyTo(this))
+                    } else {
+                        reader.feed(head, sync!!)
+                        val buffer = ByteArray(SEGMENT_READ)
+                        while (true) {
+                            val count = body.readAvailable(buffer)
+                            if (count < 0) break
+                            if (count == 0) continue
+                            writeFully(buffer, 0, count)
+                            reader.feed(buffer, 0, count)
+                            sent(count.toLong())
+                        }
+                    }
                 }
+                reader?.let { cues?.invoke(it.finish()) }
             }
         }
     }

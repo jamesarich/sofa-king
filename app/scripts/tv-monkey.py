@@ -257,11 +257,15 @@ def main():
         failures.append(f'{len(sessions_left)} playback session(s) still open with the app in the background')
     strict = [line for line in log.splitlines() if ' StrictMode' in line and 'policy violation' in line]
     (out / 'strictmode.txt').write_text('\n'.join(strict) + '\n')
+    # Tunes that failed in the player, and readers the relay dropped: a stream that never plays fails nothing, so count them.
+    playback_errors = log.count('ExoPlaybackException')
+    dropped = (out / 'server.log').read_text(errors='replace').count('relay dropped slow readers')
 
     summary = [f'## TV monkey: seed {args.seed}, {args.keys} keys', '',
                f'- Result: {"; ".join(failures) if failures else "no crash, ANR or session left open"}',
                f'- The app was brought back {relaunches} times after a key left it',
-               f'- StrictMode violations logged: {len(strict)} (strictmode.txt in the artifact)']
+               f'- StrictMode violations logged: {len(strict)} (strictmode.txt in the artifact)',
+               f'- Player errors: {playback_errors}; readers the relay dropped as slow: {dropped}']
     print('\n'.join(summary))
     if os.environ.get('GITHUB_STEP_SUMMARY'):
         with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as step:

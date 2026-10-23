@@ -43,6 +43,7 @@ import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.airingsOf
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.orderedFavorites
 import dev.jamesrich.sofaking.data.ProgramKind
@@ -625,6 +626,8 @@ fun GuideScreen(
                 recording = recordingMarks?.let { marks -> shown.programme?.let(marks::of) ?: RecordingMark() },
                 onRecord = onRecord,
                 onRecordSeries = onRecordSeries,
+                airings = remember(lineup, shown.programme, onNowSlot) { shown.programme?.let { lineup.airingsOf(it, now) }.orEmpty() },
+                onShowAiring = { airing -> state.details = ProgrammeDetails(airing.channel, airing.programme) },
             )
         }
     }

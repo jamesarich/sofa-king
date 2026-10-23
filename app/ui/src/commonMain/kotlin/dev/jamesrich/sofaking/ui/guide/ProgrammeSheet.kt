@@ -45,6 +45,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import dev.jamesrich.sofaking.data.Airing
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.RecordingMark
@@ -84,7 +85,8 @@ private val SHEET_TEXT_MAX_HEIGHT = 360.dp
 /**
  * The programme's details with Watch and Favorite, and Record and Record series when [recording] says how the
  * programme is set (null on a server that does not record): a side panel over the guide on a TV, where a window of
- * its own would not take D-pad focus, and a Material bottom sheet elsewhere. Back and Close dismiss it.
+ * its own would not take D-pad focus, and a Material bottom sheet elsewhere. Back and Close dismiss it. With other
+ * [airings] of the programme, More airings lists them in its place; Back returns from the list to the details.
  */
 @Composable
 internal fun ProgrammeSheet(
@@ -98,17 +100,50 @@ internal fun ProgrammeSheet(
     recording: RecordingMark? = null,
     onRecord: suspend (Programme) -> Boolean = { false },
     onRecordSeries: suspend (Programme) -> Boolean = { false },
+    airings: List<Airing> = emptyList(),
+    onShowAiring: (Airing) -> Unit = {},
 ) {
     val watchFocus = remember { FocusRequester() }
+    val airingsFocus = remember { FocusRequester() }
+    val firstAiring = remember { FocusRequester() }
+    var showAirings by remember(details) { mutableStateOf(false) }
+    var airingsShown by remember(details) { mutableStateOf(false) }
+    val back: () -> Unit = { if (showAirings) showAirings = false else onDismiss() }
     val recordable = details.programme?.takeIf { recording != null && programmeTiming(it, now) != ProgrammeTiming.Ended }
     val buttons: @Composable () -> Unit = {
         SheetButtons(details.channel, isFavorite, watchFocus, onWatch, onToggleFavorite, onDismiss)
         if (recordable != null && recording != null) RecordButtons(recordable, recording, onRecord, onRecordSeries)
+        if (airings.isNotEmpty()) {
+            SofaButton(onClick = { showAirings = true }, modifier = Modifier.focusRequester(airingsFocus)) {
+                Text(stringResource(Res.string.guide_details_more_airings, airings.size), maxLines = 1)
+            }
+        }
+    }
+    // OK on an airing on now watches it; on a later one, its details take the sheet's place.
+    val airingsList: @Composable (Modifier) -> Unit = { listModifier ->
+        AiringsList(
+            title = details.programme?.title.orEmpty(),
+            airings = airings,
+            now = now,
+            firstFocus = firstAiring,
+            onPick = { airing -> if (isAiring(airing.programme, now)) onWatch(airing.channel) else onShowAiring(airing) },
+            onBack = back,
+            modifier = listModifier,
+        )
     }
     // Watch takes focus on every layout, so the remote or a keyboard can act on the panel or sheet at once.
     LaunchedEffect(details) { requestFocusWhenAttached(watchFocus) }
+    // The list's first airing takes focus as it opens, and More airings again as it closes.
+    LaunchedEffect(showAirings) {
+        if (showAirings) {
+            airingsShown = true
+            requestFocusWhenAttached(firstAiring)
+        } else if (airingsShown) {
+            requestFocusWhenAttached(airingsFocus)
+        }
+    }
     if (LocalLayoutProfile.current.tv) {
-        BackHandler(onBack = onDismiss)
+        BackHandler(onBack = back)
         Box(
             Modifier
                 .fillMaxSize()
@@ -116,7 +151,7 @@ internal fun ProgrammeSheet(
                 // exits, so Back is taken here. It closes on key-up, so no part of the press reaches the guide under it.
                 .onPreviewKeyEvent { event ->
                     if (!event.key.closesDetails()) return@onPreviewKeyEvent false
-                    if (event.type == KeyEventType.KeyUp) onDismiss()
+                    if (event.type == KeyEventType.KeyUp) back()
                     true
                 }
                 .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f))
@@ -136,12 +171,19 @@ internal fun ProgrammeSheet(
                     .focusProperties { onExit = { cancelFocusChange() } }
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
             ) {
-                PanelContent(details, now, guideLoading, buttons)
+                if (showAirings) airingsList(Modifier.fillMaxSize().padding(24.dp)) else PanelContent(details, now, guideLoading, buttons)
             }
         }
     } else {
         ModalBottomSheet(onDismissRequest = onDismiss) {
-            Box(Modifier.arrowKeysMoveFocus()) { SheetContent(details, now, guideLoading, buttons) }
+            BackHandler(enabled = showAirings, onBack = back)
+            Box(Modifier.arrowKeysMoveFocus()) {
+                if (showAirings) {
+                    airingsList(Modifier.fillMaxWidth().heightIn(max = SHEET_TEXT_MAX_HEIGHT + 120.dp).padding(horizontal = 24.dp).padding(bottom = 24.dp))
+                } else {
+                    SheetContent(details, now, guideLoading, buttons)
+                }
+            }
         }
     }
 }

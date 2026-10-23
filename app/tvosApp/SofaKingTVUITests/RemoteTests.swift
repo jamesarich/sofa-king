@@ -105,9 +105,9 @@ final class RemoteTests: XCTestCase {
         eventually("the app to release its sessions in the background, seed \(seed)") { server.sessions().isEmpty }
     }
 
-    /// Play/Pause on each of Settings' text fields, before and after opening it and taking what its keyboard offers
-    /// first, leaves the app running. On the server address it once ended the app with an NSRangeException inside UIKit
-    /// (a random walk, seed 1792765030), after tvOS's list of recent values for a field with a content type.
+    /// Play/Pause on each of Settings' text fields leaves the app running: before opening it, after typing in it, and
+    /// after reopening it and taking what it offers first. On the server address it once ended the app with an
+    /// NSRangeException inside UIKit (a random walk, seed 1792765030), after tvOS's list of the field's recent values.
     @MainActor
     func testPlayPauseOnSettingsFields() throws {
         try launchToList()
@@ -118,7 +118,10 @@ final class RemoteTests: XCTestCase {
             ("the API token", app.secureTextFields.element(boundBy: 0)),
             ("the pairing code", app.textFields.element(boundBy: 1)),
         ]
-        let keys: [(XCUIRemote.Button, String)] = [(.playPause, "PlayPause"), (.select, "Select"), (.select, "Select"), (.menu, "Menu"), (.playPause, "PlayPause")]
+        let keys: [(XCUIRemote.Button, String)] = [
+            (.playPause, "PlayPause"), (.select, "Select"), (.select, "Select"), (.menu, "Menu"), (.playPause, "PlayPause"),
+            (.select, "Select"), (.select, "Select"), (.playPause, "PlayPause"), (.menu, "Menu"), (.playPause, "PlayPause"),
+        ]
         for (name, field) in fields {
             XCTAssertTrue(field.waitForExistence(timeout: 10), "No field for \(name)\n\(screen)")
             focus(field, pressing: .down, presses: 6)
@@ -128,6 +131,7 @@ final class RemoteTests: XCTestCase {
                 pressed.append(key)
                 RunLoop.current.run(until: Date().addingTimeInterval(1))
                 XCTAssertEqual(app.state, .runningForeground, "The app stopped on \(name) after \(pressed.joined(separator: " "))")
+                print("[remote] \(name) after \(pressed.joined(separator: " ")):\n\(outline())")
             }
             // Back to Settings from a keyboard still open.
             for _ in 0..<2 where !field.exists || app.keyboards.firstMatch.exists {

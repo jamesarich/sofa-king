@@ -86,7 +86,7 @@ The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_A
 | --- | --- |
 | A recording is `failed` with `MISSED` | Its whole window passed while the server was down. A restart during a window resumes into the same file instead. |
 | A recording is `failed` with `CAPACITY_EXHAUSTED` | Every playback slot was held by someone watching for the whole window; a recording takes a preview's or an idle player's slot but never a viewer's. Raise `SOFA_MAX_SESSIONS`, or check `conflict` on the scheduled ones. |
-| Scheduling answers `PROGRAMME_NOT_FOUND` | The channel has no guide, or the program is not in it. Map a guide to the channel, or record it as a [time window](recordings.md#record-a-time-window). |
+| Scheduling answers `PROGRAM_NOT_FOUND` | The channel has no guide, or the program is not in it. Map a guide to the channel, or record it as a [time window](recordings.md#record-a-time-window). |
 | The home page says the server cannot write the recordings folder | Docker created `deploy/recordings` as root, or the folder belongs to another user. `chown` it to the container's user (`UID` and `GID` in `.env`, 1000 by default), or create it before the first start; see [the recordings folder](deploy.md#the-recordings-folder). |
 | No commercial breaks on a recording | `commercials` is `done` with no `breaks` when Comskip found none, and `failed` when it could not run; the log has `commercial scan failed`. Comskip finds fewer breaks on channels without a logo or black frames between ads. Outside the image, set `SOFA_COMSKIP` to its path. |
 | A recording ends early with `DISK_FULL` | The recordings folder's disk fell below 512 MiB free with no finished recording left to delete. Free space on that disk or move the folder to a bigger one. |

@@ -293,7 +293,7 @@
       },
       "GuideStatus": {
         "type": "object",
-        "properties": { "id": { "type": "string" }, "lastSuccessAt": { "type": ["string", "null"] }, "errorCode": { "type": ["string", "null"] }, "channels": { "type": "integer" }, "programmes": { "type": "integer" } }
+        "properties": { "id": { "type": "string" }, "lastSuccessAt": { "type": ["string", "null"] }, "errorCode": { "type": ["string", "null"] }, "channels": { "type": "integer" }, "programs": { "type": "integer" } }
       },
       "GuideChannelInfo": { "type": "object", "properties": { "channelId": { "type": "string" }, "displayName": { "type": "string" }, "icon": { "type": ["string", "null"] } } },
       "GuideMapping": { "type": "object", "required": ["guideId", "channelId"], "properties": { "guideId": { "type": "string" }, "channelId": { "type": "string" } } },
@@ -958,11 +958,11 @@
           },
           "400": { "$ref": "#/components/responses/Error" },
           "404": {
-            "description": "CHANNEL_NOT_FOUND or PROGRAMME_NOT_FOUND",
+            "description": "CHANNEL_NOT_FOUND or PROGRAM_NOT_FOUND",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
           },
           "409": {
-            "description": "PROGRAMME_ENDED",
+            "description": "PROGRAM_ENDED",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
           }
         }

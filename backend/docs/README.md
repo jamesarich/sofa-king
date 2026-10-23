@@ -43,7 +43,7 @@ The terms the server shares with the app (lineup, channel or lineup entry, group
 | Term | Meaning |
 | --- | --- |
 | Provider | One entry in `sources.json`: an M3U playlist, or a native client for one free streaming service. Each has an ID, such as `pluto` |
-| Guide, guide source | An XMLTV source of programs that the server imports. A provider can bring its own guide, and `sources.json` can list more. It is not the app's guide grid. The API's guide counts use the XMLTV field name `programmes` |
+| Guide, guide source | An XMLTV source of programs that the server imports. A provider can bring its own guide, and `sources.json` can list more. It is not the app's guide grid. The guide query's response keeps the XMLTV name `programmes` for its programs, which released apps read |
 | Candidate | A channel as one provider lists it, before it is in the lineup |
 | Source | One stream URL a provider lists for a channel. Health is tracked per source, and a channel can have several, from any providers, in failover order. The API calls sources `offerings` |
 | Station | One channel as the viewer sees it. The lineup policy builds one station from all the candidates that share a station key, a normalized form of the name, and serves it as one lineup entry |

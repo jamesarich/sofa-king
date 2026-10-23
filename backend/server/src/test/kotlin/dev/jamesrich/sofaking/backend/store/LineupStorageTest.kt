@@ -67,7 +67,7 @@ class LineupStorageTest {
                 // What an import that died after writing part of the next generation leaves behind.
                 store.query {
                     exec("INSERT INTO guide_channel(guide_id, generation, channel_id, display_name) VALUES ('g', 2, 'c9', 'Partial')")
-                    exec("INSERT INTO guide_programme(guide_id, generation, channel_id, starts_at, ends_at, title) VALUES ('g', 2, 'c0', ${t.epochSecond}, ${t.epochSecond + 60}, 'Partial')")
+                    exec("INSERT INTO guide_program(guide_id, generation, channel_id, starts_at, ends_at, title) VALUES ('g', 2, 'c0', ${t.epochSecond}, ${t.epochSecond + 60}, 'Partial')")
                 }
                 assertEquals(listOf("Old 0"), store.programs("g", listOf("c0"), t, t.plusSeconds(60)).getValue("c0").map { it.title }, "rows of an unfinished import stay hidden")
                 assertEquals(listOf("c0"), store.guides().getValue("g").channels.map { it.id })
@@ -75,7 +75,7 @@ class LineupStorageTest {
                 store.saveGuide("g", t.plusSeconds(60), listOf(GuideChannel("c0", "Zero")), fresh)
                 assertEquals(listOf("New"), store.programs("g", listOf("c0"), t, t.plusSeconds(60)).getValue("c0").map { it.title })
                 assertEquals(1, store.guides().getValue("g").programs)
-                val stored = store.query { exec("SELECT COUNT(*) FROM guide_programme") { it.next(); it.getInt(1) } }
+                val stored = store.query { exec("SELECT COUNT(*) FROM guide_program") { it.next(); it.getInt(1) } }
                 assertEquals(1, stored, "the old generation and the failed import's rows are deleted")
             }
         } finally { dir.toFile().deleteRecursively() }

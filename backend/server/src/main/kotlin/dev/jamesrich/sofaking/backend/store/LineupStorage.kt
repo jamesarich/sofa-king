@@ -154,7 +154,7 @@ private suspend fun BackendStore.deleteGuideRows(guideId: String, except: Long?)
     while (true) {
         val deleted = query {
             exec(
-                "DELETE FROM guide_programme WHERE rowid IN (SELECT rowid FROM guide_programme WHERE guide_id = ? AND generation <> ? LIMIT ?)",
+                "DELETE FROM guide_program WHERE rowid IN (SELECT rowid FROM guide_program WHERE guide_id = ? AND generation <> ? LIMIT ?)",
                 args,
             )
             exec("SELECT changes()") { it.next(); it.getInt(1) } ?: 0

@@ -186,11 +186,11 @@ class Dvr(
             if (title.length > 200) throw ApiFailure(400, "INVALID_REQUEST", "A title has at most 200 characters")
             GuideProgram(channelId = entry.id, startsAt = start, endsAt = end, title = title)
         } else {
-            val mapping = entry.guide ?: throw ApiFailure(404, "PROGRAMME_NOT_FOUND", "The channel has no guide; give endsAt to record a time window")
+            val mapping = entry.guide ?: throw ApiFailure(404, "PROGRAM_NOT_FOUND", "The channel has no guide; give endsAt to record a time window")
             guides.programs(mapping.guideId, listOf(mapping.channelId), start, start.plusSeconds(1))[mapping.channelId]
-                ?.firstOrNull { it.startsAt == start } ?: throw ApiFailure(404, "PROGRAMME_NOT_FOUND", "No program starts then on that channel")
+                ?.firstOrNull { it.startsAt == start } ?: throw ApiFailure(404, "PROGRAM_NOT_FOUND", "No program starts then on that channel")
         }
-        if (program.endsAt <= clock.instant()) throw ApiFailure(409, "PROGRAMME_ENDED", "The program has already ended")
+        if (program.endsAt <= clock.instant()) throw ApiFailure(409, "PROGRAM_ENDED", "The program has already ended")
         // A window someone picked by the clock is recorded as given; a guide program gets the usual padding.
         val padding = if (manual) Duration.ZERO to Duration.ZERO else DEFAULT_START_PADDING to DEFAULT_END_PADDING
         return mutex.withLock {

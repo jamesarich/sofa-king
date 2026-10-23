@@ -124,7 +124,7 @@ class DvrTest {
                 val dvr = assertNotNull(runtime.dvr)
                 val live = runtime.lineup.entries().single { it.number == "2" }
                 val failure = assertFailsWith<dev.jamesrich.sofaking.backend.catalog.ApiFailure> { dvr.schedule(ScheduleRecording(live.id, start.plusSeconds(60).toString())) }
-                assertEquals("PROGRAMME_NOT_FOUND", failure.code)
+                assertEquals("PROGRAM_NOT_FOUND", failure.code)
                 val oneOff = dvr.schedule(ScheduleRecording(live.id, start.toString()))
                 assertEquals(oneOff.id, dvr.schedule(ScheduleRecording(live.id, start.toString())).id, "scheduling twice is one recording")
                 assertEquals(60, oneOff.startPaddingSeconds)
@@ -198,7 +198,7 @@ class DvrTest {
                 val live = runtime.lineup.entries().single { it.number == "2" }
                 val start = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(3600)
                 val guideless = assertFailsWith<dev.jamesrich.sofaking.backend.catalog.ApiFailure> { dvr.schedule(ScheduleRecording(live.id, start.toString())) }
-                assertEquals("PROGRAMME_NOT_FOUND", guideless.code)
+                assertEquals("PROGRAM_NOT_FOUND", guideless.code)
                 val tooLong = assertFailsWith<dev.jamesrich.sofaking.backend.catalog.ApiFailure> {
                     dvr.schedule(ScheduleRecording(live.id, start.toString(), start.plus(java.time.Duration.ofHours(13)).toString()))
                 }

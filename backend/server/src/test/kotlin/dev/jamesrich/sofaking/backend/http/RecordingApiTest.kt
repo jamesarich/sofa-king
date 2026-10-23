@@ -92,9 +92,9 @@ class RecordingApiTest {
             assertError(HttpStatusCode.BadRequest, "INVALID_REQUEST", send(HttpMethod.Post, recordings, schedule(window.toString(), window.minusSeconds(60).toString())))
             assertError(HttpStatusCode.BadRequest, "INVALID_REQUEST", send(HttpMethod.Post, recordings, schedule(window.toString(), window.plus(Duration.ofHours(13)).toString())))
             assertError(HttpStatusCode.NotFound, Wire.ErrorCode.CHANNEL_NOT_FOUND, send(HttpMethod.Post, recordings, schedule(window.toString(), channelId = "nope")))
-            assertError(HttpStatusCode.NotFound, "PROGRAMME_NOT_FOUND", send(HttpMethod.Post, recordings, schedule(programStart.plusSeconds(60).toString())))
+            assertError(HttpStatusCode.NotFound, "PROGRAM_NOT_FOUND", send(HttpMethod.Post, recordings, schedule(programStart.plusSeconds(60).toString())))
             val past = Instant.now().minusSeconds(7200)
-            assertError(HttpStatusCode.Conflict, "PROGRAMME_ENDED", send(HttpMethod.Post, recordings, schedule(past.toString(), past.plusSeconds(1800).toString())))
+            assertError(HttpStatusCode.Conflict, "PROGRAM_ENDED", send(HttpMethod.Post, recordings, schedule(past.toString(), past.plusSeconds(1800).toString())))
 
             val created = send(HttpMethod.Post, recordings, schedule(programStart.toString()))
             assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())

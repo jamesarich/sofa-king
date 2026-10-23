@@ -95,7 +95,7 @@ internal object ProviderStates : Table("provider_state") {
     val updatedAt = text("updated_at")
     override val primaryKey = PrimaryKey(providerId, key)
 }
-internal object GuidePrograms : Table("guide_programme") {
+internal object GuidePrograms : Table("guide_program") {
     val guideId = text("guide_id")
     val generation = long("generation").default(0)
     val channelId = text("channel_id")

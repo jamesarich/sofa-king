@@ -7,11 +7,8 @@ import dev.jamesrich.sofaking.contract.RecordingRule
 import java.time.Duration
 import java.time.Instant
 
-/**
- * The server's own recording state beside the wire ones: a rule's airing someone canceled, kept so the rule does not
- * schedule it again. Stored rows carry the value, so it keeps its British spelling.
- */
-internal const val CANCELED = "cancelled"
+/** The server's own recording state beside the wire ones: a rule's airing someone canceled, kept so the rule does not schedule it again. */
+internal const val CANCELED = "canceled"
 
 /** One recording as stored; [startsAt] and [endsAt] are the program's, and the padding widens the window the recorder runs in. */
 data class StoredRecording(

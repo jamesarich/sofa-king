@@ -248,7 +248,7 @@ class BackendStoreTest {
             val programs = List(2000) { i -> dev.jamesrich.sofaking.backend.catalog.GuideProgram("c${i % 50}", t.plusSeconds(i * 600L), t.plusSeconds(i * 600L + 600), "Show $i") }
             store.saveGuide("g", t, channels, programs)
             val analyzed = store.query { exec("SELECT DISTINCT tbl FROM sqlite_stat1") { rs -> buildList { while (rs.next()) add(rs.getString(1)) } } }.orEmpty()
-            assertTrue("guide_programme" in analyzed, "$analyzed")
+            assertTrue("guide_program" in analyzed, "$analyzed")
         }
     }
 

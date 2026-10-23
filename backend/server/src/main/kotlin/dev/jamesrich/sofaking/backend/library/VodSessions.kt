@@ -74,13 +74,17 @@ internal class SubtitleSource(val stream: SubtitleStream, val file: Path?) {
     val picture: Boolean get() = stream.codec !in TEXT_SUBTITLES
 }
 
+/** The lock on one subtitle file, and how many requests hold or wait for it. */
+private class ExtractionLock {
+    val mutex = Mutex()
+    var users = 0
+}
+
 /** Where extracted subtitles are kept, under the conversion directory. */
 private const val SUBTITLES = "subtitles"
 
 /** How long reading one subtitle stream out of a file may take. */
 private const val SUBTITLE_TIMEOUT_MINUTES = 10L
-
-private const val SUBTITLE_LOCK_STRIPES = 16
 
 /** Subtitle extractions that run at once. */
 private const val SUBTITLE_EXTRACTIONS = 3
@@ -154,8 +158,8 @@ class VodSessions(
     private val sessions = HashMap<String, VodState>()
     private val mutex = Mutex()
     private val random = SecureRandom()
-    /** One lock per stripe of subtitle files, so one file is never extracted twice at once and a slow one holds up no other. */
-    private val extracting = Array(SUBTITLE_LOCK_STRIPES) { Mutex() }
+    /** A lock per subtitle file while anyone wants it, so one file is never extracted twice at once and a slow one holds up no other. */
+    private val extracting = HashMap<String, ExtractionLock>()
     /** Each extraction reads a whole file, so only a few run at once. */
     private val extractions = Semaphore(SUBTITLE_EXTRACTIONS)
     /** Sessions taken out under the lock whose FFmpeg and files [dispose] deals with once it is released. */
@@ -213,7 +217,7 @@ class VodSessions(
         val stamp = withContext(Dispatchers.IO) { "${Files.getLastModifiedTime(file).toMillis()}-${Files.size(file)}" }
         val name = hash("$itemId/$index/$stamp").take(32)
         val out = dir.resolve("$name.vtt")
-        return extracting[Math.floorMod(name.hashCode(), SUBTITLE_LOCK_STRIPES)].withLock {
+        return extractingOnly(name) {
             withContext(Dispatchers.IO) {
                 if (!Files.isRegularFile(out)) {
                     Files.createDirectories(dir)
@@ -230,6 +234,16 @@ class VodSessions(
                 }
                 out
             }
+        }
+    }
+
+    /** Runs [block] holding the lock on subtitle file [name], which goes once nobody holds or waits for it. */
+    private suspend fun <T> extractingOnly(name: String, block: suspend () -> T): T {
+        val lock = synchronized(extracting) { extracting.getOrPut(name) { ExtractionLock() }.also { it.users++ } }
+        try {
+            return lock.mutex.withLock { block() }
+        } finally {
+            synchronized(extracting) { if (--lock.users == 0) extracting.remove(name) }
         }
     }
 

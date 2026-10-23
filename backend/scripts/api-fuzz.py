@@ -2,6 +2,8 @@
 """Fuzz every route in the OpenAPI document against the installed application with Schemathesis.
 
 Fails on any 5xx, a response that breaks its documented schema or content type, or a server that stops answering.
+The live playback routes may answer their documented 503 SOURCE_UNAVAILABLE: a channel the fuzzer adds to the lineup
+has a made-up stream with no usable source, and only some runs go on to play one.
 The routes that save configuration and restart the server are left out, since a restart ends the run. Schemathesis
 runs in the temporary directory, so its example database goes with it.
 """
@@ -22,6 +24,11 @@ SPEC = ROOT / 'server/src/main/resources/api/openapi.json'
 TOKEN = 'local-fuzz-token-' + 'x' * 40
 # PUT source-file, PUT tmdb-token and POST policy/starter save and restart (SetupService.requestRestart).
 RESTARTS = r'/admin/(source-file|tmdb-token|policy/starter)$'
+# Schemathesis reads schemathesis.toml from the directory it runs in.
+CONFIG = '''[[operations]]
+include-path-regex = '^/(api/v1/playback-sessions|media/sessions/|output/stream/|auto/)'
+checks.not_a_server_error.expected-statuses = ["2xx", "3xx", "4xx", "503"]
+'''
 
 
 def main():
@@ -34,6 +41,7 @@ def main():
     base = f'http://127.0.0.1:{port}'
     with tempfile.TemporaryDirectory(prefix='sofa-api-fuzz-') as temporary:
         directory = Path(temporary)
+        (directory / 'schemathesis.toml').write_text(CONFIG)
         env = dict(os.environ, SOFA_HOST='127.0.0.1', SOFA_PORT=str(port), SOFA_DATA_DIR=str(directory), SOFA_API_TOKEN=TOKEN)
         log_path = directory / 'server.log'
         with log_path.open('w') as log:

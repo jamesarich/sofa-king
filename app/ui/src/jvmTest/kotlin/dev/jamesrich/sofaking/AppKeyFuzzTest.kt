@@ -33,9 +33,11 @@ import java.io.File
 import java.net.InetSocketAddress
 import java.nio.file.Files
 import java.util.Collections
+import java.util.Timer
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 import javax.imageio.ImageIO
+import kotlin.concurrent.schedule
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.fail
@@ -72,6 +74,7 @@ class AppKeyFuzzTest {
         val uncaught = Collections.synchronizedList(mutableListOf<Throwable>())
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { _, e -> uncaught += e }
+        val watchdog = hangWatchdog()
         try {
             val data = Files.createTempDirectory("sofaking-fuzz").toString()
             initSofaKing(AppStorage.inDirectory(data, ClientInfo("desktop", "fuzz")))
@@ -94,8 +97,24 @@ class AppKeyFuzzTest {
                 File("build/fuzz/trace-$seed.txt").writeText(trace.joinToString("\n"))
             }
         } finally {
+            watchdog.cancel()
             Thread.setDefaultUncaughtExceptionHandler(previousHandler)
             server.stop()
+        }
+    }
+
+    /**
+     * A run stuck past [HANG_MS] leaves every thread's stack and the keys so far in build/fuzz, which CI uploads,
+     * since a hung test otherwise reports nothing before the job's own timeout cancels it.
+     */
+    private fun hangWatchdog() = Timer("fuzz-watchdog", true).apply {
+        schedule(HANG_MS) {
+            val keys = runCatching { trace.toList() }.getOrDefault(emptyList())
+            val dump = Thread.getAllStackTraces().entries.joinToString("\n\n") { (thread, stack) ->
+                "\"${thread.name}\" ${thread.state}\n" + stack.joinToString("\n") { "    at $it" }
+            }
+            File("build/fuzz").apply { mkdirs() }.resolve("hang-$seed.txt")
+                .writeText("Stuck after ${keys.size} keys:\n${keys.takeLast(KEY_TRAIL).joinToString("\n")}\n\n$dump")
         }
     }
 
@@ -302,6 +321,7 @@ class AppKeyFuzzTest {
     private companion object {
         const val CHANNELS = 40
         const val TAP_MS = 60L
+        const val HANG_MS = 5 * 60_000L
         const val HOLD_MS = 900L
         const val REPEAT_DELAY_MS = 500L
         const val REPEAT_MS = 50L

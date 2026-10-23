@@ -73,13 +73,14 @@ Use JDK 21 and FFmpeg on the path. Run every command from `backend/`:
 ./gradlew test :server:installDist
 python3 scripts/smoke.py
 python3 scripts/live-smoke.py
+python3 scripts/api-fuzz.py
 ```
 
 The unit tests cover persistence and migrations, playlist and guide imports (including gzip guides), the native provider clients, the lineup and the lineup policy, and source health. They also cover playback sessions, the relay, the admin API and portal, the player outputs, the logo cache, the HDHomeRun routes, the FFmpeg remux and client cleanup, the DVR's schedule, recorder, file layout and cleanup, library file names, `.nfo` files, scans, TMDB lookups and the library API, and library playback sessions with their modes and recordings. Tests that depend on a response's lifetime or on an FFmpeg client run the server on a real Netty socket (`RealServer`), because the Ktor test host hands a streamed body to a background job. `MediaFixture` generates H.264 and AAC HLS with FFmpeg, so FFmpeg is needed to run the suite. One test runs Comskip on a generated recording when `comskip` is on the path (`apt install comskip` on Debian and Ubuntu) and skips otherwise.
 
 The tests run on JUnit Jupiter through `kotlin.test`. Each test fails after 60 seconds unless it carries a longer `@Timeout` (`server/src/test/resources/junit-platform.properties`), and a debugger session is never timed out. Wait for background work with `pollUntil` or `pollFor` (`Polling.kt`) rather than a fixed sleep. To check that a timed loop does nothing more, run it on the test scheduler with `runTest` and advance its virtual time.
 
-The smoke scripts start disposable servers in temporary directories. `smoke.py` verifies the installed application over HTTP, including SIGTERM and restart. `live-smoke.py` generates H.264 and AAC fixtures and builds and edits a lineup through the admin API. It then checks concurrent playback and cancellation, loads the player output with FFmpeg as the player, and checks the lineup across a restart. Neither reaches the network, since `live-smoke.py` serves its fixtures over loopback, and CI runs both on every server change.
+The smoke scripts start disposable servers in temporary directories. `smoke.py` verifies the installed application over HTTP, including SIGTERM and restart. `live-smoke.py` generates H.264 and AAC fixtures and builds and edits a lineup through the admin API. It then checks concurrent playback and cancellation, loads the player output with FFmpeg as the player, and checks the lineup across a restart. Neither reaches the network, since `live-smoke.py` serves its fixtures over loopback, and CI runs both on every server change. `api-fuzz.py` runs [Schemathesis](https://schemathesis.readthedocs.io/) (install it with `pipx install schemathesis`) against the OpenAPI document: generated requests on every route, failing on a 5xx, a response that breaks its documented schema or content type, or a server that stops answering. It leaves out the three routes that save configuration and restart the server. `SOFA_FUZZ_EXAMPLES` sets the examples per route (100 by default); CI runs it too.
 
 ## Code
 
@@ -91,6 +92,7 @@ Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conven
 | --- | --- |
 | `scripts/smoke.py` | Installed-application check over HTTP |
 | `scripts/live-smoke.py` | Fixture playlists through the relay, probes, lineup edits and restart |
+| `scripts/api-fuzz.py` | Schemathesis on every documented route of a fresh server |
 | `scripts/bridge-smoke.py` | Imports one playlist into a temporary server, adopts its channels and optionally decodes one |
 | `scripts/provider-smoke.py` | Checks one native provider against its live service |
 | `scripts/generate-policy.py` | Generates a [lineup policy](lineup-policy.md#generate-a-policy) from a running server; `python3 -I -m unittest discover -s scripts -p 'test_*.py'` tests it, including its normalization against the server's golden keys |

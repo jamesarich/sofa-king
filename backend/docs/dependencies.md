@@ -15,6 +15,8 @@ The image's programs come from its Ubuntu 24.04 (noble) base as distribution pac
 
 The tests run on JUnit 6 (JUnit Jupiter and its platform launcher, the catalog's `junit`) through `kotlin-test-junit5`, which follows the Kotlin version, with `kotlinx-coroutines-test` for virtual time.
 
+CI's API fuzz (`scripts/api-fuzz.py`) installs [Schemathesis](https://schemathesis.readthedocs.io/) 4.32.4 with `pipx`, pinned in `.github/workflows/backend.yml`. Renovate does not track it; update the pin by hand.
+
 The server targets JVM 21. The [contract](../../contract/README.md) it shares with the app compiles to JVM 17 bytecode for the server and Android, and to every other target the app builds; it pins the same Kotlin and kotlinx.serialization versions as the server.
 
 ## Vendored htmx

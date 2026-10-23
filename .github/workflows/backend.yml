@@ -101,6 +101,16 @@ jobs:
           SOFA_UPDATE_IMAGE: ""
         run: python3 scripts/live-smoke.py
 
+      # Schemathesis sends generated requests to every documented route of a fresh server and fails on a 5xx, a
+      # response that breaks the OpenAPI document, or a server that stops answering.
+      - name: Fuzz the API against its OpenAPI document
+        timeout-minutes: 10
+        env:
+          SOFA_UPDATE_IMAGE: ""
+        run: |
+          pipx install schemathesis==4.32.4
+          python3 scripts/api-fuzz.py
+
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

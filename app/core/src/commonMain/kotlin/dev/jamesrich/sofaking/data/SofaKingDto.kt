@@ -16,6 +16,7 @@ import dev.jamesrich.sofaking.contract.LibraryHome
 import dev.jamesrich.sofaking.contract.LibraryItem
 import dev.jamesrich.sofaking.contract.LibraryItemDetail
 import dev.jamesrich.sofaking.contract.LibraryPage
+import dev.jamesrich.sofaking.contract.MediaSegment
 import dev.jamesrich.sofaking.contract.MediaTrack
 import dev.jamesrich.sofaking.contract.OpenVodPlayback
 import dev.jamesrich.sofaking.contract.PlayState
@@ -68,6 +69,7 @@ internal typealias LibraryPageDto = LibraryPage
 internal typealias LibraryHomeDto = LibraryHome
 internal typealias LibraryItemDetailDto = LibraryItemDetail
 internal typealias MediaTrackDto = MediaTrack
+internal typealias MediaSegmentDto = MediaSegment
 internal typealias PlayStateDto = PlayState
 internal typealias UpdatePlayStateDto = UpdatePlayState
 internal typealias OpenVodPlaybackDto = OpenVodPlayback

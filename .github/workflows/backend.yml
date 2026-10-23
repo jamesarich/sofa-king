@@ -40,7 +40,8 @@ permissions:
 
 concurrency:
   group: backend-${{ github.ref }}
-  cancel-in-progress: true
+  # A push to main publishes the image, so only pull request runs are canceled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   SOFAKING_CACHE_USERNAME: ${{ secrets.SOFAKING_CACHE_USERNAME }}
@@ -78,6 +79,12 @@ jobs:
 
       - name: Test and build the distribution
         run: ./gradlew --console=plain test :server:installDist
+
+      # The contract is an included build, so the server's test task does not run its tests: the wire fixtures that
+      # older apps rely on are only checked here.
+      - name: Test the contract
+        working-directory: contract
+        run: ./gradlew --console=plain jvmTest
 
       # The deploy and smoke scripts have no Gradle task; the runner image ships shellcheck.
       - name: Check the shell and Python tooling

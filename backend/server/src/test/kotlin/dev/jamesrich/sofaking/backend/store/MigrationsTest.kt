@@ -79,7 +79,7 @@ class MigrationsTest {
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT version FROM schema_version ORDER BY version").use { rows ->
-                        assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201, 202, 203, 204, 205), buildList { while (rows.next()) add(rows.getInt(1)) })
+                        assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201, 202, 203, 204, 205, 206), buildList { while (rows.next()) add(rows.getInt(1)) })
                     }
                 }
             }
@@ -166,14 +166,14 @@ class MigrationsTest {
         try {
             val db = databaseAt(dir)
             try {
-                applyMigrations(db, foundationMigrations().filter { it.version < 205 })
+                applyMigrations(db, foundationMigrations().filter { it.version < 206 })
                 transaction(db) {
                     exec("INSERT INTO guide_import(guide_id, imported_at) VALUES ('g', '2026-10-10T00:00:00Z')")
                     exec("INSERT INTO guide_programme(guide_id, channel_id, starts_at, ends_at, title) VALUES ('g', 'c', 1791640800, 1791644400, 'Kept')")
                     exec(
                         "INSERT INTO recording(id, channel_id, channel_name, starts_at, ends_at, start_padding_seconds, end_padding_seconds, title, movie, " +
                             "state, bytes, protected, position_ms, watched, created_at, updated_at) VALUES ('r', 'c', 'C', 1791640800, 1791644400, 0, 0, " +
-                            "'Kept', 0, 'cancelled', 0, 0, 0, 0, '2026-10-10T00:00:00Z', '2026-10-10T00:00:00Z')",
+                            "'Kept', 0, 'canceled', 0, 0, 0, 0, '2026-10-10T00:00:00Z', '2026-10-10T00:00:00Z')",
                     )
                 }
             } finally { closeDatabase(db) }
@@ -197,7 +197,7 @@ class MigrationsTest {
         val db = databaseAt(dir)
         try {
             applyMigrations(db, foundationMigrations())
-            assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201, 202, 203, 204, 205), foundationMigrations().map { it.version })
+            assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201, 202, 203, 204, 205, 206), foundationMigrations().map { it.version })
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").use { rows ->

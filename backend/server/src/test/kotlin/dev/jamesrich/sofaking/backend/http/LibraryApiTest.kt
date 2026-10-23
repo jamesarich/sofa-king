@@ -2,8 +2,13 @@ package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.*
 import dev.jamesrich.sofaking.backend.catalog.*
+import dev.jamesrich.sofaking.backend.library.IntroRecord
+import dev.jamesrich.sofaking.backend.library.IntroSpan
 import dev.jamesrich.sofaking.backend.library.LibraryKind
+import dev.jamesrich.sofaking.backend.library.fileKey
+import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.store.saveLibraryFingerprint
 import dev.jamesrich.sofaking.contract.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -78,6 +83,18 @@ class LibraryApiTest {
 
             assertKeepsWireFixture("v1/library-page.json", pageBody)
             assertKeepsWireFixture("v1/library-item-detail.json", seasonBody)
+
+            // An episode's page carries the intro and credits intro detection found in it.
+            val pilotRecord = store.libraryItems(library.id).single { it.id == pilot.id }
+            store.saveLibraryFingerprint(
+                IntroRecord(pilot.id, fileKey(pilotRecord), null, IntroSpan(5_000, 65_000), "2026-10-10T13:00:00Z", tailStartMs = 0, credits = IntroSpan(1_300_000, 1_380_000)),
+            )
+            val episodeBody = get("/api/v1/library/items/${pilot.id}").bodyAsText()
+            assertEquals(
+                listOf(MediaSegment(Wire.SegmentKind.INTRO, 5_000, 65_000), MediaSegment(Wire.SegmentKind.CREDITS, 1_300_000, 1_380_000)),
+                json.decodeFromString<LibraryItemDetail>(episodeBody).segments,
+            )
+            assertKeepsWireFixture("v1/library-episode-detail.json", episodeBody)
             assertKeepsWireFixture("v1/library-home.json", homeBody)
         } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
     }

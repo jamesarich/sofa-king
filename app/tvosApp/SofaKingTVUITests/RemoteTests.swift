@@ -26,12 +26,12 @@ final class RemoteTests: XCTestCase {
         eventually("News Now to open a playback session", timeout: 30) { !server.sessions().isEmpty }
         let tuned = server.sessions().first?["channelId"] as? String
 
-        let record = app.buttons["Record"]
+        let record = control("Record")
         reachInTransportBar(record)
         remote.press(.select)
         eventually("the server to schedule the recording") { server.recordings() > 0 }
 
-        let channels = app.buttons["Channels"]
+        let channels = control("Channels")
         reachInTransportBar(channels)
         remote.press(.select)
         let all = menuItem("All channels")
@@ -191,6 +191,12 @@ final class RemoteTests: XCTestCase {
     @MainActor
     private func row(_ name: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "elementType IN %@ AND label CONTAINS %@", Self.pressable, name)).firstMatch
+    }
+
+    /// A button by its label, such as the transport bar's `Record`, which is a cell to accessibility.
+    @MainActor
+    private func control(_ label: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "elementType IN %@ AND label == %@", Self.pressable, label)).firstMatch
     }
 
     /// An item in the transport bar's menus, such as `All channels` or `3 Sofa Sports`.

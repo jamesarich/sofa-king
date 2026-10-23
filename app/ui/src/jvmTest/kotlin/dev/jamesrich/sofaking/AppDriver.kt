@@ -28,7 +28,6 @@ import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.inDirectory
 import dev.jamesrich.sofaking.ui.TV_PROPERTY
-import dev.jamesrich.sofaking.ui.player.UnavailableLivePlayer
 import dev.jamesrich.sofaking.ui.player.VlcLivePlayer
 import dev.jamesrich.sofaking.ui.player.newDesktopLivePlayer
 import java.io.File
@@ -40,7 +39,7 @@ import kotlin.test.fail
 /**
  * Starts the whole app in a 1920 by 1080 test scene, paired with [server] through the link a QR code carries, in the
  * TV layout when [tv] is set, and runs [block] once the guide shows the lineup. libVLC is left out, so the player
- * reports that VLC is missing. A failure's screen and semantics tree go to [out].
+ * reports that VLC is missing without looking for it. A failure's screen and semantics tree go to [out].
  */
 @OptIn(ExperimentalTestApi::class)
 internal fun runSofaKing(tv: Boolean, out: File, server: FakeServer = FakeServer(), block: AppDriver.() -> Unit) {
@@ -53,7 +52,7 @@ internal fun runSofaKing(tv: Boolean, out: File, server: FakeServer = FakeServer
     try {
         val data = Files.createTempDirectory("sofaking-test").toString()
         initSofaKing(AppStorage.inDirectory(data, ClientInfo("desktop", "test")))
-        newDesktopLivePlayer = { UnavailableLivePlayer(it, code = "VLC_NOT_INSTALLED") }
+        newDesktopLivePlayer = { VlcLivePlayer(it) { throw UnsatisfiedLinkError("libVLC left out") } }
         runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
             setContent {
                 // A window turns an Escape nothing took into a back event; the test scene has no window, so this does.
@@ -71,7 +70,7 @@ internal fun runSofaKing(tv: Boolean, out: File, server: FakeServer = FakeServer
     } finally {
         stopSofaKing()
         System.clearProperty(TV_PROPERTY)
-        newDesktopLivePlayer = ::VlcLivePlayer
+        newDesktopLivePlayer = { VlcLivePlayer(it) }
         Thread.setDefaultUncaughtExceptionHandler(previousHandler)
         server.stop()
     }

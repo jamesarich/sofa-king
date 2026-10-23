@@ -8,14 +8,23 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Lets Android 14 and later skip that confirmation for an app that installed itself, as Android 12 and 13 do. -->
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+    <!-- The Android TV home screen's Watch Next row, which follows the library's Continue watching shelf. -->
+    <uses-permission android:name="com.android.providers.tv.permission.WRITE_EPG_DATA" />
+    <!-- A restart drops the home screen's grant to read the row's artwork; the app grants it again. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
-    <!-- Lets the app see whether a speech recognizer is installed before it offers voice search. -->
+    <!-- Lets the app see whether a speech recognizer is installed before it offers voice search, and which home screen
+         apps read the Watch Next row's artwork. -->
     <queries>
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
         </intent>
     </queries>
 
@@ -50,6 +59,28 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="sofaking" android:host="pair" />
             </intent-filter>
+            <!-- A Watch Next entry on the home screen plays its item: sofaking://vod/ID. Not BROWSABLE, so web pages cannot. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="sofaking" android:host="vod" />
+            </intent-filter>
         </activity>
+
+        <!-- The Watch Next row's artwork, read by the home screen through a URI grant. -->
+        <provider
+            android:name=".WatchNextArtworkProvider"
+            android:authorities="${applicationId}.artwork"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
+        <receiver
+            android:name=".ArtworkGrantReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

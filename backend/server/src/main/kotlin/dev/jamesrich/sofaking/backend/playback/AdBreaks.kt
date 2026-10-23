@@ -1,16 +1,28 @@
 package dev.jamesrich.sofaking.backend.playback
 
 import dev.jamesrich.sofaking.contract.AdRun
+import java.io.ByteArrayInputStream
+import java.io.IOException
 import java.net.URI
 import java.time.Instant
 import java.time.format.DateTimeParseException
+import java.util.Base64
+import java.util.zip.GZIPInputStream
 import kotlin.math.roundToLong
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 
 /**
  * The ad segments of a live HLS media playlist, the way the free streaming services mark them: SCTE-35 cue tags
  * (`#EXT-X-CUE-OUT`, `-CUE-OUT-CONT`, `-CUE-IN`, as Tubi, Whale and LG send), `#EXT-X-DATERANGE` with `SCTE35-OUT` in
- * a dated playlist, Pluto's stitched ads, which come from its ad muxer or its bumper clips, and the ads AWS
- * MediaTailor stitches for Xumo and Plex. Nothing is guessed from the picture, and a `#EXT-X-DISCONTINUITY` alone
+ * a dated playlist, Pluto's stitched ads, which come from its ad muxer or its bumper clips, the ads AWS
+ * MediaTailor stitches for Xumo and Plex, the ads and promos Roku stitches from its ad servers, and the flags two
+ * origins write into their segment URLs: Amagi's ad insertion (Whale, Plex and other Amagi channels) and the
+ * fuelmedia.io origin behind some Stirr stations. Nothing is guessed from the picture, and a `#EXT-X-DISCONTINUITY` alone
  * means nothing: Pluto puts one between episodes too. A cue whose `#EXT-X-CUE-OUT` has left the window is carried on
  * by [AdClock], which sees every refresh.
  */
@@ -94,7 +106,7 @@ internal object AdBreaks {
                 line.startsWith("#") -> Unit
                 else -> {
                     val at = date
-                    val ad = cueOpen || pluto(base, line) || mediaTailor(base, line) || (at != null && ranges.any { at in it })
+                    val ad = cueOpen || pluto(base, line) || mediaTailor(base, line) || roku(base, line) || amagi(base, line) || fuelmedia(base, line) || (at != null && ranges.any { at in it })
                     if (pendingEnd != null) plannedEnd[segments.size] = pendingEnd
                     segments += Segment(sequence + segments.size, durationMs, ad, absolute(base, line), cueIn)
                     pendingEnd = null
@@ -105,10 +117,10 @@ internal object AdBreaks {
             }
         }
         // Plex alternates its own part segments with the stream's, so a stitched break reads ad, part, ad: a single
-        // segment between two MediaTailor ads, with no cue-in before it, belongs to the break.
+        // segment between two MediaTailor or Amagi ads, with no cue-in before it, belongs to the break.
         for (index in 1 until segments.size - 1) {
             val segment = segments[index]
-            if (!segment.ad && !segment.cueIn && mediaTailor(base, segments[index - 1].url) && mediaTailor(base, segments[index + 1].url)) {
+            if (!segment.ad && !segment.cueIn && stitched(base, segments[index - 1].url) && stitched(base, segments[index + 1].url)) {
                 segments[index] = segment.copy(ad = true)
             }
         }
@@ -129,6 +141,56 @@ internal object AdBreaks {
         val path = try { base.resolve(reference).rawPath } catch (_: IllegalArgumentException) { return false } ?: return false
         return MEDIATAILOR_SEGMENT.matches(path)
     }
+
+    /**
+     * Roku's live channels play from `gcp-live-*.delivery.roku.com` and stitch their breaks from elsewhere: house promos
+     * and some spots from `osm-ads*.delivery.roku.com` (`…/hls/transcode_OVP_SSAI_MANAGER_…`), other spots from
+     * `osm-<region>.sr.roku.com/osbt/…`. Seen on 2026-10-23 on eight channels as 30 to 160 s runs, all of them breaks.
+     */
+    private fun roku(base: URI, reference: String): Boolean {
+        val uri = try { base.resolve(reference) } catch (_: IllegalArgumentException) { return false }
+        val host = uri.host?.lowercase() ?: return false
+        if (!host.endsWith(".roku.com")) return false
+        return host.startsWith("osm-ads") || (host.startsWith("osm-") && uri.rawPath?.startsWith("/osbt/") == true)
+    }
+
+    private fun stitched(base: URI, reference: String): Boolean = mediaTailor(base, reference) || amagi(base, reference)
+
+    /**
+     * Amagi's ad insertion serves every segment through a beacon URL on its `*.amagi.tv` playout,
+     * `/<node>/beacon/<channel>/<hash>?…&media_type=M&…`, where `media_type` is `M` for an ad and `C` for the channel's
+     * own content. Seen on 2026-10-23 on Whale's Qwest TV and on Plex's Amagi channels as runs of 2 to 21 six-second `M`
+     * segments.
+     */
+    private fun amagi(base: URI, reference: String): Boolean {
+        val uri = try { base.resolve(reference) } catch (_: IllegalArgumentException) { return false }
+        val host = uri.host?.lowercase() ?: return false
+        if (!host.endsWith(".amagi.tv") || uri.rawPath?.contains("/beacon/") != true) return false
+        return uri.rawQuery.orEmpty().split('&').any { it == "media_type=M" }
+    }
+
+    /**
+     * The fuelmedia.io origin behind some Stirr stations serves its decorated segments as
+     * `/play/seg/<variant>/<token>.ts`, where the token is base64url-encoded gzip of a JSON array whose first entry's
+     * `SegTag` says what the segment is: `IsAdBreak`, `IsAd` and `IsAdFiller` (an unsold slot's filler) mark a break.
+     * Seen on 2026-10-23 on KOTV as runs of 31 to 35 `adFiller` segments.
+     */
+    private val FUEL_SEGMENT = Regex("""^/play/seg/[^/]+/([A-Za-z0-9_-]+)(?:\.ts)?$""")
+
+    private fun fuelmedia(base: URI, reference: String): Boolean {
+        val uri = try { base.resolve(reference) } catch (_: IllegalArgumentException) { return false }
+        if (uri.host?.lowercase()?.endsWith(".fuelmedia.io") != true) return false
+        val token = FUEL_SEGMENT.find(uri.rawPath ?: return false)?.groupValues?.get(1) ?: return false
+        val tag = try {
+            val gzip = Base64.getUrlDecoder().decode(token.padEnd((token.length + 3) / 4 * 4, '='))
+            val text = GZIPInputStream(ByteArrayInputStream(gzip)).use { it.readNBytes(FUEL_TOKEN_LIMIT) }.decodeToString()
+            ((Json.parseToJsonElement(text) as? JsonArray)?.firstOrNull() as? JsonObject)?.get("SegTag") as? JsonObject
+        } catch (_: IllegalArgumentException) { null } catch (_: IOException) { null } catch (_: SerializationException) { null }
+            ?: return false
+        return listOf("IsAdBreak", "IsAd", "IsAdFiller").any { (tag[it] as? JsonPrimitive)?.booleanOrNull == true }
+    }
+
+    private const val FUEL_TOKEN_LIMIT = 64 * 1024
 
     /** True for a Pluto segment from its ad muxer or a bumper clip; other hosts never match, whatever their paths. */
     private fun pluto(base: URI, reference: String): Boolean {

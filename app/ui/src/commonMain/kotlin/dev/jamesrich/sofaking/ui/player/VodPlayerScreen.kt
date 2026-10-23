@@ -97,6 +97,7 @@ import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Clock
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -105,7 +106,9 @@ import org.jetbrains.compose.resources.stringResource
  * stream the session holds, including one it reopens after ON_START or a dropped lease or restarts for a seek past
  * what the server has written. [onPosition] gets the position in the item about once a second while it plays, and
  * [onStopped] where it stopped when the viewer leaves or it ends. Leaving stops the player and releases the session.
- * When it ends, [upNext] names what plays after it, which the Up next card counts down to and [onPlayNext] opens.
+ * When it ends, [upNext] names what plays after it, which the Up next card counts down to and [onPlayNext] opens;
+ * after [autoplays] says the card has played enough by itself, it asks "Still watching?" instead. The [sleep] timer
+ * leaves the player when it runs out, or as the item ends in place of Up next.
  */
 @Composable
 fun VodPlayerScreen(
@@ -136,6 +139,8 @@ fun VodPlayerScreen(
     /** How the picture meets the screen, and the next one picked from the bar or the Zoom key. */
     zoom: VideoZoom = VideoZoom.FIT,
     onZoom: (VideoZoom) -> Unit = {},
+    sleep: SleepTimer = remember { SleepTimer() },
+    autoplays: AutoplayRun = remember { AutoplayRun() },
 ) {
     val held by sessions.current.collectAsStateWithLifecycle()
     // Up next composes the next page beside this one while they cross-fade, so each plays, seeks and releases only
@@ -156,6 +161,8 @@ fun VodPlayerScreen(
     var subtitles by remember { mutableStateOf<Subtitles?>(null) }
     var subtitlesFailed by remember { mutableStateOf(false) }
     var nextSecondsLeft by remember { mutableIntStateOf(UP_NEXT_SECONDS) }
+    // The Up next card asks "Still watching?" and stops when it runs out, rather than playing what it names.
+    var stillWatching by remember { mutableStateOf(false) }
     // What plays after this item, looked up once it opens, for the Next episode button.
     var upcoming by remember { mutableStateOf<VodUpNext?>(null) }
     // The subtitle track CC turns back on.
@@ -163,7 +170,8 @@ fun VodPlayerScreen(
     // CC's answer, or the zoom just picked, for a moment.
     var toast by remember { mutableStateOf<VodToast?>(null) }
     val rowEntry = remember { FocusRequester() }
-    val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
+    val lastInput = LocalLastInput.current
+    val pointerDriven = lastInput.kind == InputKind.POINTER
     val fullScreen = LocalWindowFullScreen.current
     val inPictureInPicture = LocalInPictureInPicture.current
     val volume = LocalPlayerVolume.current
@@ -172,6 +180,7 @@ fun VodPlayerScreen(
     val currentOnPosition by rememberUpdatedState(onPosition)
     val currentOnStopped by rememberUpdatedState(onStopped)
     val currentOnEnded by rememberUpdatedState(onEnded)
+    val currentOnExit by rememberUpdatedState(onExit)
     val currentUpNext by rememberUpdatedState(upNext)
     val currentOnPlayNext by rememberUpdatedState(onPlayNext)
     val currentTitle by rememberUpdatedState(title)
@@ -266,8 +275,15 @@ fun VodPlayerScreen(
     LaunchedEffect(state.ended) {
         if (!state.ended) return@LaunchedEffect
         currentOnStopped(state.durationMs ?: state.positionMs, state.durationMs)
-        state.next = currentUpNext()
-        if (state.next == null) currentOnEnded()
+        if (sleep.atEndOfItem) {
+            sleep.cancel()
+            currentOnExit()
+            return@LaunchedEffect
+        }
+        val next = currentUpNext()
+        stillWatching = next != null && autoplays.askStillWatching(lastInput.atMs)
+        state.next = next
+        if (next == null) currentOnEnded()
     }
     LaunchedEffect(Unit) {
         upcoming = try {
@@ -279,15 +295,20 @@ fun VodPlayerScreen(
             null
         }
     }
-    // The Up next card counts down once a second and then plays what it names.
+    // The Up next card counts down once a second and then plays what it names, or, asking "Still watching?", leaves.
     LaunchedEffect(state.next) {
         if (state.next == null) return@LaunchedEffect
-        for (left in UP_NEXT_SECONDS downTo 1) {
+        for (left in (if (stillWatching) STILL_WATCHING_SECONDS else UP_NEXT_SECONDS) downTo 1) {
             nextSecondsLeft = left
             delay(1_000L)
         }
+        if (stillWatching) {
+            currentOnExit()
+            return@LaunchedEffect
+        }
         // Not while another app is in front: the next item opens once this one is back.
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {}
+        autoplays.autoplayed(uptimeMs())
         currentOnPlayNext()
     }
     // The clock of the screen: the position in the item, the length, a run into a break, a scrub that has
@@ -296,6 +317,11 @@ fun VodPlayerScreen(
         var lastReport = 0L
         while (true) {
             delay(TICK_MS)
+            if (sleep.due(Clock.System.now().toEpochMilliseconds())) {
+                sleep.cancel()
+                currentOnExit()
+                break
+            }
             state.settledScrub(uptimeMs())?.let(::seekItem)
             val current = sessions.current.value?.takeIf { it.itemId == itemId } ?: continue
             if (!player.isSeekable || pendingSeek != null) continue
@@ -619,7 +645,7 @@ fun VodPlayerScreen(
             VolumeToast()
         }
         state.failure?.let { FailureCard(it, live = false) }
-        state.next?.let { UpNextCard(it, nextSecondsLeft, pointerDriven, onPlay = onPlayNext, onCancel = onExit) }
+        state.next?.let { UpNextCard(it, nextSecondsLeft, pointerDriven, onPlay = onPlayNext, onCancel = onExit, stillWatching = stillWatching) }
         TransportDisc(state.transport, state.transportPulse)
         SeekBadge(state.scrubTarget.takeIf { !barVisible && state.failure == null }, positionMs = { state.positionMs })
 
@@ -668,6 +694,7 @@ fun VodPlayerScreen(
                         captionsOn = captionsOn == true,
                         zoom = zoom,
                         autoSkipSeconds = state.autoSkipSeconds,
+                        sleep = sleep,
                         onClick = {
                             when (button) {
                                 VodButton.SKIP_BREAK -> breakEnd?.let(::seekItem)
@@ -675,11 +702,12 @@ fun VodPlayerScreen(
                                 VodButton.TRACKS -> if (state.tracksOpen) state.closeTracks() else state.openTracks()
                                 VodButton.CAPTIONS -> switchCaptions()
                                 VodButton.ZOOM -> stepZoom()
+                                VodButton.SLEEP -> sleep.step(Clock.System.now().toEpochMilliseconds(), endOfItem = true)
                                 VodButton.START_OVER -> seekItem(0)
                                 VodButton.NEXT -> onPlayNext()
                             }
                             state.showInfo()
-                            // A seek moves on and the picture takes the keys again; Captions and Zoom stay for another press.
+                            // A seek moves on and the picture takes the keys again; Captions, Zoom and Sleep stay for another press.
                             if (button !in STAYING_BUTTONS) focus.requestFocus()
                         },
                     )
@@ -807,9 +835,16 @@ private fun DrawScope.drawSeekTrack(playedFraction: Float, lengthMs: Long?, mark
     }
 }
 
-/** The row's button for [button], with a recording's captions shown as [captionsOn] and the picture at [zoom]. */
+/** The row's button for [button], with a recording's captions shown as [captionsOn], the picture at [zoom] and the [sleep] timer. */
 @Composable
-private fun vodButtonItem(button: VodButton, captionsOn: Boolean, zoom: VideoZoom, autoSkipSeconds: Int?, onClick: () -> Unit): PlayerButtonItem = when (button) {
+private fun vodButtonItem(
+    button: VodButton,
+    captionsOn: Boolean,
+    zoom: VideoZoom,
+    autoSkipSeconds: Int?,
+    sleep: SleepTimer,
+    onClick: () -> Unit,
+): PlayerButtonItem = when (button) {
     VodButton.SKIP_BREAK -> PlayerButtonItem(SofaIcons.FastForward, stringResource(Res.string.vod_control_skip_break), onClick)
     VodButton.SKIP_INTRO -> PlayerButtonItem(
         SofaIcons.FastForward,
@@ -824,6 +859,7 @@ private fun vodButtonItem(button: VodButton, captionsOn: Boolean, zoom: VideoZoo
         state = stringResource(if (captionsOn) Res.string.captions_on else Res.string.captions_off),
     )
     VodButton.ZOOM -> zoomButtonItem(zoom, onClick)
+    VodButton.SLEEP -> sleepButtonItem(sleep, onClick)
     VodButton.START_OVER -> PlayerButtonItem(SofaIcons.Replay, stringResource(Res.string.vod_control_start_over), onClick)
     VodButton.NEXT -> PlayerButtonItem(SofaIcons.SkipNext, stringResource(Res.string.vod_control_next), onClick)
 }
@@ -832,7 +868,7 @@ private fun vodButtonItem(button: VodButton, captionsOn: Boolean, zoom: VideoZoo
 private val SKIP_BUTTONS = setOf(VodButton.SKIP_BREAK, VodButton.SKIP_INTRO)
 
 /** The buttons that keep focus after a press, as each press steps them on (the track card takes it itself). */
-private val STAYING_BUTTONS = setOf(VodButton.CAPTIONS, VodButton.ZOOM, VodButton.TRACKS)
+private val STAYING_BUTTONS = setOf(VodButton.CAPTIONS, VodButton.ZOOM, VodButton.SLEEP, VodButton.TRACKS)
 
 /** A CC or Zoom press's answer, [text] with [arg] in it if any, shown for a moment; compared by identity so a repeated press restarts it. */
 private class VodToast(val text: StringResource, val arg: StringResource? = null)

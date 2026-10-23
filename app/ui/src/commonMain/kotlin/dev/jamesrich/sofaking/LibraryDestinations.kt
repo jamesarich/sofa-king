@@ -191,6 +191,8 @@ internal fun VodDestination(route: Route.Vod, shell: AppShellState, vm: LineupVi
                 tracks = tracks,
                 zoom = shell.videoZoom,
                 onZoom = { shell.videoZoom = it },
+                sleep = shell.sleep,
+                autoplays = shell.autoplays,
             )
         }
         detail is ItemDetailState.Failed -> MessageScreen(

@@ -8,7 +8,7 @@ class PlayerButtonsTest {
     @Test
     fun `a library episode offers its tracks and zoom and start over and the next episode`() {
         assertEquals(
-            listOf(VodButton.TRACKS, VodButton.ZOOM, VodButton.START_OVER, VodButton.NEXT),
+            listOf(VodButton.TRACKS, VodButton.ZOOM, VodButton.SLEEP, VodButton.START_OVER, VodButton.NEXT),
             vodButtons(failed = false, inBreak = false, tracksPickable = true, captions = false, pastStart = true, hasNext = true),
         )
     }
@@ -16,7 +16,7 @@ class PlayerButtonsTest {
     @Test
     fun `a recording in a break leads with Skip break and offers its captions`() {
         assertEquals(
-            listOf(VodButton.SKIP_BREAK, VodButton.CAPTIONS, VodButton.ZOOM),
+            listOf(VodButton.SKIP_BREAK, VodButton.CAPTIONS, VodButton.ZOOM, VodButton.SLEEP),
             vodButtons(failed = false, inBreak = true, tracksPickable = false, captions = true, pastStart = false, hasNext = false),
         )
     }
@@ -24,7 +24,7 @@ class PlayerButtonsTest {
     @Test
     fun `an episode in its intro leads with Skip intro`() {
         assertEquals(
-            listOf(VodButton.SKIP_INTRO, VodButton.TRACKS, VodButton.ZOOM, VodButton.NEXT),
+            listOf(VodButton.SKIP_INTRO, VodButton.TRACKS, VodButton.ZOOM, VodButton.SLEEP, VodButton.NEXT),
             vodButtons(failed = false, inBreak = false, tracksPickable = true, captions = false, pastStart = false, hasNext = true, inIntro = true),
         )
     }
@@ -38,9 +38,9 @@ class PlayerButtonsTest {
     }
 
     @Test
-    fun `the live bar keeps zoom beside the stream card and Previous and Record only where they apply`() {
+    fun `the live bar keeps zoom and the sleep timer beside the stream card and Previous and Record only where they apply`() {
         assertEquals(
-            listOf(LiveButton.CHANNELS, LiveButton.PLAY_PAUSE, LiveButton.CAPTIONS, LiveButton.STREAM_INFO, LiveButton.ZOOM, LiveButton.GUIDE),
+            listOf(LiveButton.CHANNELS, LiveButton.PLAY_PAUSE, LiveButton.CAPTIONS, LiveButton.STREAM_INFO, LiveButton.ZOOM, LiveButton.SLEEP, LiveButton.GUIDE),
             liveButtons(pointer = false, canRecord = false, canFavorite = false),
         )
         assertEquals(
@@ -50,6 +50,7 @@ class PlayerButtonsTest {
                 LiveButton.CAPTIONS,
                 LiveButton.STREAM_INFO,
                 LiveButton.ZOOM,
+                LiveButton.SLEEP,
                 LiveButton.RECORD,
                 LiveButton.FAVORITE,
                 LiveButton.GUIDE,

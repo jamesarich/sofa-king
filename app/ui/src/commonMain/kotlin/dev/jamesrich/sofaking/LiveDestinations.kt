@@ -155,6 +155,7 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
         liveBreaks = settings?.liveBreaks ?: LiveBreaks.PLAY,
         adsDodgedTodayMs = settings?.adsDodged?.on(localDay()) ?: 0,
         onAdsDodged = { vm.addAdsDodged(localDay(), it) },
+        sleep = shell.sleep,
     )
 }
 

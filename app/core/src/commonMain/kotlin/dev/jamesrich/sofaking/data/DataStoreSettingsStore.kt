@@ -110,8 +110,9 @@ class DataStoreSettingsStore(
         }
     }
 
+    // Keys are cleared with `-=`: `remove` returns a missing key's null as its non-null type, which throws on Wasm.
     override suspend fun setGuideFilter(key: String?) {
-        dataStore.edit { prefs -> if (key == null) prefs.remove(GUIDE_FILTER) else prefs[GUIDE_FILTER] = key }
+        dataStore.edit { prefs -> if (key == null) prefs -= GUIDE_FILTER else prefs[GUIDE_FILTER] = key }
     }
 
     override suspend fun setCaptionsEnabled(enabled: Boolean) {
@@ -160,7 +161,7 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs ->
             prefs[STARTUP] = target.name
             val channel = guideId.takeIf { target == StartupTarget.CHANNEL }
-            if (channel == null) prefs.remove(STARTUP_CHANNEL) else prefs[STARTUP_CHANNEL] = channel
+            if (channel == null) prefs -= STARTUP_CHANNEL else prefs[STARTUP_CHANNEL] = channel
         }
     }
 
@@ -273,7 +274,7 @@ class DataStoreSettingsStore(
     }
 
     override suspend fun setSettingsPin(hash: String?) {
-        dataStore.edit { prefs -> if (hash.isNullOrEmpty()) prefs.remove(SETTINGS_PIN) else prefs[SETTINGS_PIN] = hash }
+        dataStore.edit { prefs -> if (hash.isNullOrEmpty()) prefs -= SETTINGS_PIN else prefs[SETTINGS_PIN] = hash }
     }
 
     private fun favoritesOrder(prefs: Preferences): List<String> =

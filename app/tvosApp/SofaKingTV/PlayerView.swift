@@ -9,9 +9,11 @@ import SofaKingCore
 /// The transport bar's menu records the program on now, stars the channel and switches to another: recent, favorites
 /// or any channel. With Settings › During ads on a logo, the break screen covers the ads a streaming channel marks, as
 /// the server places them from the segments AVPlayer fetched; Show picture over it brings the picture back for that break.
+/// The menu's Sleep timer leaves the player when it runs out, a number of minutes on or at the end of the program on now.
 struct PlayerView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dismiss) private var dismiss
     @State private var channel: Channel
     @State private var player = AVPlayer()
     @State private var failure: String?
@@ -43,6 +45,16 @@ struct PlayerView: View {
             }
         }
         .task { await tune() }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                if model.sleep.due() {
+                    model.sleep = SleepTimer()
+                    dismiss()
+                    return
+                }
+            }
+        }
         .task(id: "\(channel.guideId) \(liveBreaks.name)") { await watchAdBreaks() }
         .onChange(of: breakScreen != nil) { _, up in
             applyBreakSound()
@@ -54,6 +66,7 @@ struct PlayerView: View {
         }
         .onDisappear {
             shown = false
+            model.sleep = SleepTimer()
             stopCovering()
             replaced?.cancel()
             reconnect?.cancel()
@@ -182,7 +195,11 @@ struct PlayerView: View {
             channelMenu("All channels", all, inline: false),
         ].compactMap { $0 }
         let channels = UIMenu(title: "Channels", image: UIImage(systemName: "list.bullet"), children: groups)
-        let items: [UIMenuElement?] = [recordAction, star, channels]
+        let programEnd = model.lineup.flatMap { model.core.nowAndNext(lineup: $0, channel: channel).now }.map {
+            Date(timeIntervalSince1970: Double(model.core.endEpochMs(programme: $0)) / 1000)
+        }
+        let sleep = model.sleepMenu(endTitle: programEnd == nil ? nil : "End of this program", endsAt: programEnd)
+        let items: [UIMenuElement?] = [recordAction, star, channels, sleep]
         return items.compactMap { $0 }
     }
 

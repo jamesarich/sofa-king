@@ -103,10 +103,14 @@ internal fun panelEdgeMargin(): Dp = if (LocalLayoutProfile.current.tv) TV_OVERS
 /** What drove the app last: the remote or a keyboard, or a finger or mouse. */
 internal enum class InputKind { KEYS, POINTER }
 
-/** The [InputKind] of the latest input anywhere in the app, observed by [trackLastInput]. */
+/** The [InputKind] of the latest input anywhere in the app, observed by [trackLastInput], and when it came. */
 @Stable
 internal class LastInput(initial: InputKind) {
     var kind: InputKind by mutableStateOf(initial)
+        internal set
+
+    /** The [uptimeMs] of the latest key, press or scroll; read when needed, so not observable. */
+    var atMs: Long = 0L
         internal set
 }
 
@@ -127,13 +131,17 @@ internal fun rememberLastInput(): LastInput {
 internal fun Modifier.trackLastInput(last: LastInput): Modifier = this
     .onPreviewKeyEvent {
         last.kind = InputKind.KEYS
+        last.atMs = uptimeMs()
         false
     }
     .pointerInput(last) {
         awaitPointerEventScope {
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
-                if (event.type == PointerEventType.Press || event.type == PointerEventType.Scroll) last.kind = InputKind.POINTER
+                if (event.type == PointerEventType.Press || event.type == PointerEventType.Scroll) {
+                    last.kind = InputKind.POINTER
+                    last.atMs = uptimeMs()
+                }
             }
         }
     }

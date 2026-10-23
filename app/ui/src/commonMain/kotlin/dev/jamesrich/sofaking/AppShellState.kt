@@ -11,6 +11,8 @@ import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
 import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.ServerCapabilities
+import dev.jamesrich.sofaking.ui.player.AutoplayRun
+import dev.jamesrich.sofaking.ui.player.SleepTimer
 import dev.jamesrich.sofaking.ui.player.VideoZoom
 import dev.jamesrich.sofaking.ui.settings.SettingsLock
 
@@ -53,6 +55,12 @@ internal class AppShellState(
 
     /** The Settings lock's count of wrong tries, which outlives each trip to Settings. */
     val settingsLock = SettingsLock()
+
+    /** The players' sleep timer, which lasts through zaps and Up next until the viewer leaves the full-screen player. */
+    val sleep = SleepTimer()
+
+    /** The items Up next played by itself in a row, for "Still watching?". */
+    val autoplays = AutoplayRun()
 
     /** The page on top of the open tab. */
     val top: Route get() = nav.top
@@ -112,6 +120,18 @@ internal class AppShellState(
             is LaunchTarget.OpenTab -> nav = Navigation().open(launch.tab)
             else -> Unit
         }
+    }
+
+    /**
+     * A `sofaking://vod` link, from the home screen's Watch Next row, plays [itemId] over the Library tab, so Back
+     * leaves for the Library, and takes the place of an item already playing there. On a cold start it is the
+     * start's page, in place of the channel last watched.
+     */
+    fun playItem(itemId: String) {
+        val from = if (launchDecided) nav.closeSettings() else Navigation()
+        launchDecided = true
+        val library = if (from.tab == Tab.LIBRARY) from else from.open(Tab.LIBRARY)
+        nav = if (library.top is Route.Vod) library.replaceTop(Route.Vod(itemId)) else library.push(Route.Vod(itemId))
     }
 
     /** The guide and the player lock Settings again; the pages behind Settings keep it open. */

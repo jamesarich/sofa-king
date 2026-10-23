@@ -109,9 +109,9 @@ def fixtures(media, upstream):
 
 
 @contextlib.contextmanager
-def serve(out):
-    """Starts the fixture channels and the server, with its log in <out>/server.log, and yields the server's base URL
-    once the lineup is adopted; stops both on the way out."""
+def serve(out, **settings):
+    """Starts the fixture channels and the server, with its log in <out>/server.log and any further `SOFA_` [settings],
+    and yields the server's base URL once the lineup is adopted; stops both on the way out."""
     if not SERVER.exists():
         raise SystemExit('Build :server:installDist in backend/ first')
     with tempfile.TemporaryDirectory(prefix='sofa-fixture-') as temporary:
@@ -133,7 +133,7 @@ def serve(out):
         # keeps no free space, so a full CI disk still records.
         env = dict(os.environ, SOFA_HOST='127.0.0.1', SOFA_PORT=str(port), SOFA_DATA_DIR=str(directory / 'data'),
                    SOFA_SOURCES=str(sources), SOFA_API_TOKEN=TOKEN, SOFA_ALLOW_LOOPBACK_UPSTREAMS='true', SOFA_UPDATE_IMAGE='',
-                   SOFA_RECORDINGS_FREE_GIB='0')
+                   SOFA_RECORDINGS_FREE_GIB='0', **settings)
         server_log = (out / 'server.log').open('w')
         server = subprocess.Popen([str(SERVER)], env=env, stdout=server_log, stderr=server_log, start_new_session=True)
         try:

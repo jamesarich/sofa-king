@@ -42,6 +42,7 @@ import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.data.watchNextItems
 import dev.jamesrich.sofaking.ui.LocalAppLifecycleOwner
 import dev.jamesrich.sofaking.ui.LocalClockFormat
 import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
@@ -77,14 +78,18 @@ import kotlin.math.abs
 /**
  * The whole app, the same on every platform: the theme, the window's layout profile and input, then the screen the
  * user is on. [pairing] is a server to pair with from a `sofaking://pair` link the platform received; the app claims
- * it once and calls [onPairingHandled], so a restored activity does not claim it again. [windowFullScreen] is the
- * host window's full screen where the app can switch it (a desktop window, a browser page).
+ * it once and calls [onPairingHandled], so a restored activity does not claim it again. [playItem] is a library item
+ * to play from a `sofaking://vod` link, such as the Android TV home screen's Watch Next row, handed back the same way
+ * through [onPlayItemHandled]. [windowFullScreen] is the host window's full screen where the app can switch it (a
+ * desktop window, a browser page).
  */
 @Composable
 fun App(
     modifier: Modifier = Modifier,
     pairing: PairingRequest? = null,
     onPairingHandled: () -> Unit = {},
+    playItem: String? = null,
+    onPlayItemHandled: () -> Unit = {},
     windowFullScreen: WindowFullScreen? = null,
 ) {
     setSingletonImageLoaderFactory(::sofaKingImageLoader)
@@ -95,7 +100,9 @@ fun App(
             LocalLastInput provides lastInput,
             LocalWindowFullScreen provides windowFullScreen,
         ) {
-            Surface(modifier.fillMaxSize().trackLastInput(lastInput).arrowKeysMoveFocus(), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled) }
+            Surface(modifier.fillMaxSize().trackLastInput(lastInput).arrowKeysMoveFocus(), color = MaterialTheme.colorScheme.background) {
+                SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled, playItem = playItem, onPlayItemHandled = onPlayItemHandled)
+            }
         }
     }
 }
@@ -106,7 +113,12 @@ fun App(
  * LibraryDestinations, RecordingsDestinations, SettingsDestinations), which reads the state it shows itself.
  */
 @Composable
-private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
+private fun SofaKingApp(
+    pairing: PairingRequest? = null,
+    onPairingHandled: () -> Unit = {},
+    playItem: String? = null,
+    onPlayItemHandled: () -> Unit = {},
+) {
     val vm = viewModel { appGraph.lineupViewModel() }
     val libraryVm = viewModel { appGraph.libraryViewModel() }
     val recordingsVm = viewModel { appGraph.recordingsViewModel() }
@@ -138,6 +150,20 @@ private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () ->
             PairingOutcome.FAILED -> shell.push(Route.Settings)
         }
         vm.pairingHandled()
+    }
+    // A Watch Next entry plays its item at once, in place of the cold start's own page.
+    LaunchedEffect(playItem) {
+        if (playItem == null) return@LaunchedEffect
+        onPlayItemHandled()
+        shell.playItem(playItem)
+    }
+    // The home screen's Watch Next row follows the Continue watching shelf.
+    LaunchedEffect(libraryHome) {
+        watchNextItems(libraryHome)?.let(appGraph.watchNext::publish)
+    }
+    // The sleep timer runs only while a full-screen player is open; leaving for any other page turns it off.
+    LaunchedEffect(top.playsFullScreen) {
+        if (!top.playsFullScreen) shell.sleep.cancel()
     }
     // A short word from the player on its way back to the guide: the channel it was asked for is gone.
     LaunchedEffect(shell.notice) {

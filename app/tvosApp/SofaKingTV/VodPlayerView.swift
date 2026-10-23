@@ -45,7 +45,9 @@ struct VodRequest: Identifiable, Hashable {
 /// releases it until the app returns, when the item reopens where it was. Reaching the end of an episode offers the
 /// next one, played after a countdown; reaching the end of anything else returns to the page. For a library item,
 /// the transport bar's Audio and Subtitles menus pick a track: another audio track plays the item again from where it
-/// is, and subtitles are drawn over the picture from the item's position.
+/// is, and subtitles are drawn over the picture from the item's position. The transport bar's Sleep timer leaves the
+/// player when it runs out, or as the item ends in place of Up next; after two episodes in a row that Up next played
+/// by itself, with no pause or press between, the card asks "Still watching?" and leaves after 30 seconds unanswered.
 struct VodPlayerView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
@@ -64,6 +66,8 @@ struct VodPlayerView: View {
     @State private var earlyEndAtMs: Int64 = 0
     @State private var backgrounded = false
     @State private var next: MediaItem?
+    /// The Up next card asks "Still watching?" and leaves when it runs out, rather than playing `next`.
+    @State private var stillWatching = false
     @State private var detail: MediaItemDetail?
     @State private var detailWatch: Watch?
     @State private var audioIndex: Int32?
@@ -83,7 +87,7 @@ struct VodPlayerView: View {
 
     var body: some View {
         ZStack {
-            VodController(player: player, menus: trackMenus, actions: contextualActions).ignoresSafeArea()
+            VodController(player: player, menus: trackMenus + [model.sleepMenu(endTitle: "End of this one", endsAt: nil)], actions: contextualActions).ignoresSafeArea()
             if let subtitleText {
                 Text(subtitleText)
                     .font(.title3)
@@ -104,7 +108,10 @@ struct VodPlayerView: View {
                 .background(.thinMaterial, in: .rect(cornerRadius: 16))
             }
             if let next {
-                UpNextCard(next: next, onPlay: { play(next) }, onCancel: { dismiss() })
+                UpNextCard(next: next, stillWatching: stillWatching, onPlay: { pressed in
+                    if pressed { model.autoplays = 0 } else { model.autoplays += 1 }
+                    play(next)
+                }, onCancel: { dismiss() })
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .padding(60)
             }
@@ -134,6 +141,8 @@ struct VodPlayerView: View {
             detailWatch?.cancel()
             itemObservers.removeAll()
             if !ended && stream != nil { stopped() }
+            // Up next swaps the cover to the next item; anything else leaves the player, and the timer with it.
+            if model.vod == nil { model.sleep = SleepTimer() }
             player.replaceCurrentItem(with: nil)
             model.core.stopWatching()
         }
@@ -237,6 +246,11 @@ struct VodPlayerView: View {
 
     /// The position in the item, saved on the server as it plays; core decides how often it writes.
     private func tick() {
+        if model.sleep.due() {
+            model.sleep = SleepTimer()
+            dismiss()
+            return
+        }
         guard let s = stream, let item = player.currentItem, item.status == .readyToPlay else { return }
         let seconds = player.currentTime().seconds
         guard seconds.isFinite else { return }
@@ -251,7 +265,11 @@ struct VodPlayerView: View {
         breakEndMs = breaks.first(where: { positionMs >= $0.startMs && positionMs < $0.endMs })?.endMs
         introEndMs = detail?.intro.flatMap { positionMs >= $0.startMs && positionMs < $0.endMs ? $0.endMs : nil }
         countDownIntro(in: s)
-        guard player.rate > 0 else { return }
+        guard player.rate > 0 else {
+            // A pause is the viewer's doing, so Up next starts its count again.
+            model.autoplays = 0
+            return
+        }
         switch request.source {
         case .item(let item): model.core.itemProgress(itemId: item.id, positionMs: positionMs, durationMs: durationMs)
         case .recording(let recording): model.core.recordingProgress(recordingId: recording.id, positionMs: positionMs, durationMs: durationMs)
@@ -441,12 +459,18 @@ struct VodPlayerView: View {
         ended = true
         let end = durationMs > 0 ? durationMs : positionMs
         report(stoppedAt: end)
+        if model.sleep.atEnd {
+            model.sleep = SleepTimer()
+            dismiss()
+            return
+        }
         guard let item = request.libraryItem else {
             dismiss()
             return
         }
         Task {
             if let upNext = try? await model.core.upNext(item: item) {
+                stillWatching = model.autoplays >= stillWatchingAfter
                 next = upNext
             } else {
                 dismiss()
@@ -490,14 +514,19 @@ struct VodPlayerView: View {
 /// Play now or the countdown plays it; Cancel or Menu returns to the page.
 private struct UpNextCard: View {
     let next: MediaItem
-    let onPlay: () -> Void
+    /// Asks "Still watching?": the count runs 30 seconds and then leaves, and Keep watching plays `next`.
+    let stillWatching: Bool
+    /// Plays `next`; true when the viewer pressed for it, false when the count ran out.
+    let onPlay: (Bool) -> Void
     let onCancel: () -> Void
-    @State private var secondsLeft = 10
+    @State private var secondsLeft = 0
     @FocusState private var playFocused: Bool
+
+    private var seconds: Int { stillWatching ? 30 : 10 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Up next").font(.headline).foregroundStyle(.tint)
+            Text(stillWatching ? "Still watching?" : "Up next").font(.headline).foregroundStyle(.tint)
             Artwork(url: next.backdrop ?? next.poster, title: next.title)
                 .frame(width: 480, height: 270)
                 .clipShape(.rect(cornerRadius: 12))
@@ -505,10 +534,15 @@ private struct UpNextCard: View {
                 Text(subtitle).font(.caption).foregroundStyle(.secondary)
             }
             Text(next.title).font(.title3).lineLimit(2)
-            ProgressView(value: Double(10 - secondsLeft), total: 10)
+            ProgressView(value: Double(seconds - secondsLeft), total: Double(seconds))
             HStack(spacing: 24) {
-                Button("Play now (\(secondsLeft))", systemImage: "play.fill", action: onPlay).focused($playFocused)
-                Button("Cancel", action: onCancel)
+                if stillWatching {
+                    Button("Keep watching", systemImage: "play.fill") { onPlay(true) }.focused($playFocused)
+                    Button("Stop (\(secondsLeft))", action: onCancel)
+                } else {
+                    Button("Play now (\(secondsLeft))", systemImage: "play.fill") { onPlay(true) }.focused($playFocused)
+                    Button("Cancel", action: onCancel)
+                }
             }
         }
         .frame(width: 480)
@@ -517,12 +551,13 @@ private struct UpNextCard: View {
         .onAppear { playFocused = true }
         .onExitCommand(perform: onCancel)
         .task {
+            secondsLeft = seconds
             while secondsLeft > 0 {
                 try? await Task.sleep(for: .seconds(1))
                 if Task.isCancelled { return }
                 secondsLeft -= 1
             }
-            onPlay()
+            if stillWatching { onCancel() } else { onPlay(false) }
         }
     }
 }

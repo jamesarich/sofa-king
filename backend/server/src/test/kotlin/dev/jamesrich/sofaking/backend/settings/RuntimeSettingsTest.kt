@@ -57,6 +57,9 @@ class RuntimeSettingsTest {
             assertFailsWith<ApiFailure> { settings.update(mapOf(RuntimeValues.LOG_LEVEL to "loud")) }
             assertFailsWith<ApiFailure> { settings.update(mapOf(RuntimeValues.GUIDE_DAYS to "15")) }
             assertFailsWith<ApiFailure> { settings.update(mapOf(RuntimeValues.PLEX_SYNC_MINUTES to "x")) }
+            assertEquals("SOFA_LEARNED_BREAKS must be one of off, shadow, on", assertFailsWith<ApiFailure> { settings.update(mapOf(RuntimeValues.LEARNED_BREAKS to "maybe")) }.message)
+            assertEquals("on", settings.update(mapOf(RuntimeValues.LEARNED_BREAKS to " ON")).learnedBreaks)
+            settings.update(emptyMap())
 
             // A value saved by an older server, or by hand, that is out of range now.
             store.saveRuntimeSettings(mapOf(RuntimeValues.GUIDE_DAYS to "40", RuntimeValues.LOG_LEVEL to "debug"), clock.instant())

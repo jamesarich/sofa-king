@@ -82,6 +82,7 @@ internal object AdBreaks {
         var cueOpen = false
         var pendingEnd: Long? = null
         var cueIn = false
+        var amagiAd = false
         val ranges = ArrayList<LongRange>()
         val segments = ArrayList<Segment>()
         val stitched = ArrayList<Boolean>()
@@ -111,7 +112,8 @@ internal object AdBreaks {
                 line.startsWith("#") -> Unit
                 else -> {
                     val at = date
-                    val stitchedAd = taggedAd || mediaTailor(base, line) || amagi(base, line) || ottera(base, line) || daiPod(base, line)
+                    amagi(base, line)?.let { amagiAd = it }
+                    val stitchedAd = taggedAd || mediaTailor(base, line) || (amagiAd && amagiHost(base, line)) || ottera(base, line) || daiPod(base, line)
                     val ad = stitchedAd || cueOpen || pluto(base, line) || roku(base, line) || fuelmedia(base, line) || (at != null && ranges.any { at in it })
                     if (pendingEnd != null) plannedEnd[segments.size] = pendingEnd
                     segments += Segment(sequence + segments.size, durationMs, ad, absolute(base, line), cueIn)
@@ -189,17 +191,21 @@ internal object AdBreaks {
     private fun wurl(title: String): Boolean = "tag=ad" in title && title.split(':', ',').any { it.trim() == "tag=ad" }
 
     /**
-     * Amagi's ad insertion serves every segment through a beacon URL on its `*.amagi.tv` playout,
+     * Amagi's ad insertion serves segments through a beacon URL on its `*.amagi.tv` playout,
      * `/<node>/beacon/<channel>/<hash>?…&media_type=M&…`, where `media_type` is `M` for an ad and `C` for the channel's
-     * own content. Seen on 2026-10-23 on Whale's Qwest TV and on Plex's Amagi channels as runs of 2 to 21 six-second `M`
-     * segments.
+     * own content: true, false, or null for any other segment. Seen on 2026-10-23 on Whale's Qwest TV and on Plex's
+     * Amagi channels as runs of 2 to 21 six-second `M` segments. Once a player has fetched a beacon, later playlists
+     * serve most segments straight from the playout (`/playlist<n>_<n>.ts`), keeping a beacon on every third segment
+     * of a break (`M`, plain, plain, `M`), so a plain segment on the playout is whatever the beacon before it was.
      */
-    private fun amagi(base: URI, reference: String): Boolean {
-        val uri = try { base.resolve(reference) } catch (_: IllegalArgumentException) { return false }
-        val host = uri.host?.lowercase() ?: return false
-        if (!host.endsWith(".amagi.tv") || uri.rawPath?.contains("/beacon/") != true) return false
+    private fun amagi(base: URI, reference: String): Boolean? {
+        val uri = try { base.resolve(reference) } catch (_: IllegalArgumentException) { return null }
+        if (uri.host?.lowercase()?.endsWith(".amagi.tv") != true || uri.rawPath?.contains("/beacon/") != true) return null
         return uri.rawQuery.orEmpty().split('&').any { it == "media_type=M" }
     }
+
+    private fun amagiHost(base: URI, reference: String): Boolean =
+        try { base.resolve(reference).host?.lowercase()?.endsWith(".amagi.tv") == true } catch (_: IllegalArgumentException) { false }
 
     /**
      * The fuelmedia.io origin behind some Stirr stations serves its decorated segments as

@@ -43,6 +43,19 @@ class SessionManagerTest {
             sessions.close()
         } } } } finally { dir.toFile().deleteRecursively() }
     }
+    @Test fun `a channel the listener cannot use passes its turn to the next in line`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-listenable-")
+        try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
+            val catalog = lineupStack(feeds, store, clock, http).catalog
+            val channel = catalog.catalog().channels.single().id
+            val sessions = SessionManager(catalog, store, clock)
+            assertEquals(listOf(channel), sessions.listenable(listOf("missing", channel), 1) { true }.keys.toList(), "an unknown channel passes")
+            assertTrue(sessions.listenable(listOf(channel), 1) { false }.isEmpty(), "a refused source passes")
+            assertTrue(sessions.listenable(listOf(channel), 0) { true }.isEmpty())
+            sessions.close()
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
     @Test fun `at capacity the oldest preview is evicted and previews hold shorter leases than watches`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-evict-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->

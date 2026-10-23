@@ -3,7 +3,9 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.*
 import dev.jamesrich.sofaking.backend.admin.spacedCode
 import dev.jamesrich.sofaking.backend.catalog.*
+import dev.jamesrich.sofaking.backend.playback.AdCensus
 import dev.jamesrich.sofaking.backend.store.addRecording
+import dev.jamesrich.sofaking.backend.store.recordAdChannel
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.HttpClient
@@ -232,6 +234,20 @@ class AdminPortalTest {
             assertEquals(Json.parseToJsonElement("""[["learnshowtv","learnshow"]]"""), names["never"])
             assertNull(names["learned"], "the learned entry goes")
             assertTrue(runtime.lineup.entries().any { it.name == "Learn Show TV" }, "the station is its own again: ${runtime.lineup.entries().map { it.name }}")
+        }
+    }
+
+    @Test fun `the ads page lists each channel's census by its lineup name`() = testApplication {
+        portal(basePolicy) {
+            runtime.policy!!.apply("test")
+            val channel = runtime.lineup.entries().first()
+            runtime.store.recordAdChannel(channel.id, "fixture", AdCensus(3_720_000, marked = true, breaks = 4, learned = 1), java.time.Instant.now())
+            browser.signIn()
+            val page = browser.get("/admin/ads").bodyAsText()
+            assertTrue(page.contains(channel.name), "the channel shows by name")
+            assertTrue(page.contains("1 h 2 min"), "the time watched")
+            assertTrue(page.contains("Shadow: logged, never blanked"), "the default mode")
+            assertTrue(browser.get("/admin/providers").bodyAsText().contains("""href="/admin/ads""""), "Sources links its Ads tab")
         }
     }
 
@@ -1006,7 +1022,7 @@ class AdminPortalTest {
             assertTrue(page.contains("No changes") && page.contains("hx-post=\"/admin/settings/runtime/check\""), "the Save control starts disabled and the form asks on change")
             assertFalse(Regex("""<div class="name mono">SOFA_MAX_SESSIONS</div>""").containsMatchIn(page), "a runtime setting is not listed among the startup ones")
             val csrf = field(page, "csrf")
-            val values = mapOf("SOFA_LOG_LEVEL" to "info", "SOFA_XMLTV_DAYS" to "3", "SOFA_PLEX_SYNC_MINUTES" to "60", "SOFA_HDHR_TUNERS" to "2", "SOFA_MAX_SESSIONS" to "4", "SOFA_RECORDINGS_FREE_GIB" to "10", "SOFA_RECORDINGS_KEEP_DAYS" to "0")
+            val values = mapOf("SOFA_LOG_LEVEL" to "info", "SOFA_XMLTV_DAYS" to "3", "SOFA_PLEX_SYNC_MINUTES" to "60", "SOFA_HDHR_TUNERS" to "2", "SOFA_MAX_SESSIONS" to "4", "SOFA_RECORDINGS_FREE_GIB" to "10", "SOFA_RECORDINGS_KEEP_DAYS" to "0", "SOFA_LEARNED_BREAKS" to "shadow", "SOFA_AD_LISTENERS" to "6")
             fun fields(vararg changes: Pair<String, String>) = (values + changes).map { it.key to it.value }.toTypedArray()
             val unchanged = browser.post("/admin/settings/runtime/check", *fields(), "csrf" to csrf).bodyAsText()
             assertTrue(unchanged.contains("No changes") && unchanged.contains("disabled"), unchanged)

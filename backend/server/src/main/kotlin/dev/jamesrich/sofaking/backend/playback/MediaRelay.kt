@@ -36,6 +36,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.io.readByteArray
+import java.io.ByteArrayOutputStream
 import java.net.URI
 import kotlin.coroutines.coroutineContext
 
@@ -45,8 +46,10 @@ class MediaRelay(
     private val http: HttpClient,
     private val feeds: FeedService,
     private val sessions: SessionManager,
-    scope: CoroutineScope,
+    private val scope: CoroutineScope,
     fanout: FanoutConfig = FanoutConfig(),
+    /** Reads the audio of a session's segments for its learned breaks; none are learned without it. */
+    private val audio: SegmentAudio? = null,
 ) {
     /** Upstream requests in flight across the server, players' and FFmpeg's through [LoopbackRelay] alike. */
     internal val permits = Semaphore(32)
@@ -159,23 +162,34 @@ class MediaRelay(
         // The root token maps to the offering's own URL, which for a native source is the resolved one; children are absolute already.
         val root = resource.url == resource.offering.url
         val url = if (root) stream.url else resource.url
-        var cues: SegmentCues? = null
+        val ads = resource.ads
+        var tapped: TappedSegment? = null
         permits.withPermit {
             relayResource(
                 http, feeds.upstream, call, withDeliveryDirectives(url, call), stream,
                 path = { sessions.resourcePath(id, epoch, it) },
                 sent = { resource.bytes.addAndGet(it) },
-                manifest = { text, source -> resource.playlists.steady(text, source).let { resource.ads?.annotate(it, source) ?: it } },
+                manifest = { text, source -> resource.playlists.steady(text, source).let { ads?.annotate(it, source) ?: it } },
                 sniffed = { protocol -> if (root && protocol == "mpegts") protocolMismatch(id, epoch, job, "mpegts") },
-                cues = resource.ads?.let { { found -> cues = found } },
+                tap = ads?.let { { found -> tapped = found } },
+                keepBytes = audio != null && ads?.listening == true,
             )
         }
-        resource.ads?.served(url, cues)
+        ads?.served(url, tapped?.cues)
+        val bytes = tapped?.bytes
+        // Read after the segment is answered, so the player never waits on it.
+        if (ads != null && audio != null && bytes != null) synchronized(ads) { ads.follower ?: AudioFollower(audio, ads, scope).also { ads.follower = it } }.offer(url, bytes)
     }
 }
 
 /** How much of a segment read for cues passes through at a time. */
 private const val SEGMENT_READ = 64 * 1024
+
+/** The most of a segment kept for [TappedSegment.bytes]; a longer one is not kept. */
+private const val SEGMENT_KEEP_LIMIT = 32 * 1024 * 1024
+
+/** What [relayResource] read from a transport stream segment: its SCTE-35 [cues], and its [bytes] when asked to keep them. */
+internal class TappedSegment(val cues: SegmentCues, val bytes: ByteArray?)
 
 /** A gzip-encoded resource is buffered to be inflated; keys are bytes, anything near this is not a key. */
 private const val ENCODED_LIMIT = 8 * 1024 * 1024
@@ -187,8 +201,9 @@ private const val ENCODED_LIMIT = 8 * 1024 * 1024
  * server, a gzip-encoded small resource inflated, and anything else streamed as the upstream sent it. [manifest] may
  * add to a manifest's text, given the URL it came from, before the rewrite. [sniffed] sees
  * the protocol of the body's head before anything is answered, [sent] each count of bytes answered, and [refused]
- * an upstream status other than 200 or 206. Given [cues], a transport stream segment is read for SCTE-35 cues as it
- * streams (see [SpliceReader]), and [cues] gets what it carried once all of it is answered.
+ * an upstream status other than 200 or 206. Given [tap], a transport stream segment is read for SCTE-35 cues as it
+ * streams (see [SpliceReader]), and [tap] gets what it carried once all of it is answered, with its bytes when
+ * [keepBytes].
  */
 internal suspend fun relayResource(
     http: HttpClient,
@@ -201,7 +216,8 @@ internal suspend fun relayResource(
     refused: (Int) -> Nothing = { throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true) },
     sniffed: suspend (String?) -> Unit = {},
     manifest: (String, URI) -> String = { text, _ -> text },
-    cues: ((SegmentCues) -> Unit)? = null,
+    tap: ((TappedSegment) -> Unit)? = null,
+    keepBytes: Boolean = false,
 ) {
     http.withUpstreamResponse(
         url,
@@ -248,8 +264,9 @@ internal suspend fun relayResource(
             } else {
                 response.headers[HttpHeaders.ContentRange]?.let { call.response.header(HttpHeaders.ContentRange, it) }
                 response.headers[HttpHeaders.AcceptRanges]?.let { call.response.header(HttpHeaders.AcceptRanges, it) }
-                val sync = if (cues != null && protocol == "mpegts") tsSyncOffset(head, 3) else null
+                val sync = if (tap != null && protocol == "mpegts") tsSyncOffset(head, 3) else null
                 val reader = sync?.let { SpliceReader() }
+                var kept = if (sync != null && keepBytes) ByteArrayOutputStream().apply { write(head, sync, head.size - sync) } else null
                 call.respondBytesWriter(contentType = contentType, status = response.status) {
                     writeFully(head)
                     sent(head.size.toLong())
@@ -264,11 +281,13 @@ internal suspend fun relayResource(
                             if (count == 0) continue
                             writeFully(buffer, 0, count)
                             reader.feed(buffer, 0, count)
+                            kept?.write(buffer, 0, count)
+                            if ((kept?.size() ?: 0) > SEGMENT_KEEP_LIMIT) kept = null
                             sent(count.toLong())
                         }
                     }
                 }
-                reader?.let { cues?.invoke(it.finish()) }
+                reader?.let { tap?.invoke(TappedSegment(it.finish(), kept?.toByteArray())) }
             }
         }
     }

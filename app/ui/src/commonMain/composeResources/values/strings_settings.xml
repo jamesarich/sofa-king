@@ -80,6 +80,8 @@
     <string name="settings_section_playback">Playback</string>
     <string name="settings_section_library">Library</string>
     <string name="settings_auto_skip_intros">Skip intros automatically</string>
+    <string name="settings_hide_spoilers">Hide spoilers</string>
+    <string name="settings_hide_spoilers_help">Episodes you have not started keep their summaries back and blur their pictures.</string>
     <string name="settings_auto_skip_intros_help">Skip intro counts down 5 seconds and then skips; any key stops it. Off, an intro waits for a press.</string>
     <string name="settings_match_frame_rate">Match frame rate</string>
     <string name="settings_match_frame_rate_help">Switches the display to the stream's frame rate while it plays. Some TVs show a black screen for a moment at each switch.</string>

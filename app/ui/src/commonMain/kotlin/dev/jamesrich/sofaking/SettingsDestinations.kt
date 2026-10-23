@@ -73,6 +73,7 @@ internal fun SettingsDestination(
                     onCheckForUpdate = vm::checkForUpdate,
                     onSkipCommercialsChanged = vm::setSkipCommercials,
                     onAutoSkipIntrosChanged = vm::setAutoSkipIntros,
+                    onHideSpoilersChanged = vm::setHideSpoilers,
                     onLiveBreaksChanged = vm::setLiveBreaks,
                     onReload = {
                         vm.refresh()

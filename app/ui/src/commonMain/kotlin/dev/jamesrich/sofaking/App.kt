@@ -299,7 +299,7 @@ private fun SofaKingApp(
             is Route.Player -> PlayerDestination(route, shell, vm, player)
             is Route.Vod -> VodDestination(route, shell, vm, libraryVm, player)
             is Route.Recording -> RecordingDestination(route, shell, vm, recordingsVm, player)
-            is Route.LibraryItem -> LibraryItemDestination(route, arrival, shell, libraryVm)
+            is Route.LibraryItem -> LibraryItemDestination(route, arrival, shell, libraryVm, hideSpoilers = settings?.hideSpoilers ?: false)
             Route.Guide, Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, Route.Recordings -> TabPage(
                 tv = tv,
                 tabs = tabs,

@@ -51,4 +51,5 @@
     <string name="library_cast">Cast</string>
     <string name="library_directors">Directed by %1$s</string>
     <string name="library_subtitles">Subtitles: %1$s</string>
+    <string name="library_spoiler_hidden">Unwatched episode. Hide spoilers keeps its summary back.</string>
 </resources>

@@ -24,15 +24,18 @@ class LintConventionPlugin : Plugin<Project> {
         val libs = extensions.getByType(VersionCatalogsExtension::class.java).named("libs")
         val ktlint = libs.findVersion("ktlint").get().requiredVersion
 
+        // The style lives in the repository's .editorconfig, above each build's root, where Spotless would not look:
+        // without it ktlint falls back to its own ktlint_official style.
+        val editorConfig = isolated.rootProject.projectDirectory.file("../.editorconfig").asFile
         pluginManager.apply(SpotlessPlugin::class.java)
         extensions.configure(SpotlessExtension::class.java) { spotless ->
             spotless.kotlin {
                 it.target("src/**/*.kt")
-                it.ktlint(ktlint)
+                it.ktlint(ktlint).setEditorConfigPath(editorConfig)
             }
             spotless.kotlinGradle {
                 it.target("*.gradle.kts")
-                it.ktlint(ktlint)
+                it.ktlint(ktlint).setEditorConfigPath(editorConfig)
             }
         }
 

@@ -41,10 +41,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SofaKing">
 
+        <!-- One activity, in its own task, so the launcher or a link brings back the player in picture-in-picture (as
+             onNewIntent) rather than opening a second one inside the small window. -->
         <activity
             android:name=".MainActivity"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
             android:exported="true"
+            android:launchMode="singleTask"
             android:supportsPictureInPicture="true"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

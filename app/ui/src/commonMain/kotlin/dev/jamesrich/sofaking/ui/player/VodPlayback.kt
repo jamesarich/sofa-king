@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.input.key.Key
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.ScrubTiles
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
@@ -17,6 +18,8 @@ data class VodTitle(
     val artworkUrl: String? = null,
     /** Spans drawn on the seek bar, such as a recording's commercial breaks; times are in the item. */
     val markers: List<VodMarker> = emptyList(),
+    /** Thumbnails shown over the seek bar while scrubbing, for a library file the server has made them for. */
+    val scrub: ScrubTiles? = null,
 )
 
 /** A span of the item from [startMs] to [endMs]. */

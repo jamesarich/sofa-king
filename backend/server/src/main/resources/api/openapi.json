@@ -192,8 +192,14 @@
           "tagline": { "type": ["string", "null"] }, "studio": { "type": ["string", "null"] }, "cast": { "type": "array", "items": { "type": "string" } }, "directors": { "type": "array", "items": { "type": "string" } },
           "audio": { "type": "array", "items": { "$ref": "#/components/schemas/MediaTrack" } }, "subtitles": { "type": "array", "items": { "$ref": "#/components/schemas/MediaTrack" } },
           "container": { "type": ["string", "null"] }, "videoCodec": { "type": ["string", "null"] },
-          "segments": { "type": "array", "items": { "$ref": "#/components/schemas/MediaSegment" }, "description": "Spans a player offers to skip, such as an episode's intro." }
+          "segments": { "type": "array", "items": { "$ref": "#/components/schemas/MediaSegment" }, "description": "Spans a player offers to skip, such as an episode's intro." },
+          "scrub": { "oneOf": [{ "$ref": "#/components/schemas/ScrubThumbnails" }, { "type": "null" }], "description": "Thumbnails to show over the seek bar while scrubbing; null until the server has made them, or for a file under five minutes." }
         }
+      },
+      "ScrubThumbnails": {
+        "type": "object", "required": ["intervalMs", "tileWidth", "tileHeight", "columns", "rows", "frames", "sheets"],
+        "description": "JPEG sheets of columns by rows tiles, left to right and then down. Tile n overall, on sheet n / (columns * rows), shows the file at n * intervalMs.",
+        "properties": { "intervalMs": { "type": "integer" }, "tileWidth": { "type": "integer" }, "tileHeight": { "type": "integer" }, "columns": { "type": "integer" }, "rows": { "type": "integer" }, "frames": { "type": "integer", "description": "Tiles in all." }, "sheets": { "type": "array", "items": { "type": "string" }, "description": "Each sheet's path under /artwork, with its ?v= version." } }
       },
       "MediaSegment": {
         "type": "object", "required": ["kind", "startMs", "endMs"],
@@ -758,6 +764,11 @@
       "get": { "tags": ["Library"], "summary": "A library playback session's media", "description": "The URL the session's descriptor names: the file itself with byte ranges, or the HLS playlist and its segments. No token; the secret is the session's.", "security": [],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "epoch", "in": "path", "required": true, "schema": { "type": "integer" } }, { "name": "secret", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "The file, a playlist or a segment" }, "206": { "description": "A byte range of the file" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/artwork/{id}/scrub/{sheet}": {
+      "get": { "tags": ["Library"], "summary": "A sheet of an item's scrub thumbnails", "description": "A path from the item's scrub.sheets, with its ?v= version. Carries Cache-Control: public, max-age=604800.", "security": [],
+        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "sheet", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 0 } }],
+        "responses": { "200": { "description": "JPEG" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/artwork/{id}/{role}": {
       "get": { "tags": ["Library"], "summary": "An item's poster or backdrop", "description": "The path an item names, with its ?v= version. Carries an ETag and Cache-Control: public, max-age=604800.", "security": [],

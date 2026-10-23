@@ -52,5 +52,16 @@
             "startMs": 1300000,
             "endMs": 1380000
         }
-    ]
+    ],
+    "scrub": {
+        "intervalMs": 10000,
+        "tileWidth": 240,
+        "tileHeight": 136,
+        "columns": 10,
+        "rows": 10,
+        "frames": 3,
+        "sheets": [
+            "/artwork/0f3c2a/scrub/0?v=1a2b3c"
+        ]
+    }
 }

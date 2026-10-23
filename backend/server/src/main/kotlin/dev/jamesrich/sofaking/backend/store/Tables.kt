@@ -226,6 +226,20 @@ internal object LibraryIntroRows : Table("library_intro") {
     override val primaryKey = PrimaryKey(itemId)
 }
 
+internal object LibraryScrubRows : Table("library_scrub") {
+    val itemId = text("item_id")
+    val fileKey = text("file_key")
+    val intervalMs = long("interval_ms")
+    val tileWidth = integer("tile_width")
+    val tileHeight = integer("tile_height")
+    val columnCount = integer("columns")
+    val rowCount = integer("rows")
+    val sheets = integer("sheets")
+    val frames = integer("frames")
+    val madeAt = text("made_at")
+    override val primaryKey = PrimaryKey(itemId)
+}
+
 internal object RecordingRules : Table("recording_rule") {
     val id = text("id")
     val title = text("title")

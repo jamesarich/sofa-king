@@ -197,6 +197,12 @@ jobs:
         run: >-
           [ ! -d build/tvos-ui/RemoteTests.xcresult ] ||
           xcrun xcresulttool export attachments --path build/tvos-ui/RemoteTests.xcresult --output-path build/tvos-ui/attachments
+      # A simulator app's crash report, with its stack, lands on the host rather than in the result bundle.
+      - name: Collect the app's crash reports
+        if: failure()
+        run: |
+          mkdir -p build/tvos-ui/crashes
+          find ~/Library/Logs/DiagnosticReports -name 'SofaKingTV*' -exec cp {} build/tvos-ui/crashes/ \; || true
       # A restored older distribution would otherwise be saved again under the new key, and the entry would grow.
       - name: Keep only the current Kotlin/Native distribution
         if: github.ref == 'refs/heads/main'

@@ -105,6 +105,38 @@ final class RemoteTests: XCTestCase {
         eventually("the app to release its sessions in the background, seed \(seed)") { server.sessions().isEmpty }
     }
 
+    /// Play/Pause on each of Settings' text fields, before and after opening it and taking what its keyboard offers
+    /// first, leaves the app running. On the server address it once ended the app with an NSRangeException inside UIKit
+    /// (a random walk, seed 1792765030), after tvOS's list of recent values for a field with a content type.
+    @MainActor
+    func testPlayPauseOnSettingsFields() throws {
+        try launchToList()
+        let settings = app.tabBars.buttons["Settings"]
+        focus(settings, by: Array(repeating: XCUIRemote.Button.up, count: 6) + Array(repeating: XCUIRemote.Button.right, count: 3))
+        let fields: [(String, XCUIElement)] = [
+            ("the server address", app.textFields.element(boundBy: 0)),
+            ("the API token", app.secureTextFields.element(boundBy: 0)),
+            ("the pairing code", app.textFields.element(boundBy: 1)),
+        ]
+        let keys: [(XCUIRemote.Button, String)] = [(.playPause, "PlayPause"), (.select, "Select"), (.select, "Select"), (.menu, "Menu"), (.playPause, "PlayPause")]
+        for (name, field) in fields {
+            XCTAssertTrue(field.waitForExistence(timeout: 10), "No field for \(name)\n\(screen)")
+            focus(field, pressing: .down, presses: 6)
+            var pressed: [String] = []
+            for (button, key) in keys {
+                remote.press(button)
+                pressed.append(key)
+                RunLoop.current.run(until: Date().addingTimeInterval(1))
+                XCTAssertEqual(app.state, .runningForeground, "The app stopped on \(name) after \(pressed.joined(separator: " "))")
+            }
+            // Back to Settings from a keyboard still open.
+            for _ in 0..<2 where !field.exists || app.keyboards.firstMatch.exists {
+                remote.press(.menu)
+                RunLoop.current.run(until: Date().addingTimeInterval(1))
+            }
+        }
+    }
+
     // MARK: - Driving
 
     /// The remote's buttons, weighted as the other fuzzers weigh them.

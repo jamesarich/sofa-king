@@ -6,24 +6,21 @@ import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.backend.upstream.ffmpegBase
 import dev.jamesrich.sofaking.backend.upstream.ffmpegProcess
 import io.ktor.client.HttpClient
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.time.Clock
@@ -87,11 +84,9 @@ class ProbeWorker(
         var idle = 1000L
         while (currentCoroutineContext().isActive) {
             val worked =
-                try {
+                runCatchingCancellable {
                     step()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
+                }.getOrElse { e ->
                     // Never print media URLs: exception messages can carry signed query tokens.
                     log.warn("probe failed class={}", e.javaClass.simpleName)
                     false
@@ -196,17 +191,14 @@ class ProbeWorker(
         val before = store.health(offering.id)?.status
         // A native source is probed at the URL its service resolves; a service that cannot answer is provider evidence.
         var resolveFailure: FailureClass? = null
-        val stream: ResolvedStream? = try {
-            feeds.playable(offering)
-        } catch (e: ProviderFailure) {
-            resolveFailure = if (e.transient) FailureClass.PROVIDER else FailureClass.OFFERING
-            null
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // Recorded as the source's own failure, so it backs off rather than being claimed again unrecorded.
-            log.warn("probe resolve failed offering={} class={}", offering.id, e.javaClass.simpleName)
-            resolveFailure = FailureClass.OFFERING
+        val stream: ResolvedStream? = runCatchingCancellable { feeds.playable(offering) }.getOrElse { e ->
+            resolveFailure = if (e is ProviderFailure) {
+                if (e.transient) FailureClass.PROVIDER else FailureClass.OFFERING
+            } else {
+                // Recorded as the source's own failure, so it backs off rather than being claimed again unrecorded.
+                log.warn("probe resolve failed offering={} class={}", offering.id, e.javaClass.simpleName)
+                FailureClass.OFFERING
+            }
             null
         }
         val target = stream?.let { offering.copy(url = it.url) } ?: offering

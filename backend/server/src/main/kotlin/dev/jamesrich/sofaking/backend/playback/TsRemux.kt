@@ -17,11 +17,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
@@ -52,12 +50,9 @@ class TsRemux(private val ffmpeg: String, private val relay: LoopbackRelay) {
         val command = remuxCommand(ffmpeg, source)
         // Creating the log file and forking FFmpeg block, so they run on IO; a cancel there must not drop either.
         val errors = withContext(NonCancellable + Dispatchers.IO) { Files.createTempFile("sofa-remux-", ".log") }
-        val process = try {
-            ffmpegProcess(command).redirectError(errors.toFile()).startOwned()
-        } catch (e: Throwable) {
-            withContext(NonCancellable + Dispatchers.IO) { Files.deleteIfExists(errors) }
-            throw e
-        }
+        val process = runCatching { ffmpegProcess(command).redirectError(errors.toFile()).startOwned() }
+            .onFailure { withContext(NonCancellable + Dispatchers.IO) { Files.deleteIfExists(errors) } }
+            .getOrThrow()
         processes += process
         // FFmpeg closing its pipe is the source ending; anything else that stops the copy is the client leaving.
         var ended = false

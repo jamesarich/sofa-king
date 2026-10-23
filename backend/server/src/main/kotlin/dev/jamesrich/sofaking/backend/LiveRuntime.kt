@@ -56,7 +56,6 @@ import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -99,13 +98,7 @@ internal fun CoroutineScope.launchEvery(
     action: suspend () -> Unit,
 ): Job = launch(CoroutineName(name)) {
     while (isActive) {
-        try {
-            action()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            report("$name failed class=${e.javaClass.simpleName}")
-        }
+        runCatchingCancellable { action() }.onFailure { report("$name failed class=${it.javaClass.simpleName}") }
         delay(periodMillis)
     }
 }
@@ -200,6 +193,8 @@ class LiveRuntime(
             // The level the operator saved outranks the environment's from here on; logback
             // read the environment's at start.
             settings.onChange { applyLogLevel(it.logLevel) }
+            // Whatever fails before the runtime is whole stops its background work and closes its client.
+            var created = false
             try {
                 val policy = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
                 lateinit var logos: LogoCache
@@ -256,13 +251,8 @@ class LiveRuntime(
                 scope.launch(CoroutineName("ad-library")) {
                     while (isActive) {
                         delay(LIBRARY_FLUSH_MS)
-                        try {
-                            library.flush()
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            runtimeLog.warn("ad library save failed: {}", e.toString())
-                        }
+                        runCatchingCancellable { library.flush() }
+                            .onFailure { runtimeLog.warn("ad library save failed: {}", it.toString()) }
                     }
                 }
                 settings.onChange { values ->
@@ -421,11 +411,13 @@ class LiveRuntime(
                 scope.launchEvery("session-expire", 1000) { sessions.expire() }
                 scope.launchEvery("vod-expire", 5000) { vod.expire() }
                 if (worker != null) scope.launch(CoroutineName("probe-worker")) { worker.run() }
+                created = true
                 return runtime
-            } catch (failure: Throwable) {
-                scope.cancel()
-                http.close()
-                throw failure
+            } finally {
+                if (!created) {
+                    scope.cancel()
+                    http.close()
+                }
             }
         }
     }

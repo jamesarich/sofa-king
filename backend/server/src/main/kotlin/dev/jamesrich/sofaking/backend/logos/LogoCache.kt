@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.LogoRecord
 import dev.jamesrich.sofaking.backend.store.deleteLogo
@@ -17,7 +18,6 @@ import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
 import io.ktor.utils.io.readBuffer
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -145,11 +145,9 @@ class LogoCache(
     fun start(scope: CoroutineScope): Job = scope.launch(CoroutineName("logo-sweep")) {
         while (isActive) {
             trigger.receive()
-            try {
+            runCatchingCancellable {
                 sweep()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.warn("logo sweep failed class={}", e.javaClass.simpleName)
             }
         }
@@ -179,7 +177,7 @@ class LogoCache(
             permits.withPermit {
                 val previous = records[key]
                 val at = clock.instant()
-                val record = try {
+                val record = runCatchingCancellable {
                     val image = download(source)
                     val bytes = withContext(Dispatchers.Default) { fitLogo(image.bytes, image.contentType) }
                     write(key, bytes)
@@ -193,9 +191,7 @@ class LogoCache(
                         failedAt = null,
                         failures = 0,
                     )
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
+                }.getOrElse { e ->
                     // Logo URLs are not secrets, but like every upstream URL they stay out of the
                     // log, so the message is redacted.
                     log.info(

@@ -609,7 +609,7 @@ class AdminPortal(
                 try {
                     dvr.deleteRule(call.parameters["id"]!!)
                     session.flash.set(Flash("Deleted the rule and its scheduled recordings; what it recorded stays."))
-                } catch (e: ApiFailure) {
+                } catch (_: ApiFailure) {
                     session.flash.set(Flash("That rule is already gone.", Tone.WARN))
                 }
                 seeOther(call, "/admin/recordings#rules")
@@ -632,7 +632,7 @@ class AdminPortal(
                             target = id,
                         ),
                     )
-                } catch (e: ApiFailure) {
+                } catch (_: ApiFailure) {
                     session.flash.set(Flash("That recording is gone.", Tone.WARN))
                 }
                 seeOther(call, "/admin/recordings#recorded")
@@ -655,7 +655,7 @@ class AdminPortal(
                             },
                         ),
                     )
-                } catch (e: ApiFailure) {
+                } catch (_: ApiFailure) {
                     session.flash.set(Flash("That recording is already gone.", Tone.WARN))
                 }
                 seeOther(call, "/admin/recordings")
@@ -1251,7 +1251,8 @@ class AdminPortal(
         }
         val candidate = try {
             parsePolicy(next)
-        } catch (e: Exception) {
+        } catch (_: IllegalArgumentException) {
+            // A SerializationException is one.
             refuse(listOf("The edit does not fit the policy schema"))
             return
         }

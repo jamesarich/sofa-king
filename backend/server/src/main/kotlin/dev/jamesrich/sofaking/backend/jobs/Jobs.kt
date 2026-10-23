@@ -80,12 +80,9 @@ class Jobs(private val clock: Clock) {
         val entry = entry(id)
         val started = clock.instant()
         entry.runningSince = started
-        val outcome = try {
-            block()
-        } catch (e: Throwable) {
-            finish(entry, started, JobOutcome(false, e.javaClass.simpleName))
-            throw e
-        }
+        val outcome = runCatching { block() }
+            .onFailure { finish(entry, started, JobOutcome(false, it.javaClass.simpleName)) }
+            .getOrThrow()
         finish(entry, started, outcome)
     }
 

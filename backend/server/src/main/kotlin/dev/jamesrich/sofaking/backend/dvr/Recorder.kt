@@ -13,6 +13,7 @@ import dev.jamesrich.sofaking.backend.playback.UpstreamProtocolException
 import dev.jamesrich.sofaking.backend.playback.remuxCommand
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.backend.upstream.ffmpegProcess
 import kotlinx.coroutines.CancellationException
@@ -22,7 +23,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.future.await
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -36,7 +36,6 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicLong
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * What a recording run came to: the bytes now in the file, and the last reason the source could not be read, if any.
@@ -73,22 +72,22 @@ class Recorder internal constructor(
         var failure: String? = null
         while (clock.instant() < until) {
             failure =
-                try {
-                    attempt(channelId, file, until)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: ApiFailure) {
-                    e.code
-                } catch (e: ProviderFailure) {
-                    "SOURCE_UNAVAILABLE"
-                } catch (e: Exception) {
-                    log.warn(
-                        "recording attempt failed channel={} class={} message=\"{}\"",
-                        channelId,
-                        e.javaClass.simpleName,
-                        redactedMessage(e),
-                    )
-                    e.javaClass.simpleName
+                runCatchingCancellable { attempt(channelId, file, until) }.getOrElse { e ->
+                    when (e) {
+                        is ApiFailure -> e.code
+
+                        is ProviderFailure -> "SOURCE_UNAVAILABLE"
+
+                        else -> {
+                            log.warn(
+                                "recording attempt failed channel={} class={} message=\"{}\"",
+                                channelId,
+                                e.javaClass.simpleName,
+                                redactedMessage(e),
+                            )
+                            e.javaClass.simpleName
+                        }
+                    }
                 } ?: failure
             val left = Duration.between(clock.instant(), until)
             if (left > Duration.ZERO) delay(minOf(left, retryDelay).toMillis())
@@ -109,7 +108,7 @@ class Recorder internal constructor(
                     sessions.attach(session.id, coroutineContext.job)
                     read(session.id, file, until)
                 }
-            } catch (e: CancellationException) {
+            } catch (_: CancellationException) {
                 // Rethrown when the recording itself was canceled; otherwise the session ended under this attempt.
                 currentCoroutineContext().ensureActive()
                 "SESSION_ENDED"
@@ -186,15 +185,9 @@ class Recorder internal constructor(
     ): String? {
         val reader = join(offering, stream)
         try {
-            try {
-                reader.awaitStarted()
-            } catch (e: UpstreamProtocolException) {
-                return null
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                return "SOURCE_UNAVAILABLE"
-            }
+            // A body in the other protocol counts as the source ending; any other failure to start is the source's.
+            runCatchingCancellable { reader.awaitStarted() }
+                .onFailure { return if (it is UpstreamProtocolException) null else "SOURCE_UNAVAILABLE" }
             var written = 0L
             withTimeoutOrNull(Duration.between(clock.instant(), until).toMillis().coerceAtLeast(0)) {
                 withContext(Dispatchers.IO) {

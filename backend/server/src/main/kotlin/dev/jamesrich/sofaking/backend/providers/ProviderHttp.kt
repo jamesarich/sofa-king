@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.providers
 
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.upstream.Hop
 import dev.jamesrich.sofaking.backend.upstream.REDIRECT_STATUSES
 import dev.jamesrich.sofaking.backend.upstream.RedirectProblem
@@ -17,9 +18,9 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
 import io.ktor.utils.io.readBuffer
-import kotlinx.coroutines.CancellationException
 import kotlinx.io.readByteArray
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -52,7 +53,7 @@ class Fetched(
     @OptIn(ExperimentalSerializationApi::class) // decodeFromStream
     fun json(): JsonElement = try {
         ByteArrayInputStream(body).use { lenientJson.decodeFromStream(JsonElement.serializer(), it) }
-    } catch (e: Exception) {
+    } catch (e: SerializationException) {
         throw ProviderFailure("Response is not JSON", cause = e)
     }
 
@@ -132,7 +133,7 @@ class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPol
         }
         // Like a browser's fetch, credentials stay with the origin the caller addressed.
         val crossOrigin = !sameOrigin(start, hop)
-        return try {
+        return runCatchingCancellable {
             http.prepareRequest(hop.toString()) {
                 this.method = method
                 headers.forEach { (key, value) ->
@@ -171,13 +172,10 @@ class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPol
                     )
                 }
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: ProviderFailure) {
-            throw e
-        } catch (e: Exception) {
+        }.getOrElse { e ->
             // Exception messages can carry the URL and so a token; keep the class, drop the text.
-            throw ProviderFailure("Provider request failed (${e.javaClass.simpleName})", cause = e)
+            throw e as? ProviderFailure
+                ?: ProviderFailure("Provider request failed (${e.javaClass.simpleName})", cause = e)
         }
     }
 
@@ -279,7 +277,7 @@ internal fun nextData(html: String, what: String): JsonElement {
     val match = NEXT_DATA.find(html) ?: throw ProviderFailure("$what has no __NEXT_DATA__")
     return try {
         lenientJson.parseToJsonElement(match.groupValues[1])
-    } catch (e: Exception) {
+    } catch (e: SerializationException) {
         throw ProviderFailure("$what's __NEXT_DATA__ is not JSON", cause = e)
     }
 }

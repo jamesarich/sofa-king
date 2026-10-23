@@ -19,12 +19,12 @@ import dev.jamesrich.sofaking.backend.api.StationOverride
 import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.policyChanges
 import dev.jamesrich.sofaking.backend.store.recordPolicyChanges
 import dev.jamesrich.sofaking.backend.store.saveStationAvailability
 import dev.jamesrich.sofaking.backend.store.stationAvailability
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -530,11 +530,9 @@ class PolicyService(
             // A run the operator asked for starts at once; the rest wait out the debounce so a burst is one run.
             if (cause != "now") delay(debounceMillis)
             val coalesced = trigger.tryReceive().getOrNull()
-            try {
+            runCatchingCancellable {
                 apply(coalesced ?: cause)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.warn("lineup policy run failed class={} message=\"{}\"", e.javaClass.simpleName, redactedMessage(e))
             }
         }

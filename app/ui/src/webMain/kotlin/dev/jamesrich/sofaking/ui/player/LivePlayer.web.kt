@@ -298,6 +298,8 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
                 // A new target starts empty, so the current frame goes in at once, even while paused.
                 while (true) {
                     if (video.readyState >= HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
+                        // A browser's own errors, WebGL's among them, are Throwables but not Exceptions here.
+                        @Suppress("TooGenericExceptionCaught")
                         try {
                             var drawn = false
                             target.render { drawn = frames.draw(video, target) }

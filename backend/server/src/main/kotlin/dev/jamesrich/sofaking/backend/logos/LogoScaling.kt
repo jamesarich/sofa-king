@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.logos
 
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
@@ -24,33 +25,37 @@ internal fun fitLogo(bytes: ByteArray, contentType: String, maxSide: Int = LOGO_
         else -> return bytes
     }
     return try {
-        val (width, height) = dimensions(bytes) ?: return bytes
-        if (width <= maxSide && height <= maxSide) return bytes
-        if (width.toLong() * height > MAX_DECODED_PIXELS) return bytes
-        val source = ImageIO.read(ByteArrayInputStream(bytes)) ?: return bytes
-        val scale = maxSide.toDouble() / maxOf(width, height)
-        val targetWidth = (width * scale).roundToInt().coerceAtLeast(1)
-        val targetHeight = (height * scale).roundToInt().coerceAtLeast(1)
-        val type = if (format == "png") BufferedImage.TYPE_INT_ARGB else BufferedImage.TYPE_INT_RGB
-        val scaled = BufferedImage(targetWidth, targetHeight, type)
-        val graphics = scaled.createGraphics()
-        try {
-            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
-            graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
-            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-            graphics.drawImage(source, 0, 0, targetWidth, targetHeight, null)
-        } finally {
-            graphics.dispose()
-        }
-        val out = ByteArrayOutputStream()
-        if (!ImageIO.write(scaled, format, out)) return bytes
-        out.toByteArray().takeIf { it.size < bytes.size } ?: bytes
-    } catch (e: Exception) {
-        bytes
-    } catch (e: LinkageError) {
+        // ImageIO's decoders throw more than IOException on a malformed image; such a logo stays as fetched.
+        runCatchingCancellable { scaled(bytes, format, maxSide) }.getOrDefault(bytes)
+    } catch (_: LinkageError) {
         // A runtime without the imaging natives keeps logos as fetched.
         bytes
     }
+}
+
+/** [fitLogo]'s work, which may throw whatever the image decoders throw. */
+private fun scaled(bytes: ByteArray, format: String, maxSide: Int): ByteArray {
+    val (width, height) = dimensions(bytes) ?: return bytes
+    if (width <= maxSide && height <= maxSide) return bytes
+    if (width.toLong() * height > MAX_DECODED_PIXELS) return bytes
+    val source = ImageIO.read(ByteArrayInputStream(bytes)) ?: return bytes
+    val scale = maxSide.toDouble() / maxOf(width, height)
+    val targetWidth = (width * scale).roundToInt().coerceAtLeast(1)
+    val targetHeight = (height * scale).roundToInt().coerceAtLeast(1)
+    val type = if (format == "png") BufferedImage.TYPE_INT_ARGB else BufferedImage.TYPE_INT_RGB
+    val scaled = BufferedImage(targetWidth, targetHeight, type)
+    val graphics = scaled.createGraphics()
+    try {
+        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+        graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        graphics.drawImage(source, 0, 0, targetWidth, targetHeight, null)
+    } finally {
+        graphics.dispose()
+    }
+    val out = ByteArrayOutputStream()
+    if (!ImageIO.write(scaled, format, out)) return bytes
+    return out.toByteArray().takeIf { it.size < bytes.size } ?: bytes
 }
 
 /** Width and height from the image header, without decoding the pixels. */

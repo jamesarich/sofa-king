@@ -51,6 +51,7 @@ import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMarks
+import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.break_up_next
 import dev.jamesrich.sofaking.resources.no_channels
@@ -79,7 +80,6 @@ import dev.jamesrich.sofaking.ui.repeatCountOrNull
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import dev.jamesrich.sofaking.ui.uptimeMs
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -263,11 +263,9 @@ fun PlayerScreen(
                 player.adBreak()
             } else {
                 ahead?.let { loaded ->
-                    try {
+                    runCatchingCancellable {
                         sessions.adBreak(loaded)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
+                    }.getOrElse { e ->
                         // A server from before the break screen, or one between sessions: ask again in a while.
                         log.d { "ad break: ask failed: ${e.message}" }
                         wait = AD_BREAK_RETRY_MS
@@ -343,11 +341,9 @@ fun PlayerScreen(
         ) {
             captionSync.effectiveUs = 0L
             tuneJob.job = scope.launch {
-                try {
+                runCatchingCancellable {
                     sessions.setIntent(channel.guideId, PlaybackIntent.WATCH)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
+                }.onFailure { e ->
                     log.w(e) { "session: promote failed" }
                 }
             }
@@ -360,11 +356,9 @@ fun PlayerScreen(
         captionSync.effectiveUs = captionSync.advanceUs
         tuneJob.job = scope.launch {
             while (true) {
-                val stream = try {
+                val stream = runCatchingCancellable {
                     sessions.tune(channel.guideId, PlaybackIntent.WATCH)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
+                }.getOrElse { e ->
                     // The reconnect loop below tunes again with backoff, as it does for a stream that failed.
                     state.fail(failureCode(e))
                     return@launch

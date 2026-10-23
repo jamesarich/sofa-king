@@ -1,7 +1,6 @@
 package dev.jamesrich.sofaking.data
 
 import co.touchlab.kermit.Logger
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -95,17 +94,17 @@ class ServerConnection(
     private suspend fun readCapabilities(api: SofaKingApi): ServerCapabilities {
         var wait = 5.seconds
         while (true) {
-            try {
+            runCatchingCancellable {
                 return api.bootstrap().capabilities.let {
                     ServerCapabilities(recordings = it.recordings, library = it.library)
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: SofaKingException) {
-                if (e.status == 404) return ServerCapabilities()
-                log.w { "bootstrap refused: ${e.code}" }
-            } catch (e: Exception) {
-                log.w { "bootstrap failed: ${e.message}" }
+            }.onFailure { e ->
+                if (e is SofaKingException) {
+                    if (e.status == 404) return ServerCapabilities()
+                    log.w { "bootstrap refused: ${e.code}" }
+                } else {
+                    log.w { "bootstrap failed: ${e.message}" }
+                }
             }
             delay(wait)
             wait = (wait * 2).coerceAtMost(5.minutes)

@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.api.GuideStatus
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.StoredGuide
 import dev.jamesrich.sofaking.backend.store.guides
@@ -15,7 +16,6 @@ import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.utils.io.jvm.javaio.toInputStream
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -138,7 +138,7 @@ class GuideService(
     suspend fun refresh(config: GuideConfig) = locks.getValue(config.id).withLock {
         jobs.record("guide:${config.id}") {
             val started = clock.instant()
-            try {
+            runCatchingCancellable {
                 val wantedIds = wanted()[config.id].orEmpty()
                 val parsed = if (config.provider != null) {
                     val client =
@@ -197,9 +197,7 @@ class GuideService(
                 )
                 onImported()
                 JobOutcome(true, "${parsed.channels.size} channels, ${parsed.programs.size} programs")
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.getOrElse { e ->
                 statuses.updateAndGet { list ->
                     list.map {
                         if (it.id == config.id) {

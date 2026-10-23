@@ -27,8 +27,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.FilledIconButton
@@ -277,7 +275,7 @@ internal fun failureReasonRes(code: String, live: Boolean = true): StringResourc
 }
 
 /** The [FailureCard] code for [e]: the server's error code, or `SESSION_UNAVAILABLE` when the server gave none. */
-internal fun failureCode(e: Exception): String = (e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE
+internal fun failureCode(e: Throwable): String = (e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE
 
 private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 

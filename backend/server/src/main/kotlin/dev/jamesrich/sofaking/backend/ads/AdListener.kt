@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.playback.SegmentAudio
 import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.SpliceReader
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.store.AdChannelRecord
 import dev.jamesrich.sofaking.backend.store.BackendStore
@@ -20,7 +21,6 @@ import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.request
 import io.ktor.utils.io.readBuffer
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -84,13 +84,7 @@ class AdListener(
         // The server settles first: its guides, health and sessions come before background listening.
         delay(START_DELAY_MS)
         while (isActive) {
-            try {
-                reconcile(this)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                log.warn("ad listener failed: {}", e.toString())
-            }
+            runCatchingCancellable { reconcile(this) }.onFailure { log.warn("ad listener failed: {}", it.toString()) }
             delay(RECONCILE_MS)
         }
     }
@@ -149,57 +143,19 @@ class AdListener(
         val reading =
             CoroutineScope(kotlin.coroutines.coroutineContext + SupervisorJob(kotlin.coroutines.coroutineContext[Job]))
         try {
-            val stream = feeds.playable(offering)
-            val follower = AudioFollower(audio, ads, reading)
-            val media = mediaPlaylist(stream) ?: return
-            var last = Long.MIN_VALUE
-            while (clock.instant().isBefore(until)) {
-                // Someone started watching this channel: the turn ends now rather than at the next look.
-                if (channel in sessions.watching()) return
-                val (text, base) = fetchText(stream, media) ?: return
-                if (text.contains("#EXT-X-KEY:METHOD=AES") || text.contains("#EXT-X-MAP:")) {
+            runCatchingCancellable { play(channel, offering, ads, until, reading) }.onFailure { e ->
+                if (e is Refused) {
+                    cooldown[offering.providerId] = clock.instant().plus(COOLDOWN)
+                    log.info("ad listener backs off provider={} status={}", offering.providerId, e.status)
+                } else {
                     log.info(
-                        "ad listener skips channel={} provider={}: encrypted or fMP4 segments",
+                        "ad listener channel={} provider={} stopped: {}",
                         channel,
                         offering.providerId,
+                        e.toString(),
                     )
-                    return
                 }
-                ads.annotate(text, base)
-                val segments = AdBreaks.parse(text, base)?.segments.orEmpty()
-                // A first look starts near the live edge, as a player does.
-                val fresh = segments.filter { it.sequence > last }.let {
-                    if (last == Long.MIN_VALUE) {
-                        it.takeLast(START_SEGMENTS)
-                    } else {
-                        it
-                    }
-                }
-                for (segment in fresh) {
-                    val bytes = fetchBytes(stream, segment.url) ?: continue
-                    val cues = tsSyncOffset(bytes, 3)?.let { sync ->
-                        SpliceReader().apply {
-                            feed(
-                                bytes,
-                                sync,
-                                bytes.size - sync,
-                            )
-                        }.finish()
-                    }
-                    ads.served(segment.url, cues)
-                    follower.offer(segment.url, bytes)
-                    last = segment.sequence
-                }
-                val target = segments.maxOfOrNull { it.durationMs } ?: 6_000L
-                delay((target / 2).coerceIn(2_000L, 6_000L))
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Refused) {
-            cooldown[offering.providerId] = clock.instant().plus(COOLDOWN)
-            log.info("ad listener backs off provider={} status={}", offering.providerId, e.status)
-        } catch (e: Exception) {
-            log.info("ad listener channel={} provider={} stopped: {}", channel, offering.providerId, e.toString())
         } finally {
             reading.cancel()
             withContext(NonCancellable) {
@@ -219,6 +175,60 @@ class AdListener(
                     store.recordAdChannel(channel, offering.providerId, census, clock.instant(), listened = true)
                 }
             }
+        }
+    }
+
+    /** One turn's listening on [channel] until [until], or until someone watches or the stream says no. */
+    private suspend fun play(
+        channel: String,
+        offering: Offering,
+        ads: AdClock,
+        until: Instant,
+        reading: CoroutineScope,
+    ) {
+        val stream = feeds.playable(offering)
+        val follower = AudioFollower(audio, ads, reading)
+        val media = mediaPlaylist(stream) ?: return
+        var last = Long.MIN_VALUE
+        while (clock.instant().isBefore(until)) {
+            // Someone started watching this channel: the turn ends now rather than at the next look.
+            if (channel in sessions.watching()) return
+            val (text, base) = fetchText(stream, media) ?: return
+            if (text.contains("#EXT-X-KEY:METHOD=AES") || text.contains("#EXT-X-MAP:")) {
+                log.info(
+                    "ad listener skips channel={} provider={}: encrypted or fMP4 segments",
+                    channel,
+                    offering.providerId,
+                )
+                return
+            }
+            ads.annotate(text, base)
+            val segments = AdBreaks.parse(text, base)?.segments.orEmpty()
+            // A first look starts near the live edge, as a player does.
+            val fresh = segments.filter { it.sequence > last }.let {
+                if (last == Long.MIN_VALUE) {
+                    it.takeLast(START_SEGMENTS)
+                } else {
+                    it
+                }
+            }
+            for (segment in fresh) {
+                val bytes = fetchBytes(stream, segment.url) ?: continue
+                val cues = tsSyncOffset(bytes, 3)?.let { sync ->
+                    SpliceReader().apply {
+                        feed(
+                            bytes,
+                            sync,
+                            bytes.size - sync,
+                        )
+                    }.finish()
+                }
+                ads.served(segment.url, cues)
+                follower.offer(segment.url, bytes)
+                last = segment.sequence
+            }
+            val target = segments.maxOfOrNull { it.durationMs } ?: 6_000L
+            delay((target / 2).coerceIn(2_000L, 6_000L))
         }
     }
 

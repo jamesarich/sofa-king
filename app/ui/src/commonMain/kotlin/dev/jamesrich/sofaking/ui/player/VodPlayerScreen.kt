@@ -74,6 +74,7 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.Subtitles
+import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.captions_off
 import dev.jamesrich.sofaking.resources.captions_on
@@ -128,7 +129,6 @@ import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import dev.jamesrich.sofaking.ui.uptimeMs
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
@@ -254,11 +254,9 @@ fun VodPlayerScreen(
             is VodSeekPlan.Restart -> {
                 player.stop()
                 scope.launch {
-                    try {
+                    runCatchingCancellable {
                         state.waitForConverter { sessions.restartAt(plan.itemMs) }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
+                    }.onFailure { e ->
                         log.w { "vod: restart failed: ${e.message}" }
                         state.failure = failureCode(e)
                     }
@@ -284,11 +282,9 @@ fun VodPlayerScreen(
     // Opens the item, again on a retry. The stream it publishes is loaded by the effect below.
     LaunchedEffect(openRequest) {
         state.failure = null
-        try {
+        runCatchingCancellable {
             state.waitForConverter { currentOpen() }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+        }.onFailure { e ->
             log.w { "vod: open failed: ${e.message}" }
             state.failure = failureCode(e)
         }
@@ -343,11 +339,9 @@ fun VodPlayerScreen(
         if (next == null) currentOnEnd()
     }
     LaunchedEffect(Unit) {
-        upcoming = try {
+        upcoming = runCatchingCancellable {
             currentUpNext()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+        }.getOrElse { e ->
             log.w { "vod: up next failed: ${e.message}" }
             null
         }
@@ -474,11 +468,9 @@ fun VodPlayerScreen(
         if (!backgrounded) return@LifecycleEventEffect
         backgrounded = false
         scope.launch {
-            try {
+            runCatchingCancellable {
                 if (state.waitForConverter { sessions.reopen() } == null) openRequest++
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.w { "vod: reopen failed: ${e.message}" }
                 state.failure = failureCode(e)
             }
@@ -530,11 +522,9 @@ fun VodPlayerScreen(
         val picture = subtitleTrack?.takeIf(tracks::isPicture)
         player.stop()
         scope.launch {
-            try {
+            runCatchingCancellable {
                 state.waitForConverter { tracks.select(audio, picture, state.positionMs) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.w { "vod: track switch failed: ${e.message}" }
                 state.failure = failureCode(e)
             }

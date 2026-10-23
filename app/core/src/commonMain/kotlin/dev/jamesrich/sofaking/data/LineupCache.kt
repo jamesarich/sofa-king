@@ -100,11 +100,8 @@ object CachedLineupSerializer : OkioSerializer<CachedLineup?> {
     override suspend fun readFrom(source: BufferedSource): CachedLineup? {
         val bytes = source.readByteArray()
         if (bytes.isEmpty()) return null
-        return try {
-            ProtoBuf.decodeFromByteArray<CachedLineup>(bytes)
-        } catch (e: Exception) {
-            throw CorruptionException("The lineup cache does not decode", e)
-        }
+        return runCatchingCancellable { ProtoBuf.decodeFromByteArray<CachedLineup>(bytes) }
+            .getOrElse { throw CorruptionException("The lineup cache does not decode", it) }
     }
 
     override suspend fun writeTo(t: CachedLineup?, sink: BufferedSink) {

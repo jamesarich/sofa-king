@@ -64,7 +64,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Press random remote keys in the emulator
-        uses: reactivecircus/android-emulator-runner@e93c997dcab69054e999e3924af3d21c4a736e13 # v2.9.0
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         env:
           SOFAKING_MONKEY_KEYS: ${{ inputs.keys || '1500' }}
           SOFAKING_MONKEY_SEED: ${{ inputs.seed }}
@@ -73,7 +73,7 @@ jobs:
           target: android-tv
           arch: x86_64
           profile: tv_1080p
-          emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           script: python3 app/scripts/tv-monkey.py --apk app/androidApp/build/outputs/apk/debug/androidApp-debug.apk --out app/build/tv-monkey
       - name: Upload the logs

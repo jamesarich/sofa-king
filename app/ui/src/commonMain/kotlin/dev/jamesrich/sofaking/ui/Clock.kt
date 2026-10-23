@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
@@ -21,6 +22,9 @@ internal fun msToNextMinute(epochMs: Long): Long = MINUTE_MS - epochMs.mod(MINUT
 internal fun localDay(at: Instant = Clock.System.now(), zone: TimeZone = TimeZone.currentSystemDefault()): String =
     at.toLocalDateTime(zone).date.toString()
 
+/** The clock the screens tell the time by: the system's, or a fixed one in previews and screenshot tests. */
+internal val LocalClock = staticCompositionLocalOf<Clock> { Clock.System }
+
 /**
  * The current instant, refreshed on every wall-clock minute, so the guide and the player turn over together
  * and with the programmes' start times; reading it in composition never calls the clock. It is read again each
@@ -28,14 +32,15 @@ internal fun localDay(at: Instant = Clock.System.now(), zone: TimeZone = TimeZon
  */
 @Composable
 internal fun rememberMinuteNow(): State<Instant> {
-    val initial = remember { Clock.System.now() }
+    val clock = LocalClock.current
+    val initial = remember(clock) { clock.now() }
     val lifecycle = appLifecycleOwner.lifecycle
-    return produceState(initial, lifecycle) {
+    return produceState(initial, lifecycle, clock) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            value = Clock.System.now()
+            value = clock.now()
             while (true) {
-                delay(msToNextMinute(Clock.System.now().toEpochMilliseconds()))
-                value = Clock.System.now()
+                delay(msToNextMinute(clock.now().toEpochMilliseconds()))
+                value = clock.now()
             }
         }
     }

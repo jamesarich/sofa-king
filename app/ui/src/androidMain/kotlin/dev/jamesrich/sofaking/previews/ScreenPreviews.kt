@@ -1,0 +1,265 @@
+package dev.jamesrich.sofaking.previews
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import dev.jamesrich.sofaking.ItemDetailState
+import dev.jamesrich.sofaking.LibraryHomeState
+import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.AutoOpenDelay
+import dev.jamesrich.sofaking.data.CaptionStyle
+import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.ClockFormat
+import dev.jamesrich.sofaking.data.GuideStatus
+import dev.jamesrich.sofaking.data.ItemKind
+import dev.jamesrich.sofaking.data.LibraryKind
+import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.MediaHome
+import dev.jamesrich.sofaking.data.MediaItem
+import dev.jamesrich.sofaking.data.MediaItemDetail
+import dev.jamesrich.sofaking.data.MediaLibrary
+import dev.jamesrich.sofaking.data.MediaShelf
+import dev.jamesrich.sofaking.data.PlayProgress
+import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.ui.LayoutProfile
+import dev.jamesrich.sofaking.ui.LocalClock
+import dev.jamesrich.sofaking.ui.LocalClockFormat
+import dev.jamesrich.sofaking.ui.LocalLayoutProfile
+import dev.jamesrich.sofaking.ui.LocalTimeZone
+import dev.jamesrich.sofaking.ui.guide.GuideScreen
+import dev.jamesrich.sofaking.ui.guide.ProgrammeDetails
+import dev.jamesrich.sofaking.ui.guide.ProgrammeSheet
+import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
+import dev.jamesrich.sofaking.ui.library.ItemDetailsScreen
+import dev.jamesrich.sofaking.ui.library.LibraryHomeActions
+import dev.jamesrich.sofaking.ui.library.LibraryHomeScreen
+import dev.jamesrich.sofaking.ui.player.CaptionSync
+import dev.jamesrich.sofaking.ui.player.InfoOverlay
+import dev.jamesrich.sofaking.ui.player.UnavailableLivePlayer
+import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.settings.SettingsScreen
+import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
+import kotlinx.datetime.TimeZone
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Instant
+
+/*
+ * The main screens filled with sample data, for androidApp's screenshot tests, which render them as Android Studio
+ * renders a preview. Each takes [tv] for the TV layout; otherwise the window's size class picks the phone, tablet or
+ * desktop one. The clock stands still at one evening in UTC with a 12-hour clock, so the pictures do not change
+ * with the day, the machine's zone or its settings.
+ */
+
+/** The guide, with its preview band where the layout has room for it. */
+@Composable
+fun GuidePreview(tv: Boolean) = Frame(tv) {
+    GuideScreen(
+        lineup = Samples.lineup,
+        favorites = setOf("c1"),
+        recentChannels = listOf("c2"),
+        initialChannelId = "c1",
+        initialFilterKey = null,
+        startAtNow = false,
+        startSearch = false,
+        returnedFrom = null,
+        onPlay = { _, _, _ -> },
+        onToggleFavorite = {},
+        onFilterChanged = {},
+        onLoadGuideWindow = {},
+        previewPlayer = remember { UnavailableLivePlayer(CaptionSync(), "PREVIEW") },
+        sessions = remember { PlaybackSessions() },
+        captionsEnabled = false,
+        captionStyle = CaptionStyle.SYSTEM,
+        autoOpenDelay = AutoOpenDelay.OFF,
+        previewSound = false,
+    )
+}
+
+/** A program's details: a side panel on a TV, a sheet elsewhere. */
+@Composable
+fun ProgramDetailsPreview(tv: Boolean) = Frame(tv) {
+    ProgrammeSheet(
+        details = ProgrammeDetails(Samples.channels[0], Samples.lineup.guide.getValue("c0").first()),
+        now = Samples.now,
+        isFavorite = true,
+        guideLoading = false,
+        onWatch = {},
+        onToggleFavorite = {},
+        onDismiss = {},
+    )
+}
+
+/** The full-screen player's info bar over the picture. */
+@Composable
+fun PlayerInfoPreview(tv: Boolean) = Frame(tv) {
+    Box(Modifier.fillMaxSize()) {
+        InfoOverlay(
+            lineup = Samples.lineup,
+            channel = Samples.channels[0],
+            now = Samples.now,
+            captionsOn = true,
+            captionAdvanceMs = 1_500,
+            scope = "News 1/4",
+            showKeyLegend = true,
+            modifier = Modifier.align(Alignment.BottomStart).screenPadding(),
+        )
+    }
+}
+
+/** The Library tab: Continue watching, recent additions and the libraries. */
+@Composable
+fun LibraryHomePreview(tv: Boolean) = Frame(tv) {
+    LibraryHomeScreen(LibraryHomeState.Ready(Samples.home), LibraryHomeActions({}, {}, {}, {}))
+}
+
+/** A show's page on the season with the next episode. */
+@Composable
+fun ShowPagePreview(tv: Boolean) = Frame(tv) {
+    ItemDetailsScreen(
+        ItemDetailState.Ready(Samples.showDetail),
+        ItemDetailState.Ready(Samples.seasonDetail),
+        selectedSeasonId = "s2",
+        actions = ItemDetailsActions({ _, _ -> }, { _, _ -> }, {}, {}),
+    )
+}
+
+/** Settings for a paired server that offers libraries and recordings. */
+@Composable
+fun SettingsPreview(tv: Boolean) = Frame(tv) {
+    SettingsScreen(
+        settings = AppSettings(serverUrl = "http://sofa.example:9193", apiToken = "token", captionsEnabled = true),
+        onSave = { _, _ -> },
+        onBack = {},
+        channelCount = Samples.channels.size,
+        libraryOffered = true,
+        recordingsOffered = true,
+    )
+}
+
+/** The app's theme, layout profile and background around [content], on the fixed clock. */
+@Composable
+private fun Frame(tv: Boolean, content: @Composable () -> Unit) {
+    val sizeClass = currentWindowAdaptiveInfoV2().windowSizeClass
+    SofaKingTheme {
+        CompositionLocalProvider(
+            LocalLayoutProfile provides LayoutProfile.of(tv, sizeClass),
+            LocalClock provides Samples.clock,
+            LocalTimeZone provides TimeZone.UTC,
+            LocalClockFormat provides ClockFormat.TWELVE_HOUR,
+        ) {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { content() }
+        }
+    }
+}
+
+private object Samples {
+    val now: Instant = Instant.parse("2026-10-23T20:10:00Z")
+    val clock = object : Clock {
+        override fun now() = this@Samples.now
+    }
+    private val start = now - 25.minutes
+
+    val channels = List(8) { i ->
+        Channel(
+            guideId = "c$i",
+            number = (i + 2).toDouble(),
+            name = listOf("News Now", "Sofa Sports", "Movies", "Kids", "Local 4", "Weather", "Music", "Classics")[i],
+            logo = null,
+            groups = listOf(if (i % 2 == 0) "News" else "Sports"),
+            guideStatus = if (i == 3) GuideStatus.STALE else GuideStatus.AVAILABLE,
+        )
+    }
+
+    val lineup = Lineup(
+        channels = channels,
+        guide = channels.filter { it.guideStatus == GuideStatus.AVAILABLE }.associate { channel ->
+            channel.guideId to List(8) { slot ->
+                Programme(
+                    channelId = channel.guideId,
+                    start = start + (slot * 45).minutes,
+                    stop = start + ((slot + 1) * 45).minutes,
+                    title = "${channel.name} show ${slot + 1}",
+                    description = "A night shift at the harbor turns into a search for a missing ship before the storm comes in.",
+                    subTitle = "Part ${slot + 1}".takeIf { slot % 2 == 0 },
+                    episode = "S1 E${slot + 1}".takeIf { slot % 2 == 0 },
+                    isNew = slot == 0,
+                    rating = "TV-PG".takeIf { slot % 2 == 0 },
+                )
+            }
+        },
+    )
+
+    private val movies = MediaLibrary("movies", "Movies", LibraryKind.MOVIES, itemCount = 42)
+    private val shows = MediaLibrary("shows", "TV Shows", LibraryKind.SHOWS, itemCount = 12)
+
+    private fun movie(i: Int) = MediaItem(
+        id = "m$i",
+        libraryId = "movies",
+        kind = ItemKind.MOVIE,
+        title = listOf("The Long Night", "Harbor Lights", "Paper Moon", "Quiet Town", "Northbound", "Second Act", "Glass Garden", "Dust")[i % 8],
+        year = 1990 + i,
+        durationMs = 6_480_000,
+        genres = listOf("Drama", "Mystery"),
+        progress = when (i) {
+            0 -> PlayProgress(1_800_000, 6_480_000, watched = false)
+            2 -> PlayProgress(0, 6_480_000, watched = true)
+            else -> null
+        },
+    )
+
+    private fun episode(season: Int, i: Int, progress: PlayProgress? = null) = MediaItem(
+        id = "e$season-$i",
+        libraryId = "shows",
+        kind = ItemKind.EPISODE,
+        title = "Chapter ${i + 1}",
+        parentId = "s$season",
+        showId = "show",
+        showTitle = "Harbor Patrol",
+        season = season,
+        episode = i + 1,
+        aired = "2024-0$season-1$i",
+        durationMs = 2_700_000,
+        overview = "The crew follows a lead across the bay while a storm closes in on the harbor.",
+        progress = progress,
+    )
+
+    private val show = MediaItem(
+        id = "show",
+        libraryId = "shows",
+        kind = ItemKind.SHOW,
+        title = "Harbor Patrol",
+        year = 2023,
+        overview = "Coast guard officers keep a small harbor town safe through storms, smugglers and summer crowds.",
+        genres = listOf("Drama"),
+        contentRating = "TV-14",
+        rating = 8.1,
+        children = 2,
+        unwatched = 9,
+    )
+
+    val home = MediaHome(
+        shelves = listOf(
+            MediaShelf("continue", "Continue watching", listOf(movie(0), episode(1, 2, PlayProgress(900_000, 2_700_000, false)))),
+            MediaShelf("recent", "Recently added in Movies", List(8) { movie(it) }, libraryId = "movies"),
+            MediaShelf("recent", "Recently added in TV Shows", listOf(show), libraryId = "shows"),
+        ),
+        libraries = listOf(movies, shows),
+    )
+
+    private val seasons = List(2) { MediaItem("s${it + 1}", "shows", ItemKind.SEASON, "Season ${it + 1}", parentId = "show", season = it + 1, unwatched = 4) }
+    private val next = episode(2, 1, PlayProgress(600_000, 2_700_000, false))
+    val showDetail = MediaItemDetail(item = show, children = seasons, next = next)
+    val seasonDetail = MediaItemDetail(
+        item = seasons[1],
+        children = listOf(episode(2, 0, PlayProgress(0, 2_700_000, true)), next) + List(3) { episode(2, it + 2) },
+    )
+}

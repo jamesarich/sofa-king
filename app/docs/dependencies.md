@@ -15,6 +15,8 @@ The core Material icon set (`material-icons-core`) is published apart from the r
 
 Kotlin, the Android Gradle plugin and Compose Multiplatform are preview pins that move together. The combination is outside the published compatibility matrices, so a bump of one usually needs the others. The Android app uses the plugin's built-in Kotlin. The JVM and Android targets compile for Java 21 with the JDK 21 toolchain, and `gradle/gradle-daemon-jvm.properties` runs the Gradle daemon on JDK 21 too.
 
+The screenshot tests run the Compose Preview Screenshot Testing engine (`screenshot` in the catalog) through the Android Gradle plugin's test suites, both experimental; the `android.experimental.enableScreenshotTest` and `android.experimental.testSuiteSupport` properties in `gradle.properties` turn them on. A bump of the engine, the plugin or Compose can change the renders: run `:androidApp:updateDebugScreenshotTestDefaultTestSuite` and review the changed reference images in the pull request.
+
 The app, the server and the [contract](../../contract/README.md) share that one catalog, so a Kotlin or kotlinx.serialization bump moves all three in one pull request, with no other files to regenerate.
 
 Every version in the catalog is exact, and the wrapper has a pinned distribution checksum. Neither Gradle's resolved versions nor the Kotlin/JS and Kotlin/Wasm Yarn lockfiles are kept: Gradle resolves the pinned versions the same way on every machine, and Kotlin writes the Yarn lockfiles to the ignored `kotlin-js-store` on each build.

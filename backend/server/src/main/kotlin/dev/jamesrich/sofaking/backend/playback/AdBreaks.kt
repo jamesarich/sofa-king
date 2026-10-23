@@ -19,11 +19,11 @@ import kotlinx.serialization.json.booleanOrNull
 /**
  * The ad segments of a live HLS media playlist, the way the free streaming services mark them: SCTE-35 cue tags
  * (`#EXT-X-CUE-OUT`, `-CUE-OUT-CONT`, `-CUE-IN`, as Tubi, Whale and LG send), `#EXT-X-DATERANGE` with `SCTE35-OUT` in
- * a dated playlist, Pluto's stitched ads, which come from its ad muxer or its bumper clips, the ads AWS
- * MediaTailor stitches for Xumo and Plex, the ads and promos Roku stitches from its ad servers, Ottera's ad host,
- * Wurl's `tag=ad` segment titles, and the flags two origins write into their segment URLs: Amagi's ad insertion (Whale,
- * Plex and other Amagi channels) and the fuelmedia.io origin behind some Stirr stations. Nothing is guessed from the
- * picture, and a `#EXT-X-DISCONTINUITY` alone means nothing: Pluto puts one between episodes too. A cue whose
+ * a dated playlist, Pluto's stitched ads, which come from its ad muxer or its bumper clips, the ads AWS MediaTailor
+ * stitches for Xumo and Plex, the ads and promos Roku stitches from its ad servers, Ottera's ad host, Google's ad
+ * pods, Wurl's `tag=ad` segment titles, and the flags two origins write into their segment URLs: Amagi's ad insertion
+ * (Whale, Plex and other Amagi channels) and the fuelmedia.io origin behind some Stirr stations. Nothing is guessed
+ * from the picture, and a `#EXT-X-DISCONTINUITY` alone means nothing: Pluto puts one between episodes too. A cue whose
  * `#EXT-X-CUE-OUT` has left the window is carried on by [AdClock], which sees every refresh.
  */
 internal object AdBreaks {
@@ -111,7 +111,7 @@ internal object AdBreaks {
                 line.startsWith("#") -> Unit
                 else -> {
                     val at = date
-                    val stitchedAd = taggedAd || mediaTailor(base, line) || amagi(base, line) || ottera(base, line)
+                    val stitchedAd = taggedAd || mediaTailor(base, line) || amagi(base, line) || ottera(base, line) || daiPod(base, line)
                     val ad = stitchedAd || cueOpen || pluto(base, line) || roku(base, line) || fuelmedia(base, line) || (at != null && ranges.any { at in it })
                     if (pendingEnd != null) plannedEnd[segments.size] = pendingEnd
                     segments += Segment(sequence + segments.size, durationMs, ad, absolute(base, line), cueIn)
@@ -125,7 +125,7 @@ internal object AdBreaks {
             }
         }
         // Plex alternates its own part segments with the stream's, so a stitched break reads ad, part, ad: a single
-        // segment between two stitched ads (MediaTailor, Amagi, Ottera or Wurl), with no cue-in before it, belongs to the break.
+        // segment between two stitched ads (MediaTailor, Amagi, Ottera, Google or Wurl), with no cue-in before it, belongs to the break.
         for (index in 1 until segments.size - 1) {
             val segment = segments[index]
             if (!segment.ad && !segment.cueIn && stitched[index - 1] && stitched[index + 1]) {
@@ -169,6 +169,16 @@ internal object AdBreaks {
     private fun ottera(base: URI, reference: String): Boolean {
         val host = try { base.resolve(reference).host } catch (_: IllegalArgumentException) { return false } ?: return false
         return host.lowercase().endsWith(".ads.ottera.tv")
+    }
+
+    /**
+     * Google Ad Manager's dynamic ad insertion serves each break's pod, ads and slate alike, from
+     * `dai.google.com/linear/pods/…` while the show plays from the publisher's CDN. Seen on 2026-10-23 on Plex's 48 Hours
+     * and Samsung's CBS News, inside the playlists' own `#EXT-X-CUE-OUT` and `#EXT-X-CUE-IN`.
+     */
+    private fun daiPod(base: URI, reference: String): Boolean {
+        val uri = try { base.resolve(reference) } catch (_: IllegalArgumentException) { return false }
+        return uri.host?.lowercase() == "dai.google.com" && uri.rawPath?.startsWith("/linear/pods/") == true
     }
 
     /**

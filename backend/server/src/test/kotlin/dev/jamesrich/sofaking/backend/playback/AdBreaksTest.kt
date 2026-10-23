@@ -278,6 +278,25 @@ $host/not-a-token.ts
         assertEquals(listOf(false, false, false, true, true, true, false, false), ads(plex, URI("https://epg.provider.plex.tv/library/parts/0123-4567/index.m3u8")))
     }
 
+    @Test fun `Google's ad pods are ads and the publisher's segments are not`() {
+        val dai = """#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:500
+#EXTINF:6.0,
+https://example.airspace-cdn.cbsivideo.com/live/seg_100.ts
+#EXT-X-DISCONTINUITY
+#EXTINF:6.0,
+https://dai.google.com/linear/pods/v1/p/abcdef/stream0:MRN2/12345/slate/0/0123abcd/1.ts
+#EXTINF:6.0,
+https://dai.google.com/linear/pods/v1/p/abcdef/stream0:MRN2/12345/slate/0/0123abcd/2.ts
+#EXT-X-DISCONTINUITY
+#EXTINF:6.0,
+https://example.airspace-cdn.cbsivideo.com/live/seg_103.ts
+#EXTINF:6.0,
+https://dai.google.com/linear/hls/event/abcdef/master.m3u8
+"""
+        assertEquals(listOf(false, true, true, false, false), ads(dai, URI("https://dai.google.com/linear/hls/pa/event/abcdef/stream/x/hls/0.m3u8")))
+    }
+
     @Test fun `Wurl's segments titled tag=ad are ads and its overlay cue is not a break`() {
         val wurl = """#EXTM3U
 #EXT-X-MEDIA-SEQUENCE:100

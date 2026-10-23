@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.data
 
+import dev.jamesrich.sofaking.contract.Wire
 import kotlin.time.Instant
 
 /**
@@ -32,6 +33,7 @@ class LibraryRepository(private val api: SofaKingApi) {
             subtitles = dto.subtitles.map(::track),
             container = dto.container,
             videoCodec = dto.videoCodec,
+            intro = dto.segments.firstOrNull { it.kind == Wire.SegmentKind.INTRO && it.endMs > it.startMs }?.let { IntroSpan(it.startMs, it.endMs) },
         )
     }
 

@@ -22,6 +22,14 @@ class PlayerButtonsTest {
     }
 
     @Test
+    fun `an episode in its intro leads with Skip intro`() {
+        assertEquals(
+            listOf(VodButton.SKIP_INTRO, VodButton.TRACKS, VodButton.ZOOM, VodButton.NEXT),
+            vodButtons(failed = false, inBreak = false, tracksPickable = true, captions = false, pastStart = false, hasNext = true, inIntro = true),
+        )
+    }
+
+    @Test
     fun `a failed stream offers no buttons`() {
         assertEquals(
             emptyList(),

@@ -56,6 +56,18 @@ class VodPlaybackTest {
     }
 
     @Test
+    fun `the intro is found from its first moment to its end and a break is no intro`() {
+        val intro = VodMarker(600, 53_100, VodMarkerKind.INTRO)
+        val markers = listOf(intro, VodMarker(60_000, 180_000, VodMarkerKind.BREAK))
+        assertNull(introAt(markers, 599))
+        assertEquals(intro, introAt(markers, 600))
+        assertEquals(intro, introAt(markers, 53_099))
+        assertNull(introAt(markers, 53_100))
+        assertNull(introAt(markers, 90_000))
+        assertNull(breakEndAt(listOf(intro), 10_000), "Skip break never skips an intro")
+    }
+
+    @Test
     fun `presses build a seek that applies once they rest`() {
         val scrub = VodScrub()
         assertEquals(130_000, scrub.press(1, positionMs = 100_000, durationMs = 1_000_000, repeatCount = 0, nowMs = 0))

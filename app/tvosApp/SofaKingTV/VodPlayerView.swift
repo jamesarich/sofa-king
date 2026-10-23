@@ -41,7 +41,7 @@ struct VodRequest: Identifiable, Hashable {
 /// A library item or recording full screen on AVPlayer, through a server session core opens, renews and releases.
 /// The system player's transport bar scrubs; a converted stream scrubs within what the server has converted so far.
 /// A recording's commercial breaks show on the bar, and with Skip commercials on, playback that runs into one jumps
-/// to its end; inside a break the player offers Skip break. The position is saved as it plays and when it stops; leaving releases the session, and backgrounding
+/// to its end; inside a break the player offers Skip break, and inside an episode's intro, Skip intro. The position is saved as it plays and when it stops; leaving releases the session, and backgrounding
 /// releases it until the app returns, when the item reopens where it was. Reaching the end of an episode offers the
 /// next one, played after a countdown; reaching the end of anything else returns to the page. For a library item,
 /// the transport bar's Audio and Subtitles menus pick a track: another audio track plays the item again from where it
@@ -71,6 +71,8 @@ struct VodPlayerView: View {
     @State private var lastPositionMs: Int64 = 0
     /// The end of the commercial break the player is in, for Skip break; nil outside one.
     @State private var breakEndMs: Int64?
+    /// The end of the episode's intro while the player is in it, for Skip intro; nil outside it.
+    @State private var introEndMs: Int64?
 
     var body: some View {
         ZStack {
@@ -235,6 +237,7 @@ struct VodPlayerView: View {
         skipBreak(from: lastPositionMs, to: positionMs, in: s)
         lastPositionMs = positionMs
         breakEndMs = breaks.first(where: { positionMs >= $0.startMs && positionMs < $0.endMs })?.endMs
+        introEndMs = detail?.intro.flatMap { positionMs >= $0.startMs && positionMs < $0.endMs ? $0.endMs : nil }
         guard player.rate > 0 else { return }
         switch request.source {
         case .item(let item): model.core.itemProgress(itemId: item.id, positionMs: positionMs, durationMs: durationMs)
@@ -270,13 +273,23 @@ struct VodPlayerView: View {
         }
     }
 
-    /// Skip break while the player is in a commercial break, which the system shows over the picture.
+    /// Skip break while the player is in a commercial break, and Skip intro while it is in an episode's intro,
+    /// which the system shows over the picture.
     private var contextualActions: [UIAction] {
-        guard let end = breakEndMs, let s = stream else { return [] }
-        return [UIAction(title: "Skip break", image: UIImage(systemName: "forward.end")) { _ in
-            breakEndMs = nil
-            jump(to: end, in: s)
-        }]
+        guard let s = stream else { return [] }
+        if let end = breakEndMs {
+            return [UIAction(title: "Skip break", image: UIImage(systemName: "forward.end")) { _ in
+                breakEndMs = nil
+                jump(to: end, in: s)
+            }]
+        }
+        if let end = introEndMs {
+            return [UIAction(title: "Skip intro", image: UIImage(systemName: "forward.end")) { _ in
+                introEndMs = nil
+                jump(to: end, in: s)
+            }]
+        }
+        return []
     }
 
     /// The subtitle at the player's position in the item, or nil.

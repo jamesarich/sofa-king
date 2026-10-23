@@ -191,8 +191,13 @@
           "next": { "oneOf": [{ "$ref": "#/components/schemas/LibraryItem" }, { "type": "null" }], "description": "For a show, the episode to play next." },
           "tagline": { "type": ["string", "null"] }, "studio": { "type": ["string", "null"] }, "cast": { "type": "array", "items": { "type": "string" } }, "directors": { "type": "array", "items": { "type": "string" } },
           "audio": { "type": "array", "items": { "$ref": "#/components/schemas/MediaTrack" } }, "subtitles": { "type": "array", "items": { "$ref": "#/components/schemas/MediaTrack" } },
-          "container": { "type": ["string", "null"] }, "videoCodec": { "type": ["string", "null"] }
+          "container": { "type": ["string", "null"] }, "videoCodec": { "type": ["string", "null"] },
+          "segments": { "type": "array", "items": { "$ref": "#/components/schemas/MediaSegment" }, "description": "Spans a player offers to skip, such as an episode's intro." }
         }
+      },
+      "MediaSegment": {
+        "type": "object", "required": ["kind", "startMs", "endMs"],
+        "properties": { "kind": { "type": "string", "description": "intro" }, "startMs": { "type": "integer" }, "endMs": { "type": "integer" } }
       },
       "UpdatePlayState": {
         "type": "object",

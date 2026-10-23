@@ -212,18 +212,42 @@ jobs:
           cd tvosApp
           xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -configuration Debug -destination "id=$device" \
             CODE_SIGNING_ALLOWED=NO -resultBundlePath "../build/tvos-ui/RemoteTests.xcresult" test
+      # The touch tests drive the iOS app in an iPhone simulator against a fresh fixture server.
+      - name: Test the iOS app by touch
+        run: |
+          out=build/ios-ui
+          mkdir -p "$out"
+          python3 scripts/fixture_server.py --out "$out" > "$out/fixture.log" 2>&1 &
+          fixture=$!
+          trap 'kill "$fixture"' EXIT
+          until [ -f "$out/server.env" ]; do
+            kill -0 "$fixture" 2>/dev/null || { cat "$out/fixture.log"; exit 1; }
+            sleep 1
+          done
+          set -a; . "$out/server.env"; set +a
+          export TEST_RUNNER_SOFAKING_SERVER="$SOFAKING_SERVER" TEST_RUNNER_SOFAKING_TOKEN="$SOFAKING_TOKEN"
+          # The newest iOS runtime's first iPhone.
+          device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".iOS-" in runtime for d in devices[runtime] if d["name"].startswith("iPhone")))')
+          cd iosApp
+          xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug -destination "id=$device" \
+            CODE_SIGNING_ALLOWED=NO -resultBundlePath "../build/ios-ui/TouchTests.xcresult" test
       # A failure's screenshots, as PNG files beside the result bundle in the artifact.
-      - name: Export the remote tests' screenshots
+      - name: Export the remote and touch tests' screenshots
         if: failure()
-        run: >-
-          [ ! -d build/tvos-ui/RemoteTests.xcresult ] ||
-          xcrun xcresulttool export attachments --path build/tvos-ui/RemoteTests.xcresult --output-path build/tvos-ui/attachments
+        run: |
+          for result in build/tvos-ui/RemoteTests.xcresult build/ios-ui/TouchTests.xcresult; do
+            [ ! -d "$result" ] || xcrun xcresulttool export attachments --path "$result" --output-path "$(dirname "$result")/attachments"
+          done
       # A simulator app's crash report, with its stack, lands on the host rather than in the result bundle.
       - name: Collect the app's crash reports
         if: failure()
         run: |
           mkdir -p build/tvos-ui/crashes
           find ~/Library/Logs/DiagnosticReports -name 'SofaKingTV*' -exec cp {} build/tvos-ui/crashes/ \; || true
+          mkdir -p build/ios-ui/crashes
+          find ~/Library/Logs/DiagnosticReports -name 'SofaKing-*' -exec cp {} build/ios-ui/crashes/ \; || true
       # A restored older distribution would otherwise be saved again under the new key, and the entry would grow.
       - name: Keep only the current Kotlin/Native distribution
         if: github.ref == 'refs/heads/main'
@@ -239,6 +263,7 @@ jobs:
             app/*/build/reports/
             app/*/build/test-results/
             app/build/tvos-ui/
+            app/build/ios-ui/
 
   # The packages build while the checks run, so a main push is done when its slowest job is; nothing publishes
   # until every check and every package is green.

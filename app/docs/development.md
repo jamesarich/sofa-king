@@ -63,6 +63,16 @@ TEST_RUNNER_SOFAKING_SERVER=$SOFAKING_SERVER TEST_RUNNER_SOFAKING_TOKEN=$SOFAKIN
   xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -destination 'platform=tvOS Simulator,name=Apple TV' CODE_SIGNING_ALLOWED=NO test
 ```
 
+### iOS touch tests
+
+`iosApp/SofaKingUITests` drives the iOS app by touch in an iPhone simulator. The debug host takes `-serverUrl`, `-apiToken` and `-muted YES` as launch arguments, so a test saves its server and mutes the player without typing. `testPlayChannel` plays Sofa Sports from the guide against the fixture server and checks that the session opens, and that it is released once the app is behind the home screen; the macOS CI job runs it after the Apple TV tests. `testBreakScreen` watches a real channel on the server the simulator is already paired with, for `SOFAKING_BREAK_MINUTES` (10 by default), and logs each time the break screen comes and goes with a screenshot at each edge; it runs only when `SOFAKING_BREAK_CHANNEL` names the channel:
+
+```sh
+cd iosApp && xcodegen
+TEST_RUNNER_SOFAKING_BREAK_CHANNEL='CSI' xcodebuild -project SofaKing.xcodeproj -scheme SofaKing \
+  -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO -only-testing:SofaKingUITests/TouchTests/testBreakScreen test
+```
+
 ### Web key fuzz
 
 [`scripts/web-fuzz.py`](../scripts/web-fuzz.py) serves a production web build to a headless browser through [Playwright for Python](https://playwright.dev/python/), with the page paired to the same fixture server, and presses 400 random keys 150 ms apart, weighted as `AppKeyFuzzTest` weighs the remote's. It fails when the page keeps the focus on its body (the app then takes no keys until a click), on an uncaught error, a console error, a failed request (but the 404 for a new device's preferences and the 410 for a released session's media), a crashed page, or two blank screens in a row; the summary also counts the sessions left open after the page closed. The Linux CI job runs it on both web builds in Google Chrome, which plays the fixture's H.264 where Playwright's own Chromium does not, and uploads the console, server log, keys and last screen when it fails. Locally, with the server's distribution, FFmpeg, Playwright and a web build:

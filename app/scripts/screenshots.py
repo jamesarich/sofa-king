@@ -105,7 +105,7 @@ def web(args, out):
             finally:
                 context.close()
 
-        tour(base, start)
+        tour(base, start, out)
         browser.close()
 
 
@@ -178,7 +178,7 @@ def desktop(args, out):
                         app.terminate()
                         app.wait(timeout=15)
 
-            tour(base, start)
+            tour(base, start, out)
     finally:
         manager.terminate()
         xvfb.terminate()
@@ -251,7 +251,7 @@ def android(args, out):
                 adb('shell', 'am', 'force-stop', PACKAGE)
 
         try:
-            tour(base, start)
+            tour(base, start, out)
         finally:
             logcat.terminate()
     adb('shell', 'am', 'broadcast', '-a', 'com.android.systemui.demo', '-e', 'command', 'exit')
@@ -300,18 +300,36 @@ def apple(args, out):
             finally:
                 simctl('terminate', 'booted', bundle)
 
-        tour(base, start)
+        tour(base, start, out)
     if not tv:
         simctl('status_bar', 'booted', 'clear')
 
 
-def tour(base, start):
+def served(out, path):
+    """How many times the server's log shows it answering [path]."""
+    try:
+        return (out / 'server.log').read_text().count(f'path={path} status=200')
+    except FileNotFoundError:
+        return 0
+
+
+def wait_served(out, path, before, seconds=90):
+    """Waits until the server has answered [path] more than [before] times, so a screen has its data before its picture;
+    a platform that loads it another way costs only the wait."""
+    deadline = time.monotonic() + seconds
+    while served(out, path) <= before and time.monotonic() < deadline:
+        time.sleep(0.5)
+
+
+def tour(base, start, out):
     """The guide with its preview, a channel full screen, the Library tab, a show's page and a movie's page: by keys
     where the platform is driven by keys, by taps where it takes them, and otherwise as far as settings reach."""
+    before = served(out, '/api/v1/guide/query')
     with start(startup='GUIDE') as app:
+        wait_served(out, '/api/v1/guide/query', before)
         if app.preview:
             wait_for_session(base)
-        time.sleep(PREVIEW_SECONDS)
+        time.sleep(PREVIEW_SECONDS if app.preview else 3)
         app.shoot('guide')
         by_keys = app.keys and not app.touch
         if by_keys:
@@ -331,8 +349,11 @@ def tour(base, start):
                 app.tap(None)
                 time.sleep(1.5)
             app.shoot('player')
+    before = served(out, '/api/v1/library/home')
     with start(startup='LIBRARY', last_tab='LIBRARY') as app:
-        time.sleep(8)
+        wait_served(out, '/api/v1/library/home', before)
+        # The shelves' artwork loads after them.
+        time.sleep(5)
         app.shoot('library')
         if not app.keys:
             return

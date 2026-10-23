@@ -179,7 +179,7 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
     override var playWhenReady: Boolean = true
         set(value) {
             field = value
-            if (value) av.play() else av.pause()
+            if (value) start() else av.pause()
             refresh()
         }
 
@@ -219,7 +219,7 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         val url = stream?.url?.let(NSURL::URLWithString) ?: return
         ended = false
         av.replaceCurrentItemWithPlayerItem(AVPlayerItem(uRL = url))
-        if (playWhenReady) av.play()
+        if (playWhenReady) start()
         refresh()
     }
 
@@ -277,6 +277,21 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         if (!isSeekable) return
         val target = clampSeek(positionMs, durationMs)
         av.seekToTime(CMTimeMakeWithSeconds(target / 1000.0, 600))
+    }
+
+    /** What [start] plays at; AVPlayer's play() starts at normal speed, so the rate is set after it. */
+    private var speed = 1f
+
+    override val speedAdjustable: Boolean get() = true
+
+    override fun setSpeed(rate: Float) {
+        speed = rate
+        if (av.rate != 0f) av.rate = rate
+    }
+
+    private fun start() {
+        av.play()
+        if (speed != 1f) av.rate = speed
     }
 
     private val mediaSessions = NewestMediaSession(::openNowPlaying)

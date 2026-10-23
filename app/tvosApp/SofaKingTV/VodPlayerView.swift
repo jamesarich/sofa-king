@@ -622,7 +622,7 @@ private extension String {
 }
 
 /// The system player UI, which handles the Siri Remote's play, pause, scrubbing and Menu, with the app's track menus
-/// in its transport bar and Skip break over the picture.
+/// and the speeds of the other apps' Speed button in its transport bar, and Skip break over the picture.
 private struct VodController: UIViewControllerRepresentable {
     let player: AVPlayer
     let menus: [UIMenuElement]
@@ -631,6 +631,7 @@ private struct VodController: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
+        controller.speeds = [1, 1.25, 1.5, 2].map { AVPlaybackSpeed(rate: $0, localizedName: "\($0.formatted())×") }
         controller.transportBarCustomMenuItems = menus
         controller.contextualActions = actions
         return controller

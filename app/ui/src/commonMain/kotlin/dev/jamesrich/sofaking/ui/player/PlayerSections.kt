@@ -39,6 +39,7 @@ import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import org.jetbrains.compose.resources.stringResource
+import kotlin.time.Clock
 import kotlin.time.Instant
 
 /**
@@ -139,7 +140,8 @@ internal class LiveRecord(val recording: Boolean, val onClick: () -> Unit)
  * The info bar over the bottom of the picture with its buttons ([liveButtons]): the D-pad reaches them with Left or
  * Right ([entry] takes the first), and a finger or a mouse gets channel down, play or pause and channel up before
  * them, then the volume and full screen. [record] is null where the server does not record or nothing is on;
- * [favorite] is null where the star cannot change.
+ * [favorite] is null where the star cannot change. The [sleep] timer offers [programmeEnd], the end of the program on
+ * now, after its minutes.
  */
 @Composable
 internal fun BoxScope.InfoBarPanel(
@@ -154,6 +156,8 @@ internal fun BoxScope.InfoBarPanel(
     paused: Boolean,
     hasAudioChoice: Boolean,
     record: LiveRecord?,
+    sleep: SleepTimer,
+    programmeEnd: Instant?,
     zoom: VideoZoom,
     favorite: Boolean?,
     onToggleFavorite: () -> Unit,
@@ -196,6 +200,10 @@ internal fun BoxScope.InfoBarPanel(
                 state::openStreamCard,
             )
             LiveButton.ZOOM -> zoomButtonItem(zoom, control { controls.zoom() })
+            LiveButton.SLEEP -> sleepButtonItem(sleep) {
+                sleep.step(Clock.System.now().toEpochMilliseconds(), programmeEndMs = programmeEnd?.toEpochMilliseconds())
+                state.keepInfo()
+            }
             LiveButton.RECORD -> PlayerButtonItem(
                 if (record?.recording == true) SofaIcons.Recordings else SofaIcons.Record,
                 stringResource(if (record?.recording == true) Res.string.guide_details_cancel_recording else Res.string.guide_details_record),

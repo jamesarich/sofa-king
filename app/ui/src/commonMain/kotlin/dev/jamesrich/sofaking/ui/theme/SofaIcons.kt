@@ -308,6 +308,11 @@ internal object SofaIcons {
         pathIcon("Filled.Replay", "M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z")
     }
 
+    /** The sleep timer. */
+    val Bedtime: ImageVector by lazy {
+        pathIcon("Filled.Bedtime", "M12.34,2.02C6.59,1.82,2,6.42,2,12c0,5.52,4.48,10,10,10c3.71,0,6.93-2.02,8.66-5.02C13.15,16.73,8.57,8.55,12.34,2.02z")
+    }
+
     /** Next episode. */
     val SkipNext: ImageVector by lazy { pathIcon("Filled.SkipNext", "M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z") }
 

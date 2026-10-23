@@ -35,10 +35,18 @@ data class VodUpNext(val title: String, val subtitle: String? = null, val artwor
 
 /**
  * The Up next card in the corner once an item ends, counting [secondsLeft] down to playing [next]. OK and play/pause
- * play it now and Back leaves, through the screen's keys; a pointer gets the two buttons.
+ * play it now and Back leaves, through the screen's keys; a pointer gets the two buttons. Asking [stillWatching], it
+ * counts down to leaving instead, and OK keeps watching.
  */
 @Composable
-internal fun BoxScope.UpNextCard(next: VodUpNext, secondsLeft: Int, pointerDriven: Boolean, onPlay: () -> Unit, onCancel: () -> Unit) {
+internal fun BoxScope.UpNextCard(
+    next: VodUpNext,
+    secondsLeft: Int,
+    pointerDriven: Boolean,
+    onPlay: () -> Unit,
+    onCancel: () -> Unit,
+    stillWatching: Boolean = false,
+) {
     Column(
         Modifier
             .align(Alignment.BottomEnd)
@@ -49,7 +57,7 @@ internal fun BoxScope.UpNextCard(next: VodUpNext, secondsLeft: Int, pointerDrive
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(stringResource(Res.string.vod_up_next), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text(stringResource(if (stillWatching) Res.string.vod_still_watching else Res.string.vod_up_next), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(CardShape).background(MaterialTheme.colorScheme.surfaceVariant)) {
             Artwork(next.artworkUrl, next.title)
         }
@@ -58,17 +66,17 @@ internal fun BoxScope.UpNextCard(next: VodUpNext, secondsLeft: Int, pointerDrive
         }
         Text(next.title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
         LinearProgressIndicator(
-            progress = { 1f - secondsLeft.toFloat() / UP_NEXT_SECONDS },
+            progress = { 1f - secondsLeft.toFloat() / if (stillWatching) STILL_WATCHING_SECONDS else UP_NEXT_SECONDS },
             modifier = Modifier.fillMaxWidth(),
         )
-        Text(stringResource(Res.string.vod_up_next_in, secondsLeft), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(stringResource(if (stillWatching) Res.string.vod_still_watching_in else Res.string.vod_up_next_in, secondsLeft), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
         if (pointerDriven) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SofaButton(onClick = onPlay) { Text(stringResource(Res.string.vod_up_next_play)) }
-                SofaButton(onClick = onCancel) { Text(stringResource(Res.string.vod_up_next_cancel)) }
+                SofaButton(onClick = onPlay) { Text(stringResource(if (stillWatching) Res.string.vod_still_watching_keep else Res.string.vod_up_next_play)) }
+                SofaButton(onClick = onCancel) { Text(stringResource(if (stillWatching) Res.string.vod_still_watching_stop else Res.string.vod_up_next_cancel)) }
             }
         } else {
-            Text(stringResource(Res.string.vod_up_next_keys), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(if (stillWatching) Res.string.vod_still_watching_keys else Res.string.vod_up_next_keys), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

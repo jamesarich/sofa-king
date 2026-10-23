@@ -42,6 +42,10 @@
     <string name="player_zoom_fill">Fill</string>
     <string name="player_zoom_stretch">Stretch</string>
     <string name="player_zoom_notice">Zoom: %1$s</string>
+    <string name="player_control_sleep">Sleep timer</string>
+    <string name="player_sleep_minutes">Sleep in %1$d min</string>
+    <string name="player_sleep_end_program">Sleep after this program</string>
+    <string name="player_sleep_end_item">Sleep after this one</string>
     <string name="player_control_channel_up">Channel up</string>
     <string name="player_control_channel_down">Channel down</string>
     <string name="player_control_channels">Channels</string>
@@ -87,6 +91,11 @@
     <string name="vod_up_next_play">Play now</string>
     <string name="vod_up_next_cancel">Cancel</string>
     <string name="vod_up_next_keys">OK plays it now, Back returns</string>
+    <string name="vod_still_watching">Still watching?</string>
+    <string name="vod_still_watching_in">Stopping in %1$d s</string>
+    <string name="vod_still_watching_keep">Keep watching</string>
+    <string name="vod_still_watching_stop">Stop</string>
+    <string name="vod_still_watching_keys">OK keeps watching, Back stops</string>
     <string name="break_screen_title">Commercial break</string>
     <string name="break_screen_back_in">Back in %1$s</string>
     <string name="break_quip_throne">Hold the throne.</string>

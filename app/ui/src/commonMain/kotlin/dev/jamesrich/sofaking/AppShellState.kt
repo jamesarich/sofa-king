@@ -11,6 +11,8 @@ import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
 import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.ServerCapabilities
+import dev.jamesrich.sofaking.ui.player.AutoplayRun
+import dev.jamesrich.sofaking.ui.player.SleepTimer
 import dev.jamesrich.sofaking.ui.player.VideoZoom
 import dev.jamesrich.sofaking.ui.settings.SettingsLock
 
@@ -53,6 +55,12 @@ internal class AppShellState(
 
     /** The Settings lock's count of wrong tries, which outlives each trip to Settings. */
     val settingsLock = SettingsLock()
+
+    /** The players' sleep timer, which lasts through zaps and Up next until the viewer leaves the full-screen player. */
+    val sleep = SleepTimer()
+
+    /** The items Up next played by itself in a row, for "Still watching?". */
+    val autoplays = AutoplayRun()
 
     /** The page on top of the open tab. */
     val top: Route get() = nav.top

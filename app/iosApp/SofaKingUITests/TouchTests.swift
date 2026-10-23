@@ -62,37 +62,55 @@ final class TouchTests: XCTestCase {
         add(summary)
     }
 
-    /// Launches the app muted with `arguments` (the debug host's launch arguments) and waits for the guide.
+    /// Launches the app muted with `arguments` (the debug host's launch arguments) and waits for the guide, or for the
+    /// player when the app reopens the last channel it played.
     @MainActor
     private func launch(_ arguments: [String]) {
         app = XCUIApplication()
         app.launchArguments = arguments + ["-muted", "YES"]
         app.launch()
         XCUIDevice.shared.orientation = .landscapeLeft
-        eventually("the guide to load", timeout: 60) { labeled("All ").exists }
+        eventually("the guide or the player to load", timeout: 60) { labeled("All ").exists || labeled("Now playing").exists }
     }
 
     /// Opens `channel` full screen from the guide with one tap on the program it airs now. The channel's name beside
     /// the row takes no taps, so the cell is found by its label, which starts with the channel and says "airing now".
+    /// A player already on `channel` is left as it is; one on another channel goes back to the guide first.
     @MainActor
     private func play(_ channel: String) {
+        let player = labeled("Now playing")
+        if player.exists {
+            // The player's label is "Now playing NUMBER  NAME", then ", TITLE" while a program is on.
+            if player.label.hasSuffix("  " + channel) || player.label.contains("  " + channel + ", ") { return }
+            app.tap()
+            labeled("Back").tap()
+            eventually("the guide to come back") { labeled("All ").exists }
+        }
         let cell = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@", channel + ", ", ", airing now")).firstMatch
         if !cell.waitForExistence(timeout: 30) {
             search(channel)
+            // Other channels' programs can match too, and the landscape grid shows only a few rows between the header
+            // and the tab bar, so it is dragged within that band; a swipe from the middle of the screen misses it.
+            let low = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+            let high = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55))
+            for _ in 0..<10 where !cell.waitForExistence(timeout: 2) {
+                low.press(forDuration: 0.1, thenDragTo: high)
+            }
         }
         XCTAssertTrue(cell.waitForExistence(timeout: 30), "No \(channel) on now in the guide\n\(screen)")
         cell.tap()
         eventually("\(channel) to open full screen") { !cell.exists }
     }
 
-    /// Searches the guide for `text`, for a channel too far down to be on screen.
+    /// Searches the guide for `text`, for a channel too far down to be on screen. Return is the field's Done, which
+    /// puts the keyboard away; in landscape it leaves the results no room until then.
     @MainActor
     private func search(_ text: String) {
         let field = labeled("Search")
         guard field.waitForExistence(timeout: 5) else { return }
         field.tap()
-        app.typeText(text)
+        app.typeText(text + "\n")
     }
 
     /// The first element whose label contains `text`: Compose gives its semantics to accessibility as labels.

@@ -67,8 +67,13 @@ final class TouchTests: XCTestCase {
     private static let touches = WeightedTouches([
         ("tap", 10, { app, random in app.coordinate(withNormalizedOffset: random.point()).tap() }),
         ("tapButton", 6, { app, random in
-            let buttons = app.buttons.allElementsBoundByIndex.filter { $0.isHittable }
-            if !buttons.isEmpty { buttons[Int(random.next() % UInt64(buttons.count))].tap() }
+            // Where a button was in one snapshot of the screen: one gone by the tap is a tap on what replaced it,
+            // not a query that fails the walk.
+            guard let screen = try? app.snapshot() else { return }
+            let frames = buttonFrames(in: screen).filter { screen.frame.contains(CGPoint(x: $0.midX, y: $0.midY)) }
+            if frames.isEmpty { return }
+            let frame = frames[Int(random.next() % UInt64(frames.count))]
+            app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
         }),
         ("swipeUp", 3, { app, _ in app.swipeUp() }),
         ("swipeDown", 3, { app, _ in app.swipeDown() }),
@@ -248,6 +253,12 @@ struct FixtureServer {
     private final class Response: @unchecked Sendable {
         var data: Data?
     }
+}
+
+/// The frames of the enabled buttons in `snapshot` and below it.
+@MainActor
+private func buttonFrames(in snapshot: any XCUIElementSnapshot) -> [CGRect] {
+    (snapshot.elementType == .button && snapshot.isEnabled ? [snapshot.frame] : []) + snapshot.children.flatMap { buttonFrames(in: $0) }
 }
 
 /// Touches to pick at random, each as often as its weight says.

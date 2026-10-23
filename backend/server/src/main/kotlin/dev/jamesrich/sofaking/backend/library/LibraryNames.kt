@@ -118,7 +118,7 @@ internal fun tmdbIdIn(name: String): Int? = TMDB_TAG.find(name)?.groupValues?.ge
 
 /**
  * How many of [titles], in title order, start with each letter in turn: the first letter of each [sortTitle] in upper
- * case, or `#` for a digit or a symbol. Neighbours with the same letter make one run.
+ * case, or `#` for a digit or a symbol. Neighbors with the same letter make one run.
  */
 internal fun letterRuns(titles: List<String>): List<LetterCount> {
     val runs = ArrayList<LetterCount>()

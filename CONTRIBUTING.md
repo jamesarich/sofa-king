@@ -34,6 +34,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): 
 
 ## Pull requests
 
+- Write in US English, in prose and in names; the root [AGENTS.md](AGENTS.md) lists the external names that keep their British spelling.
 - Keep one change per pull request. Describe why it is needed first; the diff already shows what changed.
 - Add or update tests with any behavior change. Name tests for the behavior they check.
 - Keep documentation describing the current behavior, in the same pull request, including any changed route, setting, control or variable. The server's [configuration table](backend/docs/live-tv.md#server-settings) is the one place its environment variables are listed. Put the reasoning behind a change in the commit or the pull request.
@@ -58,6 +59,7 @@ Versions are pinned exactly in the shared catalog, with no lockfiles or verifica
 | [`screenshots.yml`](.github/workflows/screenshots.yml) | Pull requests that change it, `app/scripts/screenshots.py`, `app/scripts/showcase.py` or `app/scripts/fixture_server.py`, and a manual run | Takes the documentation's screenshots on the web, the Linux desktop, Android phone, tablet and TV emulators and iPhone, iPad and Apple TV simulators against the showcase lineup, as [the app's development page](app/docs/development.md#screenshots) describes |
 | [`tv-monkey.yml`](.github/workflows/tv-monkey.yml) | Nightly, pull requests that change it, `app/scripts/tv-monkey.py` or `app/scripts/fixture_server.py`, and a manual run with a key count and a seed | Presses random remote keys on the debug app in a headless Android TV emulator against fixture channels, as [the app's development page](app/docs/development.md#tv-emulator-monkey) describes |
 | [`desktop-monkey.yml`](.github/workflows/desktop-monkey.yml) | Nightly, pull requests that change it, `app/scripts/desktop-monkey.py` or `app/scripts/fixture_server.py`, and a manual run with a key count and a seed | Presses random keys on the desktop app in a virtual X display, with libVLC playing fixture channels, as [the app's development page](app/docs/development.md#desktop-monkey) describes |
+| [`phone-tests.yml`](.github/workflows/phone-tests.yml) | Nightly, pull requests that change it, `app/androidApp/src/androidTest/` or `app/scripts/fixture_server.py`, and a manual run with a step count and a seed | Runs the debug app's touch tests in a headless Android phone emulator against fixture channels: picture-in-picture, the predictive back gesture, rotation and random touches, as [the app's development page](app/docs/development.md#phone-touch-tests) describes |
 | [`dependency-submission.yml`](.github/workflows/dependency-submission.yml) | Pushes to `main` that change any build; also a manual run | Sends each build's resolved dependencies to GitHub, so Dependabot alerts cover them |
 
 `ci.yml` runs up to four jobs:

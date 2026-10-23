@@ -26,7 +26,7 @@ env:
   SOFAKING_CACHE_PASSWORD: ${{ secrets.SOFAKING_CACHE_PASSWORD }}
 
 jobs:
-  # The films are cut once, here, and every other job restores the cut: six jobs reading the films at once get turned
+  # The movies are cut once, here, and every other job restores the cut: six jobs reading the movies at once get turned
   # away by their hosts.
   showcase:
     name: Showcase

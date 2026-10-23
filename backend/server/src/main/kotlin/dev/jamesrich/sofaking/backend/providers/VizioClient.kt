@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import java.time.Duration
 import java.time.Instant
@@ -29,20 +29,20 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
         val now = context.clock.instant()
         val url = "$apiBase/airings/?start=${TIMESTAMP.format(now)}&end=${TIMESTAMP.format(now.plus(EPG_HORIZON))}&startChannel=${channels.first().channel.id}&channelCount=${channels.size}"
         val airings = context.http.get(url, HEADERS).require("Vizio airings").json()["airings"].array
-        val programmes = ArrayList<GuideProgramme>()
+        val programs = ArrayList<GuideProgram>()
         for (airing in airings) {
             val channelId = airing.str("stationId")?.let(byStation::get) ?: continue
             val start = airing.str("timeStart")?.let(::instant) ?: continue
             val end = airing.str("timeEnd")?.let(::instant) ?: continue
             val title = airing.str("title") ?: continue
             if (end <= start) continue
-            programmes += GuideProgramme(
+            programs += GuideProgram(
                 channelId, start, end, title, airing.str("description"),
                 subTitle = airing.str("subTitle")?.takeIf { it != title },
                 episodeNumbers = seasonEpisode(airing["seasonNumber"].long, airing["episodeNumber"].long),
             )
         }
-        return ParsedGuide(index, programmes)
+        return ParsedGuide(index, programs)
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
@@ -66,7 +66,7 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
             if (!template.startsWith("https://") && !template.startsWith("http://")) continue
             if (result.containsKey(id)) continue
             val logo = httpOrNull(channel.str("channelIcon")) ?: httpOrNull(channel.str("portraitIcon")) ?: httpOrNull(channel.str("bwIcon"))
-            // FEATURED slots keep their id while the programme in them rotates; the tag tells curation apart from a station.
+            // FEATURED slots keep their id while the program in them rotates; the tag tells curation apart from a station.
             val tags = listOf("us") + if (id.uppercase().startsWith("FEATURED")) listOf("featured") else emptyList()
             result[id] = Listed(ProviderChannel(id, name, channel["channelNumber"].long?.toString(), logo, channel.str("category")?.lowercase()?.replaceFirstChar(Char::uppercase), tags), template, channel.str("airingsKey"))
         }

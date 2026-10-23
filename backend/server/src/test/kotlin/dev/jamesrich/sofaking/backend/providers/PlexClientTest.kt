@@ -2,7 +2,7 @@ package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
-import dev.jamesrich.sofaking.backend.catalog.ProgrammeRating
+import dev.jamesrich.sofaking.backend.catalog.ProgramRating
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.providerState
 import dev.jamesrich.sofaking.backend.store.saveProviderState
@@ -93,16 +93,16 @@ class PlexClientTest {
             fixture.plex()
             val clock = MutableClock()
             val client = PlexClient(ProviderFixture.context("plex", options(fixture), http, store, clock))
-            assertTrue(client.guide(emptySet()).programmes.isEmpty())
+            assertTrue(client.guide(emptySet()).programs.isEmpty())
             assertEquals(0, fixture.hits("/epg/grid"))
             val guide = client.guide(setOf(cw))
             assertEquals(2, guide.channels.size)
             assertEquals(2, fixture.hits("/epg/grid"))
             assertTrue(fixture.lastQuery["/epg/grid"]!!.startsWith("channelGridKey=$cw&date=2026-10-11"), fixture.lastQuery["/epg/grid"])
-            assertEquals(2, guide.programmes.size, "the same airing on both days is kept once")
-            assertEquals("7th Heaven", guide.programmes[0].title)
-            assertEquals("2026-10-10T23:27:56Z", guide.programmes[0].startsAt.toString())
-            assertEquals("We the People", guide.programmes[0].subTitle, "an episode's own title is the sub-title")
+            assertEquals(2, guide.programs.size, "the same airing on both days is kept once")
+            assertEquals("7th Heaven", guide.programs[0].title)
+            assertEquals("2026-10-10T23:27:56Z", guide.programs[0].startsAt.toString())
+            assertEquals("We the People", guide.programs[0].subTitle, "an episode's own title is the sub-title")
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 
@@ -112,18 +112,18 @@ class PlexClientTest {
             fixture.plex()
             fixture.route("/epg/grid") { Canned(ProviderFixture.resource("plex-grid-episode.json")) }
             val client = PlexClient(ProviderFixture.context("plex", options(fixture), http, store, MutableClock()))
-            val (episode, movie) = client.guide(setOf(cw)).programmes.map { it.bounded() }
+            val (episode, movie) = client.guide(setOf(cw)).programs.map { it.bounded() }
             assertEquals("7th Heaven", episode.title); assertEquals("We the People", episode.subTitle)
             assertEquals(listOf(EpisodeNumber("xmltv_ns", "5.11."), EpisodeNumber("onscreen", "S06E12")), episode.episodeNumbers)
             assertEquals(listOf("Drama", "Family"), episode.categories)
-            assertEquals(ProgrammeRating("TV-G", "VCHIP"), episode.rating)
+            assertEquals(ProgramRating("TV-G", "VCHIP"), episode.rating)
             assertEquals("https://provider-static.plex.tv/epg/images/thumb.jpg", episode.icon)
             assertEquals("20020128", episode.date)
             assertTrue(episode.isNew)
             assertEquals("Sample Film", movie.title); assertNull(movie.subTitle)
             assertTrue(movie.episodeNumbers.isEmpty())
             assertEquals(listOf("Movie"), movie.categories)
-            assertEquals(ProgrammeRating("PG-13", "MPAA"), movie.rating)
+            assertEquals(ProgramRating("PG-13", "MPAA"), movie.rating)
             assertEquals("1999", movie.date)
             assertFalse(movie.isNew)
         } } } } finally { dir.toFile().deleteRecursively() }
@@ -137,7 +137,7 @@ class PlexClientTest {
             fixture.route("/epg/grid") { if (limited.getAndDecrement() > 0) Canned("", 429) else Canned(ProviderFixture.resource("plex-grid.json")) }
             val fast = options(fixture) + mapOf("rateLimitWaitMillis" to "1", "gridSpacingMillis" to "0")
             val client = PlexClient(ProviderFixture.context("plex", fast, http, store, MutableClock()))
-            assertEquals(2, client.guide(setOf(cw)).programmes.size)
+            assertEquals(2, client.guide(setOf(cw)).programs.size)
             assertEquals(4, fixture.hits("/epg/grid"), "two 429s, then today and tomorrow")
             limited.set(Int.MAX_VALUE)
             assertFailsWith<ProviderFailure> { client.guide(setOf(cw)) }.let { assertTrue(it.transient) }

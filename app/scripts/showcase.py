@@ -4,7 +4,7 @@ and program images, and a Movies and a TV shows library, all cut from the Blende
 Bunny, Elephants Dream, Sintel, Tears of Steel and Caminandes, each CC BY), so a screenshot holds no real server's
 lineup, address or token. fixture_server.serve takes it as its build.
 
-prepare() downloads the films' excerpts once into a cache folder (about 300 MB of reads, ranges only where the host
+prepare() downloads the movies' excerpts once into a cache folder (about 300 MB of reads, ranges only where the host
 allows them) and encodes them; later runs reuse it. Needs FFmpeg with drawtext for the logos' and posters' lettering.
 """
 import functools
@@ -23,8 +23,8 @@ CACHE = Path(os.environ.get('SOFAKING_SHOWCASE_CACHE') or Path.home() / '.cache/
 ARCHIVE = 'https://archive.org/download'
 BLENDER = 'https://download.blender.org/demo/movies'
 
-# Each film: where it is, its length in minutes, and its credits for the library's .nfo.
-FILMS = {
+# Each movie: where it is, its length in minutes, and its credits for the library's .nfo.
+MOVIES = {
     'bbb': dict(url=f'{ARCHIVE}/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4', title='Big Buck Bunny', year=2008,
                 runtime=10, director='Sacha Goedegebure', genres=['Animation', 'Comedy', 'Family'],
                 plot='A giant rabbit with a heart bigger than himself spends a lazy day in the meadow, until three rodents '
@@ -54,7 +54,7 @@ SHOW = dict(title='Caminandes', year=2013, director='Pablo Vazquez', genres=['An
             plot='Koro the llama roams the Patagonian plains in a series of short comedies, always one fence or one '
                  'penguin away from what he wants.')
 
-# The lineup: number, name, group, the film and second it plays from, the logo's colors and the program titles.
+# The lineup: number, name, group, the movie and second it plays from, the logo's colors and the program titles.
 CHANNELS = [
     (2, 'Sofa King Cinema', 'Movies', 'sintel', 230, '#FFB547', '#14111F'),
     (3, 'Bunny Hop', 'Kids', 'bbb', 70, '#8BD17C', '#10301A'),
@@ -71,12 +71,12 @@ CHANNELS = [
 ]
 CLIP_SECONDS = 60
 
-# Programs by group: title, episode titles (or none for a film), category, rating, description.
+# Programs by group: title, episode titles (or none for a movie), category, rating, description.
 PROGRAMS = {
     'Movies': [
-        ('Sintel', None, 'Movie', 'TV-PG', FILMS['sintel']['plot']),
-        ('Elephants Dream', None, 'Movie', 'TV-PG', FILMS['ed']['plot']),
-        ('Tears of Steel', None, 'Movie', 'TV-14', FILMS['tos']['plot']),
+        ('Sintel', None, 'Movie', 'TV-PG', MOVIES['sintel']['plot']),
+        ('Elephants Dream', None, 'Movie', 'TV-PG', MOVIES['ed']['plot']),
+        ('Tears of Steel', None, 'Movie', 'TV-14', MOVIES['tos']['plot']),
         ('The Lighthouse Keeper', None, 'Movie', 'TV-PG', 'A keeper on a northern rock takes in a stranded sailor and '
          'the storm that came with him.'),
         ('Harbor Lights', None, 'Movie', 'TV-14', 'A harbor pilot and a night-shift reporter chase the same story '
@@ -87,7 +87,7 @@ PROGRAMS = {
          'retirement.'),
     ],
     'Kids': [
-        ('Big Buck Bunny', None, 'Children', 'TV-G', FILMS['bbb']['plot']),
+        ('Big Buck Bunny', None, 'Children', 'TV-G', MOVIES['bbb']['plot']),
         ('Caminandes', ['Llama Drama', 'Gran Dillama', 'Llamigos'], 'Children', 'TV-G', SHOW['plot']),
         ('Meadow Friends', ['The Big Acorn', 'Rainy Day Races', 'Butterfly Parade', 'The Lost Kite'], 'Children', 'TV-Y',
          'Squirrel, Rabbit and their friends turn a day in the meadow into an adventure.'),
@@ -97,7 +97,7 @@ PROGRAMS = {
          'A family of moles builds the best burrow under the hill, one tunnel at a time.'),
     ],
     'Sci-Fi': [
-        ('Tears of Steel', None, 'Movie', 'TV-14', FILMS['tos']['plot']),
+        ('Tears of Steel', None, 'Movie', 'TV-14', MOVIES['tos']['plot']),
         ('Orbit Patrol', ['Dead Reckoning', 'Silent Running', 'The Long Burn', 'Ghost Signal'], 'Science fiction', 'TV-14',
          'The crew of a battered tug keeps the shipping lanes around Saturn clear, whatever drifts into them.'),
         ('The Signal', ['First Contact', 'Static', 'Echoes'], 'Science fiction', 'TV-14',
@@ -119,11 +119,11 @@ PROGRAMS = {
 
 # What the cache holds: the sources, the lineup and how they are cut. Bump the first number after changing the encoding
 # or the images.
-VERSION = hashlib.sha256(json.dumps([2, FILMS, EPISODES, SHOW, CHANNELS, CLIP_SECONDS]).encode()).hexdigest()[:12]
+VERSION = hashlib.sha256(json.dumps([2, MOVIES, EPISODES, SHOW, CHANNELS, CLIP_SECONDS]).encode()).hexdigest()[:12]
 
 
 def ffmpeg(*args, timeout=600):
-    """Runs FFmpeg; one reading from the web tries again, three times with longer waits, as the films' hosts turn away a
+    """Runs FFmpeg; one reading from the web tries again, three times with longer waits, as the movies' hosts turn away a
     burst of requests for a while."""
     command = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', *map(str, args)]
     for wait in (30, 90, 240, None):
@@ -153,11 +153,11 @@ def chain(*filters):
     return ','.join(f for f in filters if f)
 
 
-def source(film):
-    """A film's or an episode's address by its key: a FILMS key, or llama1 to llama3 for the episodes."""
-    if film.startswith('llama'):
-        return EPISODES[int(film[5:]) - 1]['url']
-    return FILMS[film]['url']
+def source(movie):
+    """A movie's or an episode's address by its key: a MOVIES key, or llama1 to llama3 for the episodes."""
+    if movie.startswith('llama'):
+        return EPISODES[int(movie[5:]) - 1]['url']
+    return MOVIES[movie]['url']
 
 
 def encode(url, start, seconds, target, height=720):
@@ -193,29 +193,29 @@ def prepare(cache=CACHE):
     shutil.rmtree(cache, ignore_errors=True)
     for folder in ('clips', 'live', 'images', 'logos', 'library'):
         (cache / folder).mkdir(parents=True)
-    for number, name, group, film, start, background, ink in CHANNELS:
-        encode(source(film), start, CLIP_SECONDS, cache / 'clips' / f'{number}.ts')
+    for number, name, group, movie, start, background, ink in CHANNELS:
+        encode(source(movie), start, CLIP_SECONDS, cache / 'clips' / f'{number}.ts')
         segment(cache / 'clips' / f'{number}.ts', cache / 'live' / str(number))
         initials = ''.join(word[0] for word in name.split() if word[0].isalnum())[:3]
         ffmpeg('-f', 'lavfi', '-i', f'color=c={ink}:s=256x256', '-frames:v', 1, '-vf',
                chain(f'drawbox=x=12:y=12:w=232:h=232:color={background}:t=fill',
                      lettering(initials, 112 if len(initials) < 3 else 84, ink, '(h-th)/2')), cache / 'logos' / f'{number}.png')
-    # Program images: frames from across each film, so every program has one.
+    # Program images: frames from across each movie, so every program has one.
     picks = {'bbb': [60, 150, 260, 400, 520], 'ed': [90, 200, 330, 480], 'sintel': [120, 300, 450, 640, 790],
              'tos': [100, 240, 390, 520], 'llama1': [30, 60], 'llama2': [40, 110], 'llama3': [50, 120]}
-    for film, seconds in picks.items():
+    for movie, seconds in picks.items():
         for index, at in enumerate(seconds):
-            still(source(film), at, cache / 'images' / f'{film}-{index}.jpg', 640, 360)
+            still(source(movie), at, cache / 'images' / f'{movie}-{index}.jpg', 640, 360)
 
     movies = cache / 'library/Movies'
-    for key, film in FILMS.items():
-        folder = movies / f'{film["title"]} ({film["year"]})'
+    for key, movie in MOVIES.items():
+        folder = movies / f'{movie["title"]} ({movie["year"]})'
         folder.mkdir(parents=True)
-        encode(film['url'], 60, 180, folder / f'{folder.name}.mp4')
-        still(film['url'], picks[key][1], folder / 'poster.jpg', 600, 900,
-              'drawbox=x=0:y=ih*0.72:w=iw:h=ih*0.28:color=black@0.55:t=fill', lettering(film['title'], 58, 'white', 'h*0.80'))
-        still(film['url'], picks[key][2], folder / 'fanart.jpg')
-        (folder / 'movie.nfo').write_text(nfo('movie', film, runtime=film['runtime']))
+        encode(movie['url'], 60, 180, folder / f'{folder.name}.mp4')
+        still(movie['url'], picks[key][1], folder / 'poster.jpg', 600, 900,
+              'drawbox=x=0:y=ih*0.72:w=iw:h=ih*0.28:color=black@0.55:t=fill', lettering(movie['title'], 58, 'white', 'h*0.80'))
+        still(movie['url'], picks[key][2], folder / 'fanart.jpg')
+        (folder / 'movie.nfo').write_text(nfo('movie', movie, runtime=movie['runtime']))
     show = cache / 'library/TV' / f'{SHOW["title"]} ({SHOW["year"]})'
     season = show / 'Season 01'
     season.mkdir(parents=True)
@@ -227,7 +227,7 @@ def prepare(cache=CACHE):
         name = f'{SHOW["title"]} - S01E{number:02d} - {episode["title"]}'
         encode(episode['url'], 0, 600, season / f'{name}.mp4')
         (season / f'{name}.nfo').write_text(nfo('episodedetails', episode, season=1, episode=number, aired=episode['aired']))
-    (cache / 'ready').write_text(json.dumps({'films': list(FILMS), 'episodes': len(EPISODES)}))
+    (cache / 'ready').write_text(json.dumps({'movies': list(MOVIES), 'episodes': len(EPISODES)}))
     return cache
 
 
@@ -268,7 +268,7 @@ def build(media, upstream, library, cache=None, images=None):
 
 def guide(images, cache):
     """A day of programs on every channel from the hour before now, in slots of 30 minutes to two hours, the same on
-    each run within a day. The second program on each channel, the one on now, is the film the channel plays."""
+    each run within a day. The second program on each channel, the one on now, is the movie the channel plays."""
     start = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
     stamp = lambda t: t.strftime('%Y%m%d%H%M%S +0000')
     frames = {}
@@ -277,16 +277,16 @@ def guide(images, cache):
     out = ['<tv>']
     for number, name, *_ in CHANNELS:
         out.append(f'<channel id="ch{number}"><display-name>{escape(name)}</display-name></channel>')
-    for number, name, group, film, *_ in CHANNELS:
+    for number, name, group, movie, *_ in CHANNELS:
         rng = random.Random(f'{start:%Y%m%d}-{number}')
         pool = PROGRAMS[group]
-        own = next((program for program in pool if program[0] == TITLES[film]), None)
+        own = next((program for program in pool if program[0] == TITLES[movie]), None)
         at = start - timedelta(minutes=rng.choice([0, 15, 30, 45]))
         count = 0
         while at < start + timedelta(hours=26):
             title, episodes, category, rating, description = own if count == 1 and own else rng.choice(pool)
             length = 30 if episodes or title in ('Big Buck Bunny',) else 90
-            pictures = frames.get(title) or frames[TITLES[film]]
+            pictures = frames.get(title) or frames[TITLES[movie]]
             parts = [f'<programme channel="ch{number}" start="{stamp(at)}" stop="{stamp(at + timedelta(minutes=length))}">',
                      f'<title>{escape(title)}</title>']
             if episodes:
@@ -306,7 +306,7 @@ def guide(images, cache):
     return '\n'.join(out) + '\n'
 
 
-# The film behind each clip and image key, by its title in the guide.
+# The movie behind each clip and image key, by its title in the guide.
 TITLES = {'bbb': 'Big Buck Bunny', 'ed': 'Elephants Dream', 'sintel': 'Sintel', 'tos': 'Tears of Steel',
           'llama1': 'Caminandes', 'llama2': 'Caminandes', 'llama3': 'Caminandes'}
 LIBRARIES = [('Movies', 'movies', 'Movies'), ('TV Shows', 'shows', 'TV')]

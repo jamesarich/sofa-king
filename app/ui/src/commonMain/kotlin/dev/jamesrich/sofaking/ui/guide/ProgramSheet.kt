@@ -47,14 +47,14 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.Airing
 import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.ui.WholeLinesText
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
-import dev.jamesrich.sofaking.ui.ProgrammeBadges
+import dev.jamesrich.sofaking.ui.ProgramBadges
 import dev.jamesrich.sofaking.ui.episodeLine
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.noListingText
@@ -69,9 +69,9 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
 
-/** What the details sheet shows: a channel and the programme focused in its row, which may be a gap. */
+/** What the details sheet shows: a channel and the program focused in its row, which may be a gap. */
 @Immutable
-internal data class ProgrammeDetails(val channel: Channel, val programme: Programme?)
+internal data class ProgramDetails(val channel: Channel, val program: Program?)
 
 /** The side panel's width on a TV: room for the image beside the title and three buttons on a line. */
 private val PANEL_WIDTH = 560.dp
@@ -83,14 +83,14 @@ private val PANEL_IMAGE_WIDTH = 160.dp
 private val SHEET_TEXT_MAX_HEIGHT = 360.dp
 
 /**
- * The programme's details with Watch and Favorite, and Record and Record series when [recording] says how the
- * programme is set (null on a server that does not record): a side panel over the guide on a TV, where a window of
+ * The program's details with Watch and Favorite, and Record and Record series when [recording] says how the
+ * program is set (null on a server that does not record): a side panel over the guide on a TV, where a window of
  * its own would not take D-pad focus, and a Material bottom sheet elsewhere. Back and Close dismiss it. With other
- * [airings] of the programme, More airings lists them in its place; Back returns from the list to the details.
+ * [airings] of the program, More airings lists them in its place; Back returns from the list to the details.
  */
 @Composable
-internal fun ProgrammeSheet(
-    details: ProgrammeDetails,
+internal fun ProgramSheet(
+    details: ProgramDetails,
     now: Instant,
     isFavorite: Boolean,
     guideLoading: Boolean,
@@ -98,8 +98,8 @@ internal fun ProgrammeSheet(
     onToggleFavorite: (Channel) -> Unit,
     onDismiss: () -> Unit,
     recording: RecordingMark? = null,
-    onRecord: suspend (Programme) -> Boolean = { false },
-    onRecordSeries: suspend (Programme) -> Boolean = { false },
+    onRecord: suspend (Program) -> Boolean = { false },
+    onRecordSeries: suspend (Program) -> Boolean = { false },
     airings: List<Airing> = emptyList(),
     onShowAiring: (Airing) -> Unit = {},
 ) {
@@ -109,7 +109,7 @@ internal fun ProgrammeSheet(
     var showAirings by remember(details) { mutableStateOf(false) }
     var airingsShown by remember(details) { mutableStateOf(false) }
     val back: () -> Unit = { if (showAirings) showAirings = false else onDismiss() }
-    val recordable = details.programme?.takeIf { recording != null && programmeTiming(it, now) != ProgrammeTiming.Ended }
+    val recordable = details.program?.takeIf { recording != null && programTiming(it, now) != ProgramTiming.Ended }
     val buttons: @Composable () -> Unit = {
         SheetButtons(details.channel, isFavorite, watchFocus, onWatch, onToggleFavorite, onDismiss)
         if (recordable != null && recording != null) RecordButtons(recordable, recording, onRecord, onRecordSeries)
@@ -122,11 +122,11 @@ internal fun ProgrammeSheet(
     // OK on an airing on now watches it; on a later one, its details take the sheet's place.
     val airingsList: @Composable (Modifier) -> Unit = { listModifier ->
         AiringsList(
-            title = details.programme?.title.orEmpty(),
+            title = details.program?.title.orEmpty(),
             airings = airings,
             now = now,
             firstFocus = firstAiring,
-            onPick = { airing -> if (isAiring(airing.programme, now)) onWatch(airing.channel) else onShowAiring(airing) },
+            onPick = { airing -> if (isAiring(airing.program, now)) onWatch(airing.channel) else onShowAiring(airing) },
             onBack = back,
             modifier = listModifier,
         )
@@ -193,14 +193,14 @@ internal fun ProgrammeSheet(
  * ellipsized because the D-pad cannot scroll text, and the buttons at the bottom.
  */
 @Composable
-private fun PanelContent(details: ProgrammeDetails, now: Instant, guideLoading: Boolean, buttons: @Composable () -> Unit) {
+private fun PanelContent(details: ProgramDetails, now: Instant, guideLoading: Boolean, buttons: @Composable () -> Unit) {
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            details.programme?.icon?.let { ProgrammeImage(it, Modifier.width(PANEL_IMAGE_WIDTH).aspectRatio(16f / 9f)) }
+            details.program?.icon?.let { ProgramImage(it, Modifier.width(PANEL_IMAGE_WIDTH).aspectRatio(16f / 9f)) }
             Heading(details, now, guideLoading, Modifier.weight(1f))
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            details.programme?.description?.let { WholeLinesText(it, MaterialTheme.typography.bodyMedium, Modifier.fillMaxSize()) }
+            details.program?.description?.let { WholeLinesText(it, MaterialTheme.typography.bodyMedium, Modifier.fillMaxSize()) }
         }
         buttons()
     }
@@ -208,22 +208,22 @@ private fun PanelContent(details: ProgrammeDetails, now: Instant, guideLoading: 
 
 /** The bottom sheet: the full-width image, heading and description scroll above the buttons. */
 @Composable
-private fun SheetContent(details: ProgrammeDetails, now: Instant, guideLoading: Boolean, buttons: @Composable () -> Unit) {
+private fun SheetContent(details: ProgramDetails, now: Instant, guideLoading: Boolean, buttons: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(
             Modifier.heightIn(max = SHEET_TEXT_MAX_HEIGHT).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            details.programme?.icon?.let { ProgrammeImage(it, Modifier.fillMaxWidth().height(180.dp)) }
+            details.program?.icon?.let { ProgramImage(it, Modifier.fillMaxWidth().height(180.dp)) }
             Heading(details, now, guideLoading)
-            details.programme?.description?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            details.program?.description?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         }
         buttons()
     }
 }
 
 @Composable
-private fun ProgrammeImage(url: String, modifier: Modifier) {
+private fun ProgramImage(url: String, modifier: Modifier) {
     AsyncImage(
         model = url,
         contentDescription = null,
@@ -234,30 +234,30 @@ private fun ProgrammeImage(url: String, modifier: Modifier) {
 
 /** Title, episode, time with badges and the channel; a gap shows why it has no listing. */
 @Composable
-private fun Heading(details: ProgrammeDetails, now: Instant, guideLoading: Boolean, modifier: Modifier = Modifier) {
+private fun Heading(details: ProgramDetails, now: Instant, guideLoading: Boolean, modifier: Modifier = Modifier) {
     val timeFormat = rememberTimeFormatter()
     val secondary = MaterialTheme.colorScheme.onSurfaceVariant
-    val programme = details.programme
+    val program = details.program
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (programme == null) {
+        if (program == null) {
             Text(details.channel.noListingText(guideLoading), style = MaterialTheme.typography.titleLarge)
         } else {
-            Text(programme.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            programme.episodeLine()?.let {
+            Text(program.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            program.episodeLine()?.let {
                 Text(it, style = MaterialTheme.typography.bodyLarge, color = secondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             // The badges ride on the time range and the time left has its own line, so neither wraps mid-phrase.
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(timeFormat.range(programme.start, programme.stop), style = MaterialTheme.typography.bodyMedium, color = secondary)
-                ProgrammeBadges(
-                    programme = programme,
-                    live = isAiring(programme, now),
+                Text(timeFormat.range(program.start, program.stop), style = MaterialTheme.typography.bodyMedium, color = secondary)
+                ProgramBadges(
+                    program = program,
+                    live = isAiring(program, now),
                     fill = MaterialTheme.colorScheme.primary,
                     onFill = MaterialTheme.colorScheme.onPrimary,
                     outline = secondary,
                 )
             }
-            Text(programmeTimingText(programme, now), style = MaterialTheme.typography.bodyMedium, color = secondary)
+            Text(programTimingText(program, now), style = MaterialTheme.typography.bodyMedium, color = secondary)
         }
         Text(details.channel.label(), style = MaterialTheme.typography.bodyMedium, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
@@ -285,24 +285,24 @@ private fun SheetButtons(
 }
 
 /**
- * Record or cancel the programme, and record or stop its series, with a line when the server did not take the
+ * Record or cancel the program, and record or stop its series, with a line when the server did not take the
  * change. A press waits for the server, so a second press cannot undo the first before the marks catch up.
  */
 @Composable
 private fun RecordButtons(
-    programme: Programme,
+    program: Program,
     mark: RecordingMark,
-    onRecord: suspend (Programme) -> Boolean,
-    onRecordSeries: suspend (Programme) -> Boolean,
+    onRecord: suspend (Program) -> Boolean,
+    onRecordSeries: suspend (Program) -> Boolean,
 ) {
     val scope = rememberCoroutineScope()
-    var busy by remember(programme) { mutableStateOf(false) }
-    var failed by remember(programme) { mutableStateOf(false) }
-    fun run(action: suspend (Programme) -> Boolean) {
+    var busy by remember(program) { mutableStateOf(false) }
+    var failed by remember(program) { mutableStateOf(false) }
+    fun run(action: suspend (Program) -> Boolean) {
         if (busy) return
         busy = true
         scope.launch {
-            try { failed = !action(programme) } finally { busy = false }
+            try { failed = !action(program) } finally { busy = false }
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -320,10 +320,10 @@ private fun RecordButtons(
     }
 }
 
-/** "42 min left", "Starts in 1 h 20 min" or "Ended", from [programmeTiming]. */
+/** "42 min left", "Starts in 1 h 20 min" or "Ended", from [programTiming]. */
 @Composable
-private fun programmeTimingText(programme: Programme, now: Instant): String = when (val timing = programmeTiming(programme, now)) {
-    is ProgrammeTiming.Airing -> stringResource(Res.string.guide_time_left, timing.left.hoursAndMinutes())
-    is ProgrammeTiming.Upcoming -> stringResource(Res.string.guide_starts_in, timing.until.hoursAndMinutes())
-    ProgrammeTiming.Ended -> stringResource(Res.string.guide_ended)
+private fun programTimingText(program: Program, now: Instant): String = when (val timing = programTiming(program, now)) {
+    is ProgramTiming.Airing -> stringResource(Res.string.guide_time_left, timing.left.hoursAndMinutes())
+    is ProgramTiming.Upcoming -> stringResource(Res.string.guide_starts_in, timing.until.hoursAndMinutes())
+    ProgramTiming.Ended -> stringResource(Res.string.guide_ended)
 }

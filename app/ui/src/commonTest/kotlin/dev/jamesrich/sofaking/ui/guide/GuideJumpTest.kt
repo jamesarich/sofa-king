@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.ui.guide
 
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import kotlin.test.assertEquals
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
@@ -9,7 +9,7 @@ import kotlin.time.Instant
 class GuideJumpTest {
     private val base = Instant.parse("2026-10-09T10:00:00Z")
 
-    private fun programme(startMin: Long, stopMin: Long) = Programme(
+    private fun program(startMin: Long, stopMin: Long) = Program(
         channelId = "1",
         start = (base + (startMin * 60).seconds),
         stop = (base + (stopMin * 60).seconds),
@@ -21,7 +21,7 @@ class GuideJumpTest {
 
     @Test
     fun `cell index is found by minute and -1 outside the cells`() {
-        val cells = GuideTimeline.cellsFor(listOf(programme(60, 120)), base, (base + (1440 * 60).seconds))
+        val cells = GuideTimeline.cellsFor(listOf(program(60, 120)), base, (base + (1440 * 60).seconds))
         assertEquals(0, GuideTimeline.cellIndexAt(cells, 0))
         assertEquals(1, GuideTimeline.cellIndexAt(cells, 60))
         assertEquals(1, GuideTimeline.cellIndexAt(cells, 119))
@@ -32,10 +32,10 @@ class GuideJumpTest {
     // cellAfterUpdate
 
     @Test
-    fun `a filled-in row replaces the gap cell with the programme under the cursor`() {
+    fun `a filled-in row replaces the gap cell with the program under the cursor`() {
         val window = (base + (1440 * 60).seconds)
         val before = GuideTimeline.cellsFor(emptyList(), base, window).single()
-        val after = GuideTimeline.cellsFor(listOf(programme(0, 15), programme(15, 60)), base, window)
+        val after = GuideTimeline.cellsFor(listOf(program(0, 15), program(15, 60)), base, window)
         assertEquals(after[1], GuideTimeline.cellAfterUpdate(after, before, cursor = 25))
         assertEquals(after[0], GuideTimeline.cellAfterUpdate(after, before, cursor = 0))
     }
@@ -43,14 +43,14 @@ class GuideJumpTest {
     @Test
     fun `a cursor outside the previous cell falls back to the cell at its start`() {
         val window = (base + (1440 * 60).seconds)
-        val before = GuideCell(programme(60, 120), 60, 120)
-        val after = GuideTimeline.cellsFor(listOf(programme(0, 90), programme(90, 150)), base, window)
+        val before = GuideCell(program(60, 120), 60, 120)
+        val after = GuideTimeline.cellsFor(listOf(program(0, 90), program(90, 150)), base, window)
         assertEquals(after[0], GuideTimeline.cellAfterUpdate(after, before, cursor = 500))
     }
 
     @Test
     fun `an emptied row has no cell to stand in`() {
-        val before = GuideCell(programme(60, 120), 60, 120)
+        val before = GuideCell(program(60, 120), 60, 120)
         assertEquals(null, GuideTimeline.cellAfterUpdate(emptyList(), before, cursor = 70))
     }
 

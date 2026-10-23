@@ -22,9 +22,9 @@ class BallySportsClientTest {
             assertNull(client.resolve("15").expiresAt)
             val guide = client.guide(setOf("2"))
             assertEquals(2, guide.channels.size)
-            val programme = guide.programmes.single()
-            assertEquals("Eli Willits with a three-RBI game", programme.title); assertEquals("Nationals No. 1 prospect", programme.description)
-            assertEquals("2026-10-10T03:00:00Z", programme.startsAt.toString(), "the \$D date prefix is stripped")
+            val program = guide.programs.single()
+            assertEquals("Eli Willits with a three-RBI game", program.title); assertEquals("Nationals No. 1 prospect", program.description)
+            assertEquals("2026-10-10T03:00:00Z", program.startsAt.toString(), "the \$D date prefix is stripped")
             assertEquals(1, fixture.hits("/channels/milb"), "one page fetch serves channels, resolve and guide")
         } } } } finally { dir.toFile().deleteRecursively() }
     }

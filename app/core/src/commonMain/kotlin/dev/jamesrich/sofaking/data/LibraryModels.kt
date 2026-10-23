@@ -136,7 +136,35 @@ data class MediaItemDetail(
     val intro: IntroSpan? = null,
     /** The end credits the server found in an episode, which the player offers to skip, or to go on to the next. */
     val credits: IntroSpan? = null,
+    /** Thumbnails the player shows over its seek bar while scrubbing, once the server has made them. */
+    val scrub: ScrubTiles? = null,
 )
+
+/**
+ * A file's scrub thumbnails: [sheets] (resolved URLs) of [columns] by [rows] tiles, each [tileWidth] by [tileHeight]
+ * pixels, left to right and then down, one every [intervalMs] from the start of the file, [frames] in all.
+ */
+data class ScrubTiles(
+    val intervalMs: Long,
+    val tileWidth: Int,
+    val tileHeight: Int,
+    val columns: Int,
+    val rows: Int,
+    val frames: Int,
+    val sheets: List<String>,
+) {
+    /** The tile showing [positionMs], or the last one past the end; null when there are none. */
+    fun tileAt(positionMs: Long): ScrubTile? {
+        if (intervalMs <= 0 || frames <= 0 || columns <= 0 || rows <= 0 || tileWidth <= 0 || tileHeight <= 0) return null
+        val n = (positionMs.coerceAtLeast(0) / intervalMs).coerceAtMost(frames - 1L).toInt()
+        val perSheet = columns * rows
+        val sheet = sheets.getOrNull(n / perSheet) ?: return null
+        return ScrubTile(sheet, n % perSheet % columns, n % perSheet / columns)
+    }
+}
+
+/** One scrub thumbnail: the tile at [column] and [row] of the sheet at [url]. */
+data class ScrubTile(val url: String, val column: Int, val row: Int)
 
 /** An episode's intro or credits, from [startMs] to [endMs] after the start of the file. */
 data class IntroSpan(val startMs: Long, val endMs: Long)

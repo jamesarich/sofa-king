@@ -146,10 +146,10 @@ class FeedParserTest {
           <programme channel="unwanted" start="20261010080000 -0500" stop="20261010090000 -0500"><title>Dropped</title></programme>
         </tv>""",
             ) { it == "station" }
-        assertEquals(1, parsed.programmes.size)
-        assertEquals("2026-10-10T13:00:00Z", parsed.programmes.single().startsAt.toString())
-        assertEquals("News & weather", parsed.programmes.single().description)
-        assertEquals(listOf("station", "unwanted"), parsed.channels.map { it.id }.sorted(), "programme channel ids are indexed even without a channel block")
+        assertEquals(1, parsed.programs.size)
+        assertEquals("2026-10-10T13:00:00Z", parsed.programs.single().startsAt.toString())
+        assertEquals("News & weather", parsed.programs.single().description)
+        assertEquals(listOf("station", "unwanted"), parsed.channels.map { it.id }.sorted(), "program channel ids are indexed even without a channel block")
     }
 
     @Test fun `gzip XMLTV is recognized by its magic bytes and the channel block is indexed`() {
@@ -159,29 +159,29 @@ class FeedParserTest {
         val bytes = java.io.ByteArrayOutputStream().also { out -> java.util.zip.GZIPOutputStream(out).use { it.write(xml.toByteArray()) } }.toByteArray()
         val parsed = FeedParser.guide(java.io.ByteArrayInputStream(bytes)) { true }
         assertEquals(GuideChannel("a", "Alpha", "https://img.test/a.png"), parsed.channels.single())
-        assertEquals(1, parsed.programmes.size, "exact duplicates collapse")
-        assertEquals("One", parsed.programmes.single().title)
+        assertEquals(1, parsed.programs.size, "exact duplicates collapse")
+        assertEquals("One", parsed.programs.single().title)
     }
 
     @Test fun `XMLTV with a DOCTYPE declaration parses as plain or gzip`() {
         val tvapp2 = FeedParser.guide(Fixture.resource("guides/tvapp2-doctype.xml").inputStream()) { true }
         assertEquals(listOf("111871", "10021"), tvapp2.channels.map { it.id })
         assertEquals(listOf("ACC", "AMC"), tvapp2.channels.map { it.displayName })
-        assertEquals(2, tvapp2.programmes.size)
-        assertEquals("Biztalk Special Coverage on AI EP3", tvapp2.programmes.first { it.channelId == "10021" }.title)
+        assertEquals(2, tvapp2.programs.size)
+        assertEquals("Biztalk Special Coverage on AI EP3", tvapp2.programs.first { it.channelId == "10021" }.title)
 
         val gz = java.io.ByteArrayOutputStream().also { out -> java.util.zip.GZIPOutputStream(out).use { it.write(Fixture.resource("guides/mjh-doctype.xml")) } }.toByteArray()
         val mjh = FeedParser.guide(java.io.ByteArrayInputStream(gz)) { it == "USBA370000104" }
         assertEquals(2, mjh.channels.size)
         assertEquals("CW Forever", mjh.channels.first().displayName)
-        assertEquals("48 Hours", mjh.programmes.single().title, "the mapped channel's programme survives a rating block")
+        assertEquals("48 Hours", mjh.programs.single().title, "the mapped channel's program survives a rating block")
     }
 
     @Test fun `control characters XML forbids are dropped and counted, and UTF-16 passes through`() {
         val parsed = FeedParser.guide(Fixture.resource("guides/tvapp2-control-char.xml").inputStream()) { true }
         assertEquals(3, parsed.controlCharacters)
-        assertEquals("Bebefinn 2 - Ep6", parsed.programmes.single().title)
-        assertEquals("Explore a diverse range of sandwiches and burgers, each a delightful culinary adventure.", parsed.programmes.single().description)
+        assertEquals("Bebefinn 2 - Ep6", parsed.programs.single().title)
+        assertEquals("Explore a diverse range of sandwiches and burgers, each a delightful culinary adventure.", parsed.programs.single().description)
 
         val utf16 = ("﻿" + """<?xml version="1.0" encoding="UTF-16"?><tv><channel id="ü"><display-name>Ünïcode</display-name></channel></tv>""").toByteArray(Charsets.UTF_16BE)
         val wide = FeedParser.guide(java.io.ByteArrayInputStream(utf16)) { true }
@@ -216,22 +216,22 @@ class FeedParserTest {
         val head = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE tv SYSTEM "xmltv.dtd">
 <tv generator-info-name="synthetic"><channel id="kept"><display-name>Kept</display-name></channel><channel id="bulk"><display-name>Bulk</display-name></channel>
-<programme channel="kept" start="20261010080000 +0000" stop="20261010090000 +0000"><title>Kept programme</title></programme>
+<programme channel="kept" start="20261010080000 +0000" stop="20261010090000 +0000"><title>Kept program</title></programme>
 """
-        val programme = """<programme channel="bulk" start="20261010080000 +0000" stop="20261010090000 +0000"><title>Bulk programme title</title><desc>${"x".repeat(400)}</desc></programme>
+        val program = """<programme channel="bulk" start="20261010080000 +0000" stop="20261010090000 +0000"><title>Bulk program title</title><desc>${"x".repeat(400)}</desc></programme>
 """
-        val repeats = (110L shl 20) / programme.length + 1
-        val input = SyntheticGuideStream(head.toByteArray(), programme.toByteArray(), repeats, "</tv>\n".toByteArray())
+        val repeats = (110L shl 20) / program.length + 1
+        val input = SyntheticGuideStream(head.toByteArray(), program.toByteArray(), repeats, "</tv>\n".toByteArray())
         val parsed = FeedParser.guide(input) { it == "kept" }
         assertTrue(input.produced > 110L shl 20, "the stream exceeded 110 MiB: ${input.produced}")
         assertEquals(listOf("kept", "bulk"), parsed.channels.map { it.id })
-        assertEquals("Kept programme", parsed.programmes.single().title)
+        assertEquals("Kept program", parsed.programs.single().title)
     }
 
-    /** Emits head, then [programme] [repeats] times, then tail, without materializing the document. */
+    /** Emits head, then [program] [repeats] times, then tail, without materializing the document. */
     private class SyntheticGuideStream(
         private val head: ByteArray,
-        private val programme: ByteArray,
+        private val program: ByteArray,
         private val repeats: Long,
         private val tail: ByteArray,
     ) : java.io.InputStream() {
@@ -240,7 +240,7 @@ class FeedParserTest {
         private var remaining = repeats
         private var offset = 0
 
-        private fun current(): ByteArray? = when (phase) { 0 -> head; 1 -> programme; 2 -> tail; else -> null }
+        private fun current(): ByteArray? = when (phase) { 0 -> head; 1 -> program; 2 -> tail; else -> null }
 
         private fun advance() {
             offset = 0
@@ -276,7 +276,7 @@ class FeedParserTest {
                 <title>Invalid</title>
             </programme>
         </tv>"""
-        assertTrue(FeedParser.guide(invalid).programmes.isEmpty())
+        assertTrue(FeedParser.guide(invalid).programs.isEmpty())
     }
 
     @Test fun `logo references are encoded and relative ones resolve against the playlist`() {
@@ -296,9 +296,9 @@ class FeedParserTest {
         assertEquals(listOf(null, "http://i.test/b.png", null), FeedParser.guide(xml.byteInputStream()) { true }.channels.map { it.icon })
     }
 
-    @Test fun `XMLTV programme metadata is kept from the programme's own elements`() {
+    @Test fun `XMLTV program metadata is kept from the program's own elements`() {
         val guide = FeedParser.guide(Fixture.resource("guides/metadata.xml").inputStream(), "https://g.test/epg/guide.xml") { true }
-        val (show, new, film) = guide.programmes
+        val (show, new, film) = guide.programs
         assertEquals("The Show", show.title)
         assertEquals("Pilot & Plans", show.subTitle)
         assertEquals("The first one.", show.description)
@@ -310,9 +310,9 @@ class FeedParserTest {
             show.episodeNumbers,
             "every system is kept, and an episode-num without one is onscreen",
         )
-        assertEquals("https://g.test/posters/the%20show.jpg", show.icon, "the programme's own icon, resolved against the guide, never a credit's or a rating's")
+        assertEquals("https://g.test/posters/the%20show.jpg", show.icon, "the program's own icon, resolved against the guide, never a credit's or a rating's")
         assertEquals(listOf("Series", "Comedy"), show.categories)
-        assertEquals(ProgrammeRating("TV-PG", "VCHIP"), show.rating, "the first rating")
+        assertEquals(ProgramRating("TV-PG", "VCHIP"), show.rating, "the first rating")
         assertFalse(show.isNew)
         assertEquals(PreviouslyShown("20190304200000 +0000"), show.previouslyShown)
         assertEquals("20190304", show.date)
@@ -320,7 +320,7 @@ class FeedParserTest {
 
         assertEquals("Brand New", new.title)
         assertTrue(new.isNew)
-        assertNull(new.icon, "a star rating's icon is not the programme's")
+        assertNull(new.icon, "a star rating's icon is not the program's")
         assertNull(new.rating, "a star rating is not a content rating")
         assertEquals("es", new.language)
         assertTrue(new.episodeNumbers.isEmpty())
@@ -332,14 +332,14 @@ class FeedParserTest {
         assertNull(film.language)
     }
 
-    @Test fun `programme metadata is capped while parsing`() {
+    @Test fun `program metadata is capped while parsing`() {
         val many = (1..20).joinToString("") { "<category>C$it</category><episode-num system=\"s$it\">$it</episode-num>" }
         val xml = "<tv><programme channel=\"a\" start=\"20261010080000 +0000\" stop=\"20261010090000 +0000\"><title>T</title>" +
             "<sub-title>${"s".repeat(5000)}</sub-title><episode-num system=\"onscreen\">${"9".repeat(65)}</episode-num>$many</programme></tv>"
-        val programme = FeedParser.guide(xml).programmes.single()
-        assertEquals(GuideProgramme.TITLE_LIMIT, programme.subTitle!!.length)
-        assertEquals(GuideProgramme.CATEGORY_LIMIT, programme.categories.size)
-        assertEquals(GuideProgramme.EPISODE_NUMBER_LIMIT, programme.episodeNumbers.size)
-        assertEquals("s1", programme.episodeNumbers.first().system, "a value longer than the cap is dropped")
+        val program = FeedParser.guide(xml).programs.single()
+        assertEquals(GuideProgram.TITLE_LIMIT, program.subTitle!!.length)
+        assertEquals(GuideProgram.CATEGORY_LIMIT, program.categories.size)
+        assertEquals(GuideProgram.EPISODE_NUMBER_LIMIT, program.episodeNumbers.size)
+        assertEquals("s1", program.episodeNumbers.first().system, "a value longer than the cap is dropped")
     }
 }

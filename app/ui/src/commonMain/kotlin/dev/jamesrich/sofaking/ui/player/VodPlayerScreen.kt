@@ -75,6 +75,7 @@ import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
@@ -127,6 +128,8 @@ fun VodPlayerScreen(
     autoSkipBreaks: Boolean = false,
     /** Skip an intro after a countdown on Skip intro, rather than waiting for a press. */
     autoSkipIntros: Boolean = false,
+    /** How the item's text subtitles look. */
+    subtitleLook: SubtitleLook = SubtitleLook(),
     /** What plays after this item, asked for when it ends; null ends as [onEnded] says. */
     upNext: suspend () -> VodUpNext? = { null },
     onPlayNext: () -> Unit = {},
@@ -663,7 +666,7 @@ fun VodPlayerScreen(
         state.failure?.let { FailureCard(it, live = false) }
         state.next?.let { UpNextCard(it, nextSecondsLeft, pointerDriven, onPlay = onPlayNext, onCancel = onExit, stillWatching = stillWatching) }
         TransportDisc(state.transport, state.transportPulse)
-        SeekBadge(state.scrubTarget.takeIf { !barVisible && state.failure == null }, positionMs = { state.positionMs })
+        SeekBadge(state.scrubTarget.takeIf { !barVisible && state.failure == null }, positionMs = { state.positionMs }, scrub = title.scrub)
 
         InfoBar(barVisible) {
             Column(
@@ -687,21 +690,25 @@ fun VodPlayerScreen(
                     stream?.mode?.let { mode -> modeLabel(mode)?.let { Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
                 }
                 val length = state.durationMs?.takeIf { it > 0 }
-                if (pointerDriven && length != null) {
-                    VodSeekSlider(
-                        positionMs = { state.positionMs },
-                        lengthMs = length,
-                        markers = title.markers,
-                        onScrub = state::dragTo,
-                        onSeek = { target ->
-                            state.endScrub()
-                            seekItem(target)
-                            state.showInfo()
-                            focus.requestFocus()
-                        },
-                    )
-                } else {
-                    VodSeekBar(positionMs = { state.positionMs }, durationMs = state.durationMs, scrubMs = state.scrubTarget, markers = title.markers)
+                Box(Modifier.fillMaxWidth()) {
+                    if (pointerDriven && length != null) {
+                        VodSeekSlider(
+                            positionMs = { state.positionMs },
+                            lengthMs = length,
+                            markers = title.markers,
+                            onScrub = state::dragTo,
+                            onSeek = { target ->
+                                state.endScrub()
+                                seekItem(target)
+                                state.showInfo()
+                                focus.requestFocus()
+                            },
+                        )
+                    } else {
+                        VodSeekBar(positionMs = { state.positionMs }, durationMs = state.durationMs, scrubMs = state.scrubTarget, markers = title.markers)
+                    }
+                    val target = state.scrubTarget
+                    if (title.scrub != null && target != null && length != null) ScrubThumbnailOverBar(title.scrub, target, length)
                 }
                 VodTimes(positionMs = { state.positionMs }, scrubMs = state.scrubTarget, durationMs = state.durationMs, speed = speed)
                 val items = buttons.map { button ->
@@ -756,7 +763,10 @@ fun VodPlayerScreen(
         }
         // Drawn over the bar and clear of its top edge; it waits while a card would cover it.
         if (!state.tracksOpen && state.failure == null && state.next == null) {
-            subtitles?.let { cues -> VodSubtitle(cues, { state.positionMs - subtitleOffsetMs }, bottom = if (barVisible) barHeight + SUBTITLE_GAP else SUBTITLE_GAP) }
+            subtitles?.let { cues ->
+                val gap = SUBTITLE_GAP + subtitleLook.raise.height
+                VodSubtitle(cues, { state.positionMs - subtitleOffsetMs }, bottom = if (barVisible) barHeight + gap else gap, look = subtitleLook)
+            }
         }
         if (state.tracksOpen) {
             TracksCard(
@@ -794,8 +804,8 @@ private fun VodTimes(positionMs: () -> Long, scrubMs: Long?, durationMs: Long?, 
 }
 
 @Composable
-private fun BoxScope.VodSubtitle(cues: Subtitles, positionMs: () -> Long, bottom: Dp) {
-    cues.textAt(positionMs())?.let { SubtitleText(it, bottom = bottom) }
+private fun BoxScope.VodSubtitle(cues: Subtitles, positionMs: () -> Long, bottom: Dp, look: SubtitleLook) {
+    cues.textAt(positionMs())?.let { SubtitleText(it, bottom = bottom, look = look) }
 }
 
 /** The bar under the title for the remote: what has played, the breaks, and where a scrub would land. */

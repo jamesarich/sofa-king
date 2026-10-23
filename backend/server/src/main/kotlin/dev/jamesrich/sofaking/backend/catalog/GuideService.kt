@@ -8,7 +8,7 @@ import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.StoredGuide
 import dev.jamesrich.sofaking.backend.store.guides
-import dev.jamesrich.sofaking.backend.store.programmes
+import dev.jamesrich.sofaking.backend.store.programs
 import dev.jamesrich.sofaking.backend.store.saveGuide
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory
 
 /**
  * Independent XMLTV sources. Each guide refreshes on its own interval and fails on its own;
- * only programmes for channels that [wanted] names are retained, in SQLite.
+ * only programs for channels that [wanted] names are retained, in SQLite.
  */
 class GuideService(
     val configs: List<GuideConfig>,
@@ -73,7 +73,7 @@ class GuideService(
         val stored = store.guides().filterKeys { id -> configs.any { it.id == id } }
         published.set(Published(stored))
         statuses.set(configs.map { config ->
-            stored[config.id]?.let { GuideStatus(config.id, it.importedAt.toString(), channels = it.channels.size, programmes = it.programmes) } ?: GuideStatus(config.id)
+            stored[config.id]?.let { GuideStatus(config.id, it.importedAt.toString(), channels = it.channels.size, programs = it.programs) } ?: GuideStatus(config.id)
         })
     }
 
@@ -84,8 +84,8 @@ class GuideService(
     /** Changes with every successful import of any guide. */
     fun revision(): String = published.get().revision
 
-    /** When the retained programmes of each mapped channel end, keyed by guide id then channel id. */
-    fun coverage(): Map<String, Map<String, Instant>> = published.get().guides.mapValues { it.value.programmeEnds }
+    /** When the retained programs of each mapped channel end, keyed by guide id then channel id. */
+    fun coverage(): Map<String, Map<String, Instant>> = published.get().guides.mapValues { it.value.programEnds }
 
     fun channels(guideId: String): List<GuideChannel> = published.get().guides[guideId]?.channels.orEmpty()
 
@@ -104,8 +104,8 @@ class GuideService(
         return configs.map { it.id }.filter { index[it]?.containsKey(channelId) == true }
     }
 
-    suspend fun programmes(guideId: String, channelIds: Collection<String>, from: Instant, to: Instant): Map<String, List<GuideProgramme>> =
-        if (guideId !in locks) emptyMap() else store.programmes(guideId, channelIds, from, to)
+    suspend fun programs(guideId: String, channelIds: Collection<String>, from: Instant, to: Instant): Map<String, List<GuideProgram>> =
+        if (guideId !in locks) emptyMap() else store.programs(guideId, channelIds, from, to)
 
     suspend fun refresh(config: GuideConfig) = locks.getValue(config.id).withLock { jobs.record("guide:${config.id}") {
         val started = clock.instant()
@@ -124,21 +124,21 @@ class GuideService(
                 }
             }
             val importedAt = clock.instant()
-            store.saveGuide(config.id, importedAt, parsed.channels, parsed.programmes)
-            val ends = parsed.programmes.groupBy { it.channelId }.mapValues { (_, rows) -> rows.maxOf { it.endsAt } }
-            val stored = StoredGuide(config.id, importedAt, parsed.channels, ends, parsed.programmes.size)
+            store.saveGuide(config.id, importedAt, parsed.channels, parsed.programs)
+            val ends = parsed.programs.groupBy { it.channelId }.mapValues { (_, rows) -> rows.maxOf { it.endsAt } }
+            val stored = StoredGuide(config.id, importedAt, parsed.channels, ends, parsed.programs.size)
             published.updateAndGet { Published(it.guides + (config.id to stored)) }
             statuses.updateAndGet { list ->
                 list.map {
-                    if (it.id == config.id) GuideStatus(config.id, importedAt.toString(), channels = parsed.channels.size, programmes = parsed.programmes.size) else it
+                    if (it.id == config.id) GuideStatus(config.id, importedAt.toString(), channels = parsed.channels.size, programs = parsed.programs.size) else it
                 }
             }
             log.info(
-                "guide import guide={} channels={} programmes={} wanted={} controlChars={} durationMs={}",
-                config.id, parsed.channels.size, parsed.programmes.size, wantedIds.size, parsed.controlCharacters, Duration.between(started, clock.instant()).toMillis(),
+                "guide import guide={} channels={} programs={} wanted={} controlChars={} durationMs={}",
+                config.id, parsed.channels.size, parsed.programs.size, wantedIds.size, parsed.controlCharacters, Duration.between(started, clock.instant()).toMillis(),
             )
             onImported()
-            JobOutcome(true, "${parsed.channels.size} channels, ${parsed.programmes.size} programmes")
+            JobOutcome(true, "${parsed.channels.size} channels, ${parsed.programs.size} programs")
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

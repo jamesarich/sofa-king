@@ -140,7 +140,7 @@ internal class LiveRecord(val recording: Boolean, val onClick: () -> Unit)
  * The info bar over the bottom of the picture with its buttons ([liveButtons]): the D-pad reaches them with Left or
  * Right ([entry] takes the first), and a finger or a mouse gets channel down, play or pause and channel up before
  * them, then the volume and full screen. [record] is null where the server does not record or nothing is on;
- * [favorite] is null where the star cannot change. The [sleep] timer offers [programmeEnd], the end of the program on
+ * [favorite] is null where the star cannot change. The [sleep] timer offers [programEnd], the end of the program on
  * now, after its minutes.
  */
 @Composable
@@ -157,7 +157,7 @@ internal fun BoxScope.InfoBarPanel(
     hasAudioChoice: Boolean,
     record: LiveRecord?,
     sleep: SleepTimer,
-    programmeEnd: Instant?,
+    programEnd: Instant?,
     zoom: VideoZoom,
     favorite: Boolean?,
     onToggleFavorite: () -> Unit,
@@ -201,7 +201,7 @@ internal fun BoxScope.InfoBarPanel(
             )
             LiveButton.ZOOM -> zoomButtonItem(zoom, control { controls.zoom() })
             LiveButton.SLEEP -> sleepButtonItem(sleep) {
-                sleep.step(Clock.System.now().toEpochMilliseconds(), programmeEndMs = programmeEnd?.toEpochMilliseconds())
+                sleep.step(Clock.System.now().toEpochMilliseconds(), programEndMs = programEnd?.toEpochMilliseconds())
                 state.keepInfo()
             }
             LiveButton.RECORD -> PlayerButtonItem(

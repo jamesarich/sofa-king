@@ -49,7 +49,7 @@ internal fun backgroundScope(report: (String) -> Unit = runtimeLog::error): Coro
         },
     )
 
-/** Runs [action] every [periodMillis] until cancelled; a failed run is logged by exception class and the loop goes on. */
+/** Runs [action] every [periodMillis] until canceled; a failed run is logged by exception class and the loop goes on. */
 internal fun CoroutineScope.launchEvery(name: String, periodMillis: Long, report: (String) -> Unit = runtimeLog::warn, action: suspend () -> Unit): Job =
     launch(CoroutineName(name)) {
         while (isActive) {
@@ -224,6 +224,7 @@ class LiveRuntime(
                     metadata = config.tmdb?.let { LibraryMetadata(store, TmdbClient(http, it), clock, it.region) },
                     artwork = LibraryArtwork(http, config.dataDirectory.resolve("artwork"), ffmpeg = config.ffmpeg),
                     intros = IntroDetector(store, clock, jobs, FfmpegFingerprinter(config.ffmpeg, config.dataDirectory.resolve("intros"))).also { it.start(scope) },
+                    scrub = ScrubSheets(store, clock, jobs, FfmpegSheetMaker(config.ffmpeg), config.dataDirectory.resolve("scrub")).also { it.start(scope) },
                 )
                 libraries.start(scope)
                 val vod = VodSessions(

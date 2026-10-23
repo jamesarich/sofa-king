@@ -9,7 +9,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 
-/** The app-facing view: lineup entries resolved against feed sources, guide programmes and source health. */
+/** The app-facing view: lineup entries resolved against feed sources, guide programs and source health. */
 class CatalogService(
     val feeds: FeedService,
     val guides: GuideService,
@@ -89,10 +89,10 @@ class CatalogService(
         if (query.revision != null && query.revision != revision) throw ApiFailure(409, Wire.ErrorCode.RESYNC_REQUIRED, "Guide revision changed", true)
         val entries = requested.mapNotNull { it.second }
         val mapped = entries.mapNotNull { entry -> entry.guide?.let { entry to it } }
-        val programmes = HashMap<String, List<GuideProgramme>>()
+        val programs = HashMap<String, List<GuideProgram>>()
         for ((guideId, group) in mapped.groupBy { it.second.guideId }) {
-            val rows = guides.programmes(guideId, group.map { it.second.channelId }, from, to)
-            for ((entry, mapping) in group) programmes[entry.id] = rows[mapping.channelId].orEmpty()
+            val rows = guides.programs(guideId, group.map { it.second.channelId }, from, to)
+            for ((entry, mapping) in group) programs[entry.id] = rows[mapping.channelId].orEmpty()
         }
         return GuideWindow(
             revision,
@@ -100,13 +100,13 @@ class CatalogService(
             to.toString(),
             requested.map { (id, entry) ->
                 if (entry == null) return@map ChannelGuide(id, Wire.GuideStatus.REMOVED, emptyList())
-                val rows = programmes[entry.id].orEmpty().map { programme ->
-                    val start = programme.startsAt.toString()
-                    val end = programme.endsAt.toString()
-                    Programme(
-                        stableId("programme:${entry.id}:$start:$end:${programme.title}"), entry.id, start, end, programme.title, programme.description,
-                        programme.subTitle, episodeLabel(programme.episodeNumbers), programme.isNew, programme.rating?.value, programme.icon,
-                        programme.categories.map(String::trim).filter(String::isNotEmpty).distinct(),
+                val rows = programs[entry.id].orEmpty().map { program ->
+                    val start = program.startsAt.toString()
+                    val end = program.endsAt.toString()
+                    Program(
+                        stableId("programme:${entry.id}:$start:$end:${program.title}"), entry.id, start, end, program.title, program.description,
+                        program.subTitle, episodeLabel(program.episodeNumbers), program.isNew, program.rating?.value, program.icon,
+                        program.categories.map(String::trim).filter(String::isNotEmpty).distinct(),
                     )
                 }
                 val status = if (entry.guide == null) Wire.GuideStatus.UNASSIGNED else if (rows.isEmpty()) Wire.GuideStatus.EMPTY else Wire.GuideStatus.AVAILABLE
@@ -122,7 +122,7 @@ private val onscreenSeasonEpisode = Regex("[Ss](\\d{1,4})\\s*[Ee](\\d{1,5})")
 data class SeasonEpisode(val season: Int?, val episode: Int?)
 
 /**
- * The season and episode a programme's numbering names: from a zero-based `xmltv_ns` value first, then an
+ * The season and episode a program's numbering names: from a zero-based `xmltv_ns` value first, then an
  * `S02E05`-style `onscreen` one; null when neither names a number.
  */
 fun seasonEpisode(numbers: List<EpisodeNumber>): SeasonEpisode? {
@@ -136,7 +136,7 @@ fun seasonEpisode(numbers: List<EpisodeNumber>): SeasonEpisode? {
 }
 
 /**
- * A display label for a programme's numbering: `S2 E5` from a zero-based `xmltv_ns` value or an `S02E05`-style
+ * A display label for a program's numbering: `S2 E5` from a zero-based `xmltv_ns` value or an `S02E05`-style
  * `onscreen` one, `E5` or `S2` when the source numbers only one, else the `onscreen` text itself.
  */
 fun episodeLabel(numbers: List<EpisodeNumber>): String? {

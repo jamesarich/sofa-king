@@ -57,7 +57,7 @@ internal object LineupOfferings : Table("lineup_offering") {
 internal object GuideImports : Table("guide_import") {
     val guideId = text("guide_id")
     val importedAt = text("imported_at")
-    /** The generation of the guide's channel and programme rows that readers see; an import writes the next one beside it. */
+    /** The generation of the guide's channel and program rows that readers see; an import writes the next one beside it. */
     val generation = long("generation").default(0)
     override val primaryKey = PrimaryKey(guideId)
 }
@@ -95,7 +95,7 @@ internal object ProviderStates : Table("provider_state") {
     val updatedAt = text("updated_at")
     override val primaryKey = PrimaryKey(providerId, key)
 }
-internal object GuideProgrammes : Table("guide_programme") {
+internal object GuidePrograms : Table("guide_program") {
     val guideId = text("guide_id")
     val generation = long("generation").default(0)
     val channelId = text("channel_id")
@@ -103,7 +103,7 @@ internal object GuideProgrammes : Table("guide_programme") {
     val endsAt = long("ends_at")
     val title = text("title")
     val description = text("description").nullable()
-    /** The programme's metadata beyond title and description as compact JSON; null when the source gave none. */
+    /** The program's metadata beyond title and description as compact JSON; null when the source gave none. */
     val detailsJson = text("details_json").nullable()
     override val primaryKey = PrimaryKey(guideId, generation, channelId, startsAt, endsAt, title)
 }
@@ -223,6 +223,20 @@ internal object LibraryIntroRows : Table("library_intro") {
     val tailStartMs = long("tail_start_ms").nullable()
     val creditsStartMs = long("credits_start_ms").nullable()
     val creditsEndMs = long("credits_end_ms").nullable()
+    override val primaryKey = PrimaryKey(itemId)
+}
+
+internal object LibraryScrubRows : Table("library_scrub") {
+    val itemId = text("item_id")
+    val fileKey = text("file_key")
+    val intervalMs = long("interval_ms")
+    val tileWidth = integer("tile_width")
+    val tileHeight = integer("tile_height")
+    val columnCount = integer("columns")
+    val rowCount = integer("rows")
+    val sheets = integer("sheets")
+    val frames = integer("frames")
+    val madeAt = text("made_at")
     override val primaryKey = PrimaryKey(itemId)
 }
 

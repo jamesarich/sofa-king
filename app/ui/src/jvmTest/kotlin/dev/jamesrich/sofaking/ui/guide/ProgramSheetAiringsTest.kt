@@ -18,7 +18,7 @@ import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.Density
 import dev.jamesrich.sofaking.data.Airing
 import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlin.test.Test
@@ -29,12 +29,12 @@ import kotlin.time.Duration.Companion.minutes
 
 /** More airings on the details panel: the list, Back to the details, and OK on an airing now and on a later one. */
 @OptIn(ExperimentalTestApi::class)
-class ProgrammeSheetAiringsTest {
+class ProgramSheetAiringsTest {
     private val now = Clock.System.now()
     private val news = Channel(guideId = "c0", number = 2.0, name = "News Now", logo = null, groups = listOf("News"))
     private val movies = Channel(guideId = "c1", number = 3.0, name = "Movie Max", logo = null, groups = listOf("Movies"))
     private fun columbo(channel: Channel, startsIn: kotlin.time.Duration) =
-        Programme(channelId = channel.guideId, start = now + startsIn, stop = now + startsIn + 1.hours, title = "Columbo", description = null)
+        Program(channelId = channel.guideId, start = now + startsIn, stop = now + startsIn + 1.hours, title = "Columbo", description = null)
 
     private val shown = columbo(news, 2.hours)
     private val onNow = Airing(movies, columbo(movies, (-10).minutes))
@@ -48,8 +48,8 @@ class ProgrammeSheetAiringsTest {
         setContent {
             SofaKingTheme {
                 Surface(Modifier.fillMaxSize().arrowKeysMoveFocus(), color = MaterialTheme.colorScheme.background) {
-                    ProgrammeSheet(
-                        details = ProgrammeDetails(news, shown),
+                    ProgramSheet(
+                        details = ProgramDetails(news, shown),
                         now = now,
                         isFavorite = false,
                         guideLoading = false,

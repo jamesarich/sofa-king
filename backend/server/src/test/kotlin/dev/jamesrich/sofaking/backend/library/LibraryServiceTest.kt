@@ -159,7 +159,7 @@ class LibraryServiceTest {
         assertTrue(s.service.folderChoices().contains(s.root))
     }
 
-    @Test fun `removing a library does not wait for its files to be probed, and the scan then writes nothing`() = runBlocking {
+    @Test fun `removing a library does not wait for its files to be probed, and the scan then writes nothing`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-library-")
         val root = Files.createDirectories(dir.resolve("media"))
         val clock = MutableClock()

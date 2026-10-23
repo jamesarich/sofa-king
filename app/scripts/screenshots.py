@@ -396,8 +396,8 @@ def tour(base, start, out, channel=True):
         app.keys('Escape')
         time.sleep(2)
         if app.tap:
-            # The first two films fit across a phone; Big Buck Bunny, which the keys reach, does not.
-            app.tap(showcase.FILMS['sintel']['title'])
+            # The first two movies fit across a phone; Big Buck Bunny, which the keys reach, does not.
+            app.tap(showcase.MOVIES['sintel']['title'])
         else:
             app.keys('ArrowUp', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'Enter')
         time.sleep(4)

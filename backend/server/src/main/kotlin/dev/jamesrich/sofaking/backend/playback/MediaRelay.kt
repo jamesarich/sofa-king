@@ -130,6 +130,9 @@ class MediaRelay(
             } catch (e: UpstreamProtocolException) {
                 protocolMismatch(id, epoch, job, e.protocol)
             } catch (_: Exception) {
+                // The session let this request go before the stream started (released, retuned, or replaced by the
+                // player's next request); that cancels the wait, and is not the upstream's failure.
+                if (!job.isActive) throw withContext(NonCancellable) { sessions.letGo(id) }
                 throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
             }
             call.response.header(HttpHeaders.CacheControl, "no-store")

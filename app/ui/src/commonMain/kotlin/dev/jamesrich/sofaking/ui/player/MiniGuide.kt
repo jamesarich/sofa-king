@@ -71,7 +71,7 @@ import kotlin.time.Instant
  * Bottom channel list over the video: a chip row (Recent, Favorites, the guide filter the player was opened from,
  * All) above the rows. OK tunes and closes it through [onTune];
  * Back and the idle timer are handled by the owner. Focus starts on the current channel's row; Up from the first
- * row reaches the chips. [onChipsFocused] tells the owner when the chips have focus, so Left and Right move along
+ * row reaches the chips. [onChipsFocus] tells the owner when the chips have focus, so Left and Right move along
  * them instead of being swallowed.
  */
 @Composable
@@ -81,11 +81,11 @@ internal fun BoxScope.MiniGuide(
     favorites: Set<String>,
     recent: List<String>,
     currentGuideId: String?,
-    favoritesOrder: List<String> = emptyList(),
     previousGuideId: String?,
     now: Instant,
     onTune: (Channel) -> Unit,
-    onChipsFocused: (Boolean) -> Unit = {},
+    favoritesOrder: List<String> = emptyList(),
+    onChipsFocus: (Boolean) -> Unit = {},
 ) {
     val scoped = scope != null
     val filters =
@@ -116,7 +116,7 @@ internal fun BoxScope.MiniGuide(
         ) {
             // One focus group, so the owner sees the top row as focused whichever chip holds it.
             Row(
-                Modifier.fillMaxWidth().focusGroup().onFocusChanged { onChipsFocused(it.hasFocus) },
+                Modifier.fillMaxWidth().focusGroup().onFocusChanged { onChipsFocus(it.hasFocus) },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
@@ -199,7 +199,7 @@ private fun MiniGuideRowItem(
     now: Instant,
     current: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()

@@ -74,10 +74,10 @@ internal class LibraryHomeActions(
 internal fun LibraryHomeScreen(
     state: LibraryHomeState,
     actions: LibraryHomeActions,
+    modifier: Modifier = Modifier,
     returnedFrom: String? = null,
     /** Whether the header above has focus; the shelves scroll back to the top under it. */
     headerFocused: Boolean = false,
-    modifier: Modifier = Modifier,
 ) {
     when (state) {
         LibraryHomeState.Loading -> MessageScreen(stringResource(Res.string.library_loading), loading = true)
@@ -119,7 +119,7 @@ private fun Shelves(
     actions: LibraryHomeActions,
     returnedFrom: String?,
     headerFocused: Boolean,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     val insets = screenInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).asPaddingValues()
     val returnFocus = remember { FocusRequester() }

@@ -185,7 +185,7 @@ private object BreakTally {
  * line to mark the occasion. [remainingMs], when known, counts down under the mark, over a line picked for the break,
  * [upNext] (the channel's next program) and the ads dodged today, [dodgedBeforeMs] before this break plus the time
  * it has been up. Everything moves with the mark, so nothing sits still long enough to burn in. When it goes,
- * [onCovered] gets the milliseconds it was on screen, counted in drawn frames, so time in the background is left out.
+ * [onCover] gets the milliseconds it was on screen, counted in drawn frames, so time in the background is left out.
  * It draws only; the player decides whether the sound plays under it.
  */
 @Composable
@@ -194,7 +194,7 @@ internal fun BreakScreen(
     remainingMs: (() -> Long?)? = null,
     upNext: String? = null,
     dodgedBeforeMs: Long = 0,
-    onCovered: (Long) -> Unit = {},
+    onCover: (Long) -> Unit = {},
 ) {
     val label = stringResource(Res.string.break_screen_title)
     BoxWithConstraints(
@@ -228,8 +228,8 @@ internal fun BreakScreen(
         var coveredNanos by remember { mutableLongStateOf(0L) }
         val dodgedBefore = remember { dodgedBeforeMs }
         val dodgedMinutes by remember { derivedStateOf { (dodgedBefore + coveredNanos / 1_000_000) / 60_000 } }
-        val currentOnCovered by rememberUpdatedState(onCovered)
-        DisposableEffect(Unit) { onDispose { currentOnCovered(coveredNanos / 1_000_000) } }
+        val currentOnCover by rememberUpdatedState(onCover)
+        DisposableEffect(Unit) { onDispose { currentOnCover(coveredNanos / 1_000_000) } }
         LaunchedEffect(area, unit) {
             if (unit == IntSize.Zero) return@LaunchedEffect
             val roomX = (area.width - unit.width).toFloat()

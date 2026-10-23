@@ -53,12 +53,13 @@ internal fun LogoMark(size: Dp, modifier: Modifier = Modifier) {
 @Composable
 fun MessageScreen(
     message: String,
+    modifier: Modifier = Modifier,
     detail: String? = null,
     hint: String? = null,
     onRetry: (() -> Unit)? = null,
     loading: Boolean = false,
 ) {
-    Box(Modifier.fillMaxSize().screenPadding(), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxSize().screenPadding(), contentAlignment = Alignment.Center) {
         // A phone in landscape is too short for the logo, the reason and Retry together, so the message scrolls.
         Column(
             modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()),

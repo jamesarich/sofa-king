@@ -140,24 +140,25 @@ const val PLAYER_TEST_TAG = "player"
 fun PlayerScreen(
     lineup: Lineup,
     startIndex: Int,
+    player: LivePlayer,
+    sessions: PlaybackSessions,
+    onExit: () -> Unit,
+    onChannelChange: (Channel) -> Unit,
+    modifier: Modifier = Modifier,
     /** The channel watched before this player opened, for Last; it may have been left through the guide. */
     previousGuideId: String? = null,
     /** The guide filter the channel was picked from; null cycles the whole lineup. */
     zapScope: ZapScope? = null,
     /** Opened by the guide with no key pressed: the screen may sleep until the first key or tap. */
     unattended: Boolean = false,
-    player: LivePlayer,
-    sessions: PlaybackSessions,
-    onExit: () -> Unit,
-    onChannelChanged: (Channel) -> Unit,
     onGuide: () -> Unit = onExit,
     onSearch: () -> Unit = onExit,
     reloadLineup: suspend () -> Lineup? = { null },
-    onChannelGone: (Channel) -> Unit = { onExit() },
+    onChannelMissing: (Channel) -> Unit = { onExit() },
     captionsEnabled: Boolean = false,
-    onCaptionsChanged: (Boolean) -> Unit = {},
+    onCaptionsChange: (Boolean) -> Unit = {},
     captionAdvanceFor: (Channel) -> Int = { AppSettings.DEFAULT_CAPTION_ADVANCE_MS },
-    onCaptionAdvanceChanged: (Channel, Int) -> Unit = { _, _ -> },
+    onCaptionAdvanceChange: (Channel, Int) -> Unit = { _, _ -> },
     captionStyle: CaptionStyle = CaptionStyle.SYSTEM,
     smoothCaptions: Boolean = true,
     /** Starred channels, for the channel list's Favorites chip, in the order Settings gave them. */
@@ -169,7 +170,7 @@ fun PlayerScreen(
     onToggleFavorite: ((Channel) -> Unit)? = null,
     /** How many info bars have carried the key legend so far; it rides the first [AppSettings.KEY_LEGEND_BARS]. */
     keyLegendShown: Int = AppSettings.KEY_LEGEND_BARS,
-    onKeyLegendShown: (Int) -> Unit = {},
+    onKeyLegendShow: (Int) -> Unit = {},
     /** The server's scheduled recordings, for the bar's Record; null where it does not record. */
     recordingMarks: RecordingMarks? = null,
     /** Records the program, or cancels its recording; false when the server did not take it. */
@@ -181,7 +182,7 @@ fun PlayerScreen(
     liveBreaks: LiveBreaks = LiveBreaks.PLAY,
     /** The ads the break screen covered today before now, and where each break screen's time goes when it closes. */
     adsDodgedTodayMs: Long = 0,
-    onAdsDodged: (Long) -> Unit = {},
+    onAdsDodge: (Long) -> Unit = {},
     /** The sleep timer, which leaves the player as Back does once it runs out. */
     sleep: SleepTimer = remember { SleepTimer() },
 ) {
@@ -204,12 +205,14 @@ fun PlayerScreen(
     // As rememberUpdatedState does: the key handlers and effects read the ring and the lineup last composed.
     state.channels = channels
     state.lineupChannels = lineup.channels
-    val currentOnChannelChanged by rememberUpdatedState(onChannelChanged)
-    val currentOnCaptionsChanged by rememberUpdatedState(onCaptionsChanged)
-    val currentOnCaptionAdvanceChanged by rememberUpdatedState(onCaptionAdvanceChanged)
-    val currentOnKeyLegendShown by rememberUpdatedState(onKeyLegendShown)
+    val currentOnChannelChange by rememberUpdatedState(onChannelChange)
+    val currentOnCaptionsChange by rememberUpdatedState(onCaptionsChange)
+    val currentOnCaptionAdvanceChange by rememberUpdatedState(onCaptionAdvanceChange)
+    val currentOnKeyLegendShow by rememberUpdatedState(onKeyLegendShow)
     val currentOnToggleFavorite by rememberUpdatedState(onToggleFavorite)
     val currentOnExit by rememberUpdatedState(onExit)
+    val currentReloadLineup by rememberUpdatedState(reloadLineup)
+    val currentOnChannelMissing by rememberUpdatedState(onChannelMissing)
     val windowHeightDp =
         with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
     val captionBottomFraction = CaptionPolicy.bottomPaddingFraction(windowHeightDp)
@@ -393,7 +396,7 @@ fun PlayerScreen(
             // A refresh that keeps the channel preserves its stream and session.
             if (before?.guideId != channel.guideId) {
                 load(channel)
-                currentOnChannelChanged(channel)
+                currentOnChannelChange(channel)
             }
         }
     }
@@ -452,17 +455,17 @@ fun PlayerScreen(
                 state.index = state.lineupChannels.indexOfFirst { it.guideId == channel.guideId }.coerceAtLeast(0)
             }
             var attempt = current.attempt
-            var reloaded = reloadLineup()
+            var reloaded = currentReloadLineup()
             while (reloaded == null) {
                 // Unreachable or timed out: the reload, not the dead id, is what backs off and tries again.
                 delay(reconnectDelayMs(attempt++))
                 lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {}
-                reloaded = reloadLineup()
+                reloaded = currentReloadLineup()
             }
             withTimeoutOrNull(LINEUP_SYNC_MS) { snapshotFlow { state.channels }.first { it == reloaded.channels } }
             val target = resolveReplacement(state.channels, channel)
             if (target == null) {
-                onChannelGone(channel)
+                currentOnChannelMissing(channel)
             } else {
                 state.index = target
                 state.clearFailure()
@@ -489,7 +492,7 @@ fun PlayerScreen(
 
     LaunchedEffect(state.overlayVisible) {
         if (!state.overlayVisible || pointerDriven) return@LaunchedEffect
-        state.legendForNewBar()?.let(currentOnKeyLegendShown)
+        state.legendForNewBar()?.let(currentOnKeyLegendShow)
     }
 
     val focus = remember { FocusRequester() }
@@ -551,11 +554,11 @@ fun PlayerScreen(
                 leadSupported = player.supportsCaptionLead,
                 timingMs = channelAdvance,
             )
-            currentOnCaptionsChanged(enabled)
+            currentOnCaptionsChange(enabled)
         }
 
         override fun adjustCaptionTiming(direction: Int) =
-            state.adjustCaptionTiming(direction, channelAdvance, currentOnCaptionAdvanceChanged)
+            state.adjustCaptionTiming(direction, channelAdvance, currentOnCaptionAdvanceChange)
 
         override fun playPause() = if (player.playWhenReady) player.pause() else player.play()
 
@@ -611,7 +614,7 @@ fun PlayerScreen(
     }
 
     Box(
-        Modifier
+        modifier
             .fillMaxSize()
             .testTag(PLAYER_TEST_TAG)
             .background(SofaScrim)
@@ -678,7 +681,7 @@ fun PlayerScreen(
                 remainingMs = { adBreakLeftMs },
                 upNext = next?.let { stringResource(Res.string.break_up_next, it.title, timeFormat.format(it.start)) },
                 dodgedBeforeMs = adsDodgedTodayMs,
-                onCovered = onAdsDodged,
+                onCover = onAdsDodge,
             )
         }
 

@@ -61,7 +61,7 @@ import kotlin.time.Instant
 @Composable
 internal fun VisibleRange(
     scrollState: ScrollState,
-    viewport: MutableIntState,
+    viewport: () -> Int,
     minutePx: Float,
     windowStart: Instant,
     now: Instant,
@@ -72,12 +72,12 @@ internal fun VisibleRange(
 ) {
     val label by remember(windowStart, now, todayLabel, tomorrowLabel, rangeFormat) {
         derivedStateOf {
-            if (viewport.intValue == 0) {
+            if (viewport() == 0) {
                 ""
             } else {
                 val (startMinute, endMinute) = GuideTimeline.visibleSpan(
                     scrollPx = scrollState.value.toFloat(),
-                    viewportPx = viewport.intValue.toFloat(),
+                    viewportPx = viewport().toFloat(),
                     pxPerMinute = minutePx,
                 )
                 val start = windowStart + startMinute.minutes
@@ -111,7 +111,7 @@ internal fun FilterChipRow(
     onNow: () -> Unit,
     onSearch: () -> Unit,
     onSelect: (GuideFilter) -> Unit,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     LazyRow(
         state = listState,
@@ -147,7 +147,7 @@ internal fun SearchField(
     focusRequester: FocusRequester,
     hint: String,
     onDone: () -> Unit,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     TvTextField(
         state = state,
@@ -167,7 +167,7 @@ internal fun SearchField(
 internal fun TimelineStrip(
     scrollState: ScrollState,
     nowMinute: Long?,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     // Focus must not scroll the strip: the default bring-into-view would chase a long cell's far end
@@ -190,7 +190,7 @@ internal val NoBringIntoView = object : BringIntoViewSpec {
 private fun TimelineStripContent(
     scrollState: ScrollState,
     nowMinute: Long?,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     Box(modifier.clipToBounds().horizontalScroll(scrollState, overscrollEffect = null)) {

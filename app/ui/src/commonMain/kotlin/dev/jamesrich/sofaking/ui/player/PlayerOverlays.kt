@@ -385,9 +385,9 @@ internal fun InfoOverlay(
     captionsOn: Boolean,
     /** The channel's caption lead, or null where the engine applies none and the timing badge is left out. */
     captionAdvanceMs: Int?,
+    modifier: Modifier = Modifier,
     scope: String? = null,
     showKeyLegend: Boolean = false,
-    modifier: Modifier = Modifier,
 ) {
     val (current, next) = lineup.nowAndNext(channel, now)
     val timeFormat = rememberTimeFormatter()
@@ -534,9 +534,9 @@ internal fun ControlIcon(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     primary: Boolean = false,
     size: Dp = CONTROL_SIZE,
-    modifier: Modifier = Modifier,
 ) {
     if (primary) {
         FilledIconButton(onClick = onClick, modifier = modifier.size(64.dp).tvFocus(IconButtonDefaults.filledShape)) {
@@ -563,14 +563,20 @@ internal fun PlayPauseControl(
     size: Dp = CONTROL_SIZE,
 ) {
     if (failed) {
-        ControlIcon(Icons.Filled.Refresh, stringResource(Res.string.player_control_retry), onRetry, primary, size)
+        ControlIcon(
+            Icons.Filled.Refresh,
+            stringResource(Res.string.player_control_retry),
+            onRetry,
+            primary = primary,
+            size = size,
+        )
     } else {
         ControlIcon(
             if (paused) Icons.Filled.PlayArrow else SofaIcons.Pause,
             stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause),
             onPlayPause,
-            primary,
-            size,
+            primary = primary,
+            size = size,
         )
     }
 }

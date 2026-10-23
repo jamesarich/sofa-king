@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -177,7 +178,7 @@ private val DETAIL_IMAGE_HEIGHT = 90.dp
  * [muted] follows the guide's rest timers, and sound plays at the players' volume, while [ownsVolume]: the guide
  * stays composed for a frame under the full screen it hands the player to, and its focus leaving the grid mutes the
  * rest timers, which must not silence the full screen. [failed] is the guide's record that the preview has no
- * picture, set through [onFailedChanged].
+ * picture, set through [onFailedChange].
  */
 @Composable
 internal fun PreviewVideo(
@@ -187,11 +188,12 @@ internal fun PreviewVideo(
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
     muted: Boolean,
-    ownsVolume: Boolean = true,
     failed: Boolean,
-    onFailedChanged: (Boolean) -> Unit,
+    onFailedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    ownsVolume: Boolean = true,
 ) {
+    val currentOnFailedChange by rememberUpdatedState(onFailedChange)
     val status by player.status.collectAsStateWithLifecycle()
     val buffering = status.state == PlaybackState.BUFFERING
     val gain = LocalPlayerVolume.current.gain
@@ -213,11 +215,11 @@ internal fun PreviewVideo(
         }
     }
     LaunchedEffect(player) {
-        player.status.collect { if (it.state == PlaybackState.READY) onFailedChanged(false) }
+        player.status.collect { if (it.state == PlaybackState.READY) currentOnFailedChange(false) }
     }
     LaunchedEffect(player) {
         player.errors.collect { error ->
-            if (error.streamGone && retune < MAX_STREAM_GONE_RETUNES) retune++ else onFailedChanged(true)
+            if (error.streamGone && retune < MAX_STREAM_GONE_RETUNES) retune++ else currentOnFailedChange(true)
         }
     }
 
@@ -240,7 +242,7 @@ internal fun PreviewVideo(
         }
         if (!held && retune == 0) delay(PREVIEW_DEBOUNCE_MS)
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
-            onFailedChanged(false)
+            currentOnFailedChange(false)
             // Stopped before the session changes hands: releasing the old session ends its stream, which would
             // otherwise surface as a player error. This also resets the renderers, as the full screen does.
             player.stop()
@@ -250,7 +252,7 @@ internal fun PreviewVideo(
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            onFailedChanged(true)
+            currentOnFailedChange(true)
             return@LaunchedEffect
         }
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {

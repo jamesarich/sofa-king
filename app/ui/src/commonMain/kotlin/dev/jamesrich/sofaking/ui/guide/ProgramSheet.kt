@@ -275,7 +275,7 @@ private fun SheetContent(
 }
 
 @Composable
-private fun ProgramImage(url: String, modifier: Modifier) {
+private fun ProgramImage(url: String, modifier: Modifier = Modifier) {
     AsyncImage(
         model = url,
         contentDescription = null,

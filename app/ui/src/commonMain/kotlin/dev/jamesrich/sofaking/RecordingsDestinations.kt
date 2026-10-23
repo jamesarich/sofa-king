@@ -72,7 +72,7 @@ internal fun RecordingDestination(
             itemId = recording.id,
             open = { recordingsVm.play(recording, player.playbackProfile, route.fromStart) },
             onPosition = { position, duration -> recordingsVm.progress(recording.id, position, duration) },
-            onStopped = { position, duration -> recordingsVm.stopped(recording.id, position, duration) },
+            onStop = { position, duration -> recordingsVm.stopped(recording.id, position, duration) },
             onExit = shell::back,
             autoSkipBreaks = settings?.skipCommercials ?: false,
             captionsOn = settings?.captionsEnabled ?: false,

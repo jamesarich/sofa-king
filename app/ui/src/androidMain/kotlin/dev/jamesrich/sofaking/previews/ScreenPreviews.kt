@@ -73,7 +73,7 @@ fun GuidePreview(tv: Boolean) = Frame(tv) {
         returnedFrom = null,
         onPlay = { _, _, _ -> },
         onToggleFavorite = {},
-        onFilterChanged = {},
+        onFilterChange = {},
         onLoadGuideWindow = {},
         previewPlayer = remember { UnavailableLivePlayer(CaptionSync(), "PREVIEW") },
         sessions = remember { PlaybackSessions() },
@@ -100,8 +100,8 @@ fun ProgramDetailsPreview(tv: Boolean) = Frame(tv) {
 
 /** The full-screen player's info bar over the picture. */
 @Composable
-fun PlayerInfoPreview(tv: Boolean) = Frame(tv) {
-    Box(Modifier.fillMaxSize()) {
+fun PlayerInfoPreview(tv: Boolean, modifier: Modifier = Modifier) = Frame(tv) {
+    Box(modifier.fillMaxSize()) {
         InfoOverlay(
             lineup = Samples.lineup,
             channel = Samples.channels[0],

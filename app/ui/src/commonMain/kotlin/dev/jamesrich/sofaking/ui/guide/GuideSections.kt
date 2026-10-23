@@ -75,7 +75,7 @@ internal fun rememberGuideRowEnv(
     minutePx: Float,
     minStickyTextPx: Float,
     scrollState: ScrollState,
-    onCellFocused: (Channel, GuideCell) -> Unit,
+    onCellFocus: (Channel, GuideCell) -> Unit,
     onPlay: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     onOpenDetails: (Channel, GuideCell) -> Unit,
@@ -96,7 +96,7 @@ internal fun rememberGuideRowEnv(
         cellAiring, cellLater, cellNone, timeFormat, noListing, listingLoading, guideLoading, noGuide, guideOutOfDate,
         favoriteLabel,
         toggleFavoriteLabel, detailsLabel, laterLabel,
-        minutePx, minStickyTextPx, scrollState, onCellFocused, onPlay, onToggleFavorite, onOpenDetails, onJumpTo,
+        minutePx, minStickyTextPx, scrollState, onCellFocus, onPlay, onToggleFavorite, onOpenDetails, onJumpTo,
     ) {
         GuideRowEnv(
             cellAiring = cellAiring,
@@ -113,7 +113,7 @@ internal fun rememberGuideRowEnv(
             minutePx = minutePx,
             minStickyTextPx = minStickyTextPx,
             scrollState = scrollState,
-            onCellFocused = onCellFocused,
+            onCellFocus = onCellFocus,
             onPlay = onPlay,
             onToggleFavorite = onToggleFavorite,
             onOpenDetails = onOpenDetails,
@@ -128,7 +128,8 @@ internal fun rememberGuideRowEnv(
 @Composable
 internal fun GuideTimeHeader(
     scrollState: ScrollState,
-    viewport: MutableIntState,
+    viewport: () -> Int,
+    onViewportChange: (Int) -> Unit,
     minutePx: Float,
     windowStart: Instant,
     now: Instant,
@@ -155,7 +156,7 @@ internal fun GuideTimeHeader(
         TimelineStrip(
             scrollState = scrollState,
             nowMinute = nowMinute,
-            modifier = Modifier.weight(1f).onSizeChanged { viewport.intValue = it.width },
+            modifier = Modifier.weight(1f).onSizeChanged { onViewportChange(it.width) },
         ) {
             // Formatted once per window, not on every recomposition of the strip.
             val slotLabels = remember(windowStart, timeFormat) {
@@ -200,7 +201,7 @@ internal fun ColumnScope.GuideGrid(
     focusRequester: FocusRequester,
     laterFocus: Map<String, FocusRequester>,
     onGridKey: (KeyEvent) -> Boolean,
-    onJumpHandled: (Boolean) -> Unit,
+    onJumpFinish: (Boolean) -> Unit,
 ) {
     if (emptyMessage != null) {
         Text(
@@ -230,14 +231,14 @@ internal fun ColumnScope.GuideGrid(
                             env = env,
                             initialFocus = initialFocus.takeIf { index == 0 },
                             jump = state.jump?.takeIf { it.guideId == item.channel.guideId },
-                            onJumpHandled = onJumpHandled,
+                            onJumpFinish = onJumpFinish,
                         )
 
                         is GuideListItem.Later -> LaterRow(
                             item = item,
                             env = env,
                             firstFocus = laterFocus.getValue(item.key),
-                            onFocused = { state.laterFocused(item.key) },
+                            onFocus = { state.laterFocused(item.key) },
                         )
                     }
                 }
@@ -249,7 +250,7 @@ internal fun ColumnScope.GuideGrid(
 /** Chips and search or details beside the preview in one band, so the grid keeps four rows on a 1080p TV. */
 @Composable
 internal fun PreviewBand(
-    focused: State<FocusedCell?>,
+    focused: () -> FocusedCell?,
     now: Instant,
     guideLoading: Boolean,
     searchOpen: Boolean,
@@ -262,9 +263,9 @@ internal fun PreviewBand(
     muted: Boolean,
     ownsVolume: Boolean,
     failed: Boolean,
-    onFailedChanged: (Boolean) -> Unit,
+    onFailedChange: (Boolean) -> Unit,
 ) {
-    val cell = focused.value
+    val cell = focused()
     Row(Modifier.fillMaxWidth().height(PREVIEW_BAND_HEIGHT), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             chips(Modifier.fillMaxWidth())
@@ -291,7 +292,7 @@ internal fun PreviewBand(
             muted = muted,
             ownsVolume = ownsVolume,
             failed = failed,
-            onFailedChanged = onFailedChanged,
+            onFailedChange = onFailedChange,
         )
     }
 }

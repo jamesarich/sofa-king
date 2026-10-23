@@ -182,7 +182,7 @@ class RenderSmokeTest {
                 returnedFrom = null,
                 onPlay = { _, _, _ -> },
                 onToggleFavorite = {},
-                onFilterChanged = {},
+                onFilterChange = {},
                 onLoadGuideWindow = {},
                 previewPlayer = UnavailableLivePlayer(CaptionSync(), "TEST"),
                 sessions = PlaybackSessions(),
@@ -282,8 +282,8 @@ class RenderSmokeTest {
     @Test
     fun `the settings lock page renders its field and buttons`() {
         val image = render("settings-lock") {
-            SettingsLockScreen(pinHash = "salt:hash", apiToken = "s3cret-token", onUnlocked = {
-            }, onPinRemoved = {}, onBack = {})
+            SettingsLockScreen(pinHash = "salt:hash", apiToken = "s3cret-token", onUnlock = {
+            }, onPinRemove = {}, onBack = {})
         }
         assertTrue(image.hasContent())
     }
@@ -341,7 +341,7 @@ class RenderSmokeTest {
                         PlayerButtonItem(SofaIcons.Forward30, "Forward 30 seconds", {}),
                     ),
                     entry = remember { FocusRequester() },
-                    onFocused = {},
+                    onFocus = {},
                     showLabel = true,
                 )
             }
@@ -399,7 +399,7 @@ class RenderSmokeTest {
                 player = UnavailableLivePlayer(CaptionSync(), "TEST"),
                 sessions = PlaybackSessions(),
                 onExit = {},
-                onChannelChanged = {},
+                onChannelChange = {},
                 captionsEnabled = true,
             )
         }

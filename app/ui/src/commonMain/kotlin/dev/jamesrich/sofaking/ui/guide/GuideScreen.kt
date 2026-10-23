@@ -138,8 +138,6 @@ fun GuideScreen(
     favorites: Set<String>,
     recentChannels: List<String>,
     initialChannelId: String?,
-    /** The order Settings gave the favorites; the Favorites filter lists them so, the rest by number. */
-    favoritesOrder: List<String> = emptyList(),
     /** The filter saved from the last visit (see [guideFilterFromKey]); a fresh guide opens on it. */
     initialFilterKey: String?,
     startAtNow: Boolean,
@@ -149,7 +147,7 @@ fun GuideScreen(
     onPlay: (channel: Channel, scope: ZapScope?, unattended: Boolean) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     /** The viewer chose a filter chip; its key is saved for the next launch. */
-    onFilterChanged: (String?) -> Unit,
+    onFilterChange: (String?) -> Unit,
     /** The grid moved to a day whose programs may not be loaded; the window starts at the given instant. */
     onLoadGuideWindow: (Instant) -> Unit,
     previewPlayer: LivePlayer,
@@ -158,6 +156,9 @@ fun GuideScreen(
     captionStyle: CaptionStyle,
     autoOpenDelay: AutoOpenDelay,
     previewSound: Boolean,
+    modifier: Modifier = Modifier,
+    /** The order Settings gave the favorites; the Favorites filter lists them so, the rest by number. */
+    favoritesOrder: List<String> = emptyList(),
     /** How programs are set to record; null on a server that does not record, which hides the record buttons. */
     recordingMarks: RecordingMarks? = null,
     /** Records the program or cancels its recording; false when the server did not take it. */
@@ -169,7 +170,6 @@ fun GuideScreen(
     startInHeader: Boolean = false,
     /** Whether the guide is the page on top; on its way out under the player it leaves the volume alone. */
     shown: Boolean = true,
-    modifier: Modifier = Modifier,
 ) {
     val now by rememberMinuteNow()
     val state = rememberGuideState(now, initialFilterKey, startSearch, startInHeader)
@@ -300,7 +300,7 @@ fun GuideScreen(
             scope.launch { scrollState.animateScrollTo((px - marginPx).roundToInt().coerceAtLeast(0)) }
         }
     }
-    val onCellFocused: (Channel, GuideCell) -> Unit = { channel, cell ->
+    val onCellFocus: (Channel, GuideCell) -> Unit = { channel, cell ->
         state.cellFocused(channel, cell)
         revealMinute(state.cursor)
     }
@@ -350,13 +350,13 @@ fun GuideScreen(
             withFrameNanos { }
             val item = rowIndexOf(items, visible[row])
             if (listState.layoutInfo.visibleItemsInfo.none { it.index == item }) listState.scrollToItem(item)
-            // The row reports through onJumpHandled whether its cell took focus.
+            // The row reports through onJumpFinish whether its cell took focus.
             requestJump(visible[row].guideId, state.cursor)
         } else if (!requestFocusWhenAttached(initialFocus, FIRST_FOCUS_FRAMES)) {
             state.initialFocusAttempt++
         }
     }
-    val onJumpHandled: (Boolean) -> Unit = { landed -> state.jumpHandled(landed) }
+    val onJumpFinish: (Boolean) -> Unit = { landed -> state.jumpHandled(landed) }
     // Only a composed row answers a jump; one whose row left the list (the lineup refreshing under the first
     // focus) would wait forever, so it counts as missed and the first focus scrolls to the row again.
     LaunchedEffect(state.jump) {
@@ -515,7 +515,7 @@ fun GuideScreen(
         minutePx = minutePx,
         minStickyTextPx = minStickyTextPx,
         scrollState = scrollState,
-        onCellFocused = onCellFocused,
+        onCellFocus = onCellFocus,
         onPlay = play,
         onToggleFavorite = onToggleFavorite,
         onOpenDetails = onOpenDetails,
@@ -535,7 +535,7 @@ fun GuideScreen(
             onSearch = { state.toggleSearch() },
             onSelect = {
                 state.filter = it
-                onFilterChanged(it.key())
+                onFilterChange(it.key())
             },
             // Down returns to the cell focus left, wherever the chip is. Searched geometrically, it could land on a
             // rail item below and left of the chips rather than the grid.
@@ -660,7 +660,7 @@ fun GuideScreen(
         ) {
             if (PREVIEW_ENABLED && profile.showsPreviewBand) {
                 PreviewBand(
-                    focused = state.focusedState,
+                    focused = { state.focused },
                     now = now,
                     guideLoading = lineup.guideLoading,
                     searchOpen = state.searchOpen,
@@ -673,7 +673,7 @@ fun GuideScreen(
                     muted = state.previewMuted,
                     ownsVolume = shown,
                     failed = state.previewFailed,
-                    onFailedChanged = { state.previewFailed = it },
+                    onFailedChange = { state.previewFailed = it },
                 )
             } else {
                 chips(Modifier.fillMaxWidth())
@@ -683,7 +683,16 @@ fun GuideScreen(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            GuideTimeHeader(scrollState, viewport, minutePx, windowStart, now, nowMinute, timeFormat)
+            GuideTimeHeader(
+                scrollState = scrollState,
+                viewport = { viewport.intValue },
+                onViewportChange = { viewport.intValue = it },
+                minutePx = minutePx,
+                windowStart = windowStart,
+                now = now,
+                nowMinute = nowMinute,
+                timeFormat = timeFormat,
+            )
             GuideGrid(
                 state = state,
                 lineup = lineup,
@@ -705,7 +714,7 @@ fun GuideScreen(
                 focusRequester = grid,
                 laterFocus = laterFocus,
                 onGridKey = onGridKey,
-                onJumpHandled = onJumpHandled,
+                onJumpFinish = onJumpFinish,
             )
         }
         ChannelNumberBadge(state.numbers)

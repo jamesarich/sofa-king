@@ -82,7 +82,7 @@ internal class GuideRowEnv(
     val minutePx: Float,
     val minStickyTextPx: Float,
     val scrollState: ScrollState,
-    val onCellFocused: (Channel, GuideCell) -> Unit,
+    val onCellFocus: (Channel, GuideCell) -> Unit,
     val onPlay: (Channel) -> Unit,
     val onToggleFavorite: (Channel) -> Unit,
     /** A held OK, or the Info key, opens the program's details. */
@@ -112,7 +112,7 @@ internal fun ChannelRow(
     env: GuideRowEnv,
     initialFocus: FocusRequester?,
     jump: GuideJump?,
-    onJumpHandled: (landed: Boolean) -> Unit,
+    onJumpFinish: (landed: Boolean) -> Unit,
 ) {
     val cells = remember(programs, windowStart, windowEnd) {
         GuideTimeline.cellsFor(programs, windowStart, windowEnd)
@@ -130,6 +130,7 @@ internal fun ChannelRow(
     }
     val currentCells by rememberUpdatedState(cells)
     val currentCellFocus by rememberUpdatedState(cellFocus)
+    val currentOnJumpFinish by rememberUpdatedState(onJumpFinish)
 
     LaunchedEffect(jump) {
         if (jump == null) return@LaunchedEffect
@@ -144,7 +145,7 @@ internal fun ChannelRow(
                 break
             }
         }
-        onJumpHandled(landed)
+        currentOnJumpFinish(landed)
     }
 
     val profile = LocalLayoutProfile.current
@@ -212,7 +213,7 @@ private fun GuideCellItem(
     env: GuideRowEnv,
     compact: Boolean,
     focusRequester: FocusRequester,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
     val program = cell.program
@@ -233,7 +234,7 @@ private fun GuideCellItem(
             .focusRequester(focusRequester)
             .onFocusChanged {
                 focused = it.isFocused
-                if (it.hasFocus) env.onCellFocused(channel, cell)
+                if (it.hasFocus) env.onCellFocus(channel, cell)
             }
             .semantics(mergeDescendants = true) {
                 // Built only when the semantics tree is read, so a grid of hundreds of cells
@@ -320,10 +321,10 @@ internal fun isAiring(program: Program, now: Instant): Boolean = program.start <
  * which OK jumps the grid to. [firstFocus] lets the grid's Up and Down land on the first chip.
  */
 @Composable
-internal fun LaterRow(item: GuideListItem.Later, env: GuideRowEnv, firstFocus: FocusRequester, onFocused: () -> Unit) {
+internal fun LaterRow(item: GuideListItem.Later, env: GuideRowEnv, firstFocus: FocusRequester, onFocus: () -> Unit) {
     val profile = LocalLayoutProfile.current
     Row(
-        Modifier.fillMaxWidth().height(LATER_ROW_HEIGHT).onFocusChanged { if (it.hasFocus) onFocused() },
+        Modifier.fillMaxWidth().height(LATER_ROW_HEIGHT).onFocusChanged { if (it.hasFocus) onFocus() },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(pinWidth(profile)).padding(end = 12.dp), contentAlignment = Alignment.CenterEnd) {

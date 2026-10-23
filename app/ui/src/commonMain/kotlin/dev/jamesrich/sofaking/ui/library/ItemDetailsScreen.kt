@@ -280,7 +280,7 @@ private fun Seasons(
 
 /** The backdrop at the top right, fading into the page to the left and below so text over it reads. */
 @Composable
-private fun Hero(url: String?, modifier: Modifier) {
+private fun Hero(url: String?, modifier: Modifier = Modifier) {
     if (url == null) return
     val page = MaterialTheme.colorScheme.background
     Box(modifier) {
@@ -304,7 +304,7 @@ private fun Summary(
     actions: ItemDetailsActions,
     primaryFocus: FocusRequester,
     hideSpoilers: Boolean,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     val item = detail.item
     Column(modifier.widthIn(max = 760.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

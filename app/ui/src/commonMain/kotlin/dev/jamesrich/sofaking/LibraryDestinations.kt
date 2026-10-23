@@ -232,7 +232,7 @@ internal fun VodDestination(
                 itemId = item.id,
                 open = { libraryVm.play(item, player.playbackProfile, route.fromStart, audio, pictureSubtitle) },
                 onPosition = { position, duration -> libraryVm.progress(item.id, position, duration) },
-                onStopped = { position, duration -> libraryVm.stopped(item.id, position, duration) },
+                onStop = { position, duration -> libraryVm.stopped(item.id, position, duration) },
                 onExit = shell::back,
                 upNext = { libraryVm.upNext(item)?.also { next = it }?.upNext() },
                 onPlayNext = { next?.let { shell.replaceTop(Route.Vod(it.id)) } },

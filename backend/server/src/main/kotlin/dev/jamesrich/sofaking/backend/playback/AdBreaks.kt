@@ -9,8 +9,8 @@ import kotlin.math.roundToLong
 /**
  * The ad segments of a live HLS media playlist, the way the free streaming services mark them: SCTE-35 cue tags
  * (`#EXT-X-CUE-OUT`, `-CUE-OUT-CONT`, `-CUE-IN`, as Tubi, Whale and LG send), `#EXT-X-DATERANGE` with `SCTE35-OUT` in
- * a dated playlist, Pluto's stitched ads, which come from its ad muxer or its bumper clips, and the ads AWS
- * MediaTailor stitches for Xumo and Plex. Nothing is guessed from the picture, and a `#EXT-X-DISCONTINUITY` alone
+ * a dated playlist, Pluto's stitched ads, which come from its ad muxer or its bumper clips, the ads AWS
+ * MediaTailor stitches for Xumo and Plex, and the ads and promos Roku stitches from its ad servers. Nothing is guessed from the picture, and a `#EXT-X-DISCONTINUITY` alone
  * means nothing: Pluto puts one between episodes too. A cue whose `#EXT-X-CUE-OUT` has left the window is carried on
  * by [AdClock], which sees every refresh.
  */
@@ -94,7 +94,7 @@ internal object AdBreaks {
                 line.startsWith("#") -> Unit
                 else -> {
                     val at = date
-                    val ad = cueOpen || pluto(base, line) || mediaTailor(base, line) || (at != null && ranges.any { at in it })
+                    val ad = cueOpen || pluto(base, line) || mediaTailor(base, line) || roku(base, line) || (at != null && ranges.any { at in it })
                     if (pendingEnd != null) plannedEnd[segments.size] = pendingEnd
                     segments += Segment(sequence + segments.size, durationMs, ad, absolute(base, line), cueIn)
                     pendingEnd = null
@@ -128,6 +128,18 @@ internal object AdBreaks {
     private fun mediaTailor(base: URI, reference: String): Boolean {
         val path = try { base.resolve(reference).rawPath } catch (_: IllegalArgumentException) { return false } ?: return false
         return MEDIATAILOR_SEGMENT.matches(path)
+    }
+
+    /**
+     * Roku's live channels play from `gcp-live-*.delivery.roku.com` and stitch their breaks from elsewhere: house promos
+     * and some spots from `osm-ads*.delivery.roku.com` (`…/hls/transcode_OVP_SSAI_MANAGER_…`), other spots from
+     * `osm-<region>.sr.roku.com/osbt/…`. Seen on 2026-10-23 on eight channels as 30 to 160 s runs, all of them breaks.
+     */
+    private fun roku(base: URI, reference: String): Boolean {
+        val uri = try { base.resolve(reference) } catch (_: IllegalArgumentException) { return false }
+        val host = uri.host?.lowercase() ?: return false
+        if (!host.endsWith(".roku.com")) return false
+        return host.startsWith("osm-ads") || (host.startsWith("osm-") && uri.rawPath?.startsWith("/osbt/") == true)
     }
 
     /** True for a Pluto segment from its ad muxer or a bumper clip; other hosts never match, whatever their paths. */

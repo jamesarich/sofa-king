@@ -4,7 +4,7 @@ import dev.jamesrich.sofaking.contract.AdRun
 import java.net.URI
 import kotlin.test.*
 
-/** The playlists here are ones Pluto, Tubi, Xumo and Plex served on 2026-10-22, with their paths shortened and their tokens removed. */
+/** The playlists here are ones Pluto, Tubi, Xumo, Plex and Roku served on 2026-10-22 and 23, with their paths shortened and their tokens removed. */
 class AdBreaksTest {
     private val plutoBase = URI("https://siloh-ns1.plutotv.net/v2/stitch/hls/channel/5f1ac1f1/master.m3u8")
     private val tubiBase = URI("https://aegis-cloudfront-1.tubi.video/b18a776e/master_5.m3u8")
@@ -199,6 +199,32 @@ https://0123456789abcdef0123456789abcdef.mediatailor.us-west-2.amazonaws.com/v1/
 """
         // Plex's own part segment between two stitched ones is part of the break.
         assertEquals(listOf(false, false, true, true, true), ads(plex, URI("https://epg.provider.plex.tv/library/parts/6a1610be-66635fc0/index.m3u8")))
+    }
+
+    @Test fun `Roku's segments from its ad servers are ads and its live origin is not`() {
+        val roku = """#EXTM3U
+#EXT-X-VERSION:6
+#EXT-X-TARGETDURATION:4
+#EXT-X-MEDIA-SEQUENCE:68200
+#EXT-X-KEY:METHOD=AES-128,URI="https://gcp-live-5014-013.delivery.roku.com/00000000-0000-4000-8000-000000000003/key"
+#EXTINF:2.0,
+https://gcp-live-5014-013.delivery.roku.com/00000000-0000-4000-8000-000000000003/t2-origin/out/v1/live_216_low/1/live_216_low_68200.ts
+#EXT-X-DISCONTINUITY
+#EXT-X-KEY:METHOD=NONE
+#EXTINF:2.0,
+https://osm-ads-gcp.delivery.roku.com/00000000-0000-4000-8000-000000000004/hls/transcode_OVP_SSAI_MANAGER_20251030T070143_segment_4_0004.ts
+#EXTINF:2.0,
+https://osm-ads.delivery.roku.com/00000000-0000-4000-8000-000000000005/hls/transcode_OVP_SSAI_MANAGER_20251030T070143_segment_4_0001.ts
+#EXTINF:2.0,
+https://osm-use2.sr.roku.com/osbt/v1/bas/use2/1/2/3/4
+#EXT-X-DISCONTINUITY
+#EXTINF:2.0,
+https://gcp-live-5014-013.delivery.roku.com/00000000-0000-4000-8000-000000000003/t2-origin/out/v1/live_216_low/1/live_216_low_68204.ts
+#EXTINF:2.0,
+https://example.com/osbt/v1/bas/use2/1/2/3/5
+"""
+        val rokuBase = URI("https://gcp-live-5014-013.delivery.roku.com/00000000-0000-4000-8000-000000000003/t2-origin/out/v1/live_216_low.m3u8")
+        assertEquals(listOf(false, true, true, true, false, false), ads(roku, rokuBase))
     }
 
     @Test fun `a cue-in is noted on the segment after it`() {

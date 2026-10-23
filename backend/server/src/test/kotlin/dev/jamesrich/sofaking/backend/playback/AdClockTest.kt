@@ -89,4 +89,29 @@ master_5_5535913.ts
         assertTrue(clock.annotate(whale(103), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=103,LAST=103,ENDS=6.000\n"))
         assertEquals(whale(106), clock.annotate(whale(106), whaleBase))
     }
+
+    private fun whaleSegment(sequence: Int) = "https://streams2.sofast.tv/sofast3/v1/master/peekflick/seg-$sequence.ts"
+
+    @Test
+    fun `a cue inside a fetched segment marks the segments its break covers from its splice time`() {
+        val clock = AdClock()
+        assertEquals(whale(100), clock.annotate(whale(100), whaleBase))
+        // 101 starts 6 s in; its cue splices 3 s after its first frame for 12 s, so the break runs 9 s to 21 s.
+        clock.served(whaleSegment(101), SegmentCues(900_000, listOf(Splice(true, 1_170_000, 12_000))))
+        assertEquals(AdBreakState(inBreak = true, remainingMs = 6_000), clock.at(aheadMs = 0))
+        assertTrue(clock.annotate(whale(101), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=101,LAST=102,ENDS=15.000\n"))
+        assertEquals(whale(104), clock.annotate(whale(104), whaleBase))
+    }
+
+    @Test
+    fun `a cue sent again names the same break and a return ends it early`() {
+        val clock = AdClock()
+        clock.annotate(whale(100), whaleBase)
+        clock.served(whaleSegment(100), SegmentCues(null, listOf(Splice(true, null, 60_000))))
+        clock.served(whaleSegment(101), SegmentCues(540_000, listOf(Splice(true, 0, 60_000))))
+        assertTrue(clock.annotate(whale(100), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=100,LAST=103,ENDS=60.000\n"))
+        clock.served(whaleSegment(102), SegmentCues(null, listOf(Splice(false, null, null))))
+        assertTrue(clock.annotate(whale(100), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=100,LAST=101,ENDS=12.000\n"))
+        assertEquals(AdBreakState(), clock.at(aheadMs = 0))
+    }
 }

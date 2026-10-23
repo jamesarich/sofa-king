@@ -67,8 +67,15 @@ final class TouchTests: XCTestCase {
     private static let touches = WeightedTouches([
         ("tap", 10, { app, random in app.coordinate(withNormalizedOffset: random.point()).tap() }),
         ("tapButton", 6, { app, random in
-            let buttons = app.buttons.allElementsBoundByIndex.filter { $0.isHittable }
-            if !buttons.isEmpty { buttons[Int(random.next() % UInt64(buttons.count))].tap() }
+            // Picked from one snapshot and tapped by coordinate: the screen changes under the walk, and tapping an
+            // element that has gone or moved fails the test ("No matches found", "Failed to not hittable").
+            guard let screen = try? app.snapshot() else { return }
+            let frames = TouchTests.buttonFrames(in: screen)
+                .filter { screen.frame.contains(CGPoint(x: $0.midX, y: $0.midY)) }
+            if frames.isEmpty { return }
+            let frame = frames[Int(random.next() % UInt64(frames.count))]
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: frame.midX - screen.frame.minX, dy: frame.midY - screen.frame.minY)).tap()
         }),
         ("swipeUp", 3, { app, _ in app.swipeUp() }),
         ("swipeDown", 3, { app, _ in app.swipeDown() }),
@@ -81,6 +88,13 @@ final class TouchTests: XCTestCase {
         }),
         ("longPress", 1, { app, random in app.coordinate(withNormalizedOffset: random.point()).press(forDuration: 1.2) }),
     ])
+
+    /// The frames of the enabled buttons in `snapshot` and below it.
+    @MainActor
+    private static func buttonFrames(in snapshot: any XCUIElementSnapshot) -> [CGRect] {
+        let own = snapshot.elementType == .button && snapshot.isEnabled && !snapshot.frame.isEmpty ? [snapshot.frame] : []
+        return own + snapshot.children.flatMap { buttonFrames(in: $0) }
+    }
 
     /// Plays SOFAKING_BREAK_CHANNEL full screen for SOFAKING_BREAK_MINUTES (10 by default) and logs each time the break
     /// screen comes and goes, with a screenshot at each edge, so its timing can be read against the stream. Fails if

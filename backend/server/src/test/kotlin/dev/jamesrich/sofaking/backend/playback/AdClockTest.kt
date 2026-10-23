@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.playback
 
+import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.contract.AdBreakState
 import java.net.URI
 import kotlin.test.*
@@ -113,5 +114,88 @@ master_5_5535913.ts
         clock.served(whaleSegment(102), SegmentCues(null, listOf(Splice(false, null, null))))
         assertTrue(clock.annotate(whale(100), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=100,LAST=101,ENDS=12.000\n"))
         assertEquals(AdBreakState(), clock.at(aheadMs = 0))
+    }
+
+    private val loud = FloatArray(60) { -20f }
+    private val silent = FloatArray(60) { -90f }
+
+    /** A clock learning as [mode], with what it reported. */
+    private fun learning(mode: LearnedBreaks): Pair<AdClock, MutableList<LearnedBreak>> {
+        val found = mutableListOf<LearnedBreak>()
+        return AdClock(learning = { mode }, learned = { found += it }) to found
+    }
+
+    private fun AdClock.hear(vararg levels: Pair<Int, FloatArray>) = levels.forEach { (sequence, level) -> heard(whaleSegment(sequence), level) }
+
+    @Test
+    fun `twenty seconds of silence is a slate break, marked when learning is on`() {
+        val (clock, found) = learning(LearnedBreaks.ON)
+        clock.annotate(whale(100), whaleBase)
+        clock.annotate(whale(102), whaleBase)
+        clock.hear(100 to loud, 101 to silent, 102 to silent, 103 to silent)
+        assertEquals(emptyList(), found, "18 s is not yet a slate")
+        clock.hear(104 to silent)
+        assertEquals(listOf(LearnedBreak(SLATE, 24_000, ended = false, marked = true)), found)
+        assertTrue(clock.annotate(whale(102), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=102,LAST=104\n"))
+        // Sound half way into 105 ends it there, 27 s after it began.
+        clock.hear(105 to FloatArray(60) { if (it < 30) -90f else -20f })
+        assertEquals(LearnedBreak(SLATE, 27_000, ended = true, marked = true), found.last())
+        assertTrue(clock.annotate(whale(102), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=102,LAST=104,ENDS=21.000\n"))
+        // The break's last whole segment ends 30 s in; the picture is 1 s short of it.
+        clock.served(whaleSegment(104))
+        assertEquals(AdBreakState(inBreak = true, remainingMs = 1_000), clock.at(aheadMs = 1_000))
+    }
+
+    @Test
+    fun `in shadow a slate is reported and nothing is marked`() {
+        val (clock, found) = learning(LearnedBreaks.SHADOW)
+        clock.annotate(whale(100), whaleBase)
+        clock.annotate(whale(104), whaleBase)
+        clock.hear(101 to silent, 102 to silent, 103 to silent, 104 to silent, 105 to loud)
+        assertEquals(listOf(LearnedBreak(SLATE, 24_000, ended = false, marked = false), LearnedBreak(SLATE, 24_000, ended = true, marked = false)), found)
+        assertFalse(clock.annotate(whale(102), whaleBase).contains("SOFA-AD"))
+        clock.served(whaleSegment(104))
+        assertEquals(AdBreakState(), clock.at(aheadMs = 0))
+    }
+
+    @Test
+    fun `a shorter silence is only reported, a segment heard out of order still joins, and off hears nothing`() {
+        val (clock, found) = learning(LearnedBreaks.ON)
+        clock.annotate(whale(100), whaleBase)
+        clock.hear(100 to loud, 102 to silent, 101 to silent, 103 to loud)
+        assertEquals(listOf(LearnedBreak(SHORT_SLATE, 12_000, ended = true, marked = false)), found)
+        assertFalse(clock.annotate(whale(100), whaleBase).contains("SOFA-AD"))
+
+        val (off, none) = learning(LearnedBreaks.OFF)
+        off.annotate(whale(100), whaleBase)
+        off.annotate(whale(104), whaleBase)
+        off.hear(*(100..107).map { it to silent }.toTypedArray())
+        assertEquals(emptyList(), none)
+        assertFalse(off.listening)
+    }
+
+    @Test
+    fun `a playlist that carries a marker is never learned from`() {
+        val (clock, found) = learning(LearnedBreaks.ON)
+        clock.annotate(whale(100, 100 to "#EXT-X-CUE-OUT:DURATION=12"), whaleBase)
+        clock.annotate(whale(104, 106 to "#EXT-X-CUE-IN"), whaleBase)
+        clock.hear(*(100..107).map { it to silent }.toTypedArray())
+        assertEquals(emptyList(), found)
+    }
+
+    @Test
+    fun `the census counts the media played once, the marked breaks and the slates`() {
+        val marked = AdClock()
+        marked.annotate(whale(100, 101 to "#EXT-X-CUE-OUT:DURATION=6", 102 to "#EXT-X-CUE-IN"), whaleBase)
+        (100..103).forEach { marked.served(whaleSegment(it)) }
+        marked.served(whaleSegment(103))
+        assertEquals(AdCensus(playedMs = 24_000, marked = true, breaks = 1, learned = 0), marked.census())
+
+        val (learned, _) = learning(LearnedBreaks.SHADOW)
+        learned.annotate(whale(100), whaleBase)
+        learned.annotate(whale(104), whaleBase)
+        learned.hear(*(101..104).map { it to silent }.toTypedArray())
+        learned.served(whaleSegment(100))
+        assertEquals(AdCensus(playedMs = 6_000, marked = false, breaks = 0, learned = 1), learned.census())
     }
 }

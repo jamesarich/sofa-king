@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.library.HardwareAccel
 import dev.jamesrich.sofaking.backend.library.TmdbConfig
 import dev.jamesrich.sofaking.backend.library.VideoEncoder
 import dev.jamesrich.sofaking.backend.logging.LogSettings
+import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
 import java.nio.file.Files
 import java.nio.file.Path
@@ -109,6 +110,8 @@ data class ServerConfig(
     val recordingsFreeGib: Int = 10,
     /** `SOFA_RECORDINGS_KEEP_DAYS`: the days the DVR keeps a recording; 0 keeps it until space runs short. */
     val recordingsKeepDays: Int = 0,
+    /** `SOFA_LEARNED_BREAKS`: what live sessions do with breaks the server learns from the stream itself. */
+    val learnedBreaks: LearnedBreaks = LearnedBreaks.SHADOW,
     /** `SOFA_COMSKIP`: the Comskip executable that finds commercial breaks in recordings; null when set to `none`. */
     val comskip: String? = "comskip",
     /** `SOFA_MDNS`: advertise the server on the LAN over mDNS, so apps find it; on by default off loopback. */
@@ -246,6 +249,8 @@ data class ServerConfig(
             require(freeGib != null && freeGib in 0..100_000) { "SOFA_RECORDINGS_FREE_GIB must be between 0 and 100000" }
             val keepDays = (environment["SOFA_RECORDINGS_KEEP_DAYS"] ?: "0").toIntOrNull()
             require(keepDays != null && keepDays in 0..3650) { "SOFA_RECORDINGS_KEEP_DAYS must be between 0 and 3650" }
+            val learnedBreaks = LearnedBreaks.of(environment["SOFA_LEARNED_BREAKS"] ?: "shadow")
+                ?: throw IllegalArgumentException("SOFA_LEARNED_BREAKS must be one of off, shadow, on")
             val comskip = (environment["SOFA_COMSKIP"] ?: "comskip").trim()
             require(comskip.isNotEmpty()) { "SOFA_COMSKIP must not be blank; set it to none to turn commercial detection off" }
             val hdhrEnabled = flag(environment, "SOFA_HDHR_ENABLED", true)
@@ -303,6 +308,7 @@ data class ServerConfig(
                 ),
                 recordingsFreeGib = freeGib,
                 recordingsKeepDays = keepDays,
+                learnedBreaks = learnedBreaks,
                 comskip = comskip.takeUnless { it == "none" },
                 mdns = flag(environment, "SOFA_MDNS", !isLoopback(host)),
             )

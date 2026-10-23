@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.api.PolicyChangeEntry
 import dev.jamesrich.sofaking.backend.catalog.FeedConfig
 import dev.jamesrich.sofaking.backend.catalog.GuideConfig
 import dev.jamesrich.sofaking.backend.logging.LogSettings
+import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import kotlinx.html.*
 
@@ -211,8 +212,16 @@ private fun FlowContent.runtimePanel(chrome: Chrome, view: RuntimeSettingsView) 
                 numberInput(name = RuntimeValues.RECORDINGS_KEEP_DAYS) { id = "r-keep"; value = values.getValue(RuntimeValues.RECORDINGS_KEEP_DAYS); min = "0"; max = "3650"; required = true }
                 hint(RuntimeValues.RECORDINGS_KEEP_DAYS, view.environment.recordingsKeepDays.toString())
             }
+            div("field") {
+                label { htmlFor = "r-learned"; +"Learned ad breaks" }
+                select {
+                    id = "r-learned"; name = RuntimeValues.LEARNED_BREAKS
+                    for (mode in LearnedBreaks.entries) option { value = mode.setting; selected = mode.setting == values[RuntimeValues.LEARNED_BREAKS]; +mode.setting }
+                }
+                hint(RuntimeValues.LEARNED_BREAKS, view.environment.learnedBreaks)
+            }
         }
-        p("muted small") { +"Plex reads a device's tuner count when it adds the device, so a change here shows in Plex after the device is re-added; the server enforces it at once. Streams per device cannot exceed the sessions at once." }
+        p("muted small") { +"Plex reads a device's tuner count when it adds the device, so a change here shows in Plex after the device is re-added; the server enforces it at once. Streams per device cannot exceed the sessions at once. Learned ad breaks are ones the server finds in a stream with no ad markers, such as a long silent slate: shadow only logs them (ADDETECT), on also shows the break screen over them." }
         runtimeSave(view.proposed != null && runtimeChanged(view.current, view.proposed))
     }
 }

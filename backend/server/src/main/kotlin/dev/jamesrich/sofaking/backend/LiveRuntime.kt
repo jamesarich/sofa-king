@@ -12,6 +12,7 @@ import dev.jamesrich.sofaking.backend.http.hdhrDeviceId
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.*
 import dev.jamesrich.sofaking.backend.logging.applyLogLevel
+import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.settings.RuntimeSettings
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.logos.LogoCache
@@ -21,6 +22,7 @@ import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.*
 import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
 import dev.jamesrich.sofaking.backend.setup.SetupService
+import dev.jamesrich.sofaking.backend.store.recordAdChannel
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.update.RunningBuild
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
@@ -148,7 +150,12 @@ class LiveRuntime(
                 logos = LogoCache(store, http, clock, config.dataDirectory.resolve("logos"), policy, { lineup.entries().mapNotNull(catalog::logoSource) }, jobs = jobs)
                 logos.initialize()
                 val sessions = SessionManager(catalog, store, clock, settings.current.maxSessions)
-                settings.onChange { values -> sessions.capacity = values.maxSessions; plex?.setInterval(values.plexSyncMinutes) }
+                settings.onChange { values ->
+                    sessions.capacity = values.maxSessions
+                    sessions.learnedBreaks = LearnedBreaks.of(values.learnedBreaks) ?: LearnedBreaks.SHADOW
+                    plex?.setInterval(values.plexSyncMinutes)
+                }
+                sessions.onCensus = { channel, provider, census -> scope.launch { store.recordAdChannel(channel, provider, census, clock.instant()) } }
                 policyService = loadedPolicy?.let { loaded ->
                     lateinit var service: PolicyService
                     val sizing = if (config.hdhr.enabled) HdhrSizing(config.hdhr.devices, config.hdhr.deviceSize) else null
@@ -167,7 +174,7 @@ class LiveRuntime(
                 policyService?.requestRun("startup")
                 plex?.start(scope)
                 plex?.requestSync("startup")
-                val relay = MediaRelay(http, feeds, sessions, scope)
+                val relay = MediaRelay(http, feeds, sessions, scope, loudness = SegmentLoudness(config.ffmpeg))
                 val loopback = LoopbackRelay(http, policy, relay.permits)
                 // Under a policy the worker probes what the lineup's stations reference, whatever the providers' probe flags.
                 val service = policyService

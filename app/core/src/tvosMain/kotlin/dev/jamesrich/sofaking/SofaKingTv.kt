@@ -265,6 +265,11 @@ class SofaKingTv {
         viewModel.setSkipCommercials(enabled)
     }
 
+    /** Whether an episode's intro skips itself after a countdown on Skip intro. */
+    fun setAutoSkipIntros(enabled: Boolean) {
+        viewModel.setAutoSkipIntros(enabled)
+    }
+
     /** Whether the break screen covers the ads a streaming channel marks, and whether their sound plays under it. */
     fun setLiveBreaks(mode: LiveBreaks) {
         viewModel.setLiveBreaks(mode)

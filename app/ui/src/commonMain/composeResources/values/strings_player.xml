@@ -61,6 +61,7 @@
     <string name="vod_position_description">%1$s of %2$s</string>
     <string name="vod_ends_at">Ends at %1$s</string>
     <string name="vod_break_skipped">Skipped a break</string>
+    <string name="vod_intro_skipped">Skipped the intro</string>
     <string name="vod_tracks_title">Audio and subtitles</string>
     <string name="vod_tracks_subtitles">Subtitles</string>
     <string name="vod_tracks_subtitles_off">Off</string>
@@ -69,6 +70,7 @@
     <string name="vod_control_next">Next episode</string>
     <string name="vod_control_skip_break">Skip break</string>
     <string name="vod_control_skip_intro">Skip intro</string>
+    <string name="vod_control_skip_intro_countdown">Skip intro (%1$d)</string>
     <string name="vod_subtitles_on">Subtitles on</string>
     <string name="vod_subtitles_off">Subtitles off</string>
     <string name="vod_no_subtitles">No subtitles for this</string>

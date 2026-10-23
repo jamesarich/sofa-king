@@ -48,6 +48,8 @@ data class AppSettings(
     val zapSkipsHidden: Boolean = false,
     /** Whether a recording's playback jumps over the commercial breaks the server found. */
     val skipCommercials: Boolean = false,
+    /** Whether an episode's intro skips itself after a few seconds' countdown on Skip intro; off waits for a press. */
+    val autoSkipIntros: Boolean = false,
     /** What the live player does in an ad break a streaming channel marks: plays it, or covers it with the break screen. */
     val liveBreaks: LiveBreaks = LiveBreaks.PLAY,
     /** How long the break screen has covered ads today on this device; never synced. */
@@ -79,7 +81,7 @@ data class AppSettings(
             "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, captionStyle=$captionStyle, " +
             "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, volume=$volume, volumeMuted=$volumeMuted, keyLegendShown=$keyLegendShown, startup=$startup, " +
             "startupChannel=$startupChannel, lastTab=$lastTab, clockFormat=$clockFormat, guideDensity=$guideDensity, hiddenChannels=$hiddenChannels, " +
-            "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, liveBreaks=$liveBreaks, adsDodged=$adsDodged, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
+            "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, autoSkipIntros=$autoSkipIntros, liveBreaks=$liveBreaks, adsDodged=$adsDodged, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
             "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, trackChoices=${trackChoices.size})"
 
     companion object {
@@ -191,6 +193,8 @@ interface SettingsStore {
     suspend fun setZapSkipsHidden(enabled: Boolean)
 
     suspend fun setSkipCommercials(enabled: Boolean)
+
+    suspend fun setAutoSkipIntros(enabled: Boolean)
 
     suspend fun setLiveBreaks(mode: LiveBreaks)
 

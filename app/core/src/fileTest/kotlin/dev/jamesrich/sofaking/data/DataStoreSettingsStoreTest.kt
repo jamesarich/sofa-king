@@ -155,6 +155,14 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `intros wait for a press until auto skip is turned on`() = runTest {
+        val store = newStore()
+        assertFalse(store.settings.first().autoSkipIntros)
+        store.setAutoSkipIntros(true)
+        assertTrue(store.settings.first().autoSkipIntros)
+    }
+
+    @Test
     fun `live ad breaks play until the break screen is chosen`() = runTest {
         val store = newStore()
         assertEquals(LiveBreaks.PLAY, store.settings.first().liveBreaks)

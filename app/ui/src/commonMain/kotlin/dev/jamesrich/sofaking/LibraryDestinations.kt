@@ -187,6 +187,7 @@ internal fun VodDestination(route: Route.Vod, shell: AppShellState, vm: LineupVi
                 onExit = shell::back,
                 upNext = { libraryVm.upNext(item)?.also { next = it }?.upNext() },
                 onPlayNext = { next?.let { shell.replaceTop(Route.Vod(it.id)) } },
+                autoSkipIntros = settings?.autoSkipIntros ?: false,
                 tracks = tracks,
                 zoom = shell.videoZoom,
                 onZoom = { shell.videoZoom = it },

@@ -49,7 +49,8 @@ class LibraryRepository(private val api: SofaKingApi) {
     suspend fun setWatched(id: String, watched: Boolean): MediaItem =
         item(api.updatePlayState(id, UpdatePlayStateDto(watched = watched)))
 
-    private fun page(dto: LibraryPageDto) = MediaPage(dto.items.map(::item), dto.total, dto.next, dto.genres)
+    private fun page(dto: LibraryPageDto) =
+        MediaPage(dto.items.map(::item), dto.total, dto.next, dto.genres, dto.letters?.let { runs -> letterJumps(runs.map { it.letter to it.count }) })
 
     private fun library(dto: LibraryDto) = MediaLibrary(dto.id, dto.name, LibraryKind.fromWire(dto.kind), dto.items)
 

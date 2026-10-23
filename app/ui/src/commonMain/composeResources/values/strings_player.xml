@@ -54,6 +54,7 @@
     <string name="player_control_pause">Pause</string>
     <string name="player_control_play">Play</string>
     <string name="vod_starting">Starting</string>
+    <string name="vod_waiting_converter">Waiting for a free converter</string>
     <string name="vod_cant_play">Can't play this</string>
     <string name="vod_cant_play_retry">Press OK to try again, or Back to leave.</string>
     <string name="vod_control_back">Back 10 seconds</string>

@@ -165,7 +165,26 @@ data class MediaPage(
     val next: String?,
     /** Every genre in the library, for a filter. */
     val genres: List<String> = emptyList(),
+    /** Where each first letter starts, on the first page in title order; null otherwise. */
+    val letters: List<LetterJump>? = null,
 )
+
+/** The first item in title order whose title starts with [letter] is at [offset] in the grid. */
+data class LetterJump(val letter: String, val offset: Int)
+
+/**
+ * Each letter's first place in title order, from [runs] of letters and how many items each holds, in order; a letter
+ * whose items come in more than one run is placed at its first.
+ */
+fun letterJumps(runs: List<Pair<String, Int>>): List<LetterJump> {
+    var offset = 0
+    val jumps = LinkedHashMap<String, LetterJump>()
+    for ((letter, count) in runs) {
+        jumps.getOrPut(letter) { LetterJump(letter, offset) }
+        offset += count
+    }
+    return jumps.values.toList()
+}
 
 /**
  * What a player plays as it is: lowercase container names (`mp4`, `mkv`, `webm`, `ts`), FFmpeg codec names

@@ -80,6 +80,11 @@ struct ItemDetailView: View {
         }
     }
 
+    /// With Settings › Library › Hide spoilers on, an episode not started yet keeps its overview back and blurs its still.
+    private func hidesSpoilers(_ item: MediaItem) -> Bool {
+        model.settings?.hideSpoilers == true && LibraryChoicesKt.hidesSpoilers(item: item)
+    }
+
     private func summary(_ detail: MediaItemDetail) -> some View {
         let item = detail.item
         let action = LibraryChoicesKt.primaryAction(detail: detail)
@@ -94,7 +99,11 @@ struct ItemDetailView: View {
                 Text(tagline).italic()
             }
             if let overview = item.overview, !overview.isEmpty {
-                Text(overview).lineLimit(6)
+                if hidesSpoilers(item) {
+                    Text(spoilerHidden).italic().foregroundStyle(.secondary)
+                } else {
+                    Text(overview).lineLimit(6)
+                }
             }
             HStack(spacing: 24) {
                 if let action {
@@ -141,7 +150,7 @@ struct ItemDetailView: View {
     private func episodes(_ episodes: [MediaItem]) -> some View {
         LazyVStack(alignment: .leading, spacing: 24) {
             ForEach(episodes) { episode in
-                Button { model.vod = VodRequest(item: episode, fromStart: false) } label: { EpisodeRow(episode: episode) }
+                Button { model.vod = VodRequest(item: episode, fromStart: false) } label: { EpisodeRow(episode: episode, spoilersHidden: hidesSpoilers(episode)) }
                     .buttonStyle(.card)
                     .contextMenu {
                         if episode.progress?.inProgress == true {
@@ -185,14 +194,20 @@ struct ItemDetailView: View {
     }
 }
 
-/// An episode's still, number, title, running time, air date, overview and progress.
+/// Stands in for an unwatched episode's overview while Hide spoilers is on.
+private let spoilerHidden = "Unwatched episode. Hide spoilers keeps its summary back."
+
+/// An episode's still, number, title, running time, air date, overview and progress; with `spoilersHidden` the still
+/// is blurred and the overview kept back.
 private struct EpisodeRow: View {
     let episode: MediaItem
+    let spoilersHidden: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 32) {
             Artwork(url: episode.backdrop ?? episode.poster, title: episode.title)
                 .frame(width: 320, height: 180)
+                .blur(radius: spoilersHidden ? 24 : 0)
                 .overlay(alignment: .bottom) {
                     if let progress = episode.progress, progress.inProgress, let fraction = progress.fraction?.doubleValue {
                         ProgressView(value: fraction).padding(10)
@@ -211,7 +226,11 @@ private struct EpisodeRow: View {
                     Text(meta.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
                 }
                 if let overview = episode.overview {
-                    Text(overview).font(.caption).lineLimit(3)
+                    if spoilersHidden {
+                        Text(spoilerHidden).font(.caption).italic().foregroundStyle(.secondary)
+                    } else {
+                        Text(overview).font(.caption).lineLimit(3)
+                    }
                 }
             }
             Spacer(minLength: 0)

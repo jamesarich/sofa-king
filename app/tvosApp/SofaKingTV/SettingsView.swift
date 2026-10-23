@@ -73,10 +73,14 @@ struct SettingsView: View {
                     get: { model.settings?.autoSkipIntros ?? false },
                     set: { model.core.setAutoSkipIntros(enabled: $0) }
                 ))
+                Toggle("Hide spoilers", isOn: Binding(
+                    get: { model.settings?.hideSpoilers ?? false },
+                    set: { model.core.setHideSpoilers(enabled: $0) }
+                ))
             } header: {
                 Text("Library")
             } footer: {
-                Text("Skip intro counts down 5 seconds and then skips; pausing stops it. Off, an intro waits for a press.")
+                Text("Skip intro counts down 5 seconds and then skips; pausing stops it. Off, an intro waits for a press. Hide spoilers keeps back the summaries of episodes you have not started and blurs their pictures.")
             }
             Section("About") {
                 // TMDB's terms ask apps that show its data to say so.

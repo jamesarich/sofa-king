@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.saveLibraryMetadata
 import dev.jamesrich.sofaking.contract.UpdatePlayState
+import dev.jamesrich.sofaking.contract.LetterCount
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -92,6 +93,11 @@ class LibraryCatalogTest {
         val shelf = catalog.home().shelves.single { it.id == Wire.ShelfId.RECENT }
         assertEquals(listOf("Zulu", "Mike", "Alpha"), shelf.items.map { it.title })
         assertEquals(listOf("Zulu", "Mike", "Alpha"), catalog.items(library.id, "added", false, null, 100).items.map { it.title })
+        // Title order counts each first letter, on the first page only; other orders do not.
+        val byTitle = catalog.items(library.id, "title", false, null, 1)
+        assertEquals(listOf(LetterCount("A", 1), LetterCount("M", 1), LetterCount("Z", 1)), byTitle.letters)
+        assertNull(catalog.items(library.id, "title", false, byTitle.next, 1).letters)
+        assertNull(catalog.items(library.id, "added", false, null, 100).letters)
     }
 
     @Test fun `play state follows the 5 and 90 percent rules and feeds Continue watching`() = runBlocking<Unit> {
@@ -111,7 +117,7 @@ class LibraryCatalogTest {
         assertEquals(0, done.positionMs)
         assertEquals(second.id, catalog.home().shelves.first { it.id == Wire.ShelfId.CONTINUE }.items.single().id, "the next episode is up")
 
-        // A rewatch stopped part way keeps the tick and resumes, from the shelf and the show.
+        // A rewatch stopped part way keeps the check mark and resumes, from the shelf and the show.
         s.clock.now = s.clock.now.plus(Duration.ofMinutes(1))
         val rewatch = catalog.updatePlayState(pilot.id, UpdatePlayState(positionMs = 400_000)).playState!!
         assertTrue(rewatch.watched)

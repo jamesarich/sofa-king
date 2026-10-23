@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -38,9 +39,12 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.LibraryGrid
 import dev.jamesrich.sofaking.data.LibraryKind
+import dev.jamesrich.sofaking.data.LetterJump
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaLibrary
@@ -61,14 +65,18 @@ internal class LibraryGridActions(
     val onOpenItem: (MediaItem) -> Unit,
     val onPlayItem: (MediaItem) -> Unit,
     val onLoadMore: () -> Unit,
+    /** Loads pages until the grid holds the item at the offset given, for a letter jump. */
+    val onLoadThrough: (Int) -> Unit = {},
     /** What a held OK on a card offers. */
     val menu: CardMenu? = null,
 )
 
 /**
  * One library as a grid: posters for movies and shows, wide cards for videos, under a row of sort chips and an
- * Unwatched filter, and a row of genres when the library has any. Pages load as the grid nears its end. [returnedFrom] is the item whose page the viewer just
- * left, which takes focus; otherwise the first card does.
+ * Unwatched filter, a row of genres when the library has any, and in title order a row of first letters when the
+ * library is long enough to need one ([showsLetters]). Pages load as the grid nears its end, and a letter loads them
+ * through its first item, which takes focus. [returnedFrom] is the item whose page the viewer just left, which takes
+ * focus; otherwise the first card does.
  */
 @Composable
 internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actions: LibraryGridActions, returnedFrom: String? = null) {
@@ -87,6 +95,22 @@ internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actio
             focused = true
             requestFocusWhenAttached(focus)
         }
+    }
+    // A letter's first item: the grid scrolls to it once its page is in, and it takes focus.
+    var jumpTo by remember { mutableStateOf<Int?>(null) }
+    val jumpFocus = remember { FocusRequester() }
+    val itemCount = grid?.items?.size ?: 0
+    LaunchedEffect(jumpTo, itemCount) {
+        val target = jumpTo ?: return@LaunchedEffect
+        if (target >= itemCount) return@LaunchedEffect
+        // The grid's first item is the header row, so the item's index is one ahead.
+        state.scrollToItem(target + 1)
+        requestFocusWhenAttached(jumpFocus)
+        jumpTo = null
+    }
+    val onLetter: (LetterJump) -> Unit = { letter ->
+        jumpTo = letter.offset
+        actions.onLoadThrough(letter.offset)
     }
     val currentGrid by rememberUpdatedState(grid)
     LaunchedEffect(state) {
@@ -110,11 +134,15 @@ internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actio
         modifier = Modifier.fillMaxSize(),
     ) {
         item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
-            GridHeader(library, grid, actions)
+            GridHeader(library, grid, actions, onLetter)
         }
         val items = grid?.items.orEmpty()
-        items(items, key = { it.id }) { item ->
-            val modifier = if (item.id == focusId) Modifier.focusRequester(focus) else Modifier
+        itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
+            val modifier = when {
+                index == jumpTo -> Modifier.focusRequester(jumpFocus)
+                item.id == focusId -> Modifier.focusRequester(focus)
+                else -> Modifier
+            }
             LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, actions.menu, modifier)
         }
         val g = grid
@@ -136,7 +164,7 @@ internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actio
 }
 
 @Composable
-private fun GridHeader(library: MediaLibrary?, grid: LibraryGrid?, actions: LibraryGridActions) {
+private fun GridHeader(library: MediaLibrary?, grid: LibraryGrid?, actions: LibraryGridActions, onLetter: (LetterJump) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(library?.name.orEmpty(), style = MaterialTheme.typography.headlineMedium, maxLines = 1)
@@ -179,8 +207,28 @@ private fun GridHeader(library: MediaLibrary?, grid: LibraryGrid?, actions: Libr
                 }
             }
         }
+        if (grid != null && showsLetters(grid)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(grid.letters, key = { it.letter }) { letter ->
+                    val description = stringResource(Res.string.library_letter_jump, letter.letter)
+                    SofaChip(
+                        selected = false,
+                        onClick = { onLetter(letter) },
+                        label = letter.letter,
+                        modifier = Modifier.semantics { contentDescription = description },
+                    )
+                }
+            }
+        }
     }
 }
+
+/** A row of letters helps a grid in title order long enough to scroll a while, with enough letters to choose from. */
+internal fun showsLetters(grid: LibraryGrid): Boolean =
+    grid.sort == LibrarySort.TITLE && grid.total >= LETTERS_MIN_ITEMS && grid.letters.size >= LETTERS_MIN_LETTERS
+
+private const val LETTERS_MIN_ITEMS = 80
+private const val LETTERS_MIN_LETTERS = 6
 
 private fun LibrarySort.label(): StringResource = when (this) {
     LibrarySort.TITLE -> Res.string.library_sort_title

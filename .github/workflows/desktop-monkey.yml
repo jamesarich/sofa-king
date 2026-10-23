@@ -1,0 +1,76 @@
+name: Desktop monkey
+
+# Random keys on the desktop app's distribution in a virtual X display, with libVLC playing, against the server's
+# installed distribution serving fixture channels (app/scripts/desktop-monkey.py). Fails when the app exits, logs an
+# uncaught exception or an unhandled failure, draws a blank screen, or does not quit and release its session when its
+# window closes. Nightly, by hand, and on changes to itself.
+on:
+  schedule:
+    - cron: "41 6 * * *"
+  workflow_dispatch:
+    inputs:
+      keys:
+        description: Keys to press
+        default: "1000"
+      seed:
+        description: Random seed (empty for a new one)
+        default: ""
+  pull_request:
+    paths:
+      - "app/scripts/desktop-monkey.py"
+      - "app/scripts/fixture_server.py"
+      - ".github/workflows/desktop-monkey.yml"
+
+concurrency:
+  group: desktop-monkey-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  SOFAKING_CACHE_USERNAME: ${{ secrets.SOFAKING_CACHE_USERNAME }}
+  SOFAKING_CACHE_PASSWORD: ${{ secrets.SOFAKING_CACHE_PASSWORD }}
+
+jobs:
+  monkey:
+    name: Monkey (Linux desktop)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      # FFmpeg makes the fixture channels; the app plays them through libVLC, in Xvfb, driven by xdotool, and the
+      # script closes the window through python-xlib.
+      - name: Install FFmpeg, libVLC and the X tools
+        run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          ffmpeg vlc-plugin-base xvfb xdotool imagemagick python3-xlib
+      - name: Build the server distribution
+        working-directory: backend
+        run: ./gradlew --console=plain :server:installDist
+      - name: Build the desktop app
+        working-directory: app
+        run: ./gradlew --console=plain :ui:createDistributable
+      - name: Press random keys on the desktop app
+        working-directory: app
+        env:
+          SOFAKING_DESKTOP_MONKEY_KEYS: ${{ inputs.keys || '1000' }}
+          SOFAKING_DESKTOP_MONKEY_SEED: ${{ inputs.seed }}
+        run: python3 scripts/desktop-monkey.py --out build/desktop-monkey
+      - name: Upload the logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-monkey
+          path: app/build/desktop-monkey/
+          if-no-files-found: ignore

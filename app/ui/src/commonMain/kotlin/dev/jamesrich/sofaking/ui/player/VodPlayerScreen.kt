@@ -206,7 +206,7 @@ fun VodPlayerScreen(
                 player.stop()
                 scope.launch {
                     try {
-                        sessions.restartAt(plan.itemMs)
+                        state.waitForConverter { sessions.restartAt(plan.itemMs) }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -236,7 +236,7 @@ fun VodPlayerScreen(
     LaunchedEffect(openRequest) {
         state.failure = null
         try {
-            open()
+            state.waitForConverter { open() }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -410,7 +410,7 @@ fun VodPlayerScreen(
         backgrounded = false
         scope.launch {
             try {
-                if (sessions.reopen() == null) openRequest++
+                if (state.waitForConverter { sessions.reopen() } == null) openRequest++
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -465,7 +465,7 @@ fun VodPlayerScreen(
         player.stop()
         scope.launch {
             try {
-                tracks.select(audio, picture, state.positionMs)
+                state.waitForConverter { tracks.select(audio, picture, state.positionMs) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -629,8 +629,8 @@ fun VodPlayerScreen(
             AnimatedVisibility(barVisible && pointerDriven, enter = PopIn, exit = PopOut) {
                 PlayerBackControl(onExit)
             }
-            AnimatedVisibility(rememberSettled((buffering || stream == null) && state.failure == null), enter = PopIn, exit = PopOut) {
-                StatusPill(stringResource(Res.string.vod_starting), busy = true)
+            AnimatedVisibility(rememberSettled((buffering || stream == null || state.waitingForConverter) && state.failure == null), enter = PopIn, exit = PopOut) {
+                StatusPill(stringResource(if (state.waitingForConverter) Res.string.vod_waiting_converter else Res.string.vod_starting), busy = true)
             }
             AnimatedVisibility(paused && state.failure == null && stream != null, enter = PopIn, exit = PopOut) {
                 StatusPill(stringResource(Res.string.player_paused))

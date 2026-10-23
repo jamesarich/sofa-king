@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking
 
+import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.AdBreakNow
 import dev.jamesrich.sofaking.data.Airing
 import dev.jamesrich.sofaking.data.AppSettings
@@ -19,6 +20,7 @@ import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.SeriesRule
+import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.ServerConnection
 import dev.jamesrich.sofaking.data.Subtitles
@@ -206,6 +208,9 @@ class SofaKingTv {
     @Throws(Exception::class)
     suspend fun upNext(item: MediaItem): MediaItem? = library.upNext(item)
 
+    /** True when [error], from an open, a restart or a track switch, is the server saying every converter is busy. */
+    fun isConverterBusy(error: Throwable): Boolean = (error as? SofaKingException)?.code == Wire.ErrorCode.CAPACITY_EXHAUSTED
+
     /** Restarts a converted stream at [positionMs] in the item; a file played as it is comes back unchanged. */
     @Throws(Exception::class)
     suspend fun restartItemAt(positionMs: Long): PlaybackStream? = viewModel.sessions.restartAt(positionMs)
@@ -270,6 +275,11 @@ class SofaKingTv {
     /** Whether an episode's intro skips itself after a countdown on Skip intro. */
     fun setAutoSkipIntros(enabled: Boolean) {
         viewModel.setAutoSkipIntros(enabled)
+    }
+
+    /** Whether an episode not started yet keeps its overview back and its still blurred. */
+    fun setHideSpoilers(enabled: Boolean) {
+        viewModel.setHideSpoilers(enabled)
     }
 
     /** Whether the break screen covers the ads a streaming channel marks, and whether their sound plays under it. */

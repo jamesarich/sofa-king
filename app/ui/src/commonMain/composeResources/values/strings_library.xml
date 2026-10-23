@@ -24,6 +24,7 @@
     <string name="library_sort_watched">Recently watched</string>
     <string name="library_filter_unwatched">Unwatched</string>
     <string name="library_genre_all">All genres</string>
+    <string name="library_letter_jump">Jump to %1$s</string>
     <string name="library_play">Play</string>
     <string name="library_resume">Resume from %1$s</string>
     <string name="library_play_from_start">Play from beginning</string>
@@ -44,4 +45,5 @@
     <string name="library_cast">Cast</string>
     <string name="library_directors">Directed by %1$s</string>
     <string name="library_subtitles">Subtitles: %1$s</string>
+    <string name="library_spoiler_hidden">Unwatched episode. Hide spoilers keeps its summary back.</string>
 </resources>

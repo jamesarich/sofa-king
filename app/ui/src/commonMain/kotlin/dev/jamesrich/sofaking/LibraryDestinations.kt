@@ -105,6 +105,7 @@ internal fun LibraryGridDestination(route: Route.LibraryGrid, arrival: Arrival, 
             onOpenItem = { shell.push(Route.LibraryItem(it.id)) },
             onPlayItem = { shell.push(Route.Vod(it.id)) },
             onLoadMore = libraryVm::loadMore,
+            onLoadThrough = libraryVm::loadThrough,
             menu = cardMenu(shell, libraryVm),
         ),
         returnedFrom = arrival.returnedFrom,
@@ -113,7 +114,7 @@ internal fun LibraryGridDestination(route: Route.LibraryGrid, arrival: Arrival, 
 
 /** A movie, show, season or episode's page; a show lists the season picked, else the one with the next episode. */
 @Composable
-internal fun LibraryItemDestination(route: Route.LibraryItem, arrival: Arrival, shell: AppShellState, libraryVm: LibraryViewModel) {
+internal fun LibraryItemDestination(route: Route.LibraryItem, arrival: Arrival, shell: AppShellState, libraryVm: LibraryViewModel, hideSpoilers: Boolean) {
     val detail by remember(route.itemId) { libraryVm.detail(route.itemId) }.collectAsStateWithLifecycle()
     val ready = (detail as? ItemDetailState.Ready)?.detail
     var pickedSeason by rememberSaveable(route.itemId) { mutableStateOf<String?>(null) }
@@ -132,6 +133,7 @@ internal fun LibraryItemDestination(route: Route.LibraryItem, arrival: Arrival, 
             onOpenShow = { shell.push(Route.LibraryItem(it)) },
         ),
         returnedFrom = arrival.returnedFrom,
+        hideSpoilers = hideSpoilers,
     )
 }
 

@@ -95,6 +95,34 @@ final class RemoteTests: XCTestCase {
         }
     }
 
+    /// Random arrows, Select and Play/Pause on the Server address keyboard, which reopens whenever it closes: tvOS's
+    /// keyboard can lose the key under its cursor, and an arrow then threw inside UIKit and stopped the app.
+    /// SOFAKING_WALK_SEED replays the presses.
+    @MainActor
+    func testKeyboardWithRandomKeys() throws {
+        let seed = ProcessInfo.processInfo.environment["SOFAKING_WALK_SEED"].flatMap(UInt64.init) ?? UInt64(Date().timeIntervalSince1970)
+        try launchToList()
+        focus(app.tabBars.buttons["Settings"], by: Array(repeating: XCUIRemote.Button.up, count: 6) + Array(repeating: XCUIRemote.Button.right, count: 3))
+        let field = app.textFields.element(boundBy: 0)
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "No Server address field\n\(screen)")
+        var random = SplitMix64(seed: seed)
+        var pressed: [String] = []
+        for _ in 0..<120 {
+            if !app.keyboards.firstMatch.exists {
+                // Up from anywhere in Settings reaches the field; Select there opens its keyboard, never Save.
+                focus(field, by: Array(repeating: XCUIRemote.Button.up, count: 8) + [.down, .down, .down, .down])
+                remote.press(.select)
+                RunLoop.current.run(until: Date().addingTimeInterval(1))
+            }
+            let key = Self.keyboardKeys.pick(&random)
+            remote.press(key.button)
+            pressed.append(key.name)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+            XCTAssertEqual(app.state, .runningForeground, "The app stopped on the keyboard, seed \(seed); the last keys: \(pressed.suffix(20).joined(separator: " "))")
+        }
+        print("Keyboard walk: seed \(seed), \(pressed.count) keys")
+    }
+
     /// Weighted random remote presses: fails if the app stops, and checks that it releases its playback session in
     /// the background. SOFAKING_WALK_SEED replays a walk; SOFAKING_WALK_KEYS sets its length.
     @MainActor
@@ -167,6 +195,12 @@ final class RemoteTests: XCTestCase {
     }
 
     // MARK: - Driving
+
+    /// The keys the keyboard takes, arrows most of all; Menu would leave it, and the test reopens it instead.
+    private static let keyboardKeys = WeightedKeys([
+        (.up, "Up", 10), (.down, "Down", 10), (.left, "Left", 12), (.right, "Right", 12),
+        (.select, "Select", 4), (.playPause, "PlayPause", 4),
+    ])
 
     /// The remote's buttons, weighted as the other fuzzers weigh them.
     private static let keys = WeightedKeys([

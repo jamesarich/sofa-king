@@ -8,7 +8,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import dev.jamesrich.sofaking.contract.Wire
+import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.ui.uptimeMs
+import kotlinx.coroutines.delay
 
 /** What the library and recordings player's keys do beyond its own state: the stream, captions, focus and the way out. */
 internal interface VodControls {
@@ -53,6 +56,10 @@ internal class VodPlayerState {
 
     /** The failure card's code, while the item has failed. */
     var failure by mutableStateOf<String?>(null)
+
+    /** The server has every converter busy, and [waitForConverter] is asking it again. */
+    var waitingForConverter by mutableStateOf(false)
+        private set
 
     /** Playback reached the end of the item. */
     var ended by mutableStateOf(false)
@@ -203,6 +210,29 @@ internal class VodPlayerState {
     /** The scrub to apply once the presses have rested at [nowMs], clearing it; null while they have not. */
     fun settledScrub(nowMs: Long): Long? = scrub.settled(nowMs)?.also { scrubTarget = null }
 
+    /**
+     * Runs [open] (the item's open, a restart in a converted file, a track switch), asking again every
+     * [CONVERTER_RETRY_MS] for up to [CONVERTER_WAIT_MS] while the server answers that every converter is busy, and
+     * then throws as [open] did. Any other failure throws at once.
+     */
+    suspend fun <T> waitForConverter(open: suspend () -> T): T {
+        var waitedMs = 0L
+        try {
+            while (true) {
+                try {
+                    return open()
+                } catch (e: SofaKingException) {
+                    if (e.code != Wire.ErrorCode.CAPACITY_EXHAUSTED || waitedMs >= CONVERTER_WAIT_MS) throw e
+                }
+                waitingForConverter = true
+                delay(CONVERTER_RETRY_MS)
+                waitedMs += CONVERTER_RETRY_MS
+            }
+        } finally {
+            waitingForConverter = false
+        }
+    }
+
     /** The system Back: a focused button hands focus to the picture, the track card closes, a scrub is dropped; true when the player is left. */
     fun back(controls: VodControls): Boolean {
         cancelAutoSkip()
@@ -319,6 +349,10 @@ internal const val STREAM_ENDED_EARLY = "STREAM_ENDED_EARLY"
 
 /** How long Skip intro counts down before the intro skips itself, with auto skip on. */
 internal const val AUTO_SKIP_MS = 5_000L
+
+/** How long the player waits for a free converter before it shows the failure, and how often it asks. */
+internal const val CONVERTER_WAIT_MS = 20_000L
+internal const val CONVERTER_RETRY_MS = 5_000L
 
 /** What [VodPlayerState.transport] confirms. */
 internal enum class TransportHint { PLAY, PAUSE }

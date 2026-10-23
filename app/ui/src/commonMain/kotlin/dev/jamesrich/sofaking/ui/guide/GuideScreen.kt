@@ -35,6 +35,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -230,6 +231,7 @@ fun GuideScreen(
     val chipsState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     val density = LocalDensity.current
     val minutePx = with(density) { MINUTE_WIDTH.toPx() }
     val minStickyTextPx = with(density) { MIN_STICKY_TEXT.toPx() }
@@ -475,7 +477,8 @@ fun GuideScreen(
             state = state.searchText,
             focusRequester = searchField,
             hint = stringResource(Res.string.guide_search_hint),
-            onDone = { focusManager.moveFocus(FocusDirection.Down) },
+            // A phone's keyboard in landscape can leave the results no room, so no row takes focus; it goes away then.
+            onDone = { if (!focusManager.moveFocus(FocusDirection.Down)) keyboard?.hide() },
             modifier = barModifier,
         )
     }

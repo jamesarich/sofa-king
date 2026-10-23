@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.contract.LetterCount
 import java.time.LocalDate
 
 /** The video containers a library scan picks up, by lower-case extension. */
@@ -114,6 +115,21 @@ private val TMDB_TAG = Regex("""(?i)[\[{](?:tmdb|tmdbid)[-=](\d+)[\]}]""")
 
 /** The TMDB id a name carries as `{tmdb-348}` or `[tmdbid-348]`, as Plex and Jellyfin read it. */
 internal fun tmdbIdIn(name: String): Int? = TMDB_TAG.find(name)?.groupValues?.get(1)?.toIntOrNull()
+
+/**
+ * How many of [titles], in title order, start with each letter in turn: the first letter of each [sortTitle] in upper
+ * case, or `#` for a digit or a symbol. Neighbors with the same letter make one run.
+ */
+internal fun letterRuns(titles: List<String>): List<LetterCount> {
+    val runs = ArrayList<LetterCount>()
+    for (title in titles) {
+        val first = sortTitle(title).firstOrNull()
+        val letter = if (first != null && first.isLetter()) first.uppercase() else "#"
+        val last = runs.lastOrNull()
+        if (last?.letter == letter) runs[runs.size - 1] = last.copy(count = last.count + 1) else runs += LetterCount(letter, 1)
+    }
+    return runs
+}
 
 /** The name a list sorts by: lower case, without a leading English article. */
 internal fun sortTitle(title: String): String {

@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.jamesrich.sofaking.data.IntroSpan
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
@@ -33,6 +34,8 @@ import dev.jamesrich.sofaking.ui.library.LibrarySearchActions
 import dev.jamesrich.sofaking.ui.library.LibrarySearchScreen
 import dev.jamesrich.sofaking.ui.library.stillOrBackdrop
 import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.player.VodMarker
+import dev.jamesrich.sofaking.ui.player.VodMarkerKind
 import dev.jamesrich.sofaking.ui.player.VodPlayerScreen
 import dev.jamesrich.sofaking.ui.player.VodTitle
 import dev.jamesrich.sofaking.ui.player.VodTrack
@@ -174,7 +177,7 @@ internal fun VodDestination(route: Route.Vod, shell: AppShellState, vm: LineupVi
                 } ?: VodTracks()
             }
             VodPlayerScreen(
-                title = item.vodTitle(),
+                title = item.vodTitle(ready?.intro),
                 player = player,
                 sessions = vm.sessions,
                 itemId = item.id,
@@ -198,13 +201,13 @@ internal fun VodDestination(route: Route.Vod, shell: AppShellState, vm: LineupVi
     }
 }
 
-/** What the player shows for a library item: an episode under its show and number, a movie with its year. */
-private fun MediaItem.vodTitle(): VodTitle {
+/** What the player shows for a library item: an episode under its show and number, a movie with its year, and its [intro]. */
+private fun MediaItem.vodTitle(intro: IntroSpan?): VodTitle {
     val subtitle = when (kind) {
         ItemKind.EPISODE -> listOfNotNull(showTitle, episodeLabel).joinToString(" · ").ifEmpty { null }
         else -> year?.toString()
     }
-    return VodTitle(title, subtitle, artworkUrl = backdrop ?: poster)
+    return VodTitle(title, subtitle, artworkUrl = backdrop ?: poster, markers = listOfNotNull(intro?.let { VodMarker(it.startMs, it.endMs, VodMarkerKind.INTRO) }))
 }
 
 /** The Up next card for an episode: its number and title under the show, with its still. */

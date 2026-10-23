@@ -132,7 +132,12 @@ data class MediaItemDetail(
     val subtitles: List<MediaTrackInfo> = emptyList(),
     val container: String? = null,
     val videoCodec: String? = null,
+    /** The intro the server found in an episode, which the player offers to skip. */
+    val intro: IntroSpan? = null,
 )
+
+/** An episode's intro, from [startMs] to [endMs] after the start of the file. */
+data class IntroSpan(val startMs: Long, val endMs: Long)
 
 /** One row of the library home, such as Continue watching or a library's recent additions. */
 data class MediaShelf(

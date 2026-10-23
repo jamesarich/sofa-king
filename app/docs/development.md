@@ -90,6 +90,7 @@ The tests cannot see focus, the remote's keys or a real decoder. Check these on 
 - [ ] On the Library tab, Down reaches Search and the library chips; Search takes typed and spoken queries (the Search key starts it by voice), OK on a result opens its page and Back returns to the results, then to the Search chip.
 - [ ] In the Library, OK on a card opens its page with Play or Resume focused, Play on the remote plays a movie straight from its card, a library's grid sorts and filters from its chips and loads more as it scrolls, and Back from a page or a grid focuses the card or library left.
 - [ ] A show's page opens with its title in view and on the season with the next episode; Down from the buttons lands on that season's chip, the chips switch the episode rows, and OK on an episode plays it, resuming where it stopped.
+- [ ] Playing an episode whose intro the server found (the Jobs page's Intro detection lists the shows), the bar comes up with Skip intro focused as the intro starts, from the beginning or a resume inside it; OK jumps past it, and going back into it leaves Skip intro on the bar unfocused.
 - [ ] In the library player, Left and Right scrub and apply once released, holding them jumps further, OK applies at once, Back cancels a scrub and then returns to the page with the episode focused; Home and back resumes where it was, and a far jump in a converted file restarts there.
 
 On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app reliably):
@@ -101,6 +102,7 @@ On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app re
 - [ ] Holding the touch surface on a channel opens its program details, and Watch plays it.
 - [ ] The player's transport bar menu records the program on now on a server that records (Cancel recording once set), toggles the favorite and switches channels from Recent, Favorites and All channels.
 - [ ] In a recording with Skip commercials off, Skip break shows over the picture inside a commercial break and jumps to its end.
+- [ ] In an episode whose intro the server found, Skip intro shows over the picture inside the intro and jumps to its end.
 - [ ] After watching a few channels, the Top Shelf shows them newest first, and selecting one opens the app on it; the app and the extension must be signed with the `group.dev.jamesrich.sofaking` app group for the list to reach the extension.
 
 ### Over adb

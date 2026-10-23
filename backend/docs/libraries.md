@@ -65,6 +65,12 @@ A library is scanned when it is added, every six hours, and when Scan now is pre
 
 Every file keeps one id for as long as its path is the same, even across a removed and re-added library, so watch progress survives a rescan. A file that disappears is marked missing and is removed after seven days unless it comes back. A library folder that is gone, or empty while the library held files, reads as an unmounted disk: the scan changes nothing, and the portal shows Folder unavailable until the folder is back.
 
+## Intros
+
+After each scan of a TV shows library the server looks for the intro each episode shares with the others of its show, the way Jellyfin's Intro Skipper does, and the app offers Skip intro while one plays. The Jobs page lists the pass as Intro detection; it runs one episode at a time, apart from the scan, and Run now starts it for every TV shows library.
+
+FFmpeg reads a [Chromaprint](https://acoustid.org/chromaprint) fingerprint of each new or changed episode's audio: its first ten minutes, or its first 30% when that is shorter, which takes a few seconds an episode. The fingerprints are kept in the database, so an unchanged file (same size and change time) is never read again. Each episode is then compared with the four nearest of its show, the same season first: the intro is the stretch of 15 seconds to 2 minutes they share, where most of them agree. A show needs two episodes before either has an intro, and a stretch only one other episode shares, such as a recap, does not count when three or more could agree. An episode whose opening differs from the rest of its show's gets no intro, and movies and other videos are not searched.
+
 ## Browse and watch
 
 Clients read the libraries through the [library API](api.md#media-libraries): a home with Continue watching and Recently added for each library, each library's movies, shows or videos, a show's seasons and episodes, and search. Watch progress is the household's: an episode finished on the TV is watched on the phone too, and a show's next episode is the one after the last finished. A client plays a file through a [library playback session](api.md#play-library-files): as it is when the player takes its format, otherwise remuxed or converted to HLS by FFmpeg. The app's Library tab, on the TV, phones, desktops, the web and the Apple TV, is the client; see the [app's usage](../../app/docs/usage.md#library).

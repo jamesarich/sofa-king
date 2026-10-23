@@ -61,9 +61,13 @@ import kotlinx.serialization.Serializable
  */
 @Serializable data class MediaTrack(val index: Int, val codec: String, val language: String? = null, val title: String? = null, val channels: Int? = null, val default: Boolean = false, val forced: Boolean = false)
 
+/** A span of a movie, episode or video from [startMs] to [endMs] that a player offers to skip; [kind] is a [Wire.SegmentKind] value. */
+@Serializable data class MediaSegment(val kind: String, val startMs: Long, val endMs: Long)
+
 /**
  * An item with what its page shows: for a show its seasons, for a season or a show without seasons its episodes,
- * for a show the episode to play [next]; for a file its tracks.
+ * for a show the episode to play [next]; for a file its tracks and the [segments] the server found in it, such as
+ * an episode's intro.
  */
 @Serializable data class LibraryItemDetail(
     val item: LibraryItem,
@@ -77,6 +81,7 @@ import kotlinx.serialization.Serializable
     val subtitles: List<MediaTrack> = emptyList(),
     val container: String? = null,
     val videoCodec: String? = null,
+    val segments: List<MediaSegment> = emptyList(),
 )
 
 /** `PUT /api/v1/library/items/{id}/play-state`: where playback stopped; [watched] set by hand wins over the position. */

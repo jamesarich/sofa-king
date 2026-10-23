@@ -33,6 +33,8 @@ import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -127,6 +129,10 @@ private class TvFocusNode(
 /**
  * A Material 3 button with the D-pad focus cue; every action button in the app is one. It rests tonal and fills
  * with the primary color only while focused, so a row of buttons shows at a glance which one OK will press.
+ *
+ * A disabled Material button cannot hold focus, so one turned off while focused (a press that starts a check, a wrong
+ * PIN that empties its field) would drop focus to another row. This one keeps focus until the D-pad moves on: it
+ * looks and reads as disabled and ignores presses, and only then leaves the focus order.
  */
 @Composable
 fun SofaButton(
@@ -139,17 +145,31 @@ fun SofaButton(
     val focused by interactions.collectIsFocusedAsState()
     val scheme = MaterialTheme.colorScheme
     Button(
-        onClick = onClick,
-        modifier = modifier.tvFocus(ButtonDefaults.shape),
-        enabled = enabled,
+        onClick = { if (enabled) onClick() },
+        modifier = modifier
+            .tvFocus(ButtonDefaults.shape)
+            .semantics { if (!enabled) disabled() },
+        enabled = enabled || focused,
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (focused) scheme.primary else scheme.surfaceVariant,
-            contentColor = if (focused) scheme.onPrimary else scheme.onSurface,
+            containerColor = when {
+                !enabled -> scheme.onSurface.copy(alpha = DISABLED_CONTAINER_ALPHA)
+                focused -> scheme.primary
+                else -> scheme.surfaceVariant
+            },
+            contentColor = when {
+                !enabled -> scheme.onSurface.copy(alpha = DISABLED_CONTENT_ALPHA)
+                focused -> scheme.onPrimary
+                else -> scheme.onSurface
+            },
         ),
         interactionSource = interactions,
         content = content,
     )
 }
+
+// Material 3's disabled button colors, which a button kept focusable while disabled draws itself.
+private const val DISABLED_CONTAINER_ALPHA = 0.12f
+private const val DISABLED_CONTENT_ALPHA = 0.38f
 
 /** A Material 3 filter chip in the label type, with the D-pad focus cue: the guide's filters and the library's choices. */
 @Composable

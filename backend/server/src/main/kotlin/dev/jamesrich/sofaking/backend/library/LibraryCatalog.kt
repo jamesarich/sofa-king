@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.libraries
+import dev.jamesrich.sofaking.backend.store.libraryIntro
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.libraryMetadata
 import dev.jamesrich.sofaking.backend.store.playStates
@@ -14,6 +15,7 @@ import dev.jamesrich.sofaking.contract.LibraryItem
 import dev.jamesrich.sofaking.contract.LibraryItemDetail
 import dev.jamesrich.sofaking.contract.LibraryPage
 import dev.jamesrich.sofaking.contract.LibraryShelf
+import dev.jamesrich.sofaking.contract.MediaSegment
 import dev.jamesrich.sofaking.contract.MediaTrack
 import dev.jamesrich.sofaking.contract.PlayState
 import dev.jamesrich.sofaking.contract.UpdatePlayState
@@ -211,7 +213,14 @@ class LibraryCatalog internal constructor(
             subtitles = (media?.subtitles.orEmpty() + sidecars.map { it.stream }).map { MediaTrack(it.index, it.codec, it.language, it.title, default = it.default, forced = it.forced) },
             container = media?.container,
             videoCodec = media?.video?.codec,
+            segments = if (view.record.kind == ItemKind.EPISODE) segments(view.record) else emptyList(),
         )
+    }
+
+    /** The intro found in the episode's file as it is now; one found in a file since replaced is not offered. */
+    private suspend fun segments(record: LibraryItemRecord): List<MediaSegment> {
+        val intro = store.libraryIntro(record.id)?.takeIf { it.fileKey == fileKey(record) }?.intro ?: return emptyList()
+        return listOf(MediaSegment(Wire.SegmentKind.INTRO, intro.startMs, intro.endMs))
     }
 
     /** Movies, shows and videos whose title holds [query], then episodes; at most [limit]. */

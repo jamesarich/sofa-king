@@ -21,7 +21,7 @@ A self-hosted media center for a home network. One server keeps live TV, a DVR a
 
 - **Live TV in one lineup.** The server merges free streaming services, broadcasters' free news feeds, HDHomeRun tuners, M3U playlists and XMLTV guides into one numbered lineup, with fallbacks across services.
 - **A DVR that skips the boring bits.** The server records programs and series from the guide into folders Plex, Jellyfin, Emby and Kodi scan, finds the commercial breaks, and the app plays the recordings, even while they record, and can skip the breaks.
-- **Your own library.** Movies, shows and other videos from a folder, with details and artwork from their `.nfo` files or TMDB, Continue watching and Up next, converted on the fly for a device that cannot play the file.
+- **Your own library.** Movies, shows and other videos from a folder, with details and artwork from their `.nfo` files or TMDB, Continue watching, Up next and Skip intro, converted on the fly for a device that cannot play the file.
 - **Made for the couch.** The guide previews the focused channel muted and opens it full screen on the same stream, every screen works with a TV remote's D-pad, and the app reopens where you left it.
 - **Plays well with others.** The same lineup goes to Plex as an HDHomeRun tuner and to M3U and XMLTV players.
 

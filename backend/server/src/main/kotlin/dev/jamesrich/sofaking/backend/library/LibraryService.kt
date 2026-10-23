@@ -57,7 +57,7 @@ private val SUGGESTED_KINDS = mapOf(
 /**
  * The media libraries: adding, renaming and removing them, and scanning their folders. A library's folder must sit
  * inside one of [roots]; the server only reads it. Scans run one at a time on the scan loop, every [every] for all
- * libraries and on request for one.
+ * libraries and on request for one. A scan of a TV shows library then asks [intros] to read its new episodes.
  */
 class LibraryService(
     private val store: BackendStore,
@@ -71,6 +71,8 @@ class LibraryService(
     val metadata: LibraryMetadata? = null,
     /** The posters and backdrops `/artwork` serves. */
     val artwork: LibraryArtwork? = null,
+    /** Finds TV episodes' intros after each scan of a TV shows library. */
+    private val intros: IntroDetector? = null,
 ) {
     /** Counts changes to what the libraries hold, so [catalog] rebuilds its view only after one. */
     private val revision = AtomicLong()
@@ -194,6 +196,7 @@ class LibraryService(
                 else store.recordLibraryScan(library.id, now, !plan.result.unavailable, note)
             }
             revision.incrementAndGet()
+            if (library.kind == LibraryKind.SHOWS && !plan.result.unavailable) intros?.request(library.id)
             result = plan.result
             JobOutcome(!plan.result.unavailable && looked?.stopped == null, "${library.name}: $note")
         }

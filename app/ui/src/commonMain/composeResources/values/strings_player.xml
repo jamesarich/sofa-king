@@ -68,6 +68,7 @@
     <string name="vod_control_start_over">Start over</string>
     <string name="vod_control_next">Next episode</string>
     <string name="vod_control_skip_break">Skip break</string>
+    <string name="vod_control_skip_intro">Skip intro</string>
     <string name="vod_subtitles_on">Subtitles on</string>
     <string name="vod_subtitles_off">Subtitles off</string>
     <string name="vod_no_subtitles">No subtitles for this</string>

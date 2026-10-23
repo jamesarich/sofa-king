@@ -254,6 +254,23 @@ class VodPlayerStateTest {
     }
 
     @Test
+    fun `an intro brings the bar up to focus Skip intro once`() {
+        val state = playing()
+        val intro = VodMarker(5_000, 55_000, VodMarkerKind.INTRO)
+        state.overlayVisible = false
+        state.inIntro(intro)
+        assertTrue(state.overlayVisible)
+        assertTrue(state.focusSkip)
+
+        // Back in the same intro, after the bar left or a seek back into it, the viewer is left to watch it.
+        state.focusSkip = false
+        state.overlayVisible = false
+        state.inIntro(intro)
+        assertFalse(state.overlayVisible)
+        assertFalse(state.focusSkip)
+    }
+
+    @Test
     fun `a drag on the slider shows where it would land until it ends`() {
         val state = playing()
         state.dragTo(300_000L)

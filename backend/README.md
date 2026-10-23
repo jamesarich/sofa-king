@@ -4,7 +4,7 @@ The Sofa King server is the heart of a self-hosted media center for a home netwo
 
 - **Live TV.** One channel lineup built from free streaming services, broadcasters' free news feeds, HDHomeRun tuners, M3U playlists and XMLTV guides, served to the Sofa King app, to Plex as an HDHomeRun tuner, and to M3U and XMLTV players.
 - **Recordings.** A DVR that records programs, time windows and series from the guide, finds their commercial breaks and keeps them in the folder layout media servers scan.
-- **Media libraries.** Your own movies, shows and other videos from a read-only folder, with details and artwork, watch progress, and playback converted on the fly for a device that cannot take the file.
+- **Media libraries.** Your own movies, shows and other videos from a read-only folder, with details and artwork, watch progress, episodes' intros found for Skip intro, and playback converted on the fly for a device that cannot take the file.
 
 The [Sofa King app](../app/README.md) plays all three on TVs, phones, desktops, iOS, Apple TV and the web.
 
@@ -36,7 +36,7 @@ Live TV:
 Recordings and media libraries:
 
 - [Recordings](docs/recordings.md) of one program, a time window or a whole series, in the folder layout Plex, Jellyfin, Emby and Kodi scan, with cleanup by keep count, age and free space, and commercial breaks found by Comskip
-- [Media libraries](docs/libraries.md): movies, shows and other videos from a read-only folder, scanned with their `.nfo` files and artwork, with details from TMDB when a token is set, and household watch progress
+- [Media libraries](docs/libraries.md): movies, shows and other videos from a read-only folder, scanned with their `.nfo` files and artwork, with details from TMDB when a token is set, household watch progress, and TV episodes' intros found by their repeated audio
 - Library files and recordings played as they are, or copied or converted to HLS by FFmpeg for a player that cannot take the file, on the CPU or a GPU
 
 Running it:

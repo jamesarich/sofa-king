@@ -77,9 +77,12 @@ internal class VodPlayerState {
     var scrubTarget by mutableStateOf<Long?>(null)
         private set
 
-    // Set when playback runs into a break it does not skip, so Skip break takes focus and OK skips, as other
-    // players' skip pill does.
+    // Set when playback runs into a break it does not skip, or is in an intro, so Skip break or Skip intro takes
+    // focus and OK skips, as other players' skip pill does.
     var focusSkip by mutableStateOf(false)
+
+    /** The starts of the intros the bar has offered to skip, each once, so a viewer who goes back into one stays there. */
+    private val offeredIntros = mutableSetOf<Long>()
 
     private val scrub = VodScrub()
 
@@ -113,6 +116,11 @@ internal class VodPlayerState {
     fun ranIntoBreak() {
         showInfo()
         focusSkip = true
+    }
+
+    /** Playback is in [intro]: the first time, the bar comes up with Skip intro on it, focused for the remote. */
+    fun inIntro(intro: VodMarker) {
+        if (offeredIntros.add(intro.startMs)) ranIntoBreak()
     }
 
     /** A finger or a mouse dragging the slider: the times follow [targetMs] until [endScrub]. */

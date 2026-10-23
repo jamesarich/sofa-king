@@ -175,6 +175,7 @@ fun VodPlayerScreen(
     val currentOnToggleCaptions by rememberUpdatedState(onToggleCaptions)
     // Read from the ticking position, so the screen recomposes only when they change.
     val breakEnd by remember(title.markers) { derivedStateOf { breakEndAt(title.markers, state.positionMs) } }
+    val intro by remember(title.markers) { derivedStateOf { introAt(title.markers, state.positionMs) } }
     val pastStart by remember { derivedStateOf { state.positionMs > START_OVER_AFTER_MS } }
     val windowHeightDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
 
@@ -306,6 +307,7 @@ fun VodPlayerScreen(
                         state.ranIntoBreak()
                     }
                 }
+                introAt(currentTitle.markers, now)?.let(state::inIntro)
             }
             val clock = uptimeMs()
             if (status.isPlaying && clock - lastReport >= REPORT_MS) {
@@ -471,6 +473,7 @@ fun VodPlayerScreen(
         captions = captionsOn != null,
         pastStart = pastStart,
         hasNext = upcoming != null,
+        inIntro = intro != null,
     )
 
     val controls = object : VodControls {
@@ -508,11 +511,13 @@ fun VodPlayerScreen(
     LaunchedEffect(state.overlayVisible, buttons.size) { if (state.buttonsFocused && (!state.overlayVisible || buttons.isEmpty())) focus.requestFocus() }
     LaunchedEffect(state.focusSkip, state.overlayVisible, buttons.firstOrNull()) {
         if (!state.focusSkip) return@LaunchedEffect
+        if (state.overlayVisible && !pointerDriven && buttons.firstOrNull() in SKIP_BUTTONS) {
+            // The bar's row is laid out once the frame that shows it is drawn.
+            withFrameNanos {}
+            rowEntry.requestFocus()
+        }
+        // Cleared last: clearing it is a change of this effect's key, which would cancel it before the frame.
         state.focusSkip = false
-        if (!state.overlayVisible || pointerDriven || buttons.firstOrNull() != VodButton.SKIP_BREAK) return@LaunchedEffect
-        // The bar's row is laid out once the frame that shows it is drawn.
-        withFrameNanos {}
-        rowEntry.requestFocus()
     }
     BackHandler { if (state.back(controls)) onExit() }
     val density = LocalDensity.current
@@ -633,6 +638,7 @@ fun VodPlayerScreen(
                         onClick = {
                             when (button) {
                                 VodButton.SKIP_BREAK -> breakEnd?.let(::seekItem)
+                                VodButton.SKIP_INTRO -> intro?.endMs?.let(::seekItem)
                                 VodButton.TRACKS -> if (state.tracksOpen) state.closeTracks() else state.openTracks()
                                 VodButton.CAPTIONS -> switchCaptions()
                                 VodButton.ZOOM -> stepZoom()
@@ -763,7 +769,7 @@ private fun DrawScope.drawSeekTrack(playedFraction: Float, lengthMs: Long?, mark
     if (lengthMs == null) return
     fun x(ms: Long) = (ms.coerceIn(0, lengthMs).toFloat() / lengthMs) * size.width
     drawRoundRect(played, Offset(0f, top), Size(playedFraction.coerceIn(0f, 1f) * size.width, barHeight), radius)
-    markers.forEach { m ->
+    markers.filter { it.kind == VodMarkerKind.BREAK }.forEach { m ->
         drawRect(marker.copy(alpha = 0.8f), Offset(x(m.startMs), top), Size((x(m.endMs) - x(m.startMs)).coerceAtLeast(2f), barHeight))
     }
 }
@@ -772,6 +778,7 @@ private fun DrawScope.drawSeekTrack(playedFraction: Float, lengthMs: Long?, mark
 @Composable
 private fun vodButtonItem(button: VodButton, captionsOn: Boolean, zoom: VideoZoom, onClick: () -> Unit): PlayerButtonItem = when (button) {
     VodButton.SKIP_BREAK -> PlayerButtonItem(SofaIcons.FastForward, stringResource(Res.string.vod_control_skip_break), onClick)
+    VodButton.SKIP_INTRO -> PlayerButtonItem(SofaIcons.FastForward, stringResource(Res.string.vod_control_skip_intro), onClick)
     VodButton.TRACKS -> PlayerButtonItem(SofaIcons.Subtitles, stringResource(Res.string.vod_tracks_title), onClick)
     VodButton.CAPTIONS -> PlayerButtonItem(
         if (captionsOn) SofaIcons.ClosedCaption else SofaIcons.ClosedCaptionOff,
@@ -783,6 +790,9 @@ private fun vodButtonItem(button: VodButton, captionsOn: Boolean, zoom: VideoZoo
     VodButton.START_OVER -> PlayerButtonItem(SofaIcons.Replay, stringResource(Res.string.vod_control_start_over), onClick)
     VodButton.NEXT -> PlayerButtonItem(SofaIcons.SkipNext, stringResource(Res.string.vod_control_next), onClick)
 }
+
+/** The buttons that take focus as playback reaches what they skip. */
+private val SKIP_BUTTONS = setOf(VodButton.SKIP_BREAK, VodButton.SKIP_INTRO)
 
 /** The buttons that keep focus after a press, as each press steps them on (the track card takes it itself). */
 private val STAYING_BUTTONS = setOf(VodButton.CAPTIONS, VodButton.ZOOM, VodButton.TRACKS)

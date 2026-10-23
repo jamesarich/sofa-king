@@ -1022,7 +1022,7 @@ class AdminPortalTest {
             assertTrue(page.contains("No changes") && page.contains("hx-post=\"/admin/settings/runtime/check\""), "the Save control starts disabled and the form asks on change")
             assertFalse(Regex("""<div class="name mono">SOFA_MAX_SESSIONS</div>""").containsMatchIn(page), "a runtime setting is not listed among the startup ones")
             val csrf = field(page, "csrf")
-            val values = mapOf("SOFA_LOG_LEVEL" to "info", "SOFA_XMLTV_DAYS" to "3", "SOFA_PLEX_SYNC_MINUTES" to "60", "SOFA_HDHR_TUNERS" to "2", "SOFA_MAX_SESSIONS" to "4", "SOFA_RECORDINGS_FREE_GIB" to "10", "SOFA_RECORDINGS_KEEP_DAYS" to "0", "SOFA_LEARNED_BREAKS" to "shadow", "SOFA_AD_LISTENERS" to "6")
+            val values = mapOf("SOFA_LOG_LEVEL" to "info", "SOFA_XMLTV_DAYS" to "3", "SOFA_PLEX_SYNC_MINUTES" to "60", "SOFA_HDHR_TUNERS" to "2", "SOFA_MAX_SESSIONS" to "4", "SOFA_RECORDINGS_FREE_GIB" to "10", "SOFA_RECORDINGS_KEEP_DAYS" to "0", "SOFA_LEARNED_BREAKS" to "shadow", "SOFA_AD_LISTENERS" to "0")
             fun fields(vararg changes: Pair<String, String>) = (values + changes).map { it.key to it.value }.toTypedArray()
             val unchanged = browser.post("/admin/settings/runtime/check", *fields(), "csrf" to csrf).bodyAsText()
             assertTrue(unchanged.contains("No changes") && unchanged.contains("disabled"), unchanged)

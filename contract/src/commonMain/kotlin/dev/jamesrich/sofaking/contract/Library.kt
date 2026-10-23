@@ -45,8 +45,24 @@ import kotlinx.serialization.Serializable
     val playState: PlayState? = null,
 )
 
-/** One page of a library's items, in the order asked for; [next] is the cursor for the page after, null on the last, and [genres] every genre in the library, for a filter. */
-@Serializable data class LibraryPage(val items: List<LibraryItem>, val total: Int = 0, val next: String? = null, val genres: List<String> = emptyList())
+/**
+ * One page of a library's items, in the order asked for; [next] is the cursor for the page after, null on the last, and
+ * [genres] every genre in the library, for a filter. The first page in title order also counts the items under each
+ * first letter in [letters], in order, so a client can jump to one.
+ */
+@Serializable data class LibraryPage(
+    val items: List<LibraryItem>,
+    val total: Int = 0,
+    val next: String? = null,
+    val genres: List<String> = emptyList(),
+    val letters: List<LetterCount>? = null,
+)
+
+/**
+ * A run of [count] items in title order whose titles start with [letter]: an upper-case letter, or `#` for a digit
+ * or a symbol. The runs follow the items' order, so their counts added up give where each starts.
+ */
+@Serializable data class LetterCount(val letter: String, val count: Int)
 
 /** A row of the library home ([id] is a [Wire.ShelfId] value), for one library when [libraryId] is set. */
 @Serializable data class LibraryShelf(val id: String, val title: String, val items: List<LibraryItem>, val libraryId: String? = null)

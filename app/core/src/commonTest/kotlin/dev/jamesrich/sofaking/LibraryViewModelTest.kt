@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking
 import dev.jamesrich.sofaking.data.FAKE_BASE
 import dev.jamesrich.sofaking.data.IntroSpan
 import dev.jamesrich.sofaking.data.ItemKind
+import dev.jamesrich.sofaking.data.LetterJump
 import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
@@ -135,6 +136,38 @@ class LibraryViewModelTest {
         runCurrent()
         assertEquals(2, server.requests.count { it.contains("/items") })
         assertEquals(listOf("m1", "m2"), model.grid.value!!.items.map { it.id }, "a repeated item shows once")
+    }
+
+    @Test
+    fun `a letter jump loads pages through its first item with the letters from the first page`() = fixture.viewModelTest {
+        var pages = 0
+        val server = RouteServer(this) { _, path, _ ->
+            when (path) {
+                "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+                "/api/v1/libraries/lib/items" -> when (pages++) {
+                    0 -> 200 to """{"items":[${item("m1")}],"total":3,"next":"1","letters":[{"letter":"A","count":1},{"letter":"B","count":1},{"letter":"A","count":1}]}"""
+                    1 -> 200 to """{"items":[${item("m2")}],"total":3,"next":"2"}"""
+                    else -> 200 to """{"items":[${item("m3")}],"total":3}"""
+                }
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+        model.openGrid("lib")
+        runCurrent()
+        assertEquals(listOf(LetterJump("A", 0), LetterJump("B", 1)), model.grid.value!!.letters, "a letter in two runs jumps to its first")
+
+        model.loadThrough(2)
+        runCurrent()
+        assertEquals(listOf("m1", "m2", "m3"), model.grid.value!!.items.map { it.id })
+        assertEquals(listOf(LetterJump("A", 0), LetterJump("B", 1)), model.grid.value!!.letters, "later pages keep the letters")
+        val limits = server.http.requests.filter { it.path == "/api/v1/libraries/lib/items" }.map { it.query.substringAfter("limit=").substringBefore('&') }
+        assertEquals(listOf("60", "62", "61"), limits, "each page asks for what the jump still needs and a page more")
+
+        model.loadThrough(1)
+        runCurrent()
+        assertEquals(3, pages, "an item already in loads nothing")
     }
 
     @Test

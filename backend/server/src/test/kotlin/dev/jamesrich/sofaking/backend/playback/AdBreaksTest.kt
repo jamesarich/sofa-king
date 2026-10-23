@@ -1,10 +1,13 @@
 package dev.jamesrich.sofaking.backend.playback
 
 import dev.jamesrich.sofaking.contract.AdRun
+import java.io.ByteArrayOutputStream
 import java.net.URI
+import java.util.Base64
+import java.util.zip.GZIPOutputStream
 import kotlin.test.*
 
-/** The playlists here are ones Pluto, Tubi, Xumo, Plex and Roku served on 2026-10-22 and 23, with their paths shortened and their tokens removed. */
+/** The playlists here are ones Pluto, Tubi, Xumo, Plex, Roku, Whale and Stirr served on 2026-10-22 and 23, with their paths shortened and their tokens removed. */
 class AdBreaksTest {
     private val plutoBase = URI("https://siloh-ns1.plutotv.net/v2/stitch/hls/channel/5f1ac1f1/master.m3u8")
     private val tubiBase = URI("https://aegis-cloudfront-1.tubi.video/b18a776e/master_5.m3u8")
@@ -225,6 +228,45 @@ https://example.com/osbt/v1/bas/use2/1/2/3/5
 """
         val rokuBase = URI("https://gcp-live-5014-013.delivery.roku.com/00000000-0000-4000-8000-000000000003/t2-origin/out/v1/live_216_low.m3u8")
         assertEquals(listOf(false, true, true, true, false, false), ads(roku, rokuBase))
+    }
+
+    @Test fun `Amagi's beacon segments marked M are ads and those marked C are not`() {
+        fun beacon(type: String, n: Int) =
+            "https://amg00000-example-plex-us-0000.playouts.now.amagi.tv/ts-us-w1-n2/beacon/amg00000-example/0123456789abcdef$n?bcn=0&dur=6.000000&media_type=$type&seen-ad=1&seg_id=$n"
+        val whale = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:40\n" + listOf("C", "M", "M", "C").withIndex().joinToString("") { (n, type) -> "#EXTINF:6.0,\n${beacon(type, n)}\n" }
+        val base = URI("https://amg00000-example-plex-us-0000.playouts.now.amagi.tv/ts-us-w1-n2/playlist/amg00000-example/playlist.m3u8")
+        assertEquals(listOf(false, true, true, false), ads(whale, base))
+        // Plex puts one of its own parts between Amagi's segments; one between two ads belongs to the break.
+        val part = "https://epg.provider.plex.tv/library/parts/0123-4567/segment"
+        val plex = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:7\n" + listOf(beacon("C", 1), part, beacon("M", 2), part, beacon("M", 3), part, beacon("C", 4))
+            .joinToString("") { "#EXTINF:2.0,\n$it\n" }
+        assertEquals(listOf(false, false, true, true, true, false, false), ads(plex, URI("https://epg.provider.plex.tv/library/parts/0123-4567/index.m3u8")))
+        // The same query on another host means nothing.
+        assertEquals(listOf(false), ads("#EXTM3U\n#EXTINF:6.0,\nhttps://example.com/beacon/x?media_type=M\n", base))
+    }
+
+    @Test fun `fuelmedia segments whose token flags an ad break are ads`() {
+        fun token(type: String, adBreak: Boolean): String {
+            val json = """[{"SessionId":"x","SegTag":{"ContentType":"$type","IsAd":false,"IsAdFiller":$adBreak,"IsAdBreak":$adBreak}}]"""
+            val gzip = ByteArrayOutputStream().also { out -> GZIPOutputStream(out).use { it.write(json.toByteArray()) } }.toByteArray()
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(gzip)
+        }
+        val host = "https://streamingengineservice-prod01-v1.fuelmedia.io/play/seg/6S412K288AWS"
+        val stirr = """#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:252570
+#EXTINF:6.0,
+https://kotv.fuelmedia.io/sef/c_00000000-0000-4000-8000-000000000006_v_6S412K288AWS_s_00019.ts
+#EXTINF:6.0,
+$host/${token("live", false)}.ts
+#EXT-X-DISCONTINUITY
+#EXTINF:6.0,
+$host/${token("adFiller", true)}.ts
+#EXTINF:6.0,
+$host/${token("adFiller", true)}.ts
+#EXTINF:6.0,
+$host/not-a-token.ts
+"""
+        assertEquals(listOf(false, false, true, true, false), ads(stirr, URI("https://kotv.fuelmedia.io/play/6S412K288AWS.m3u8")))
     }
 
     @Test fun `a cue-in is noted on the segment after it`() {

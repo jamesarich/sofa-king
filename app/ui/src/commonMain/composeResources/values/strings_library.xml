@@ -36,8 +36,14 @@
     <string name="library_card_menu">More options</string>
     <string name="library_season">Season %1$d</string>
     <string name="library_specials">Specials</string>
-    <string name="library_seasons">%1$d seasons</string>
-    <string name="library_episodes">%1$d episodes</string>
+    <plurals name="library_seasons">
+        <item quantity="one">%1$d season</item>
+        <item quantity="other">%1$d seasons</item>
+    </plurals>
+    <plurals name="library_episodes">
+        <item quantity="one">%1$d episode</item>
+        <item quantity="other">%1$d episodes</item>
+    </plurals>
     <string name="library_unwatched_count">%1$d unwatched</string>
     <string name="library_watched">Watched</string>
     <string name="library_left">%1$s left</string>

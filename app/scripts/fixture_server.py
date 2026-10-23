@@ -31,13 +31,19 @@ NAMES = ['News Now', 'Sofa Sports', 'Movies', 'Kids', 'Local 4', 'Weather', 'Mus
 # The fixture clip's length, and the MPEG-TS packets the endless channels send at a time.
 CLIP_SECONDS = 10
 PIECE = 188 * 64
+# How many segments a live HLS playlist lists.
+LIVE_WINDOW = 5
 
 
 class Upstream(http.server.SimpleHTTPRequestHandler):
     """Serves the fixture files, and /endless/<n>.ts as a live MPEG-TS stream that repeats one clip until the reader goes,
-    at the clip's own pace as a broadcast arrives (a whole clip at once overflows the server's buffer for a new reader)."""
+    at the clip's own pace as a broadcast arrives (a whole clip at once overflows the server's buffer for a new reader),
+    and /live/<n>.m3u8 as a live HLS playlist of the segments in live-<n>/. Every file allows any origin, so a web page
+    can load the guide's images."""
 
     def do_GET(self):
+        if self.path.startswith('/live/'):
+            return self.live()
         if not self.path.startswith('/endless/'):
             return super().do_GET()
         clip = (Path(self.directory) / 'clip.ts').read_bytes()
@@ -57,15 +63,44 @@ class Upstream(http.server.SimpleHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             pass
 
+    def live(self):
+        """/live/<n>.m3u8 as a live HLS playlist that loops the segments in live-<n>/ (each listed with its length in
+        live-<n>/segments.json) as if they had been airing since the epoch, with a discontinuity at each loop."""
+        folder = Path(self.directory) / f'live-{Path(self.path).stem}'
+        if not (folder / 'segments.json').exists():
+            return self.send_error(404)
+        segments = json.loads((folder / 'segments.json').read_text())
+        target = max(seconds for _, seconds in segments)
+        now = int(time.time() / target)
+        first = now - LIVE_WINDOW + 1
+        lines = ['#EXTM3U', '#EXT-X-VERSION:3', f'#EXT-X-TARGETDURATION:{round(target + 0.5)}',
+                 f'#EXT-X-MEDIA-SEQUENCE:{first}', f'#EXT-X-DISCONTINUITY-SEQUENCE:{first // len(segments)}']
+        for number in range(first, now + 1):
+            name, seconds = segments[number % len(segments)]
+            if number % len(segments) == 0 and number != first:
+                lines.append('#EXT-X-DISCONTINUITY')
+            lines += [f'#EXTINF:{seconds:.3f},', f'/live-{Path(self.path).stem}/{name}']
+        body = ('\n'.join(lines) + '\n').encode()
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/vnd.apple.mpegurl')
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Cache-Control', 'no-cache')
+        self.end_headers()
+        self.wfile.write(body)
+
+    def end_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        super().end_headers()
+
     def log_message(self, *args):
         pass
 
 
-def request(base, path, method='GET', body=None):
+def request(base, path, method='GET', body=None, timeout=5):
     data = None if body is None else json.dumps(body).encode()
     req = Request(base + path, data=data, method=method,
                   headers={'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json'})
-    with urlopen(req, timeout=5) as response:
+    with urlopen(req, timeout=timeout) as response:
         content = response.read().decode()
         return json.loads(content) if content else None
 
@@ -84,7 +119,7 @@ def wait_for(what, check, seconds):
         time.sleep(0.5)
 
 
-def fixtures(media, upstream):
+def fixtures(media, upstream, library=None):
     """A ten-second clip for the TS channels, the same clip as HLS for the first channel, an M3U and six hours of guide."""
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=25',
                     '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', str(CLIP_SECONDS), '-c:v', 'libx264',
@@ -109,9 +144,12 @@ def fixtures(media, upstream):
 
 
 @contextlib.contextmanager
-def serve(out, **settings):
+def serve(out, build=fixtures, channels=CHANNELS, libraries=(), **settings):
     """Starts the fixture channels and the server, with its log in <out>/server.log and any further `SOFA_` [settings],
-    and yields the server's base URL once the lineup is adopted; stops both on the way out."""
+    and yields the server's base URL once the lineup is adopted; stops both on the way out. [build] writes the channels'
+    files, playlist and guide into the folder it is given and serves them from the address it is given, the [channels]
+    the lineup then holds, and the server's media folder, which it fills for [libraries]. Each of those, a (name, kind,
+    folder) triple, is added from that folder once the lineup is in, and scanned before this yields."""
     if not SERVER.exists():
         raise SystemExit('Build :server:installDist in backend/ first')
     with tempfile.TemporaryDirectory(prefix='sofa-fixture-') as temporary:
@@ -121,7 +159,9 @@ def serve(out, **settings):
         fixture = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Upstream, directory=str(media)))
         threading.Thread(target=fixture.serve_forever, daemon=True).start()
         upstream = f'http://127.0.0.1:{fixture.server_port}'
-        fixtures(media, upstream)
+        library = directory / 'library'
+        library.mkdir()
+        build(media, upstream, library)
         sources = directory / 'sources.json'
         sources.write_text(json.dumps({'providers': [
             {'id': 'fixture', 'playlistUrl': upstream + '/feed.m3u', 'guideUrl': upstream + '/guide.xml', 'probe': False}]}))
@@ -133,13 +173,16 @@ def serve(out, **settings):
         # keeps no free space, so a full CI disk still records.
         env = dict(os.environ, SOFA_HOST='127.0.0.1', SOFA_PORT=str(port), SOFA_DATA_DIR=str(directory / 'data'),
                    SOFA_SOURCES=str(sources), SOFA_API_TOKEN=TOKEN, SOFA_ALLOW_LOOPBACK_UPSTREAMS='true', SOFA_UPDATE_IMAGE='',
-                   SOFA_RECORDINGS_FREE_GIB='0', **settings)
+                   SOFA_RECORDINGS_FREE_GIB='0', SOFA_MEDIA_DIR=str(library), **settings)
         server_log = (out / 'server.log').open('w')
         server = subprocess.Popen([str(SERVER)], env=env, stdout=server_log, stderr=server_log, start_new_session=True)
         try:
             wait_for('the fixture import', lambda: all(p['lastSuccessAt'] for p in request(base, '/api/v1/providers')), 60)
             request(base, '/api/v1/admin/lineup/adopt', 'POST', {'providerId': 'fixture'})
-            wait_for('the lineup', lambda: len(request(base, '/api/v1/channels')['channels']) == CHANNELS, 30)
+            wait_for('the lineup', lambda: len(request(base, '/api/v1/channels')['channels']) == channels, 30)
+            for name, kind, folder in libraries:
+                added = request(base, '/api/v1/admin/libraries', 'POST', {'name': name, 'kind': kind, 'path': str(library / folder)})
+                request(base, f'/api/v1/admin/libraries/{added["id"]}/scan', 'POST', timeout=300)
             yield base
         finally:
             if server.poll() is None:

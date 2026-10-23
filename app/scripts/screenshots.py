@@ -1,0 +1,361 @@
+#!/usr/bin/env python3
+"""Take the documentation's screenshots of the app on one platform, against the server's installed distribution serving
+the showcase lineup (showcase.py): the guide with its preview, a channel full screen, the Library tab and an item's page,
+as the platform can reach them. Writes <platform>-<screen>.png to --out, with the server log beside them.
+
+Platforms and what each needs besides FFmpeg and the server's distribution (`./gradlew :server:installDist` in backend/):
+
+- web: Playwright for Python and a production web build (`--app ui/build/dist/wasmJs/productionExecutable`); Google
+  Chrome (`--channel chrome`) plays the H.264 that Playwright's own Chromium does not.
+- desktop: the desktop app (`--app` the launcher `:ui:createDistributable` writes) with VLC 3, Xvfb, Openbox, xdotool
+  and ImageMagick; it runs on a display of its own, so nothing shows on yours. Java takes keys only from a window a
+  window manager has focused, hence Openbox.
+- android-tv, android-phone, android-tablet: adb with one booted emulator of that kind and the debug APK (`--app`),
+  which it installs over any earlier one; the settings go in with `run-as`, which only a debug build allows.
+- ios, tvos: one booted simulator (`xcrun simctl`) and the app the Debug build writes (`--app`, a `.app` folder). The
+  simulators take no keys from a script, so these show the guide or channel list, a channel playing and the Library tab.
+"""
+import argparse
+import contextlib
+import functools
+import http.server
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import xml.etree.ElementTree as ElementTree
+
+from fixture_server import TOKEN, request, serve, wait_for
+import showcase
+
+PACKAGE = 'dev.jamesrich.sofaking'
+# Settings every platform starts with: nothing opens full screen or plays sound by itself, and the info bar's key legend
+# is already used up.
+SETTINGS = {'auto_open_delay': 'OFF', 'preview_sound': False, 'key_legend_shown': 3}
+# The guide's preview starts after 350 ms and needs a few seconds of stream before its first frame.
+PREVIEW_SECONDS = 8
+
+
+def showcase_server(out, images=None, **settings):
+    """The fixture server with the showcase lineup and libraries and any further `SOFA_` [settings]; [images] maps the
+    fixture's address to the one the app loads the programs' images from."""
+    cache = showcase.prepare()
+    build = lambda media, upstream, library: showcase.build(media, upstream, library, cache, images and images(upstream))
+    return serve(out, build=build, channels=len(showcase.CHANNELS), libraries=showcase.LIBRARIES, **settings)
+
+
+class App:
+    """One start of the app, as the tour drives it: [keys] presses keys by their web names, [tap] taps the item a text
+    or description names (None for the middle of the screen), [shoot] saves the screen under a name, and [touch] says
+    the platform is driven by touch rather than keys; [preview] says its guide plays the focused channel. A platform
+    without keys or taps leaves them None, and the tour takes another way or skips the screen."""
+
+    def __init__(self, shoot, keys=None, tap=None, touch=False, preview=True):
+        self.shoot, self.keys, self.tap, self.touch, self.preview = shoot, keys, tap, touch, preview
+
+
+def wait_for_session(base, seconds=60):
+    wait_for('a playback session', lambda: [s for s in request(base, '/api/v1/admin/sessions') if not s['external']], seconds)
+
+
+# Web
+
+
+class Static(http.server.SimpleHTTPRequestHandler):
+    """The web build's files, with WebAssembly's type, which streaming compilation insists on."""
+    extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, '.wasm': 'application/wasm', '.mjs': 'text/javascript'}
+
+    def log_message(self, *args):
+        pass
+
+
+def web(args, out):
+    from playwright.sync_api import sync_playwright
+
+    static = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Static, directory=args.app))
+    threading.Thread(target=static.serve_forever, daemon=True).start()
+    page_url = f'http://127.0.0.1:{static.server_port}/'
+    width, height = args.size
+    with showcase_server(out, SOFA_CORS_ORIGINS=page_url.rstrip('/')) as base, sync_playwright() as playwright:
+        browser = playwright.chromium.launch(channel=args.channel, args=['--mute-audio', '--autoplay-policy=no-user-gesture-required'])
+
+        @contextlib.contextmanager
+        def start(**extra):
+            """A fresh page, paired and set up with [extra] settings, as keys to press and a camera."""
+            context = browser.new_context(viewport={'width': width, 'height': height}, device_scale_factor=args.scale)
+            page = context.new_page()
+            page.on('pageerror', lambda error: print(f'page error: {error}', file=sys.stderr))
+            settings = {'backend_url': base, 'api_token': TOKEN, **SETTINGS, **extra}
+            typed = {name: {'t': 'b' if isinstance(v, bool) else 'i' if isinstance(v, int) else 's', 'v': v} for name, v in settings.items()}
+            # Paired as a build before DataStore kept its settings: the app moves them over on its first read.
+            page.add_init_script(f'localStorage.getItem("sofaking.preferences") || localStorage.setItem("sofaking.settings", {json.dumps(json.dumps(typed))})')
+            page.goto(page_url)
+
+            def keys(*names):
+                for name in names:
+                    page.keyboard.press(name)
+                    page.wait_for_timeout(400)
+            try:
+                yield App(lambda name: page.screenshot(path=str(out / f'{args.name}-{name}.png')), keys)
+            finally:
+                context.close()
+
+        tour(base, start)
+        browser.close()
+
+
+# Desktop
+
+
+def preferences_pb(settings):
+    """The settings as DataStore's preferences file: a protobuf map of name to a Value of one type."""
+    def varint(n):
+        out = bytearray()
+        while True:
+            byte, n = n & 0x7F, n >> 7
+            out.append(byte | (0x80 if n else 0))
+            if not n:
+                return bytes(out)
+
+    def field(number, wire, payload):
+        return varint(number << 3 | wire) + (varint(len(payload)) + payload if wire == 2 else payload)
+
+    body = b''
+    for name, value in settings.items():
+        if isinstance(value, bool):
+            encoded = field(1, 0, varint(int(value)))
+        elif isinstance(value, int):
+            encoded = field(3, 0, varint(value))
+        else:
+            encoded = field(5, 2, value.encode())
+        body += field(1, 2, field(1, 2, name.encode()) + field(2, 2, encoded))
+    return body
+
+
+DESKTOP_KEYS = {'ArrowUp': 'Up', 'ArrowDown': 'Down', 'ArrowLeft': 'Left', 'ArrowRight': 'Right', 'Enter': 'Return', 'Escape': 'Escape'}
+
+
+def desktop(args, out):
+    width, height = args.size
+    display = ':57'
+    screen = f'{int(width * args.scale) + 64}x{int(height * args.scale) + 64}x24'
+    xvfb = subprocess.Popen(['Xvfb', display, '-screen', '0', screen, '-nolisten', 'tcp'])
+    time.sleep(1)
+    manager = subprocess.Popen(['openbox'], env=dict(os.environ, DISPLAY=display), stderr=subprocess.DEVNULL)
+    try:
+        with showcase_server(out) as base:
+            @contextlib.contextmanager
+            def start(**extra):
+                """The app on a fresh data folder, paired and set up with [extra] settings, as keys and a camera."""
+                with tempfile.TemporaryDirectory(prefix='sofa-desktop-') as home:
+                    data = Path(home) / 'sofa-king/datastore'
+                    data.mkdir(parents=True)
+                    settings = {'backend_url': base, 'api_token': TOKEN, **SETTINGS, **extra}
+                    (data / 'settings.preferences_pb').write_bytes(preferences_pb(settings))
+                    env = dict(os.environ, DISPLAY=display, XDG_DATA_HOME=home, HOSTNAME='Sofa King showcase',
+                               JAVA_TOOL_OPTIONS=f'-Dsun.java2d.uiScale={args.scale}')
+                    app = subprocess.Popen([args.app], env=env, stdout=(out / 'desktop.log').open('a'), stderr=subprocess.STDOUT)
+                    try:
+                        search = ['xdotool', 'search', '--onlyvisible', '--name', '^Sofa King$']
+                        window = wait_for('the window', lambda: subprocess.run(search, env=env, capture_output=True, text=True).stdout.split()[-1:], 60)[0]
+                        xdotool = lambda *a: subprocess.run(['xdotool', *map(str, a)], env=env, check=True)
+                        xdotool('windowmove', window, 0, 0)
+                        xdotool('windowsize', window, int(width * args.scale), int(height * args.scale))
+                        xdotool('windowactivate', '--sync', window)
+
+                        def keys(*names):
+                            for name in names:
+                                xdotool('key', DESKTOP_KEYS.get(name, name))
+                                time.sleep(0.4)
+
+                        yield App(lambda name: subprocess.run(['import', '-window', window, str(out / f'{args.name}-{name}.png')], env=env, check=True), keys)
+                    finally:
+                        app.terminate()
+                        app.wait(timeout=15)
+
+            tour(base, start)
+    finally:
+        manager.terminate()
+        xvfb.terminate()
+
+
+# Android
+
+
+ANDROID_KEYS = {'ArrowUp': 'KEYCODE_DPAD_UP', 'ArrowDown': 'KEYCODE_DPAD_DOWN', 'ArrowLeft': 'KEYCODE_DPAD_LEFT',
+                'ArrowRight': 'KEYCODE_DPAD_RIGHT', 'Enter': 'KEYCODE_DPAD_CENTER', 'Escape': 'KEYCODE_BACK'}
+
+
+def adb(*args, data=None, timeout=60):
+    return subprocess.run(['adb', *args], input=data, check=True, capture_output=True, timeout=timeout).stdout
+
+
+def android(args, out):
+    """The emulator reaches the host as 10.0.2.2, the server and the guide's images both."""
+    emulated = lambda address: address.replace('127.0.0.1', '10.0.2.2')
+    adb('install', '-r', '-g', args.app, timeout=300)
+    # The status bar as the demo mode keeps it: no notifications, a full battery and signal.
+    adb('shell', 'settings', 'put', 'global', 'sysui_demo_allowed', '1')
+    for command in (['enter'], ['notifications', '-e', 'visible', 'false'], ['battery', '-e', 'level', '100', '-e', 'plugged', 'false'],
+                    ['network', '-e', 'wifi', 'show', '-e', 'level', '4'], ['network', '-e', 'mobile', 'hide']):
+        adb('shell', 'am', 'broadcast', '-a', 'com.android.systemui.demo', '-e', 'command', *command)
+    tv = args.platform == 'android-tv'
+    with showcase_server(out, images=emulated) as base:
+        @contextlib.contextmanager
+        def start(**extra):
+            """The app from a cold start, paired and set up with [extra] settings."""
+            settings = {'backend_url': emulated(base), 'api_token': TOKEN, **SETTINGS, **extra}
+            # A fresh files folder, so nothing the last start saved carries over; clearing the app would take back its
+            # permissions.
+            adb('exec-in', f'run-as {PACKAGE} sh -c "rm -rf files && mkdir -p files/datastore && cat > files/datastore/settings.preferences_pb"',
+                data=preferences_pb(settings))
+            adb('shell', 'am', 'start', '-W', '-n', f'{PACKAGE}/.MainActivity', timeout=120)
+
+            def keys(*names):
+                for name in names:
+                    adb('shell', 'input', 'keyevent', ANDROID_KEYS.get(name, name))
+                    time.sleep(0.4)
+
+            def tap(text):
+                if text is None:
+                    size = re.search(rb'(\d+)x(\d+)', adb('shell', 'wm', 'size').splitlines()[-1])
+                    return adb('shell', 'input', 'tap', str(int(size[1]) // 2), str(int(size[2]) // 2))
+                # The first clickable item whose text or description starts with [text].
+                adb('shell', 'uiautomator', 'dump', '/data/local/tmp/screen.xml')
+                tree = ElementTree.fromstring(adb('exec-out', 'cat', '/data/local/tmp/screen.xml'))
+                named = lambda node: any((node.get(a) or '').startswith(text) for a in ('text', 'content-desc'))
+                nodes = [n for n in tree.iter('node') if named(n)]
+                if not nodes:
+                    raise SystemExit(f'Nothing on screen reads {text!r}')
+                clickable = [n for n in tree.iter('node') if n.get('clickable') == 'true' and any(named(c) for c in n.iter('node'))]
+                left, top, right, bottom = map(int, re.findall(r'\d+', (clickable or nodes)[-1].get('bounds')))
+                adb('shell', 'input', 'tap', str((left + right) // 2), str((top + bottom) // 2))
+
+            try:
+                # The TV is driven by the remote's keys; a tap still reaches a library item, more surely than keys
+                # through the TV's own layout.
+                yield App(lambda name: (out / f'{args.name}-{name}.png').write_bytes(adb('exec-out', 'screencap', '-p')),
+                          keys, tap, touch=not tv)
+            finally:
+                adb('shell', 'am', 'force-stop', PACKAGE)
+
+        tour(base, start)
+    adb('shell', 'am', 'broadcast', '-a', 'com.android.systemui.demo', '-e', 'command', 'exit')
+
+
+# iOS and Apple TV
+
+
+def simctl(*args, data=None, timeout=120):
+    return subprocess.run(['xcrun', 'simctl', *args], input=data, check=True, capture_output=True, timeout=timeout).stdout
+
+
+def apple(args, out):
+    """The simulator shares the host's network, so the server's own address works. The iOS app keeps its settings in a
+    DataStore file in Application Support, the Apple TV app in its user defaults."""
+    tv = args.platform == 'tvos'
+    bundle = PACKAGE + ('.tv' if tv else '')
+    simctl('install', 'booted', args.app, timeout=300)
+    if not tv:
+        simctl('status_bar', 'booted', 'override', '--time', '9:41', '--batteryState', 'charged', '--batteryLevel', '100',
+               '--wifiBars', '3', '--cellularMode', 'notSupported')
+    with showcase_server(out) as base:
+        @contextlib.contextmanager
+        def start(**extra):
+            subprocess.run(['xcrun', 'simctl', 'terminate', 'booted', bundle], capture_output=True)
+            settings = preferences_pb({'backend_url': base, 'api_token': TOKEN, **SETTINGS, **extra})
+            if tv:
+                simctl('spawn', 'booted', 'defaults', 'write', bundle, 'sofaking.preferences', '-data', settings.hex())
+            else:
+                container = Path(simctl('get_app_container', 'booted', bundle, 'data').decode().strip())
+                data = container / 'Library/Application Support/datastore'
+                data.mkdir(parents=True, exist_ok=True)
+                (data / 'settings.preferences_pb').write_bytes(settings)
+            simctl('launch', 'booted', bundle)
+            if tv and extra.get('startup') == 'CHANNEL':
+                # The Apple TV app has no channel to start on; the Top Shelf's link opens one.
+                time.sleep(5)
+                simctl('openurl', 'booted', f'sofaking://channel/{extra["startup_channel"]}')
+            try:
+                # The Apple TV's channel list has no preview.
+                yield App(lambda name: simctl('io', 'booted', 'screenshot', str(out / f'{args.name}-{name}.png')), preview=not tv)
+            finally:
+                simctl('terminate', 'booted', bundle)
+
+        tour(base, start)
+    if not tv:
+        simctl('status_bar', 'booted', 'clear')
+
+
+def tour(base, start):
+    """The guide with its preview, a channel full screen, the Library tab, a show's page and a movie's page: by keys
+    where the platform is driven by keys, by taps where it takes them, and otherwise as far as settings reach."""
+    with start(startup='GUIDE') as app:
+        if app.preview:
+            wait_for_session(base)
+        time.sleep(PREVIEW_SECONDS)
+        app.shoot('guide')
+        by_keys = app.keys and not app.touch
+        if by_keys:
+            app.keys('Enter')
+            # OK on a playing channel brings up its info bar.
+            time.sleep(6)
+            app.keys('Enter')
+            time.sleep(1.5)
+            app.shoot('player')
+    if not by_keys:
+        channel = request(base, '/api/v1/channels')['channels'][0]['guideId']
+        with start(startup='CHANNEL', startup_channel=channel) as app:
+            wait_for_session(base)
+            time.sleep(PREVIEW_SECONDS)
+            if app.touch:
+                # A tap on the picture brings up the controls.
+                app.tap(None)
+                time.sleep(1.5)
+            app.shoot('player')
+    with start(startup='LIBRARY', last_tab='LIBRARY') as app:
+        time.sleep(8)
+        app.shoot('library')
+        if not app.keys:
+            return
+        if app.tap:
+            app.tap(showcase.SHOW['title'])
+        else:
+            # A start on the Library tab focuses the tab in the rail; Right reaches the chips, Down the shelves.
+            app.keys('ArrowRight', 'ArrowDown', 'ArrowDown', 'Enter')
+        time.sleep(4)
+        app.shoot('show')
+        app.keys('Escape')
+        time.sleep(2)
+        if app.tap:
+            app.tap(showcase.FILMS['bbb']['title'])
+        else:
+            app.keys('ArrowUp', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'Enter')
+        time.sleep(4)
+        app.shoot('movie')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument('platform', choices=['web', 'desktop', 'android-tv', 'android-phone', 'android-tablet', 'ios', 'tvos'])
+    parser.add_argument('--app', help='the build to run: a web build folder, the desktop launcher or the APK')
+    parser.add_argument('--out', required=True)
+    parser.add_argument('--channel', help='the browser Playwright runs by channel, such as chrome')
+    parser.add_argument('--size', default='1280x720', type=lambda s: tuple(map(int, s.split('x'))), help='window size in points')
+    parser.add_argument('--scale', default=2.0, type=float, help='pixels per point')
+    parser.add_argument('--name', help='the files\' prefix in place of the platform, such as ipad')
+    args = parser.parse_args()
+    args.name = args.name or args.platform
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    driver = {'web': web, 'desktop': desktop, 'ios': apple, 'tvos': apple}.get(args.platform, android)
+    driver(args, out)
+
+
+if __name__ == '__main__':
+    main()

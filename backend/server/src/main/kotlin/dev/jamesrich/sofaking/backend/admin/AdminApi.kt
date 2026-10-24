@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.admin
 
 import kotlinx.html.A
+import kotlinx.html.FlowContent
 import kotlinx.html.a
 import kotlinx.html.body
 import kotlinx.html.classes
@@ -93,65 +94,13 @@ internal fun parseApiReference(json: String): ApiReference {
     val tags = root["tags"]?.jsonArray.orEmpty().map { it.jsonObject }
     val operations = root.getValue("paths").jsonObject.flatMap { (path, item) ->
         val byMethod = item.jsonObject
-        METHODS.mapNotNull { method ->
-            val op = byMethod[method]?.jsonObject ?: return@mapNotNull null
-            val security = op["security"]?.jsonArray?.flatMap { it.jsonObject.keys }
-            val parameters = op["parameters"]?.jsonArray.orEmpty().map {
-                it.jsonObject.resolve(root)
-            }.map { parameter ->
-                val schema = parameter["schema"] as? JsonObject
-                val range =
-                    listOfNotNull(
-                        schema?.text("minimum")?.let {
-                            "min $it"
-                        },
-                        schema?.text("maximum")?.let { "max $it" },
-                        schema?.text("default")?.let { "default $it" },
-                    )
-                val values = schema?.get("enum")?.jsonArray?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
-                buildString {
-                    append(parameter.text("name"))
-                    append(" (").append(parameter.text("in"))
-                    if (parameter["required"]?.jsonPrimitive?.booleanOrNull == true) append(", required")
-                    append(")")
-                    parameter.text("description")?.let { append(": ").append(it) }
-                    if (!values.isNullOrEmpty()) append(": ").append(values.joinToString(" | "))
-                    if (range.isNotEmpty()) append(" [").append(range.joinToString(", ")).append("]")
-                }
-            }
-            val body = op["requestBody"]?.jsonObject?.get(
-                "content",
-            )?.jsonObject?.values?.firstOrNull()?.jsonObject?.get("schema")?.let {
-                schemaName(it.jsonObject)
-            }
-            val responses = op["responses"]?.jsonObject.orEmpty().map { (status, response) ->
-                val resolved = response.jsonObject.resolve(root)
-                val schema = resolved["content"]?.jsonObject?.values?.firstOrNull()?.jsonObject?.get("schema")?.let {
-                    schemaName(it.jsonObject)
-                }
-                status to
-                    listOfNotNull(resolved.text("description")?.takeIf { it.isNotEmpty() }, schema).joinToString(": ")
-            }
-            ApiOperation(
-                method.uppercase(), path, op.text("summary").orEmpty(), op.text("description"),
-                op["tags"]?.jsonArray?.map {
-                    it.jsonPrimitive.content
-                }.orEmpty(),
-                when {
-                    security == null -> listOf("inherited")
-                    security.isEmpty() -> emptyList()
-                    else -> security
-                },
-                parameters, body, responses,
-            )
-        }
+        METHODS.mapNotNull { method -> byMethod[method]?.jsonObject?.let { operationOf(root, path, method, it) } }
     }
+    val untagged = operations.filter { op -> tags.none { it.text("name") in op.tags } }
     val sections = tags.map { tag ->
         val name = tag.text("name").orEmpty()
         ApiSection(name, tag.text("description"), operations.filter { name in it.tags })
-    } + operations.filter { op ->
-        tags.none { it.text("name") in op.tags }
-    }.takeIf { it.isNotEmpty() }?.let { listOf(ApiSection("Other", null, it)) }.orEmpty()
+    } + untagged.takeIf { it.isNotEmpty() }?.let { listOf(ApiSection("Other", null, it)) }.orEmpty()
     return ApiReference(
         info.text("title").orEmpty(),
         info.text("version").orEmpty(),
@@ -159,6 +108,51 @@ internal fun parseApiReference(json: String): ApiReference {
         sections,
         json,
     )
+}
+
+private fun operationOf(root: JsonObject, path: String, method: String, op: JsonObject): ApiOperation {
+    val security = op["security"]?.jsonArray?.flatMap { it.jsonObject.keys }
+    val parameters = op["parameters"]?.jsonArray.orEmpty().map { parameterText(it.jsonObject.resolve(root)) }
+    val body = op["requestBody"]?.jsonObject?.let(::contentSchema)
+    val responses = op["responses"]?.jsonObject.orEmpty().map { (status, response) ->
+        val resolved = response.jsonObject.resolve(root)
+        val description = resolved.text("description")?.takeIf { it.isNotEmpty() }
+        status to listOfNotNull(description, contentSchema(resolved)).joinToString(": ")
+    }
+    return ApiOperation(
+        method.uppercase(), path, op.text("summary").orEmpty(), op.text("description"),
+        op["tags"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty(),
+        when {
+            security == null -> listOf("inherited")
+            security.isEmpty() -> emptyList()
+            else -> security
+        },
+        parameters, body, responses,
+    )
+}
+
+/** The name of the schema of a request body's or response's first content type. */
+private fun contentSchema(holder: JsonObject): String? =
+    holder["content"]?.jsonObject?.values?.firstOrNull()?.jsonObject?.get("schema")?.let { schemaName(it.jsonObject) }
+
+/** A parameter as "name (in, required): description: a | b [min 1, max 9, default 5]". */
+private fun parameterText(parameter: JsonObject): String {
+    val schema = parameter["schema"] as? JsonObject
+    val range = listOfNotNull(
+        schema?.text("minimum")?.let { "min $it" },
+        schema?.text("maximum")?.let { "max $it" },
+        schema?.text("default")?.let { "default $it" },
+    )
+    val values = schema?.get("enum")?.jsonArray?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+    return buildString {
+        append(parameter.text("name"))
+        append(" (").append(parameter.text("in"))
+        if (parameter["required"]?.jsonPrimitive?.booleanOrNull == true) append(", required")
+        append(")")
+        parameter.text("description")?.let { append(": ").append(it) }
+        if (!values.isNullOrEmpty()) append(": ").append(values.joinToString(" | "))
+        if (range.isNotEmpty()) append(" [").append(range.joinToString(", ")).append("]")
+    }
 }
 
 internal fun apiPage(chrome: Chrome, reference: ApiReference): String = layout("API", chrome, "/admin/api") {
@@ -181,62 +175,49 @@ internal fun apiPage(chrome: Chrome, reference: ApiReference): String = layout("
         attributes["aria-label"] = "Sections"
         div("chips") {
             for (section in reference.sections) {
-                a(
-                    "#api-${section.tag.lowercase().replace(' ', '-')}",
-                    classes = "btn small quiet",
-                ) {
-                    +section.tag
-                }
+                a("#${anchorOf(section)}", classes = "btn small quiet") { +section.tag }
             }
         }
     }
     for (section in reference.sections) {
-        panel(section.tag, id = "api-${section.tag.lowercase().replace(' ', '-')}") {
+        panel(section.tag, id = anchorOf(section)) {
             if (section.description != null) p("muted small") { +section.description }
-            for (op in section.operations) {
-                div("api-op") {
-                    span("method") { +op.method }
-                    span("path") {
-                        code { +op.path }
-                        +" "
-                        +op.summary
-                    }
-                    div("detail") {
-                        if (op.description != null) p("mt-0") { +op.description }
-                        ul {
-                            li {
-                                +"Takes: "
-                                +(
-                                    if (op.security.isEmpty()) {
-                                        "no token"
-                                    } else {
-                                        op.security.joinToString {
-                                            it.replace("Token", " token")
-                                        }
-                                    }
-                                    )
-                            }
-                            if (op.parameters.isNotEmpty()) {
-                                li {
-                                    +"Parameters: "
-                                    +op.parameters.joinToString("; ")
-                                }
-                            }
-                            if (op.requestBody != null) {
-                                li {
-                                    +"Body: "
-                                    +op.requestBody
-                                }
-                            }
-                            li {
-                                +"Answers: "
-                                +op.responses.joinToString("; ") { (status, text) ->
-                                    if (text.isEmpty()) status else "$status $text"
-                                }
-                            }
-                        }
-                    }
+            for (op in section.operations) apiOperation(op)
+        }
+    }
+}
+
+private fun anchorOf(section: ApiSection) = "api-${section.tag.lowercase().replace(' ', '-')}"
+
+private fun FlowContent.apiOperation(op: ApiOperation) = div("api-op") {
+    span("method") { +op.method }
+    span("path") {
+        code { +op.path }
+        +" "
+        +op.summary
+    }
+    div("detail") {
+        if (op.description != null) p("mt-0") { +op.description }
+        ul {
+            li {
+                +"Takes: "
+                +(if (op.security.isEmpty()) "no token" else op.security.joinToString { it.replace("Token", " token") })
+            }
+            if (op.parameters.isNotEmpty()) {
+                li {
+                    +"Parameters: "
+                    +op.parameters.joinToString("; ")
                 }
+            }
+            if (op.requestBody != null) {
+                li {
+                    +"Body: "
+                    +op.requestBody
+                }
+            }
+            li {
+                +"Answers: "
+                +op.responses.joinToString("; ") { (status, text) -> if (text.isEmpty()) status else "$status $text" }
             }
         }
     }

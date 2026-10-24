@@ -184,4 +184,4 @@ internal class RecordingPages(private val portal: Portal) {
 }
 
 /** A manual recording's length, up to 12 hours. */
-private val MANUAL_MINUTES = 1..720
+internal val MANUAL_MINUTES = 1..720

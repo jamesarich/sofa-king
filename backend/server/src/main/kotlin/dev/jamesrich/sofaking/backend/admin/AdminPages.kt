@@ -1,10 +1,6 @@
 package dev.jamesrich.sofaking.backend.admin
 
-import dev.jamesrich.sofaking.backend.GIB
-import dev.jamesrich.sofaking.backend.KIB
-import dev.jamesrich.sofaking.backend.MIB
 import kotlinx.html.A
-import kotlinx.html.B
 import kotlinx.html.ButtonType
 import kotlinx.html.FORM
 import kotlinx.html.FormMethod
@@ -30,9 +26,6 @@ import kotlinx.html.s
 import kotlinx.html.source
 import kotlinx.html.span
 import kotlinx.html.table
-import kotlinx.html.time
-import java.time.Duration
-import java.time.Instant
 
 /** Where the docs an attention item links live: this repository's backend docs, by file and heading. */
 internal const val DOCS_BASE = "https://github.com/jamesarich/sofa-king/blob/main/backend/docs/"
@@ -76,27 +69,6 @@ internal fun signInPage(enabled: Boolean, error: String? = null, theme: String? 
             }
         }
     }
-
-/** A running time as "12 min" or "2 h 5 min"; [startedAt] is an instant. */
-internal fun since(startedAt: String, now: Instant): String {
-    val from = runCatching { Instant.parse(startedAt) }.getOrNull() ?: return ""
-    return hoursAndMinutes(Duration.between(from, now).coerceAtLeast(Duration.ZERO))
-}
-
-/** A length of time as "3 h 12 min", "7 min" or "40 s". */
-internal fun hoursAndMinutes(duration: Duration): String = when {
-    duration.toHours() > 0 -> "${duration.toHours()} h ${duration.toMinutesPart()} min"
-    duration.toMinutes() > 0 -> "${duration.toMinutes()} min"
-    else -> "${duration.seconds} s"
-}
-
-/** A byte count as "1.2 GB", "340 MB", "12 KB" or "0 B". */
-internal fun bytesText(bytes: Long): String = when {
-    bytes >= GIB -> "%.1f GB".format(java.util.Locale.US, bytes.toDouble() / GIB)
-    bytes >= MIB -> "${bytes / MIB} MB"
-    bytes >= KIB -> "${bytes / KIB} KB"
-    else -> "$bytes B"
-}
 
 /** What a share is multiplied by to read as a percentage. */
 internal const val PERCENT = 100

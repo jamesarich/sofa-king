@@ -98,7 +98,7 @@ struct BreakScreen: View {
 
     /// The line under the countdown: the break's own, or one for a break of unknown length or one nearly over.
     private var line: String {
-        guard let remainingMs else { return "Nobody told us how long. Rude." }
+        guard let remainingMs else { return "Counting down as soon as we know how long." }
         return remainingMs <= 10_000 ? "Places, everyone. Feet up." : quip
     }
 

@@ -9,8 +9,9 @@ import kotlin.time.TimeSource
  * The break on screen, from the readings a player gives every poll. A reading can lose a break for a moment (Media3
  * between playlists, a stream retried after a hiccup, a missed answer from the server), so a break that still had time
  * on its countdown, or had no known end, stays up until that time is up, for at most [GAP] after it was last seen.
- * [over] tells when it has been gone that long: until then a break that comes back is the same one, and OK or Back
- * still holds the picture over it.
+ * A reading can also lose the break's end but not the break (a window that no longer holds its cue), so the break
+ * keeps the countdown it had until that runs out. [over] tells when it has been gone that long: until then a break
+ * that comes back is the same one, and OK or Back still holds the picture over it.
  */
 class BreakWatch internal constructor(private val timeSource: TimeSource) {
     constructor() : this(TimeSource.Monotonic)
@@ -35,7 +36,10 @@ class BreakWatch internal constructor(private val timeSource: TimeSource) {
             frozen = null
         }
         return when {
-            found != null -> found.also(::see)
+            found != null -> {
+                val counting = left(ends).takeIf { found.remainingMs == null && !over && it?.remainingMs != null }
+                (counting ?: found).also(::see)
+            }
 
             over -> {
                 seen = null

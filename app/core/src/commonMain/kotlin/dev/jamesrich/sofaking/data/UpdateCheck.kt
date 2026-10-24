@@ -23,7 +23,12 @@ data class PublishedBuild(
     val apkUrl: String?,
     /** The package's SHA-256 in lowercase hex, from the digest GitHub records for the asset; null when it records none. */
     val apkSha256: String? = null,
+    /** The user-facing changes of the recent snapshots, newest first, read from the release notes. */
+    val notes: List<ReleaseNote> = emptyList(),
 )
+
+/** One line of a snapshot's release notes: a new feature, or a fix when [fix] is set, in the build numbered [run]. */
+data class ReleaseNote(val run: Int, val fix: Boolean, val text: String)
 
 /** How the running build compares with the published one. */
 sealed interface UpdateState {
@@ -32,8 +37,8 @@ sealed interface UpdateState {
     /** The running build is the published one, or newer. */
     data class UpToDate(val latest: PublishedBuild) : UpdateState
 
-    /** A newer snapshot is published. */
-    data class Available(val latest: PublishedBuild) : UpdateState
+    /** A newer snapshot is published; [changes] are its notes for the builds newer than the running one. */
+    data class Available(val latest: PublishedBuild, val changes: List<ReleaseNote> = emptyList()) : UpdateState
 
     /** The running build is not a snapshot (a local or release build), so there is nothing to compare; [latest] is shown as is. */
     data class Unknown(val latest: PublishedBuild) : UpdateState
@@ -68,6 +73,7 @@ class UpdateChecker(
             pageUrl = release.htmlUrl,
             apkUrl = apk?.url,
             apkSha256 = apk?.digest?.let(::sha256Hex),
+            notes = releaseNotes(release.body),
         )
     }
 
@@ -76,6 +82,7 @@ class UpdateChecker(
         val name: String = "",
         @SerialName("tag_name") val tagName: String = "",
         @SerialName("html_url") val htmlUrl: String = "",
+        val body: String? = null,
         val assets: List<AssetDto> = emptyList(),
     )
 
@@ -98,7 +105,39 @@ class UpdateChecker(
         fun compare(running: String, latest: PublishedBuild): UpdateState {
             val mine = runNumber(running) ?: return UpdateState.Unknown(latest)
             val theirs = latest.run ?: return UpdateState.Unknown(latest)
-            return if (theirs > mine) UpdateState.Available(latest) else UpdateState.UpToDate(latest)
+            if (theirs <= mine) return UpdateState.UpToDate(latest)
+            return UpdateState.Available(latest, latest.notes.filter { it.run > mine })
+        }
+
+        /**
+         * The notes `publish-snapshot.yml` writes with `.github/cliff.toml`: a `## <version>` section per recent snapshot,
+         * `### New` and `### Fixes` within it, and a `- scope: summary (#123)` line per change. The scope and the pull
+         * request are dropped, since neither means anything on a TV; lines outside a numbered section are skipped.
+         */
+        fun releaseNotes(body: String?): List<ReleaseNote> {
+            var section: Int? = null
+            var fix: Boolean? = null
+            val notes = mutableListOf<ReleaseNote>()
+            for (line in body.orEmpty().lineSequence().map { it.trimEnd() }) {
+                when {
+                    line.startsWith("## ") -> {
+                        section = runNumber(line.removePrefix("## ").trim())
+                        fix = null
+                    }
+                    line.startsWith("### ") -> fix = when (line.removePrefix("### ").trim()) {
+                        "New" -> false
+                        "Fixes" -> true
+                        else -> null
+                    }
+                    else -> {
+                        val build = section ?: continue
+                        val isFix = fix ?: continue
+                        val text = NOTE.matchEntire(line)?.groupValues?.get(1) ?: continue
+                        notes += ReleaseNote(build, isFix, text)
+                    }
+                }
+            }
+            return notes
         }
 
         /** The hex of a `sha256:<hex>` asset digest, lowercased, or null for any other algorithm or shape. */
@@ -106,6 +145,7 @@ class UpdateChecker(
             digest.removePrefix("sha256:").takeIf { it != digest && SHA256.matches(it) }?.lowercase()
 
         private val SHA256 = Regex("[0-9a-fA-F]{64}")
+        private val NOTE = Regex("""- (?:[a-z][a-z0-9,-]*: )?(.+?)(?: \(#\d+\))?""")
         private val RUN = Regex("""-dev\.(\d+)(?:\+|$)""")
     }
 }

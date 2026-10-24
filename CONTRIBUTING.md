@@ -32,7 +32,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): 
 - Server: the package or area, such as `providers`, `policy`, `hdhr`, `logos`, `playback`, `admin`, `server` or `backend`.
 - Anywhere: `build` and `ci` for the builds and workflows, `deps` for Renovate's dependency updates, and `docs` for documentation-only changes.
 
-The squash-merge title is the release note: the `snapshot` release lists every `feat`, `fix` and `perf` title since the previous snapshot, rendered by [git-cliff](https://git-cliff.org) with `.github/cliff.toml`, so write the summary for someone using the app or the server. Other types stay out of the notes.
+The squash-merge title is the release note: the `snapshot` release lists every `feat`, `fix` and `perf` title since the previous snapshot, rendered by [git-cliff](https://git-cliff.org) with `.github/cliff.toml`, so write the summary for someone using the app or the server. The app's update check shows the same lines, without the scope and the pull request, as What's new. Other types stay out of the notes.
 
 ## Pull requests
 
@@ -69,7 +69,7 @@ Versions are pinned exactly in the shared catalog, with no lockfiles or verifica
 - `apple` runs the data layer's tests on iOS, macOS, tvOS and watchOS simulators and, outside pull requests, the UI's iOS tests, links the iOS framework, builds the SwiftUI host in `app/iosApp` with XcodeGen and `xcodebuild`, and runs the [iOS touch tests](app/docs/development.md#ios-touch-tests), on macOS.
 - `apple-tv` links the tvOS framework, builds the SwiftUI host in `app/tvosApp` and runs the [Apple TV remote tests](app/docs/development.md#apple-tv-remote-tests) on a second macOS runner, so they run beside `apple` rather than after it.
 - `snapshot` runs for a push to `main`, alongside the three checks. It calls `snapshot.yml`, which builds every platform but iOS and Apple TV as [CI and snapshots](app/docs/development.md#ci-and-snapshots) describes. `snapshot.yml` also runs on its own from the Actions tab, where it publishes by itself.
-- `publish` runs once the checks and the packages are all green. It calls `publish-snapshot.yml`, which replaces the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot) with the packages the run uploaded, signed as a flat apt repository when the `APT_SIGNING_KEY` secret is set. Its notes list the user-facing commits since the release it replaces.
+- `publish` runs once the checks and the packages are all green. It calls `publish-snapshot.yml`, which replaces the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot) with the packages the run uploaded, signed as a flat apt repository when the `APT_SIGNING_KEY` secret is set. Its notes add a section of the user-facing commits since the release it replaces above that release's sections, keeping the last 20 snapshots.
 
 Ubuntu packages (FFmpeg, Comskip, libVLC) come through `.github/actions/apt-install`, which keeps the downloaded `.deb` files in the Actions cache per runner image: the runners' Ubuntu mirror sometimes takes half an hour for FFmpeg.
 

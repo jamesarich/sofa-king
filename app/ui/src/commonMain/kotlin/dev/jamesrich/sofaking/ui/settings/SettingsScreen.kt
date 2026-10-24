@@ -50,6 +50,7 @@ import dev.jamesrich.sofaking.PairingFailure
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.LiveBreaks
+import dev.jamesrich.sofaking.data.ReleaseNote
 import dev.jamesrich.sofaking.data.BufferPreference
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.SubtitleLook
@@ -840,6 +841,7 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit, keepInView
             style = MaterialTheme.typography.bodyMedium,
         )
         // Above the buttons, since a TV scrolls only as far as the focused button and text below it stays off screen.
+        if (update is UpdateState.Available && update.changes.isNotEmpty()) WhatsNew(update.changes)
         if (install != null && install != InstallState.Idle) HelpText(installText(install))
         Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (update is UpdateState.Available) {
@@ -862,6 +864,24 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit, keepInView
         }
     }
 }
+
+/**
+ * The published snapshot's new features, then its fixes, for the builds newer than this one, as at most
+ * [WHATS_NEW_LINES] lines and a count of the rest, so the buttons below stay on a TV's screen.
+ */
+@Composable
+private fun WhatsNew(changes: List<ReleaseNote>) {
+    val ordered = changes.sortedBy { it.fix }
+    val shown = ordered.take(WHATS_NEW_LINES)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(stringResource(Res.string.settings_update_whats_new), style = MaterialTheme.typography.titleSmall)
+        shown.forEach { HelpText("• ${it.text}") }
+        val rest = ordered.size - shown.size
+        if (rest > 0) HelpText(pluralStringResource(Res.plurals.settings_update_more, rest, rest))
+    }
+}
+
+private const val WHATS_NEW_LINES = 6
 
 /** What an in-app install is doing, or why it stopped. */
 @Composable

@@ -27,6 +27,9 @@ import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.resources.unconfigured_hint
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.formatTemplate
+import dev.jamesrich.sofaking.ui.guide.GuideActions
+import dev.jamesrich.sofaking.ui.guide.GuideArrival
+import dev.jamesrich.sofaking.ui.guide.GuidePreview
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.localDay
@@ -90,30 +93,39 @@ internal fun GuideDestination(
             favorites = settings?.favorites.orEmpty(),
             favoritesOrder = settings?.favoritesOrder.orEmpty(),
             recentChannels = settings?.recentChannels.orEmpty(),
-            lastChannel = settings?.lastChannel,
-            lastFilterKey = settings?.guideFilter,
-            startAtNow = arrival.atNow,
-            startSearch = arrival.search,
-            returnedFrom = arrival.returnedFrom,
-            onPlay = { guideId, scope, unattended -> shell.push(Route.Player(guideId, scope, unattended)) },
-            onToggleFavorite = vm::toggleFavorite,
-            onFilterChange = vm::setGuideFilter,
-            onLoadGuideWindow = vm::loadGuideWindow,
-            previewPlayer = player,
-            sessions = vm.sessions,
-            captionsEnabled = settings?.captionsEnabled ?: false,
-            captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
-            autoOpenDelay = settings?.autoOpenDelay ?: AutoOpenDelay.AFTER_10_SECONDS,
-            previewSound = settings?.previewSound ?: true,
+            arrival = arrival.forGuide(settings, hasHeader = headerFocus != null),
+            actions = GuideActions(
+                onPlay = { channel, scope, unattended -> shell.push(Route.Player(channel.guideId, scope, unattended)) },
+                onToggleFavorite = { vm.toggleFavorite(it.guideId) },
+                onFilterChange = vm::setGuideFilter,
+                onLoadGuideWindow = vm::loadGuideWindow,
+                onRecord = vm.recordings::toggle,
+                onRecordSeries = vm.recordings::toggleSeries,
+            ),
+            preview = GuidePreview(
+                player = player,
+                sessions = vm.sessions,
+                captionsEnabled = settings?.captionsEnabled ?: false,
+                captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
+                autoOpenDelay = settings?.autoOpenDelay ?: AutoOpenDelay.AFTER_10_SECONDS,
+                sound = settings?.previewSound ?: true,
+            ),
             recordingMarks = recordingMarks.takeIf { capabilities.recordings },
-            onRecord = vm.recordings::toggle,
-            onRecordSeries = vm.recordings::toggleSeries,
             headerFocus = headerFocus,
-            startInHeader = arrival.inHeader && headerFocus != null,
             shown = shell.top == Route.Guide,
         )
     }
 }
+
+/** Where the guide opens: as the shell [Arrival] asks, on the channel and filter of the last visit. */
+private fun Arrival.forGuide(settings: AppSettings?, hasHeader: Boolean) = GuideArrival(
+    initialChannelId = settings?.lastChannel,
+    initialFilterKey = settings?.guideFilter,
+    startAtNow = atNow,
+    startSearch = search,
+    returnedFrom = returnedFrom,
+    startInHeader = inHeader && hasHeader,
+)
 
 /** A channel full screen, zapping through the lineup; a lineup that is not in yet sends the viewer back. */
 @Composable
@@ -180,26 +192,11 @@ private fun GuideOrEmpty(
     favorites: Set<String>,
     favoritesOrder: List<String>,
     recentChannels: List<String>,
-    lastChannel: String?,
-    lastFilterKey: String?,
-    startAtNow: Boolean,
-    startSearch: Boolean,
-    returnedFrom: String?,
-    onPlay: (guideId: String, scope: ZapScope?, unattended: Boolean) -> Unit,
-    onToggleFavorite: (String) -> Unit,
-    onFilterChange: (String?) -> Unit,
-    onLoadGuideWindow: (Instant) -> Unit,
-    previewPlayer: LivePlayer,
-    sessions: PlaybackSessions,
-    captionsEnabled: Boolean,
-    captionStyle: CaptionStyle,
-    autoOpenDelay: AutoOpenDelay,
-    previewSound: Boolean,
+    arrival: GuideArrival,
+    actions: GuideActions,
+    preview: GuidePreview,
     recordingMarks: RecordingMarks?,
-    onRecord: suspend (Program) -> Boolean,
-    onRecordSeries: suspend (Program) -> Boolean,
     headerFocus: FocusRequester?,
-    startInHeader: Boolean,
     shown: Boolean,
 ) {
     if (lineup.channels.isEmpty()) {
@@ -208,28 +205,13 @@ private fun GuideOrEmpty(
         GuideScreen(
             lineup = lineup,
             favorites = favorites,
-            favoritesOrder = favoritesOrder,
             recentChannels = recentChannels,
-            initialChannelId = lastChannel,
-            initialFilterKey = lastFilterKey,
-            startAtNow = startAtNow,
-            startSearch = startSearch,
-            returnedFrom = returnedFrom,
-            onPlay = { channel, scope, unattended -> onPlay(channel.guideId, scope, unattended) },
-            onToggleFavorite = { onToggleFavorite(it.guideId) },
-            onFilterChange = onFilterChange,
-            onLoadGuideWindow = onLoadGuideWindow,
-            previewPlayer = previewPlayer,
-            sessions = sessions,
-            captionsEnabled = captionsEnabled,
-            captionStyle = captionStyle,
-            autoOpenDelay = autoOpenDelay,
-            previewSound = previewSound,
+            arrival = arrival,
+            actions = actions,
+            preview = preview,
+            favoritesOrder = favoritesOrder,
             recordingMarks = recordingMarks,
-            onRecord = onRecord,
-            onRecordSeries = onRecordSeries,
             headerFocus = headerFocus,
-            startInHeader = startInHeader,
             shown = shown,
         )
     }

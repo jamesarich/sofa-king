@@ -11,14 +11,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -26,12 +22,9 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.withStateAtLeast
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
@@ -41,26 +34,19 @@ import coil3.compose.setSingletonImageLoaderFactory
 import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.PairingRequest
-import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.ui.LocalAppLifecycleOwner
 import dev.jamesrich.sofaking.ui.LocalClockFormat
 import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
-import dev.jamesrich.sofaking.ui.MatchDisplayFrameRate
-import dev.jamesrich.sofaking.ui.ReleaseOnPageExit
 import dev.jamesrich.sofaking.ui.WindowFullScreen
 import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.guide.GuideShortcut
 import dev.jamesrich.sofaking.ui.guide.LocalGuideDensity
 import dev.jamesrich.sofaking.ui.guide.guideShortcut
-import dev.jamesrich.sofaking.ui.player.CaptionSync
-import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.LocalPlayerVolume
-import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.player.PlayerVolume
-import dev.jamesrich.sofaking.ui.player.rememberLivePlayer
 import dev.jamesrich.sofaking.ui.player.volumeKey
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
 import dev.jamesrich.sofaking.ui.rememberAppLifecycleOwner
@@ -71,10 +57,6 @@ import dev.jamesrich.sofaking.ui.sofaKingImageLoader
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import dev.jamesrich.sofaking.ui.togglesFullScreen
 import dev.jamesrich.sofaking.ui.trackLastInput
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 /**
@@ -119,8 +101,7 @@ fun App(
 
 /**
  * The shell: the ViewModels, the one shared player and its session's stop/start lifecycle, the cold-start decision,
- * the tabs and the back stacks Navigation 3 shows. Each page is drawn by its destination (LiveDestinations,
- * LibraryDestinations, RecordingsDestinations, SettingsDestinations), which reads the state it shows itself.
+ * the tabs and the back stacks Navigation 3 shows. Each page is drawn by its destination ([RouteDestination]).
  */
 @Composable
 private fun SofaKingApp(
@@ -140,349 +121,150 @@ private fun SofaKingApp(
     val libraryHome by libraryVm.home.collectAsStateWithLifecycle()
     val recordingsState by recordingsVm.state.collectAsStateWithLifecycle()
     val shell = rememberAppShellState()
-    val nav = shell.nav
-    val top = nav.top
-    val offered = tabsOffered(capabilities, nav.tab, libraryHome, recordingsState)
-    val currentOnPairingHandle by rememberUpdatedState(onPairingHandle)
-    val currentOnPlayItemHandle by rememberUpdatedState(onPlayItemHandle)
-    // A tab the server turns out not to offer, or no longer offers, gives way to Live.
-    LaunchedEffect(nav.tab, offered) {
-        val withdrawn = when (nav.tab) {
-            Tab.LIBRARY -> !offered.library
-            Tab.RECORDINGS -> !offered.recordings
-            else -> false
-        }
-        if (withdrawn) shell.nav = shell.nav.open(Tab.LIVE)
-    }
-    // A scanned QR code pairs at once. Pairing runs in the ViewModel; its outcome comes back as state, and the shell
-    // acts on it once: a new server starts over on its guide, a refused code lands in Settings with the reason.
-    LaunchedEffect(pairing) {
-        if (pairing == null) return@LaunchedEffect
-        currentOnPairingHandle()
-        vm.pair(pairing.serverUrl, pairing.code)
-    }
-    LaunchedEffect(pairingState.outcome) {
-        when (pairingState.outcome ?: return@LaunchedEffect) {
-            PairingOutcome.PAIRED -> shell.startOver()
-            PairingOutcome.FAILED -> shell.push(Route.Settings)
-        }
-        vm.pairingHandled()
-    }
-    // A Watch Next entry plays its item at once, in place of the cold start's own page.
-    LaunchedEffect(playItem) {
-        if (playItem == null) return@LaunchedEffect
-        currentOnPlayItemHandle()
-        shell.playItem(playItem)
-    }
-    // The sleep timer runs only while a full-screen player is open; leaving for any other page turns it off.
-    LaunchedEffect(top.playsFullScreen) {
-        if (!top.playsFullScreen) shell.sleep.cancel()
-    }
-    // A short word from the player on its way back to the guide: the channel it was asked for is gone.
-    LaunchedEffect(shell.notice) {
-        if (shell.notice == null) return@LaunchedEffect
-        delay(NOTICE_MS)
-        shell.notice = null
-    }
-    // A cold start opens the channel last watched, full screen, once the lineup and settings are in. Decided
-    // once per process (restored across configuration changes), and before the guide composes, so the preview
-    // never opens a session that the full screen is about to replace.
+    val top = shell.nav.top
+    val offered = tabsOffered(capabilities, shell.nav.tab, libraryHome, recordingsState)
+    PairingEffects(shell, pairing, pairingState.outcome, onPairingHandle, vm::pair, vm::pairingHandled)
     val launch = launchTarget(state, settings)
-    LaunchedEffect(launch, shell.launchDecided) { shell.decideLaunch(launch) }
-    // The open tab is remembered for the next start, once this start has picked its own.
-    LaunchedEffect(nav.tab, shell.launchDecided) {
-        if (shell.launchDecided && settings?.lastTab != nav.tab.topLevel) vm.setLastTab(nav.tab.topLevel)
-    }
+    LaunchEffects(shell, launch, settings?.lastTab, playItem, onPlayItemHandle, vm::setLastTab)
+    ShellEffects(shell, offered, vm::setLastChannel)
 
-    // One player for the guide preview and the full screen, so OK on the previewed channel continues its stream,
-    // and one server session behind it, promoted from preview to watch in place.
-    val captionSync = remember { CaptionSync() }
-    val player = rememberLivePlayer(captionSync)
-    // The players' own volume where the app draws it: restored once the settings are read, and kept a moment after
-    // it settles, so a slider drag is one write.
-    val volume = remember(player) { PlayerVolume(adjustable = player.drawsVolumeControl) }
-    val settingsRead = settings != null
-    LaunchedEffect(volume, settingsRead) {
-        val stored = vm.settings.value ?: return@LaunchedEffect
-        if (!volume.adjustable) return@LaunchedEffect
-        volume.restore(stored.volume, stored.volumeMuted)
-        snapshotFlow { volume.level to volume.muted }.collectLatest { (level, muted) ->
-            delay(VOLUME_SAVE_MS)
-            val saved = vm.settings.value ?: return@collectLatest
-            if (saved.volume != level || saved.volumeMuted != muted) vm.setVolume(level, muted)
-        }
-    }
+    val playback = rememberAppPlayback()
+    VolumeSaveEffect(playback.volume, settingsRead = settings != null, { vm.settings.value }, vm::setVolume)
     val sessions = vm.sessions
-    val scope = rememberCoroutineScope()
     // The window's; in a browser, held to the tab's visibility and slow to count a flash of
     // it (rememberAppLifecycleOwner).
     val lifecycleOwner = rememberAppLifecycleOwner(LocalLifecycleOwner.current)
-    val lifecycle = lifecycleOwner.lifecycle
-    // The server replaced the stream under the held session (new epoch, or a session it dropped and the app
-    // reopened): the player reopens the item it holds for that channel at the new URL, metadata intact. A library
-    // item's new stream may start elsewhere in it, so its own screen loads it and seeks.
-    LaunchedEffect(sessions, player) {
-        sessions.replaced.collect { stream ->
-            if (stream.itemId != null) return@collect
-            lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
-                if (player.currentChannelId != stream.channelId || player.currentStreamUrl == stream.url) {
-                    return@withStateAtLeast
-                }
-                captionSync.effectiveUs = captionSync.advanceUs
-                player.replaceStream(stream)
-                player.prepare()
-            }
-        }
-    }
-    // Before the first prepare: switching text tracks on a playing live stream restarts it. A library item's
-    // subtitles are the app's own, drawn over the picture, so the player's captions stay off under them; libVLC and
-    // AVPlayer would otherwise draw the file's own text track as well.
-    val captionsEnabled = settings?.captionsEnabled?.let { it && top !is Route.Vod }
-    LaunchedEffect(captionsEnabled) {
-        if (captionsEnabled != null) player.setCaptionsEnabled(captionsEnabled)
-    }
-    val playback = settings?.playback
-    LaunchedEffect(playback) {
-        if (playback != null) player.setPlaybackPreferences(playback)
-    }
-    // Only the full screen asks for a display mode: the guide's preview zaps too often for a
-    // set that blanks on each switch.
-    MatchDisplayFrameRate(player, enabled = playback?.matchFrameRate == true && top.playsFullScreen)
-    val inPictureInPicture = rememberPlayerWindow(player, active = top.playsFullScreen)
-    // Without the preview band (a phone, a short window) the guide plays nothing: the stream the full screen leaves
-    // behind stops and its session goes free, rather than playing on unseen and holding a tuner.
+    StreamReplacedEffect(playback, sessions, lifecycleOwner.lifecycle)
+    PlayerPreferenceEffects(playback.player, settings, top)
+    val inPictureInPicture = rememberPlayerWindow(playback.player, active = top.playsFullScreen)
     val guidePlays = PREVIEW_ENABLED && LocalLayoutProfile.current.showsPreviewBand
-    val plays = if (top is Route.Guide) guidePlays else top.playsLive
-    LaunchedEffect(top is Route.Guide, guidePlays) {
-        if (top is Route.Guide && !guidePlays) {
-            player.stop()
-            sessions.release(forget = true)
-        }
-    }
-    // The preview starts without a caption lead; the full screen sets each channel's own. Settings may change
-    // the server, so it releases the session outright rather than keeping it to reopen.
-    LaunchedEffect(top) {
-        shell.relockUnlessInSettings()
-        when (top) {
-            Route.Guide -> captionSync.advanceUs = 0L
+    RouteStreamEffects(shell, top, playback, sessions, guidePlays)
+    ForegroundEffects(playback, sessions, lifecycleOwner, plays = if (top is Route.Guide) guidePlays else top.playsLive)
 
-            Route.Settings -> {
-                player.stop()
-                sessions.release(forget = true)
-            }
-
-            is Route.Player, is Route.Vod, is Route.Recording -> Unit
-
-            // The library and the recordings play nothing until one is picked, so the
-            // guide's preview stops on the way in.
-            Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, is Route.LibraryItem, Route.Recordings -> {
-                player.stop()
-                sessions.release(forget = true)
-            }
-
-            // Reached from Settings, which already stopped the stream.
-            Route.Channels, Route.StartupChannel -> Unit
-        }
-    }
-    // Stopped, not paused: the TV's one hardware decoder and the server's session go free while another app is
-    // in front. The item and playWhenReady survive; on return a fresh session is opened for the same channel
-    // and intent and the item is prepared at its URL, at the live edge or still paused. A library item's screen
-    // reopens it itself, where it was, and the library's other pages hold no stream.
-    val currentPlays by rememberUpdatedState(plays)
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP, lifecycleOwner) {
-        player.stop()
-        sessions.releaseAsync()
-    }
-    ReleaseOnPageExit(sessions)
-    LifecycleEventEffect(Lifecycle.Event.ON_START, lifecycleOwner) {
-        if (currentPlays && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
-            captionSync.effectiveUs = captionSync.advanceUs
-            scope.launch { resume(player, sessions) }
-        }
-    }
-
-    // The channel joins Recent, and becomes the one a cold start opens, once it has played for RECENT_AFTER_MS.
-    val playing = shell.history.watching.takeIf { top is Route.Player }
-    LaunchedEffect(playing) {
-        if (playing == null) return@LaunchedEffect
-        delay(RECENT_AFTER_MS)
-        vm.setLastChannel(playing)
-    }
-
-    val tv = LocalLayoutProfile.current.tv
-    val windowFullScreen = LocalWindowFullScreen.current
-    val settingsFocus = remember { FocusRequester() }
-    val tabFocus = remember { FocusRequester() }
-    val tabs = TabsModel(nav.tab, offered.library, offered.recordings) { picked ->
-        // The library's shelves are read again each time its tab is opened, as the recordings are.
-        if (picked == Tab.LIBRARY && shell.nav.tab != Tab.LIBRARY) libraryVm.refreshHome()
-        shell.openTab(picked)
-    }
-    val openSettings = { shell.push(Route.Settings) }
-
+    val chrome = rememberTabChrome(shell, offered, LocalLayoutProfile.current.tv, libraryVm::refreshHome)
+    val refreshing = shell.nav.tab == Tab.LIVE && loading && state is LineupState.Ready
+    val hideSpoilers = settings?.hideSpoilers ?: false
     // The page for a route, built fresh on each recomposition so it reads the current state; the entries
     // Navigation 3 keeps call through this, never a copy captured when the page was opened.
     val page by rememberUpdatedState<@Composable (Route) -> Unit> { route ->
-        val arrival = if (route == shell.nav.top) shell.nav.arrival else Arrival()
-        when (route) {
-            Route.Settings -> SettingsDestination(arrival, shell, vm, libraryVm, offered)
-
-            Route.Channels, Route.StartupChannel -> ChannelsDestination(route, shell, vm)
-
-            is Route.Player -> PlayerDestination(route, shell, vm, player)
-
-            is Route.Vod -> VodDestination(route, shell, vm, libraryVm, player)
-
-            is Route.Recording -> RecordingDestination(route, shell, vm, recordingsVm, player)
-
-            is Route.LibraryItem -> LibraryItemDestination(
-                route,
-                arrival,
-                shell,
-                libraryVm,
-                hideSpoilers =
-                settings?.hideSpoilers ?: false,
-            )
-
-            Route.Guide, Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, Route.Recordings -> TabPage(
-                tv = tv,
-                tabs = tabs,
-                tabFocus = tabFocus,
-                settingsFocus = settingsFocus,
-                headerReturn = shell.headerReturn,
-                onHeaderFocusRequest = { shell.headerReturn = null },
-                refreshing = if (shell.nav.tab == Tab.LIVE) loading && state is LineupState.Ready else false,
-                notice = shell.notice,
-                onSettings = openSettings,
-                onBackToLive = shell::backToLive,
-                focusHeaderIfIdle =
-                (route == Route.Library || route == Route.Recordings) && arrival.returnedFrom == null,
-            ) { showsTabs, tabBack, headerFocused ->
-                when (route) {
-                    Route.Guide -> GuideDestination(
-                        arrival,
-                        shell,
-                        vm,
-                        player,
-                        settingsFocus,
-                        headerFocus = tabFocus.takeIf {
-                            showsTabs
-                        },
-                    )
-
-                    Route.Library -> LibraryHomeDestination(arrival, shell, libraryVm, tabBack, headerFocused)
-
-                    Route.Recordings -> RecordingsDestination(arrival, shell, recordingsVm, tabBack, headerFocused)
-
-                    is Route.LibrarySearch -> LibrarySearchDestination(route, arrival, shell, libraryVm)
-
-                    is Route.LibraryGrid -> LibraryGridDestination(route, arrival, shell, libraryVm)
-                }
-            }
-        }
+        RouteDestination(
+            route,
+            shell,
+            vm,
+            libraryVm,
+            recordingsVm,
+            playback.player,
+            offered,
+            chrome,
+            hideSpoilers,
+            refreshing,
+        )
     }
+    val entries = rememberTabEntries(shell.nav) { route -> page(route) }
+    CompositionLocalProvider(
+        LocalClockFormat provides (settings?.clockFormat ?: ClockFormat.AUTO),
+        LocalGuideDensity provides (settings?.guideDensity ?: GuideDensity.COMFORTABLE),
+        LocalAppLifecycleOwner provides lifecycleOwner,
+        LocalInPictureInPicture provides inPictureInPicture,
+        LocalPlayerVolume provides playback.volume,
+    ) {
+        AppNavDisplay(shell, chrome, entries, playback.volume)
+    }
+}
 
-    // One back stack per tab, each with its own saved state, so a tab opens again where it was left. Each page
-    // keeps its entry's own lifecycle; the players read the app's (LocalAppLifecycleOwner) to save their place and
-    // free the stream only when the app leaves the foreground, not on every Back.
+/**
+ * One back stack per tab, each with its own saved state, so a tab opens again where it was left. Each page keeps its
+ * entry's own lifecycle; the players read the app's (LocalAppLifecycleOwner) to save their place and free the stream
+ * only when the app leaves the foreground, not on every Back.
+ */
+@Composable
+private fun rememberTabEntries(nav: Navigation, page: @Composable (Route) -> Unit): Map<Tab, List<NavEntry<Route>>> {
     val entryProvider: (Route) -> NavEntry<Route> = { route -> NavEntry(route, contentKey = route.id) { page(route) } }
-    val entries = Tab.entries.associateWith { tab ->
+    return Tab.entries.associateWith { tab ->
         rememberDecoratedNavEntries(
             nav.stack(tab),
             listOf(rememberSaveableStateHolderNavEntryDecorator()),
             entryProvider,
         )
     }
-    // A TV cuts between pages: focus lands at once and nothing slides under the remote. Elsewhere pages cross-fade
-    // on the theme's effects spring.
+}
+
+/** The tabs around the open tab's back stack, shown over Live's so Back from a tab's root lands on the guide. */
+@Composable
+private fun AppNavDisplay(
+    shell: AppShellState,
+    chrome: TabChrome,
+    entries: Map<Tab, List<NavEntry<Route>>>,
+    volume: PlayerVolume,
+) {
+    val nav = shell.nav
+    val top = nav.top
+    val cut = pageCut(chrome.tv)
+    val windowFullScreen = LocalWindowFullScreen.current
+    TopLevel(
+        tv = chrome.tv,
+        tabs = chrome.tabs,
+        shown = !top.playsFullScreen,
+        settingsOpen = top.isSettings,
+        onSettings = chrome.onSettings,
+        settingsFocus = chrome.settingsFocus,
+        tabFocus = chrome.tabFocus,
+    ) {
+        NavDisplay(
+            entries = entries.getValue(Tab.LIVE) + if (nav.tab == Tab.LIVE) emptyList() else entries.getValue(nav.tab),
+            modifier = Modifier.appKeys(shell, volume, windowFullScreen).playerVolumeWheel(volume) {
+                shell.nav.top.playsFullScreen
+            },
+            onBack = shell::back,
+            transitionSpec = cut,
+            popTransitionSpec = cut,
+            predictivePopTransitionSpec = { cut() },
+        )
+    }
+}
+
+/**
+ * A TV cuts between pages: focus lands at once and nothing slides under the remote. Elsewhere pages cross-fade on the
+ * theme's effects spring.
+ */
+@Composable
+private fun pageCut(tv: Boolean): AnimatedContentTransitionScope<Scene<Route>>.() -> ContentTransform {
     val fade = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
-    val cut: AnimatedContentTransitionScope<Scene<Route>>.() -> ContentTransform = {
+    return {
         if (tv) {
             ContentTransform(EnterTransition.None, ExitTransition.None, sizeTransform = null)
         } else {
             ContentTransform(fadeIn(fade), fadeOut(fade), sizeTransform = null)
         }
     }
-
-    CompositionLocalProvider(
-        LocalClockFormat provides (settings?.clockFormat ?: ClockFormat.AUTO),
-        LocalGuideDensity provides (settings?.guideDensity ?: GuideDensity.COMFORTABLE),
-        LocalAppLifecycleOwner provides lifecycleOwner,
-        LocalInPictureInPicture provides inPictureInPicture,
-        LocalPlayerVolume provides volume,
-    ) {
-        TopLevel(
-            tv = tv,
-            tabs = tabs,
-            shown = !top.playsFullScreen,
-            settingsOpen = top.isSettings,
-            onSettings = openSettings,
-            settingsFocus = settingsFocus,
-            tabFocus = tabFocus,
-        ) {
-            NavDisplay(
-                entries =
-                entries.getValue(Tab.LIVE) + if (nav.tab == Tab.LIVE) emptyList() else entries.getValue(nav.tab),
-                modifier = Modifier.onPreviewKeyEvent { event ->
-                    if (windowFullScreen != null &&
-                        event.key.togglesFullScreen(inPlayer = shell.nav.top.playsFullScreen)
-                    ) {
-                        if (event.type == KeyEventType.KeyUp) windowFullScreen.toggle()
-                        return@onPreviewKeyEvent true
-                    }
-                    // A player's volume keys, held to repeat; where the system's volume rules they go on to the player.
-                    val volumeKey = event.key.volumeKey()
-                    if (volumeKey != null && shell.nav.top.playsFullScreen && volume.adjustable) {
-                        if (event.type == KeyEventType.KeyDown) volume.press(volumeKey)
-                        return@onPreviewKeyEvent true
-                    }
-                    // Guide (or Menu) means live TV from any page a viewer browses; the
-                    // players and Settings keep their keys.
-                    val browsing =
-                        shell.nav.tab != Tab.LIVE && !shell.nav.top.playsFullScreen && !shell.nav.top.isSettings
-                    if (!browsing || event.key.guideShortcut() != GuideShortcut.NOW) return@onPreviewKeyEvent false
-                    if (event.type == KeyEventType.KeyDown) shell.guideFromElsewhere()
-                    true
-                }.playerVolumeWheel(volume) { shell.nav.top.playsFullScreen },
-                onBack = shell::back,
-                transitionSpec = cut,
-                popTransitionSpec = cut,
-                predictivePopTransitionSpec = { cut() },
-            )
-        }
-    }
 }
 
 /**
- * Back in front: a fresh session for the channel and intent released on stop, played at its new URL. The player can
- * still hold an older channel's stream, one whose session was released before the stop; that URL is gone, so the
- * reopened channel replaces it rather than the player loading a released session's playlist.
+ * The keys the shell takes before any page: full screen for the window where the app can switch it, a player's
+ * volume keys, and Guide (or Menu) back to live TV from the pages a viewer browses.
  */
-private suspend fun resume(player: LivePlayer, sessions: PlaybackSessions) {
-    val stream = try {
-        sessions.reopen()
-    } catch (e: CancellationException) {
-        throw e
-    } catch (_: Exception) {
-        // Preparing the stale item fails on the player, where the screen's own reconnect takes over.
-        null
+private fun Modifier.appKeys(
+    shell: AppShellState,
+    volume: PlayerVolume,
+    windowFullScreen: WindowFullScreen?,
+): Modifier = onPreviewKeyEvent { event ->
+    if (windowFullScreen != null && event.key.togglesFullScreen(inPlayer = shell.nav.top.playsFullScreen)) {
+        if (event.type == KeyEventType.KeyUp) windowFullScreen.toggle()
+        return@onPreviewKeyEvent true
     }
-    if (!player.hasItem) return
-    when {
-        stream == null || stream.itemId != null -> Unit
-
-        stream.channelId == player.currentChannelId -> player.replaceStream(stream)
-
-        else -> {
-            player.stop()
-            player.setStream(stream)
-        }
+    // A player's volume keys, held to repeat; where the system's volume rules they go on to the player.
+    val volumeKey = event.key.volumeKey()
+    if (volumeKey != null && shell.nav.top.playsFullScreen && volume.adjustable) {
+        if (event.type == KeyEventType.KeyDown) volume.press(volumeKey)
+        return@onPreviewKeyEvent true
     }
-    if (player.status.value.state == PlaybackState.IDLE) player.prepare()
+    // Guide (or Menu) means live TV from any page a viewer browses; the
+    // players and Settings keep their keys.
+    val browsing = shell.nav.tab != Tab.LIVE && !shell.nav.top.playsFullScreen && !shell.nav.top.isSettings
+    if (!browsing || event.key.guideShortcut() != GuideShortcut.NOW) return@onPreviewKeyEvent false
+    if (event.type == KeyEventType.KeyDown) shell.guideFromElsewhere()
+    true
 }
-
-private const val NOTICE_MS = 5_000L
-private const val VOLUME_SAVE_MS = 500L
 
 /**
  * The mouse wheel or a two-finger scroll over a full screen player steps its volume, up away from the viewer, where

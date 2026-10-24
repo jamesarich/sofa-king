@@ -35,6 +35,9 @@ import dev.jamesrich.sofaking.data.MediaShelf
 import dev.jamesrich.sofaking.data.PlayProgress
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.ui.guide.GuideActions
+import dev.jamesrich.sofaking.ui.guide.GuideArrival
+import dev.jamesrich.sofaking.ui.guide.GuidePreview
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.guide.ProgramDetails
 import dev.jamesrich.sofaking.ui.guide.ProgramSheet
@@ -175,21 +178,17 @@ class RenderSmokeTest {
                 lineup = lineup,
                 favorites = setOf("c1"),
                 recentChannels = listOf("c2"),
-                initialChannelId = "c2",
-                initialFilterKey = null,
-                startAtNow = false,
-                startSearch = false,
-                returnedFrom = null,
-                onPlay = { _, _, _ -> },
-                onToggleFavorite = {},
-                onFilterChange = {},
-                onLoadGuideWindow = {},
-                previewPlayer = UnavailableLivePlayer(CaptionSync(), "TEST"),
-                sessions = PlaybackSessions(),
-                captionsEnabled = false,
-                captionStyle = CaptionStyle.SYSTEM,
-                autoOpenDelay = AutoOpenDelay.OFF,
-                previewSound = false,
+                arrival = GuideArrival(initialChannelId = "c2"),
+                actions = GuideActions(onPlay = { _, _, _ ->
+                }, onToggleFavorite = {}, onFilterChange = {}, onLoadGuideWindow = {}),
+                preview = GuidePreview(
+                    player = UnavailableLivePlayer(CaptionSync(), "TEST"),
+                    sessions = PlaybackSessions(),
+                    captionsEnabled = false,
+                    captionStyle = CaptionStyle.SYSTEM,
+                    autoOpenDelay = AutoOpenDelay.OFF,
+                    sound = false,
+                ),
             )
         }
         assertTrue(image.hasContent())

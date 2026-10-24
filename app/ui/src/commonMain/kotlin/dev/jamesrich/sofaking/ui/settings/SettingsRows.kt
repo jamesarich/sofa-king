@@ -23,8 +23,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -161,4 +164,50 @@ internal fun <T> ChoiceRow(
         }
         if (help != null) HelpText(help)
     }
+}
+
+/**
+ * A setting's value as the page shows it: the [stored] one, and a pick at once while the store catches up. A new
+ * stored value replaces it.
+ */
+@Composable
+internal fun <T> rememberShown(stored: T): MutableState<T> = remember(stored) { mutableStateOf(stored) }
+
+/** A [ToggleRow] for a stored setting: it flips at once and hands the new value to [onChange]. */
+@Composable
+internal fun SettingToggle(label: String, stored: Boolean, onChange: (Boolean) -> Unit, help: String? = null) {
+    var checked by rememberShown(stored)
+    ToggleRow(
+        label = label,
+        checked = checked,
+        onCheckedChange = {
+            checked = it
+            onChange(it)
+        },
+        help = help,
+    )
+}
+
+/** A [ChoiceRow] for a stored setting: the pick shows at once and goes to [onChange]. */
+@Composable
+internal fun <T> SettingChoice(
+    label: String,
+    stored: T,
+    choices: List<T>,
+    choiceLabel: @Composable (T) -> String,
+    onChange: (T) -> Unit,
+    help: String? = null,
+) {
+    var selected by rememberShown(stored)
+    ChoiceRow(
+        label = label,
+        choices = choices,
+        selected = selected,
+        choiceLabel = choiceLabel,
+        onSelect = {
+            selected = it
+            onChange(it)
+        },
+        help = help,
+    )
 }

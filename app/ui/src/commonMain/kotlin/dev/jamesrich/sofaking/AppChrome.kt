@@ -349,3 +349,30 @@ private fun Header(
         }
     }
 }
+
+/** The header the tab pages and the top level share: the tabs, the focus on them and on Settings, and Settings. */
+internal class TabChrome(
+    val tv: Boolean,
+    val tabs: TabsModel,
+    val tabFocus: FocusRequester,
+    val settingsFocus: FocusRequester,
+    val onSettings: () -> Unit,
+)
+
+/** The header for the tabs [offered] now; picking Library reads its shelves again through [onLibraryOpen]. */
+@Composable
+internal fun rememberTabChrome(
+    shell: AppShellState,
+    offered: TabsOffered,
+    tv: Boolean,
+    onLibraryOpen: () -> Unit,
+): TabChrome {
+    val settingsFocus = remember { FocusRequester() }
+    val tabFocus = remember { FocusRequester() }
+    val tabs = TabsModel(shell.nav.tab, offered.library, offered.recordings) { picked ->
+        // The library's shelves are read again each time its tab is opened, as the recordings are.
+        if (picked == Tab.LIBRARY && shell.nav.tab != Tab.LIBRARY) onLibraryOpen()
+        shell.openTab(picked)
+    }
+    return TabChrome(tv, tabs, tabFocus, settingsFocus, onSettings = { shell.push(Route.Settings) })
+}

@@ -1,0 +1,102 @@
+package dev.jamesrich.sofaking
+
+import dev.jamesrich.sofaking.data.DvrRecording
+import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.data.RecordingMark
+import dev.jamesrich.sofaking.data.RecordingMarks
+import dev.jamesrich.sofaking.data.RecordingsState
+import dev.jamesrich.sofaking.data.SeriesRule
+import kotlin.time.Clock
+
+/** The server's recordings and series rules, as the Apple TV app's Recordings tab shows them. */
+interface TvRecordings {
+    fun watchRecordings(onChange: (RecordingsState) -> Unit): Watch
+
+    fun refreshRecordings()
+
+    /** Stops, cancels or deletes [recording]; false when the server refused or could not be reached. */
+    @Throws(Exception::class)
+    suspend fun deleteRecording(recording: DvrRecording): Boolean
+
+    /** Opens [recording] on the session, from the start with [fromStart], else where the household stopped in it. */
+    @Throws(Exception::class)
+    suspend fun playRecording(recording: DvrRecording, fromStart: Boolean): PlaybackStream
+
+    /** The player is at [positionMs] in [recordingId]. */
+    fun recordingProgress(recordingId: String, positionMs: Long)
+
+    /** Playback of [recordingId] stopped at [positionMs]; saved now, watched near the end. */
+    fun recordingStopped(recordingId: String, positionMs: Long, durationMs: Long)
+
+    /** Sets whether [rule] takes new episodes only and how many recordings it keeps (0 for all). */
+    @Throws(Exception::class)
+    suspend fun updateRule(rule: SeriesRule, newOnly: Boolean, keep: Int): Boolean
+
+    /** Stops [rule]: it and the recordings it scheduled go, what it recorded stays. */
+    @Throws(Exception::class)
+    suspend fun deleteRule(rule: SeriesRule): Boolean
+}
+
+/** The guide's record marks, as the Apple TV app's guide and program sheet show and change them. */
+interface TvRecordingMarks {
+    /** Which guide programs are set to record, on their own or by a series rule. */
+    fun watchRecordingMarks(onChange: (RecordingMarks) -> Unit): Watch
+
+    /** Whether [program] records, by [marks]. */
+    fun recordingMark(marks: RecordingMarks, program: Program): RecordingMark
+
+    /** True until [program] ends: only then can it still be recorded. */
+    fun recordable(program: Program): Boolean
+
+    /** Records [program], or cancels its recording; false when the server refused or could not be reached. */
+    @Throws(Exception::class)
+    suspend fun toggleRecording(program: Program): Boolean
+
+    /** Records every airing of [program]'s title on its channel, or stops the series rule that takes it. */
+    @Throws(Exception::class)
+    suspend fun toggleSeries(program: Program): Boolean
+}
+
+internal class TvRecordingCalls(private val parts: TvParts) : TvRecordings {
+    private val recordings = parts.recordings
+
+    override fun watchRecordings(onChange: (RecordingsState) -> Unit): Watch = parts.watch(recordings.state, onChange)
+
+    override fun refreshRecordings() = recordings.refresh()
+
+    @Throws(Exception::class)
+    override suspend fun deleteRecording(recording: DvrRecording): Boolean = recordings.delete(recording)
+
+    @Throws(Exception::class)
+    override suspend fun playRecording(recording: DvrRecording, fromStart: Boolean): PlaybackStream =
+        parts.opening { recordings.play(recording, appleTvProfile, fromStart) }
+
+    override fun recordingProgress(recordingId: String, positionMs: Long) = recordings.progress(recordingId, positionMs)
+
+    override fun recordingStopped(recordingId: String, positionMs: Long, durationMs: Long) =
+        recordings.stopped(recordingId, positionMs, durationMs.takeIf { it > 0 })
+
+    @Throws(Exception::class)
+    override suspend fun updateRule(rule: SeriesRule, newOnly: Boolean, keep: Int): Boolean =
+        recordings.updateRule(rule, newOnly, keep)
+
+    @Throws(Exception::class)
+    override suspend fun deleteRule(rule: SeriesRule): Boolean = recordings.deleteRule(rule)
+}
+
+internal class TvRecordingMarkCalls(private val parts: TvParts) : TvRecordingMarks {
+    private val marks = parts.viewModel.recordings
+
+    override fun watchRecordingMarks(onChange: (RecordingMarks) -> Unit): Watch = parts.watch(marks.marks, onChange)
+
+    override fun recordingMark(marks: RecordingMarks, program: Program): RecordingMark = marks.of(program)
+
+    override fun recordable(program: Program): Boolean = program.stop > Clock.System.now()
+
+    @Throws(Exception::class)
+    override suspend fun toggleRecording(program: Program): Boolean = marks.toggle(program)
+
+    @Throws(Exception::class)
+    override suspend fun toggleSeries(program: Program): Boolean = marks.toggleSeries(program)
+}

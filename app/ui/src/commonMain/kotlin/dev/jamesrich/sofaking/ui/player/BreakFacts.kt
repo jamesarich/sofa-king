@@ -33,18 +33,25 @@ internal fun breakFactLines(facts: List<BreakFact>, timeFormat: TimeFormatter): 
 private fun breakFactLine(fact: BreakFact, timeFormat: TimeFormatter): String = when (fact) {
     is BreakFact.Episode ->
         stringResource(Res.string.break_fact_episode, listOfNotNull(fact.label, fact.title).joinToString(", "))
+
     is BreakFact.Aired -> aired(fact)
+
     is BreakFact.Run -> listOfNotNull(
         fact.seasons?.let { pluralStringResource(Res.plurals.library_seasons, it, it) },
         fact.episodes?.let { pluralStringResource(Res.plurals.library_episodes, it, it) },
     ).joinToString(", ")
+
     is BreakFact.Starring -> stringResource(Res.string.break_fact_starring, names(fact.names))
+
     is BreakFact.MadeBy -> stringResource(
         if (fact.movie) Res.string.break_fact_directed_by else Res.string.break_fact_created_by,
         names(fact.names),
     )
+
     is BreakFact.Tagline -> stringResource(Res.string.break_fact_tagline, fact.text)
+
     is BreakFact.Rating -> stringResource(Res.string.break_fact_rating, fact.score.toString())
+
     is BreakFact.Next -> {
         val start = timeFormat.format(Instant.fromEpochMilliseconds(fact.startMs))
         stringResource(Res.string.break_fact_next, fact.title, start)
@@ -67,9 +74,8 @@ private fun aired(fact: BreakFact.Aired): String {
 
 /** `A`, `A and B`, or `A, B and C`. */
 @Composable
-private fun names(names: List<String>): String =
-    if (names.size < 2) {
-        names.joinToString()
-    } else {
-        stringResource(Res.string.break_fact_and, names.dropLast(1).joinToString(", "), names.last())
-    }
+private fun names(names: List<String>): String = if (names.size < 2) {
+    names.joinToString()
+} else {
+    stringResource(Res.string.break_fact_and, names.dropLast(1).joinToString(", "), names.last())
+}

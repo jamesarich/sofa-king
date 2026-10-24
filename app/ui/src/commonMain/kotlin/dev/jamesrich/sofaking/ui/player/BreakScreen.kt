@@ -80,7 +80,6 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.PI
 import kotlin.math.cos
-import kotlin.math.exp
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.random.Random
@@ -240,6 +239,8 @@ internal fun BreakScreen(
         val area = with(density) { IntSize(maxWidth.roundToPx(), maxHeight.roundToPx()) }
         val unit = with(density) { logoSize.roundToPx() }
         val lineWidth = maxWidth * LINE_SHARE
+        val safeX = maxWidth * SAFE_SHARE
+        val safeY = maxHeight * SAFE_SHARE
         val motion = remember {
             BreakMotion(Bounce(area.width * START_X, area.height * START_Y, right = true, down = true))
         }
@@ -266,7 +267,7 @@ internal fun BreakScreen(
                     color = ink.copy(alpha = FAINT_ALPHA),
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(horizontal = maxWidth * SAFE_SHARE, vertical = maxHeight * SAFE_SHARE),
+                        .padding(horizontal = safeX, vertical = safeY),
                 )
             }
             BouncingMark(motion, logoSize)
@@ -503,22 +504,6 @@ private fun BreakLines(
         )
     }
 }
-
-/**
- * How squashed the mark is against a wall [seconds] after hitting it: pressed in, then a quick wobble back out, and 1
- * from [SQUASH_SECONDS] on.
- */
-internal fun squashAfter(seconds: Double): Float = if (seconds < 0 || seconds >= SQUASH_SECONDS) {
-    1f
-} else {
-    (1 - SQUASH_DEPTH * exp(-seconds * SQUASH_DAMPING) * cos(seconds * SQUASH_WOBBLE)).toFloat()
-}
-
-/** How far a hit presses the mark in, how fast the wobble dies away and how fast it wobbles, in radians a second. */
-private const val SQUASH_DEPTH = 0.2
-private const val SQUASH_DAMPING = 9.0
-private const val SQUASH_WOBBLE = 28.0
-internal const val SQUASH_SECONDS = 0.6
 
 /** How much of a squash goes into stretching the other way. */
 private const val BULK = 0.5f

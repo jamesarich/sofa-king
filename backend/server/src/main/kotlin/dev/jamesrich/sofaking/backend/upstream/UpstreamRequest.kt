@@ -47,9 +47,7 @@ data class UpstreamPolicy(val allowLoopback: Boolean = false) {
             (literal.isLinkLocalAddress || literal.isAnyLocalAddress || literal.isMulticastAddress)
         return when {
             unroutable -> "Unroutable upstream address"
-
             loopback && !allowLoopback -> "Loopback upstream address"
-
             else -> null
         }
     }

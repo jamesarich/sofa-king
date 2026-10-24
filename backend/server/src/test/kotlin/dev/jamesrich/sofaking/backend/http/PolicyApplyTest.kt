@@ -20,6 +20,7 @@ import dev.jamesrich.sofaking.backend.catalog.suggestedAliases
 import dev.jamesrich.sofaking.backend.health.Observation
 import dev.jamesrich.sofaking.backend.pollUntil
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.store.recordObservation
 import dev.jamesrich.sofaking.backend.store.saveStationAvailability
 import dev.jamesrich.sofaking.backend.store.stationAvailability
 import dev.jamesrich.sofaking.contract.ApiError

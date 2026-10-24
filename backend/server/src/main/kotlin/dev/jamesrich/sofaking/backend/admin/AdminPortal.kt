@@ -38,6 +38,7 @@ import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.store.AdChannelRecord
 import dev.jamesrich.sofaking.backend.store.adChannels
+import dev.jamesrich.sofaking.backend.store.allHealth
 import dev.jamesrich.sofaking.backend.store.forgetViewer
 import dev.jamesrich.sofaking.backend.store.ignoreAttention
 import dev.jamesrich.sofaking.backend.store.ignoredAttention

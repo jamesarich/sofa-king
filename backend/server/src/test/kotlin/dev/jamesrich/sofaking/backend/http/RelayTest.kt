@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
 import dev.jamesrich.sofaking.backend.pollUntil
+import dev.jamesrich.sofaking.backend.store.offeringProtocols
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.upstream.readHead
 import dev.jamesrich.sofaking.contract.ApiError

@@ -1,18 +1,30 @@
-# The guide opens the focused channel full screen on its own after a short rest (Settings > Open full screen, 10 s by
-# default), and Back brings the guide back. OK would open it too, but a second OK in the player opens the channel list,
-# so the flow rests rather than pressing it, which keeps it the same whether the guide or the player is already up.
+# The guide opens the focused channel full screen on its own after a rest (Settings > Open full screen, 10 s by
+# default), and Back brings the guide back. The rest can open the player before Maestro has started, so the flow first
+# leaves a player that is already up, as the phone touch tests do. It never presses OK, which in the player would open
+# the channel list instead. The guide and the player are found by their test tags.
 appId: dev.jamesrich.sofaking
 name: Guide to full screen and back
 ---
+- runFlow:
+    when:
+      visible:
+        id: "player"
+    commands:
+      - pressKey: Back
 - extendedWaitUntil:
-    visible: "Sofa Sports"
+    visible:
+      id: "guide"
     timeout: 30000
-# The rest opens the focused channel full screen, which shows only the channel playing.
+# Back left the guide on the channel it came from, which the rest does not reopen; the next channel rests anew.
+- pressKey: Remote Dpad Down
 - extendedWaitUntil:
-    notVisible: "Sofa Sports"
+    visible:
+      id: "player"
     timeout: 25000
 - pressKey: Back
-# Back returns to the guide, which does not reopen the channel it came from.
 - extendedWaitUntil:
-    visible: "Sofa Sports"
+    visible:
+      id: "guide"
     timeout: 15000
+- assertNotVisible:
+    id: "player"

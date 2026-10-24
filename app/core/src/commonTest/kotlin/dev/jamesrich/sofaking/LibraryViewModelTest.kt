@@ -322,6 +322,46 @@ class LibraryViewModelTest {
     }
 
     @Test
+    fun `a stop publishes the new Continue watching shelf to Watch Next with nothing on screen`() =
+        fixture.viewModelTest {
+            var next = "e1"
+            val server = RouteServer(this) { method, path, _ ->
+                when {
+                    path == "/api/v1/library/home" ->
+                        200 to """{"shelves":[{"id":"continue","title":"Continue watching",""" +
+                            """"items":[${item(
+                                next,
+                                "episode",
+                            )}]}],"libraries":[{"id":"lib","name":"Shows","kind":"shows"}]}"""
+
+                    method == "PUT" && path == "/api/v1/library/items/e1/play-state" -> {
+                        next = "e2"
+                        200 to item("e1", "episode")
+                    }
+
+                    else -> null
+                }
+            }
+            val published = mutableListOf<List<String>>()
+            val api = server.http.api()
+            // Nothing collects the home, as nothing does while the app is behind the platform's home screen.
+            val model = fixture.started(
+                LibraryViewModel(
+                    MutableStateFlow(api),
+                    fixture.sessions(this, api),
+                    timeSource = testScheduler.timeSource,
+                    watchNext = { items -> published += items.map { it.id } },
+                ),
+            )
+            runCurrent()
+            assertEquals(listOf("e1"), published.last())
+
+            model.stopped("e1", 1_000_000, 1_200_000)
+            runCurrent()
+            assertEquals(listOf("e2"), published.last(), "the episode after the one stopped")
+        }
+
+    @Test
     fun `play resumes an item in progress unless asked to start over`() = fixture.viewModelTest {
         val opens = mutableListOf<String>()
         val server = RouteServer(this) { method, path, body ->

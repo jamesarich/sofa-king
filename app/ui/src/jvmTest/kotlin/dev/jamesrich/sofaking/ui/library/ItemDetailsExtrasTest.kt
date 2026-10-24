@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
@@ -69,6 +70,25 @@ class ItemDetailsExtrasTest {
             assertEquals(listOf("x2"), played)
             assertEquals(listOf("m2"), opened)
         }
+
+    @Test
+    fun `back from a title like it lands on its card`() = runSkikoComposeUiTest(Size(1920f, 3000f), Density(1f)) {
+        setContent {
+            SofaKingTheme {
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    ItemDetailsScreen(
+                        ItemDetailState.Ready(detail),
+                        season = null,
+                        selectedSeasonId = null,
+                        actions = ItemDetailsActions({ _, _ -> }, { _, _ -> }, {}, {}),
+                        returnedFrom = "m2",
+                    )
+                }
+            }
+        }
+        waitForIdle()
+        onNode(hasContentDescription("Prometheus, 2012")).assertIsFocused()
+    }
 
     @Test
     fun `a page with no extras or related titles shows neither row`() =

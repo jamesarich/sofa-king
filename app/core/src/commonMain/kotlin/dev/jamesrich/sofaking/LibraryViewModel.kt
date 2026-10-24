@@ -16,11 +16,13 @@ import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.SofaKingApi
 import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.Subtitles
+import dev.jamesrich.sofaking.data.WatchNext
 import dev.jamesrich.sofaking.data.describe
 import dev.jamesrich.sofaking.data.episodeAfter
 import dev.jamesrich.sofaking.data.failedLoad
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.data.seasonAfter
+import dev.jamesrich.sofaking.data.watchNextItems
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -74,7 +76,9 @@ sealed interface ItemDetailState {
 /**
  * The media libraries for every screen: the home shelves, one library's grid, item pages and the household's place
  * in what plays. Playback goes through the app's one [sessions], so playing an item releases the live channel.
- * [apis] is the API client for the server Settings names, null while there is none.
+ * [apis] is the API client for the server Settings names, null while there is none. [watchNext] gets the Continue
+ * watching shelf each time the home loads, from this model's scope, so a stop saved after the app left the screen
+ * still reaches the platform's row.
  */
 class LibraryViewModel(
     apis: Flow<SofaKingApi?>,
@@ -85,6 +89,7 @@ class LibraryViewModel(
     private val saveInterval: Duration = 10.seconds,
     /** How often a home with no library is loaded again. */
     private val emptyRecheck: Duration = 5.minutes,
+    private val watchNext: WatchNext = WatchNext.None,
 ) : ViewModel() {
     private var repository: LibraryRepository? = null
 
@@ -106,6 +111,9 @@ class LibraryViewModel(
     private val positions = PositionSaver(timeSource, saveInterval)
 
     init {
+        viewModelScope.launch {
+            _home.collect { home -> watchNextItems(home)?.let(watchNext::publish) }
+        }
         viewModelScope.launch {
             apis.collect { api ->
                 repository = api?.let(newRepository)

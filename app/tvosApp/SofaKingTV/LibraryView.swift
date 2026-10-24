@@ -14,7 +14,9 @@ struct LibraryHomeView: View {
                 .navigationDestination(for: MediaLibrary.self) { LibraryGridView(library: $0) }
         }
         .fullScreenCover(item: $model.vod) { request in
-            VodPlayerView(request: request)
+            // Each request is its own player, so Up next's swap starts the next item on fresh state and the one it
+            // leaves reports its stop as itself.
+            VodPlayerView(request: request).id(request)
         }
     }
 

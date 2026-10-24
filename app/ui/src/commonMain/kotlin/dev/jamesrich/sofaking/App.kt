@@ -42,7 +42,6 @@ import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.PlaybackSessions
-import dev.jamesrich.sofaking.data.watchNextItems
 import dev.jamesrich.sofaking.ui.LocalAppLifecycleOwner
 import dev.jamesrich.sofaking.ui.LocalClockFormat
 import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
@@ -174,10 +173,6 @@ private fun SofaKingApp(
         if (playItem == null) return@LaunchedEffect
         currentOnPlayItemHandle()
         shell.playItem(playItem)
-    }
-    // The home screen's Watch Next row follows the Continue watching shelf.
-    LaunchedEffect(libraryHome) {
-        watchNextItems(libraryHome)?.let(appGraph.watchNext::publish)
     }
     // The sleep timer runs only while a full-screen player is open; leaving for any other page turns it off.
     LaunchedEffect(top.playsFullScreen) {

@@ -40,7 +40,7 @@ PIECE = 188 * 64
 LIVE_WINDOW = 5
 # The fixture show's episodes: a cold open, then the theme they share, then the rest and the credits they share, in
 # seconds. The server reads the first 30% of an episode for its intro and its last tenth for its credits, and makes scrub
-# thumbnails for five minutes or more.
+# thumbnails for five minutes or more from keyframes, which the episodes carry every 2 seconds (-g 20 at 10 fps).
 EPISODES = 4
 COLD_OPEN, THEME, CREDITS, EPISODE = 10, 45, 30, 360
 # The fixture movies: enough titles for the library's row of first letters (80 or more), three genres between them.
@@ -187,7 +187,7 @@ def show(library):
         sound = tune(13 + 2 * n, 1 + 3 * n, COLD_OPEN) + tune(7, 3, THEME) + tune(11 + 2 * n, 5 + n, body) + tune(5, 9, CREDITS)
         subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', *picture, *sound, '-filter_complex',
                         '[1:a][2:a][3:a][4:a]concat=n=4:v=0:a=1[a]', '-map', '0:v', '-map', '[a]', '-c:v', 'libx264',
-                        '-preset', 'ultrafast', '-c:a', 'aac', str(season / f'{name}.mkv')], check=True, timeout=180)
+                        '-preset', 'ultrafast', '-g', '20', '-c:a', 'aac', str(season / f'{name}.mkv')], check=True, timeout=180)
         cues = [f'{k + 1}\n{clock(at)} --> {clock(at + 4)}\nLine {k + 1} of episode {n}\n' for k, at in enumerate(range(0, EPISODE, 5))]
         (season / f'{name}.en.srt').write_text('\n'.join(cues))
         (season / f'{name}.nfo').write_text(f'<episodedetails><title>Episode {n}</title><season>1</season><episode>{n}</episode>'

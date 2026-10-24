@@ -11,6 +11,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -193,6 +194,7 @@ class VodIntroSkipTest {
             // The bar already offers Next episode at its end; the credits' own button takes its place at the front.
             mainClock.advanceTimeBy(1_000)
             awaitFocused("Next episode")
+            onAllNodes(hasContentDescription("Next episode")).assertCountEquals(1)
             onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
             waitForIdle()
             assertEquals(1, played)

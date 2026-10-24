@@ -91,36 +91,6 @@ internal class AppShellState(
         nav = nav.replaceTop(route)
     }
 
-    /** A tab picked in the header or the navigation bar; Live comes back on the channel last watched. */
-    fun openTab(picked: Tab) {
-        nav =
-            nav.closeSettings().open(
-                picked,
-                if (picked == Tab.LIVE) {
-                    Arrival(returnedFrom = history.watching)
-                } else {
-                    Arrival()
-                },
-            )
-    }
-
-    /** Leaving Settings lands on the page it was opened from, with focus back on the header's Settings button. */
-    fun leaveSettings() {
-        headerReturn = HeaderReturn.SETTINGS
-        nav = nav.closeSettings().let { it.copy(arrival = it.arrival.copy(inHeader = true)) }
-    }
-
-    /** Back from another tab's pill: Live opens with focus kept on its pill, so one more Back exits. */
-    fun backToLive() {
-        headerReturn = HeaderReturn.TAB
-        nav = nav.open(Tab.LIVE, Arrival(returnedFrom = history.watching, inHeader = true))
-    }
-
-    /** The Guide key from the Library or Recordings pages: the guide at Now, on the channel last watched. */
-    fun guideFromElsewhere() {
-        nav = nav.open(Tab.LIVE, Arrival(returnedFrom = history.watching, atNow = true))
-    }
-
     /** Back to the first page of every tab, as after pairing with or saving a new server. */
     fun startOver() {
         nav = Navigation()

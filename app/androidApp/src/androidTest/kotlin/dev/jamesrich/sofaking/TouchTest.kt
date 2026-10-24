@@ -47,6 +47,9 @@ class TouchTest {
         device.executeShellCommand(
             "cmd overlay enable-exclusive --category com.android.internal.systemui.navbar.gestural",
         )
+        // Seen as confirmed, as after a viewer's first "Got it": the full-screen player's first immersive moment
+        // otherwise shows the system's hint, which takes input focus until it is tapped away.
+        device.executeShellCommand("settings put secure immersive_mode_confirmations confirmed")
         device.setOrientationNatural()
         val link = Uri.parse("sofaking://pair").buildUpon()
             .appendQueryParameter("server", address).appendQueryParameter("code", server.pairingCode()).build()
@@ -93,11 +96,9 @@ class TouchTest {
                 context.packageName,
             )!!.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
-        // Back sent before the window has input focus again goes to the system, not the player.
-        eventually("the player back full screen") {
-            !inPictureInPicture() && device.hasObject(By.res(PLAYER)) &&
-                appFocused()
-        }
+        eventually("the player back full screen") { !inPictureInPicture() && device.hasObject(By.res(PLAYER)) }
+        // Back goes to the window with input focus, which the player takes back a moment after picture-in-picture.
+        check(within(TIMEOUT_MS) { appFocused() }) { "Input focus stayed on ${focusedWindow()}" }
         check(server.watching().size == 1) {
             "Back from picture-in-picture, the app holds ${server.watching().size} sessions"
         }
@@ -200,15 +201,24 @@ class TouchTest {
         return pinned
     }
 
-    private fun appFocused(): Boolean =
-        device.executeShellCommand("dumpsys window").lineSequence().any { "mCurrentFocus" in it && "$PACKAGE/" in it }
+    private fun focusedWindow(): String = device.executeShellCommand("dumpsys window").lineSequence().firstOrNull {
+        "mCurrentFocus" in it
+    }?.trim().orEmpty()
+
+    private fun appFocused(): Boolean = "$PACKAGE/" in focusedWindow()
 
     private fun eventually(what: String, condition: () -> Boolean) {
-        val deadline = System.currentTimeMillis() + TIMEOUT_MS
+        check(within(TIMEOUT_MS, condition)) { "Timed out waiting for $what" }
+    }
+
+    /** Whether the condition holds within the time, checked every [POLL_MS]. */
+    private fun within(ms: Long, condition: () -> Boolean): Boolean {
+        val deadline = System.currentTimeMillis() + ms
         while (!condition()) {
-            check(System.currentTimeMillis() < deadline) { "Timed out waiting for $what" }
+            if (System.currentTimeMillis() >= deadline) return false
             Thread.sleep(POLL_MS)
         }
+        return true
     }
 
     private class Touch(val name: String, val weight: Int, val act: (UiDevice, Random) -> Unit)

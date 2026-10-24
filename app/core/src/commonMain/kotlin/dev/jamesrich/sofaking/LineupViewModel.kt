@@ -354,6 +354,7 @@ class LineupViewModel(
                 emit(LineupState.Ready(full))
             }
         }
+        var failures = 0
         while (true) {
             if (last == null) emit(LineupState.Loading)
             // Cancellation (a server change or refresh while loading) must propagate, not read as a failure.
@@ -425,7 +426,21 @@ class LineupViewModel(
                     }
                 }
             }
-            delay(if (result.isSuccess && !lineupMoved) REFRESH_INTERVAL else RETRY_INTERVAL)
+            // A failed load tries again within seconds, then less often: a server only slow to answer at startup
+            // is back before the viewer reaches for Try again.
+            failures = if (result.isSuccess) 0 else failures + 1
+            delay(
+                when {
+                    result.isFailure -> minOf(
+                        FIRST_RETRY * (1 shl minOf(failures - 1, RETRY_DOUBLINGS)),
+                        RETRY_INTERVAL,
+                    )
+
+                    lineupMoved -> RETRY_INTERVAL
+
+                    else -> REFRESH_INTERVAL
+                },
+            )
         }
     }
 
@@ -630,6 +645,10 @@ class LineupViewModel(
         val log = Logger.withTag("SofaKing")
         val REFRESH_INTERVAL = 3.hours
         val RETRY_INTERVAL = 1.minutes
+        val FIRST_RETRY = 5.seconds
+
+        /** Doublings of [FIRST_RETRY] past [RETRY_INTERVAL], so the wait stops growing well before it overflows. */
+        const val RETRY_DOUBLINGS = 4
         val RELOAD_WAIT = 30.seconds
     }
 }

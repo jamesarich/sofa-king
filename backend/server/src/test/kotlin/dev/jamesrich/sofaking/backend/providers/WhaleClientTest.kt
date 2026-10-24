@@ -87,6 +87,18 @@ class WhaleClientTest {
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 
+    @Test fun `a region asks for that country's lineup and guide and tags its channels`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-whale-")
+        try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->
+            fixture.whale()
+            val client = WhaleClient(ProviderFixture.context("whale-de", mapOf("apiBase" to "${fixture.base}/api", "region" to "DE"), http, store, MutableClock()))
+            assertEquals(listOf("de"), client.channels().first().tags)
+            assertEquals("langCode=en&countryCode=DE", fixture.lastQuery["/api/device/browser/v1/category/channels"])
+            client.guide(setOf(watchMojo))
+            assertTrue(fixture.lastQuery["/api/device/browser/v1/epg"]!!.endsWith("&langCode=en&countryCode=DE"), fixture.lastQuery["/api/device/browser/v1/epg"])
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
+
     @Test fun `macros fill known names in every bracket form and blank the rest`() {
         val filled = Macros.fill("https://x.test/p.m3u8?a=[did]&b=[%user_agent%]&c={ADID}&d=%7bUSPRIVACY%7d&e=%7BPSID%7D&f=[GDPR]&g=plain", mapOf("did" to "dev 1", "ADID" to "a&b", "psid" to "p"))
         assertEquals("https://x.test/p.m3u8?a=dev+1&b=&c=a%26b&d=&e=p&f=&g=plain", filled)

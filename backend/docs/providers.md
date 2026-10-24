@@ -40,7 +40,7 @@ The portal's Sources page writes this file: every service is a switch, with its 
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
 | `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo`, `pluto`, `tubi`, `direct`, `hdhomerun` |
-| `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung`, `region` and `forwardedFor` for `pluto` and `plex`, `dma` and `market` for `localnow`, `market` for `xumo`, `url` (required) and `transcode` for `hdhomerun` |
+| `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung` and `whale`, `region` and `forwardedFor` for `pluto` and `plex`, `dma` and `market` for `localnow`, `market` for `xumo`, `url` (required) and `transcode` for `hdhomerun` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
 | `probe` | `true` | Probes resolve the channel and qualify the resolved URL like any source. A lineup policy ignores it ([probing](lineup-policy.md#probing)) |
@@ -65,7 +65,7 @@ From the other services' guides the server reads titles, descriptions and times 
 
 ### Other countries' lineups
 
-Samsung TV Plus publishes each country's lineup, so another country is only its `region` (see [samsung](#samsung-samsung-tv-plus)). Pluto TV and Plex pick the lineup by the caller's address instead. For them, `region` is the two-letter code the channels are tagged with, and `forwardedFor` is an IP address in that country, sent as `X-Forwarded-For` on every request the client makes and every request the relay makes for the provider's streams, so the service answers as it would in that country. Give each country its own provider beside the US one:
+Samsung TV Plus publishes each country's lineup, and Whale TV+ answers the country its request names, so for them another country is only its `region` (see [samsung](#samsung-samsung-tv-plus)). Whale TV+ serves 130 to 195 channels per country, a third of them or more outside the US lineup in most of Europe, and most of them play from a US connection. Pluto TV and Plex pick the lineup by the caller's address instead. For them, `region` is the two-letter code the channels are tagged with, and `forwardedFor` is an IP address in that country, sent as `X-Forwarded-For` on every request the client makes and every request the relay makes for the provider's streams, so the service answers as it would in that country. Give each country its own provider beside the US one:
 
 ```json
 { "id": "pluto-gb", "type": "native", "service": "pluto", "options": { "region": "gb", "forwardedFor": "ADDRESS_IN_GB" } }
@@ -85,7 +85,7 @@ For each provider, the server keeps one random device ID and any session token i
 
 ### whale (Whale TV+)
 
-The web client at watch.whaletvplus.com, backed by the rlaxx API. An access token comes from `auth/access` with the web client's public key and lasts about 24 hours; the server stores it and reuses it for 23. The channel list is the category listing for `US`/`en`, with each channel once, under the first themed category as its group, with numbers and the white channel icon. Streams are Ottera, Amagi, MediaTailor and SoFast ad-stitched HLS templates. Their `[did]`, `[session_id]`, `[cachebuster]` and other `[...]` macros are filled per resolve, with unknown ones blanked, and requests carry the web client's `Origin` and `Referer`. The guide is the 7-day EPG endpoint, ten channels per request, for mapped channels only.
+The web client at watch.whaletvplus.com, backed by the rlaxx API. An access token comes from `auth/access` with the web client's public key and lasts about 24 hours; the server stores it and reuses it for 23. The channel list is the category listing for the `region` (default `US`) in English, with each channel once, under the first themed category as its group, with numbers and the white channel icon. Streams are Ottera, Amagi, MediaTailor and SoFast ad-stitched HLS templates. Their `[did]`, `[session_id]`, `[cachebuster]` and other `[...]` macros are filled per resolve, with unknown ones blanked, and requests carry the web client's `Origin` and `Referer`. The guide is the 7-day EPG endpoint, ten channels per request, for mapped channels only.
 
 Fragility: the public API key is the web client's and changes with it. A 401 or 403 drops the stored token and retries once. Channel IDs are the service's numeric IDs.
 

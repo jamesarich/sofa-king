@@ -398,17 +398,17 @@ class AdminPortal(
             get("/merges") { call.html(mergesPage(chrome(), mergesView())) }
             action("/merges/never") { session, form ->
                 policyAction(call, session, form, "Kept apart") { policy, from, to, revision ->
-                    policy.neverMerge(from, to, revision)
+                    policy.edits.neverMerge(from, to, revision)
                 }
             }
             action("/merges/accept") { session, form ->
                 policyAction(call, session, form, "Merged") { policy, from, to, revision ->
-                    policy.addAlias(from, to, revision)
+                    policy.edits.addAlias(from, to, revision)
                 }
             }
             action("/merges/dismiss") { session, form ->
                 policyAction(call, session, form, "Kept apart") { policy, from, to, revision ->
-                    policy.neverMerge(from, to, revision)
+                    policy.edits.neverMerge(from, to, revision)
                 }
             }
             get("/required") { call.html(requiredPage(chrome(), requiredView())) }
@@ -1187,7 +1187,7 @@ class AdminPortal(
                 if (policy == null) {
                     runtime.lineup.update(id, update)
                 } else {
-                    policy.updateStation(id, update, null)
+                    policy.edits.updateStation(id, update, null)
                         ?: throw ApiFailure(
                             HttpStatusCode.NotFound,
                             "LINEUP_ENTRY_NOT_FOUND",
@@ -1353,7 +1353,7 @@ class AdminPortal(
             }
         }
         val result = try {
-            policy.replace(current, next).apply
+            policy.edits.replace(current, next).apply
         } catch (e: ApiFailure) {
             if (e.status == HttpStatusCode.Conflict) {
                 refuse(

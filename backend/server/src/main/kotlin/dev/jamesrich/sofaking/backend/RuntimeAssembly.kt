@@ -194,7 +194,7 @@ internal class RuntimeAssembly(
             dvrService?.requestSchedule("guides")
         }, jobs = jobs) {
             val mapped = lineup.wanted()
-            val extra = policy?.wantedGuides().orEmpty()
+            val extra = policy?.lastApplied()?.wantedGuides(guides.coverage, clock.instant()).orEmpty()
             if (extra.isEmpty()) {
                 mapped
             } else {

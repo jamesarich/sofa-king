@@ -3,7 +3,6 @@ package dev.jamesrich.sofaking.backend.catalog
 import dev.jamesrich.sofaking.backend.api.AdoptProvider
 import dev.jamesrich.sofaking.backend.api.AdoptResult
 import dev.jamesrich.sofaking.backend.api.CreateLineupEntry
-import dev.jamesrich.sofaking.backend.api.GuideMapping
 import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.lineup
@@ -13,7 +12,6 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Clock
-import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -42,6 +40,9 @@ class LineupService(
         }.groupBy({ it.guideId }, { it.channelId }).mapValues { it.value.toSet() }
     }
 
+    /** Builds and checks the entries this service writes; the policy run checks its own with it too. */
+    internal val drafts = LineupDrafts(feeds, guides)
+
     private val mutex = Mutex()
     private val published = AtomicReference(Published(emptyList()))
 
@@ -59,7 +60,7 @@ class LineupService(
     fun wanted(): Map<String, Set<String>> = published.get().wanted
 
     suspend fun create(request: CreateLineupEntry): LineupEntryRecord = mutate { entries ->
-        val entry = draft(request, entries)
+        val entry = drafts.created(request, entries)
         val position = request.position?.coerceIn(0, entries.size) ?: entries.size
         entries.add(position, entry)
         entry
@@ -68,32 +69,14 @@ class LineupService(
     suspend fun update(id: String, request: UpdateLineupEntry): LineupEntryRecord = mutate { entries ->
         val index = entries.indexOfFirst { it.id == id }
         if (index < 0) throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
-        val current = entries[index]
-        // An enabled flag the household sets is its own, so an automatic disable no longer explains it.
-        val household = request.enabled != null
-        val next = validated(
-            current.copy(
-                number = request.number ?: current.number,
-                name = request.name ?: current.name,
-                group = if (request.clearGroup) null else request.group ?: current.group,
-                logo = if (request.clearLogo) null else request.logo ?: current.logo,
-                enabled = request.enabled ?: current.enabled,
-                guide = if (request.clearGuide) null else request.guide ?: current.guide,
-                offeringIds = request.offerings?.also(::requireKnownOfferings) ?: current.offeringIds,
-                autoDisabledAt = if (household) null else current.autoDisabledAt,
-                autoDisabledReason = if (household) null else current.autoDisabledReason,
-            ),
-        )
+        val next = drafts.updated(entries[index], request)
         entries.removeAt(index)
         entries.add(request.position?.coerceIn(0, entries.size) ?: index, next)
         next
     }
 
     suspend fun delete(id: String) = mutate { entries ->
-        if (!entries.removeIf {
-                it.id == id
-            }
-        ) {
+        if (!entries.removeIf { it.id == id }) {
             throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
         }
     }
@@ -114,10 +97,7 @@ class LineupService(
 
     /** Adds every feed channel of [providerId] whose sources no entry references yet, in channel-number order. */
     suspend fun adopt(request: AdoptProvider): AdoptResult = mutate { entries ->
-        if (feeds.configs.none {
-                it.id == request.providerId
-            }
-        ) {
+        if (feeds.configs.none { it.id == request.providerId }) {
             throw ApiFailure(HttpStatusCode.NotFound, "PROVIDER_NOT_FOUND", "Unknown provider")
         }
         val referenced = entries.flatMapTo(HashSet()) { it.offeringIds }
@@ -129,7 +109,7 @@ class LineupService(
                 skipped++
                 continue
             }
-            entries += draft(CreateLineupEntry(channelId = channel.id, enabled = request.enabled), entries)
+            entries += drafts.created(CreateLineupEntry(channelId = channel.id, enabled = request.enabled), entries)
             added++
         }
         AdoptResult(added, skipped)
@@ -151,94 +131,6 @@ class LineupService(
         }
         onChanged()
         result
-    }
-
-    private fun draft(request: CreateLineupEntry, entries: List<LineupEntryRecord>): LineupEntryRecord {
-        val candidate = request.channelId?.let {
-            feeds.published.channel(it)
-                ?: throw ApiFailure(HttpStatusCode.NotFound, "CHANNEL_NOT_FOUND", "Unknown feed channel")
-        }
-        val id =
-            request.id?.let {
-                runCatching {
-                    UUID.fromString(it).toString()
-                }.getOrElse {
-                    throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Entry ID must be a UUID")
-                }
-            }
-                ?: UUID.randomUUID().toString()
-        if (entries.any {
-                it.id == id
-            }
-        ) {
-            throw ApiFailure(HttpStatusCode.Conflict, "LINEUP_ENTRY_EXISTS", "Lineup entry already exists")
-        }
-        val offerings =
-            request.offerings?.also(::requireKnownOfferings)
-                ?: candidate?.let { feeds.published.offeringsOf(it.id).map { o -> o.id } }.orEmpty()
-        val guide =
-            request.guide
-                ?: candidate?.legacyGuideId?.let { tvgId ->
-                    guides.guidesListing(tvgId).firstOrNull()?.let { GuideMapping(it, tvgId) }
-                }
-        return validated(
-            LineupEntryRecord(
-                id = id,
-                number =
-                request.number ?: candidate?.displayNumber
-                    ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "A number is required"),
-                name = request.name ?: candidate?.name ?: throw ApiFailure(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    "A name is required",
-                ),
-                group = request.group ?: candidate?.tags?.firstOrNull(),
-                logo = request.logo ?: candidate?.logo,
-                enabled = request.enabled ?: true,
-                guide = guide,
-                offeringIds = offerings,
-            ),
-        )
-    }
-
-    private fun requireKnownOfferings(ids: List<String>) {
-        if (ids.distinct().size !=
-            ids.size
-        ) {
-            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Duplicate offering IDs")
-        }
-        ids.firstOrNull {
-            feeds.published.offering(it) == null
-        }?.let { throw ApiFailure(HttpStatusCode.NotFound, "SOURCE_NOT_FOUND", "Unknown source $it") }
-    }
-
-    internal fun validated(entry: LineupEntryRecord): LineupEntryRecord {
-        fun invalid(message: String): Nothing = throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", message)
-        if (!fits(entry.number, NUMBER_LIMIT) || entry.number.any { it.isWhitespace() }) {
-            invalid("Number must be 1 to $NUMBER_LIMIT characters without spaces")
-        }
-        if (!fits(entry.name, NAME_LIMIT)) invalid("Name must be 1 to $NAME_LIMIT characters")
-        if (entry.group != null &&
-            !fits(entry.group, GROUP_LIMIT)
-        ) {
-            invalid("Group must be 1 to $GROUP_LIMIT characters")
-        }
-        val logo = entry.logo?.let { normalizeLogoUrl(it) ?: invalid("Logo must be an HTTP(S) URL") }
-        entry.guide?.let { mapping ->
-            if (guides.config(mapping.guideId) == null) invalid("Unknown guide ${mapping.guideId}")
-            if (!fits(mapping.channelId, NAME_LIMIT)) {
-                invalid("Guide channel ID must be 1 to $NAME_LIMIT characters")
-            }
-        }
-        if (entry.offeringIds.size > SOURCES_PER_STATION_LIMIT) {
-            invalid("At most $SOURCES_PER_STATION_LIMIT sources per entry")
-        }
-        return entry.copy(
-            name = entry.name.trim(),
-            number = entry.number.trim(),
-            group = entry.group?.trim(),
-            logo = logo,
-        )
     }
 
     companion object {

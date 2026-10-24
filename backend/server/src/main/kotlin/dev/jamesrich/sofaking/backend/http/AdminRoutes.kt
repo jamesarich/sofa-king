@@ -138,7 +138,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
             } else {
                 call.respond(
                     entryInfo(
-                        policy.updateStation(id, request, call.ifMatch())
+                        policy.edits.updateStation(id, request, call.ifMatch())
                             ?: throw ApiFailure(
                                 HttpStatusCode.NotFound,
                                 "LINEUP_ENTRY_NOT_FOUND",
@@ -150,7 +150,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
         }
         delete("/lineup/{id}") {
             val id = call.parameters["id"]!!
-            if (policy == null) runtime.lineup.delete(id) else policy.disableStation(id, call.ifMatch())
+            if (policy == null) runtime.lineup.delete(id) else policy.edits.disableStation(id, call.ifMatch())
             call.respond(HttpStatusCode.NoContent)
         }
         policyRoutes(runtime.policy)

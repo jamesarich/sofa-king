@@ -2,21 +2,21 @@
 # package leaves its lists in the pull request that refactors it, and this file goes with the last one.
 complexity:
   LongMethod:
-    excludes: ['**/admin/**', '**/catalog/**', '**/http/**', '**/library/**', '**/playback/**']
+    excludes: ['**/admin/**', '**/http/**', '**/library/**', '**/playback/**']
   LargeClass:
-    excludes: ['**/admin/**', '**/catalog/**', '**/http/**']
+    excludes: ['**/admin/**', '**/http/**']
   NestedBlockDepth:
     excludes: ['**/library/**']
   TooManyFunctions:
     # The tests stay excluded as gradle/detekt.yml has them, since these excludes replace those.
     excludes:
-      ['**/*Test/**', '**/test/**', '**/admin/**', '**/catalog/**', '**/http/**', '**/library/**', '**/playback/**']
+      ['**/*Test/**', '**/test/**', '**/admin/**', '**/http/**', '**/library/**', '**/playback/**']
   CyclomaticComplexMethod:
-    excludes: ['**/admin/**', '**/catalog/**', '**/http/**', '**/library/**', '**/playback/**']
+    excludes: ['**/admin/**', '**/http/**', '**/library/**', '**/playback/**']
 
 style:
   LoopWithTooManyJumpStatements:
-    excludes: ['**/catalog/**', '**/library/**', '**/playback/**']
+    excludes: ['**/library/**', '**/playback/**']
   ReturnCount:
     excludes: ['**/admin/**', '**/http/**', '**/library/**', '**/playback/**']
   ThrowsCount:

@@ -108,7 +108,7 @@ class DvrTest {
                 try {
                     val dvr = assertNotNull(runtime.dvr)
                     val live = runtime.lineup.entries().single { it.number == "2" }
-                    val rule = dvr.createRule(
+                    val rule = dvr.rules.create(
                         CreateRecordingRule(
                             "test show",
                             channelId = live.id,
@@ -193,7 +193,7 @@ class DvrTest {
                     dvr.delete(oneOff.id)
                     assertTrue(dvr.recordings().recordings.isEmpty())
 
-                    dvr.createRule(CreateRecordingRule("Movie Night"))
+                    dvr.rules.create(CreateRecordingRule("Movie Night"))
                     dvr.refreshSchedule("test")
                     val first = dvr.recordings().recordings
                     assertEquals(2, first.size)
@@ -316,17 +316,17 @@ class DvrTest {
             try {
                 val dvr = assertNotNull(runtime.dvr)
                 val live = runtime.lineup.entries().single { it.number == "2" }
-                val rule = dvr.createRule(CreateRecordingRule("News"))
+                val rule = dvr.rules.create(CreateRecordingRule("News"))
                 assertEquals(
                     live.id,
-                    dvr.updateRule(rule.id, UpdateRecordingRule(channelId = live.id, priority = 5)).channelId,
+                    dvr.rules.update(rule.id, UpdateRecordingRule(channelId = live.id, priority = 5)).channelId,
                 )
-                val any = dvr.updateRule(rule.id, UpdateRecordingRule(anyChannel = true))
+                val any = dvr.rules.update(rule.id, UpdateRecordingRule(anyChannel = true))
                 assertNull(any.channelId)
                 assertEquals(5, any.priority)
                 val unknown =
                     assertFailsWith<dev.jamesrich.sofaking.backend.catalog.ApiFailure> {
-                        dvr.updateRule(rule.id, UpdateRecordingRule(channelId = "nope"))
+                        dvr.rules.update(rule.id, UpdateRecordingRule(channelId = "nope"))
                     }
                 assertEquals(HttpStatusCode.NotFound, unknown.status)
             } finally {
@@ -443,7 +443,7 @@ class DvrTest {
                         root, Clock.systemUTC(),
                         { 4 }, retention = { Retention(freeGib = 5, keepDays = 30) }, freeSpace = { free() },
                     )
-                    val rule = dvr.createRule(CreateRecordingRule("News", keep = 2))
+                    val rule = dvr.rules.create(CreateRecordingRule("News", keep = 2))
                     val now = Instant.now()
                     fun completed(
                         id: String,

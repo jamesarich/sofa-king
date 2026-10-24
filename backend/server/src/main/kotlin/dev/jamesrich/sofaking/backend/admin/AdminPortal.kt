@@ -541,7 +541,7 @@ class AdminPortal(
                     return@action
                 }
                 try {
-                    val rule = dvr.createRule(
+                    val rule = dvr.rules.create(
                         CreateRecordingRule(
                             form["title"].orEmpty(),
                             form["channelId"]?.takeIf { it.isNotBlank() },
@@ -568,7 +568,7 @@ class AdminPortal(
                 val id = call.parameters["id"]!!
                 try {
                     val channel = form["channelId"]?.takeIf { it.isNotBlank() }
-                    val rule = dvr.updateRule(
+                    val rule = dvr.rules.update(
                         id,
                         UpdateRecordingRule(
                             channelId = channel,
@@ -632,7 +632,7 @@ class AdminPortal(
                     return@action
                 }
                 try {
-                    dvr.deleteRule(call.parameters["id"]!!)
+                    dvr.rules.delete(call.parameters["id"]!!)
                     session.flash.set(Flash("Deleted the rule and its scheduled recordings; what it recorded stays."))
                 } catch (_: ApiFailure) {
                     session.flash.set(Flash("That rule is already gone.", Tone.WARN))
@@ -1059,7 +1059,7 @@ class AdminPortal(
         val values = runtime.settings.current
         return RecordingsView(
             dvr.recordings(),
-            dvr.rules(),
+            dvr.rules.list(),
             channels,
             dvr.root.toString(),
             Retention(values.recordingsFreeGib, values.recordingsKeepDays),
@@ -1150,7 +1150,7 @@ class AdminPortal(
             "recordings" to
                 (
                     runtime.dvr?.let { dvr ->
-                        dvr.recordings().recordings.count { it.conflict } + (if (dvr.writable()) 0 else 1)
+                        dvr.recordings().recordings.count { it.conflict } + (if (dvr.files.writable()) 0 else 1)
                     }
                         ?: 0
                     ),
@@ -1502,7 +1502,7 @@ class AdminPortal(
                 )
             }
             val dvr = runtime.dvr
-            if (dvr != null && !dvr.writable()) {
+            if (dvr != null && !dvr.files.writable()) {
                 add(
                     Attention(
                         Tone.BAD,

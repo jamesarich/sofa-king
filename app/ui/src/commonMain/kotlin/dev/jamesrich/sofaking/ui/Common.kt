@@ -29,6 +29,8 @@ import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 /** The crown-on-sofa mark, decorative wherever the app name is printed beside it. */
 @Composable
@@ -53,8 +55,9 @@ fun MessageScreen(
     loading: Boolean = false,
 ) {
     Box(Modifier.fillMaxSize().screenPadding(), contentAlignment = Alignment.Center) {
+        // A phone in landscape is too short for the logo, the reason and Retry together, so the message scrolls.
         Column(
-            modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
+            modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

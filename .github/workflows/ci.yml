@@ -209,6 +209,8 @@ jobs:
           device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
           devices = json.load(sys.stdin)["devices"]
           print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".iOS-" in runtime for d in devices[runtime] if d["name"].startswith("iPhone")))')
+          # Booted before the tests, so the first launch does not race the simulator's own start on a busy runner.
+          xcrun simctl bootstatus "$device" -b
           cd iosApp
           xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug -destination "id=$device" \
             CODE_SIGNING_ALLOWED=NO -resultBundlePath "../build/ios-ui/TouchTests.xcresult" test

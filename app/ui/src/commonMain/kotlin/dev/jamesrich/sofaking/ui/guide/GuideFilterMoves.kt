@@ -99,11 +99,9 @@ internal fun guideNumberTarget(
     entry: ChannelNumberEntry,
     visible: List<Channel>,
     all: List<Channel>,
-): GuideNumberTarget {
-    entry.indexIn(visible)?.let { return GuideNumberTarget.Row(it) }
-    entry.indexIn(all)?.let { return GuideNumberTarget.Hidden(all[it].guideId) }
-    return GuideNumberTarget.Missing
-}
+): GuideNumberTarget = entry.indexIn(visible)?.let { GuideNumberTarget.Row(it) }
+    ?: entry.indexIn(all)?.let { GuideNumberTarget.Hidden(all[it].guideId) }
+    ?: GuideNumberTarget.Missing
 
 /** The first list item after a filter change: [focusedId]'s row in the slot the grid keeps it in, else the top. */
 internal fun firstItemAfterFilter(visible: List<Channel>, focusedId: String?): Int {

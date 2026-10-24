@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.data
 
+import kotlin.time.Duration.Companion.seconds
+
 /** One subtitle, shown from [startMs] to [endMs] in the item's time; [text] keeps its line breaks and drops markup. */
 data class SubtitleCue(val startMs: Long, val endMs: Long, val text: String)
 
@@ -38,50 +40,73 @@ class Subtitles(cues: List<SubtitleCue>) {
  * with no timing line after a cue is read as more of that cue's text rather than dropped.
  */
 fun parseWebVtt(document: String): Subtitles {
-    val cues = ArrayList<SubtitleCue>()
-    var previous: Triple<Long, Long, String>? = null
-    fun finish() {
-        previous?.let { (startMs, endMs, raw) ->
+    val reader = VttReader()
+    document.replace("\r\n", "\n").replace('\r', '\n').split(BLANK_LINES).forEach(reader::read)
+    return Subtitles(reader.finish())
+}
+
+/** Reads a WebVTT document block by block, holding the cue whose text may go on in the next block. */
+private class VttReader {
+    private val cues = ArrayList<SubtitleCue>()
+    private var open: Triple<Long, Long, String>? = null
+
+    fun read(block: String) {
+        val lines = block.lines()
+        val timing = lines.indexOfFirst { "-->" in it }
+        if (timing < 0) more(block, lines.first().trimStart()) else start(lines, timing)
+    }
+
+    fun finish(): List<SubtitleCue> {
+        close()
+        return cues
+    }
+
+    /** A block with no timing line: more of the open cue's text, unless it is a header, a comment or a style. */
+    private fun more(block: String, first: String) {
+        val cue = open
+        if (cue != null && first.isNotEmpty() && SKIPPED_BLOCKS.none { first.startsWith(it) }) {
+            open = cue.copy(third = cue.third + "\n" + block)
+        } else {
+            close()
+        }
+    }
+
+    private fun start(lines: List<String>, timing: Int) {
+        close()
+        val (start, end) = lines[timing].split("-->", limit = 2).map { it.trim().substringBefore(' ') }
+        val startMs = vttTime(start) ?: return
+        val endMs = vttTime(end) ?: return
+        open = Triple(startMs, endMs, lines.drop(timing + 1).joinToString("\n"))
+    }
+
+    private fun close() {
+        open?.let { (startMs, endMs, raw) ->
             val text = cleanCueText(raw)
             if (text.isNotEmpty() && endMs > startMs) cues += SubtitleCue(startMs, endMs, text)
         }
-        previous = null
+        open = null
     }
-    for (block in document.replace("\r\n", "\n").replace('\r', '\n').split(BLANK_LINES)) {
-        val lines = block.lines()
-        val timing = lines.indexOfFirst { "-->" in it }
-        if (timing < 0) {
-            val first = lines.first().trimStart()
-            val open = previous
-            if (open != null && first.isNotEmpty() && SKIPPED_BLOCKS.none { first.startsWith(it) }) {
-                previous = open.copy(third = open.third + "\n" + block)
-            } else {
-                finish()
-            }
-            continue
-        }
-        finish()
-        val (start, end) = lines[timing].split("-->", limit = 2).map { it.trim().substringBefore(' ') }
-        val startMs = vttTime(start) ?: continue
-        val endMs = vttTime(end) ?: continue
-        previous = Triple(startMs, endMs, lines.drop(timing + 1).joinToString("\n"))
-    }
-    finish()
-    return Subtitles(cues)
 }
 
 /** `hh:mm:ss.mmm` or `mm:ss.mmm` in milliseconds; null when it is neither. */
 internal fun vttTime(value: String): Long? {
     val parts = value.split(':')
-    if (parts.size !in 2..3) return null
     val seconds = parts.last().split('.')
-    if (seconds.size != 2) return null
-    val hours = if (parts.size == 3) parts[0].toLongOrNull() ?: return null else 0
-    val minutes = parts[parts.size - 2].toLongOrNull() ?: return null
-    val whole = seconds[0].toLongOrNull() ?: return null
-    val millis = seconds[1].padEnd(3, '0').take(3).toLongOrNull() ?: return null
-    return ((hours * 60 + minutes) * 60 + whole) * 1000 + millis
+    if (parts.size !in CLOCK_FIELDS || seconds.size != 2) return null
+    val units = (parts.dropLast(1) + seconds[0]).mapNotNull { it.toLongOrNull() }
+    val millis = seconds[1].padEnd(MILLIS_DIGITS, '0').take(MILLIS_DIGITS).toLongOrNull()
+    if (units.size != parts.size || millis == null) return null
+    return units.fold(0L) { total, unit -> total * CLOCK_BASE + unit }.seconds.inWholeMilliseconds + millis
 }
+
+/** A cue time has minutes and seconds, and hours before them when it needs them. */
+private val CLOCK_FIELDS = 2..3
+
+/** Each field of a cue time counts this many of the field after it. */
+private const val CLOCK_BASE = 60
+
+/** The digits of a cue time's fraction of a second. */
+private const val MILLIS_DIGITS = 3
 
 /**
  * A cue's text without markup, one line per row. Subtitle files often carry their HTML escaped (`&lt;i&gt;`), so

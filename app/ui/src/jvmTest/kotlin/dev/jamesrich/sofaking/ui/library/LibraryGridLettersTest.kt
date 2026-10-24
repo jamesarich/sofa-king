@@ -3,14 +3,14 @@ package dev.jamesrich.sofaking.ui.library
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsFocused
@@ -103,7 +103,9 @@ class LibraryGridLettersTest {
                 libraryId = library.id,
                 sort = LibrarySort.TITLE,
                 unwatched = false,
-                items = (0 until 84).map { MediaItem("m$it", library.id, ItemKind.MOVIE, "${alphabet[it % 27]} movie $it") },
+                items = (0 until 84).map {
+                    MediaItem("m$it", library.id, ItemKind.MOVIE, "${alphabet[it % 27]} movie $it")
+                },
                 letters = alphabet.mapIndexed { i, letter -> LetterJump(letter, i * 3) },
                 total = 84,
                 next = null,

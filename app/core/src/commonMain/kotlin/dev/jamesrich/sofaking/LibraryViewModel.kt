@@ -23,6 +23,7 @@ import dev.jamesrich.sofaking.data.failedLoad
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.data.seasonAfter
 import dev.jamesrich.sofaking.data.watchNextItems
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -140,7 +141,11 @@ class LibraryViewModel(
             if (_home.value !is LibraryHomeState.Ready) _home.value = LibraryHomeState.Loading
             while (true) {
                 val home = runCatchingCancellable { LibraryHomeState.Ready(repository.home()) }.getOrElse { e ->
-                    if (e is SofaKingException && e.status == 404) LibraryHomeState.Unavailable else failed(e)
+                    if (e is SofaKingException && e.statusCode == HttpStatusCode.NotFound) {
+                        LibraryHomeState.Unavailable
+                    } else {
+                        failed(e)
+                    }
                 }
                 _home.value = home
                 // The Library tab hides while the server has no library, so ask again until one is added.
@@ -314,15 +319,14 @@ class LibraryViewModel(
      * anything but an episode, after a show's last episode, or when the server cannot be reached.
      */
     suspend fun upNext(item: MediaItem): MediaItem? {
-        val repository = repository ?: return null
-        if (item.kind != ItemKind.EPISODE) return null
-        val parent = item.parentId ?: return null
+        val repository = repository
+        val parent = item.parentId
+        if (repository == null || parent == null || item.kind != ItemKind.EPISODE) return null
         return runCatchingCancellable {
-            episodeAfter(repository.detail(parent).children, item.id) ?: run {
-                val show = item.showId?.takeIf { it != parent } ?: return null
-                val season = seasonAfter(repository.detail(show).children, parent) ?: return null
-                repository.detail(season.id).children.firstOrNull { it.kind.playable }
-            }
+            episodeAfter(repository.detail(parent).children, item.id)
+                ?: item.showId?.takeIf { it != parent }
+                    ?.let { show -> seasonAfter(repository.detail(show).children, parent) }
+                    ?.let { season -> repository.detail(season.id).children.firstOrNull { it.kind.playable } }
         }.getOrElse { e ->
             log.w { "up next failed: ${e.describe()}" }
             null

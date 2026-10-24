@@ -201,8 +201,8 @@ internal fun Key.inButtonRow(): ButtonRowKey = when (this) {
  */
 internal fun doubleTapSeek(x: Float, width: Float): Int = when {
     width <= 0f -> 0
-    x < width / 3 -> -1
-    x > width * 2 / 3 -> 1
+    x < width / SEEK_ZONES -> -1
+    x > width - width / SEEK_ZONES -> 1
     else -> 0
 }
 
@@ -332,3 +332,6 @@ internal fun Modifier.showBarOnMouseMove(last: LastInput, onMove: () -> Unit): M
         }
     }
 }
+
+/** The picture splits into this many zones across for a double tap: back, nothing, forward. */
+private const val SEEK_ZONES = 3

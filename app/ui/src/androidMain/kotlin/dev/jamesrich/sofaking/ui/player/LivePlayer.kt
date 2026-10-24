@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.microseconds
 
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
@@ -253,8 +254,8 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
         adMarks.add(
             tags = playlist.tags,
             mediaSequence = playlist.mediaSequence,
-            startsMs = segments.map { windowStartMs + it.relativeStartTimeUs / 1_000 },
-            durationsMs = segments.map { it.durationUs / 1_000 },
+            startsMs = segments.map { windowStartMs + it.relativeStartTimeUs.microseconds.inWholeMilliseconds },
+            durationsMs = segments.map { it.durationUs.microseconds.inWholeMilliseconds },
         )
         return adMarks.at(windowStartMs + exo.currentPosition)
     }

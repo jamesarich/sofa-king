@@ -22,10 +22,18 @@ internal fun formatBytes(bytes: Long): String {
     val units = listOf("B", "KB", "MB", "GB", "TB")
     var value = bytes.coerceAtLeast(0).toDouble()
     var unit = 0
-    while (value >= 1000 && unit < units.lastIndex) {
-        value /= 1000
+    while (value >= BYTES_STEP && unit < units.lastIndex) {
+        value /= BYTES_STEP
         unit++
     }
     val text = if (value < 10 && unit > 0) oneDecimal(value, trimZero = true) else round(value).toLong().toString()
     return "$text ${units[unit]}"
 }
+
+/** [ms] in whole seconds rounded up, so a countdown reads 1 until it is over. */
+internal fun secondsUp(ms: Long): Int = ((ms + MS_PER_SECOND - 1) / MS_PER_SECOND).toInt()
+
+private const val MS_PER_SECOND = 1_000L
+
+/** The decimal step between byte units, as drives and networks count them. */
+private const val BYTES_STEP = 1000

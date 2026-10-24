@@ -61,6 +61,8 @@ import org.w3c.dom.TextTrackMode
 import org.w3c.dom.events.Event
 import org.w3c.dom.get
 import org.w3c.dom.url.URL
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.DurationUnit
 
 private val log = Logger.withTag("SofaKing")
 
@@ -240,7 +242,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     override fun seekTo(positionMs: Long) {
         if (!isSeekable) return
         val target = clampSeek(positionMs, durationMs)
-        video.currentTime = target / 1000.0
+        video.currentTime = target.milliseconds.toDouble(DurationUnit.SECONDS)
     }
 
     override val speedAdjustable: Boolean get() = true

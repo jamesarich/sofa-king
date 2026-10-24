@@ -20,6 +20,7 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldValue
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSuiteScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +37,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,6 +59,7 @@ import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.tvFocus
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -163,44 +166,28 @@ internal fun TopLevel(
     LaunchedEffect(shown) { if (shown) state.show() else state.hide() }
     NavigationSuiteScaffold(
         navigationItems = {
-            NavigationSuiteItem(
-                selected = !settingsOpen && tabs.selected == Tab.LIVE,
-                onClick = { tabs.onTab(Tab.LIVE) },
-                modifier = if (!settingsOpen && tabs.selected == Tab.LIVE) {
-                    Modifier.focusRequester(tabFocus)
-                } else {
-                    Modifier
-                },
-                icon = { Icon(SofaIcons.LiveTv, contentDescription = null) },
-                label = { Text(stringResource(Res.string.nav_live)) },
-                navigationSuiteType = type,
-            )
+            val selected = tabs.selected.takeUnless { settingsOpen }
+            TabItem(Tab.LIVE, SofaIcons.LiveTv, Res.string.nav_live, selected, tabs.onTab, tabFocus, type)
             if (tabs.libraryShown) {
-                NavigationSuiteItem(
-                    selected = !settingsOpen && tabs.selected == Tab.LIBRARY,
-                    onClick = { tabs.onTab(Tab.LIBRARY) },
-                    modifier = if (!settingsOpen && tabs.selected == Tab.LIBRARY) {
-                        Modifier.focusRequester(tabFocus)
-                    } else {
-                        Modifier
-                    },
-                    icon = { Icon(SofaIcons.VideoLibrary, contentDescription = null) },
-                    label = { Text(stringResource(Res.string.nav_library)) },
-                    navigationSuiteType = type,
+                TabItem(
+                    Tab.LIBRARY,
+                    SofaIcons.VideoLibrary,
+                    Res.string.nav_library,
+                    selected,
+                    tabs.onTab,
+                    tabFocus,
+                    type,
                 )
             }
             if (tabs.recordingsShown) {
-                NavigationSuiteItem(
-                    selected = !settingsOpen && tabs.selected == Tab.RECORDINGS,
-                    onClick = { tabs.onTab(Tab.RECORDINGS) },
-                    modifier = if (!settingsOpen && tabs.selected == Tab.RECORDINGS) {
-                        Modifier.focusRequester(tabFocus)
-                    } else {
-                        Modifier
-                    },
-                    icon = { Icon(SofaIcons.Recordings, contentDescription = null) },
-                    label = { Text(stringResource(Res.string.recordings_title)) },
-                    navigationSuiteType = type,
+                TabItem(
+                    Tab.RECORDINGS,
+                    SofaIcons.Recordings,
+                    Res.string.recordings_title,
+                    selected,
+                    tabs.onTab,
+                    tabFocus,
+                    type,
                 )
             }
             NavigationSuiteItem(
@@ -216,6 +203,28 @@ internal fun TopLevel(
         containerColor = MaterialTheme.colorScheme.background,
         state = state,
         content = content,
+    )
+}
+
+/** One tab in the navigation suite, selected when it is the [open] one, which then takes [tabFocus]. */
+@Composable
+private fun TabItem(
+    tab: Tab,
+    icon: ImageVector,
+    label: StringResource,
+    open: Tab?,
+    onTab: (Tab) -> Unit,
+    tabFocus: FocusRequester,
+    type: NavigationSuiteType,
+) {
+    val selected = open == tab
+    NavigationSuiteItem(
+        selected = selected,
+        onClick = { onTab(tab) },
+        modifier = if (selected) Modifier.focusRequester(tabFocus) else Modifier,
+        icon = { Icon(icon, contentDescription = null) },
+        label = { Text(stringResource(label)) },
+        navigationSuiteType = type,
     )
 }
 

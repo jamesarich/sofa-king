@@ -156,52 +156,45 @@ internal class FakeServer(private val recordings: Boolean = true) {
     fun stop() = http.stop(0)
 
     private fun handle(exchange: HttpExchange) {
-        val path = exchange.requestURI.path.removePrefix("/api/v1/")
-        val query = exchange.requestURI.rawQuery.orEmpty().split('&').filter { '=' in it }
+        val request = Request(exchange)
+        if (!live(exchange, request) && !library(exchange, request)) exchange.notFound(request.path)
+    }
+
+    /** One request's path under `/api/v1/`, its query, method and body. */
+    private class Request(exchange: HttpExchange) {
+        val path: String = exchange.requestURI.path.removePrefix("/api/v1/")
+        val query: Map<String, String> = exchange.requestURI.rawQuery.orEmpty().split('&').filter { '=' in it }
             .associate { it.substringBefore('=') to URLDecoder.decode(it.substringAfter('='), Charsets.UTF_8) }
-        val method = exchange.requestMethod
-        val body = exchange.requestBody.readBytes().decodeToString()
+        val method: String = exchange.requestMethod
+        val body: String = exchange.requestBody.readBytes().decodeToString()
+    }
+
+    /** The pairing, lineup, guide, preferences, recordings and live session routes; false for any other path. */
+    private fun live(exchange: HttpExchange, request: Request): Boolean {
+        val path = request.path
         when {
             path == "pair" -> exchange.json(200, PairingResult("f".repeat(64), "fuzz"))
 
-            path == "bootstrap" -> exchange.json(
-                200,
-                Bootstrap(
-                    serverId = "fuzz",
-                    serverTime = Clock.System.now().toString(),
-                    capabilities = Capabilities(
-                        catalog = true,
-                        guide = true,
-                        playback = true,
-                        viewers = true,
-                        library = true,
-                        recordings = true,
-                    ),
-                ),
-            )
+            path == "bootstrap" -> exchange.json(200, bootstrap())
 
             path == "channels" -> exchange.json(200, Catalog("r1", channels))
 
             path == "guide/query" -> {
                 guideQueries.incrementAndGet()
-                exchange.json(200, guide(JSON.decodeFromString(body)))
+                exchange.json(200, guide(JSON.decodeFromString(request.body)))
             }
 
-            path.startsWith("preferences/") -> if (method == "PUT") {
-                exchange.text(200, body)
-            } else {
-                exchange.text(200, "{}")
-            }
+            path.startsWith("preferences/") -> exchange.text(200, if (request.method == "PUT") request.body else "{}")
 
-            path == "recordings" && method == "GET" -> exchange.json(
+            path == "recordings" && request.method == "GET" -> exchange.json(
                 200,
                 RecordingList(if (recordings) recordingList() else emptyList()),
             )
 
-            path == "recording-rules" && method == "GET" -> exchange.json(200, RecordingRuleList())
+            path == "recording-rules" && request.method == "GET" -> exchange.json(200, RecordingRuleList())
 
             path == "playback-sessions" -> {
-                val open = JSON.decodeFromString<OpenPlayback>(body)
+                val open = JSON.decodeFromString<OpenPlayback>(request.body)
                 val id = UUID.randomUUID().toString()
                 liveSessions[id] = open.channelId to open.intent
                 sessionsOpened.incrementAndGet()
@@ -210,35 +203,56 @@ internal class FakeServer(private val recordings: Boolean = true) {
 
             path.endsWith("/ad-break") -> exchange.json(200, AdBreakState())
 
-            path.startsWith("playback-sessions/") -> {
-                val id = path.removePrefix("playback-sessions/")
-                val open = liveSessions[id]
-                when {
-                    method == "DELETE" -> {
-                        liveSessions -= id
-                        exchange.sendResponseHeaders(204, -1)
-                    }
+            path.startsWith("playback-sessions/") ->
+                liveSession(exchange, path.removePrefix("playback-sessions/"), request)
 
-                    open == null -> exchange.json(410, ApiError(Wire.ErrorCode.SESSION_EXPIRED, "gone"))
+            else -> return false
+        }
+        return true
+    }
 
-                    else -> {
-                        val now =
-                            JSON.decodeFromString<UpdatePlayback>(
-                                body.ifEmpty {
-                                    "{}"
-                                },
-                            ).intent?.let { open.first to it }
-                                ?: open
-                        liveSessions[id] = now
-                        exchange.json(200, session(id, now.first, now.second))
-                    }
-                }
+    private fun bootstrap() = Bootstrap(
+        serverId = "fuzz",
+        serverTime = Clock.System.now().toString(),
+        capabilities = Capabilities(
+            catalog = true,
+            guide = true,
+            playback = true,
+            viewers = true,
+            library = true,
+            recordings = true,
+        ),
+    )
+
+    /** Renews, retargets or releases the live session [id]. */
+    private fun liveSession(exchange: HttpExchange, id: String, request: Request) {
+        val open = liveSessions[id]
+        when {
+            request.method == "DELETE" -> {
+                liveSessions -= id
+                exchange.sendResponseHeaders(204, -1)
             }
 
+            open == null -> exchange.json(410, ApiError(Wire.ErrorCode.SESSION_EXPIRED, "gone"))
+
+            else -> {
+                val now = JSON.decodeFromString<UpdatePlayback>(request.body.ifEmpty { "{}" }).intent
+                    ?.let { open.first to it }
+                    ?: open
+                liveSessions[id] = now
+                exchange.json(200, session(id, now.first, now.second))
+            }
+        }
+    }
+
+    /** The library and library session routes; false for any other path. */
+    private fun library(exchange: HttpExchange, request: Request): Boolean {
+        val path = request.path
+        when {
             path == "library/home" -> exchange.json(200, home())
 
             path == "library/search" -> {
-                val q = query["q"].orEmpty()
+                val q = request.query["q"].orEmpty()
                 exchange.json(
                     200,
                     LibraryPage(
@@ -249,28 +263,10 @@ internal class FakeServer(private val recordings: Boolean = true) {
 
             path.startsWith("libraries/") && path.endsWith("/items") -> {
                 val library = path.removePrefix("libraries/").removeSuffix("/items")
-                exchange.json(200, page(library, query))
+                exchange.json(200, page(library, request.query))
             }
 
-            path.startsWith("library/items/") && path.endsWith("/play-state") -> {
-                val item = items[path.removePrefix("library/items/").removeSuffix("/play-state")]
-                val update = JSON.decodeFromString<UpdatePlayState>(body)
-                if (item == null) {
-                    exchange.notFound(path)
-                } else {
-                    exchange.json(
-                        200,
-                        item.copy(
-                            playState = PlayState(
-                                update.positionMs,
-                                update.durationMs,
-                                update.watched ?: false,
-                                Clock.System.now().toString(),
-                            ),
-                        ),
-                    )
-                }
-            }
+            path.startsWith("library/items/") && path.endsWith("/play-state") -> playState(exchange, request)
 
             path.startsWith("library/items/") -> detail(path.removePrefix("library/items/"))?.let {
                 exchange.json(200, it)
@@ -278,29 +274,53 @@ internal class FakeServer(private val recordings: Boolean = true) {
                 ?: exchange.notFound(path)
 
             path == "vod-sessions" -> {
-                val open = JSON.decodeFromString<OpenVodPlayback>(body)
+                val open = JSON.decodeFromString<OpenVodPlayback>(request.body)
                 val id = UUID.randomUUID().toString()
                 vodSessions[id] = open.itemId
                 sessionsOpened.incrementAndGet()
                 exchange.json(201, vod(id, open.itemId, open.startMs))
             }
 
-            path.startsWith("vod-sessions/") -> {
-                val id = path.removePrefix("vod-sessions/")
-                val item = vodSessions[id]
-                when {
-                    method == "DELETE" -> {
-                        vodSessions -= id
-                        exchange.sendResponseHeaders(204, -1)
-                    }
+            path.startsWith("vod-sessions/") -> vodSession(exchange, path.removePrefix("vod-sessions/"), request)
 
-                    item == null -> exchange.json(410, ApiError(Wire.ErrorCode.SESSION_EXPIRED, "gone"))
+            else -> return false
+        }
+        return true
+    }
 
-                    else -> exchange.json(200, vod(id, item, 0))
-                }
+    /** Saves an item's position and answers with the item as it now stands. */
+    private fun playState(exchange: HttpExchange, request: Request) {
+        val item = items[request.path.removePrefix("library/items/").removeSuffix("/play-state")]
+        val update = JSON.decodeFromString<UpdatePlayState>(request.body)
+        if (item == null) {
+            exchange.notFound(request.path)
+        } else {
+            exchange.json(
+                200,
+                item.copy(
+                    playState = PlayState(
+                        update.positionMs,
+                        update.durationMs,
+                        update.watched ?: false,
+                        Clock.System.now().toString(),
+                    ),
+                ),
+            )
+        }
+    }
+
+    /** Renews or releases the library session [id]. */
+    private fun vodSession(exchange: HttpExchange, id: String, request: Request) {
+        val item = vodSessions[id]
+        when {
+            request.method == "DELETE" -> {
+                vodSessions -= id
+                exchange.sendResponseHeaders(204, -1)
             }
 
-            else -> exchange.notFound(path)
+            item == null -> exchange.json(410, ApiError(Wire.ErrorCode.SESSION_EXPIRED, "gone"))
+
+            else -> exchange.json(200, vod(id, item, 0))
         }
     }
 

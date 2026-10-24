@@ -2,22 +2,8 @@
 # refactors the code it covers, and this file with the last one.
 complexity:
   LongMethod:
-    active: false
-  LargeClass:
-    active: false
-  NestedBlockDepth:
-    active: false
+    excludes: ['**/ui/src/**']
   TooManyFunctions:
     active: false
   CyclomaticComplexMethod:
-    active: false
-
-style:
-  LoopWithTooManyJumpStatements:
-    active: false
-  MagicNumber:
-    active: false
-  ReturnCount:
-    active: false
-  ThrowsCount:
-    active: false
+    excludes: ['**/ui/src/**']

@@ -99,6 +99,8 @@ import platform.UIKit.UIColor
 import platform.UIKit.UIImage
 import platform.UIKit.UIView
 import platform.darwin.NSObjectProtocol
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.DurationUnit
 
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
@@ -156,7 +158,7 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
     init {
         scope.launch {
             for (signal in wake) {
-                while (!publishStatus()) delay(250)
+                while (!publishStatus()) delay(STATUS_RETRY)
             }
         }
     }
@@ -327,7 +329,7 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
     override fun seekTo(positionMs: Long) {
         if (!isSeekable) return
         val target = clampSeek(positionMs, durationMs)
-        av.seekToTime(CMTimeMakeWithSeconds(target / 1000.0, 600))
+        av.seekToTime(CMTimeMakeWithSeconds(target.milliseconds.toDouble(DurationUnit.SECONDS), SEEK_TIMESCALE))
     }
 
     /** What [start] plays at; AVPlayer's play() starts at normal speed, so the rate is set after it. */
@@ -452,31 +454,37 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         wake.trySend(Unit)
     }
 
-    /** Publishes the state; true once it is settled and needs no further reads until something changes. */
-    private fun publishStatus(): Boolean {
-        val item = av.currentItem
-        val playing = av.timeControlStatus == AVPlayerTimeControlStatusPlaying
-        val state = when {
-            item == null -> PlaybackState.IDLE
-            ended -> PlaybackState.ENDED
-            item.status == AVPlayerItemStatusFailed -> PlaybackState.IDLE
-            playing -> PlaybackState.READY
-            av.timeControlStatus == AVPlayerTimeControlStatusWaitingToPlayAtSpecifiedRate -> PlaybackState.BUFFERING
-            item.status == AVPlayerItemStatusReadyToPlay -> PlaybackState.READY
-            else -> PlaybackState.BUFFERING
-        }
-        if (item != null && item.status == AVPlayerItemStatusReadyToPlay && captionsAppliedTo !== item) {
+    private fun stateOf(item: AVPlayerItem?, playing: Boolean): PlaybackState = when {
+        item == null -> PlaybackState.IDLE
+        ended -> PlaybackState.ENDED
+        item.status == AVPlayerItemStatusFailed -> PlaybackState.IDLE
+        playing -> PlaybackState.READY
+        av.timeControlStatus == AVPlayerTimeControlStatusWaitingToPlayAtSpecifiedRate -> PlaybackState.BUFFERING
+        item.status == AVPlayerItemStatusReadyToPlay -> PlaybackState.READY
+        else -> PlaybackState.BUFFERING
+    }
+
+    /** Applies the captions and reads the audio tracks once [item] is ready, and reports its failure once. */
+    private fun readItem(item: AVPlayerItem) {
+        if (item.status == AVPlayerItemStatusReadyToPlay && captionsAppliedTo !== item) {
             captionsAppliedTo = item
             legibleGroup = item.asset.mediaSelectionGroupForMediaCharacteristic(AVMediaCharacteristicLegible)
             applyCaptions()
             readAudioTracks(item)
         }
-        if (item == null) _audioTracks.value = emptyList()
-        if (item != null && item.status == AVPlayerItemStatusFailed && reportedFailure != item) {
+        if (item.status == AVPlayerItemStatusFailed && reportedFailure != item) {
             reportedFailure = item
             val httpStatus = (item.errorLog()?.events?.lastOrNull() as? AVPlayerItemErrorLogEvent)?.errorStatusCode
             mutableErrors.tryEmit(playerErrorFor(item.error, httpStatus))
         }
+    }
+
+    /** Publishes the state; true once it is settled and needs no further reads until something changes. */
+    private fun publishStatus(): Boolean {
+        val item = av.currentItem
+        val playing = av.timeControlStatus == AVPlayerTimeControlStatusPlaying
+        val state = stateOf(item, playing)
+        if (item == null) _audioTracks.value = emptyList() else readItem(item)
         mutableStatus.value = PlayerStatus(state, playing, playWhenReady)
         // Like Android's shutter, it covers only from a reset until the first frame, not each rebuffer.
         val shown = item != null && playerLayer.readyForDisplay
@@ -494,8 +502,8 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
  * status of a failed segment or playlist; 410 is the relay closing the session.
  */
 private fun playerErrorFor(error: NSError?, httpStatus: Long?): PlayerError {
-    if (httpStatus != null && httpStatus >= 400) {
-        return PlayerError(PlayerErrorCodes.BAD_HTTP_STATUS, streamGone = httpStatus == 410L)
+    if (httpStatus != null && httpStatus >= FIRST_HTTP_ERROR) {
+        return PlayerError(PlayerErrorCodes.BAD_HTTP_STATUS, streamGone = httpStatus == HTTP_GONE)
     }
     if (error == null) return PlayerError(PlayerErrorCodes.UNSPECIFIED)
     val code = when (error.domain) {
@@ -523,3 +531,13 @@ private val VideoZoom.gravity: String?
         VideoZoom.FILL -> AVLayerVideoGravityResizeAspectFill
         VideoZoom.STRETCH -> AVLayerVideoGravityResize
     }
+
+/** How often a status the player could not publish yet is tried again. */
+private val STATUS_RETRY = 250.milliseconds
+
+/** The timescale of a seek's target: 600 ticks a second divides evenly by every common frame rate. */
+private const val SEEK_TIMESCALE = 600
+
+/** The first HTTP status that is an error, and the one the relay closes a session with. */
+private const val FIRST_HTTP_ERROR = 400L
+private const val HTTP_GONE = 410L

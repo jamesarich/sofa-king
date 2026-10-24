@@ -65,6 +65,7 @@ import dev.jamesrich.sofaking.resources.guide_time_left
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.ProgramBadges
+import dev.jamesrich.sofaking.ui.WIDESCREEN
 import dev.jamesrich.sofaking.ui.WholeLinesText
 import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.episodeLine
@@ -232,7 +233,7 @@ private fun PanelContent(
 ) {
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            details.program?.icon?.let { ProgramImage(it, Modifier.width(PANEL_IMAGE_WIDTH).aspectRatio(16f / 9f)) }
+            details.program?.icon?.let { ProgramImage(it, Modifier.width(PANEL_IMAGE_WIDTH).aspectRatio(WIDESCREEN)) }
             Heading(details, now, guideLoading, Modifier.weight(1f))
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {

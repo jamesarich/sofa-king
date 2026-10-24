@@ -35,6 +35,7 @@ import dev.jamesrich.sofaking.resources.vod_up_next_in
 import dev.jamesrich.sofaking.resources.vod_up_next_keys
 import dev.jamesrich.sofaking.resources.vod_up_next_play
 import dev.jamesrich.sofaking.ui.Artwork
+import dev.jamesrich.sofaking.ui.WIDESCREEN
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
@@ -71,7 +72,7 @@ internal fun BoxScope.UpNextCard(
         )
         Box(
             Modifier.fillMaxWidth().aspectRatio(
-                16f / 9f,
+                WIDESCREEN,
             ).clip(CardShape).background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
             Artwork(next.artworkUrl, next.title)

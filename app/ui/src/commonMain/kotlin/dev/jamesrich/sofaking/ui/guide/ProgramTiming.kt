@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.ui.guide
 import dev.jamesrich.sofaking.data.Program
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /** How a program stands against the clock, for the detail sheet's "time remaining" line. */
@@ -24,6 +25,7 @@ internal fun programTiming(program: Program, now: Instant): ProgramTiming = when
 }
 
 private fun wholeMinutesUp(duration: Duration): Duration {
-    val seconds = duration.inWholeSeconds
-    return ((seconds + 59) / 60).minutes
+    val seconds = duration.inWholeSeconds.seconds
+    val minutes = seconds.inWholeMinutes.minutes
+    return if (minutes < seconds) minutes + 1.minutes else minutes
 }

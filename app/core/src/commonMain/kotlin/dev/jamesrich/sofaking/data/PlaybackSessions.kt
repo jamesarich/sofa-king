@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.data
 
 import dev.jamesrich.sofaking.contract.Wire
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -268,7 +269,7 @@ class PlaybackSessions(
     private suspend fun reread(api: SofaKingApi, held: PlaybackStream): PlaybackStream? = try {
         publish(api.session(held.sessionId), held.intent)
     } catch (e: SofaKingException) {
-        if (e.status != 410) throw e
+        if (e.statusCode != HttpStatusCode.Gone) throw e
         renewal?.cancel()
         _current.value = null
         null
@@ -345,43 +346,51 @@ class PlaybackSessions(
      * Transport failures wait for the next tick, inside the lease.
      */
     private suspend fun renewLoop(api: SofaKingApi, sessionId: String, kind: Kind) {
-        while (true) {
+        do {
             delay(renewInterval)
             val held = _current.value?.takeIf { it.sessionId == sessionId } ?: return
-            try {
-                val renewed = kind.renew(api, held)
-                mutex.withLock {
-                    if (_current.value?.sessionId != sessionId) return
-                    // A restart, intent change or re-read published a newer stream while this renewal was
-                    // out; the server may have answered the renewal before that, so its answer is stale and
-                    // the next renewal reads afresh.
-                    if (_current.value != held) continue
-                    _current.value = renewed
-                    if (renewed.url != held.url) _replaced.tryEmit(renewed)
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: SofaKingException) {
-                if (e.status != 410) continue
-                mutex.withLock {
-                    if (_current.value?.sessionId != sessionId) return
-                    _current.value = null
-                    items.remove(sessionId)
-                    val again = kind.reopening(held, itemPositionMs)
-                    // A reopen that fails leaves no session; the player's own failure path tunes again with backoff.
-                    val reopened = try {
-                        withTimeoutOrNull(openTimeout) { again.open(api) }
-                            ?: throw SessionTimeoutException("session reopen timed out")
-                    } catch (_: IOException) {
-                        return
-                    }
-                    _replaced.tryEmit(hold(api, reopened, again))
-                }
-                return
-            } catch (_: IOException) {
-                continue
-            }
+        } while (renew(api, held, kind))
+    }
+
+    /** Renews [held] once; true while its session is still held, so renewing goes on. */
+    private suspend fun renew(api: SofaKingApi, held: PlaybackStream, kind: Kind): Boolean = try {
+        val renewed = kind.renew(api, held)
+        mutex.withLock { publishRenewal(held, renewed) }
+    } catch (e: SofaKingException) {
+        val gone = e.statusCode == HttpStatusCode.Gone
+        if (gone) mutex.withLock { reopen(api, held, kind) }
+        !gone
+    } catch (_: IOException) {
+        true
+    }
+
+    /** Publishes [renewed] in place of [held]; false once [held]'s session is no longer the one held. */
+    private fun publishRenewal(held: PlaybackStream, renewed: PlaybackStream): Boolean {
+        val current = _current.value
+        if (current?.sessionId != held.sessionId) return false
+        // A restart, intent change or re-read published a newer stream while this renewal was out; the server may
+        // have answered the renewal before that, so its answer is stale and the next renewal reads afresh.
+        if (current == held) {
+            _current.value = renewed
+            if (renewed.url != held.url) _replaced.tryEmit(renewed)
         }
+        return true
+    }
+
+    /** Opens a new session in place of [held], which the server dropped, unless another one is held by now. */
+    private suspend fun reopen(api: SofaKingApi, held: PlaybackStream, kind: Kind) {
+        if (_current.value?.sessionId != held.sessionId) return
+        _current.value = null
+        items.remove(held.sessionId)
+        val again = kind.reopening(held, itemPositionMs)
+        // A reopen that fails leaves no session; the player's own failure path tunes again with backoff.
+        val reopened = try {
+            withTimeoutOrNull(openTimeout) { again.open(api) }
+                ?: throw SessionTimeoutException("session reopen timed out")
+        } catch (_: IOException) {
+            return
+        }
+        _replaced.tryEmit(hold(api, reopened, again))
     }
 
     /** What a session plays, and how the server opens, renews and releases it: a live channel's or a library item's. */

@@ -75,7 +75,10 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.DurationUnit
 
 /** Where the break screen's logo is, which way it is heading on each axis, and which of [BOUNCE_HUES] it wears. */
 internal data class Bounce(val x: Float, val y: Float, val right: Boolean, val down: Boolean, val tint: Int = 0)
@@ -124,21 +127,30 @@ private fun reflect(position: Float, forward: Boolean, distance: Float, room: Fl
 
 /** A hue rotation that keeps lightness, the matrix CSS `hue-rotate()` uses. */
 internal fun hueRotation(degrees: Float): ColorMatrix {
-    val radians = degrees * PI.toFloat() / 180f
+    val radians = degrees * PI.toFloat() / HALF_TURN_DEGREES
     val c = cos(radians)
     val s = sin(radians)
-    return ColorMatrix(
-        floatArrayOf(
-            0.213f + c * 0.787f - s * 0.213f, 0.715f - c * 0.715f - s * 0.715f, 0.072f - c * 0.072f + s * 0.928f, 0f,
-            0f,
-            0.213f - c * 0.213f + s * 0.143f, 0.715f + c * 0.285f + s * 0.140f, 0.072f - c * 0.072f - s * 0.283f, 0f,
-            0f,
-            0.213f - c * 0.213f - s * 0.787f, 0.715f - c * 0.715f + s * 0.715f, 0.072f + c * 0.928f + s * 0.072f, 0f,
-            0f,
-            0f, 0f, 0f, 1f, 0f,
-        ),
-    )
+    return ColorMatrix().apply {
+        for (row in LUMA.indices) {
+            for (column in LUMA.indices) {
+                val identity = if (row == column) 1f else 0f
+                this[row, column] = LUMA[column] + c * (identity - LUMA[column]) + s * HUE_SINE[row][column]
+            }
+        }
+    }
 }
+
+private const val HALF_TURN_DEGREES = 180f
+
+/** The share of red, green and blue in lightness, which a hue rotation keeps (the Filter Effects spec's weights). */
+private val LUMA = floatArrayOf(0.213f, 0.715f, 0.072f)
+
+/** How far each output channel takes each input channel with the sine of the angle, row by row, from the same spec. */
+private val HUE_SINE = arrayOf(
+    floatArrayOf(-0.213f, -0.715f, 0.928f),
+    floatArrayOf(0.143f, 0.140f, -0.283f),
+    floatArrayOf(-0.787f, 0.715f, 0.072f),
+)
 
 /**
  * Deals the numbers 0 until [size] in a shuffled order, and shuffles again once all are dealt, so a break screen line
@@ -207,13 +219,13 @@ internal fun BreakScreen(
             },
     ) {
         val density = LocalDensity.current
-        val logoSize = (minOf(maxWidth, maxHeight) * 0.22f).coerceIn(96.dp, 240.dp)
+        val logoSize = (minOf(maxWidth, maxHeight) * LOGO_SHARE).coerceIn(MIN_LOGO, MAX_LOGO)
         val speedPxPerSecond = with(density) { BOUNCE_SPEED.toPx() }
         val cornerSlop = with(density) { CORNER_SLOP.toPx() }
         val area = with(density) { IntSize(maxWidth.roundToPx(), maxHeight.roundToPx()) }
         var unit by remember { mutableStateOf(IntSize.Zero) }
         var bounce by remember {
-            mutableStateOf(Bounce(area.width * 0.3f, area.height * 0.2f, right = true, down = true))
+            mutableStateOf(Bounce(area.width * START_X, area.height * START_Y, right = true, down = true))
         }
         var tint by remember { mutableIntStateOf(0) }
         val pop = remember { Animatable(1f) }
@@ -227,9 +239,11 @@ internal fun BreakScreen(
         }
         var coveredNanos by remember { mutableLongStateOf(0L) }
         val dodgedBefore = remember { dodgedBeforeMs }
-        val dodgedMinutes by remember { derivedStateOf { (dodgedBefore + coveredNanos / 1_000_000) / 60_000 } }
+        val dodgedMinutes by remember {
+            derivedStateOf { (dodgedBefore.milliseconds + coveredNanos.nanoseconds).inWholeMinutes }
+        }
         val currentOnCover by rememberUpdatedState(onCover)
-        DisposableEffect(Unit) { onDispose { currentOnCover(coveredNanos / 1_000_000) } }
+        DisposableEffect(Unit) { onDispose { currentOnCover(coveredNanos.nanoseconds.inWholeMilliseconds) } }
         LaunchedEffect(area, unit) {
             if (unit == IntSize.Zero) return@LaunchedEffect
             val roomX = (area.width - unit.width).toFloat()
@@ -247,7 +261,8 @@ internal fun BreakScreen(
                     // A long gap (the app in the background) moves the mark no more than one frame's worth, and does
                     // not count as covered.
                     if (gap < MAX_COVERED_GAP_NANOS) coveredNanos += gap
-                    val seconds = (gap / 1e9f).coerceAtMost(MAX_FRAME_SECONDS)
+                    val seconds = gap.nanoseconds.toDouble(DurationUnit.SECONDS).toFloat()
+                        .coerceAtMost(MAX_FRAME_SECONDS)
                     val (next, hit) = bounce.step(speedPxPerSecond * seconds, roomX, roomY, cornerSlop)
                     bounce = next
                     hit
@@ -332,6 +347,15 @@ internal fun BreakScreen(
 
 /** How fast the mark drifts, on each axis. */
 private val BOUNCE_SPEED = 72.dp
+
+/** The mark's size, as a share of the screen's shorter side, and its bounds on a phone and a large TV. */
+private const val LOGO_SHARE = 0.22f
+private val MIN_LOGO = 96.dp
+private val MAX_LOGO = 240.dp
+
+/** Where the mark starts, as a share of the screen's width and height. */
+private const val START_X = 0.3f
+private const val START_Y = 0.2f
 
 /** How close to the other edge an edge hit may land and still count as a corner. */
 private val CORNER_SLOP = 6.dp

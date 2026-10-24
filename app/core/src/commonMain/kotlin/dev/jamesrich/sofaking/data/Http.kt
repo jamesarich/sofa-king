@@ -7,6 +7,7 @@ import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.plugins.HttpResponseValidator
 import io.ktor.client.plugins.HttpTimeout
 import kotlinx.io.IOException
+import kotlin.time.Duration.Companion.seconds
 
 /** The platform's HTTP engine: OkHttp on Android and the JVM, Darwin on Apple, curl on Linux, fetch on the web. */
 internal expect val httpEngine: HttpClientEngineFactory<*>
@@ -16,6 +17,11 @@ internal expect val engineFailsWithErrors: Boolean
 
 /** The app's one connection pool. Every client shares it and none closes it, so it lives as long as the process. */
 internal val sharedHttpEngine: HttpClientEngine by lazy { httpEngine.create() }
+
+/** How long a connection may take to open, a socket may sit idle, and a whole request may take. */
+private val CONNECT_TIMEOUT = 5.seconds
+private val SOCKET_TIMEOUT = 20.seconds
+private val REQUEST_TIMEOUT = 30.seconds
 
 /**
  * A client on [engine] with [configure] applied. Cancellation closes the call's socket mid-body; the timeouts keep a
@@ -29,9 +35,9 @@ internal fun httpClient(
 ): HttpClient = HttpClient(engine) {
     expectSuccess = false
     install(HttpTimeout) {
-        connectTimeoutMillis = 5_000
-        socketTimeoutMillis = 20_000
-        requestTimeoutMillis = 30_000
+        connectTimeoutMillis = CONNECT_TIMEOUT.inWholeMilliseconds
+        socketTimeoutMillis = SOCKET_TIMEOUT.inWholeMilliseconds
+        requestTimeoutMillis = REQUEST_TIMEOUT.inWholeMilliseconds
     }
     HttpResponseValidator {
         handleResponseExceptionWithRequest { cause, _ ->

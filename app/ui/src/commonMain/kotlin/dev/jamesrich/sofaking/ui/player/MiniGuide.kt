@@ -106,7 +106,7 @@ internal fun BoxScope.MiniGuide(
         Modifier
             .align(Alignment.BottomStart)
             .fillMaxWidth()
-            .fillMaxHeight(0.45f)
+            .fillMaxHeight(fraction = 0.45f)
             .background(SofaOverlayScrimDense),
     ) {
         Column(

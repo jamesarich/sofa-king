@@ -21,10 +21,12 @@ data class TrackChoice(
         const val KEPT = 200
         const val FIELD = '|'
 
-        fun decode(text: String): TrackChoice? {
-            val fields = text.split(FIELD)
-            if (fields.size != 3) return null
-            return TrackChoice(fields[0].ifEmpty { null }, fields[1] == "1", fields[2].ifEmpty { null })
-        }
+        /** How many [FIELD]-separated fields an encoded choice has. */
+        private const val FIELDS = 3
+
+        fun decode(text: String): TrackChoice? = text.split(FIELD).takeIf { it.size == FIELDS }
+            ?.let { (audio, subtitles, language) ->
+                TrackChoice(audio.ifEmpty { null }, subtitles == "1", language.ifEmpty { null })
+            }
     }
 }

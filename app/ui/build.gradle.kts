@@ -11,6 +11,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     id("sofaking.kotlin")
     id("sofaking.android")
+    id("sofaking.lint")
 }
 
 val appVersion = libs.versions.sofaking.get()

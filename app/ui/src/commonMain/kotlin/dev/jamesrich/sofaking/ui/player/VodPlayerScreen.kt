@@ -134,6 +134,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The full screen for something the viewer moves through: a library item or a recording. [open] opens it on the
@@ -351,7 +352,7 @@ fun VodPlayerScreen(
         if (state.next == null) return@LaunchedEffect
         for (left in (if (stillWatching) STILL_WATCHING_SECONDS else UP_NEXT_SECONDS) downTo 1) {
             nextSecondsLeft = left
-            delay(1_000L)
+            delay(1.seconds)
         }
         if (stillWatching) {
             currentOnExit()
@@ -368,47 +369,47 @@ fun VodPlayerScreen(
         var lastReport = 0L
         while (true) {
             delay(TICK_MS)
-            if (sleep.due(Clock.System.now().toEpochMilliseconds())) {
-                sleep.cancel()
-                currentOnExit()
-                break
-            }
+            if (sleep.due(Clock.System.now().toEpochMilliseconds())) break
             state.settledScrub(scrubClock())?.let(::seekItem)
-            val current = sessions.current.value?.takeIf { it.itemId == itemId } ?: continue
-            if (!player.isSeekable || pendingSeek != null) continue
-            val previous = state.positionMs
-            val now = player.positionMs + current.offsetMs
-            state.positionMs = now
-            state.durationMs = current.itemDurationMs ?: player.durationMs?.let { it + current.offsetMs }
-            if (state.scrubTarget == null) {
-                breakToSkip(currentTitle.markers, previous, now)?.let { end ->
-                    if (autoSkipBreaks) {
-                        seekItem(end)
-                        skippedToast = true
-                    } else {
-                        state.ranIntoBreak()
+            val current = sessions.current.value
+                ?.takeIf { it.itemId == itemId && player.isSeekable && pendingSeek == null }
+            if (current != null) {
+                val previous = state.positionMs
+                val now = player.positionMs + current.offsetMs
+                state.positionMs = now
+                state.durationMs = current.itemDurationMs ?: player.durationMs?.let { it + current.offsetMs }
+                if (state.scrubTarget == null) {
+                    breakToSkip(currentTitle.markers, previous, now)?.let { end ->
+                        if (autoSkipBreaks) {
+                            seekItem(end)
+                            skippedToast = true
+                        } else {
+                            state.ranIntoBreak()
+                        }
                     }
-                }
-                // Offered once playing, so a start inside the intro does not count down while it buffers.
-                val inIntro = introAt(currentTitle.markers, now)
-                if (inIntro == null) {
-                    state.cancelAutoSkip()
-                } else if (status.isPlaying) {
-                    state.inIntro(inIntro, currentAutoSkipIntros)
-                    if (state.autoSkipDue(uptimeMs())) {
-                        seekItem(inIntro.endMs)
-                        introSkippedToast = true
+                    // Offered once playing, so a start inside the intro does not count down while it buffers.
+                    val inIntro = introAt(currentTitle.markers, now)
+                    if (inIntro == null) {
+                        state.cancelAutoSkip()
+                    } else if (status.isPlaying) {
+                        state.inIntro(inIntro, currentAutoSkipIntros)
+                        if (state.autoSkipDue(uptimeMs())) {
+                            seekItem(inIntro.endMs)
+                            introSkippedToast = true
+                        }
                     }
+                    // The credits are offered the same way, never skipped by themselves.
+                    creditsAt(currentTitle.markers, now)?.let { if (status.isPlaying) state.inIntro(it) }
                 }
-                // The credits are offered the same way, never skipped by themselves.
-                creditsAt(currentTitle.markers, now)?.let { if (status.isPlaying) state.inIntro(it) }
-            }
-            val clock = uptimeMs()
-            if (status.isPlaying && clock - lastReport >= REPORT_MS) {
-                lastReport = clock
-                currentOnPosition(state.positionMs, state.durationMs)
+                val clock = uptimeMs()
+                if (status.isPlaying && clock - lastReport >= REPORT_MS) {
+                    lastReport = clock
+                    currentOnPosition(state.positionMs, state.durationMs)
+                }
             }
         }
+        sleep.cancel()
+        currentOnExit()
     }
     // The picked subtitle track's cues, read once per pick; a track the server cannot give turns them off.
     LaunchedEffect(subtitleTrack) {

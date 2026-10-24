@@ -133,42 +133,7 @@ private fun Shelves(
         contentPadding = PaddingValues(top = 8.dp, bottom = insets.calculateBottomPadding() + 16.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
-        item(key = "chips") {
-            // Coming down from the tabs lands on Search, and back from a library or the search on its chip: focus
-            // requested inside the row enters through the restorer, so its fallback must be that chip.
-            val chipReturn = returnedFrom == SEARCH_FOCUS_KEY || returnedFrom?.startsWith(LIBRARY_FOCUS_PREFIX) == true
-            LazyRow(
-                modifier = Modifier.focusRestorer(if (chipReturn) returnFocus else searchFocus),
-                contentPadding = insets.horizontalOnly(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                item(key = SEARCH_FOCUS_KEY) {
-                    val focus = (
-                        if (returnedFrom == SEARCH_FOCUS_KEY) {
-                            Modifier.focusRequester(returnFocus)
-                        } else {
-                            Modifier
-                        }
-                        ).focusRequester(searchFocus)
-                    SofaChip(selected = false, onClick = {
-                        actions.onSearch(false)
-                    }, label = stringResource(Res.string.library_search), modifier = focus)
-                }
-                items(libraries, key = { it.id }) { library ->
-                    val focus = if (returnedFrom == libraryFocusKey(library.id)) {
-                        Modifier.focusRequester(returnFocus)
-                    } else {
-                        Modifier
-                    }
-                    SofaChip(
-                        selected = false,
-                        onClick = { actions.onOpenLibrary(library) },
-                        label = stringResource(Res.string.library_library_chip, library.name, library.itemCount),
-                        modifier = focus,
-                    )
-                }
-            }
-        }
+        item(key = "chips") { LibraryChips(libraries, actions, returnedFrom, returnFocus, searchFocus, insets) }
         items(shelves, key = { it.key }) { shelf ->
             Shelf(
                 shelf,
@@ -180,6 +145,52 @@ private fun Shelves(
                     null
                 },
                 focusRequester = returnFocus,
+            )
+        }
+    }
+}
+
+/** Search, then a chip per library; focus coming back from either lands on its chip ([returnFocus]). */
+@Composable
+private fun LibraryChips(
+    libraries: List<MediaLibrary>,
+    actions: LibraryHomeActions,
+    returnedFrom: String?,
+    returnFocus: FocusRequester,
+    searchFocus: FocusRequester,
+    insets: PaddingValues,
+) {
+    // Coming down from the tabs lands on Search, and back from a library or the search on its chip: focus
+    // requested inside the row enters through the restorer, so its fallback must be that chip.
+    val chipReturn = returnedFrom == SEARCH_FOCUS_KEY || returnedFrom?.startsWith(LIBRARY_FOCUS_PREFIX) == true
+    LazyRow(
+        modifier = Modifier.focusRestorer(if (chipReturn) returnFocus else searchFocus),
+        contentPadding = insets.horizontalOnly(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item(key = SEARCH_FOCUS_KEY) {
+            val focus = (
+                if (returnedFrom == SEARCH_FOCUS_KEY) {
+                    Modifier.focusRequester(returnFocus)
+                } else {
+                    Modifier
+                }
+                ).focusRequester(searchFocus)
+            SofaChip(selected = false, onClick = {
+                actions.onSearch(false)
+            }, label = stringResource(Res.string.library_search), modifier = focus)
+        }
+        items(libraries, key = { it.id }) { library ->
+            val focus = if (returnedFrom == libraryFocusKey(library.id)) {
+                Modifier.focusRequester(returnFocus)
+            } else {
+                Modifier
+            }
+            SofaChip(
+                selected = false,
+                onClick = { actions.onOpenLibrary(library) },
+                label = stringResource(Res.string.library_library_chip, library.name, library.itemCount),
+                modifier = focus,
             )
         }
     }

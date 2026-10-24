@@ -18,6 +18,7 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.URLBuilder
 import io.ktor.http.URLParserException
 import io.ktor.http.Url
@@ -37,7 +38,10 @@ import kotlinx.serialization.encodeToString
 /**
  * An error answer from the server: HTTP [status] with the API's [code], or `HTTP_<status>` when the body was not one.
  */
-class SofaKingException(val status: Int, val code: String, message: String) : IOException(message)
+class SofaKingException(val status: Int, val code: String, message: String) : IOException(message) {
+    /** [status] as Ktor names it, to compare with [HttpStatusCode]'s constants. */
+    val statusCode: HttpStatusCode get() = HttpStatusCode.fromValue(status)
+}
 
 /** The catalog as the server sent it, or [NotModified] when the ETag offered still matches. */
 internal sealed interface CatalogResult {
@@ -82,7 +86,7 @@ class SofaKingApi(
         val response = http.get("channels") {
             if (etag != null) header(HttpHeaders.IfNoneMatch, etag)
         }
-        if (response.status.value == 304) return@call CatalogResult.NotModified
+        if (response.status == HttpStatusCode.NotModified) return@call CatalogResult.NotModified
         CatalogResult.Changed(response.decode(), response.headers[HttpHeaders.ETag])
     }
 
@@ -127,7 +131,7 @@ class SofaKingApi(
     /** The preferences the server keeps for [clientId], or null when it has none (or is too old to keep any). */
     internal suspend fun preferences(clientId: String): ViewerPreferencesDto? = call {
         val response = http.get("preferences/" + clientId.encodeURLPathPart())
-        if (response.status.value == 404) return@call null
+        if (response.status == HttpStatusCode.NotFound) return@call null
         response.decode()
     }
 

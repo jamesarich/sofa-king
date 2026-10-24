@@ -141,7 +141,7 @@ enum class StartupTarget { RESUME, GUIDE, LIBRARY, CHANNEL }
 enum class TopLevelTab { LIVE, LIBRARY, RECORDINGS }
 
 /** How big a library item's text subtitles are, as a share of the normal size. */
-enum class SubtitleSize(val scale: Float) { SMALL(0.8f), MEDIUM(1f), LARGE(1.3f) }
+enum class SubtitleSize(val scale: Float) { SMALL(scale = 0.8f), MEDIUM(scale = 1f), LARGE(scale = 1.3f) }
 
 /** How high a library item's text subtitles sit: at the bottom, or raised clear of a letterbox's bar or a ticker. */
 enum class SubtitleRaise { NONE, LOW, HIGH }
@@ -180,9 +180,9 @@ data class AdsDodged(val day: String = "", val ms: Long = 0) {
 
 /** [afterMs] is how long focus rests before the preview opens full screen, or null when it never does. */
 enum class AutoOpenDelay(val afterMs: Long?) {
-    OFF(null),
-    AFTER_10_SECONDS(10_000L),
-    AFTER_30_SECONDS(30_000L),
+    OFF(afterMs = null),
+    AFTER_10_SECONDS(afterMs = 10_000L),
+    AFTER_30_SECONDS(afterMs = 30_000L),
 }
 
 interface SettingsStore {

@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.data
 
 import co.touchlab.kermit.Logger
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -120,7 +121,11 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
                 )
             }
         }.getOrElse { e ->
-            if (e is SofaKingException && e.status == 404) RecordingsState.Unavailable else failed(e)
+            if (e is SofaKingException && e.statusCode == HttpStatusCode.NotFound) {
+                RecordingsState.Unavailable
+            } else {
+                failed(e)
+            }
         }
         publish()
     }

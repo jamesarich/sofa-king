@@ -196,7 +196,7 @@ internal class VlcLivePlayer(
 
     /** On the command thread. */
     private fun applyVolume() {
-        vlc.audio().setVolume((volume * 100).roundToInt())
+        vlc.audio().setVolume((volume * VLC_FULL_VOLUME).roundToInt())
     }
 
     override var playWhenReady: Boolean
@@ -470,7 +470,7 @@ internal class VlcLivePlayer(
             if (!isCurrent) return
             mutableStatus.update {
                 when {
-                    newCache >= 100f -> it.copy(state = PlaybackState.READY)
+                    newCache >= VLC_FULL_CACHE -> it.copy(state = PlaybackState.READY)
                     it.isPlaying -> it
                     else -> it.copy(state = PlaybackState.BUFFERING)
                 }
@@ -502,3 +502,7 @@ internal const val VLC_NOT_INSTALLED = "VLC_NOT_INSTALLED"
 
 /** libVLC's default `adaptive-livedelay`: how far behind the newest segment of a live HLS playlist it plays. */
 private const val VLC_LIVE_DELAY_MS = 15_000L
+
+/** libVLC's volume for the full level, and the cache it reports once full, both in percent. */
+private const val VLC_FULL_VOLUME = 100
+private const val VLC_FULL_CACHE = 100f

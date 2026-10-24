@@ -41,6 +41,7 @@ import dev.jamesrich.sofaking.data.UpdateState
 import dev.jamesrich.sofaking.data.describe
 import dev.jamesrich.sofaking.data.logFailures
 import dev.jamesrich.sofaking.data.runCatchingCancellable
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -63,6 +64,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -224,7 +226,10 @@ class LineupViewModel(
                 log.w { "pairing refused: ${e.code}" }
                 when {
                     e.code == Wire.ErrorCode.PAIRING_INVALID -> PairingFailure.INVALID_CODE
-                    e.status == 404 || e.status == 401 -> PairingFailure.OLDER_SERVER
+
+                    e.statusCode == HttpStatusCode.NotFound || e.statusCode == HttpStatusCode.Unauthorized ->
+                        PairingFailure.OLDER_SERVER
+
                     else -> PairingFailure.UNREACHABLE
                 }
             } else {
@@ -334,109 +339,134 @@ class LineupViewModel(
         liveRepository = repository
         val cache = LineupCache(lineupCache, key, background, clock::now)
         // A refresh keeps the lineup already on screen; a cold start or a server change reads the cache,
-        // so the last good lineup shows at once and the network load replaces it below. Its channels come first,
-        // so a channel or a tab opens while the programs decode, which takes seconds on a TV.
-        var last: Lineup? = lastGood?.takeIf { it.first == key }?.second
-        if (last == null) {
-            val cacheStarted = TimeSource.Monotonic.markNow()
-            cache.open()?.let { cached ->
-                log.i { "cache: ${cached.channels.size} channels in ${cacheStarted.elapsedNow()}" }
-                emit(LineupState.Ready(Lineup(cached.channels, emptyMap(), guideLoading = true)))
-                // A guide that failed to decode, or whose programs have all ended, is
-                // still on its way from the server.
-                val guide = cached.guide()
-                val full = Lineup(cached.channels, guide.orEmpty(), guideLoading = guide.isNullOrEmpty())
-                log.i { "cache: ${full.guide.values.sumOf { it.size }} programs in ${cacheStarted.elapsedNow()}" }
-                last = full
-                lastGood = key to full
-                emit(LineupState.Ready(full))
-            }
-        }
+        // so the last good lineup shows at once and the network load replaces it below.
+        var last: Lineup? = lastGood?.takeIf { it.first == key }?.second ?: cached(cache, key)
         var failures = 0
         while (true) {
             if (last == null) emit(LineupState.Loading)
+            val attempt = LoadAttempt()
             // Cancellation (a server change or refresh while loading) must propagate, not read as a failure.
             _loading.value = true
-            var lineupMoved = false
-            var interim: Lineup? = null
             val result = try {
-                runCatchingCancellable {
-                    val started = TimeSource.Monotonic.markNow()
-                    val channels = repository.loadChannels()
-                    log.i { "lineup: ${channels.size} channels in ${started.elapsedNow()}" }
-                    // Channels first so the guide is usable while the programs arrive. A cached guide stays in
-                    // place for channels it still covers; it is replaced once the new guide is in.
-                    if (last?.channels != channels) {
-                        interim = Lineup(channels, last?.guide.orEmpty(), guideLoading = true)
-                        emit(LineupState.Ready(interim))
-                    }
-                    onCatalog(interim ?: last)
-                    val guide = repository.loadGuide(channels)
-                    log.i {
-                        "guide: ${guide.programs.values.sumOf { it.size }} programs for ${guide.programs.size} " +
-                            "channels in ${started.elapsedNow()}"
-                    }
-                    // The lineup changed between the catalog and the guide: drop what left and read the catalog
-                    // again soon.
-                    lineupMoved = guide.removed.isNotEmpty()
-                    if (lineupMoved) log.i { "guide: ${guide.removed.size} channels left the lineup" }
-                    Lineup(channels.filterNot { it.guideId in guide.removed }, guide.programs)
-                }
+                runCatchingCancellable { fetch(repository, last, attempt, onCatalog) }
             } finally {
                 // Also on cancellation, or a refresh or server change mid-load leaves the loader spinning.
                 _loading.value = false
             }
             result.onSuccess {
                 last = it
-                lastGood = key to it
-                emit(LineupState.Ready(it))
-                val live = GuideWindow.start(clock.now())
-                extraDays.update { days -> days.filterKeys { start -> start > live } }
-                // A cache write failure must not fail the load or delay the next refresh.
-                runCatchingCancellable {
-                    cache.write(it)
-                }.onFailure { e ->
-                    log.w(e) { "lineup cache write failed" }
-                }
+                loaded(it, key, cache)
             }
             // A failed background refresh keeps showing the lineup we already have.
             result.onFailure {
                 onCatalog(null)
-                val shown = interim
-                when {
-                    // The new channels stay on screen without programs until a retry brings the guide; they are
-                    // not cached, so a cold start still shows the last complete lineup.
-                    shown != null -> {
-                        val kept = shown.copy(guideLoading = false)
-                        last = kept
-                        emit(LineupState.Ready(kept))
-                    }
-
-                    last == null -> emit(LineupState.Failed(it.describe()))
-
-                    last.guideLoading -> {
-                        val kept = last.copy(guideLoading = false)
-                        last = kept
-                        emit(LineupState.Ready(kept))
-                    }
-                }
+                last = failed(it, attempt.interim, last)
             }
-            // A failed load tries again within seconds, then less often: a server only slow to answer at startup
-            // is back before the viewer reaches for Try again.
             failures = if (result.isSuccess) 0 else failures + 1
-            delay(
-                when {
-                    result.isFailure -> minOf(
-                        FIRST_RETRY * (1 shl minOf(failures - 1, RETRY_DOUBLINGS)),
-                        RETRY_INTERVAL,
-                    )
-
-                    lineupMoved -> RETRY_INTERVAL
-
-                    else -> REFRESH_INTERVAL
-                },
-            )
+            delay(nextLoad(failures, attempt.lineupMoved))
         }
+    }
+
+    /**
+     * [cache]'s lineup for [key], or null when it has none. Its channels show first, so a channel or a tab opens while
+     * the programs decode, which takes seconds on a TV.
+     */
+    private suspend fun FlowCollector<LineupState>.cached(cache: LineupCache, key: String): Lineup? {
+        val cacheStarted = TimeSource.Monotonic.markNow()
+        val cached = cache.open() ?: return null
+        log.i { "cache: ${cached.channels.size} channels in ${cacheStarted.elapsedNow()}" }
+        emit(LineupState.Ready(Lineup(cached.channels, emptyMap(), guideLoading = true)))
+        // A guide that failed to decode, or whose programs have all ended, is still on its way from the server.
+        val guide = cached.guide()
+        val full = Lineup(cached.channels, guide.orEmpty(), guideLoading = guide.isNullOrEmpty())
+        log.i { "cache: ${full.guide.values.sumOf { it.size }} programs in ${cacheStarted.elapsedNow()}" }
+        lastGood = key to full
+        emit(LineupState.Ready(full))
+        return full
+    }
+
+    /**
+     * Loads [repository]'s catalog, then its guide, over [last]; [attempt] keeps the channels shown on the way and
+     * whether the lineup moved meanwhile, and [onCatalog] gets the catalog as soon as it is in.
+     */
+    private suspend fun FlowCollector<LineupState>.fetch(
+        repository: SofaKingRepository,
+        last: Lineup?,
+        attempt: LoadAttempt,
+        onCatalog: (Lineup?) -> Unit,
+    ): Lineup {
+        val started = TimeSource.Monotonic.markNow()
+        val channels = repository.loadChannels()
+        log.i { "lineup: ${channels.size} channels in ${started.elapsedNow()}" }
+        // Channels first so the guide is usable while the programs arrive. A cached guide stays in place for
+        // channels it still covers; it is replaced once the new guide is in.
+        if (last?.channels != channels) {
+            val interim = Lineup(channels, last?.guide.orEmpty(), guideLoading = true)
+            attempt.interim = interim
+            emit(LineupState.Ready(interim))
+        }
+        onCatalog(attempt.interim ?: last)
+        val guide = repository.loadGuide(channels)
+        log.i {
+            "guide: ${guide.programs.values.sumOf { it.size }} programs for ${guide.programs.size} " +
+                "channels in ${started.elapsedNow()}"
+        }
+        // The lineup changed between the catalog and the guide: drop what left and read the catalog again soon.
+        attempt.lineupMoved = guide.removed.isNotEmpty()
+        if (attempt.lineupMoved) log.i { "guide: ${guide.removed.size} channels left the lineup" }
+        return Lineup(channels.filterNot { it.guideId in guide.removed }, guide.programs)
+    }
+
+    /** Shows [lineup], just loaded from the server [key] names, drops the extra days it covers, and caches it. */
+    private suspend fun FlowCollector<LineupState>.loaded(lineup: Lineup, key: String, cache: LineupCache) {
+        lastGood = key to lineup
+        emit(LineupState.Ready(lineup))
+        val live = GuideWindow.start(clock.now())
+        extraDays.update { days -> days.filterKeys { start -> start > live } }
+        // A cache write failure must not fail the load or delay the next refresh.
+        runCatchingCancellable {
+            cache.write(lineup)
+        }.onFailure { e ->
+            log.w(e) { "lineup cache write failed" }
+        }
+    }
+
+    /**
+     * Shows what stays after a load failed with [e]: the [interim] channels it got, [last] without its guide
+     * spinner, or the failure itself when there is nothing to show. Returns the lineup now on screen.
+     */
+    private suspend fun FlowCollector<LineupState>.failed(e: Throwable, interim: Lineup?, last: Lineup?): Lineup? {
+        val kept = when {
+            // The new channels stay on screen without programs until a retry brings the guide; they are not cached,
+            // so a cold start still shows the last complete lineup.
+            interim != null -> interim.copy(guideLoading = false)
+
+            last?.guideLoading == true -> last.copy(guideLoading = false)
+
+            else -> null
+        }
+        if (kept != null) {
+            emit(LineupState.Ready(kept))
+        } else if (last == null) {
+            emit(LineupState.Failed(e.describe()))
+        }
+        return kept ?: last
+    }
+
+    /**
+     * How long until the next load. After [failures] in a row it tries again within seconds, then less often: a
+     * server only slow to answer at startup is back before the viewer reaches for Try again.
+     */
+    private fun nextLoad(failures: Int, lineupMoved: Boolean): Duration = when {
+        failures > 0 -> minOf(FIRST_RETRY * (1 shl minOf(failures - 1, RETRY_DOUBLINGS)), RETRY_INTERVAL)
+        lineupMoved -> RETRY_INTERVAL
+        else -> REFRESH_INTERVAL
+    }
+
+    /** What one load showed on its way: the new channels before their guide, and whether the lineup moved. */
+    private class LoadAttempt {
+        var interim: Lineup? = null
+        var lineupMoved = false
     }
 
     fun refresh() {

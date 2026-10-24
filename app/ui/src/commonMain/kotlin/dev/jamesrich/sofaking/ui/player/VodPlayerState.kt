@@ -10,6 +10,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.SofaKingException
+import dev.jamesrich.sofaking.ui.secondsUp
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.delay
 
@@ -200,7 +201,7 @@ internal class VodPlayerState {
         autoSkipSeconds = null
     }
 
-    private fun secondsUntil(atMs: Long, nowMs: Long): Int = ((atMs - nowMs + 999) / 1000).toInt()
+    private fun secondsUntil(atMs: Long, nowMs: Long): Int = secondsUp(atMs - nowMs)
 
     /** A finger or a mouse dragging the slider: the times follow [targetMs] until [endScrub]. */
     fun dragTo(targetMs: Long) {
@@ -279,52 +280,63 @@ internal class VodPlayerState {
         nowMs: Long = uptimeMs(),
     ): Boolean {
         if (type == KeyEventType.KeyDown) cancelAutoSkip()
-        // The card's rows take the D-pad and OK; Back closes it through the BackHandler.
-        if (tracksOpen) return false
-        if (next != null) {
-            // With the Up next card up, OK and play/pause play it now; Back leaves through the BackHandler.
-            if (key !in UP_NEXT_PLAY_KEYS) return false
-            if (type == KeyEventType.KeyUp) controls.playNext()
-            return true
+        val taken = when {
+            // The card's rows take the D-pad and OK; Back closes it through the BackHandler.
+            tracksOpen -> false
+
+            next != null -> upNextKey(key, type, controls)
+
+            else -> buttonRowKey(key, type, controls)
         }
-        if (buttonsFocused) {
-            showInfo()
-            when (key.inButtonRow()) {
-                ButtonRowKey.ROW -> return false
+        val action = key.vodAction()
+        if (taken == null && action != null && type == KeyEventType.KeyDown) {
+            act(action, key, controls, paused, hasButtons, tracksPickable, repeatCount, nowMs)
+        }
+        return taken ?: (action != null)
+    }
 
-                // Up, Back and Escape hand focus back to the picture on key-up, so the key-up cannot act there too.
-                ButtonRowKey.LEAVE -> {
-                    if (type == KeyEventType.KeyUp) controls.focusPicture()
-                    return true
-                }
+    /** With the Up next card up, OK and play/pause play it now; Back leaves through the BackHandler. */
+    private fun upNextKey(key: Key, type: KeyEventType, controls: VodControls): Boolean {
+        if (key !in UP_NEXT_PLAY_KEYS) return false
+        if (type == KeyEventType.KeyUp) controls.playNext()
+        return true
+    }
 
-                ButtonRowKey.PLAYER -> controls.focusPicture()
+    /** A key while the button row has focus: the row's own keys stay there; null when the key goes on. */
+    private fun buttonRowKey(key: Key, type: KeyEventType, controls: VodControls): Boolean? {
+        if (!buttonsFocused) return null
+        showInfo()
+        return when (key.inButtonRow()) {
+            ButtonRowKey.ROW -> false
+
+            // Up, Back and Escape hand focus back to the picture on key-up, so the key-up cannot act there too.
+            ButtonRowKey.LEAVE -> {
+                if (type == KeyEventType.KeyUp) controls.focusPicture()
+                true
+            }
+
+            ButtonRowKey.PLAYER -> {
+                controls.focusPicture()
+                null
             }
         }
-        val action = key.vodAction() ?: return false
-        if (type != KeyEventType.KeyDown) return true
+    }
+
+    /** What a key-down of [action] does with the picture in front. */
+    private fun act(
+        action: VodAction,
+        key: Key,
+        controls: VodControls,
+        paused: Boolean,
+        hasButtons: Boolean,
+        tracksPickable: Boolean,
+        repeatCount: Int?,
+        nowMs: Long,
+    ) {
         when (action) {
-            VodAction.BACK, VodAction.FORWARD -> {
-                if (failure != null) return true
-                // With the bar down a scrub builds under a badge instead, so the picture stays clear.
-                if (overlayVisible) showInfo()
-                val direction = if (action == VodAction.BACK) -1 else 1
-                scrubTarget = scrub.press(direction, positionMs, durationMs, repeatCount ?: 0, nowMs)
-            }
+            VodAction.BACK, VodAction.FORWARD -> if (failure == null) scrubStep(action, repeatCount, nowMs)
 
-            VodAction.PLAY_PAUSE -> when {
-                failure != null -> controls.retry()
-
-                scrubTarget != null -> {
-                    scrubTarget = null
-                    scrub.commit()?.let(controls::seek)
-                    showInfo()
-                }
-
-                key in QUIET_PLAY_KEYS -> mediaPlayPause(controls, paused)
-
-                else -> playPause(controls)
-            }
+            VodAction.PLAY_PAUSE -> playPauseKey(key, controls, paused)
 
             VodAction.PLAY -> if (paused) mediaPlayPause(controls, paused)
 
@@ -350,7 +362,31 @@ internal class VodPlayerState {
 
             VodAction.STOP -> controls.exit()
         }
-        return true
+    }
+
+    /** Back or Forward moves the scrub a step, further the longer the key is held. */
+    private fun scrubStep(action: VodAction, repeatCount: Int?, nowMs: Long) {
+        // With the bar down a scrub builds under a badge instead, so the picture stays clear.
+        if (overlayVisible) showInfo()
+        val direction = if (action == VodAction.BACK) -1 else 1
+        scrubTarget = scrub.press(direction, positionMs, durationMs, repeatCount ?: 0, nowMs)
+    }
+
+    /** Play/pause retries a failed stream, commits a scrub, or plays or pauses. */
+    private fun playPauseKey(key: Key, controls: VodControls, paused: Boolean) {
+        when {
+            failure != null -> controls.retry()
+
+            scrubTarget != null -> {
+                scrubTarget = null
+                scrub.commit()?.let(controls::seek)
+                showInfo()
+            }
+
+            key in QUIET_PLAY_KEYS -> mediaPlayPause(controls, paused)
+
+            else -> playPause(controls)
+        }
     }
 
     private fun playPause(controls: VodControls) {

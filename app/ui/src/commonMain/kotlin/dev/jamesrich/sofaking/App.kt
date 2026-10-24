@@ -503,8 +503,8 @@ private fun Modifier.playerVolumeWheel(volume: PlayerVolume, inPlayer: () -> Boo
             awaitPointerEventScope {
                 while (true) {
                     val event = awaitPointerEvent(PointerEventPass.Final)
-                    if (event.type != PointerEventType.Scroll || !inPlayer()) continue
-                    val change = event.changes.firstOrNull { !it.isConsumed } ?: continue
+                    val change = event.changes.takeIf { event.type == PointerEventType.Scroll && inPlayer() }
+                        ?.firstOrNull { !it.isConsumed } ?: continue
                     scrolled += change.scrollDelta.y
                     if (abs(scrolled) >= 1f) {
                         volume.step(if (scrolled < 0f) 1 else -1)

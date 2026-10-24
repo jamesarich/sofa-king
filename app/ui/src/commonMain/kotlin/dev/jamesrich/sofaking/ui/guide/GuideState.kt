@@ -348,40 +348,63 @@ internal class GuideState(
      * press restarts the preview's rest timers. [backAction] is what Back does from where focus is; true when
      * the guide took the key.
      */
-    fun onKeyEvent(key: Key, type: KeyEventType, backAction: GuideBack, controls: GuideControls): Boolean {
-        // Back climbs here rather than in BackHandler: Compose turns an unhandled Back key-down into a focus exit,
-        // and where focus sits on a node with a focusable parent that exit succeeds and eats the press. The open
-        // details take their own Back.
-        if (key == Key.Back && details == null) {
-            if (type == KeyEventType.KeyDown && backAction != GuideBack.EXIT) {
-                backHeld = true
-                return true
-            }
-            if (type == KeyEventType.KeyUp && backHeld) {
-                backHeld = false
-                controls.climbBack()
-                return true
-            }
+    fun onKeyEvent(key: Key, type: KeyEventType, backAction: GuideBack, controls: GuideControls): Boolean =
+        backKey(key, type, backAction, controls)
+            ?: okKey(key, type)
+            ?: (type == KeyEventType.KeyDown && shortcutKey(key, controls))
+
+    /**
+     * Back climbs here rather than in BackHandler: Compose turns an unhandled Back key-down into a focus exit, and
+     * where focus sits on a node with a focusable parent that exit succeeds and eats the press. The open details take
+     * their own Back. Null when the key goes on.
+     */
+    private fun backKey(key: Key, type: KeyEventType, backAction: GuideBack, controls: GuideControls): Boolean? = when {
+        key != Key.Back || details != null -> null
+
+        type == KeyEventType.KeyDown && backAction != GuideBack.EXIT -> {
+            backHeld = true
+            true
         }
-        // OK with digits typed commits them on key-up, as the player does; the cell does not play on this press.
-        val okKey = key.isOk
-        if (okKey && type == KeyEventType.KeyUp) {
-            detailsOnRelease?.let { opened ->
-                // The cell takes this key-up and ends its press; the details open after it.
+
+        type == KeyEventType.KeyUp && backHeld -> {
+            backHeld = false
+            controls.climbBack()
+            true
+        }
+
+        else -> null
+    }
+
+    /** OK: opens the details held for its release, or commits typed digits on key-up; null when the key goes on. */
+    private fun okKey(key: Key, type: KeyEventType): Boolean? {
+        if (!key.isOk) return null
+        val opened = detailsOnRelease
+        return when {
+            // The cell takes this key-up and ends its press; the details open after it.
+            type == KeyEventType.KeyUp && opened != null -> {
                 detailsOnRelease = null
                 heldOk.onKeyUp()
                 details = opened
-                return false
+                false
             }
+
+            // The rest of an OK held to open the details goes nowhere, so Watch, focused under it, does not play.
+            type == KeyEventType.KeyDown && heldOk.onKeyDown() -> true
+
+            type == KeyEventType.KeyUp && heldOk.onKeyUp() -> true
+
+            // OK with digits typed commits them on key-up, as the player does; the cell does not play on this press.
+            numbers.hasDigits && !searchOpen -> {
+                if (type == KeyEventType.KeyUp) numbers.commit()
+                true
+            }
+
+            else -> null
         }
-        // The rest of an OK held to open the details goes nowhere, so Watch, focused under it, does not play.
-        if (okKey && type == KeyEventType.KeyDown && heldOk.onKeyDown()) return true
-        if (okKey && type == KeyEventType.KeyUp && heldOk.onKeyUp()) return true
-        if (okKey && numbers.hasDigits && !searchOpen) {
-            if (type == KeyEventType.KeyUp) numbers.commit()
-            return true
-        }
-        if (type != KeyEventType.KeyDown) return false
+    }
+
+    /** A key-down that Back and OK left: the guide's shortcuts and the digits of a channel number. */
+    private fun shortcutKey(key: Key, controls: GuideControls): Boolean {
         controls.restartRest()
         when (val shortcut = key.guideShortcut()) {
             GuideShortcut.NOW -> {

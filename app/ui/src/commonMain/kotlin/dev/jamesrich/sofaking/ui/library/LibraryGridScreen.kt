@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -250,14 +251,17 @@ private fun GridHeader(
             }
         }
         if (grid != null && showsLetters(grid)) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(grid.letters, key = { it.letter }) { letter ->
+            // A row like the chips above, so Up from any column of the grid lands in it, on its first letter.
+            val firstLetter = remember { FocusRequester() }
+            LazyRow(Modifier.focusRestorer(firstLetter), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                itemsIndexed(grid.letters, key = { _, it -> it.letter }) { i, letter ->
                     val description = stringResource(Res.string.library_letter_jump, letter.letter)
+                    val focus = if (i == 0) Modifier.focusRequester(firstLetter) else Modifier
                     SofaChip(
                         selected = false,
                         onClick = { onLetter(letter) },
                         label = letter.letter,
-                        modifier = Modifier.semantics { contentDescription = description },
+                        modifier = focus.semantics { contentDescription = description },
                     )
                 }
             }

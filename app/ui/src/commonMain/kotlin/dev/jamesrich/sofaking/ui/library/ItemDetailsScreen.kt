@@ -113,8 +113,8 @@ internal class ItemDetailsActions(
  * or Resume (focused on arrival), Play from beginning and Mark watched. A show lists its seasons as chips with
  * [season]'s episodes under them, the season [selectedSeasonId] names; a season lists its own episodes. OK on an
  * episode plays it, resuming where it stopped. Under them are the item's Extras, which OK plays, and More like this,
- * which OK opens. [returnedFrom] is the episode or extra the viewer just watched, which takes focus instead of the
- * first button.
+ * which OK opens. [returnedFrom] is the episode or extra the viewer just watched, or the title like it whose page
+ * they just left, which takes focus instead of the first button.
  */
 @Composable
 internal fun ItemDetailsScreen(
@@ -164,10 +164,12 @@ private fun Details(
     val episodeFocus = remember { FocusRequester() }
     val returnTo = returnedFrom?.takeIf { id -> episodes.any { it.id == id } }
     val returnToExtra = returnedFrom?.takeIf { id -> detail.extras.any { it.id == id } }
+    val returnToRelated = returnedFrom?.takeIf { id -> detail.related.any { it.id == id } }
     // The first button takes focus once, when the page is in; a later refresh leaves focus where the viewer put it.
     LaunchedEffect(item.id) { requestFocusWhenAttached(primaryFocus) }
     LaunchedEffect(returnTo) { if (returnTo != null) requestFocusWhenAttached(episodeFocus) }
     LaunchedEffect(returnToExtra) { if (returnToExtra != null) requestFocusWhenAttached(episodeFocus) }
+    LaunchedEffect(returnToRelated) { if (returnToRelated != null) requestFocusWhenAttached(episodeFocus) }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val heroHeight = maxHeight * HERO_FRACTION
@@ -240,6 +242,8 @@ private fun Details(
                             onPlay = {
                                 actions.onPlay(it, false)
                             },
+                            focusItem = returnToRelated,
+                            focusRequester = episodeFocus,
                         )
                     }
                 }

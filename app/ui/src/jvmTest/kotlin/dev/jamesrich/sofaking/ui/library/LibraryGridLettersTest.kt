@@ -8,10 +8,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.Density
@@ -75,6 +79,46 @@ class LibraryGridLettersTest {
             shown = grid(loaded = 80)
             waitForIdle()
             onNode(hasContentDescription("G movie 0", substring = true)).assertIsFocused()
+        }
+
+    @Test
+    fun `the letters sit between the genres and the grid for every column`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            val actions = LibraryGridActions(
+                onSort = {},
+                onUnwatched = {},
+                onGenre = {},
+                onOpenItem = {},
+                onPlayItem = {},
+                onLoadMore = {},
+                onLoadThrough = {},
+            )
+            lateinit var focusManager: FocusManager
+            setContent {
+                focusManager = LocalFocusManager.current
+                SofaKingTheme {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        LibraryGridScreen(library, grid(loaded = 80).copy(genres = listOf("Comedy", "Drama")), actions)
+                    }
+                }
+            }
+            fun move(direction: FocusDirection) {
+                runOnUiThread { focusManager.moveFocus(direction) }
+                waitForIdle()
+            }
+            waitForIdle()
+            onNode(hasContentDescription("A movie 0", substring = true)).assertIsFocused()
+            move(FocusDirection.Up)
+            onNodeWithContentDescription("Jump to A").assertIsFocused()
+            move(FocusDirection.Up)
+            onNodeWithText("All genres").assertIsFocused()
+            move(FocusDirection.Down)
+            onNodeWithContentDescription("Jump to A").assertIsFocused()
+
+            move(FocusDirection.Down)
+            move(FocusDirection.Right)
+            move(FocusDirection.Up)
+            onNodeWithContentDescription("Jump to A").assertIsFocused()
         }
 
     @Test

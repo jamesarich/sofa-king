@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.first
 internal class AppGraph(
     private val storage: AppStorage,
     private val discovery: ServerDiscovery,
-    val watchNext: WatchNext,
+    private val watchNext: WatchNext,
 ) {
     private val settings: SettingsStore = DataStoreSettingsStore(storage.settings)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -46,7 +46,7 @@ internal class AppGraph(
         discovery = discovery,
     )
 
-    fun libraryViewModel(): LibraryViewModel = LibraryViewModel(connection.api, connection.sessions)
+    fun libraryViewModel(): LibraryViewModel = LibraryViewModel(connection.api, connection.sessions, watchNext = watchNext)
 
     /** The Recordings tab reads the same list as the guide's record marks, from the connection. */
     fun recordingsViewModel(): RecordingsViewModel = RecordingsViewModel(connection.recordings, connection.sessions)

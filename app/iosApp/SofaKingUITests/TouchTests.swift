@@ -169,8 +169,18 @@ final class TouchTests: XCTestCase {
             }
         }
         XCTAssertTrue(cell.waitForExistence(timeout: 30), "No \(channel) on now in the guide\n\(screen)")
-        cell.tap()
-        eventually("\(channel) to open full screen") { !cell.exists }
+        // A tap that reaches the app late, as on a loaded runner, reads as a held press and opens the program's
+        // details instead of playing. Their sheet hides the cell too, so only the player counts; the scrim above the
+        // sheet closes it for another tap.
+        let details = labeled("Close sheet")
+        for _ in 0..<3 {
+            cell.tap()
+            eventually("\(channel) to open full screen") { labeled("Now playing").exists || details.exists }
+            guard details.exists else { return }
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
+            eventually("the program's details to close") { !details.exists }
+        }
+        XCTFail("Each tap on \(channel) opened its details\n\(screen)")
     }
 
     /// Searches the guide for `text`, for a channel too far down to be on screen. Return is the field's Done, which

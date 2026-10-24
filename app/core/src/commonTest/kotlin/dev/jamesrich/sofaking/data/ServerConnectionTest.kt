@@ -50,15 +50,21 @@ class ServerConnectionTest {
             when (request.path) {
                 "/api/v1/bootstrap" -> {
                     bootstrapTimes += scope.currentTime
-                    bootstrap(server)?.let { json("""{"serverId":"$server","serverTime":"2026-10-10T10:00:00Z","capabilities":$it}""") }
+                    bootstrap(server)?.let {
+                        json("""{"serverId":"$server","serverTime":"2026-10-10T10:00:00Z","capabilities":$it}""")
+                    }
                         ?: apiError(503, "NOT_READY")
                 }
+
                 "/api/v1/playback-sessions" -> json(
                     """{"id":"$server-s1","channelId":"c1","intent":"watch","expiresAt":"2026-10-10T10:00:00Z",""" +
-                        """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/1/root.m3u8","epoch":1}}""",
+                        """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/""" +
+                        """1/root.m3u8","epoch":1}}""",
                     status = 201,
                 )
+
                 "/api/v1/playback-sessions/$server-s1" -> json("", status = 204)
+
                 else -> apiError(404, "RESOURCE_NOT_FOUND")
             }
         }
@@ -66,7 +72,11 @@ class ServerConnectionTest {
 
     private val settings = MutableStateFlow<AppSettings?>(AppSettings(serverUrl = "http://a.test", apiToken = "t"))
 
-    private fun TestScope.connection(servers: FakeServers, scope: CoroutineScope = backgroundScope, viewerSync: ViewerSync? = null) = ServerConnection(
+    private fun TestScope.connection(
+        servers: FakeServers,
+        scope: CoroutineScope = backgroundScope,
+        viewerSync: ViewerSync? = null,
+    ) = ServerConnection(
         settings = settings,
         scope = scope,
         sessions = PlaybackSessions(backgroundScope),
@@ -95,7 +105,10 @@ class ServerConnectionTest {
 
     @Test
     fun `a server change releases the old server's session and starts its capabilities over`() = runTest {
-        val servers = FakeServers(this).apply { bootstrap = { server -> """{"recordings":true,"library":true}""".takeIf { server == "a" } } }
+        val servers = FakeServers(this).apply {
+            bootstrap =
+                { server -> """{"recordings":true,"library":true}""".takeIf { server == "a" } }
+        }
         val connection = connection(servers)
         runCurrent()
         assertEquals(ServerCapabilities(recordings = true, library = true), connection.capabilities.value)
@@ -129,13 +142,19 @@ class ServerConnectionTest {
     fun `a settings write the store refuses during the sync is logged and the connection carries on`() = runTest {
         val refusing = object : DataStore<Preferences> {
             override val data = flowOf(emptyPreferences())
-            override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences = throw IOException("disk full")
+            override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
+                throw IOException("disk full")
         }
         val servers = FakeServers(this).apply { bootstrap = { """{"library":true}""" } }
         // Not the background scope, which reports every failure of its children, handled or not.
         val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
         try {
-            val connection = connection(servers, scope, ViewerSync(DataStoreSettingsStore(refusing), ClientInfo("android-tv", "Den")))
+            val connection =
+                connection(
+                    servers,
+                    scope,
+                    ViewerSync(DataStoreSettingsStore(refusing), ClientInfo("android-tv", "Den")),
+                )
             runCurrent()
             assertTrue(scope.isActive)
             assertEquals(ServerCapabilities(library = true), connection.capabilities.value)

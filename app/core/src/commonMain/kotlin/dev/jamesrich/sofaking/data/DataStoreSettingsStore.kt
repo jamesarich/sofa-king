@@ -19,13 +19,16 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retryWhen
+import okio.Path.Companion.toPath
 import kotlin.enums.enumEntries
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
-import okio.Path.Companion.toPath
 
-/** [SettingsStore] on a preferences [DataStore]; there must be only one per file, which the DI graph's single instance guarantees. */
+/**
+ * [SettingsStore] on a preferences [DataStore]; there must be only one per file, which the DI
+ * graph's single instance guarantees.
+ */
 class DataStoreSettingsStore(
     private val dataStore: DataStore<Preferences>,
     /** How long an unreadable store waits before it is read again. */
@@ -105,14 +108,20 @@ class DataStoreSettingsStore(
             val current = prefs[FAVORITES] ?: emptySet()
             prefs[FAVORITES] = if (guideId in current) current - guideId else current + guideId
             // A channel unstarred loses its place; starred again, it joins the end.
-            if (guideId in current) prefs[FAVORITES_ORDER] = favoritesOrder(prefs).filterNot { it == guideId }.joinToString(SEPARATOR.toString())
+            if (guideId in
+                current
+            ) {
+                prefs[FAVORITES_ORDER] =
+                    favoritesOrder(prefs).filterNot { it == guideId }.joinToString(SEPARATOR.toString())
+            }
         }
     }
 
     override suspend fun setLastChannel(guideId: String) {
         dataStore.edit { prefs ->
             prefs[LAST_CHANNEL] = guideId
-            prefs[RECENT_CHANNELS] = AppSettings.recentWith(recentChannels(prefs), guideId).joinToString(SEPARATOR.toString())
+            prefs[RECENT_CHANNELS] =
+                AppSettings.recentWith(recentChannels(prefs), guideId).joinToString(SEPARATOR.toString())
         }
     }
 
@@ -235,7 +244,11 @@ class DataStoreSettingsStore(
 
     override suspend fun setTrackChoice(showId: String, choice: TrackChoice) {
         dataStore.edit { prefs ->
-            val kept = (listOf(showId to choice) + trackChoices(prefs).filterKeys { it != showId }.toList()).take(TrackChoice.KEPT)
+            val kept = (
+                listOf(showId to choice) + trackChoices(prefs).filterKeys {
+                    it != showId
+                }.toList()
+                ).take(TrackChoice.KEPT)
             prefs[TRACK_CHOICES] = kept.joinToString("\n") { (id, c) -> "$id$SEPARATOR${c.encode()}" }
         }
     }
@@ -260,7 +273,11 @@ class DataStoreSettingsStore(
 
     override suspend fun setChannelDecoder(guideId: String, decoder: DecoderPreference?) {
         dataStore.edit { prefs ->
-            val updated = if (decoder == null) channelDecoders(prefs) - guideId else channelDecoders(prefs) + (guideId to decoder)
+            val updated = if (decoder == null) {
+                channelDecoders(prefs) - guideId
+            } else {
+                channelDecoders(prefs) + (guideId to decoder)
+            }
             prefs[CHANNEL_DECODER] = updated.mapTo(HashSet()) { (id, value) -> "$id$SEPARATOR${value.name}" }
         }
     }
@@ -272,10 +289,20 @@ class DataStoreSettingsStore(
     override suspend fun ensureClientId(): String {
         val stored = dataStore.data.first()[CLIENT_ID]
         if (!stored.isNullOrEmpty()) return stored
-        return dataStore.edit { prefs -> if (prefs[CLIENT_ID].isNullOrEmpty()) prefs[CLIENT_ID] = Uuid.random().toString() }[CLIENT_ID]!!
+        return dataStore.edit { prefs ->
+            if (prefs[CLIENT_ID].isNullOrEmpty()) {
+                prefs[CLIENT_ID] =
+                    Uuid.random().toString()
+            }
+        }[CLIENT_ID]!!
     }
 
-    override suspend fun applyServerPreferences(hidden: Set<String>, favorites: List<String>, recent: List<String>, syncedAt: String) {
+    override suspend fun applyServerPreferences(
+        hidden: Set<String>,
+        favorites: List<String>,
+        recent: List<String>,
+        syncedAt: String,
+    ) {
         dataStore.edit { prefs ->
             prefs[HIDDEN_CHANNELS] = hidden
             prefs[FAVORITES] = favorites.toSet()
@@ -299,28 +326,35 @@ class DataStoreSettingsStore(
         prefs[FAVORITES_ORDER].orEmpty().split(SEPARATOR).filter { it.isNotEmpty() }
 
     /** Entries are `guideId<TAB>DECODER`; anything malformed or unknown is skipped. */
-    private fun channelDecoders(prefs: Preferences): Map<String, DecoderPreference> = prefs[CHANNEL_DECODER].orEmpty().mapNotNull { entry ->
-        val id = entry.substringBeforeLast(SEPARATOR, missingDelimiterValue = "")
-        val value = DecoderPreference.entries.firstOrNull { it.name == entry.substringAfterLast(SEPARATOR) }
-        if (id.isEmpty() || value == null) null else id to value
-    }.toMap()
+    private fun channelDecoders(prefs: Preferences): Map<String, DecoderPreference> =
+        prefs[CHANNEL_DECODER].orEmpty().mapNotNull { entry ->
+            val id = entry.substringBeforeLast(SEPARATOR, missingDelimiterValue = "")
+            val value = DecoderPreference.entries.firstOrNull { it.name == entry.substringAfterLast(SEPARATOR) }
+            if (id.isEmpty() || value == null) null else id to value
+        }.toMap()
 
     /** A stored enum name, or [default] when the value is missing or from a build that no longer has it. */
-    private inline fun <reified T : Enum<T>> String?.toEnum(default: T): T = enumEntries<T>().firstOrNull { it.name == this } ?: default
+    private inline fun <reified T : Enum<T>> String?.toEnum(default: T): T =
+        enumEntries<T>().firstOrNull { it.name == this } ?: default
 
     private fun advanceMs(prefs: Preferences): Int =
-        (prefs[CAPTION_ADVANCE_MS] ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
+        (prefs[CAPTION_ADVANCE_MS] ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS).coerceIn(
+            AppSettings.CAPTION_ADVANCE_RANGE_MS,
+        )
 
     /** Newest first, joined by tabs, since a preferences string set has no order. */
     private fun recentChannels(prefs: Preferences): List<String> =
-        prefs[RECENT_CHANNELS].orEmpty().split(SEPARATOR).filter { it.isNotEmpty() }.distinct().take(AppSettings.RECENT_CHANNELS)
+        prefs[RECENT_CHANNELS].orEmpty().split(SEPARATOR).filter {
+            it.isNotEmpty()
+        }.distinct().take(AppSettings.RECENT_CHANNELS)
 
     /** Entries are `guideId<TAB>ms`; anything malformed is skipped. */
-    private fun channelAdvances(prefs: Preferences): Map<String, Int> = prefs[CHANNEL_CAPTION_ADVANCE_MS].orEmpty().mapNotNull { entry ->
-        val id = entry.substringBeforeLast(SEPARATOR, missingDelimiterValue = "")
-        val value = entry.substringAfterLast(SEPARATOR).toIntOrNull()
-        if (id.isEmpty() || value == null) null else id to value.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
-    }.toMap()
+    private fun channelAdvances(prefs: Preferences): Map<String, Int> =
+        prefs[CHANNEL_CAPTION_ADVANCE_MS].orEmpty().mapNotNull { entry ->
+            val id = entry.substringBeforeLast(SEPARATOR, missingDelimiterValue = "")
+            val value = entry.substringAfterLast(SEPARATOR).toIntOrNull()
+            if (id.isEmpty() || value == null) null else id to value.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
+        }.toMap()
 
     private companion object {
         val SERVER_URL = stringPreferencesKey("backend_url")
@@ -369,8 +403,7 @@ class DataStoreSettingsStore(
 }
 
 /** A preferences store in [file]; a corrupt file is replaced with defaults. Create one per file, as a DI single. */
-fun preferencesDataStore(file: String): DataStore<Preferences> =
-    PreferenceDataStoreFactory.createWithPath(
-        corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
-        scope = CoroutineScope(ioDispatcher + SupervisorJob()),
-    ) { file.toPath() }
+fun preferencesDataStore(file: String): DataStore<Preferences> = PreferenceDataStoreFactory.createWithPath(
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+    scope = CoroutineScope(ioDispatcher + SupervisorJob()),
+) { file.toPath() }

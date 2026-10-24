@@ -74,9 +74,11 @@ class CaptionSyncLoadControl(
 
     override fun getBackBufferDurationUs(playerId: PlayerId): Long = delegate.getBackBufferDurationUs(playerId)
 
-    override fun retainBackBufferFromKeyframe(playerId: PlayerId): Boolean = delegate.retainBackBufferFromKeyframe(playerId)
+    override fun retainBackBufferFromKeyframe(playerId: PlayerId): Boolean =
+        delegate.retainBackBufferFromKeyframe(playerId)
 
-    override fun shouldContinueLoading(parameters: LoadControl.Parameters): Boolean = delegate.shouldContinueLoading(parameters)
+    override fun shouldContinueLoading(parameters: LoadControl.Parameters): Boolean =
+        delegate.shouldContinueLoading(parameters)
 
     override fun shouldContinuePreloading(
         playerId: PlayerId,

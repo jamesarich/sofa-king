@@ -17,6 +17,7 @@ on:
       - "contract/**"
       - "!contract/**/*.md"
       - "gradle/**"
+      - ".editorconfig"
       - "build-logic/**"
       - "!build-logic/**/*.md"
       - ".github/workflows/backend.yml"
@@ -30,6 +31,7 @@ on:
       - "contract/**"
       - "!contract/**/*.md"
       - "gradle/**"
+      - ".editorconfig"
       - "build-logic/**"
       - "!build-logic/**/*.md"
       - ".github/workflows/backend.yml"
@@ -81,14 +83,14 @@ jobs:
         with:
           packages: ffmpeg comskip
 
-      - name: Test and build the distribution
-        run: ./gradlew --console=plain test :server:installDist
+      - name: Check the formatting, test and build the distribution
+        run: ./gradlew --console=plain spotlessCheck test :server:installDist
 
       # The contract is an included build, so the server's test task does not run its tests: the wire fixtures that
       # older apps rely on are only checked here.
       - name: Test the contract
         working-directory: contract
-        run: ./gradlew --console=plain jvmTest
+        run: ./gradlew --console=plain spotlessCheck jvmTest
 
       # The deploy and smoke scripts have no Gradle task; the runner image ships shellcheck.
       - name: Check the shell and Python tooling

@@ -23,7 +23,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.Airing
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.guide_airings_back
+import dev.jamesrich.sofaking.resources.guide_airings_title
+import dev.jamesrich.sofaking.resources.guide_today
+import dev.jamesrich.sofaking.resources.guide_tomorrow
 import dev.jamesrich.sofaking.ui.ProgramBadges
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.label
@@ -53,8 +57,17 @@ internal fun AiringsList(
     val tomorrow = stringResource(Res.string.guide_tomorrow)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(Res.string.guide_airings_title), style = MaterialTheme.typography.titleLarge)
-        Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Column(
+            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             airings.forEachIndexed { index, airing ->
                 AiringRow(
                     airing = airing,
@@ -70,7 +83,13 @@ internal fun AiringsList(
 }
 
 /** "Today 8:00 PM", "Tomorrow 9:30 AM" or "Sat 7:00 PM". */
-private fun airingWhen(airing: Airing, now: Instant, timeFormat: TimeFormatter, today: String, tomorrow: String): String {
+private fun airingWhen(
+    airing: Airing,
+    now: Instant,
+    timeFormat: TimeFormatter,
+    today: String,
+    tomorrow: String,
+): String {
     val start = airing.program.start
     val day = when (timeFormat.daysBetween(now, start)) {
         0 -> today
@@ -81,7 +100,13 @@ private fun airingWhen(airing: Airing, now: Instant, timeFormat: TimeFormatter, 
 }
 
 @Composable
-private fun AiringRow(airing: Airing, now: Instant, whenText: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun AiringRow(
+    airing: Airing,
+    now: Instant,
+    whenText: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
     val shape = MaterialTheme.shapes.medium
@@ -92,7 +117,9 @@ private fun AiringRow(airing: Airing, now: Instant, whenText: String, onClick: (
             .tvFocus(shape, focusedScale = 1f)
             .clip(shape)
             .clickable(interactionSource = interactions, indication = ripple(), onClick = onClick),
-        supportingContent = { Text(airing.channel.label(), color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = {
+            Text(airing.channel.label(), color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        },
         trailingContent = {
             ProgramBadges(
                 program = airing.program,
@@ -103,7 +130,11 @@ private fun AiringRow(airing: Airing, now: Instant, whenText: String, onClick: (
             )
         },
         colors = ListItemDefaults.colors(
-            containerColor = if (focused) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
+            containerColor = if (focused) {
+                MaterialTheme.colorScheme.surfaceVariant
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
         ),
     ) { Text(whenText, style = MaterialTheme.typography.titleSmall, maxLines = 1) }
 }

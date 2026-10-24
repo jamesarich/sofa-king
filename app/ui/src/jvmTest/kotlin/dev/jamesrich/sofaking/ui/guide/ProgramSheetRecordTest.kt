@@ -26,39 +26,54 @@ import kotlin.time.Duration.Companion.minutes
 class ProgramSheetRecordTest {
     private val now = Clock.System.now()
     private val channel = Channel(guideId = "c0", number = 2.0, name = "News Now", logo = null, groups = listOf("News"))
-    private val program = Program(channelId = "c0", start = now + 10.minutes, stop = now + 40.minutes, title = "Evening News", description = null)
+    private val program =
+        Program(
+            channelId = "c0",
+            start = now + 10.minutes,
+            stop = now + 40.minutes,
+            title = "Evening News",
+            description = null,
+        )
 
     @Test
-    fun `Record and Record series follow Close and each call the server once per press`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
-        val recorded = mutableListOf<String>()
-        setContent {
-            SofaKingTheme {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    ProgramSheet(
-                        details = ProgramDetails(channel, program),
-                        now = now,
-                        isFavorite = false,
-                        guideLoading = false,
-                        onWatch = { recorded += "watch" },
-                        onToggleFavorite = { recorded += "fav" },
-                        onDismiss = {},
-                        recording = RecordingMark(),
-                        onRecord = { recorded += "one ${it.title}"; true },
-                        onRecordSeries = { recorded += "series ${it.title}"; true },
-                    )
+    fun `Record and Record series follow Close and each call the server once per press`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            val recorded = mutableListOf<String>()
+            setContent {
+                SofaKingTheme {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        ProgramSheet(
+                            details = ProgramDetails(channel, program),
+                            now = now,
+                            isFavorite = false,
+                            guideLoading = false,
+                            onWatch = { recorded += "watch" },
+                            onToggleFavorite = { recorded += "fav" },
+                            onDismiss = {},
+                            recording = RecordingMark(),
+                            onRecord = {
+                                recorded += "one ${it.title}"
+                                true
+                            },
+                            onRecordSeries = {
+                                recorded += "series ${it.title}"
+                                true
+                            },
+                        )
+                    }
                 }
             }
-        }
-        fun press(key: Key) {
-            onRoot().performKeyInput { pressKey(key) }
+            fun press(key: Key) {
+                onRoot().performKeyInput { pressKey(key) }
+                waitForIdle()
+            }
             waitForIdle()
+            // The desktop scene moves focus with Tab, in the order a D-pad walks the two rows: Watch,
+            // Favorite, Close, Record, Record series.
+            repeat(3) { press(Key.Tab) }
+            press(Key.Enter)
+            press(Key.Tab)
+            press(Key.Enter)
+            assertEquals(listOf("one Evening News", "series Evening News"), recorded)
         }
-        waitForIdle()
-        // The desktop scene moves focus with Tab, in the order a D-pad walks the two rows: Watch, Favorite, Close, Record, Record series.
-        repeat(3) { press(Key.Tab) }
-        press(Key.Enter)
-        press(Key.Tab)
-        press(Key.Enter)
-        assertEquals(listOf("one Evening News", "series Evening News"), recorded)
-    }
 }

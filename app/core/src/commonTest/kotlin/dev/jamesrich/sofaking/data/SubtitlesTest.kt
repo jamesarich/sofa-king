@@ -12,7 +12,10 @@ class SubtitlesTest {
                 "intro\n01:00:04.500 --> 01:00:06.000 align:start\nTom &amp; Jerry\nsecond line\n",
         )
         assertEquals(
-            listOf(SubtitleCue(1_000, 3_000, "Hello there"), SubtitleCue(3_604_500, 3_606_000, "Tom & Jerry\nsecond line")),
+            listOf(
+                SubtitleCue(1_000, 3_000, "Hello there"),
+                SubtitleCue(3_604_500, 3_606_000, "Tom & Jerry\nsecond line"),
+            ),
             subtitles.cues,
         )
     }
@@ -25,7 +28,11 @@ class SubtitlesTest {
                 "00:04.000 --> 00:06.000\n\nx y\nz\n\nNOTE between\n\n00:07.000 --> 00:08.000\nlast\n",
         )
         assertEquals(
-            listOf(SubtitleCue(1_000, 3_000, "lead\ntrail"), SubtitleCue(4_000, 6_000, "x y\nz"), SubtitleCue(7_000, 8_000, "last")),
+            listOf(
+                SubtitleCue(1_000, 3_000, "lead\ntrail"),
+                SubtitleCue(4_000, 6_000, "x y\nz"),
+                SubtitleCue(7_000, 8_000, "last"),
+            ),
             subtitles.cues,
         )
     }
@@ -34,7 +41,8 @@ class SubtitlesTest {
     fun `a break tag is a new line even without its bracket or escaped`() {
         val subtitles = parseWebVtt(
             "WEBVTT\n\n00:01.000 --> 00:02.000\none<br\ntwo <BR/> three\n\n" +
-                "00:03.000 --> 00:04.000\nfour &lt;br&gt; five <br six\n\n00:05.000 --> 00:06.000\na < b <i>and</i> c > d <00:05.500>e\n",
+                "00:03.000 --> 00:04.000\nfour &lt;br&gt; five <br six\n\n00:05.000 --> 00:06.000\na < b <i>and</i> " +
+                "c > d <00:05.500>e\n",
         )
         assertEquals(listOf("one\ntwo\nthree", "four\nfive\nsix", "a < b and c > d e"), subtitles.cues.map { it.text })
     }
@@ -68,10 +76,15 @@ class SubtitlesTest {
             "♪ ♪\n-t.",
             "You had situations with her?R /.",
         )
-        val document = "WEBVTT\n\n" + lines.mapIndexed { i, line -> "00:${i.toString().padStart(2, '0')}.000 --> 00:${i.toString().padStart(2, '0')}.900\n$line" }.joinToString("\n\n")
+        val document =
+            "WEBVTT\n\n" +
+                lines.mapIndexed { i, line ->
+                    "00:${i.toString().padStart(2, '0')}.000 --> 00:${i.toString().padStart(2, '0')}.900\n$line"
+                }.joinToString("\n\n")
         assertEquals(
             listOf(
-                "Woman:\nhello, you've reach.", "For comments and complaints,", "Stupid with", "Did ancient aliens really help",
+                "Woman:\nhello, you've reach.", "For comments and complaints,", "Stupid with",
+                "Did ancient aliens really help",
                 "dinosaurs, one of the most", "friend", "maya. Ma", "I <3 it so",
                 "just named it that.\nfertile.", "Yeah, that's what it is.\nwe .", "Yeah, huh.\nI can't read that .",
                 "-Yeah, no...Pun intended.", "♪ ♪\n-t.", "You had situations with her?",
@@ -82,7 +95,14 @@ class SubtitlesTest {
 
     @Test
     fun `the text at a position is every cue showing then`() {
-        val subtitles = Subtitles(listOf(SubtitleCue(5_000, 9_000, "b"), SubtitleCue(1_000, 6_000, "a"), SubtitleCue(10_000, 11_000, "c")))
+        val subtitles =
+            Subtitles(
+                listOf(
+                    SubtitleCue(5_000, 9_000, "b"),
+                    SubtitleCue(1_000, 6_000, "a"),
+                    SubtitleCue(10_000, 11_000, "c"),
+                ),
+            )
         assertNull(subtitles.textAt(500))
         assertEquals("a", subtitles.textAt(1_000))
         assertEquals("a\nb", subtitles.textAt(5_500))

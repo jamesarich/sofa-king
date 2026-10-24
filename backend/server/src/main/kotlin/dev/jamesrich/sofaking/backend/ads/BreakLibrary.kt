@@ -32,19 +32,33 @@ class BreakEntry(
 ) {
     val blanking: Boolean get() = !blocked && falseHits == 0 && (channels.size >= 2 || days.size >= 2)
 
-    fun copy() = BreakEntry(id, points, providerId, source, createdAt, channels, days, lastHitAt, hits, falseHits, blocked)
+    fun copy() =
+        BreakEntry(id, points, providerId, source, createdAt, channels, days, lastHitAt, hits, falseHits, blocked)
 }
 
 /** Where [query] points [queryFrom] to [queryTo] (inclusive) match [entry] from its point [entryFrom]. */
 class BreakMatch(val entry: BreakEntry, val queryFrom: Int, val queryTo: Int, val entryFrom: Int) {
     val points: Int get() = queryTo - queryFrom + 1
+
     /** Points of the entry left after the match. */
     val entryLeft: Int get() = entry.points.size - (entryFrom + points)
 }
 
 /** The library's size and how the canary has gone over the last day. */
-data class LibraryStats(val entries: Int, val blanking: Int, val blocked: Int, val points: Long, val canaryHits: Int, val canaryFalse: Int, val frozen: Boolean) {
-    val precision: Double? get() = if (canaryHits + canaryFalse == 0) null else canaryHits.toDouble() / (canaryHits + canaryFalse)
+data class LibraryStats(
+    val entries: Int,
+    val blanking: Int,
+    val blocked: Int,
+    val points: Long,
+    val canaryHits: Int,
+    val canaryFalse: Int,
+    val frozen: Boolean,
+) {
+    val precision: Double? get() = if (canaryHits + canaryFalse == 0) {
+        null
+    } else {
+        canaryHits.toDouble() / (canaryHits + canaryFalse)
+    }
 }
 
 /**
@@ -107,8 +121,13 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
         trimCanary()
         val live = entries.filterNotNull()
         return LibraryStats(
-            live.size, live.count { it.blanking }, live.count { it.blocked }, pointCount,
-            canary.count { it.second }, canary.count { !it.second }, frozenNow(),
+            live.size,
+            live.count { it.blanking },
+            live.count { it.blocked },
+            pointCount,
+            canary.count { it.second },
+            canary.count { !it.second },
+            frozenNow(),
         )
     }
 
@@ -154,7 +173,16 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
                     while (start < i) {
                         val end = minOf(i, start + MAX_ENTRY_POINTS)
                         if (end - start >= MIN_LEARN_POINTS) {
-                            val entry = BreakEntry(UUID.randomUUID().toString(), points.copyOfRange(start, end), providerId, source, now, setOf(channelId), setOf(day))
+                            val entry =
+                                BreakEntry(
+                                    UUID.randomUUID().toString(),
+                                    points.copyOfRange(start, end),
+                                    providerId,
+                                    source,
+                                    now,
+                                    setOf(channelId),
+                                    setOf(day),
+                                )
                             add(entry)
                             dirty += entry.id
                         }
@@ -167,9 +195,12 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
         if (pointCount > MAX_POINTS) evict()
     }
 
-    /** The longest match of [query] of [minPoints] or more, against any entry not learned by the clock tagged [exclude]. */
+    /**
+     * The longest match of [query] of [minPoints] or more, against any entry not learned by the clock tagged [exclude].
+     */
     @Synchronized
-    fun match(query: IntArray, minPoints: Int, exclude: String? = null): BreakMatch? = best(query, minPoints, null, exclude)
+    fun match(query: IntArray, minPoints: Int, exclude: String? = null): BreakMatch? =
+        best(query, minPoints, null, exclude)
 
     /** The canary found [entry] in a marked break on [channelId]. */
     @Synchronized
@@ -207,7 +238,9 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
         val slot = entries.size
         entries += entry
         slots[entry.id] = slot
-        entry.points.forEachIndexed { position, word -> index.getOrPut(word) { Postings() }.add((slot shl POSITION_BITS) or position) }
+        entry.points.forEachIndexed { position, word ->
+            index.getOrPut(word) { Postings() }.add((slot shl POSITION_BITS) or position)
+        }
         pointCount += entry.points.size
     }
 
@@ -223,12 +256,17 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
 
     private fun expire() {
         val before = clock.instant().minus(EXPIRY)
-        entries.indices.filter { slot -> entries[slot]?.let { (it.lastHitAt ?: it.createdAt).isBefore(before) && lastMarked(it).isBefore(before) } == true }.forEach(::remove)
+        entries.indices.filter { slot ->
+            entries[slot]?.let { (it.lastHitAt ?: it.createdAt).isBefore(before) && lastMarked(it).isBefore(before) } ==
+                true
+        }.forEach(::remove)
         if (deadSlots > entries.size / 4) rebuild()
     }
 
-    private fun lastMarked(entry: BreakEntry): Instant =
-        entry.days.maxOrNull()?.let { java.time.LocalDate.parse(it).plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC) } ?: entry.createdAt
+    private fun lastMarked(entry: BreakEntry): Instant = entry.days.maxOrNull()?.let {
+        java.time.LocalDate.parse(it).plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
+    }
+        ?: entry.createdAt
 
     /** Drops the least recently heard entries until the library is back under [MAX_POINTS]. */
     private fun evict() {
@@ -276,14 +314,24 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
                 val run = longestRun(query, entry.points, shift + nudge, minPoints, skip) ?: continue
                 val match = BreakMatch(entry, run.first, run.last, run.first + shift + nudge)
                 // The longest wins; a blocked entry wins a tie, since show audio must veto.
-                if (best == null || match.points > best.points || (match.points == best.points && entry.blocked && !best.entry.blocked)) best = match
+                if (best == null || match.points > best.points ||
+                    (match.points == best.points && entry.blocked && !best.entry.blocked)
+                ) {
+                    best = match
+                }
             }
         }
         return best
     }
 
     /** With [entry] shifted [shift] points against [query], the longest run that passes the bounds. */
-    private fun longestRun(query: IntArray, entry: IntArray, shift: Int, minPoints: Int, skip: BooleanArray?): IntRange? {
+    private fun longestRun(
+        query: IntArray,
+        entry: IntArray,
+        shift: Int,
+        minPoints: Int,
+        skip: BooleanArray?,
+    ): IntRange? {
         val from = maxOf(0, -shift)
         val until = minOf(query.size, entry.size - shift)
         var best: IntRange? = null
@@ -293,7 +341,9 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
         fun close() {
             if (start < 0) return
             val length = last - start + 1
-            if (length >= minPoints && matches >= MIN_DENSITY * length && (best == null || length > best!!.count())) best = start..last
+            if (length >= minPoints && matches >= MIN_DENSITY * length && (best == null || length > best!!.count())) {
+                best = start..last
+            }
         }
         for (i in from until until) {
             if (skip?.get(i) == true || Integer.bitCount(query[i] xor entry[i + shift]) > MAX_BIT_ERRORS) continue
@@ -317,15 +367,19 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
         const val POINT_MS = 4096.0 / 3 / 11_025 * 1_000
         const val MAX_BIT_ERRORS = 6
         const val MIN_DENSITY = 0.6
+
         /** About 2 s. */
         const val MAX_GAP_POINTS = 16
+
         /** About 10 s: the least a learned stretch, or a match that starts a break, may be. */
         const val MIN_LEARN_POINTS = 81
+
         /** About 4 minutes, which also bounds a position to [POSITION_BITS]. */
         const val MAX_ENTRY_POINTS = 1_940
         const val CANARY_PRECISION = 0.999
         val CANARY_WINDOW: Duration = Duration.ofDays(1)
         val EXPIRY: Duration = Duration.ofDays(30)
+
         /** About 3 days of ads heard without a break; past it the least recently heard go. */
         const val MAX_POINTS = 2_000_000L
         private const val POSITION_BITS = 12

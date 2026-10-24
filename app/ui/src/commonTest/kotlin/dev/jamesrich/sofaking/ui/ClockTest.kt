@@ -3,9 +3,9 @@ package dev.jamesrich.sofaking.ui
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.UtcOffset
 import kotlinx.datetime.asTimeZone
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Instant
-import kotlin.test.Test
 
 class ClockTest {
     @Test

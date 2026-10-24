@@ -3,7 +3,8 @@ package dev.jamesrich.sofaking.backend.upstream
 /**
  * The protocols FFmpeg may open: plain HTTP over TCP to the loopback relay, and `crypto` for AES-128 HLS segments.
  * Anything else a playlist names, such as `https:`, `file:`, `concat:`, `subfile:` or `ftp:`, is refused, so a remote
- * playlist can neither read files in the container nor reach a host past the relay. Pass it as an input option, before `-i`.
+ * playlist can neither read files in the container nor reach a host past the relay. Pass it
+ * as an input option, before `-i`.
  */
 internal val FFMPEG_PROTOCOL_WHITELIST = listOf("-protocol_whitelist", "http,tcp,crypto")
 
@@ -30,6 +31,8 @@ internal fun ffmpegBase(ffmpeg: String, loglevel: String, source: FfmpegSource):
     return command
 }
 
-/** A builder for an FFmpeg that reads a source: it reaches the relay directly, never through a proxy in the environment. */
+/**
+ * A builder for an FFmpeg that reads a source: it reaches the relay directly, never through a proxy in the environment.
+ */
 internal fun ffmpegProcess(command: List<String>): ProcessBuilder =
     ProcessBuilder(command).also { it.environment().remove("http_proxy") }

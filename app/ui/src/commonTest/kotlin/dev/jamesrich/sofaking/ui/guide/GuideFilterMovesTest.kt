@@ -2,13 +2,13 @@ package dev.jamesrich.sofaking.ui.guide
 
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
-import dev.jamesrich.sofaking.data.ProgramKind
 import dev.jamesrich.sofaking.data.Program
-import kotlin.time.Instant
+import dev.jamesrich.sofaking.data.ProgramKind
 import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.Test
+import kotlin.time.Instant
 
 class GuideFilterMovesTest {
     private fun channel(id: String, group: String = "News") = Channel(id, id.toDouble(), "Ch $id", null, listOf(group))
@@ -22,7 +22,14 @@ class GuideFilterMovesTest {
         val local = Channel("5", 5.0, "KSNV", null, listOf("Local", "News"))
         val filters = guideFilters(listOf(local) + all)
         assertEquals(
-            listOf(GuideFilter.All, GuideFilter.Favorites, GuideFilter.Recent, GuideFilter.Group("Local"), GuideFilter.Group("News"), GuideFilter.Group("Sports")),
+            listOf(
+                GuideFilter.All,
+                GuideFilter.Favorites,
+                GuideFilter.Recent,
+                GuideFilter.Group("Local"),
+                GuideFilter.Group("News"),
+                GuideFilter.Group("Sports"),
+            ),
             filters,
         )
     }
@@ -30,7 +37,12 @@ class GuideFilterMovesTest {
     @Test
     fun `counts include a channel in each of its groups`() {
         val local = Channel("5", 5.0, "KSNV", null, listOf("Local", "News"))
-        val counts = guideFilterCounts(listOf(local) + all, favorites = setOf("300", "gone"), recent = listOf("101", "gone", "5"))
+        val counts =
+            guideFilterCounts(
+                listOf(local) + all,
+                favorites = setOf("300", "gone"),
+                recent = listOf("101", "gone", "5"),
+            )
         assertEquals(5, counts[GuideFilter.All])
         assertEquals(1, counts[GuideFilter.Favorites])
         assertEquals(2, counts[GuideFilter.Recent])
@@ -48,7 +60,12 @@ class GuideFilterMovesTest {
     @Test
     fun `a filter round trips through its key and All is stored as nothing`() {
         assertNull(GuideFilter.All.key())
-        for (filter in listOf(GuideFilter.Favorites, GuideFilter.Recent, GuideFilter.Group("Local News"), GuideFilter.OnNow(ProgramKind.SPORTS))) {
+        for (filter in listOf(
+            GuideFilter.Favorites,
+            GuideFilter.Recent,
+            GuideFilter.Group("Local News"),
+            GuideFilter.OnNow(ProgramKind.SPORTS),
+        )) {
             assertEquals(filter, guideFilterFromKey(filter.key()))
         }
         assertEquals(GuideFilter.All, guideFilterFromKey(null))
@@ -66,14 +83,39 @@ class GuideFilterMovesTest {
             all,
             mapOf(
                 "100" to listOf(show("100", "2026-10-19T12:00:00Z", "2026-10-19T13:00:00Z", ProgramKind.NEWS)),
-                "300" to listOf(show("300", "2026-10-19T12:00:00Z", "2026-10-19T14:00:00Z", ProgramKind.SPORTS, ProgramKind.KIDS)),
+                "300" to
+                    listOf(
+                        show(
+                            "300",
+                            "2026-10-19T12:00:00Z",
+                            "2026-10-19T14:00:00Z",
+                            ProgramKind.SPORTS,
+                            ProgramKind.KIDS,
+                        ),
+                    ),
                 "301" to listOf(show("301", "2026-10-19T13:00:00Z", "2026-10-19T14:00:00Z", ProgramKind.SPORTS)),
             ),
         )
         val onNow = channelsOnNow(lineup, at)
-        assertEquals(mapOf(ProgramKind.NEWS to listOf("100"), ProgramKind.SPORTS to listOf("300"), ProgramKind.KIDS to listOf("300")), onNow.mapValues { (_, c) -> c.map { it.guideId } })
         assertEquals(
-            listOf(GuideFilter.All, GuideFilter.Favorites, GuideFilter.Recent, GuideFilter.OnNow(ProgramKind.SPORTS), GuideFilter.OnNow(ProgramKind.KIDS), GuideFilter.OnNow(ProgramKind.NEWS), GuideFilter.Group("News"), GuideFilter.Group("Sports")),
+            mapOf(
+                ProgramKind.NEWS to listOf("100"),
+                ProgramKind.SPORTS to listOf("300"),
+                ProgramKind.KIDS to listOf("300"),
+            ),
+            onNow.mapValues { (_, c) -> c.map { it.guideId } },
+        )
+        assertEquals(
+            listOf(
+                GuideFilter.All,
+                GuideFilter.Favorites,
+                GuideFilter.Recent,
+                GuideFilter.OnNow(ProgramKind.SPORTS),
+                GuideFilter.OnNow(ProgramKind.KIDS),
+                GuideFilter.OnNow(ProgramKind.NEWS),
+                GuideFilter.Group("News"),
+                GuideFilter.Group("Sports"),
+            ),
             guideFilters(all, onNow.keys),
         )
         assertEquals(1, guideFilterCounts(all, emptySet(), emptyList(), onNow)[GuideFilter.OnNow(ProgramKind.SPORTS)])

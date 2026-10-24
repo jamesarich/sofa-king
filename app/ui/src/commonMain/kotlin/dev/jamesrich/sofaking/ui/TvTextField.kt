@@ -36,7 +36,11 @@ internal fun TvTextField(
     maskUnfocused: ((String) -> String)? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val mask = if (focused || maskUnfocused == null) null else remember(maskUnfocused) { MaskTransformation(maskUnfocused) }
+    val mask = if (focused || maskUnfocused == null) {
+        null
+    } else {
+        remember(maskUnfocused) { MaskTransformation(maskUnfocused) }
+    }
     OutlinedTextField(
         state = state,
         modifier = modifier.focusRequester(focusRequester).onFocusChanged { focused = it.hasFocus },

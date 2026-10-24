@@ -20,11 +20,12 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 
 /**
- * The last successfully loaded [Lineup], kept in app-private storage so a cold start can show it before the network answers.
- * [key] identifies the server; a cache written for another key is ignored and left in place. The store is a DataStore
- * of one protobuf [CachedLineup] (a file through [lineupCacheDataStore], or the browser's storage), which replaces the file whole and wipes one it cannot read.
- * The programs are kept as one nested message that is decoded only when asked for, on [background]: a full guide takes
- * seconds to decode on a TV, and the channels alone are enough to open a channel or a tab.
+ * The last successfully loaded [Lineup], kept in app-private storage so a cold start can show it before the network
+ * answers. [key] identifies the server; a cache written for another key is ignored and left in place. The store is a
+ * DataStore of one protobuf [CachedLineup] (a file through [lineupCacheDataStore], or the browser's storage), which
+ * replaces the file whole and wipes one it cannot read. The programs are kept as one nested message that is decoded
+ * only when asked for, on [background]: a full guide takes seconds to decode on a TV, and the channels alone are
+ * enough to open a channel or a tab.
  */
 class LineupCache(
     private val store: DataStore<CachedLineup?>,
@@ -53,8 +54,13 @@ class LineupCache(
     }
 
     /** A lineup read back: its [channels] at once, its programs from [guide]. */
-    class Cached internal constructor(val channels: List<Channel>, private val decodeGuide: suspend () -> Map<String, List<Program>>?) {
-        /** The programs that have not ended, by channel, or null when they do not decode (the cache is then cleared). */
+    class Cached internal constructor(
+        val channels: List<Channel>,
+        private val decodeGuide: suspend () -> Map<String, List<Program>>?,
+    ) {
+        /**
+         * The programs that have not ended, by channel, or null when they do not decode (the cache is then cleared).
+         */
         suspend fun guide(): Map<String, List<Program>>? = decodeGuide()
     }
 
@@ -84,7 +90,9 @@ class LineupCache(
     }
 }
 
-/** The protobuf record as the bytes of the store; an empty store is no lineup, and anything undecodable is corruption. */
+/**
+ * The protobuf record as the bytes of the store; an empty store is no lineup, and anything undecodable is corruption.
+ */
 @OptIn(ExperimentalSerializationApi::class)
 object CachedLineupSerializer : OkioSerializer<CachedLineup?> {
     override val defaultValue: CachedLineup? = null
@@ -112,7 +120,9 @@ class CachedLineup internal constructor(
     @ProtoNumber(2) internal val channels: List<CachedChannel> = emptyList(),
     /** Programs grouped by channel, so the channel id is not repeated per program; read from older files only. */
     @ProtoNumber(3) internal val guide: List<CachedGuide> = emptyList(),
-    /** The programs as an encoded [CachedGuides], copied as bytes when the file is read and decoded only on demand. */
+    /**
+     * The programs as an encoded [CachedGuides], copied as bytes when the file is read and decoded only on demand.
+     */
     @ProtoNumber(4) internal val guideBytes: ByteArray = ByteArray(0),
 ) {
     internal fun toLineup(at: Instant): Lineup = Lineup(toChannels(), guide(at))
@@ -131,10 +141,18 @@ class CachedLineup internal constructor(
 
     /** The programs that have not ended at [at], by channel. */
     internal fun guide(at: Instant): Map<String, List<Program>> {
-        val entries = if (guideBytes.isEmpty()) this.guide else ProtoBuf.decodeFromByteArray<CachedGuides>(guideBytes).guide
+        val entries = if (guideBytes.isEmpty()) {
+            this.guide
+        } else {
+            ProtoBuf.decodeFromByteArray<CachedGuides>(
+                guideBytes,
+            ).guide
+        }
         val guide = HashMap<String, List<Program>>()
         for (entry in entries) {
-            val programs = entry.programs.mapNotNull { it.toProgram(entry.channelId).takeIf { program -> program.stop > at } }
+            val programs = entry.programs.mapNotNull {
+                it.toProgram(entry.channelId).takeIf { program -> program.stop > at }
+            }
             if (programs.isNotEmpty()) guide[entry.channelId] = programs
         }
         return guide
@@ -146,7 +164,8 @@ class CachedLineup internal constructor(
             channels = lineup.channels.map {
                 CachedChannel(it.guideId, it.number, it.name, it.logo, it.groups, it.guideStatus.name)
             },
-            // Empty lists are dropped on read, so skipping them here keeps the file minimal without changing the result.
+            // Empty lists are dropped on read, so skipping them here keeps the file
+            // minimal without changing the result.
             guideBytes = ProtoBuf.encodeToByteArray(
                 CachedGuides(
                     lineup.guide.filterValues { it.isNotEmpty() }.map { (channelId, programs) ->

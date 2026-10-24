@@ -39,7 +39,17 @@ class ItemDetailsSpoilersTest {
         setContent {
             SofaKingTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    ItemDetailsScreen(ItemDetailState.Ready(detail), season = null, selectedSeasonId = null, actions = ItemDetailsActions({ _, _ -> }, { _, _ -> }, {}, {}), hideSpoilers = hideSpoilers)
+                    ItemDetailsScreen(
+                        ItemDetailState.Ready(detail),
+                        season = null,
+                        selectedSeasonId = null,
+                        actions = ItemDetailsActions({
+                                _,
+                                _,
+                            ->
+                        }, { _, _ -> }, {}, {}),
+                        hideSpoilers = hideSpoilers,
+                    )
                 }
             }
         }

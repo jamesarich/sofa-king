@@ -28,8 +28,20 @@ class QrCodeTest {
         }
         val scale = 4
         val source = object : LuminanceSource(size.first * scale, size.second * scale) {
-            override fun getRow(y: Int, row: ByteArray?): ByteArray = ByteArray(width).also { for (x in 0 until width) it[x] = pixel(x, y) }
-            override fun getMatrix(): ByteArray = ByteArray(width * height).also { for (y in 0 until height) for (x in 0 until width) it[y * width + x] = pixel(x, y) }
+            override fun getRow(y: Int, row: ByteArray?): ByteArray = ByteArray(width).also {
+                for (x in 0 until width) {
+                    it[x] =
+                        pixel(x, y)
+                }
+            }
+            override fun getMatrix(): ByteArray = ByteArray(width * height).also {
+                for (y in 0 until height) {
+                    for (x in 0 until
+                        width) {
+                        it[y * width + x] = pixel(x, y)
+                    }
+                }
+            }
             private fun pixel(x: Int, y: Int): Byte = if (dark[y / scale][x / scale]) 0 else 255.toByte()
         }
         return QRCodeReader().decode(BinaryBitmap(HybridBinarizer(source))).text

@@ -2,8 +2,6 @@ package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.library.IntroRecord
 import dev.jamesrich.sofaking.backend.library.IntroSpan
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -13,23 +11,38 @@ import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
 import org.jetbrains.exposed.v1.jdbc.upsert
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 /** The stored fingerprints, intros and credits of [itemIds], by item id. */
 suspend fun BackendStore.libraryIntros(itemIds: Collection<String>): Map<String, IntroRecord> = read {
-    itemIds.chunked(500).flatMap { chunk -> LibraryIntroRows.selectAll().where { LibraryIntroRows.itemId inList chunk }.map { it.intro(withFingerprint = true) } }
+    itemIds.chunked(500).flatMap { chunk ->
+        LibraryIntroRows.selectAll().where {
+            LibraryIntroRows.itemId inList chunk
+        }.map { it.intro(withFingerprint = true) }
+    }
         .associateBy { it.itemId }
 }
 
 /** [itemId]'s intro and credits and the file they were found in, without the fingerprints. */
 suspend fun BackendStore.libraryIntro(itemId: String): IntroRecord? = read {
     LibraryIntroRows.select(
-        LibraryIntroRows.itemId, LibraryIntroRows.fileKey, LibraryIntroRows.introStartMs, LibraryIntroRows.introEndMs, LibraryIntroRows.readAt,
-        LibraryIntroRows.tailStartMs, LibraryIntroRows.creditsStartMs, LibraryIntroRows.creditsEndMs,
+        LibraryIntroRows.itemId,
+        LibraryIntroRows.fileKey,
+        LibraryIntroRows.introStartMs,
+        LibraryIntroRows.introEndMs,
+        LibraryIntroRows.readAt,
+        LibraryIntroRows.tailStartMs,
+        LibraryIntroRows.creditsStartMs,
+        LibraryIntroRows.creditsEndMs,
     )
         .where { LibraryIntroRows.itemId eq itemId }.singleOrNull()?.intro(withFingerprint = false)
 }
 
-/** Keeps newly read fingerprints; the intro and credits of the file they replace are dropped until the show is matched again. */
+/**
+ * Keeps newly read fingerprints; the intro and credits of the file they replace are dropped
+ * until the show is matched again.
+ */
 suspend fun BackendStore.saveLibraryFingerprint(record: IntroRecord) = query {
     LibraryIntroRows.upsert {
         it[itemId] = record.itemId
@@ -73,7 +86,8 @@ suspend fun BackendStore.deleteOrphanLibraryIntros() = query {
 private fun ResultRow.intro(withFingerprint: Boolean): IntroRecord {
     fun span(start: Long?, end: Long?) = if (start != null && end != null) IntroSpan(start, end) else null
     return IntroRecord(
-        this[LibraryIntroRows.itemId], this[LibraryIntroRows.fileKey],
+        this[LibraryIntroRows.itemId],
+        this[LibraryIntroRows.fileKey],
         if (withFingerprint) this[LibraryIntroRows.fingerprint]?.let(::points) else null,
         span(this[LibraryIntroRows.introStartMs], this[LibraryIntroRows.introEndMs]),
         this[LibraryIntroRows.readAt],

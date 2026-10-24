@@ -14,20 +14,47 @@ import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 
 class LibraryChoicesTest {
-    private fun item(id: String, kind: ItemKind, progress: PlayProgress? = null, parentId: String? = null, unwatched: Int = 0, season: Int? = null, episode: Int? = null) =
-        MediaItem(id, "lib", kind, "Title $id", parentId = parentId, progress = progress, unwatched = unwatched, season = season, episode = episode)
+    private fun item(
+        id: String,
+        kind: ItemKind,
+        progress: PlayProgress? = null,
+        parentId: String? = null,
+        unwatched: Int = 0,
+        season: Int? = null,
+        episode: Int? = null,
+    ) = MediaItem(
+        id, "lib", kind, "Title $id", parentId = parentId, progress = progress, unwatched = unwatched, season = season,
+        episode = episode,
+    )
 
     @Test
     fun `continue watching and episode rows are wide and the rest are posters`() {
-        assertEquals(CardStyle.WIDE, cardStyleFor(MediaShelf(CONTINUE_SHELF, "Continue", listOf(item("m", ItemKind.MOVIE)))))
-        assertEquals(CardStyle.WIDE, cardStyleFor(MediaShelf("r", "Recent", listOf(item("e", ItemKind.EPISODE), item("v", ItemKind.VIDEO)))))
-        assertEquals(CardStyle.POSTER, cardStyleFor(MediaShelf("r", "Recent", listOf(item("m", ItemKind.MOVIE), item("e", ItemKind.EPISODE)))))
+        assertEquals(
+            CardStyle.WIDE,
+            cardStyleFor(MediaShelf(CONTINUE_SHELF, "Continue", listOf(item("m", ItemKind.MOVIE)))),
+        )
+        assertEquals(
+            CardStyle.WIDE,
+            cardStyleFor(MediaShelf("r", "Recent", listOf(item("e", ItemKind.EPISODE), item("v", ItemKind.VIDEO)))),
+        )
+        assertEquals(
+            CardStyle.POSTER,
+            cardStyleFor(MediaShelf("r", "Recent", listOf(item("m", ItemKind.MOVIE), item("e", ItemKind.EPISODE)))),
+        )
         assertEquals(CardStyle.POSTER, cardStyleFor(MediaShelf("r", "Recent", emptyList())))
     }
 
     @Test
     fun `search shows movies and shows as posters and episodes and videos as wide cards in their order`() {
-        val sections = searchSections(listOf(item("e1", ItemKind.EPISODE), item("m", ItemKind.MOVIE), item("v", ItemKind.VIDEO), item("s", ItemKind.SHOW)))
+        val sections =
+            searchSections(
+                listOf(
+                    item("e1", ItemKind.EPISODE),
+                    item("m", ItemKind.MOVIE),
+                    item("v", ItemKind.VIDEO),
+                    item("s", ItemKind.SHOW),
+                ),
+            )
         assertEquals(listOf("m", "s"), sections.posters.map { it.id })
         assertEquals(listOf("e1", "v"), sections.wide.map { it.id })
     }
@@ -43,12 +70,21 @@ class LibraryChoicesTest {
     @Test
     fun `a card's menu offers the start for what is partway in and the watched toggle`() {
         val partway = item("m", ItemKind.MOVIE, PlayProgress(60_000, 6_000_000, false))
-        assertEquals(listOf(CardMenuEntry.PLAY_FROM_START, CardMenuEntry.MARK_WATCHED), cardMenuEntries(partway, playFromStart = true))
+        assertEquals(
+            listOf(CardMenuEntry.PLAY_FROM_START, CardMenuEntry.MARK_WATCHED),
+            cardMenuEntries(partway, playFromStart = true),
+        )
         assertEquals(listOf(CardMenuEntry.MARK_WATCHED), cardMenuEntries(partway, playFromStart = false))
-        assertEquals(listOf(CardMenuEntry.MARK_UNWATCHED), cardMenuEntries(item("m", ItemKind.MOVIE, PlayProgress(0, 6_000_000, true)), playFromStart = true))
+        assertEquals(
+            listOf(CardMenuEntry.MARK_UNWATCHED),
+            cardMenuEntries(item("m", ItemKind.MOVIE, PlayProgress(0, 6_000_000, true)), playFromStart = true),
+        )
         val show = MediaItem("s", "lib", ItemKind.SHOW, "Show", children = 2, unwatched = 0)
         assertEquals(listOf(CardMenuEntry.MARK_UNWATCHED), cardMenuEntries(show, playFromStart = true))
-        assertEquals(listOf(CardMenuEntry.MARK_WATCHED), cardMenuEntries(show.copy(unwatched = 3), playFromStart = true))
+        assertEquals(
+            listOf(CardMenuEntry.MARK_WATCHED),
+            cardMenuEntries(show.copy(unwatched = 3), playFromStart = true),
+        )
     }
 
     @Test

@@ -41,7 +41,10 @@ internal expect fun rememberSystemCaptionSettings(): (() -> Unit)?
 /** The engine that draws captions on this platform, named for the Settings help text. */
 internal expect fun captionEngineName(): String
 
-/** True where the engine honors [dev.jamesrich.sofaking.data.PlaybackPreferences] (Android's Media3); Settings hides the Playback section elsewhere. */
+/**
+ * True where the engine honors [dev.jamesrich.sofaking.data.PlaybackPreferences] (Android's Media3); Settings hides
+ * the Playback section elsewhere.
+ */
 internal expect val supportsPlaybackPreferences: Boolean
 
 /**
@@ -50,10 +53,16 @@ internal expect val supportsPlaybackPreferences: Boolean
  */
 internal expect val platformMovesFocusOnArrows: Boolean
 
-/** True where captions are drawn through `CaptionSync` (Android's Media3), so smoothing and timing apply; Settings hides those rows elsewhere. */
+/**
+ * True where captions are drawn through `CaptionSync` (Android's Media3), so smoothing and timing apply;
+ * Settings hides those rows elsewhere.
+ */
 internal expect val supportsCaptionSync: Boolean
 
-/** The address Settings offers while none is saved: the web page's own origin, which serves the API beside it; null elsewhere. */
+/**
+ * The address Settings offers while none is saved: the web page's own origin, which serves the
+ * API beside it; null elsewhere.
+ */
 internal expect val pageServerUrl: String?
 
 /**

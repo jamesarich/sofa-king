@@ -59,12 +59,7 @@ class MediaRelay(
     }
     internal val shared = SharedStreams(scope, fanout)
 
-    suspend fun serve(
-        call: ApplicationCall,
-        id: String,
-        epoch: Int,
-        token: String,
-    ) = coroutineScope {
+    suspend fun serve(call: ApplicationCall, id: String, epoch: Int, token: String) = coroutineScope {
         val job = coroutineContext[Job]!!
         val resource = sessions.acquire(id, epoch, token, job, call.request.origin.remoteAddress)
         try {
@@ -73,20 +68,42 @@ class MediaRelay(
             val stream = try {
                 feeds.playable(resource.offering)
             } catch (_: ProviderFailure) {
-                if (sessions.sourceFailed(id, epoch, job)) throw ApiFailure(410, Wire.ErrorCode.STREAM_CHANGED, "The source failed; fetch the current session descriptor", true)
+                if (sessions.sourceFailed(
+                        id,
+                        epoch,
+                        job,
+                    )
+                ) {
+                    throw ApiFailure(
+                        410,
+                        Wire.ErrorCode.STREAM_CHANGED,
+                        "The source failed; fetch the current session descriptor",
+                        true,
+                    )
+                }
                 throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
             }
-            if (resource.shared) serveShared(call, id, epoch, job, resource, stream) else serveDirect(call, id, epoch, job, resource, stream)
+            if (resource.shared) {
+                serveShared(
+                    call,
+                    id,
+                    epoch,
+                    job,
+                    resource,
+                    stream,
+                )
+            } else {
+                serveDirect(call, id, epoch, job, resource, stream)
+            }
         } finally {
             withContext(NonCancellable) { sessions.finished(id, job) }
         }
     }
 
-    /** LL-HLS players append delivery directives to the playlist URL they were given; forward them to the real playlist. */
-    private fun withDeliveryDirectives(
-        url: String,
-        call: ApplicationCall,
-    ): String {
+    /**
+     * LL-HLS players append delivery directives to the playlist URL they were given; forward them to the real playlist.
+     */
+    private fun withDeliveryDirectives(url: String, call: ApplicationCall): String {
         val directives =
             listOf("_HLS_msn", "_HLS_part", "_HLS_skip").mapNotNull { name ->
                 call.request.queryParameters[name]?.takeIf { it.matches(DIRECTIVE_VALUE) }?.let { "$name=$it" }
@@ -95,15 +112,17 @@ class MediaRelay(
         return url + (if (URI(url).rawQuery == null) "?" else "&") + directives.joinToString("&")
     }
 
-    /** The descriptor promised one protocol and the body carries the other: bump the epoch so the player re-reads it. */
-    private suspend fun protocolMismatch(
-        id: String,
-        epoch: Int,
-        job: Job,
-        protocol: String,
-    ): Nothing {
+    /**
+     * The descriptor promised one protocol and the body carries the other: bump the epoch so the player re-reads it.
+     */
+    private suspend fun protocolMismatch(id: String, epoch: Int, job: Job, protocol: String): Nothing {
         sessions.protocolObserved(id, epoch, protocol, job)
-        throw ApiFailure(410, Wire.ErrorCode.STREAM_CHANGED, "Stream protocol changed; fetch the current session descriptor", true)
+        throw ApiFailure(
+            410,
+            Wire.ErrorCode.STREAM_CHANGED,
+            "Stream protocol changed; fetch the current session descriptor",
+            true,
+        )
     }
 
     /**
@@ -113,7 +132,13 @@ class MediaRelay(
     internal suspend fun joinShared(offering: Offering, stream: ResolvedStream): TsFanout.Reader =
         shared.join(offering.id) { consume ->
             permits.withPermit {
-                http.withUpstreamResponse(stream.url, stream.url, stream.headers, unbounded = true, policy = feeds.upstream) { response ->
+                http.withUpstreamResponse(
+                    stream.url,
+                    stream.url,
+                    stream.headers,
+                    unbounded = true,
+                    policy = feeds.upstream,
+                ) { response ->
                     if (response.status.value != 200) throw UpstreamStatusException(response.status.value)
                     consume(response.bodyAsChannel())
                 }
@@ -161,7 +186,8 @@ class MediaRelay(
         resource: MediaResource,
         stream: ResolvedStream,
     ) {
-        // The root token maps to the offering's own URL, which for a native source is the resolved one; children are absolute already.
+        // The root token maps to the offering's own URL, which for a native source is the resolved one;
+        // children are absolute already.
         val root = resource.url == resource.offering.url
         val url = if (root) stream.url else resource.url
         val ads = resource.ads
@@ -171,7 +197,12 @@ class MediaRelay(
                 http, feeds.upstream, call, withDeliveryDirectives(url, call), stream,
                 path = { sessions.resourcePath(id, epoch, it) },
                 sent = { resource.bytes.addAndGet(it) },
-                manifest = { text, source -> resource.playlists.steady(text, source).let { ads?.annotate(it, source) ?: it } },
+                manifest = { text, source ->
+                    resource.playlists.steady(text, source).let {
+                        ads?.annotate(it, source)
+                            ?: it
+                    }
+                },
                 sniffed = { protocol -> if (root && protocol == "mpegts") protocolMismatch(id, epoch, job, "mpegts") },
                 tap = ads?.let { { found -> tapped = found } },
                 keepBytes = audio != null && ads?.listening == true,
@@ -180,7 +211,12 @@ class MediaRelay(
         ads?.served(url, tapped?.cues)
         val bytes = tapped?.bytes
         // Read after the segment is answered, so the player never waits on it.
-        if (ads != null && audio != null && bytes != null) synchronized(ads) { ads.follower ?: AudioFollower(audio, ads, scope).also { ads.follower = it } }.offer(url, bytes)
+        if (ads != null && audio != null && bytes != null) {
+            synchronized(ads) {
+                ads.follower
+                    ?: AudioFollower(audio, ads, scope).also { ads.follower = it }
+            }.offer(url, bytes)
+        }
     }
 }
 
@@ -190,7 +226,10 @@ private const val SEGMENT_READ = 64 * 1024
 /** The most of a segment kept for [TappedSegment.bytes]; a longer one is not kept. */
 private const val SEGMENT_KEEP_LIMIT = 32 * 1024 * 1024
 
-/** What [relayResource] read from a transport stream segment: its SCTE-35 [cues], and its [bytes] when asked to keep them. */
+/**
+ * What [relayResource] read from a transport stream segment: its SCTE-35 [cues], and its
+ * [bytes] when asked to keep them.
+ */
 internal class TappedSegment(val cues: SegmentCues, val bytes: ByteArray?)
 
 /** A gzip-encoded resource is buffered to be inflated; keys are bytes, anything near this is not a key. */
@@ -238,7 +277,13 @@ internal suspend fun relayResource(
         val type = response.headers[HttpHeaders.ContentType].orEmpty().substringBefore(';')
         val manifest =
             protocol == "hls" ||
-                (protocol == null && (URI(response.request.url.toString()).path.endsWith(".m3u8", true) || type.contains("mpegurl", true)))
+                (
+                    protocol == null && (
+                        URI(
+                            response.request.url.toString(),
+                        ).path.endsWith(".m3u8", true) || type.contains("mpegurl", true)
+                        )
+                    )
         call.response.header(HttpHeaders.CacheControl, "no-store")
         if (manifest) {
             val raw = head + body.readBuffer(2_097_153L - head.size).readByteArray()
@@ -256,10 +301,14 @@ internal suspend fun relayResource(
                     ContentType.Application.OctetStream
                 }
             // A CDN may gzip a key or a small resource on its own; the reader gets the bytes it would decrypt with.
-            val encoded = response.headers[HttpHeaders.ContentEncoding]?.contains("gzip", true) == true || (isGzip(head) && !type.startsWith("video/", true))
+            val encoded =
+                response.headers[HttpHeaders.ContentEncoding]?.contains("gzip", true) == true ||
+                    (isGzip(head) && !type.startsWith("video/", true))
             if (encoded) {
                 val raw = head + body.readBuffer(ENCODED_LIMIT + 1L - head.size).readByteArray()
-                if (raw.size > ENCODED_LIMIT) throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Encoded resource too large", true)
+                if (raw.size > ENCODED_LIMIT) {
+                    throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Encoded resource too large", true)
+                }
                 val plain = if (isGzip(raw)) inflateHead(raw, ENCODED_LIMIT * 8) else raw
                 sent(plain.size.toLong())
                 call.respondBytes(plain, contentType)
@@ -268,7 +317,11 @@ internal suspend fun relayResource(
                 response.headers[HttpHeaders.AcceptRanges]?.let { call.response.header(HttpHeaders.AcceptRanges, it) }
                 val sync = if (tap != null && protocol == "mpegts") tsSyncOffset(head, 3) else null
                 val reader = sync?.let { SpliceReader() }
-                var kept = if (sync != null && keepBytes) ByteArrayOutputStream().apply { write(head, sync, head.size - sync) } else null
+                var kept = if (sync != null && keepBytes) {
+                    ByteArrayOutputStream().apply { write(head, sync, head.size - sync) }
+                } else {
+                    null
+                }
                 call.respondBytesWriter(contentType = contentType, status = response.status) {
                     writeFully(head)
                     sent(head.size.toLong())

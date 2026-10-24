@@ -1,13 +1,14 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.data.Channel
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import kotlin.test.Test
 
 class MiniGuideRowsTest {
-    private fun channel(id: String, group: String = "News") = Channel(guideId = id, number = id.toDouble(), name = "Ch $id", logo = null, groups = listOf(group))
+    private fun channel(id: String, group: String = "News") =
+        Channel(guideId = id, number = id.toDouble(), name = "Ch $id", logo = null, groups = listOf(group))
     private val lineup = listOf(channel("1"), channel("2", "Sports"), channel("3"), channel("4", "Sports"))
 
     private fun rows(
@@ -48,16 +49,41 @@ class MiniGuideRowsTest {
     fun `the scope chip lists the guide filter's channels and pins the last one only when it is inside`() {
         val scope = setOf("2", "4")
         assertEquals(listOf("2", "4"), rows(MiniGuideFilter.SCOPE, scope = scope).map { it.channel.guideId })
-        assertEquals(listOf("4", "2", "4"), rows(MiniGuideFilter.SCOPE, scope = scope, previous = "4").map { it.channel.guideId })
-        assertEquals(listOf("2", "4"), rows(MiniGuideFilter.SCOPE, scope = scope, previous = "1").map { it.channel.guideId })
+        assertEquals(
+            listOf("4", "2", "4"),
+            rows(MiniGuideFilter.SCOPE, scope = scope, previous = "4").map {
+                it.channel.guideId
+            },
+        )
+        assertEquals(
+            listOf("2", "4"),
+            rows(MiniGuideFilter.SCOPE, scope = scope, previous = "1").map {
+                it.channel.guideId
+            },
+        )
     }
 
     @Test
     fun `favorites and recent list without the pinned row and recent keeps the watched order`() {
-        assertEquals(listOf("1", "4"), rows(MiniGuideFilter.FAVORITES, favorites = setOf("4", "1"), previous = "1").map { it.channel.guideId })
+        assertEquals(
+            listOf("1", "4"),
+            rows(MiniGuideFilter.FAVORITES, favorites = setOf("4", "1"), previous = "1").map {
+                it.channel.guideId
+            },
+        )
         assertEquals(
             listOf("4", "1"),
-            miniGuideRows(MiniGuideFilter.FAVORITES, lineup, null, setOf("4", "1"), emptyList(), null, favoritesOrder = listOf("4")).map { it.channel.guideId },
+            miniGuideRows(
+                MiniGuideFilter.FAVORITES,
+                lineup,
+                null,
+                setOf("4", "1"),
+                emptyList(),
+                null,
+                favoritesOrder = listOf("4"),
+            ).map {
+                it.channel.guideId
+            },
         )
         val recent = rows(MiniGuideFilter.RECENT, recent = listOf("4", "9", "1"), previous = "4")
         assertEquals(listOf("4", "1"), recent.map { it.channel.guideId })
@@ -74,7 +100,10 @@ class MiniGuideRowsTest {
 
     @Test
     fun `chips show Recent once something was watched and Scope only from a guide filter`() {
-        assertEquals(listOf(MiniGuideFilter.FAVORITES, MiniGuideFilter.ALL), miniGuideFilters(hasRecent = false, scoped = false))
+        assertEquals(
+            listOf(MiniGuideFilter.FAVORITES, MiniGuideFilter.ALL),
+            miniGuideFilters(hasRecent = false, scoped = false),
+        )
         assertEquals(
             listOf(MiniGuideFilter.RECENT, MiniGuideFilter.FAVORITES, MiniGuideFilter.SCOPE, MiniGuideFilter.ALL),
             miniGuideFilters(hasRecent = true, scoped = true),

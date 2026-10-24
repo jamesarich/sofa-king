@@ -2,11 +2,11 @@ package dev.jamesrich.sofaking.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import dev.jamesrich.sofaking.ui.player.LivePlayer
 import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.KeyEvent
 import dev.jamesrich.sofaking.data.PublishedBuild
 import dev.jamesrich.sofaking.data.UpdateInstaller
+import dev.jamesrich.sofaking.ui.player.LivePlayer
 import kotlinx.browser.window
 
 /** A browser tab, sized by its window. */
@@ -17,8 +17,10 @@ internal actual fun rememberIsTelevision(): Boolean = false
 @Composable
 internal actual fun rememberSystem24HourClock(): Boolean = remember { !localeUsesTwelveHourClock() }
 
-private fun localeUsesTwelveHourClock(): Boolean =
-    js("(function () { try { var o = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions(); return o.hour12 === true || o.hourCycle === 'h12' || o.hourCycle === 'h11'; } catch (e) { return true; } })()")
+private fun localeUsesTwelveHourClock(): Boolean = js(
+    "(function () { try { var o = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions(); return " +
+        "o.hour12 === true || o.hourCycle === 'h12' || o.hourCycle === 'h11'; } catch (e) { return true; } })()",
+)
 
 /** Browsers do not report a touch-exploring screen reader; the preview may open full screen. */
 @Composable

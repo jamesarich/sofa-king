@@ -5,11 +5,7 @@ import java.time.Instant
 
 /** Offering-local evidence only. Provider-wide diagnosis belongs to the caller. */
 class HealthPolicy {
-    fun apply(
-        state: HealthState,
-        observation: Observation,
-        now: Instant,
-    ): HealthState {
+    fun apply(state: HealthState, observation: Observation, now: Instant): HealthState {
         require(observation.incidentId.isNotBlank()) { "An incident ID is required" }
         require(!observation.observedAt.isAfter(now)) { "Observation cannot be in the future" }
         require(observation.qualifiedSuccess == (observation.failureClass == null)) {
@@ -85,17 +81,13 @@ class HealthPolicy {
         )
     }
 
-    private fun qualified(
-        state: HealthState,
-        at: Instant,
-    ): HealthState =
-        state.copy(
-            status = HealthStatus.HEALTHY,
-            failures = emptyList(),
-            lastQualifiedAt = at,
-            probationStartedAt = null,
-            nextCheckAt = null,
-            quarantineAttempts = 0,
-            lastObservationAt = at,
-        )
+    private fun qualified(state: HealthState, at: Instant): HealthState = state.copy(
+        status = HealthStatus.HEALTHY,
+        failures = emptyList(),
+        lastQualifiedAt = at,
+        probationStartedAt = null,
+        nextCheckAt = null,
+        quarantineAttempts = 0,
+        lastObservationAt = at,
+    )
 }

@@ -45,11 +45,17 @@ class SofaKingApplication : Application() {
         }
         val tv = isTelevision()
         val client = ClientInfo(platform = if (tv) "android-tv" else "android", deviceName = Build.MODEL)
-        initSofaKing(AppStorage.inDirectory(filesDir.absolutePath, client), NsdServerDiscovery(this), if (tv) WatchNextPublisher(this) else WatchNext.None)
+        initSofaKing(
+            AppStorage.inDirectory(filesDir.absolutePath, client),
+            NsdServerDiscovery(this),
+            if (tv) WatchNextPublisher(this) else WatchNext.None,
+        )
     }
 }
 
-/** Draws edge to edge on every API level, as API 35 and later require; the screens keep clear of the bars themselves. */
+/**
+ * Draws edge to edge on every API level, as API 35 and later require; the screens keep clear of the bars themselves.
+ */
 class MainActivity : ComponentActivity() {
     /** A `sofaking://pair` link this activity was opened with, until the app has claimed it. */
     private val pairing = mutableStateOf<PairingRequest?>(null)
@@ -71,7 +77,9 @@ class MainActivity : ComponentActivity() {
         // A restored activity keeps its intent, but the link it carried was followed the first time.
         if (savedInstanceState == null) takeLink(intent)
         // Android 17 blocks the local network, where the server is, until the viewer allows it.
-        if (Build.VERSION.SDK_INT >= LOCAL_NETWORK_SDK && checkSelfPermission(ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT >= LOCAL_NETWORK_SDK &&
+            checkSelfPermission(ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
+        ) {
             localNetwork.launch(ACCESS_LOCAL_NETWORK)
         }
         setContent {

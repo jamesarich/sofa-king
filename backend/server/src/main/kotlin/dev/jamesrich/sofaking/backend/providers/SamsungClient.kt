@@ -19,13 +19,24 @@ class SamsungClient(private val context: ProviderContext) : ProviderClient {
     override suspend fun resolve(channelId: String): ResolvedStream {
         if (listed().none { it.id == channelId }) {
             context.invalidate(CHANNELS)
-            if (listed().none { it.id == channelId }) throw ProviderFailure("Channel is no longer listed", transient = false)
+            if (listed().none {
+                    it.id == channelId
+                }
+            ) {
+                throw ProviderFailure("Channel is no longer listed", transient = false)
+            }
         }
         val hop = context.http.get("$streamBase$channelId", HEADERS, follow = false)
         val target = when {
             hop.status in 300..399 && hop.location != null -> hop.location
+
             hop.ok && hop.text().trimStart().startsWith("#EXTM3U") -> hop.url
-            hop.status == 404 || hop.status == 410 -> throw ProviderFailure("Samsung redirect answered HTTP ${hop.status}", transient = false)
+
+            hop.status == 404 || hop.status == 410 -> throw ProviderFailure(
+                "Samsung redirect answered HTTP ${hop.status}",
+                transient = false,
+            )
+
             else -> throw ProviderFailure("Samsung redirect answered HTTP ${hop.status}")
         }
         val now = context.clock.instant()
@@ -33,16 +44,29 @@ class SamsungClient(private val context: ProviderContext) : ProviderClient {
         return ResolvedStream(url, HEADERS, now.plus(URL_LIFETIME))
     }
 
-    private suspend fun listed(): List<ProviderChannel> = context.cached(CHANNELS, Duration.ofMinutes(30)) { fetchChannels() }
+    private suspend fun listed(): List<ProviderChannel> = context.cached(CHANNELS, Duration.ofMinutes(30)) {
+        fetchChannels()
+    }
 
     private suspend fun fetchChannels(): List<ProviderChannel> {
         val payload = context.http.get(channelsUrl, HEADERS).require("Samsung channel list").json()
-        val channels = (payload["regions"][region] ?: throw ProviderFailure("Samsung region $region is not published", transient = false))["channels"].obj
-            ?: throw ProviderFailure("Samsung channel list has no channels")
+        val channels =
+            (
+                payload["regions"][region]
+                    ?: throw ProviderFailure("Samsung region $region is not published", transient = false)
+                )["channels"].obj
+                ?: throw ProviderFailure("Samsung channel list has no channels")
         val result = channels.entries.mapNotNull { (id, channel) ->
             if (channel.str("license_url") != null) return@mapNotNull null
             val name = channel.str("name") ?: id
-            ProviderChannel(id, name, channel["chno"].long?.toString(), httpOrNull(channel.str("logo")), channel.str("group"), listOf(region))
+            ProviderChannel(
+                id,
+                name,
+                channel["chno"].long?.toString(),
+                httpOrNull(channel.str("logo")),
+                channel.str("group"),
+                listOf(region),
+            )
         }.sortedBy { it.number?.toLongOrNull() ?: Long.MAX_VALUE }
         if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
         return result

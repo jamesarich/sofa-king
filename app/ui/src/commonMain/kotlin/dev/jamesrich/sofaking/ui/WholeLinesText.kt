@@ -15,7 +15,12 @@ import androidx.compose.ui.unit.isSpecified
  * even one fits. A fixed band never shows a line cut in half, at any font scale.
  */
 @Composable
-internal fun WholeLinesText(text: String, style: TextStyle, modifier: Modifier = Modifier, color: Color = Color.Unspecified) {
+internal fun WholeLinesText(
+    text: String,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+) {
     BoxWithConstraints(modifier) {
         val lineHeight = with(LocalDensity.current) {
             (if (style.lineHeight.isSpecified) style.lineHeight else style.fontSize * 1.4f).toPx()

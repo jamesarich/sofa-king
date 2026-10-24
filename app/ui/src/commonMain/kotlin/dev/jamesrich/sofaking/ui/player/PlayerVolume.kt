@@ -1,8 +1,8 @@
 package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Slider
@@ -25,7 +25,13 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.AppSettings
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.player_control_mute
+import dev.jamesrich.sofaking.resources.player_control_unmute
+import dev.jamesrich.sofaking.resources.player_control_volume
+import dev.jamesrich.sofaking.resources.player_volume_level
+import dev.jamesrich.sofaking.resources.player_volume_muted
+import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
@@ -85,7 +91,9 @@ class PlayerVolume(val adjustable: Boolean) {
         if (!adjustable) return false
         when (key) {
             VolumeKey.UP -> step(1)
+
             VolumeKey.DOWN -> step(-1)
+
             VolumeKey.MUTE -> {
                 toggleMute()
                 nudges++
@@ -122,7 +130,13 @@ internal fun VolumeControl(onAdjust: () -> Unit, onDone: () -> Unit, size: Dp = 
     if (!volume.adjustable) return
     val silent = volume.muted || volume.level == 0
     val label = stringResource(Res.string.player_control_volume)
-    val levelText = if (volume.muted) stringResource(Res.string.player_volume_muted) else stringResource(Res.string.player_volume_level, volume.level)
+    val levelText = if (volume.muted) {
+        stringResource(
+            Res.string.player_volume_muted,
+        )
+    } else {
+        stringResource(Res.string.player_volume_level, volume.level)
+    }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         ControlIcon(
             if (silent) SofaIcons.VolumeOff else SofaIcons.VolumeUp,
@@ -166,7 +180,15 @@ internal fun ColumnScope.VolumeToast() {
         shown = false
     }
     AnimatedVisibility(shown, enter = PopIn, exit = PopOut) {
-        StatusPill(if (volume.muted) stringResource(Res.string.player_volume_muted) else stringResource(Res.string.player_volume_level, volume.level))
+        StatusPill(
+            if (volume.muted) {
+                stringResource(
+                    Res.string.player_volume_muted,
+                )
+            } else {
+                stringResource(Res.string.player_volume_level, volume.level)
+            },
+        )
     }
 }
 

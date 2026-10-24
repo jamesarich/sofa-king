@@ -188,7 +188,8 @@ private object Samples {
                     start = start + (slot * 45).minutes,
                     stop = start + ((slot + 1) * 45).minutes,
                     title = "${channel.name} show ${slot + 1}",
-                    description = "A night shift at the harbor turns into a search for a missing ship before the storm comes in.",
+                    description = "A night shift at the harbor turns into a search for a missing ship before the " +
+                        "storm comes in.",
                     subTitle = "Part ${slot + 1}".takeIf { slot % 2 == 0 },
                     episode = "S1 E${slot + 1}".takeIf { slot % 2 == 0 },
                     isNew = slot == 0,
@@ -205,7 +206,19 @@ private object Samples {
         id = "m$i",
         libraryId = "movies",
         kind = ItemKind.MOVIE,
-        title = listOf("The Long Night", "Harbor Lights", "Paper Moon", "Quiet Town", "Northbound", "Second Act", "Glass Garden", "Dust")[i % 8],
+        title = listOf(
+            "The Long Night",
+            "Harbor Lights",
+            "Paper Moon",
+            "Quiet Town",
+            "Northbound",
+            "Second Act",
+            "Glass Garden",
+            "Dust",
+        )[
+            i %
+                8,
+        ],
         year = 1990 + i,
         durationMs = 6_480_000,
         genres = listOf("Drama", "Mystery"),
@@ -248,14 +261,30 @@ private object Samples {
 
     val home = MediaHome(
         shelves = listOf(
-            MediaShelf("continue", "Continue watching", listOf(movie(0), episode(1, 2, PlayProgress(900_000, 2_700_000, false)))),
+            MediaShelf(
+                "continue",
+                "Continue watching",
+                listOf(movie(0), episode(1, 2, PlayProgress(900_000, 2_700_000, false))),
+            ),
             MediaShelf("recent", "Recently added in Movies", List(8) { movie(it) }, libraryId = "movies"),
             MediaShelf("recent", "Recently added in TV Shows", listOf(show), libraryId = "shows"),
         ),
         libraries = listOf(movies, shows),
     )
 
-    private val seasons = List(2) { MediaItem("s${it + 1}", "shows", ItemKind.SEASON, "Season ${it + 1}", parentId = "show", season = it + 1, unwatched = 4) }
+    private val seasons =
+        List(2) {
+            MediaItem(
+                "s${it + 1}",
+                "shows",
+                ItemKind.SEASON,
+                "Season ${it + 1}",
+                parentId = "show",
+                season =
+                it + 1,
+                unwatched = 4,
+            )
+        }
     private val next = episode(2, 1, PlayProgress(600_000, 2_700_000, false))
     val showDetail = MediaItemDetail(item = show, children = seasons, next = next)
     val seasonDetail = MediaItemDetail(

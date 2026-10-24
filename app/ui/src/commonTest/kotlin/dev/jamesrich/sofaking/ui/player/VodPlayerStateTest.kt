@@ -12,15 +12,33 @@ class VodPlayerStateTest {
     /** Records what the keys asked of the stream, focus and the way out. */
     private class Controls : VodControls {
         val calls = mutableListOf<String>()
-        override fun seek(targetMs: Long) { calls += "seek $targetMs" }
-        override fun playPause() { calls += "playPause" }
-        override fun retry() { calls += "retry" }
-        override fun toggleCaptions() { calls += "captions" }
-        override fun zoom() { calls += "zoom" }
-        override fun focusButtons() { calls += "buttons" }
-        override fun focusPicture() { calls += "picture" }
-        override fun playNext() { calls += "next" }
-        override fun exit() { calls += "exit" }
+        override fun seek(targetMs: Long) {
+            calls += "seek $targetMs"
+        }
+        override fun playPause() {
+            calls += "playPause"
+        }
+        override fun retry() {
+            calls += "retry"
+        }
+        override fun toggleCaptions() {
+            calls += "captions"
+        }
+        override fun zoom() {
+            calls += "zoom"
+        }
+        override fun focusButtons() {
+            calls += "buttons"
+        }
+        override fun focusPicture() {
+            calls += "picture"
+        }
+        override fun playNext() {
+            calls += "next"
+        }
+        override fun exit() {
+            calls += "exit"
+        }
     }
 
     private val controls = Controls()
@@ -35,8 +53,13 @@ class VodPlayerStateTest {
         nowMs: Long = 0L,
     ) = onKeyEvent(key, type, controls, paused, hasButtons, tracksPickable, repeatCount, nowMs)
 
-    private fun VodPlayerState.down(key: Key, paused: Boolean = false, hasButtons: Boolean = true, tracksPickable: Boolean = false, nowMs: Long = 0L) =
-        key(key, KeyEventType.KeyDown, paused, hasButtons, tracksPickable, nowMs = nowMs)
+    private fun VodPlayerState.down(
+        key: Key,
+        paused: Boolean = false,
+        hasButtons: Boolean = true,
+        tracksPickable: Boolean = false,
+        nowMs: Long = 0L,
+    ) = key(key, KeyEventType.KeyDown, paused, hasButtons, tracksPickable, nowMs = nowMs)
 
     private fun VodPlayerState.up(key: Key) = key(key, KeyEventType.KeyUp)
 

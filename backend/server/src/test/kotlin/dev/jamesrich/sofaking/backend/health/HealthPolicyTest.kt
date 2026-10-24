@@ -20,10 +20,7 @@ class HealthPolicyTest {
         return policy.apply(state, Observation(id, at, false, kind), at)
     }
 
-    private fun success(
-        state: HealthState,
-        minute: Long,
-    ): HealthState {
+    private fun success(state: HealthState, minute: Long): HealthState {
         val at = t.plusSeconds(minute * 60)
         return policy.apply(state, Observation("success-$minute", at, true), at)
     }
@@ -99,7 +96,10 @@ class HealthPolicyTest {
 
     @Test fun `late results cannot undo a later qualification`() {
         val state = success(HealthState(), 20)
-        assertEquals(state, policy.apply(state, Observation("old", t, false, FailureClass.OFFERING), t.plusSeconds(30 * 60)))
+        assertEquals(
+            state,
+            policy.apply(state, Observation("old", t, false, FailureClass.OFFERING), t.plusSeconds(30 * 60)),
+        )
     }
 
     @Test fun `old successes cannot undo newer failures`() {

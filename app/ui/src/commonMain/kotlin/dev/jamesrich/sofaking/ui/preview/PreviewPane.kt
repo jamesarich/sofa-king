@@ -9,15 +9,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import coil3.compose.AsyncImage
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,53 +26,62 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import org.jetbrains.compose.resources.stringResource
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withStateAtLeast
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import dev.jamesrich.sofaking.ui.appLifecycleOwner
-import dev.jamesrich.sofaking.resources.*
-import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
+import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.preview_hint
+import dev.jamesrich.sofaking.resources.preview_unavailable
+import dev.jamesrich.sofaking.resources.tuning
+import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.ProgramBadges
-import dev.jamesrich.sofaking.ui.episodeLine
-import dev.jamesrich.sofaking.ui.noListingText
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.WholeLinesText
+import dev.jamesrich.sofaking.ui.appLifecycleOwner
+import dev.jamesrich.sofaking.ui.episodeLine
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.noListingText
 import dev.jamesrich.sofaking.ui.player.Captions
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.LocalPlayerVolume
 import dev.jamesrich.sofaking.ui.player.PlaybackState
+import dev.jamesrich.sofaking.ui.player.VideoZoom
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
-import kotlin.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
-import dev.jamesrich.sofaking.ui.player.VideoZoom
+import org.jetbrains.compose.resources.stringResource
+import kotlin.time.Instant
 
 /** Kill switch: false removes the pane and the preview player entirely. */
 const val PREVIEW_ENABLED = true
 
 internal val PREVIEW_WIDTH = 256.dp
+
 /** 16:9 for [PREVIEW_WIDTH]. */
 internal val PREVIEW_HEIGHT = 144.dp
+
 /** The whole top band, exactly the preview's height; see the row budget in GuideScreen. */
 internal val PREVIEW_BAND_HEIGHT = 144.dp
-// Long enough to skip rows passed under a held D-pad (repeats every 50-150 ms); each tune opens a session and cold-starts a relay.
+
+// Long enough to skip rows passed under a held D-pad (repeats every 50-150 ms); each tune opens a
+// session and cold-starts a relay.
 private const val PREVIEW_DEBOUNCE_MS = 350L
+
 // How often a 410 from the relay reopens the same channel before the preview gives up on it.
 private const val MAX_STREAM_GONE_RETUNES = 2
 
@@ -96,51 +104,64 @@ internal fun PreviewDetails(
     // Title, one line of details, then as much description as the band has room for in whole lines; the
     // program's image, when the guide has one, sits beside the text at the band's height.
     Row(modifier) {
-    Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        if (channel == null) return@Column
-        if (program == null) {
-            Text(channel.noListingText(guideLoading), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(channel.label(), style = MaterialTheme.typography.bodyMedium, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            return@Column
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (channel == null) return@Column
+            if (program == null) {
+                Text(
+                    channel.noListingText(guideLoading),
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    channel.label(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = secondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                return@Column
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    program.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                ProgramBadges(
+                    program = program,
+                    live = live,
+                    fill = MaterialTheme.colorScheme.primary,
+                    onFill = MaterialTheme.colorScheme.onPrimary,
+                    outline = secondary,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+            // The channel comes last: the focused row already names it, so it is the part to lose when space runs out.
             Text(
-                program.title,
-                style = MaterialTheme.typography.titleMedium,
+                listOfNotNull(timeFormat.range(program.start, program.stop), program.episodeLine(), channel.label())
+                    .joinToString(DETAIL_SEPARATOR),
+                style = MaterialTheme.typography.bodyMedium,
+                color = secondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
             )
-            ProgramBadges(
-                program = program,
-                live = live,
-                fill = MaterialTheme.colorScheme.primary,
-                onFill = MaterialTheme.colorScheme.onPrimary,
-                outline = secondary,
-                modifier = Modifier.padding(start = 8.dp),
+            program.description?.let {
+                WholeLinesText(it, MaterialTheme.typography.bodySmall, Modifier.fillMaxWidth().weight(1f))
+            }
+        }
+        program?.icon?.let {
+            AsyncImage(
+                model = it,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.padding(
+                    start = 16.dp,
+                ).size(width = DETAIL_IMAGE_WIDTH, height = DETAIL_IMAGE_HEIGHT).clip(RoundedCornerShape(8.dp)),
             )
         }
-        // The channel comes last: the focused row already names it, so it is the part to lose when space runs out.
-        Text(
-            listOfNotNull(timeFormat.range(program.start, program.stop), program.episodeLine(), channel.label())
-                .joinToString(DETAIL_SEPARATOR),
-            style = MaterialTheme.typography.bodyMedium,
-            color = secondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        program.description?.let {
-            WholeLinesText(it, MaterialTheme.typography.bodySmall, Modifier.fillMaxWidth().weight(1f))
-        }
-    }
-    program?.icon?.let {
-        AsyncImage(
-            model = it,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.padding(start = 16.dp).size(width = DETAIL_IMAGE_WIDTH, height = DETAIL_IMAGE_HEIGHT).clip(RoundedCornerShape(8.dp)),
-        )
-    }
     }
 }
 
@@ -153,10 +174,10 @@ private val DETAIL_IMAGE_HEIGHT = 90.dp
  * [PREVIEW_DEBOUNCE_MS] after focus rests on a different channel; a stream the player already holds (the
  * channel just watched) keeps playing and its session goes back to preview intent. The player belongs to
  * the app, which stops it in the background and releases it. Captions are the full screen's, scaled to the box.
- * [muted] follows the guide's rest timers, and sound plays at the players' volume, while [ownsVolume]: the guide stays composed for a frame under the full
- * screen it hands the player to, and its focus leaving the grid mutes the rest timers, which must not silence the
- * full screen. [failed] is the guide's record that the preview has no picture, set through
- * [onFailedChanged].
+ * [muted] follows the guide's rest timers, and sound plays at the players' volume, while [ownsVolume]: the guide
+ * stays composed for a frame under the full screen it hands the player to, and its focus leaving the grid mutes the
+ * rest timers, which must not silence the full screen. [failed] is the guide's record that the preview has no
+ * picture, set through [onFailedChanged].
  */
 @Composable
 internal fun PreviewVideo(
@@ -177,7 +198,8 @@ internal fun PreviewVideo(
     LaunchedEffect(muted, ownsVolume, gain) { if (ownsVolume) player.volume = if (muted) 0f else gain }
     // Bumped when the relay answers 410, so the tune effect reopens the channel at once instead of after the debounce.
     var retune by remember { mutableIntStateOf(0) }
-    // The channel whose stream the player holds; until it is the focused one, the card covers the last channel's picture.
+    // The channel whose stream the player holds; until it is the focused one, the card
+    // covers the last channel's picture.
     var showing by remember { mutableStateOf(player.currentChannelId) }
 
     val lifecycle = appLifecycleOwner.lifecycle
@@ -242,8 +264,21 @@ internal fun PreviewVideo(
         // One surface for the life of the preview; the card covers it from a reset until the next first frame.
         player.Video(Modifier.fillMaxSize(), VideoZoom.FIT) { PreviewCard(channel, failed) }
         // No overscan inset: the box sits inside the guide's margins already.
-        if (showPreviewCaptions(captionsEnabled, channel != null, failed)) Captions(player, captionStyle, bottomFraction = 0f, Modifier.fillMaxSize())
-        if (failed) PreviewCard(channel, failed = true) else if (channel != null && showing != channel.guideId) PreviewCard(channel, failed = false)
+        if (showPreviewCaptions(
+                captionsEnabled,
+                channel != null,
+                failed,
+            )
+        ) {
+            Captions(player, captionStyle, bottomFraction = 0f, Modifier.fillMaxSize())
+        }
+        if (failed) {
+            PreviewCard(channel, failed = true)
+        } else if (channel != null &&
+            showing != channel.guideId
+        ) {
+            PreviewCard(channel, failed = false)
+        }
         AnimatedVisibility(
             rememberSettled(buffering && !failed),
             modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
@@ -258,7 +293,11 @@ internal fun PreviewVideo(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 SofaLoader(size = 16.dp)
-                Text(stringResource(Res.string.tuning), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onBackground)
+                Text(
+                    stringResource(Res.string.tuning),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
             }
         }
     }

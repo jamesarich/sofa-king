@@ -47,7 +47,9 @@ internal fun MatchExoDisplayFrameRate(player: LivePlayer, enabled: Boolean) {
     }
     LaunchedEffect(activity, frameRate) {
         val display = activity.currentDisplay() ?: return@LaunchedEffect
-        val modes = display.supportedModes.map { DisplayMode(it.modeId, it.physicalWidth, it.physicalHeight, it.refreshRate) }
+        val modes = display.supportedModes.map {
+            DisplayMode(it.modeId, it.physicalWidth, it.physicalHeight, it.refreshRate)
+        }
         val match = matchingDisplayMode(modes, display.mode.modeId, frameRate)
         if (match != null && activity.preferDisplayMode(match.id)) player.ignoreSystemPauseForModeSwitch()
     }
@@ -61,17 +63,16 @@ private fun Activity.preferDisplayMode(modeId: Int): Boolean {
     return true
 }
 
-private fun Activity.currentDisplay(): Display? =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        try {
-            display
-        } catch (_: UnsupportedOperationException) {
-            null
-        }
-    } else {
-        @Suppress("DEPRECATION")
-        windowManager.defaultDisplay
+private fun Activity.currentDisplay(): Display? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+    try {
+        display
+    } catch (_: UnsupportedOperationException) {
+        null
     }
+} else {
+    @Suppress("DEPRECATION")
+    windowManager.defaultDisplay
+}
 
 internal tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this

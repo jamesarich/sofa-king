@@ -11,6 +11,7 @@ import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.HdhrAccess
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.LibraryService
+import dev.jamesrich.sofaking.backend.library.ProgramFactsLookup
 import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.pairing.PairingService
@@ -116,6 +117,8 @@ class LiveRuntime(
     val hdhrAccess: HdhrAccess = HdhrAccess(emptyList(), openWhenEmpty = true, store, Clock.systemUTC()),
     /** The background ad listener, for the portal's Ads page; null for a runtime built without a config. */
     val listener: AdListener? = null,
+    /** TMDB's facts about live programs, for the break screen; null without a TMDB token. */
+    val programFacts: ProgramFactsLookup? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()

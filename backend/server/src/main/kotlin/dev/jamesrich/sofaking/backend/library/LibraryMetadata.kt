@@ -211,7 +211,7 @@ class LibraryMetadata internal constructor(
 }
 
 /** Letters and digits only, lower case, so `Alien³` and `Alien 3` or `Mr. Robot` and `Mr Robot` compare equal. */
-private fun normalized(title: String): String = title.lowercase().filter { it.isLetterOrDigit() }
+internal fun normalized(title: String): String = title.lowercase().filter { it.isLetterOrDigit() }
 
 /**
  * The result whose title and year agree with [item]'s, else the one whose title does, else
@@ -237,7 +237,7 @@ private fun pick(results: List<Triple<Int, List<String>, Int?>>, item: LibraryIt
 }
 
 /** A rating rounded to one decimal place. */
-private fun Double?.rating(): Double? =
+internal fun Double?.rating(): Double? =
     this?.takeIf { it > 0 }?.let { (it * RATING_SCALE).roundToInt() / RATING_SCALE.toDouble() }
 
 private const val RATING_SCALE = 10

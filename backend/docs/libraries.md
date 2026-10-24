@@ -57,6 +57,8 @@ To add the token, paste it into the Library page's Details and artwork panel and
 
 A title is matched by its name and year. A `{tmdb-348}` or `[tmdbid-348]` tag in the folder or file name, or a TMDB id in the `.nfo`, pins the match instead. A match is kept for 30 days and a title TMDB does not know is tried again after 7; a new episode of a known show fetches only its season. A `.nfo` beside the file wins over TMDB's text, and local artwork wins over TMDB's images. A refused token, TMDB's rate limit or three lookups in a row that cannot reach TMDB end the lookups for that scan, and the scan's job note says why; the next scan carries on.
 
+The token also gives the apps' break screen its facts about the live program on now (`GET /api/v1/program-facts`). A program is looked up by its guide title as a show, or first as a movie when the guide files it as one, and matches only a title TMDB lists as it is, letters and digits compared, so `Paid Programming` finds nothing rather than something wrong. The answers are kept in memory, the latest 500 titles: a match for 7 days, a title TMDB does not list for a day and a failed lookup for 10 minutes.
+
 This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 ## Scans

@@ -13,6 +13,7 @@ import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.contract.GuideWindow
 import dev.jamesrich.sofaking.contract.OpenPlayback
 import dev.jamesrich.sofaking.contract.PlaybackSession
+import dev.jamesrich.sofaking.contract.ProgramFacts
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
@@ -62,6 +63,16 @@ class LiveTvTest {
                 header(HttpHeaders.IfNoneMatch, response.headers[HttpHeaders.ETag]!!)
             }.status,
         )
+    }
+
+    @Test fun `program facts need a title and are empty without a TMDB token`() = liveTv {
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/program-facts?title=News").status)
+        assertEquals(
+            HttpStatusCode.BadRequest,
+            client.get("/api/v1/program-facts?title=%20") { bearerAuth(token) }.status,
+        )
+        val facts = client.get("/api/v1/program-facts?title=Forensic%20Files") { bearerAuth(token) }
+        assertEquals(ProgramFacts(), Json.decodeFromString<ProgramFacts>(facts.bodyAsText()))
     }
 
     @Test fun `the guide window keeps its fixture`() = liveTv {

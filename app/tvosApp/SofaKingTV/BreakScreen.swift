@@ -4,13 +4,16 @@ import SwiftUI
 /// way an old DVD player's screensaver did, a new color on every edge and the brand colors back on a corner, with a line
 /// to mark the occasion. The screen starts black, and each hit paints it the sofa's color from before the hit, a little
 /// see-through so the picture faintly shows under it. `remainingMs`, when known, counts down in the middle of the
-/// screen, over `quip` (the line the player dealt for this break), `watching` (the program on now) and the ads dodged today: `dodgedBeforeMs`
-/// before this break plus the time since `coveredSince`. Only the mark moves; the words stay put. It draws only; the
-/// player decides about the sound.
+/// screen, over `quip` (the line the player dealt for this break), `watching` (the program on now), one of `facts` about
+/// it at a time and the ads dodged today: `dodgedBeforeMs` before this break plus the time since `coveredSince`. The time
+/// sits in the top corner. Only the mark moves, squashing against each wall it hits unless Reduce Motion is on; the
+/// words stay put. It draws only; the player decides about the sound.
 struct BreakScreen: View {
     let remainingMs: Int64?
     var quip = ""
     var watching: String?
+    /// Facts about the program on now, each shown for `factSeconds` in turn.
+    var facts: [String] = []
     var dodgedBeforeMs: Int64 = 0
     var coveredSince = Date.now
 
@@ -27,6 +30,11 @@ struct BreakScreen: View {
         "Pillow fights permitted.",
         "Recline. Unwind. Repeat.",
     ]
+
+    /// How long each fact shows, as the Compose app's.
+    static let factSeconds = 8.0
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// How much of the picture the screen lets through: hardly any, so the stream only just shows.
     static let backdropOpacity = 0.9
@@ -58,9 +66,24 @@ struct BreakScreen: View {
                     }
                     .opacity(BreakScreen.backdropOpacity)
                     .animation(.easeInOut(duration: 0.4), value: bounce.backdropHue)
+                    // The time, inside a TV's overscan and under the mark, which passes over it.
+                    Text(context.date.formatted(date: .omitted, time: .shortened))
+                        .font(.headline)
+                        .foregroundStyle(ink.opacity(0.7))
+                        .padding(.horizontal, geometry.size.width * 0.05)
+                        .padding(.vertical, geometry.size.height * 0.05)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    let squashX = reduceMotion ? 1 : Bounce.squash(after: bounce.xSinceHit)
+                    let squashY = reduceMotion ? 1 : Bounce.squash(after: bounce.ySinceHit)
                     SofaMark()
                         .frame(width: markSize, height: markSize)
                         .hueRotation(.degrees(bounce.hue))
+                        // Squashed against the wall it hit, and as much taller or wider, so it keeps its bulk.
+                        .scaleEffect(
+                            x: squashX * (1 + (1 - squashY) * 0.5),
+                            y: squashY * (1 + (1 - squashX) * 0.5),
+                            anchor: bounce.wall
+                        )
                         .position(x: bounce.x + markSize / 2, y: bounce.y + markSize / 2)
                     VStack(spacing: 6) {
                         Text(label)
@@ -71,9 +94,13 @@ struct BreakScreen: View {
                             .font(.callout)
                             .lineLimit(2)
                             .multilineTextAlignment(.center)
-                        // Both faint lines keep their place while empty, so the ads dodged showing up a minute in
-                        // does not move the words above it.
+                        // The faint lines keep their place while empty, so a fact arriving or the ads dodged showing
+                        // up a minute in does not move the words above them.
                         Text(watching ?? " ").font(.caption).lineLimit(1).opacity(0.7)
+                        let fact = facts.isEmpty ? nil : facts[Int(max(context.date.timeIntervalSince(coveredSince), 0) / BreakScreen.factSeconds) % facts.count]
+                        Text(fact ?? " ").font(.caption).lineLimit(1).opacity(0.7)
+                            .contentTransition(.opacity)
+                            .animation(.easeInOut(duration: 0.6), value: fact)
                         let dodgedMinutes = (dodgedBeforeMs + Int64(max(context.date.timeIntervalSince(coveredSince), 0) * 1000)) / 60_000
                         Text(dodgedMinutes > 0 ? "Ads dodged today: \(BreakScreen.hoursAndMinutes(dodgedMinutes))" : " ")
                             .font(.caption).lineLimit(1).opacity(0.7)
@@ -127,6 +154,11 @@ struct Bounce {
     let backdropHue: Double?
     /// How long ago the mark hit a corner, while that corner was its last hit; nil after an edge.
     let cornerSeconds: Double?
+    /// How long ago it last hit a side wall, and the top or bottom; nil before it has.
+    let xSinceHit: Double?
+    let ySinceHit: Double?
+    /// The corner of the mark on the walls it last hit, which a squash presses toward.
+    let wall: UnitPoint
 
     init(seconds: Double, room: CGSize) {
         let distance = Bounce.speed * seconds
@@ -137,6 +169,10 @@ struct Bounce {
         let corner = Bounce.corner(xHits: xHits, yHits: yHits, xLastHit: xLastHit, yLastHit: yLastHit)
         hue = Bounce.hue(hits: xHits + yHits, corner: corner)
         cornerSeconds = corner ? (distance - max(xLastHit, yLastHit)) / Bounce.speed : nil
+        xSinceHit = xHits > 0 ? (distance - xLastHit) / Bounce.speed : nil
+        ySinceHit = yHits > 0 ? (distance - yLastHit) / Bounce.speed : nil
+        // An even lap heads right (or down), so it last left the left (or top) wall.
+        wall = UnitPoint(x: xHits % 2 == 0 ? 0 : 1, y: yHits % 2 == 0 ? 0 : 1)
         // Before the last hit: that axis one lap back, the other as it is. An axis that has not hit yet has a
         // negative last hit, so the later one is always the axis that hit.
         if xHits + yHits == 0 {
@@ -148,6 +184,13 @@ struct Bounce {
             let before = Bounce.corner(xHits: xHits, yHits: yHits - 1, xLastHit: xLastHit, yLastHit: yLastHit - room.height)
             backdropHue = Bounce.hue(hits: xHits + yHits - 1, corner: before)
         }
+    }
+
+    /// How squashed the mark is against a wall `seconds` after hitting it: pressed in, then a quick wobble back out, as
+    /// the Compose app's `squashAfter`.
+    static func squash(after seconds: Double?) -> Double {
+        guard let seconds, seconds >= 0, seconds < 0.6 else { return 1 }
+        return 1 - 0.2 * exp(-seconds * 9) * cos(seconds * 28)
     }
 
     /// Whether the last hits on the two axes came close enough together to be a corner.

@@ -245,11 +245,13 @@ class RenderSmokeTest {
     }
 
     @Test
-    fun `the break screen carries the program on now and the ads dodged today`() {
+    fun `the break screen carries the program on now with a fact the clock and the ads dodged today`() {
         val image = render("break-screen-extras") {
             BreakScreen(
                 remainingMs = null,
                 watching = "You're watching: Forensic Files",
+                facts = listOf("First aired in 1996 on Court Channel", "14 seasons, 406 episodes"),
+                clock = "9:42 PM",
                 dodgedBeforeMs = 14 * 60_000L,
             )
         }

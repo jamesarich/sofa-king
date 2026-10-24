@@ -32,6 +32,9 @@ struct PlayerView: View {
     @State private var quipDeck: [String] = []
     /// When the break screen came up, for Ads dodged today; nil while it is down.
     @State private var coveredSince: Date?
+    /// What TMDB says about the program titled `factsTitle`, for the break screen; nil when nothing is known.
+    @State private var programFacts: ProgramFacts?
+    @State private var factsTitle: String?
 
     init(channel: Channel) {
         _channel = State(initialValue: channel)
@@ -107,6 +110,7 @@ struct PlayerView: View {
             remainingMs: adBreak.remainingMs?.int64Value,
             quip: breakQuip,
             watching: watching,
+            facts: breakFacts,
             dodgedBeforeMs: model.settings?.adsDodged.on(day: BreakScreen.today()) ?? 0,
             coveredSince: coveredSince ?? .now
         )
@@ -118,8 +122,60 @@ struct PlayerView: View {
         return "You're watching: \(now.title)"
     }
 
+    /// The facts the break screen turns through: the episode, what TMDB says about the program on now, and what is next.
+    private var breakFacts: [String] {
+        guard let lineup = model.lineup else { return [] }
+        let nowNext = model.core.nowAndNext(lineup: lineup, channel: channel)
+        let facts = nowNext.now?.title == factsTitle ? programFacts : nil
+        return model.core.breakFacts(now: nowNext.now, next: nowNext.next, facts: facts).map(PlayerView.words)
+    }
+
+    /// One fact in words, as the Compose app puts it.
+    private static func words(_ fact: BreakFact) -> String {
+        func names(_ names: [String]) -> String {
+            names.count < 2 ? names.joined() : names.dropLast().joined(separator: ", ") + " and " + names.last!
+        }
+        switch fact {
+        case let episode as BreakFactEpisode:
+            return "This episode: " + [episode.label, episode.title].compactMap { $0 }.joined(separator: ", ")
+        case let aired as BreakFactAired:
+            let on = aired.studio.map { aired.movie ? " by \($0)" : " on \($0)" } ?? ""
+            if aired.movie { return "Released in \(aired.year)\(on)" }
+            if let end = aired.endYear { return "Aired from \(aired.year) to \(end.intValue)\(on)" }
+            return "First aired in \(aired.year)\(on)"
+        case let run as BreakFactRun:
+            let seasons = run.seasons.map { $0.intValue == 1 ? "1 season" : "\($0.intValue) seasons" }
+            let episodes = run.episodes.map { $0.intValue == 1 ? "1 episode" : "\($0.intValue) episodes" }
+            return [seasons, episodes].compactMap { $0 }.joined(separator: ", ")
+        case let starring as BreakFactStarring:
+            return "Starring " + names(starring.names)
+        case let madeBy as BreakFactMadeBy:
+            return (madeBy.movie ? "Directed by " : "Created by ") + names(madeBy.names)
+        case let tagline as BreakFactTagline:
+            return "“\(tagline.text)”"
+        case let rating as BreakFactRating:
+            return "Rated \(rating.score) out of 10 on TMDB"
+        case let next as BreakFactNext:
+            let start = Date(timeIntervalSince1970: Double(next.startMs) / 1000).formatted(date: .omitted, time: .shortened)
+            return "Next at \(start): \(next.title)"
+        default:
+            return ""
+        }
+    }
+
+    /// Asks once per program what TMDB says about the program on now, for the break screen's facts.
+    private func lookUpFacts() {
+        guard let lineup = model.lineup, let now = model.core.nowAndNext(lineup: lineup, channel: channel).now,
+              now.title != factsTitle else { return }
+        Task {
+            programFacts = try? await model.core.programFacts(program: now)
+            factsTitle = now.title
+        }
+    }
+
     /// Deals the break screen its line and starts counting the time it covers.
     private func startCovering() {
+        lookUpFacts()
         if quipDeck.isEmpty {
             quipDeck = BreakScreen.quips.shuffled()
             if quipDeck.first == breakQuip { quipDeck.append(quipDeck.removeFirst()) }

@@ -29,6 +29,7 @@ import dev.jamesrich.sofaking.backend.library.LibraryScanner
 import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.library.MediaProbe
 import dev.jamesrich.sofaking.backend.library.MediaRoot
+import dev.jamesrich.sofaking.backend.library.ProgramFactsLookup
 import dev.jamesrich.sofaking.backend.library.ScrubSheets
 import dev.jamesrich.sofaking.backend.library.TmdbClient
 import dev.jamesrich.sofaking.backend.library.VodSessions
@@ -172,6 +173,7 @@ internal class RuntimeAssembly(
             libraries, vod, dvr, loopback,
             HdhrAccess(config.hdhr.allow, ServerConfig.isLoopback(config.host), store, clock).also { it.load() },
             listener,
+            config.tmdb?.let { ProgramFactsLookup(TmdbClient(http, it), clock) },
         )
         dvr.start(scope)
         dvr.requestSchedule("startup")

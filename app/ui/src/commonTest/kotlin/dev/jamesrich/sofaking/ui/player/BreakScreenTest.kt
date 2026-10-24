@@ -8,6 +8,7 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 class BreakScreenTest {
     @Test
@@ -172,5 +173,14 @@ class BreakScreenTest {
     fun `a deck of one deals it every time`() {
         val deck = Deck(1)
         assertEquals(listOf(0, 0, 0), List(3) { deck.next() })
+    }
+
+    @Test
+    fun `a hit squashes the mark and it wobbles back out`() {
+        assertEquals(0.8f, squashAfter(0.0), 0.001f)
+        assertTrue(squashAfter(0.05) < 1f, "still pressed in just after the hit")
+        assertTrue(squashAfter(0.1) > 1f, "then it springs past its size")
+        assertEquals(1f, squashAfter(SQUASH_SECONDS))
+        assertEquals(1f, squashAfter(-1.0), "no squash before a hit")
     }
 }

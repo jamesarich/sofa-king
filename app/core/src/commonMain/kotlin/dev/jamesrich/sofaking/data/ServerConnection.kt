@@ -91,6 +91,9 @@ class ServerConnection(
     /** Recording from the guide, on a server that records. */
     val recordings = RecordingSchedule(work, api, capabilities.map { it.recordings })
 
+    /** What TMDB says about live programs, for the break screen. */
+    val programFacts = ProgramFactsBook(api)
+
     /** Asks until the server answers, backing off to every five minutes; a server without the route offers nothing. */
     private suspend fun readCapabilities(api: SofaKingApi): ServerCapabilities {
         var wait = 5.seconds

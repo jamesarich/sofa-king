@@ -26,6 +26,7 @@ import dev.jamesrich.sofaking.contract.PlayState
 import dev.jamesrich.sofaking.contract.PlaybackDescriptor
 import dev.jamesrich.sofaking.contract.PlaybackSession
 import dev.jamesrich.sofaking.contract.Program
+import dev.jamesrich.sofaking.contract.ProgramFacts
 import dev.jamesrich.sofaking.contract.Recording
 import dev.jamesrich.sofaking.contract.RecordingList
 import dev.jamesrich.sofaking.contract.RecordingRule
@@ -86,3 +87,4 @@ internal typealias ScheduleRecordingDto = ScheduleRecording
 internal typealias CreateRecordingRuleDto = CreateRecordingRule
 internal typealias UpdateRecordingDto = UpdateRecording
 internal typealias UpdateRecordingRuleDto = UpdateRecordingRule
+internal typealias ProgramFactsDto = ProgramFacts

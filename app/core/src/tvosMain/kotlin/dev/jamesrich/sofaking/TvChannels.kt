@@ -4,6 +4,8 @@ import dev.jamesrich.sofaking.data.AdBreakNow
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.data.ProgramFacts
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.filterNotNull
@@ -49,6 +51,10 @@ interface TvChannels {
      */
     @Throws(Exception::class)
     suspend fun adBreak(aheadMs: Long): AdBreakNow?
+
+    /** What TMDB says about [program], through the server, for the break screen; null when nothing is known. */
+    @Throws(Exception::class)
+    suspend fun programFacts(program: Program): ProgramFacts?
 }
 
 internal class TvChannelCalls(private val parts: TvParts) : TvChannels {
@@ -89,4 +95,7 @@ internal class TvChannelCalls(private val parts: TvParts) : TvChannels {
 
     @Throws(Exception::class)
     override suspend fun adBreak(aheadMs: Long): AdBreakNow? = viewModel.sessions.adBreak(aheadMs)
+
+    @Throws(Exception::class)
+    override suspend fun programFacts(program: Program): ProgramFacts? = viewModel.programFacts(program)
 }

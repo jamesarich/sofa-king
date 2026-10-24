@@ -10,6 +10,8 @@ import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.DiscoveredServer
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.data.ProgramFacts
 import dev.jamesrich.sofaking.data.RecordingSchedule
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.ServerConnection
@@ -118,6 +120,9 @@ class LineupViewModel(
 
     /** Recording from the guide, on a server that records. */
     val recordings: RecordingSchedule get() = connection.recordings
+
+    /** What TMDB says about [program], through the server, for the break screen; null when nothing is known. */
+    suspend fun programFacts(program: Program): ProgramFacts? = connection.programFacts.of(program)
 
     /** Each reload request; one from [reloadLineup] carries the deferred its caller waits on. */
     private val reloads = MutableSharedFlow<CompletableDeferred<Lineup?>?>(extraBufferCapacity = 1)

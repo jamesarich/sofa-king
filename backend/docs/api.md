@@ -26,6 +26,7 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | POST | `/api/v1/playback-sessions` | Create a preview or watch session |
 | GET | `/api/v1/playback-sessions/{id}` | Read the current playback descriptor |
 | PATCH | `/api/v1/playback-sessions/{id}` | Renew the lease and optionally change intent |
+| GET | `/api/v1/program-facts?title=&movie=` | What TMDB says about a live program, found by its exact guide title, for the break screen: `kind` (`show` or `movie`), `year`, `endYear`, `studio`, `seasons`, `episodes`, `cast`, `creators`, `tagline` and `rating`. `movie=true` searches movies first. Every field is empty when TMDB lists no such title or the server has no TMDB token; see [libraries](libraries.md#details-from-tmdb) |
 | GET | `/api/v1/playback-sessions/{id}/ad-break?aheadMs=` | Whether the session's player shows an ad: `inBreak` and, when the stream planned the break, `remainingMs`. `aheadMs` is how much the player has loaded past the picture; see [architecture](architecture.md#playback) |
 | DELETE | `/api/v1/playback-sessions/{id}` | Release the session; returns 204 |
 | GET | `/api/v1/recordings` | Every [recording](#recordings), scheduled and running soonest first, then the rest newest first, and the recordings folder's `storage` |

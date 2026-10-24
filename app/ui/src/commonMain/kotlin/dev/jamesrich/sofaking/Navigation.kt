@@ -1,11 +1,11 @@
 package dev.jamesrich.sofaking
 
+import androidx.navigation3.runtime.NavKey
 import dev.jamesrich.sofaking.ui.library.SEARCH_FOCUS_KEY
 import dev.jamesrich.sofaking.ui.library.libraryFocusKey
 import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.settings.CHANNELS_FOCUS_KEY
 import dev.jamesrich.sofaking.ui.settings.STARTUP_FOCUS_KEY
-import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
@@ -32,7 +32,11 @@ internal sealed interface Route : NavKey {
      * [unattended] marks one the guide opened by itself, which keeps the screen on only once a key is pressed.
      */
     @Serializable
-    data class Player(val guideId: String, @Transient val scope: ZapScope? = null, @Transient val unattended: Boolean = false) : Route {
+    data class Player(
+        val guideId: String,
+        @Transient val scope: ZapScope? = null,
+        @Transient val unattended: Boolean = false,
+    ) : Route {
         override val id: String get() = "player"
     }
 
@@ -105,7 +109,8 @@ internal sealed interface Route : NavKey {
     val playsFullScreen: Boolean get() = this is Player || this is Vod || this is Recording
 
     /** The pages under the tabs: the header (or, away from a TV, the navigation bar or rail) shows above them. */
-    val hasTabs: Boolean get() = this is Guide || this is Library || this is LibrarySearch || this is LibraryGrid || this is Recordings
+    val hasTabs: Boolean get() = this is Guide || this is Library || this is LibrarySearch || this is LibraryGrid ||
+        this is Recordings
 
     /** What the page below focuses when the viewer leaves this one; the player's channel is the app's to know. */
     val focusKey: String?
@@ -170,7 +175,8 @@ internal data class Navigation(
     }
 
     /** Swaps the page on top for [route], as the next episode takes the player's place. */
-    fun replaceTop(route: Route, arrival: Arrival = Arrival()): Navigation = pop(returnedFrom = null).push(route, arrival)
+    fun replaceTop(route: Route, arrival: Arrival = Arrival()): Navigation =
+        pop(returnedFrom = null).push(route, arrival)
 
     /**
      * Back one page; the page below focuses [returnedFrom]. Back from a tab's first page opens Live, and on the
@@ -179,8 +185,13 @@ internal data class Navigation(
     fun pop(returnedFrom: String? = top.focusKey): Navigation {
         val stack = stack(tab)
         return when {
-            stack.size > 1 -> copy(stacks = stacks + (tab to stack.dropLast(1)), arrival = Arrival(returnedFrom = returnedFrom))
+            stack.size > 1 -> copy(
+                stacks = stacks + (tab to stack.dropLast(1)),
+                arrival = Arrival(returnedFrom = returnedFrom),
+            )
+
             tab != Tab.LIVE -> copy(tab = Tab.LIVE, arrival = Arrival())
+
             else -> this
         }
     }

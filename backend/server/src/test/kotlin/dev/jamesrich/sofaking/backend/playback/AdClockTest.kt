@@ -4,7 +4,10 @@ import dev.jamesrich.sofaking.backend.ads.BreakLibrary
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.contract.AdBreakState
 import java.net.URI
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class AdClockTest {
     private val base = URI("https://aegis-cloudfront-1.tubi.video/b18a776e/master_5.m3u8")
@@ -41,8 +44,14 @@ master_5_5535913.ts
     fun `the show segment after the break ends it once a later playlist holds it`() {
         val clock = AdClock()
         clock.annotate(tubi, base)
-        clock.annotate(tubi.replace("#EXT-X-MEDIA-SEQUENCE:5535769\n#EXTINF:6.006,\nmaster_5_5535910.ts\n", "#EXT-X-MEDIA-SEQUENCE:5535770\n") +
-            "#EXT-X-CUE-IN\n#EXTINF:6.006,\nmaster_5_5535914.ts\n", base)
+        clock.annotate(
+            tubi.replace(
+                "#EXT-X-MEDIA-SEQUENCE:5535769\n#EXTINF:6.006,\nmaster_5_5535910.ts\n",
+                "#EXT-X-MEDIA-SEQUENCE:5535770\n",
+            ) +
+                "#EXT-X-CUE-IN\n#EXTINF:6.006,\nmaster_5_5535914.ts\n",
+            base,
+        )
         clock.served(segment(5535914))
         assertEquals(AdBreakState(inBreak = true, remainingMs = 994), clock.at(aheadMs = 7_000))
         assertEquals(AdBreakState(), clock.at(aheadMs = 0))
@@ -71,16 +80,28 @@ master_5_5535913.ts
     private fun whale(first: Int, vararg tags: Pair<Int, String>): String {
         val marks = tags.toMap()
         return "#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:$first\n" +
-            (first until first + 4).joinToString("") { (marks[it]?.let { tag -> "$tag\n" } ?: "") + "#EXTINF:6,\nseg-$it.ts\n" }
+            (first until first + 4).joinToString("") {
+                (marks[it]?.let { tag -> "$tag\n" } ?: "") + "#EXTINF:6,\nseg-$it.ts\n"
+            }
     }
 
     @Test
     fun `a cue that left the window keeps its break marked until the cue-in`() {
         val clock = AdClock()
-        assertTrue(clock.annotate(whale(100, 102 to "#EXT-X-CUE-OUT:DURATION=120"), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=102,LAST=103,ENDS=120.000\n"))
+        assertTrue(
+            clock.annotate(
+                whale(100, 102 to "#EXT-X-CUE-OUT:DURATION=120"),
+                whaleBase,
+            ).endsWith("#EXT-X-SOFA-AD:FIRST=102,LAST=103,ENDS=120.000\n"),
+        )
         // 104 starts 24 s in, 12 s after the break began, so 108 s of it are left.
         assertTrue(clock.annotate(whale(104), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=104,LAST=107,ENDS=108.000\n"))
-        assertTrue(clock.annotate(whale(106, 108 to "#EXT-X-CUE-IN"), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=106,LAST=107,ENDS=96.000\n"))
+        assertTrue(
+            clock.annotate(
+                whale(106, 108 to "#EXT-X-CUE-IN"),
+                whaleBase,
+            ).endsWith("#EXT-X-SOFA-AD:FIRST=106,LAST=107,ENDS=96.000\n"),
+        )
         assertEquals(whale(110), clock.annotate(whale(110), whaleBase))
     }
 
@@ -126,7 +147,9 @@ master_5_5535913.ts
         return AdClock(learning = { mode }, learned = { found += it }) to found
     }
 
-    private fun AdClock.hear(vararg levels: Pair<Int, FloatArray>) = levels.forEach { (sequence, level) -> heard(whaleSegment(sequence), level) }
+    private fun AdClock.hear(vararg levels: Pair<Int, FloatArray>) = levels.forEach { (sequence, level) ->
+        heard(whaleSegment(sequence), level)
+    }
 
     @Test
     fun `twenty seconds of silence is a slate break, marked when learning is on`() {
@@ -153,7 +176,13 @@ master_5_5535913.ts
         clock.annotate(whale(100), whaleBase)
         clock.annotate(whale(104), whaleBase)
         clock.hear(101 to silent, 102 to silent, 103 to silent, 104 to silent, 105 to loud)
-        assertEquals(listOf(LearnedBreak(SLATE, 24_000, ended = false, marked = false), LearnedBreak(SLATE, 24_000, ended = true, marked = false)), found)
+        assertEquals(
+            listOf(
+                LearnedBreak(SLATE, 24_000, ended = false, marked = false),
+                LearnedBreak(SLATE, 24_000, ended = true, marked = false),
+            ),
+            found,
+        )
         assertFalse(clock.annotate(whale(102), whaleBase).contains("SOFA-AD"))
         clock.served(whaleSegment(104))
         assertEquals(AdBreakState(), clock.at(aheadMs = 0))
@@ -221,9 +250,17 @@ master_5_5535913.ts
     }
 
     /** A clock on [channel] that learns into [library] as [mode], with what it reported. */
-    private fun learning(mode: LearnedBreaks, library: BreakLibrary, channel: String): Pair<AdClock, MutableList<LearnedBreak>> {
+    private fun learning(
+        mode: LearnedBreaks,
+        library: BreakLibrary,
+        channel: String,
+    ): Pair<AdClock, MutableList<LearnedBreak>> {
         val found = mutableListOf<LearnedBreak>()
-        return AdClock(learning = { mode }, library = library, channelId = channel, providerId = "whale", learned = { found += it }) to found
+        return AdClock(learning = { mode }, library = library, channelId = channel, providerId = "whale", learned = {
+            found +=
+                it
+        }) to
+            found
     }
 
     /** A marked break from 6 to 36 s, closed by its cue-in, heard on [channel]. */
@@ -268,7 +305,8 @@ master_5_5535913.ts
         on.annotate(whale(204), whaleBase)
         on.listen(200, 200..203, adFromMs = 6_000, adUntilMs = 36_000)
         assertTrue(found.single().marked, found.toString())
-        // The match starts just past 9 s, the middle of segment 201, so the marks start with 202: a little ad shows, never show.
+        // The match starts just past 9 s, the middle of segment 201, so the marks start with 202:
+        // a little ad shows, never show.
         val marks = on.annotate(whale(200), whaleBase)
         assertTrue(marks.endsWith("#EXT-X-SOFA-AD:FIRST=202,LAST=203\n"), marks)
     }

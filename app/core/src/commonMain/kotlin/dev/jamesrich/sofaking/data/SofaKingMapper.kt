@@ -9,21 +9,27 @@ internal object SofaKingMapper {
      * Channels the server can play, with a numeric display number, sorted by it; every tag is a group, [DEFAULT_GROUP]
      * when there is none. [resolveLogo] turns the server's logo URL into one the app can load.
      */
-    fun channels(catalog: CatalogDto, resolveLogo: (String) -> String? = { it }): List<Channel> = catalog.channels.mapNotNull { dto ->
-        if (!dto.playbackEligible) return@mapNotNull null
-        val number = dto.displayNumber.trim().toDoubleOrNull() ?: return@mapNotNull null
-        val groups = dto.tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct().ifEmpty { listOf(DEFAULT_GROUP) }
-        Channel(
-            guideId = dto.id,
-            number = number,
-            name = dto.name,
-            logo = dto.logo?.takeIf { it.isNotEmpty() }?.let(resolveLogo),
-            groups = groups,
-            guideStatus = guideStatus(dto.guideStatus),
-        )
-    }.sortedBy { it.number }
+    fun channels(catalog: CatalogDto, resolveLogo: (String) -> String? = { it }): List<Channel> =
+        catalog.channels.mapNotNull { dto ->
+            if (!dto.playbackEligible) return@mapNotNull null
+            val number = dto.displayNumber.trim().toDoubleOrNull() ?: return@mapNotNull null
+            val groups = dto.tags.map {
+                it.trim()
+            }.filter { it.isNotEmpty() }.distinct().ifEmpty { listOf(DEFAULT_GROUP) }
+            Channel(
+                guideId = dto.id,
+                number = number,
+                name = dto.name,
+                logo = dto.logo?.takeIf { it.isNotEmpty() }?.let(resolveLogo),
+                groups = groups,
+                guideStatus = guideStatus(dto.guideStatus),
+            )
+        }.sortedBy { it.number }
 
-    /** Programs per channel id, sorted by start; ones with unreadable times or no duration are dropped, as are channels left with none. */
+    /**
+     * Programs per channel id, sorted by start; ones with unreadable times or no duration are dropped,
+     * as are channels left with none.
+     */
     fun programs(window: GuideWindowDto): Map<String, List<Program>> = buildMap {
         for (channel in window.channels) {
             val programs = channel.programs.mapNotNull { toProgram(channel.channelId, it) }.sortedBy { it.start }

@@ -10,16 +10,6 @@ import dev.jamesrich.sofaking.backend.store.libraries
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.libraryScrubs
 import dev.jamesrich.sofaking.backend.store.saveLibraryScrub
-import java.nio.file.Files
-import java.nio.file.LinkOption
-import java.nio.file.Path
-import java.time.Clock
-import java.util.concurrent.ConcurrentHashMap
-import javax.imageio.ImageIO
-import kotlin.io.path.ExperimentalPathApi
-import kotlin.io.path.deleteRecursively
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -30,6 +20,16 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
+import java.time.Clock
+import java.util.concurrent.ConcurrentHashMap
+import javax.imageio.ImageIO
+import kotlin.io.path.ExperimentalPathApi
+import kotlin.io.path.deleteRecursively
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
 private val log = LoggerFactory.getLogger(ScrubSheets::class.java)
 
@@ -48,7 +48,8 @@ internal const val SCRUB_MIN_MS = 300_000L
 /**
  * One item's scrub thumbnails: [sheets] JPEG sheets of [columns] by [rows] tiles, each [tileWidth] by [tileHeight],
  * one every [intervalMs] from the start of the file, [frames] in all. [fileKey] names the file they were made from
- * ([fileKey] of its record). [sheets] is 0 when FFmpeg could make none, so the file is not tried again until it changes.
+ * ([fileKey] of its record). [sheets] is 0 when FFmpeg could make none, so the file is not tried again until it
+ * changes.
  */
 data class ScrubRecord(
     val itemId: String,
@@ -122,7 +123,9 @@ class ScrubSheets(
     /** Sheet [index] of [itemId], when it has been made. */
     fun sheet(itemId: String, index: Int): Path? {
         if (index < 0 || !ID.matches(itemId)) return null
-        return directory.resolve(itemId).resolve("$index.jpg").takeIf { Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS) }
+        return directory.resolve(itemId).resolve("$index.jpg").takeIf {
+            Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS)
+        }
     }
 
     fun start(scope: CoroutineScope): Job = scope.launch(CoroutineName("library-scrub")) {
@@ -147,23 +150,45 @@ class ScrubSheets(
         var failed = 0
         jobs.record(SCRUB_JOB) {
             val items = store.libraryItems(library.id)
-                .filter { it.missingSince == null && it.path != null && it.kind in PLAYABLE && (it.durationMs ?: 0) >= SCRUB_MIN_MS }
+                .filter {
+                    it.missingSince == null && it.path != null && it.kind in PLAYABLE &&
+                        (it.durationMs ?: 0) >= SCRUB_MIN_MS
+                }
             val known = store.libraryScrubs(items.map { it.id })
             val root = Path.of(library.path).normalize()
             for (item in items) {
                 val key = fileKey(item)
                 val had = known[item.id]
                 // A deleted folder is made again, as a changed file is.
-                if (had?.fileKey == key && (had.sheets == 0 || withContext(Dispatchers.IO) { Files.isDirectory(directory.resolve(item.id)) })) continue
+                if (had?.fileKey == key && (
+                        had.sheets == 0 || withContext(Dispatchers.IO) {
+                            Files.isDirectory(directory.resolve(item.id))
+                        }
+                        )
+                ) {
+                    continue
+                }
                 val file = root.resolve(item.path!!).normalize()
-                if (!file.startsWith(root) || !withContext(Dispatchers.IO) { Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }) continue
+                if (!file.startsWith(root) ||
+                    !withContext(Dispatchers.IO) { Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }
+                ) {
+                    continue
+                }
                 val size = make(item.id, file)
                 if (size == null) failed++ else made++
                 val frames = ((item.durationMs!! + SCRUB_INTERVAL_MS - 1) / SCRUB_INTERVAL_MS).toInt()
                 store.saveLibraryScrub(
                     ScrubRecord(
-                        item.id, key, SCRUB_INTERVAL_MS, size?.tileWidth ?: 0, size?.tileHeight ?: 0, SCRUB_COLUMNS, SCRUB_ROWS,
-                        size?.sheets ?: 0, minOf(frames, (size?.sheets ?: 0) * SCRUB_COLUMNS * SCRUB_ROWS), clock.instant().toString(),
+                        item.id,
+                        key,
+                        SCRUB_INTERVAL_MS,
+                        size?.tileWidth ?: 0,
+                        size?.tileHeight ?: 0,
+                        SCRUB_COLUMNS,
+                        SCRUB_ROWS,
+                        size?.sheets ?: 0,
+                        minOf(frames, (size?.sheets ?: 0) * SCRUB_COLUMNS * SCRUB_ROWS),
+                        clock.instant().toString(),
                     ),
                 )
             }
@@ -173,7 +198,10 @@ class ScrubSheets(
         return made to failed
     }
 
-    /** Makes [itemId]'s sheets from [file] in a fresh folder, replacing the old ones only once the new ones are made. */
+    /**
+     * Makes [itemId]'s sheets from [file] in a fresh folder, replacing the old ones only once the new ones are
+     * made.
+     */
     @OptIn(ExperimentalPathApi::class)
     private suspend fun make(itemId: String, file: Path): SheetSize? {
         val target = directory.resolve(itemId)

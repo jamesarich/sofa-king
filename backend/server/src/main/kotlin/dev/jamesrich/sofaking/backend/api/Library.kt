@@ -24,9 +24,17 @@ import kotlinx.serialization.Serializable
 /** `PATCH /api/v1/admin/libraries/{id}`. */
 @Serializable data class UpdateLibrary(val name: String)
 
-/** `POST /api/v1/admin/libraries/{id}/scan`: what the scan found. [unavailable] means the folder was missing or empty, so nothing changed. */
+/**
+ * `POST /api/v1/admin/libraries/{id}/scan`: what the scan found. [unavailable] means the folder was
+ * missing or empty, so nothing changed.
+ */
 @Serializable data class LibraryScanInfo(
-    val files: Int, val added: Int, val updated: Int, val missing: Int, val removed: Int, val unavailable: Boolean = false,
+    val files: Int,
+    val added: Int,
+    val updated: Int,
+    val missing: Int,
+    val removed: Int,
+    val unavailable: Boolean = false,
 )
 
 /** `GET /api/v1/admin/libraries/folders`: the folders a new library can use. */

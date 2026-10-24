@@ -10,7 +10,10 @@ import kotlin.concurrent.Volatile
  * Media3) show captions at their own timing.
  */
 class CaptionSync {
-    /** The user's chosen advance; playback waits for this much buffer plus [MARGIN_US] before it starts. Negative delays the text. */
+    /**
+     * The user's chosen advance; playback waits for this much buffer plus [MARGIN_US] before it
+     * starts. Negative delays the text.
+     */
     @Volatile
     var advanceUs: Long = 0L
 

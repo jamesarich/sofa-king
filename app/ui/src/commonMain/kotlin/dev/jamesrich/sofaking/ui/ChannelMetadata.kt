@@ -21,7 +21,13 @@ import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideStatus
 import dev.jamesrich.sofaking.data.Program
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.guide_out_of_date
+import dev.jamesrich.sofaking.resources.listing_loading
+import dev.jamesrich.sofaking.resources.no_guide
+import dev.jamesrich.sofaking.resources.no_listing
+import dev.jamesrich.sofaking.resources.preview_live
+import dev.jamesrich.sofaking.resources.program_new
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -55,7 +61,10 @@ internal fun Channel.noListingText(guideLoading: Boolean): String = stringResour
 /** Between the parts of a program's detail line, such as its time range and episode. */
 internal const val DETAIL_SEPARATOR = "  ·  "
 
-/** The channel's logo in a [width] by [height] slot that stays empty without one, so names line up. Decorative: the name is beside it. */
+/**
+ * The channel's logo in a [width] by [height] slot that stays empty without one, so names line up.
+ * Decorative: the name is beside it.
+ */
 @Composable
 internal fun ChannelLogo(channel: Channel, width: Dp, height: Dp, modifier: Modifier = Modifier) {
     val logo = channel.logo
@@ -69,7 +78,14 @@ internal fun ChannelLogo(channel: Channel, width: Dp, height: Dp, modifier: Modi
 
 /** Live, New and the rating, in that order; [fill] and [onFill] color the filled badges, [outline] the rating. */
 @Composable
-internal fun ProgramBadges(program: Program, live: Boolean, fill: Color, onFill: Color, outline: Color, modifier: Modifier = Modifier) {
+internal fun ProgramBadges(
+    program: Program,
+    live: Boolean,
+    fill: Color,
+    onFill: Color,
+    outline: Color,
+    modifier: Modifier = Modifier,
+) {
     if (!live && !program.isNew && program.rating == null) return
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         if (live) FilledBadge(stringResource(Res.string.preview_live), fill, onFill)

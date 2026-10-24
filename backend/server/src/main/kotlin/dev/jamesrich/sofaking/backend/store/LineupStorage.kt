@@ -1,27 +1,57 @@
 package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.api.GuideMapping
-import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
+import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.PreviouslyShown
 import dev.jamesrich.sofaking.backend.catalog.ProgramRating
-import java.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.core.Column
+import org.jetbrains.exposed.v1.core.IColumnType
+import org.jetbrains.exposed.v1.core.IntegerColumnType
+import org.jetbrains.exposed.v1.core.LongColumnType
+import org.jetbrains.exposed.v1.core.Op
+import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.TextColumnType
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.count
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.get
+import org.jetbrains.exposed.v1.core.greater
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.core.less
+import org.jetbrains.exposed.v1.core.max
+import org.jetbrains.exposed.v1.core.neq
+import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.jdbc.batchInsert
+import org.jetbrains.exposed.v1.jdbc.deleteAll
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.except
+import org.jetbrains.exposed.v1.jdbc.name
+import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.upsert
+import java.time.Instant
 
 /** SQLite binds at most 32,766 variables per statement; multi-row inserts stay well under that. */
 private const val INSERT_CHUNK = 2000
 
-/** Rows a guide import writes or deletes per transaction: big enough to keep imports quick, small enough that other writes wait at most about a second. */
+/**
+ * Rows a guide import writes or deletes per transaction: big enough to keep imports quick, small enough that other
+ * writes wait at most about a second.
+ */
 private const val PROGRAMS_PER_TRANSACTION = 20_000
 
 suspend fun BackendStore.lineup(): List<LineupEntryRecord> = read {
-    val offerings = LineupOfferings.selectAll().orderBy(LineupOfferings.position).groupBy({ it[LineupOfferings.entryId] }, { it[LineupOfferings.offeringId] })
+    val offerings = LineupOfferings.selectAll().orderBy(LineupOfferings.position).groupBy({
+        it[LineupOfferings.entryId]
+    }, { it[LineupOfferings.offeringId] })
     LineupEntries.selectAll().orderBy(LineupEntries.position).map { row ->
         val guideId = row[LineupEntries.guideId]
         val guideChannel = row[LineupEntries.guideChannel]
@@ -62,7 +92,9 @@ suspend fun BackendStore.saveLineup(entries: List<LineupEntryRecord>, at: Instan
             this[LineupEntries.autoDisabledReason] = entry.autoDisabledReason
         }
     }
-    entries.flatMap { entry -> entry.offeringIds.withIndex().map { (position, offeringId) -> Triple(entry.id, position, offeringId) } }
+    entries.flatMap { entry ->
+        entry.offeringIds.withIndex().map { (position, offeringId) -> Triple(entry.id, position, offeringId) }
+    }
         .chunked(INSERT_CHUNK).forEach { chunk ->
             LineupOfferings.batchInsert(chunk, shouldReturnGeneratedValues = false) { (entryId, position, offeringId) ->
                 this[LineupOfferings.entryId] = entryId
@@ -73,7 +105,13 @@ suspend fun BackendStore.saveLineup(entries: List<LineupEntryRecord>, at: Instan
     Unit
 }
 
-class StoredGuide(val guideId: String, val importedAt: Instant, val channels: List<GuideChannel>, val programEnds: Map<String, Instant>, val programs: Int)
+class StoredGuide(
+    val guideId: String,
+    val importedAt: Instant,
+    val channels: List<GuideChannel>,
+    val programEnds: Map<String, Instant>,
+    val programs: Int,
+)
 
 /** Each guide's current generation of rows, as the import last published it. */
 private fun currentRows(table: Table, guideId: Column<String>, generation: Column<Long>) =
@@ -89,11 +127,23 @@ suspend fun BackendStore.guides(): Map<String, StoredGuide> = read {
     val ends = currentRows(GuidePrograms, GuidePrograms.guideId, GuidePrograms.generation)
         .select(GuidePrograms.guideId, GuidePrograms.channelId, maxEnd, count)
         .groupBy(GuidePrograms.guideId, GuidePrograms.channelId)
-        .groupBy({ it[GuidePrograms.guideId] }) { Triple(it[GuidePrograms.channelId], Instant.ofEpochSecond(it[maxEnd]!!), it[count]) }
+        .groupBy({
+            it[GuidePrograms.guideId]
+        }) { Triple(it[GuidePrograms.channelId], Instant.ofEpochSecond(it[maxEnd]!!), it[count]) }
     GuideImports.selectAll().associate { row ->
         val id = row[GuideImports.guideId]
         val rows = ends[id].orEmpty()
-        id to StoredGuide(id, Instant.parse(row[GuideImports.importedAt]), channels[id].orEmpty(), rows.associate { it.first to it.second }, rows.sumOf { it.third.toInt() })
+        id to
+            StoredGuide(
+                id,
+                Instant.parse(row[GuideImports.importedAt]),
+                channels[id].orEmpty(),
+                rows.associate {
+                    it.first to
+                        it.second
+                },
+                rows.sumOf { it.third.toInt() },
+            )
     }
 }
 
@@ -104,8 +154,18 @@ suspend fun BackendStore.guides(): Map<String, StoredGuide> = read {
  * see the old rows or the new ones, never a mix; a failed import leaves the old rows current and its own for the next
  * import to clear.
  */
-suspend fun BackendStore.saveGuide(guideId: String, importedAt: Instant, channels: List<GuideChannel>, programs: List<GuideProgram>) {
-    val current = query { GuideImports.select(GuideImports.generation).where { GuideImports.guideId eq guideId }.singleOrNull()?.get(GuideImports.generation) }
+suspend fun BackendStore.saveGuide(
+    guideId: String,
+    importedAt: Instant,
+    channels: List<GuideChannel>,
+    programs: List<GuideProgram>,
+) {
+    val current =
+        query {
+            GuideImports.select(GuideImports.generation).where {
+                GuideImports.guideId eq guideId
+            }.singleOrNull()?.get(GuideImports.generation)
+        }
     deleteGuideRows(guideId, except = current)
     val next = (current ?: 0) + 1
     query {
@@ -122,7 +182,11 @@ suspend fun BackendStore.saveGuide(guideId: String, importedAt: Instant, channel
     programs.chunked(PROGRAMS_PER_TRANSACTION).forEach { part ->
         query {
             part.chunked(INSERT_CHUNK).forEach { chunk ->
-                GuidePrograms.batchInsert(chunk.map(GuideProgram::bounded), ignore = true, shouldReturnGeneratedValues = false) { program ->
+                GuidePrograms.batchInsert(
+                    chunk.map(GuideProgram::bounded),
+                    ignore = true,
+                    shouldReturnGeneratedValues = false,
+                ) { program ->
                     this[GuidePrograms.guideId] = guideId
                     this[GuidePrograms.generation] = next
                     this[GuidePrograms.channelId] = program.channelId
@@ -149,21 +213,38 @@ suspend fun BackendStore.saveGuide(guideId: String, importedAt: Instant, channel
 
 /** Deletes [guideId]'s channel and program rows of every generation but [except] (null: all), a step at a time. */
 private suspend fun BackendStore.deleteGuideRows(guideId: String, except: Long?) {
-    query { GuideChannels.deleteWhere { (GuideChannels.guideId eq guideId) and (if (except == null) Op.TRUE else GuideChannels.generation neq except) } }
-    val args = listOf<Pair<IColumnType<*>, Any?>>(TextColumnType() to guideId, LongColumnType() to (except ?: -1L), IntegerColumnType() to PROGRAMS_PER_TRANSACTION)
+    query {
+        GuideChannels.deleteWhere {
+            (GuideChannels.guideId eq guideId) and
+                (if (except == null) Op.TRUE else GuideChannels.generation neq except)
+        }
+    }
+    val args = listOf<Pair<IColumnType<*>, Any?>>(
+        TextColumnType() to guideId,
+        LongColumnType() to (except ?: -1L),
+        IntegerColumnType() to PROGRAMS_PER_TRANSACTION,
+    )
     while (true) {
         val deleted = query {
             exec(
-                "DELETE FROM guide_program WHERE rowid IN (SELECT rowid FROM guide_program WHERE guide_id = ? AND generation <> ? LIMIT ?)",
+                "DELETE FROM guide_program WHERE rowid IN (SELECT rowid FROM guide_program WHERE guide_id = ? " +
+                    "AND generation <> ? LIMIT ?)",
                 args,
             )
-            exec("SELECT changes()") { it.next(); it.getInt(1) } ?: 0
+            exec("SELECT changes()") {
+                it.next()
+                it.getInt(1)
+            } ?: 0
         }
         if (deleted < PROGRAMS_PER_TRANSACTION) break
     }
 }
 
-private val programJson = Json { encodeDefaults = false; ignoreUnknownKeys = true; explicitNulls = false }
+private val programJson = Json {
+    encodeDefaults = false
+    ignoreUnknownKeys = true
+    explicitNulls = false
+}
 
 /** A program's metadata beyond title and description, under short keys to keep a million rows small. */
 @Serializable private data class StoredDetails(
@@ -180,7 +261,8 @@ private val programJson = Json { encodeDefaults = false; ignoreUnknownKeys = tru
 
 private fun detailsJson(program: GuideProgram): String? {
     val details = StoredDetails(
-        program.subTitle, program.episodeNumbers, program.icon, program.categories, program.rating, program.isNew,
+        program.subTitle, program.episodeNumbers, program.icon, program.categories, program.rating,
+        program.isNew,
         program.previouslyShown, program.date, program.language,
     )
     return if (details == StoredDetails()) null else programJson.encodeToString(details)
@@ -191,18 +273,32 @@ private fun programAt(row: ResultRow): GuideProgram {
         runCatching { programJson.decodeFromString<StoredDetails>(stored) }.getOrNull()
     } ?: StoredDetails()
     return GuideProgram(
-        row[GuidePrograms.channelId], Instant.ofEpochSecond(row[GuidePrograms.startsAt]), Instant.ofEpochSecond(row[GuidePrograms.endsAt]),
-        row[GuidePrograms.title], row[GuidePrograms.description], details.subTitle, details.episodeNumbers, details.icon, details.categories,
+        row[GuidePrograms.channelId],
+        Instant.ofEpochSecond(
+            row[GuidePrograms.startsAt],
+        ),
+        Instant.ofEpochSecond(row[GuidePrograms.endsAt]),
+        row[GuidePrograms.title], row[GuidePrograms.description], details.subTitle, details.episodeNumbers,
+        details.icon, details.categories,
         details.rating, details.isNew, details.previouslyShown, details.date, details.language,
     )
 }
 
 /** Programs overlapping [from, to) for the given guide channels, grouped by channel and ordered by start. */
-suspend fun BackendStore.programs(guideId: String, channelIds: Collection<String>, from: Instant, to: Instant): Map<String, List<GuideProgram>> = read {
+suspend fun BackendStore.programs(
+    guideId: String,
+    channelIds: Collection<String>,
+    from: Instant,
+    to: Instant,
+): Map<String, List<GuideProgram>> = read {
     if (channelIds.isEmpty()) {
         emptyMap()
     } else {
-        currentRows(GuidePrograms, GuidePrograms.guideId, GuidePrograms.generation).select(GuidePrograms.columns).where {
+        currentRows(
+            GuidePrograms,
+            GuidePrograms.guideId,
+            GuidePrograms.generation,
+        ).select(GuidePrograms.columns).where {
             (GuidePrograms.guideId eq guideId) and (GuidePrograms.channelId inList channelIds.toSet()) and
                 (GuidePrograms.startsAt less to.epochSecond) and (GuidePrograms.endsAt greater from.epochSecond)
         }.orderBy(GuidePrograms.startsAt).groupBy({ it[GuidePrograms.channelId] }, ::programAt)

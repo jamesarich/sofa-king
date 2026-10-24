@@ -9,7 +9,11 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class) // testScheduler.currentTime
 class TsFanoutTest {
@@ -25,17 +29,26 @@ class TsFanoutTest {
     @Test fun `one upstream serves two readers and survives EOF with keepalives until reconnect`() = runTest {
         val bodies = Channel<ByteChannel>(Channel.UNLIMITED)
         var connections = 0
-        val streams = SharedStreams(backgroundScope, FanoutConfig(keepaliveMillis = 1000, graceMillis = 10_000)) { testScheduler.currentTime }
-        val connect: UpstreamConnect = { consume -> connections++; consume(bodies.receive()) }
+        val streams =
+            SharedStreams(backgroundScope, FanoutConfig(keepaliveMillis = 1000, graceMillis = 10_000)) {
+                testScheduler.currentTime
+            }
+        val connect: UpstreamConnect = { consume ->
+            connections++
+            consume(bodies.receive())
+        }
         val a = streams.join("source", connect)
         val b = streams.join("source", connect)
         val first = ByteChannel()
         bodies.send(first)
-        first.writeFully(p[0] + p[1] + p[2]); first.flush()
-        a.awaitStarted(); b.awaitStarted()
+        first.writeFully(p[0] + p[1] + p[2])
+        first.flush()
+        a.awaitStarted()
+        b.awaitStarted()
         assertContentEquals(p[0] + p[1] + p[2], a.chunks.receive())
         assertContentEquals(p[0] + p[1] + p[2], b.chunks.receive())
-        assertEquals(1, connections); assertEquals(1, streams.active())
+        assertEquals(1, connections)
+        assertEquals(1, streams.active())
         val eofAt = testScheduler.currentTime
         first.close()
         assertContentEquals(TS_NULL_PACKET, a.chunks.receive())
@@ -43,24 +56,42 @@ class TsFanoutTest {
         assertTrue(testScheduler.currentTime - eofAt <= 2000, "first keepalive within two seconds of EOF")
         val second = ByteChannel()
         bodies.send(second)
-        second.writeFully(p[3] + p[4] + p[5]); second.flush()
+        second.writeFully(p[3] + p[4] + p[5])
+        second.flush()
         assertContentEquals(p[3] + p[4] + p[5], nextData(a))
         assertContentEquals(p[3] + p[4] + p[5], nextData(b))
-        assertEquals(2, connections); assertEquals(1, streams.active())
-        a.close(); b.close()
+        assertEquals(2, connections)
+        assertEquals(1, streams.active())
+        a.close()
+        b.close()
     }
 
     @Test fun `readers end after the grace period when the upstream stays down`() = runTest {
         var connections = 0
-        val streams = SharedStreams(backgroundScope, FanoutConfig(keepaliveMillis = 1000, graceMillis = 10_000)) { testScheduler.currentTime }
+        val streams =
+            SharedStreams(backgroundScope, FanoutConfig(keepaliveMillis = 1000, graceMillis = 10_000)) {
+                testScheduler.currentTime
+            }
         val body = ByteChannel()
-        val reader = streams.join("source") { consume -> if (connections++ == 0) consume(body) else error("still down") }
-        body.writeFully(p[0] + p[1] + p[2]); body.flush()
+        val reader = streams.join("source") { consume ->
+            if (connections++ == 0) {
+                consume(body)
+            } else {
+                error("still down")
+            }
+        }
+        body.writeFully(p[0] + p[1] + p[2])
+        body.flush()
         assertContentEquals(p[0] + p[1] + p[2], reader.chunks.receive())
         val eofAt = testScheduler.currentTime
         body.close()
         var keepalives = 0
-        assertFailsWith<ClosedReceiveChannelException> { while (true) { assertContentEquals(TS_NULL_PACKET, reader.chunks.receive()); keepalives++ } }
+        assertFailsWith<ClosedReceiveChannelException> {
+            while (true) {
+                assertContentEquals(TS_NULL_PACKET, reader.chunks.receive())
+                keepalives++
+            }
+        }
         assertTrue(keepalives >= 8, "keepalives during grace: $keepalives")
         assertTrue(testScheduler.currentTime - eofAt >= 10_000)
         assertTrue(connections > 2, "reconnect attempts: $connections")
@@ -79,23 +110,36 @@ class TsFanoutTest {
         // Sync needs three aligned packets, so the first chunk carries three; later writes are one packet each.
         val writes = listOf(p[0] + p[1] + p[2], p[3], p[4])
         for (chunk in writes) {
-            body.writeFully(chunk); body.flush(); yield(); yield()
+            body.writeFully(chunk)
+            body.flush()
+            yield()
+            yield()
             assertContentEquals(chunk, fast.chunks.receive())
         }
         assertContentEquals(writes[0], slow.chunks.receive())
         assertContentEquals(writes[1], slow.chunks.receive())
         assertFailsWith<SlowReaderException> { slow.chunks.receive() }
-        body.writeFully(p[5]); body.flush()
+        body.writeFully(p[5])
+        body.flush()
         assertContentEquals(p[5], fast.chunks.receive())
         fast.close()
     }
 
     @Test fun `dropping the last reader as slow stops the upstream after the linger`() = runTest {
-        val streams = SharedStreams(backgroundScope, FanoutConfig(readerChunks = 2, lingerMillis = 2000)) { testScheduler.currentTime }
+        val streams =
+            SharedStreams(backgroundScope, FanoutConfig(readerChunks = 2, lingerMillis = 2000)) {
+                testScheduler.currentTime
+            }
         val body = ByteChannel()
         val slow = streams.join("source") { consume -> consume(body) }
-        for (chunk in listOf(p[0] + p[1] + p[2], p[3], p[4])) { body.writeFully(chunk); body.flush(); yield(); yield() }
-        slow.chunks.receive(); slow.chunks.receive()
+        for (chunk in listOf(p[0] + p[1] + p[2], p[3], p[4])) {
+            body.writeFully(chunk)
+            body.flush()
+            yield()
+            yield()
+        }
+        slow.chunks.receive()
+        slow.chunks.receive()
         assertFailsWith<SlowReaderException> { slow.chunks.receive() }
         slow.close()
         assertEquals(1, streams.active())
@@ -109,8 +153,15 @@ class TsFanoutTest {
         val body = ByteChannel()
         val reader = streams.join("source") { consume -> consume(body) }
         val stream = ByteArray(10) { 0x33 } + p[0] + p[1] + p[2] + p[3]
-        for (piece in listOf(stream.copyOfRange(0, 100), stream.copyOfRange(100, 500), stream.copyOfRange(500, stream.size))) {
-            body.writeFully(piece); body.flush(); yield(); yield()
+        for (piece in listOf(
+            stream.copyOfRange(0, 100),
+            stream.copyOfRange(100, 500),
+            stream.copyOfRange(500, stream.size),
+        )) {
+            body.writeFully(piece)
+            body.flush()
+            yield()
+            yield()
         }
         val received = mutableListOf<ByteArray>()
         while (received.sumOf { it.size } < 4 * 188) received += nextData(reader)

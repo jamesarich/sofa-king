@@ -20,6 +20,8 @@ class FullScreenTest {
 
     @Test
     fun `the player keys other than F keep their meaning`() {
-        listOf(Key.C, Key.Escape, Key.Enter, Key.DirectionUp, Key.Spacebar).forEach { assertFalse(it.togglesFullScreen(inPlayer = true)) }
+        listOf(Key.C, Key.Escape, Key.Enter, Key.DirectionUp, Key.Spacebar).forEach {
+            assertFalse(it.togglesFullScreen(inPlayer = true))
+        }
     }
 }

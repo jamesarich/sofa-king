@@ -4,7 +4,12 @@ import java.time.Instant
 
 enum class HealthStatus { UNVERIFIED, HEALTHY, SUSPECT, QUARANTINED, PROBATION, ARCHIVED }
 enum class FailureClass { OFFERING, PROVIDER, AUTH, RATE_LIMIT, LOCAL, DEVICE }
-data class Observation(val incidentId: String, val observedAt: Instant, val qualifiedSuccess: Boolean, val failureClass: FailureClass? = null)
+data class Observation(
+    val incidentId: String,
+    val observedAt: Instant,
+    val qualifiedSuccess: Boolean,
+    val failureClass: FailureClass? = null,
+)
 data class HealthState(
     val status: HealthStatus = HealthStatus.UNVERIFIED,
     val manuallyDisabled: Boolean = false,

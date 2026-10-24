@@ -15,7 +15,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.ui.theme.SofaAmber
 
-/** The brand's busy indicator: Material 3 Expressive's morphing loader in amber. Decorative; pair it with a text label. */
+/**
+ * The brand's busy indicator: Material 3 Expressive's morphing loader in amber. Decorative; pair it with a text label.
+ */
 @Composable
 fun SofaLoader(modifier: Modifier = Modifier, size: Dp = 48.dp, color: Color = SofaAmber) {
     LoadingIndicator(modifier = modifier.size(size), color = color)

@@ -23,21 +23,25 @@ internal val sharedHttpEngine: HttpClientEngine by lazy { httpEngine.create() }
  * something other than an Exception becomes an [IOException], so `catch (e: Exception)` and retries see it. Closing
  * the client leaves [engine] open.
  */
-internal fun httpClient(engine: HttpClientEngine = sharedHttpEngine, configure: HttpClientConfig<*>.() -> Unit = {}): HttpClient =
-    HttpClient(engine) {
-        expectSuccess = false
-        install(HttpTimeout) {
-            connectTimeoutMillis = 5_000
-            socketTimeoutMillis = 20_000
-            requestTimeoutMillis = 30_000
-        }
-        HttpResponseValidator {
-            handleResponseExceptionWithRequest { cause, _ ->
-                if (engineFailsWithErrors && cause !is Exception) throw IOException(cause.message ?: cause.toString(), cause)
+internal fun httpClient(
+    engine: HttpClientEngine = sharedHttpEngine,
+    configure: HttpClientConfig<*>.() -> Unit = {},
+): HttpClient = HttpClient(engine) {
+    expectSuccess = false
+    install(HttpTimeout) {
+        connectTimeoutMillis = 5_000
+        socketTimeoutMillis = 20_000
+        requestTimeoutMillis = 30_000
+    }
+    HttpResponseValidator {
+        handleResponseExceptionWithRequest { cause, _ ->
+            if (engineFailsWithErrors && cause !is Exception) {
+                throw IOException(cause.message ?: cause.toString(), cause)
             }
         }
-        configure()
     }
+    configure()
+}
 
 /** The client for calls to no server in particular, such as the update check; it is never closed. */
 internal val apiHttpClient: HttpClient by lazy { httpClient() }

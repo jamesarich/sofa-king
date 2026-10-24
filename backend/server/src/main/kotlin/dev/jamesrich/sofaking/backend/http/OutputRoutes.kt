@@ -2,9 +2,10 @@ package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.OutputConfig
-import dev.jamesrich.sofaking.contract.PlaybackSession
+import dev.jamesrich.sofaking.backend.admin.sameSecret
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
+import dev.jamesrich.sofaking.contract.PlaybackSession
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.withCharset
@@ -16,15 +17,14 @@ import io.ktor.server.response.respondTextWriter
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.route
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import java.net.URLEncoder
-import dev.jamesrich.sofaking.backend.admin.sameSecret
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.withContext
 
 /**
  * The lineup for third-party players under `/output`: an M3U playlist, an XMLTV guide and one stream URL per
@@ -43,9 +43,13 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
             call.respondTextWriter(ContentType.parse("audio/x-mpegurl").withCharset(Charsets.UTF_8)) {
                 write("#EXTM3U url-tvg=\"$base/output/guide.xml$query\" x-tvg-url=\"$base/output/guide.xml$query\"\n")
                 for (channel in channels) {
-                    // Players infer the stream type from the suffix; a channel with no eligible source lists as TS and fails at play time.
+                    // Players infer the stream type from the suffix; a channel with no eligible source
+                    // lists as TS and fails at play time.
                     val suffix = if (preferred[channel.id]?.protocol == "hls") "m3u8" else "ts"
-                    write("#EXTINF:-1 tvg-id=\"${channel.id}\" tvg-chno=\"${attribute(channel.displayNumber)}\" tvg-name=\"${attribute(channel.name)}\"")
+                    write(
+                        "#EXTINF:-1 tvg-id=\"${channel.id}\" tvg-chno=\"${attribute(channel.displayNumber)}\" " +
+                            "tvg-name=\"${attribute(channel.name)}\"",
+                    )
                     channel.logo?.let { write(" tvg-logo=\"${runtime.logos.publicUrl(base, it)}\"") }
                     entries[channel.id]?.group?.let { write(" group-title=\"${attribute(it)}\"") }
                     write(",${attribute(channel.name)}\n$base/output/stream/${channel.id}.$suffix$query\n")
@@ -55,7 +59,8 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
         get("/guide.xml") {
             authorizeOutput(call, config.token, apiToken)
             val days = call.request.queryParameters["days"]?.let { raw ->
-                raw.toIntOrNull()?.takeIf { it in 1..14 } ?: throw ApiFailure(400, "INVALID_QUERY", "days must be between 1 and 14")
+                raw.toIntOrNull()?.takeIf { it in 1..14 }
+                    ?: throw ApiFailure(400, "INVALID_QUERY", "days must be between 1 and 14")
             } ?: runtime.settings.current.guideDays
             val now = clock.instant()
             val from = now.minus(Duration.ofHours(3))
@@ -73,14 +78,20 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
             call.respondTextWriter(ContentType.Application.Xml.withCharset(Charsets.UTF_8)) {
                 write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<tv generator-info-name=\"sofa-king-backend\">\n")
                 for (channel in channels) {
-                    write("<channel id=\"${xml(channel.id)}\"><display-name>${xml(channel.name)}</display-name><display-name>${xml(channel.displayNumber)}</display-name>")
+                    write(
+                        "<channel id=\"${xml(channel.id)}\"><display-name>${xml(channel.name)}</" +
+                            "display-name><display-name>${xml(channel.displayNumber)}</display-name>",
+                    )
                     channel.logo?.let { write("<icon src=\"${xml(runtime.logos.publicUrl(base, it))}\"/>") }
                     write("</channel>\n")
                 }
                 for (channel in channels) {
                     val group = entries[channel.id]?.group
-                    // A channel with nothing in the window gets hourly placeholders, so Plex lists and records it like the rest.
-                    val listed = programs[channel.id].orEmpty().ifEmpty { placeholders(channel.id, channel.name, from, to) }
+                    // A channel with nothing in the window gets hourly placeholders, so Plex
+                    // lists and records it like the rest.
+                    val listed = programs[channel.id].orEmpty().ifEmpty {
+                        placeholders(channel.id, channel.name, from, to)
+                    }
                     for (program in listed) write(xmltvProgram(channel.id, program, group))
                 }
                 write("</tv>\n")
@@ -89,7 +100,9 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
         get("/stream/{id}") {
             authorizeOutput(call, config.token, apiToken)
             val id = call.parameters["id"]!!.substringBefore('.')
-            val entry = runtime.lineup.entry(id)?.takeIf { it.enabled } ?: throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel")
+            val entry =
+                runtime.lineup.entry(id)?.takeIf { it.enabled }
+                    ?: throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel")
             val base = publicBase(call)
             serveExternal(call, runtime, entry.id, shareHls = true) { session ->
                 call.respondRedirect(base + session.descriptor.url)
@@ -113,7 +126,12 @@ internal suspend fun serveExternal(
     hls: suspend (PlaybackSession) -> Boolean,
 ) {
     val sessions = runtime.sessions
-    if (shareHls) sessions.externalFor(channelId)?.let { hls(it); return }
+    if (shareHls) {
+        sessions.externalFor(channelId)?.let {
+            hls(it)
+            return
+        }
+    }
     val opened = sessions.openExternal(channelId, call.request.origin.remoteAddress)
     var release = true
     try {
@@ -124,7 +142,12 @@ internal suspend fun serveExternal(
                 return
             }
             try {
-                runtime.relay.serve(call, current.id, current.descriptor.epoch, current.descriptor.url.substringAfterLast('/'))
+                runtime.relay.serve(
+                    call,
+                    current.id,
+                    current.descriptor.epoch,
+                    current.descriptor.url.substringAfterLast('/'),
+                )
                 return
             } catch (e: ApiFailure) {
                 if (e.code != "STREAM_CHANGED" || attempt == 1) throw e
@@ -145,9 +168,13 @@ internal fun authorizeOutput(call: ApplicationCall, outputToken: String?, apiTok
         if (call.request.fromThisMachine()) return
         throw ApiFailure(403, "LOOPBACK_ONLY", "Without a token the outputs answer only this machine")
     }
-    val bearer = call.request.headers[HttpHeaders.Authorization]?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ")
+    val bearer = call.request.headers[HttpHeaders.Authorization]?.takeIf {
+        it.startsWith("Bearer ")
+    }?.removePrefix("Bearer ")
     val query = call.request.queryParameters["token"]
-    val authorized = (outputToken != null && (sameSecret(query, outputToken) || sameSecret(bearer, outputToken))) || (apiToken != null && sameSecret(bearer, apiToken))
+    val authorized =
+        (outputToken != null && (sameSecret(query, outputToken) || sameSecret(bearer, outputToken))) ||
+            (apiToken != null && sameSecret(bearer, apiToken))
     if (!authorized) {
         call.authFailed()
         throw ApiFailure(401, "AUTH_REQUIRED", "Output token required")
@@ -156,7 +183,10 @@ internal fun authorizeOutput(call: ApplicationCall, outputToken: String?, apiTok
 
 private val HOST_HEADER = Regex("[A-Za-z0-9.\\-\\[\\]:]{1,253}")
 
-/** The address the player reached us by, so generated URLs work through port mappings; `X-Forwarded-Proto` names a TLS proxy. */
+/**
+ * The address the player reached us by, so generated URLs work through port mappings;
+ * `X-Forwarded-Proto` names a TLS proxy.
+ */
 internal fun publicBase(call: ApplicationCall): String {
     val host = call.request.headers[HttpHeaders.Host]?.takeIf { it.matches(HOST_HEADER) }
         ?: "${call.request.origin.localAddress}:${call.request.origin.localPort}"
@@ -198,7 +228,10 @@ private val PLEX_KINDS = listOf(XMLTV_MOVIE, "Sports", "News", "Children", "Seri
  */
 internal fun xmltvProgram(channelId: String, program: GuideProgram, group: String?): String = buildString {
     val lang = program.language?.let { " lang=\"${xml(it)}\"" }.orEmpty()
-    append("<programme start=\"${xmltvTime(program.startsAt)}\" stop=\"${xmltvTime(program.endsAt)}\" channel=\"${xml(channelId)}\">")
+    append(
+        "<programme start=\"${xmltvTime(program.startsAt)}\" stop=\"${xmltvTime(program.endsAt)}\" " +
+            "channel=\"${xml(channelId)}\">",
+    )
     append("<title$lang>${xml(program.title)}</title>")
     program.subTitle?.let { append("<sub-title$lang>${xml(it)}</sub-title>") }
     program.description?.let { append("<desc$lang>${xml(it)}</desc>") }
@@ -207,14 +240,28 @@ internal fun xmltvProgram(channelId: String, program: GuideProgram, group: Strin
     if (program.categories.isEmpty()) {
         derived.forEach { append("<category lang=\"en\">${xml(it)}</category>") }
     } else {
-        program.categories.sortedBy { category -> PLEX_KINDS.indexOf(category.lowercase()).let { if (it < 0) PLEX_KINDS.size else it } }
+        program.categories.sortedBy { category ->
+            PLEX_KINDS.indexOf(category.lowercase()).let {
+                if (it < 0) {
+                    PLEX_KINDS.size
+                } else {
+                    it
+                }
+            }
+        }
             .forEach { append("<category$lang>${xml(it)}</category>") }
     }
     program.icon?.let { append("<icon src=\"${xml(it)}\"/>") }
-    program.episodeNumbers.forEach { append("<episode-num system=\"${xml(it.system)}\">${xml(it.value)}</episode-num>") }
+    program.episodeNumbers.forEach {
+        append("<episode-num system=\"${xml(it.system)}\">${xml(it.value)}</episode-num>")
+    }
     val movie = derived.first() == XMLTV_MOVIE || program.categories.any { it.equals(XMLTV_MOVIE, ignoreCase = true) }
-    if (program.episodeNumbers.isEmpty() && !movie) append("<episode-num system=\"original-air-date\">${airDate(program.startsAt)}</episode-num>")
-    program.previouslyShown?.let { shown -> append(shown.start?.let { "<previously-shown start=\"${xml(it)}\"/>" } ?: "<previously-shown/>") }
+    if (program.episodeNumbers.isEmpty() && !movie) {
+        append("<episode-num system=\"original-air-date\">${airDate(program.startsAt)}</episode-num>")
+    }
+    program.previouslyShown?.let { shown ->
+        append(shown.start?.let { "<previously-shown start=\"${xml(it)}\"/>" } ?: "<previously-shown/>")
+    }
     if (program.isNew) append("<new/>")
     program.rating?.let { rating ->
         append(rating.system?.let { "<rating system=\"${xml(it)}\">" } ?: "<rating>")
@@ -223,7 +270,9 @@ internal fun xmltvProgram(channelId: String, program: GuideProgram, group: Strin
     append("</programme>\n")
 }
 
-/** A station group's XMLTV categories: the kind Plex sorts by (Movie, Sports, News, Children or Series), then the group. */
+/**
+ * A station group's XMLTV categories: the kind Plex sorts by (Movie, Sports, News, Children or Series), then the group.
+ */
 internal fun xmltvCategories(group: String?): List<String> {
     val kind = when (group?.lowercase()) {
         "movies" -> XMLTV_MOVIE

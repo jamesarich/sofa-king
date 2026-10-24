@@ -1,8 +1,8 @@
 package dev.jamesrich.sofaking.data
 
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.Test
 
 class ServerAddressTest {
     @Test
@@ -27,7 +27,11 @@ class ServerAddressTest {
         assertEquals("http://sofa.lan:9193", ServerAddress.normalizeUrl("sofa.lan"))
         assertEquals("http://[fd00::1]:9193", ServerAddress.normalizeUrl("[fd00::1]"))
         assertEquals("http://[fd00::1]:8080", ServerAddress.normalizeUrl("[fd00::1]:8080"))
-        assertEquals("https://tv.example.org", ServerAddress.normalizeUrl("https://tv.example.org"), "a typed scheme keeps its own port")
+        assertEquals(
+            "https://tv.example.org",
+            ServerAddress.normalizeUrl("https://tv.example.org"),
+            "a typed scheme keeps its own port",
+        )
     }
 
     @Test

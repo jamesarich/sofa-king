@@ -33,11 +33,18 @@ import kotlin.test.assertTrue
 
 /**
  * About, the last block of Settings, as a TV reaches it: focus on its last button scrolls only as far as that button,
- * so the TMDB notice sits above it, and Check again turned itself off while checking, which dropped focus to another row.
+ * so the TMDB notice sits above it, and Check again turned itself off while checking,
+ * which dropped focus to another row.
  */
 @OptIn(ExperimentalTestApi::class)
 class SettingsAboutFocusTest {
-    private val latest = PublishedBuild(version = "0.1.0-dev.400+abc1234", run = 400, pageUrl = "https://example.invalid/release", apkUrl = null)
+    private val latest =
+        PublishedBuild(
+            version = "0.1.0-dev.400+abc1234",
+            run = 400,
+            pageUrl = "https://example.invalid/release",
+            apkUrl = null,
+        )
     private val checkAgain = "Check again"
     private val tmdbNotice = "This product uses the TMDB API"
 
@@ -79,14 +86,15 @@ class SettingsAboutFocusTest {
     }
 
     @Test
-    fun `focus on Check again shows it and the notice above it`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
-        showSettings(update = { UpdateState.UpToDate(latest) })
-        hideAboutBelowTheList()
-        onNodeWithText(checkAgain).requestFocus()
-        waitForIdle()
-        assertTrue(shown(checkAgain), "Check again, the page's last line, shows once it has focus")
-        assertTrue(shown(tmdbNotice), "the notice above Check again shows with it")
-    }
+    fun `focus on Check again shows it and the notice above it`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            showSettings(update = { UpdateState.UpToDate(latest) })
+            hideAboutBelowTheList()
+            onNodeWithText(checkAgain).requestFocus()
+            waitForIdle()
+            assertTrue(shown(checkAgain), "Check again, the page's last line, shows once it has focus")
+            assertTrue(shown(tmdbNotice), "the notice above Check again shows with it")
+        }
 
     @Test
     fun `Check again keeps focus while the check runs`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {

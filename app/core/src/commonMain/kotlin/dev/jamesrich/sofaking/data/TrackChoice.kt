@@ -5,8 +5,16 @@ package dev.jamesrich.sofaking.data
  * [audioLanguage] (null for the file's default), and [subtitleLanguage] when [subtitles] is on (null for a track
  * with no language).
  */
-data class TrackChoice(val audioLanguage: String? = null, val subtitles: Boolean = false, val subtitleLanguage: String? = null) {
-    internal fun encode(): String = listOf(audioLanguage.orEmpty(), if (subtitles) "1" else "0", subtitleLanguage.orEmpty()).joinToString(FIELD.toString())
+data class TrackChoice(
+    val audioLanguage: String? = null,
+    val subtitles: Boolean = false,
+    val subtitleLanguage: String? = null,
+) {
+    internal fun encode(): String = listOf(
+        audioLanguage.orEmpty(),
+        if (subtitles) "1" else "0",
+        subtitleLanguage.orEmpty(),
+    ).joinToString(FIELD.toString())
 
     internal companion object {
         /** How many shows' choices are kept; the oldest go first. */

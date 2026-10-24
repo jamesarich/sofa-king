@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.playback
 
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class SpliceReaderTest {
     private fun hex(text: String) = ByteArray(text.length / 2) { text.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
@@ -21,18 +22,24 @@ class SpliceReaderTest {
 
     // Program 1's map on PID 0x1000; the CRCs are not checked.
     private val pat = psi(0, hex("00b00d0001c100000001f00000000000"))
+
     // H.264 video on 0x100 and SCTE-35 on 0x1f0.
     private val pmt = psi(0x1000, hex("02b0170001c10000e100f0001be100f00086e1f0f00000000000"))
 
     private fun pes(pts: Long): ByteArray {
-        val header = byteArrayOf(0, 0, 1, 0xE0.toByte(), 0, 0, 0x80.toByte(), 0x80.toByte(), 5,
-            (0x21 or ((pts shr 29).toInt() and 0x0E)).toByte(), (pts shr 22).toByte(), ((pts shr 14).toInt() or 1).toByte(),
-            (pts shr 7).toByte(), ((pts shl 1).toInt() or 1).toByte())
+        val header = byteArrayOf(
+            0, 0, 1, 0xE0.toByte(), 0, 0, 0x80.toByte(), 0x80.toByte(), 5,
+            (0x21 or ((pts shr 29).toInt() and 0x0E)).toByte(), (pts shr 22).toByte(),
+            ((pts shr 14).toInt() or 1).toByte(),
+            (pts shr 7).toByte(), ((pts shl 1).toInt() or 1).toByte(),
+        )
         return packet(0x100, true, header + ByteArray(170))
     }
 
     // Encoded with threefive: the spec's splice_insert sample (out, at 21514.559089 s, a 60.293567 s break) ...
-    private val out = psi(0x1f0, hex("fc302500000000000000fff014054800008f7feffe7369c02efe0052ccf50001000000009a4d54ae"))
+    private val out =
+        psi(0x1f0, hex("fc302500000000000000fff014054800008f7feffe7369c02efe0052ccf50001000000009a4d54ae"))
+
     // ... its return at 21574.852656 s, an immediate two-minute break, and a keepalive.
     private val back = psi(0x1f0, hex("fc302000000000000000fff00f054800008f7f4ffe73bc8d23000100000000b944d9bd"))
     private val immediate = psi(0x1f0, hex("fc302000000000000000fff00f05000000057ffffe00a4cb80000100000000cd931be4"))
@@ -61,9 +68,26 @@ class SpliceReaderTest {
     @Test
     fun `a time_signal counts when its segmentation descriptor starts or ends a placement opportunity`() {
         // The spec's samples: a 307 s provider placement opportunity start (0x34), and an end (0x35).
-        val start = psi(0x1f0, hex("fc3034000000000000fffff00506fe72bd0050001e021c435545494800008e7fcf0001a599b00808000000002ca0a18a3402009ac9d17e"))
-        val end = psi(0x1f0, hex("fc302f000000000000fffff00506fe746290a000190217435545494800008e7f9f0808000000002ca0a18a350200a9cc6758"))
-        assertEquals(listOf(Splice(true, 1_924_989_008, 307_000), Splice(false, 1_952_616_608, null)), read(pat, pmt, start, end).splices)
+        val start =
+            psi(
+                0x1f0,
+                hex(
+                    "fc3034000000000000fffff00506fe72bd0050001e021c435545494800008e7fcf0001a599b00808000000002ca0a18" +
+                        "a3402009ac9d17e",
+                ),
+            )
+        val end =
+            psi(
+                0x1f0,
+                hex(
+                    "fc302f000000000000fffff00506fe746290a000190217435545494800008e7f9f0808000000002ca0a18a350200a9c" +
+                        "c6758",
+                ),
+            )
+        assertEquals(
+            listOf(Splice(true, 1_924_989_008, 307_000), Splice(false, 1_952_616_608, null)),
+            read(pat, pmt, start, end).splices,
+        )
     }
 
     @Test

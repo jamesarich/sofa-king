@@ -1,8 +1,8 @@
 package dev.jamesrich.sofaking.ui.guide
 
 import dev.jamesrich.sofaking.data.Program
-import kotlin.test.assertEquals
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 

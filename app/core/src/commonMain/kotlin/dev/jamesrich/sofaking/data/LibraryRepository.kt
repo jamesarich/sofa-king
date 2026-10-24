@@ -10,13 +10,21 @@ import kotlin.time.Instant
 class LibraryRepository(private val api: SofaKingApi) {
     suspend fun home(): MediaHome = api.libraryHome().let { dto ->
         MediaHome(
-            shelves = dto.shelves.map { MediaShelf(it.id, it.title, it.items.map(::item), it.libraryId) }.filter { it.items.isNotEmpty() },
+            shelves = dto.shelves.map {
+                MediaShelf(it.id, it.title, it.items.map(::item), it.libraryId)
+            }.filter { it.items.isNotEmpty() },
             libraries = dto.libraries.map(::library),
         )
     }
 
-    suspend fun page(libraryId: String, sort: LibrarySort, unwatched: Boolean, cursor: String? = null, limit: Int = PAGE_SIZE, genre: String? = null): MediaPage =
-        page(api.libraryItems(libraryId, sort.wire, unwatched, cursor, limit, genre))
+    suspend fun page(
+        libraryId: String,
+        sort: LibrarySort,
+        unwatched: Boolean,
+        cursor: String? = null,
+        limit: Int = PAGE_SIZE,
+        genre: String? = null,
+    ): MediaPage = page(api.libraryItems(libraryId, sort.wire, unwatched, cursor, limit, genre))
 
     suspend fun search(query: String): List<MediaItem> = page(api.librarySearch(query)).items
 
@@ -35,7 +43,17 @@ class LibraryRepository(private val api: SofaKingApi) {
             videoCodec = dto.videoCodec,
             intro = segment(dto.segments, Wire.SegmentKind.INTRO),
             credits = segment(dto.segments, Wire.SegmentKind.CREDITS),
-            scrub = dto.scrub?.let { ScrubTiles(it.intervalMs, it.tileWidth, it.tileHeight, it.columns, it.rows, it.frames, it.sheets.mapNotNull(api::logoUrl)) },
+            scrub = dto.scrub?.let {
+                ScrubTiles(
+                    it.intervalMs,
+                    it.tileWidth,
+                    it.tileHeight,
+                    it.columns,
+                    it.rows,
+                    it.frames,
+                    it.sheets.mapNotNull(api::logoUrl),
+                )
+            },
             extras = dto.extras.map(::item),
             related = dto.related.map(::item),
         )
@@ -45,15 +63,31 @@ class LibraryRepository(private val api: SofaKingApi) {
     suspend fun subtitles(id: String, index: Int): Subtitles = parseWebVtt(api.librarySubtitles(id, index))
 
     /** Saves [positionMs] into [id]; the server marks it watched past 90% and clears a position under 5%. */
-    suspend fun savePosition(id: String, positionMs: Long, durationMs: Long?): MediaItem =
-        item(api.updatePlayState(id, UpdatePlayStateDto(positionMs = positionMs.coerceAtLeast(0), durationMs = durationMs)))
+    suspend fun savePosition(id: String, positionMs: Long, durationMs: Long?): MediaItem = item(
+        api.updatePlayState(
+            id,
+            UpdatePlayStateDto(positionMs = positionMs.coerceAtLeast(0), durationMs = durationMs),
+        ),
+    )
 
     /** Marks [id] watched or not; a show or season marks every episode in it. */
     suspend fun setWatched(id: String, watched: Boolean): MediaItem =
         item(api.updatePlayState(id, UpdatePlayStateDto(watched = watched)))
 
-    private fun page(dto: LibraryPageDto) =
-        MediaPage(dto.items.map(::item), dto.total, dto.next, dto.genres, dto.letters?.let { runs -> letterJumps(runs.map { it.letter to it.count }) })
+    private fun page(dto: LibraryPageDto) = MediaPage(
+        dto.items.map(::item),
+        dto.total,
+        dto.next,
+        dto.genres,
+        dto.letters?.let { runs ->
+            letterJumps(
+                runs.map {
+                    it.letter to
+                        it.count
+                },
+            )
+        },
+    )
 
     private fun library(dto: LibraryDto) = MediaLibrary(dto.id, dto.name, LibraryKind.fromWire(dto.kind), dto.items)
 
@@ -61,7 +95,8 @@ class LibraryRepository(private val api: SofaKingApi) {
     private fun segment(segments: List<MediaSegmentDto>, kind: String) =
         segments.firstOrNull { it.kind == kind && it.endMs > it.startMs }?.let { IntroSpan(it.startMs, it.endMs) }
 
-    private fun track(dto: MediaTrackDto) = MediaTrackInfo(dto.index, dto.codec, dto.language, dto.title, dto.channels, dto.default, dto.forced)
+    private fun track(dto: MediaTrackDto) =
+        MediaTrackInfo(dto.index, dto.codec, dto.language, dto.title, dto.channels, dto.default, dto.forced)
 
     private fun item(dto: LibraryItemDto) = MediaItem(
         id = dto.id,

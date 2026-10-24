@@ -2,7 +2,11 @@ package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.contract.LetterCount
 import java.time.LocalDate
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class LibraryNamesTest {
     @Test fun `movie names read with or without brackets and release tags`() {
@@ -31,14 +35,27 @@ class LibraryNamesTest {
     }
 
     @Test fun `episode titles drop the quality and release group Sonarr appends`() {
-        assertEquals("Island of the Gods", episodeName("Ancient Aliens (2010) - S22E03 - Island of the Gods [HULU WEBDL-1080p][AAC 2.0][h264]-RAWR").title)
+        assertEquals(
+            "Island of the Gods",
+            episodeName(
+                "Ancient Aliens (2010) - S22E03 - Island of the Gods [HULU WEBDL-1080p][AAC 2.0][h264]-RAWR",
+            ).title,
+        )
         assertEquals("Bugs Weekly", episodeName("The Eric Andre Show - S06E01 - Bugs Weekly WEBDL-1080p").title)
         assertEquals("Unexplained Structures", episodeName("Show - S01E04 - Unexplained Structures WEBDL-720p").title)
         assertEquals("Pilot", episodeName("Show - S01E01 - Pilot Bluray-1080p Proper-GROUP").title)
-        assertEquals("A No-Rough-Stuff-Type Deal", episodeName("Breaking Bad (2008) - S01E07 - A No-Rough-Stuff-Type Deal [Bluray-1080p][AC3 5.1][x264]-AiRTV").title)
+        assertEquals(
+            "A No-Rough-Stuff-Type Deal",
+            episodeName(
+                "Breaking Bad (2008) - S01E07 - A No-Rough-Stuff-Type Deal [Bluray-1080p][AC3 5.1][x264]-AiRTV",
+            ).title,
+        )
         assertEquals("Anti-Weed", episodeName("The Eric Andre Show - S06E07 - Anti-Weed WEBDL-1080p").title)
         assertEquals("Spider-Man", episodeName("Show - S01E01 - Spider-Man").title)
-        assertEquals(TitleYear("A Christmas Story", 1983), titleYear("A Christmas Story (1983) {imdb-tt0085334} [Bluray-1080p][AC3 1.0][x264]-CtrlHD"))
+        assertEquals(
+            TitleYear("A Christmas Story", 1983),
+            titleYear("A Christmas Story (1983) {imdb-tt0085334} [Bluray-1080p][AC3 1.0][x264]-CtrlHD"),
+        )
         assertEquals(TitleYear("Home movie", null), titleYear("Home movie [DVD]-GROUP"))
     }
 

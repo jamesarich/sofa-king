@@ -31,7 +31,11 @@ internal actual fun rememberAppLifecycleOwner(host: LifecycleOwner): LifecycleOw
         document.addEventListener("visibilitychange", onVisibilityChange)
         try {
             combine(host.lifecycle.currentStateFlow, visible, ::heldToVisibility).collectLatest { state ->
-                if (state.isAtLeast(Lifecycle.State.STARTED) && !page.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) delay(SETTLE)
+                if (state.isAtLeast(Lifecycle.State.STARTED) &&
+                    !page.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                ) {
+                    delay(SETTLE)
+                }
                 page.lifecycle.currentState = state
             }
         } finally {
@@ -55,7 +59,11 @@ internal actual fun ReleaseOnPageExit(sessions: PlaybackSessions) {
 }
 
 private class PageLifecycleOwner(initial: Lifecycle.State) : LifecycleOwner {
-    override val lifecycle = LifecycleRegistry(this).apply { if (initial != Lifecycle.State.DESTROYED) currentState = initial }
+    override val lifecycle = LifecycleRegistry(this).apply {
+        if (initial != Lifecycle.State.DESTROYED) {
+            currentState = initial
+        }
+    }
 }
 
 private fun heldToVisibility(state: Lifecycle.State, visible: Boolean): Lifecycle.State =
@@ -68,5 +76,8 @@ private fun pageVisible(): Boolean = js("document.visibilityState === 'visible'"
 
 /** The answer is not read: a session the server already let go answers 404 or 410, and the lease covers a miss. */
 private fun sendRelease(url: String, token: String) {
-    js("fetch(url, { method: 'DELETE', keepalive: true, headers: token ? { 'Authorization': 'Bearer ' + token } : {} }).catch(function () {});")
+    js(
+        "fetch(url, { method: 'DELETE', keepalive: true, headers: token ? { 'Authorization': 'Bearer ' + token } : " +
+            "{} }).catch(function () {});",
+    )
 }

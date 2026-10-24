@@ -11,7 +11,9 @@ enum class VideoZoom {
     FILL,
 
     /** The screen filled by stretching the picture to it. */
-    STRETCH;
+    STRETCH,
+
+    ;
 
     /** The zoom one press of the Zoom key or button moves to, back round to [FIT] after [STRETCH]. */
     fun next(): VideoZoom = entries[(ordinal + 1) % entries.size]

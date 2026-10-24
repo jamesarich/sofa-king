@@ -19,7 +19,8 @@ import io.ktor.server.routing.post
 
 /** The media libraries under the admin route: list, add, rename, remove and scan. */
 internal fun Route.libraryAdminRoutes(libraries: LibraryService?) {
-    fun loaded(): LibraryService = libraries ?: throw ApiFailure(404, "LIBRARIES_NOT_AVAILABLE", "Media libraries are not available on this server")
+    fun loaded(): LibraryService = libraries
+        ?: throw ApiFailure(404, "LIBRARIES_NOT_AVAILABLE", "Media libraries are not available on this server")
     get("/libraries") {
         val service = loaded()
         val counts = service.counts()
@@ -27,11 +28,19 @@ internal fun Route.libraryAdminRoutes(libraries: LibraryService?) {
     }
     get("/libraries/folders") {
         val service = loaded()
-        call.respond(LibraryFolders(service.roots.map { it.root.toString() }, service.folderChoices().map { it.toString() }))
+        call.respond(
+            LibraryFolders(
+                service.roots.map {
+                    it.root.toString()
+                },
+                service.folderChoices().map { it.toString() },
+            ),
+        )
     }
     post("/libraries") {
         val request = call.body<CreateLibrary>()
-        val kind = LibraryKind.of(request.kind) ?: throw ApiFailure(400, "INVALID_REQUEST", "kind is movies, shows or videos")
+        val kind =
+            LibraryKind.of(request.kind) ?: throw ApiFailure(400, "INVALID_REQUEST", "kind is movies, shows or videos")
         call.respond(HttpStatusCode.Created, loaded().create(request.name, kind, request.path).info(emptyMap()))
     }
     get("/libraries/{id}") {
@@ -50,8 +59,18 @@ internal fun Route.libraryAdminRoutes(libraries: LibraryService?) {
     }
     post("/libraries/{id}/scan") {
         val result = loaded().scan(call.parameters["id"]!!)
-        call.respond(LibraryScanInfo(result.files, result.added, result.updated, result.missing, result.removed, result.unavailable))
+        call.respond(
+            LibraryScanInfo(
+                result.files,
+                result.added,
+                result.updated,
+                result.missing,
+                result.removed,
+                result.unavailable,
+            ),
+        )
     }
 }
 
-internal fun LibraryRecord.info(items: Map<String, Int>) = LibraryInfo(id, name, kind.wire, path, createdAt, items, scannedAt, scanOk, scanNote)
+internal fun LibraryRecord.info(items: Map<String, Int>) =
+    LibraryInfo(id, name, kind.wire, path, createdAt, items, scannedAt, scanOk, scanNote)

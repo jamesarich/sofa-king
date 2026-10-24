@@ -41,20 +41,35 @@ class PlaybackSessionsTest {
 
         val http = FakeHttp(scope) { request ->
             if (request.headers["Authorization"] != "Bearer secret") return@FakeHttp apiError(401, "AUTH_REQUIRED")
-            val id = request.path.removePrefix("/api/v1/playback-sessions/").takeIf { request.path.startsWith("/api/v1/playback-sessions/") }
+            val id = request.path.removePrefix("/api/v1/playback-sessions/").takeIf {
+                request.path.startsWith("/api/v1/playback-sessions/")
+            }
             when {
                 request.method == "POST" && request.path == "/api/v1/playback-sessions" -> {
                     if (refuseOpens) return@FakeHttp apiError(503, "CAPACITY_EXHAUSTED")
                     val json = Json.parseToJsonElement(request.body).jsonObject
-                    val session = Session("s${nextId++}", json["channelId"]!!.jsonPrimitive.content, json["intent"]!!.jsonPrimitive.content)
+                    val session =
+                        Session(
+                            "s${nextId++}",
+                            json["channelId"]!!.jsonPrimitive.content,
+                            json["intent"]!!.jsonPrimitive.content,
+                        )
                     sessions[session.id] = session
                     delay(openDelayMs)
                     json(session.body(), status = 201)
                 }
+
                 id != null && id.endsWith("/ad-break") -> sessions[id.removeSuffix("/ad-break")]?.let {
-                    if (request.query == "aheadMs=12000") json("""{"inBreak":true,"remainingMs":42000}""") else json("{}")
+                    if (request.query == "aheadMs=12000") {
+                        json("""{"inBreak":true,"remainingMs":42000}""")
+                    } else {
+                        json("{}")
+                    }
                 } ?: apiError(410, "SESSION_EXPIRED")
-                id != null && request.method == "GET" -> sessions[id]?.let { json(it.body()) } ?: apiError(410, "SESSION_EXPIRED")
+
+                id != null && request.method == "GET" -> sessions[id]?.let { json(it.body()) }
+                    ?: apiError(410, "SESSION_EXPIRED")
+
                 id != null && request.method == "PATCH" -> sessions[id]?.let { session ->
                     val intent = Json.parseToJsonElement(request.body).jsonObject["intent"]?.jsonPrimitive?.content
                     if (intent == null && renewalDelayMs > 0) {
@@ -70,10 +85,12 @@ class PlaybackSessionsTest {
                     }
                     json(session.body())
                 } ?: apiError(410, "SESSION_EXPIRED")
+
                 id != null && request.method == "DELETE" -> {
                     sessions.remove(id)
                     respond("", HttpStatusCode.NoContent)
                 }
+
                 else -> apiError(404, "RESOURCE_NOT_FOUND")
             }
         }
@@ -84,7 +101,9 @@ class PlaybackSessionsTest {
 
         private fun Session.body() =
             """{"id":"$id","channelId":"$channelId","intent":"$intent","expiresAt":"2026-10-10T10:00:00Z",""" +
-                """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/sessions/$id/$epoch/root.m3u8","epoch":$epoch}}"""
+                """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/""" +
+                """sessions/""" +
+                """$id/$epoch/root.m3u8","epoch":$epoch}}"""
     }
 
     /** A configured [PlaybackSessions] renewing every 100 ms on the test's virtual clock, beside its [FakeServer]. */
@@ -92,7 +111,10 @@ class PlaybackSessionsTest {
 
     private suspend fun TestScope.fixture(): Fixture {
         val fake = FakeServer(this)
-        val sessions = PlaybackSessions(backgroundScope, renewInterval = 100.milliseconds, newIdempotencyKey = { "key-${fake.requests.size}" })
+        val sessions =
+            PlaybackSessions(backgroundScope, renewInterval = 100.milliseconds, newIdempotencyKey = {
+                "key-${fake.requests.size}"
+            })
         sessions.configure(fake.http.api())
         return Fixture(fake, sessions)
     }
@@ -218,7 +240,14 @@ class PlaybackSessionsTest {
 
         assertEquals("s2", second.sessionId)
         val relevant = fake.requests.filter { !it.startsWith("PATCH") }.map { it.substringBefore(" {") }
-        assertEquals(listOf("POST /api/v1/playback-sessions", "DELETE /api/v1/playback-sessions/s1", "POST /api/v1/playback-sessions"), relevant)
+        assertEquals(
+            listOf(
+                "POST /api/v1/playback-sessions",
+                "DELETE /api/v1/playback-sessions/s1",
+                "POST /api/v1/playback-sessions",
+            ),
+            relevant,
+        )
         assertEquals(setOf("s2"), fake.sessions.keys)
     }
 
@@ -346,7 +375,10 @@ class PlaybackSessionsTest {
     @Test
     fun `an open that outlasts its timeout fails as an IOException and not a cancellation`() = runTest {
         val fake = FakeServer(this)
-        val slow = PlaybackSessions(backgroundScope, renewInterval = 100.milliseconds, newIdempotencyKey = { "slow-key" }, openTimeout = 100.milliseconds)
+        val slow =
+            PlaybackSessions(backgroundScope, renewInterval = 100.milliseconds, newIdempotencyKey = {
+                "slow-key"
+            }, openTimeout = 100.milliseconds)
         slow.configure(fake.http.api())
         fake.openDelayMs = 400
 

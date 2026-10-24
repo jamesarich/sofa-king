@@ -9,7 +9,8 @@ enum class RecordingState(internal val wire: String?) {
     RECORDING(Wire.RecordingState.RECORDING),
     COMPLETED(Wire.RecordingState.COMPLETED),
     FAILED(Wire.RecordingState.FAILED),
-    OTHER(null);
+    OTHER(null),
+    ;
 
     internal companion object {
         fun fromWire(value: String) = entries.firstOrNull { it.wire == value } ?: OTHER
@@ -82,6 +83,8 @@ internal fun RecordingDto.toModel(): DvrRecording? {
         protected = protected,
         positionMs = positionMs,
         watched = watched,
-        breaks = breaks.filter { it.endMs > it.startMs }.sortedBy { it.startMs }.map { CommercialBreak(it.startMs, it.endMs) },
+        breaks = breaks.filter {
+            it.endMs > it.startMs
+        }.sortedBy { it.startMs }.map { CommercialBreak(it.startMs, it.endMs) },
     )
 }

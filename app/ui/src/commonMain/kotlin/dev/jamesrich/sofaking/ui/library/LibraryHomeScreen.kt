@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui.library
 
-import dev.jamesrich.sofaking.ui.theme.SofaChip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -36,10 +35,22 @@ import dev.jamesrich.sofaking.LibraryHomeState
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.data.MediaShelf
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.library_empty
+import dev.jamesrich.sofaking.resources.library_empty_hint
+import dev.jamesrich.sofaking.resources.library_library_chip
+import dev.jamesrich.sofaking.resources.library_load_failed
+import dev.jamesrich.sofaking.resources.library_loading
+import dev.jamesrich.sofaking.resources.library_search
+import dev.jamesrich.sofaking.resources.library_unavailable
+import dev.jamesrich.sofaking.resources.library_unavailable_hint
+import dev.jamesrich.sofaking.resources.loading
+import dev.jamesrich.sofaking.resources.unconfigured
+import dev.jamesrich.sofaking.resources.unconfigured_hint
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
+import dev.jamesrich.sofaking.ui.theme.SofaChip
 import org.jetbrains.compose.resources.stringResource
 
 /** What the library home's cards do. OK opens an item's page; the remote's Play key plays an item that plays. */
@@ -70,17 +81,30 @@ internal fun LibraryHomeScreen(
 ) {
     when (state) {
         LibraryHomeState.Loading -> MessageScreen(stringResource(Res.string.library_loading), loading = true)
-        LibraryHomeState.Unconfigured -> MessageScreen(stringResource(Res.string.unconfigured), hint = stringResource(Res.string.unconfigured_hint))
-        LibraryHomeState.Unavailable -> MessageScreen(stringResource(Res.string.library_unavailable), hint = stringResource(Res.string.library_unavailable_hint))
+
+        LibraryHomeState.Unconfigured -> MessageScreen(
+            stringResource(Res.string.unconfigured),
+            hint = stringResource(Res.string.unconfigured_hint),
+        )
+
+        LibraryHomeState.Unavailable -> MessageScreen(
+            stringResource(Res.string.library_unavailable),
+            hint = stringResource(Res.string.library_unavailable_hint),
+        )
+
         is LibraryHomeState.Failed -> MessageScreen(
             message = stringResource(Res.string.library_load_failed),
             detail = state.message,
             onRetry = actions.onRetry,
         )
+
         is LibraryHomeState.Ready -> {
             val home = state.home
             if (home.shelves.isEmpty() && home.libraries.isEmpty()) {
-                MessageScreen(stringResource(Res.string.library_empty), hint = stringResource(Res.string.library_empty_hint))
+                MessageScreen(
+                    stringResource(Res.string.library_empty),
+                    hint = stringResource(Res.string.library_empty_hint),
+                )
             } else {
                 Shelves(home.shelves, home.libraries, actions, returnedFrom, headerFocused, modifier)
             }
@@ -132,11 +156,23 @@ private fun Shelves(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item(key = SEARCH_FOCUS_KEY) {
-                    val focus = (if (returnedFrom == SEARCH_FOCUS_KEY) Modifier.focusRequester(returnFocus) else Modifier).focusRequester(searchFocus)
-                    SofaChip(selected = false, onClick = { actions.onSearch(false) }, label = stringResource(Res.string.library_search), modifier = focus)
+                    val focus = (
+                        if (returnedFrom == SEARCH_FOCUS_KEY) {
+                            Modifier.focusRequester(returnFocus)
+                        } else {
+                            Modifier
+                        }
+                        ).focusRequester(searchFocus)
+                    SofaChip(selected = false, onClick = {
+                        actions.onSearch(false)
+                    }, label = stringResource(Res.string.library_search), modifier = focus)
                 }
                 items(libraries, key = { it.id }) { library ->
-                    val focus = if (returnedFrom == libraryFocusKey(library.id)) Modifier.focusRequester(returnFocus) else Modifier
+                    val focus = if (returnedFrom == libraryFocusKey(library.id)) {
+                        Modifier.focusRequester(returnFocus)
+                    } else {
+                        Modifier
+                    }
                     SofaChip(
                         selected = false,
                         onClick = { actions.onOpenLibrary(library) },
@@ -147,13 +183,29 @@ private fun Shelves(
             }
         }
         items(shelves, key = { it.key }) { shelf ->
-            Shelf(shelf, actions, insets, focusItem = if (shelf.key == returnShelf) returnedFrom else null, focusRequester = returnFocus)
+            Shelf(
+                shelf,
+                actions,
+                insets,
+                focusItem = if (shelf.key == returnShelf) {
+                    returnedFrom
+                } else {
+                    null
+                },
+                focusRequester = returnFocus,
+            )
         }
     }
 }
 
 @Composable
-private fun Shelf(shelf: MediaShelf, actions: LibraryHomeActions, insets: PaddingValues, focusItem: String?, focusRequester: FocusRequester) {
+private fun Shelf(
+    shelf: MediaShelf,
+    actions: LibraryHomeActions,
+    insets: PaddingValues,
+    focusItem: String?,
+    focusRequester: FocusRequester,
+) {
     val style = cardStyleFor(shelf)
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionTitle(shelf.title, insets)

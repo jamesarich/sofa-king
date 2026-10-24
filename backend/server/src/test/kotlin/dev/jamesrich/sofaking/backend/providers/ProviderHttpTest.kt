@@ -1,10 +1,15 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
+import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPOutputStream
-import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ProviderHttpTest {
     private fun gzip(bytes: ByteArray): ByteArray =
@@ -27,11 +32,20 @@ class ProviderHttpTest {
             fixture.route("/start") { Canned(302, location = "/same") }
             fixture.route("/same") { Canned(302, location = "$elsewhere/cdn") }
             fixture.json("/cdn", """{"ok":true}""")
-            val headers = mapOf("Authorization" to "Bearer secret", "Cookie" to "s=1", "User-Agent" to "web", "csrf-token" to "c")
+            val headers = mapOf(
+                "Authorization" to "Bearer secret",
+                "Cookie" to "s=1",
+                "User-Agent" to "web",
+                "csrf-token" to "c",
+            )
             val http = ProviderHttp(ProviderFixture.httpClient(), UpstreamPolicy(allowLoopback = true))
             val answer = http.get("${fixture.base}/start", headers)
             assertEquals("$elsewhere/cdn", answer.url)
-            assertEquals("Bearer secret", fixture.lastHeaders.getValue("/same")["authorization"], "a same-origin hop keeps the token")
+            assertEquals(
+                "Bearer secret",
+                fixture.lastHeaders.getValue("/same")["authorization"],
+                "a same-origin hop keeps the token",
+            )
             val cdn = fixture.lastHeaders.getValue("/cdn")
             assertNull(cdn["authorization"])
             assertNull(cdn["cookie"])
@@ -50,6 +64,11 @@ class ProviderHttpTest {
     @Test fun `next data reads the page state and names the page when it has none`() {
         val page = """<html><script id="__NEXT_DATA__" type="application/json">{"props":{"a":1}}</script></html>"""
         assertEquals("1", nextData(page, "Test page")["props"]["a"].toString())
-        assertEquals("Test page has no __NEXT_DATA__", assertFailsWith<ProviderFailure> { nextData("<html></html>", "Test page") }.message)
+        assertEquals(
+            "Test page has no __NEXT_DATA__",
+            assertFailsWith<ProviderFailure> {
+                nextData("<html></html>", "Test page")
+            }.message,
+        )
     }
 }

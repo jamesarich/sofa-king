@@ -9,10 +9,23 @@ import kotlin.test.assertEquals
 import kotlin.time.Instant
 
 class RecordingListTest {
-    private fun recording(id: String, state: RecordingState, startsAt: String, season: Int? = null, episode: Int? = null, episodeTitle: String? = null) = DvrRecording(
-        id = id, channelId = "c1", channelName = "News 4", title = "Title", episodeTitle = episodeTitle, description = null,
-        season = season, episode = episode, imageUrl = null, startsAt = Instant.parse(startsAt), endsAt = Instant.parse(startsAt),
-        state = state, reason = null, bytes = 0, protected = false, positionMs = 0, watched = false, breaks = emptyList(),
+    private fun recording(
+        id: String,
+        state: RecordingState,
+        startsAt: String,
+        season: Int? = null,
+        episode: Int? = null,
+        episodeTitle: String? = null,
+    ) = DvrRecording(
+        id = id, channelId = "c1", channelName = "News 4", title = "Title", episodeTitle = episodeTitle,
+        description = null,
+        season = season, episode = episode, imageUrl = null,
+        startsAt = Instant.parse(
+            startsAt,
+        ),
+        endsAt = Instant.parse(startsAt),
+        state = state, reason = null, bytes = 0, protected = false, positionMs = 0, watched = false,
+        breaks = emptyList(),
     )
 
     @Test
@@ -27,7 +40,11 @@ class RecordingListTest {
             ),
         )
         assertEquals(
-            listOf(RecordingGroup.NOW to listOf("now"), RecordingGroup.RECORDED to listOf("failed", "old"), RecordingGroup.SCHEDULED to listOf("s1", "s2")),
+            listOf(
+                RecordingGroup.NOW to listOf("now"),
+                RecordingGroup.RECORDED to listOf("failed", "old"),
+                RecordingGroup.SCHEDULED to listOf("s1", "s2"),
+            ),
             groups.map { (group, list) -> group to list.map { it.id } },
         )
         assertEquals(emptyList(), recordingGroups(emptyList()))
@@ -40,7 +57,10 @@ class RecordingListTest {
             "S2 E5 · Pilot · News 4 · Sun Oct 18, 6:00 PM",
             recordingSubtitle(recording("r", RecordingState.COMPLETED, "2026-10-18T18:00:00Z", 2, 5, "Pilot"), time),
         )
-        assertEquals("News 4 · Sun Oct 18, 6:00 PM", recordingSubtitle(recording("r", RecordingState.COMPLETED, "2026-10-18T18:00:00Z"), time))
+        assertEquals(
+            "News 4 · Sun Oct 18, 6:00 PM",
+            recordingSubtitle(recording("r", RecordingState.COMPLETED, "2026-10-18T18:00:00Z"), time),
+        )
     }
 
     @Test

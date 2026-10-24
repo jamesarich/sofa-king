@@ -22,7 +22,10 @@ class CaptionSyncLoadControlTest {
         // These hit LoadControl's throwing defaults if forwarding is missing.
         control.onPrepared(player)
         assertEquals(DefaultLoadControl().getBackBufferDurationUs(player), control.getBackBufferDurationUs(player))
-        assertEquals(DefaultLoadControl().retainBackBufferFromKeyframe(player), control.retainBackBufferFromKeyframe(player))
+        assertEquals(
+            DefaultLoadControl().retainBackBufferFromKeyframe(player),
+            control.retainBackBufferFromKeyframe(player),
+        )
         assertNotNull(control.getAllocator(player))
         control.onStopped(player)
         control.onReleased(player)
@@ -61,7 +64,8 @@ class CaptionSyncLoadControlTest {
 
     /** What the player asks with [bufferedMs] downloaded ahead of a live item at normal speed. */
     private fun parameters(bufferedMs: Long, rebuffering: Boolean = false): LoadControl.Parameters {
-        val timeline = SinglePeriodTimeline(C.TIME_UNSET, false, true, false, null, MediaItem.Builder().setMediaId("live").build())
+        val timeline =
+            SinglePeriodTimeline(C.TIME_UNSET, false, true, false, null, MediaItem.Builder().setMediaId("live").build())
         return LoadControl.Parameters(
             PlayerId.UNSET,
             timeline,

@@ -2,8 +2,8 @@ package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
-import kotlin.test.assertEquals
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class HomeFocusTest {
     private val channel = Channel("1", 1.0, "One", null, listOf("Test"))

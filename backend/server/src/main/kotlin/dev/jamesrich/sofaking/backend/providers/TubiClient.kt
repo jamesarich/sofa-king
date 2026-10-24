@@ -3,9 +3,9 @@ package dev.jamesrich.sofaking.backend.providers
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
+import kotlinx.serialization.json.JsonElement
 import java.time.Duration
 import java.time.Instant
-import kotlinx.serialization.json.JsonElement
 
 /**
  * Tubi's live channels as tubitv.com/live serves them to a signed-out visitor: the page's `window.__data` state
@@ -25,13 +25,24 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val snapshot = snapshot()
-        return ParsedGuide(snapshot.channels.map { GuideChannel(it.id, it.name, it.logo) }, snapshot.programs.filter { it.channelId in wanted })
+        return ParsedGuide(
+            snapshot.channels.map { GuideChannel(it.id, it.name, it.logo) },
+            snapshot.programs.filter {
+                it.channelId in
+                    wanted
+            },
+        )
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
         if (snapshot().channels.none { it.id == channelId }) {
             context.invalidate(SNAPSHOT)
-            if (snapshot().channels.none { it.id == channelId }) throw ProviderFailure("Channel is no longer listed", transient = false)
+            if (snapshot().channels.none {
+                    it.id == channelId
+                }
+            ) {
+                throw ProviderFailure("Channel is no longer listed", transient = false)
+            }
         }
         val row = rows(listOf(channelId)).firstOrNull { it.str("content_id") == channelId }
             ?: throw ProviderFailure("Tubi no longer answers for the channel", transient = false)
@@ -43,10 +54,12 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun fetch(): Snapshot {
         val html = context.http.get(pageUrl, PAGE_HEADERS).require("Tubi live page").text()
-        val containers = jsonArrayAfter(html, LINEAR_KEY) ?: throw ProviderFailure("Tubi live page has no linear containers")
+        val containers =
+            jsonArrayAfter(html, LINEAR_KEY) ?: throw ProviderFailure("Tubi live page has no linear containers")
         val groups = HashMap<String, String>()
         val order = LinkedHashSet<String>()
-        for (container in containers.filterNot { it.str("container_slug") in CURATED } + containers.filter { it.str("container_slug") in CURATED }) {
+        for (container in containers.filterNot { it.str("container_slug") in CURATED } +
+            containers.filter { it.str("container_slug") in CURATED }) {
             val name = container.str("name")?.takeUnless { container.str("container_slug") in CURATED }
             for (id in container["contents"].array.mapNotNull { it.string }) {
                 order += id
@@ -60,7 +73,15 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
             val id = row.str("content_id") ?: continue
             val name = row.str("title") ?: continue
             if (playable(row) == null || channels.any { it.id == id }) continue
-            channels += ProviderChannel(id, name, null, httpOrNull(row["images"]["thumbnail"][0].string), groups[id], listOf("us"))
+            channels +=
+                ProviderChannel(
+                    id,
+                    name,
+                    null,
+                    httpOrNull(row["images"]["thumbnail"][0].string),
+                    groups[id],
+                    listOf("us"),
+                )
             for (program in row["programs"].array) {
                 val start = program.str("start_time")?.let(::instantOrNull) ?: continue
                 val end = program.str("end_time")?.let(::instantOrNull) ?: continue
@@ -73,13 +94,20 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
     }
 
     private suspend fun rows(ids: List<String>): List<JsonElement> = ids.chunked(BATCH).flatMap { batch ->
-        context.http.get("$epgUrl?content_id=${batch.joinToString(",")}", HEADERS).require("Tubi programming").json()["rows"].array
+        context.http.get(
+            "$epgUrl?content_id=${batch.joinToString(",")}",
+            HEADERS,
+        ).require("Tubi programming").json()["rows"].array
     }
 
     /** The clear HLS manifest, or null when the channel needs a login or a license server. */
     private fun playable(row: JsonElement): String? {
         if (row["needs_login"].truthy) return null
-        val resource = row["video_resources"].array.firstOrNull { it.str("type")?.startsWith("hls") == true && it["license_server"] == null } ?: return null
+        val resource =
+            row["video_resources"].array.firstOrNull {
+                it.str("type")?.startsWith("hls") == true && it["license_server"] == null
+            }
+                ?: return null
         return httpOrNull(resource["manifest"].str("url"))
     }
 
@@ -90,9 +118,22 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
         private const val SNAPSHOT = "snapshot"
         private const val BATCH = 50
         private val URL_LIFETIME = Duration.ofHours(1)
-        private val CURATED = setOf("favorite_linear_channels", "recommended_linear_channels", "featured_channels", "recently_added_channels")
-        private val STREAM_HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Origin" to "https://tubitv.com", "Referer" to "https://tubitv.com/")
+        private val CURATED =
+            setOf(
+                "favorite_linear_channels",
+                "recommended_linear_channels",
+                "featured_channels",
+                "recently_added_channels",
+            )
+        private val STREAM_HEADERS = mapOf(
+            "User-Agent" to BROWSER_USER_AGENT,
+            "Origin" to "https://tubitv.com",
+            "Referer" to "https://tubitv.com/",
+        )
         private val HEADERS = STREAM_HEADERS + ("Accept" to "application/json")
-        private val PAGE_HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Accept" to "text/html,application/xhtml+xml,*/*;q=0.8")
+        private val PAGE_HEADERS = mapOf(
+            "User-Agent" to BROWSER_USER_AGENT,
+            "Accept" to "text/html,application/xhtml+xml,*/*;q=0.8",
+        )
     }
 }

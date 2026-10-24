@@ -35,6 +35,18 @@ BLANK_BYTES = 4000
 EXPECTED = (('/api/v1/preferences/', 404), ('/media/sessions/', 410))
 
 
+RELEASE = {'name': 'Snapshot 0.0.0-dev.1', 'tag_name': 'snapshot', 'html_url': 'https://github.com/jamesarich/sofa-king/releases/tag/snapshot', 'assets': []}
+
+
+def answer_github(route):
+    """RELEASE for the update check's request to api.github.com, which the page may read from its own origin."""
+    cors = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*'}
+    if route.request.method == 'OPTIONS':
+        route.fulfill(status=204, headers=cors)
+    else:
+        route.fulfill(status=200, headers=cors, content_type='application/json', body=json.dumps(RELEASE))
+
+
 class Static(http.server.SimpleHTTPRequestHandler):
     """The web build's files, with WebAssembly's type, which streaming compilation insists on."""
     extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, '.wasm': 'application/wasm', '.mjs': 'text/javascript'}
@@ -78,6 +90,9 @@ def main():
             if response.status >= 400 and not expected:
                 errors.append(f'{response.request.method} {response.url} answered {response.status}')
         page.on('response', answered)
+        # The update check asks GitHub for the snapshot release. The fuzz answers it with one no newer than any build,
+        # so the run neither reaches the live API nor fails when a shared runner hits its rate limit.
+        page.route('https://api.github.com/**', answer_github)
         # Paired as a build before DataStore kept its settings: the app moves them over on its first read.
         settings = {'backend_url': {'t': 's', 'v': base}, 'api_token': {'t': 's', 'v': TOKEN}}
         page.add_init_script(f'localStorage.getItem("sofaking.preferences") || localStorage.setItem("sofaking.settings", {json.dumps(json.dumps(settings))})')

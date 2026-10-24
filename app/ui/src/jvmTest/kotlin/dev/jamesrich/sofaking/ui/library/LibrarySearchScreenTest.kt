@@ -23,27 +23,30 @@ class LibrarySearchScreenTest {
     private val loader = SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo)
 
     @Test
-    fun `clearing the query mid-search takes the loader down`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
-        val queries = mutableListOf<String>()
-        val actions = LibrarySearchActions(
-            search = { queries += it; awaitCancellation() },
-            onOpenItem = {},
-            onPlayItem = {},
-        )
-        setContent {
-            SofaKingTheme {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    LibrarySearchScreen(actions, voice = false, returnedFrom = null, initialQuery = "star")
+    fun `clearing the query mid-search takes the loader down`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            val queries = mutableListOf<String>()
+            val actions = LibrarySearchActions(
+                search = {
+                    queries += it
+                    awaitCancellation()
+                },
+                onOpenItem = {},
+                onPlayItem = {},
+            )
+            setContent {
+                SofaKingTheme {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        LibrarySearchScreen(actions, voice = false, returnedFrom = null, initialQuery = "star")
+                    }
                 }
             }
+            waitUntil { queries.isNotEmpty() }
+            assertEquals(listOf("star"), queries)
+            onAllNodes(loader, useUnmergedTree = true).assertCountEquals(1)
+
+            onNode(hasSetTextAction()).performTextClearance()
+            waitForIdle()
+            onAllNodes(loader, useUnmergedTree = true).assertCountEquals(0)
         }
-        waitUntil { queries.isNotEmpty() }
-        assertEquals(listOf("star"), queries)
-        onAllNodes(loader, useUnmergedTree = true).assertCountEquals(1)
-
-        onNode(hasSetTextAction()).performTextClearance()
-        waitForIdle()
-        onAllNodes(loader, useUnmergedTree = true).assertCountEquals(0)
-    }
-
 }

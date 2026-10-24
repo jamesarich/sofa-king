@@ -3,19 +3,15 @@ package dev.jamesrich.sofaking.ui.guide
 import androidx.compose.runtime.Immutable
 import dev.jamesrich.sofaking.data.GuideWindow
 import dev.jamesrich.sofaking.data.Program
-import kotlin.time.Instant
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.time.Instant
 
 /** A span of one guide row, in whole minutes from the window start. [program] is null for a gap. */
 @Immutable
-internal data class GuideCell(
-    val program: Program?,
-    val startMinute: Long,
-    val endMinute: Long,
-) {
+internal data class GuideCell(val program: Program?, val startMinute: Long, val endMinute: Long) {
     val minutes: Long get() = endMinute - startMinute
 
     /** True when [minute] (null for "outside the window") falls inside this cell. */
@@ -41,7 +37,6 @@ internal object GuideTimeline {
     /** Whole minutes from [windowStart] to [instant], clamped to 0..[WINDOW_MINUTES]. */
     fun offsetMinutes(windowStart: Instant, instant: Instant): Long =
         (instant - windowStart).inWholeMinutes.coerceIn(0L, WINDOW_MINUTES)
-
 
     /** Index of the cell covering [minute], or -1 when none does. */
     fun cellIndexAt(cells: List<GuideCell>, minute: Long): Int =

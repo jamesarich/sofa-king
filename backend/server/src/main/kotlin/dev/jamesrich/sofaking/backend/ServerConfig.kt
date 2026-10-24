@@ -112,7 +112,7 @@ data class ServerConfig(
     val recordingsKeepDays: Int = 0,
     /** `SOFA_LEARNED_BREAKS`: what live sessions do with breaks the server learns from the stream itself. */
     val learnedBreaks: LearnedBreaks = LearnedBreaks.SHADOW,
-    /** `SOFA_AD_LISTENERS`: how many channels the ad listener plays at once while nothing is playing; 0, the default, turns it off. */
+    /** `SOFA_AD_LISTENERS`: how many channels the ad listener plays at once while nothing is playing, and at most two while anyone watches; 0 turns it off. */
     val adListeners: Int = 0,
     /** `SOFA_COMSKIP`: the Comskip executable that finds commercial breaks in recordings; null when set to `none`. */
     val comskip: String? = "comskip",

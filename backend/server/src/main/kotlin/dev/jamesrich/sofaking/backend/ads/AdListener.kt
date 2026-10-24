@@ -49,8 +49,8 @@ private val log = LoggerFactory.getLogger(AdListener::class.java)
  * (see [pick]): channels watched lately that markers never covered come first, since that is where learned breaks pay
  * off, then channels watched lately with markers, whose breaks teach the library the ads the viewers see, then
  * channels never heard, then the least recently heard. Listeners share the household's connection and the
- * providers' per-device limits with the viewers, so they only play while nobody watches anything and stop as soon as
- * someone starts; [slots] is 0, off, unless `SOFA_AD_LISTENERS` sets it.
+ * providers' per-device limits with the viewers, so while anyone watches at most [WATCHING] play, never on a watched
+ * channel, and the rest stop as soon as someone starts; [slots] is 0, off, unless `SOFA_AD_LISTENERS` sets it.
  *
  * A listener reads the lowest variant's media playlist (or its audio rendition) as a player would, through its own
  * [AdClock] in shadow, and hands its segments' audio to an [AudioFollower]: marked breaks are learned, and matches and
@@ -98,8 +98,9 @@ class AdListener(
     fun listening(): Set<String> = playing.keys.toSet()
 
     private suspend fun reconcile(scope: CoroutineScope) {
-        playing.entries.removeIf { !it.value.isActive }
         val watching = sessions.watching()
+        playing.filterKeys { it in watching }.values.forEach { it.cancel() }
+        playing.entries.removeIf { !it.value.isActive }
         val wanted = wanted(mode(), watching, slots())
         playing.entries.drop(wanted).forEach { it.value.cancel() }
         val free = wanted - playing.count { it.value.isActive }
@@ -130,8 +131,8 @@ class AdListener(
             val media = mediaPlaylist(stream) ?: return
             var last = Long.MIN_VALUE
             while (clock.instant().isBefore(until)) {
-                // Someone started watching: the turn ends now rather than at the next look.
-                if (sessions.watching().isNotEmpty()) return
+                // Someone started watching: a turn over the cap ends now rather than at the next look.
+                if (!keeps(channel)) return
                 val (text, base) = fetchText(stream, media) ?: return
                 if (text.contains("#EXT-X-KEY:METHOD=AES") || text.contains("#EXT-X-MAP:")) {
                     log.info("ad listener skips channel={} provider={}: encrypted or fMP4 segments", channel, offering.providerId)
@@ -173,6 +174,14 @@ class AdListener(
                 }
             }
         }
+    }
+
+    /** Whether [channel]'s turn goes on: nobody watches it and it is among the first [wanted] turns, which [reconcile] keeps. */
+    private suspend fun keeps(channel: String): Boolean {
+        val watching = sessions.watching()
+        if (channel in watching) return false
+        val kept = playing.entries.filter { it.value.isActive }.take(wanted(mode(), watching, slots())).map { it.key }
+        return !playing.containsKey(channel) || channel in kept
     }
 
     private class Refused(val status: Int) : Exception("upstream answered $status")
@@ -231,11 +240,19 @@ class AdListener(
             return base.resolve(rendition ?: variant.second).toString()
         }
 
+        /** How many channels to listen to at most while anyone watches. */
+        const val WATCHING = 2
+
         /**
-         * How many channels to listen to: none while anyone is [watching], since listening shares the household's
-         * connection and the providers' per-device limits with the viewers, or with learned breaks [LearnedBreaks.OFF].
+         * How many channels to listen to: at most [WATCHING] while anyone is [watching], since listening shares the
+         * household's connection and the providers' per-device limits with the viewers, and none with learned breaks
+         * [LearnedBreaks.OFF].
          */
-        fun wanted(mode: LearnedBreaks, watching: Set<String>, slots: Int): Int = if (mode == LearnedBreaks.OFF || watching.isNotEmpty()) 0 else slots
+        fun wanted(mode: LearnedBreaks, watching: Set<String>, slots: Int): Int = when {
+            mode == LearnedBreaks.OFF -> 0
+            watching.isNotEmpty() -> minOf(slots, WATCHING)
+            else -> slots
+        }
 
         /**
          * [lineup]'s channels in the order to listen to them, none of [busy]: watched within [RECENT] and never seen

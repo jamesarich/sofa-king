@@ -7,10 +7,10 @@ import dev.jamesrich.sofaking.contract.Capabilities
 import dev.jamesrich.sofaking.contract.Catalog
 import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.contract.ChannelGuide
+import dev.jamesrich.sofaking.contract.ClientProfile
 import dev.jamesrich.sofaking.contract.CreateRecordingRule
 import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.contract.GuideWindow
-import dev.jamesrich.sofaking.contract.ClientProfile
 import dev.jamesrich.sofaking.contract.Library
 import dev.jamesrich.sofaking.contract.LibraryHome
 import dev.jamesrich.sofaking.contract.LibraryItem
@@ -18,14 +18,11 @@ import dev.jamesrich.sofaking.contract.LibraryItemDetail
 import dev.jamesrich.sofaking.contract.LibraryPage
 import dev.jamesrich.sofaking.contract.MediaSegment
 import dev.jamesrich.sofaking.contract.MediaTrack
-import dev.jamesrich.sofaking.contract.OpenVodPlayback
-import dev.jamesrich.sofaking.contract.PlayState
-import dev.jamesrich.sofaking.contract.UpdatePlayState
-import dev.jamesrich.sofaking.contract.UpdateVodPlayback
-import dev.jamesrich.sofaking.contract.VodSession
 import dev.jamesrich.sofaking.contract.OpenPlayback
+import dev.jamesrich.sofaking.contract.OpenVodPlayback
 import dev.jamesrich.sofaking.contract.PairingClaim
 import dev.jamesrich.sofaking.contract.PairingResult
+import dev.jamesrich.sofaking.contract.PlayState
 import dev.jamesrich.sofaking.contract.PlaybackDescriptor
 import dev.jamesrich.sofaking.contract.PlaybackSession
 import dev.jamesrich.sofaking.contract.Program
@@ -34,10 +31,13 @@ import dev.jamesrich.sofaking.contract.RecordingList
 import dev.jamesrich.sofaking.contract.RecordingRule
 import dev.jamesrich.sofaking.contract.RecordingRuleList
 import dev.jamesrich.sofaking.contract.ScheduleRecording
+import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.UpdatePlayback
 import dev.jamesrich.sofaking.contract.UpdateRecording
 import dev.jamesrich.sofaking.contract.UpdateRecordingRule
+import dev.jamesrich.sofaking.contract.UpdateVodPlayback
 import dev.jamesrich.sofaking.contract.ViewerPreferences
+import dev.jamesrich.sofaking.contract.VodSession
 import kotlinx.serialization.json.Json
 
 /** Reads the server's `/api/v1` resources; fields the app does not know are ignored. */

@@ -8,9 +8,9 @@ import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.engine.connector
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
-import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
+import java.time.Clock
 
 fun main(): Unit = runBlocking<Unit> {
     val log = LoggerFactory.getLogger("dev.jamesrich.sofaking.backend.Main")
@@ -38,14 +38,25 @@ fun main(): Unit = runBlocking<Unit> {
     }
     fun close() = closing.value
     // Ktor stops with its defaults, a 1 s grace period and a 5 s timeout.
-    val server = embeddedServer(Netty, configure = { ports.forEach { p -> connector { host = config.host; port = p } } }) {
-        backendModule(store, clock, runtime, config.apiToken, config.adminToken, config.outputs, config.hdhr, plexStatus, config)
-        // Ktor's own shutdown hook stops the server, which raises this before the hook returns and the JVM halts.
-        monitor.subscribe(ApplicationStopped) {
-            log.info("shutdown: server stopped")
-            close()
+    val server =
+        embeddedServer(Netty, configure = {
+            ports.forEach { p ->
+                connector {
+                    host = config.host
+                    port = p
+                }
+            }
+        }) {
+            backendModule(
+                store, clock, runtime, config.apiToken, config.adminToken, config.outputs, config.hdhr, plexStatus,
+                config,
+            )
+            // Ktor's own shutdown hook stops the server, which raises this before the hook returns and the JVM halts.
+            monitor.subscribe(ApplicationStopped) {
+                log.info("shutdown: server stopped")
+                close()
+            }
         }
-    }
     // JmDNS probes for its names before it answers, so it starts beside the server instead of delaying it.
     if (mdns != null) Thread.ofPlatform().daemon().name("mdns-start").start { mdns.start() }
     try {

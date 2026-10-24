@@ -36,7 +36,12 @@ class UpdateCheckTest {
     @Test
     fun `a release titled without a version reads as its tag`() = runTest {
         val untitled = release.replace("Snapshot 0.4.0-dev.140+abc1234", "Snapshot")
-        val latest = UpdateChecker(FakeHttp(this) { respond(untitled, HttpStatusCode.OK) }.client, "${FAKE_BASE}release").latest()!!
+        val latest = UpdateChecker(
+            FakeHttp(this) {
+                respond(untitled, HttpStatusCode.OK)
+            }.client,
+            "${FAKE_BASE}release",
+        ).latest()!!
         assertEquals("snapshot", latest.version)
         assertNull(latest.run)
     }
@@ -51,8 +56,22 @@ class UpdateCheckTest {
 
     @Test
     fun `a missing release or a body that is not one reads as null`() = runTest {
-        assertNull(UpdateChecker(FakeHttp(this) { respond("{}", HttpStatusCode.NotFound) }.client, "${FAKE_BASE}r").latest())
-        assertNull(UpdateChecker(FakeHttp(this) { respond("<html>", HttpStatusCode.OK) }.client, "${FAKE_BASE}r").latest())
+        assertNull(
+            UpdateChecker(
+                FakeHttp(this) {
+                    respond("{}", HttpStatusCode.NotFound)
+                }.client,
+                "${FAKE_BASE}r",
+            ).latest(),
+        )
+        assertNull(
+            UpdateChecker(
+                FakeHttp(this) {
+                    respond("<html>", HttpStatusCode.OK)
+                }.client,
+                "${FAKE_BASE}r",
+            ).latest(),
+        )
     }
 
     @Test
@@ -113,7 +132,12 @@ class UpdateCheckTest {
     @Test
     fun `an update carries the notes of the builds newer than the running one`() = runTest {
         val body = release.replace("\"extra\":1", "\"extra\":1,\"body\":" + Json.encodeToString(notes))
-        val latest = UpdateChecker(FakeHttp(this) { respond(body, HttpStatusCode.OK) }.client, "${FAKE_BASE}release").latest()!!
+        val latest = UpdateChecker(
+            FakeHttp(this) {
+                respond(body, HttpStatusCode.OK)
+            }.client,
+            "${FAKE_BASE}release",
+        ).latest()!!
         assertEquals(4, latest.notes.size)
         val behindOne = assertIs<UpdateState.Available>(UpdateChecker.compare("0.4.0-dev.139+abc", latest))
         assertEquals(listOf(140), behindOne.changes.map { it.run }.distinct())

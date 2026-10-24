@@ -1,9 +1,13 @@
 package dev.jamesrich.sofaking.ui
 
 import android.app.Activity
+import android.app.UiModeManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.provider.Settings
 import android.speech.RecognizerIntent
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -16,20 +20,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.KeyEvent
-import androidx.lifecycle.LifecycleOwner
-import dev.jamesrich.sofaking.data.PlaybackSessions
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.content.getSystemService
-import android.app.UiModeManager
-import android.content.pm.PackageManager
-import android.content.res.Configuration
-import android.provider.Settings
-import dev.jamesrich.sofaking.ui.player.LivePlayer
-import dev.jamesrich.sofaking.ui.player.MatchExoDisplayFrameRate
+import androidx.lifecycle.LifecycleOwner
+import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PublishedBuild
 import dev.jamesrich.sofaking.data.UpdateInstaller
 import dev.jamesrich.sofaking.data.appUpdateInstaller
+import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.player.MatchExoDisplayFrameRate
 
 @Composable
 internal actual fun rememberIsTelevision(): Boolean {
@@ -42,7 +42,9 @@ fun Context.isTelevision(): Boolean =
     getSystemService<UiModeManager>()?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
         packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
 
-/** The system's "Use 24-hour format" setting; read once, as the zone is, so the guide does not reformat under the user. */
+/**
+ * The system's "Use 24-hour format" setting; read once, as the zone is, so the guide does not reformat under the user.
+ */
 @Composable
 internal actual fun rememberSystem24HourClock(): Boolean {
     val context = LocalContext.current
@@ -77,7 +79,12 @@ internal actual fun rememberVoiceSearch(prompt: String, onResult: (String?) -> U
     val context = LocalContext.current
     val currentOnResult by rememberUpdatedState(onResult)
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        currentOnResult(voiceQuery(result.resultCode == Activity.RESULT_OK, result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)))
+        currentOnResult(
+            voiceQuery(
+                result.resultCode == Activity.RESULT_OK,
+                result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS),
+            ),
+        )
     }
     return {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
@@ -130,7 +137,8 @@ internal actual val supportsCaptionSync: Boolean = true
 internal actual val pageServerUrl: String? = null
 
 @Composable
-internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = MatchExoDisplayFrameRate(player, enabled)
+internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) =
+    MatchExoDisplayFrameRate(player, enabled)
 
 internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = latest.apkUrl ?: latest.pageUrl
 

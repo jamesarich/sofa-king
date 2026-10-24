@@ -1,71 +1,29 @@
 package dev.jamesrich.sofaking.ui.player
 
-import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.layout.ContentScale
-import org.jetbrains.compose.resources.StringResource
-import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import coil3.compose.AsyncImage
-import dev.jamesrich.sofaking.resources.*
-import dev.jamesrich.sofaking.data.ScrubTiles
-import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.Lineup
-import dev.jamesrich.sofaking.ui.ChannelLogo
-import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
-import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
-import dev.jamesrich.sofaking.ui.PopIn
-import dev.jamesrich.sofaking.ui.PopOut
-import dev.jamesrich.sofaking.ui.RiseIn
-import dev.jamesrich.sofaking.ui.SinkOut
-import dev.jamesrich.sofaking.ui.ProgramBadges
-import dev.jamesrich.sofaking.ui.SofaLoader
-import dev.jamesrich.sofaking.ui.episodeLine
-import dev.jamesrich.sofaking.ui.label
-import dev.jamesrich.sofaking.ui.noListingText
-import dev.jamesrich.sofaking.ui.oneDecimal
-import dev.jamesrich.sofaking.ui.rememberTimeFormatter
-import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
-import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
-import kotlin.time.Instant
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.ui.semantics.stateDescription
-import dev.jamesrich.sofaking.ui.screenPadding
-import androidx.compose.foundation.focusable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Info
@@ -77,26 +35,122 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.Role
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import dev.jamesrich.sofaking.data.PlaybackStream
-import dev.jamesrich.sofaking.data.SofaKingException
-import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
-import dev.jamesrich.sofaking.ui.theme.tvFocus
-import androidx.compose.material3.ripple
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.ScrubTiles
+import dev.jamesrich.sofaking.data.SofaKingException
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.cant_play
+import dev.jamesrich.sofaking.resources.cant_play_retry
+import dev.jamesrich.sofaking.resources.cant_reach_stream
+import dev.jamesrich.sofaking.resources.caption_timing_value
+import dev.jamesrich.sofaking.resources.caption_timing_value_later
+import dev.jamesrich.sofaking.resources.caption_timing_value_none
+import dev.jamesrich.sofaking.resources.captions_indicator_timing
+import dev.jamesrich.sofaking.resources.captions_indicator_timing_description
+import dev.jamesrich.sofaking.resources.captions_indicator_timing_late
+import dev.jamesrich.sofaking.resources.captions_indicator_timing_late_description
+import dev.jamesrich.sofaking.resources.captions_off
+import dev.jamesrich.sofaking.resources.captions_on
+import dev.jamesrich.sofaking.resources.captions_timing_adjust
+import dev.jamesrich.sofaking.resources.captions_timing_adjust_description
+import dev.jamesrich.sofaking.resources.captions_timing_as_broadcast
+import dev.jamesrich.sofaking.resources.captions_timing_earlier
+import dev.jamesrich.sofaking.resources.captions_timing_later
+import dev.jamesrich.sofaking.resources.captions_unavailable
+import dev.jamesrich.sofaking.resources.key_legend
+import dev.jamesrich.sofaking.resources.no_channel_number
+import dev.jamesrich.sofaking.resources.no_working_source
+import dev.jamesrich.sofaking.resources.no_working_source_hint
+import dev.jamesrich.sofaking.resources.player_control_captions
+import dev.jamesrich.sofaking.resources.player_control_exit_full_screen
+import dev.jamesrich.sofaking.resources.player_control_full_screen
+import dev.jamesrich.sofaking.resources.player_control_pause
+import dev.jamesrich.sofaking.resources.player_control_play
+import dev.jamesrich.sofaking.resources.player_control_retry
+import dev.jamesrich.sofaking.resources.player_control_stream
+import dev.jamesrich.sofaking.resources.player_paused
+import dev.jamesrich.sofaking.resources.player_paused_resumes_live
+import dev.jamesrich.sofaking.resources.player_paused_resumes_live_after
+import dev.jamesrich.sofaking.resources.player_retry_in
+import dev.jamesrich.sofaking.resources.player_retry_now
+import dev.jamesrich.sofaking.resources.settings
+import dev.jamesrich.sofaking.resources.stream_card_audio
+import dev.jamesrich.sofaking.resources.stream_card_audio_codec
+import dev.jamesrich.sofaking.resources.stream_card_buffered
+import dev.jamesrich.sofaking.resources.stream_card_fps
+import dev.jamesrich.sofaking.resources.stream_card_mbps
+import dev.jamesrich.sofaking.resources.stream_card_seconds
+import dev.jamesrich.sofaking.resources.stream_card_session
+import dev.jamesrich.sofaking.resources.stream_card_size
+import dev.jamesrich.sofaking.resources.stream_card_source
+import dev.jamesrich.sofaking.resources.stream_card_title
+import dev.jamesrich.sofaking.resources.stream_card_unknown
+import dev.jamesrich.sofaking.resources.stream_card_video
+import dev.jamesrich.sofaking.resources.stream_refused
+import dev.jamesrich.sofaking.resources.stream_unsupported
+import dev.jamesrich.sofaking.resources.up_next
+import dev.jamesrich.sofaking.resources.vod_cant_play
+import dev.jamesrich.sofaking.resources.vod_cant_play_retry
+import dev.jamesrich.sofaking.resources.vod_seek_badge
+import dev.jamesrich.sofaking.resources.vod_seek_seconds
+import dev.jamesrich.sofaking.ui.ChannelLogo
+import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
+import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
+import dev.jamesrich.sofaking.ui.PopIn
+import dev.jamesrich.sofaking.ui.PopOut
+import dev.jamesrich.sofaking.ui.ProgramBadges
+import dev.jamesrich.sofaking.ui.RiseIn
+import dev.jamesrich.sofaking.ui.SinkOut
+import dev.jamesrich.sofaking.ui.SofaLoader
+import dev.jamesrich.sofaking.ui.episodeLine
 import dev.jamesrich.sofaking.ui.formatPlayTime
+import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.noListingText
+import dev.jamesrich.sofaking.ui.oneDecimal
+import dev.jamesrich.sofaking.ui.rememberTimeFormatter
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
+import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
+import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
+import dev.jamesrich.sofaking.ui.theme.tvFocus
+import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
+import kotlin.time.Instant
 
 internal val OverlayShape = RoundedCornerShape(8.dp)
 
@@ -135,7 +189,11 @@ internal fun CaptionToastPill(outcome: CaptionToggleOutcome, timingMs: Int?) {
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(stringResource(outcome.labelRes()), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+        Text(
+            stringResource(outcome.labelRes()),
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
         if (timingMs != null) {
             val timing = captionTimingShort(timingMs)
             val description = stringResource(Res.string.captions_timing_adjust_description, timing)
@@ -149,7 +207,9 @@ internal fun CaptionToastPill(outcome: CaptionToggleOutcome, timingMs: Int?) {
     }
 }
 
-/** A short status over the video, announced to screen readers; stack several in a Column. [busy] leads with the loader. */
+/**
+ * A short status over the video, announced to screen readers; stack several in a Column. [busy] leads with the loader.
+ */
 @Composable
 internal fun StatusPill(text: String, style: TextStyle = MaterialTheme.typography.titleMedium, busy: Boolean = false) {
     Row(
@@ -165,7 +225,9 @@ internal fun StatusPill(text: String, style: TextStyle = MaterialTheme.typograph
     }
 }
 
-/** The digits being typed, or the miss notice for them, top right; keyed on presence so each digit updates it in place. */
+/**
+ * The digits being typed, or the miss notice for them, top right; keyed on presence so each digit updates it in place.
+ */
 @Composable
 internal fun BoxScope.ChannelNumberBadge(numbers: ChannelNumberInput) {
     val miss = numbers.miss
@@ -219,7 +281,10 @@ internal fun failureCode(e: Exception): String = (e as? SofaKingException)?.code
 
 private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 
-/** What the card says under the headline: a channel with no working source gets its own line, and an item has no reconnect. */
+/**
+ * What the card says under the headline: a channel with no working source gets its own
+ * line, and an item has no reconnect.
+ */
 internal fun failureHintRes(code: String, live: Boolean = true): StringResource = when {
     !live -> Res.string.vod_cant_play_retry
     SOURCE_UNAVAILABLE in code -> Res.string.no_working_source_hint
@@ -241,11 +306,23 @@ internal fun BoxScope.FailureCard(code: String, live: Boolean = true, retryInSec
             .semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(stringResource(failureReasonRes(code, live)), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
-        Text(stringResource(failureHintRes(code, live)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(
+            stringResource(failureReasonRes(code, live)),
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            stringResource(failureHintRes(code, live)),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
         if (retryIn != null) {
             Text(
-                if (retryIn > 0) stringResource(Res.string.player_retry_in, retryIn) else stringResource(Res.string.player_retry_now),
+                if (retryIn > 0) {
+                    stringResource(Res.string.player_retry_in, retryIn)
+                } else {
+                    stringResource(Res.string.player_retry_now)
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -259,13 +336,22 @@ internal fun BoxScope.FailureCard(code: String, live: Boolean = true, retryInSec
 internal fun PausePill(status: PauseStatus?) {
     val text = when {
         status == null -> stringResource(Res.string.player_paused)
+
         status.resumesLive -> stringResource(Res.string.player_paused_resumes_live, status.behindSeconds)
-        else -> stringResource(Res.string.player_paused_resumes_live_after, status.behindSeconds, (LIVE_RESUME_AFTER_MS / 1_000L).toInt())
+
+        else -> stringResource(
+            Res.string.player_paused_resumes_live_after,
+            status.behindSeconds,
+            (LIVE_RESUME_AFTER_MS / 1_000L).toInt(),
+        )
     }
     StatusPill(text)
 }
 
-/** Thin primary-colored bar; [fraction] is 0..1. [color] is the filled part, for rows whose background is already primary. */
+/**
+ * Thin primary-colored bar; [fraction] is 0..1. [color] is the filled part, for rows whose
+ * background is already primary.
+ */
 @Composable
 internal fun ProgressBar(fraction: Float, color: Color = MaterialTheme.colorScheme.primary) {
     LinearProgressIndicator(
@@ -282,7 +368,12 @@ internal fun ProgressBar(fraction: Float, color: Color = MaterialTheme.colorSche
 /** The one-line key legend: shown on the first few info bars after install and on the stream card. */
 @Composable
 internal fun KeyLegend(modifier: Modifier = Modifier) {
-    Text(stringResource(Res.string.key_legend), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = modifier)
+    Text(
+        stringResource(Res.string.key_legend),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier,
+    )
 }
 
 /** The info bar; the caller places it at the bottom. [showKeyLegend] adds the key legend under the program. */
@@ -324,13 +415,31 @@ internal fun InfoOverlay(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (scope != null) Text(scope, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            if (scope != null) {
+                Text(
+                    scope,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
             if (captionsOn && captionAdvanceMs != null && captionAdvanceMs != 0) {
                 val advance = CaptionPolicy.advanceLabel(captionAdvanceMs)
                 val late = CaptionPolicy.timingDirection(captionAdvanceMs) == CaptionTiming.LATER
-                val advanceDescription = stringResource(if (late) Res.string.captions_indicator_timing_late_description else Res.string.captions_indicator_timing_description, advance)
+                val advanceDescription =
+                    stringResource(
+                        if (late) {
+                            Res.string.captions_indicator_timing_late_description
+                        } else {
+                            Res.string.captions_indicator_timing_description
+                        },
+                        advance,
+                    )
                 Text(
-                    stringResource(if (late) Res.string.captions_indicator_timing_late else Res.string.captions_indicator_timing, advance),
+                    stringResource(
+                        if (late) Res.string.captions_indicator_timing_late else Res.string.captions_indicator_timing,
+                        advance,
+                    ),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onPrimary,
                     maxLines = 1,
@@ -342,7 +451,11 @@ internal fun InfoOverlay(
             }
         }
         if (current == null) {
-            Text(channel.noListingText(lineup.guideLoading), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                channel.noListingText(lineup.guideLoading),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
         } else {
             Row {
                 Column(Modifier.weight(1f)) {
@@ -365,14 +478,23 @@ internal fun InfoOverlay(
                         )
                     }
                     Text(
-                        listOfNotNull(timeFormat.range(current.start, current.stop), current.episodeLine()).joinToString(DETAIL_SEPARATOR),
+                        listOfNotNull(
+                            timeFormat.range(current.start, current.stop),
+                            current.episodeLine(),
+                        ).joinToString(DETAIL_SEPARATOR),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     current.description?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
                 current.icon?.let {
@@ -380,14 +502,22 @@ internal fun InfoOverlay(
                         model = it,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.padding(start = 16.dp).size(width = 160.dp, height = 90.dp).clip(OverlayShape),
+                        modifier = Modifier.padding(
+                            start = 16.dp,
+                        ).size(width = 160.dp, height = 90.dp).clip(OverlayShape),
                     )
                 }
             }
             Spacer(Modifier.height(8.dp))
             ProgressBar(programProgress(current.start, current.stop, now))
         }
-        next?.let { Text(stringResource(Res.string.up_next, it.title), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        next?.let {
+            Text(
+                stringResource(Res.string.up_next, it.title),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (showKeyLegend) {
             Spacer(Modifier.height(8.dp))
             KeyLegend()
@@ -413,7 +543,10 @@ internal fun ControlIcon(
             Icon(icon, contentDescription = label, modifier = Modifier.size(32.dp))
         }
     } else {
-        FilledTonalIconButton(onClick = onClick, modifier = modifier.size(size).tvFocus(IconButtonDefaults.filledShape)) {
+        FilledTonalIconButton(
+            onClick = onClick,
+            modifier = modifier.size(size).tvFocus(IconButtonDefaults.filledShape),
+        ) {
             Icon(icon, contentDescription = label)
         }
     }
@@ -458,7 +591,12 @@ internal fun CaptionsControl(captionsOn: Boolean, onClick: () -> Unit, size: Dp 
 /** Opens the stream card, showing the audio icon when [hasAudioChoice], since the card holds the audio picker. */
 @Composable
 internal fun StreamInfoControl(hasAudioChoice: Boolean, onClick: () -> Unit, size: Dp = CONTROL_SIZE) {
-    ControlIcon(if (hasAudioChoice) SofaIcons.Audiotrack else Icons.Filled.Info, stringResource(Res.string.player_control_stream), onClick, size = size)
+    ControlIcon(
+        if (hasAudioChoice) SofaIcons.Audiotrack else Icons.Filled.Info,
+        stringResource(Res.string.player_control_stream),
+        onClick,
+        size = size,
+    )
 }
 
 /** Switches the window's full screen, as F does; nothing where the app cannot switch it (Android and iOS). */
@@ -467,7 +605,13 @@ internal fun FullScreenControl(size: Dp = CONTROL_SIZE) {
     val fullScreen = LocalWindowFullScreen.current ?: return
     ControlIcon(
         if (fullScreen.isFullScreen) SofaIcons.FullscreenExit else SofaIcons.Fullscreen,
-        stringResource(if (fullScreen.isFullScreen) Res.string.player_control_exit_full_screen else Res.string.player_control_full_screen),
+        stringResource(
+            if (fullScreen.isFullScreen) {
+                Res.string.player_control_exit_full_screen
+            } else {
+                Res.string.player_control_full_screen
+            },
+        ),
         fullScreen::toggle,
         size = size,
     )
@@ -482,7 +626,11 @@ internal val CONTROL_SIZE = 48.dp
 @Composable
 internal fun BoxScope.InfoBar(visible: Boolean, content: @Composable ColumnScope.() -> Unit) {
     AnimatedVisibility(visible, modifier = Modifier.align(Alignment.BottomStart), enter = RiseIn, exit = SinkOut) {
-        Column(Modifier.fillMaxWidth().screenPadding(), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+        Column(
+            Modifier.fillMaxWidth().screenPadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content,
+        )
     }
 }
 
@@ -499,7 +647,8 @@ internal fun BoxScope.StreamCard(
     onSelectTrack: (String) -> Unit,
 ) {
     val unknown = stringResource(Res.string.stream_card_unknown)
-    // Focus starts on the playing track's row, so OK and Up/Down act on the tracks at once; with none, the card itself holds it.
+    // Focus starts on the playing track's row, so OK and Up/Down act on the tracks at once; with
+    // none, the card itself holds it.
     val focusRequester = remember { FocusRequester() }
     val focusTrack = tracks.indexOfFirst { it.selected }.coerceAtLeast(0)
     LaunchedEffect(Unit) { requestFocusWhenAttached(focusRequester) }
@@ -514,9 +663,17 @@ internal fun BoxScope.StreamCard(
             .focusable(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(stringResource(Res.string.stream_card_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        Text(
+            stringResource(Res.string.stream_card_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
         if (tracks.isNotEmpty()) {
-            Text(stringResource(Res.string.stream_card_audio), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(Res.string.stream_card_audio),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             tracks.forEachIndexed { position, track ->
                 TrackRow(
                     track.label,
@@ -528,14 +685,24 @@ internal fun BoxScope.StreamCard(
         }
         val video = listOfNotNull(
             info.videoCodec,
-            if (info.width != null && info.height != null) stringResource(Res.string.stream_card_size, info.width, info.height) else null,
+            if (info.width != null && info.height != null) {
+                stringResource(Res.string.stream_card_size, info.width, info.height)
+            } else {
+                null
+            },
             info.frameRate?.let { stringResource(Res.string.stream_card_fps, oneDecimal(it.toDouble())) },
             info.bitrateBps?.let { stringResource(Res.string.stream_card_mbps, oneDecimal(it / 1_000_000.0)) },
         )
         StatLine(stringResource(Res.string.stream_card_video), video.joinToString(DETAIL_SEPARATOR).ifEmpty { unknown })
         StatLine(stringResource(Res.string.stream_card_audio_codec), info.audioCodec ?: unknown)
-        StatLine(stringResource(Res.string.stream_card_buffered), stringResource(Res.string.stream_card_seconds, oneDecimal(bufferedMs / 1_000.0)))
-        StatLine(stringResource(Res.string.stream_card_source), stream?.providerId?.takeIf { it.isNotEmpty() } ?: unknown)
+        StatLine(
+            stringResource(Res.string.stream_card_buffered),
+            stringResource(Res.string.stream_card_seconds, oneDecimal(bufferedMs / 1_000.0)),
+        )
+        StatLine(
+            stringResource(Res.string.stream_card_source),
+            stream?.providerId?.takeIf { it.isNotEmpty() } ?: unknown,
+        )
         StatLine(stringResource(Res.string.stream_card_session), stream?.sessionId?.take(8) ?: unknown)
         Spacer(Modifier.height(4.dp))
         KeyLegend()
@@ -545,8 +712,19 @@ internal fun BoxScope.StreamCard(
 @Composable
 private fun StatLine(label: String, value: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(96.dp))
-        Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(96.dp),
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -561,7 +739,13 @@ internal fun TrackRow(label: String, selected: Boolean, onClick: () -> Unit, mod
             .fillMaxWidth()
             .tvFocus(OverlayShape, focusedScale = 1f)
             .background(if (focused) colors.primary else Color.Transparent, OverlayShape)
-            .selectable(selected = selected, interactionSource = interactions, indication = ripple(), role = Role.RadioButton, onClick = onClick)
+            .selectable(
+                selected = selected,
+                interactionSource = interactions,
+                indication = ripple(),
+                role = Role.RadioButton,
+                onClick = onClick,
+            )
             .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -572,7 +756,13 @@ internal fun TrackRow(label: String, selected: Boolean, onClick: () -> Unit, mod
             modifier = Modifier.size(18.dp),
             tint = if (focused) colors.onPrimary else colors.primary,
         )
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = if (focused) colors.onPrimary else colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (focused) colors.onPrimary else colors.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -596,7 +786,13 @@ internal fun BoxScope.TransportDisc(hint: TransportHint?, pulse: Int) {
         ) {
             Icon(
                 if (hint == TransportHint.PAUSE) SofaIcons.Pause else Icons.Filled.PlayArrow,
-                contentDescription = stringResource(if (hint == TransportHint.PAUSE) Res.string.player_paused else Res.string.player_control_play),
+                contentDescription = stringResource(
+                    if (hint == TransportHint.PAUSE) {
+                        Res.string.player_paused
+                    } else {
+                        Res.string.player_control_play
+                    },
+                ),
                 tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(40.dp),
             )
@@ -610,7 +806,12 @@ internal fun BoxScope.TransportDisc(hint: TransportHint?, pulse: Int) {
  */
 @Composable
 internal fun BoxScope.SeekBadge(targetMs: Long?, positionMs: () -> Long, scrub: ScrubTiles? = null) {
-    AnimatedVisibility(targetMs != null, Modifier.align(Alignment.BottomCenter).screenPadding(), enter = PopIn, exit = PopOut) {
+    AnimatedVisibility(
+        targetMs != null,
+        Modifier.align(Alignment.BottomCenter).screenPadding(),
+        enter = PopIn,
+        exit = PopOut,
+    ) {
         val target = targetMs ?: return@AnimatedVisibility
         val delta = target - positionMs()
         val amount = if (abs(delta) < 60_000L) {
@@ -620,7 +821,14 @@ internal fun BoxScope.SeekBadge(targetMs: Long?, positionMs: () -> Long, scrub: 
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             scrub?.let { ScrubThumbnail(it, target) }
-            StatusPill(stringResource(Res.string.vod_seek_badge, if (delta < 0) "−" else "+", amount, formatPlayTime(target)))
+            StatusPill(
+                stringResource(
+                    Res.string.vod_seek_badge,
+                    if (delta < 0) "−" else "+",
+                    amount,
+                    formatPlayTime(target),
+                ),
+            )
         }
     }
 }

@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.ui.settings
 
-import kotlin.test.assertEquals
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class TokenMaskTest {
     @Test

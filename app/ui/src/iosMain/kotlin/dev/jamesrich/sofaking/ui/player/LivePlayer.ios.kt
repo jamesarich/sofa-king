@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.ui.player
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -12,6 +13,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.UIKitView
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.useContents
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
@@ -20,55 +22,60 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import platform.AVFAudio.*
-import platform.AVFoundation.AVErrorDecoderNotFound
+import platform.AVFAudio.AVAudioSession
+import platform.AVFAudio.AVAudioSessionCategoryAmbient
+import platform.AVFAudio.AVAudioSessionCategoryPlayback
+import platform.AVFAudio.AVAudioSessionModeDefault
+import platform.AVFAudio.AVAudioSessionModeMoviePlayback
+import platform.AVFAudio.setActive
 import platform.AVFoundation.AVErrorDecodeFailed
+import platform.AVFoundation.AVErrorDecoderNotFound
 import platform.AVFoundation.AVErrorFailedToParse
 import platform.AVFoundation.AVErrorFileFormatNotRecognized
 import platform.AVFoundation.AVFoundationErrorDomain
+import platform.AVFoundation.AVLayerVideoGravityResize
 import platform.AVFoundation.AVLayerVideoGravityResizeAspect
+import platform.AVFoundation.AVLayerVideoGravityResizeAspectFill
 import platform.AVFoundation.AVMediaCharacteristicAudible
 import platform.AVFoundation.AVMediaCharacteristicLegible
 import platform.AVFoundation.AVMediaSelectionGroup
-import platform.AVFoundation.AVPlayerItemAccessLogEvent
-import platform.AVFoundation.accessLog
-import platform.AVFoundation.presentationSize
-import platform.AVFoundation.rate
-import platform.AVFoundation.selectedMediaOptionInMediaSelectionGroup
-import kotlinx.cinterop.useContents
 import platform.AVFoundation.AVMediaSelectionOption
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
+import platform.AVFoundation.AVPlayerItemAccessLogEvent
 import platform.AVFoundation.AVPlayerItemDidPlayToEndTimeNotification
+import platform.AVFoundation.AVPlayerItemErrorLogEvent
 import platform.AVFoundation.AVPlayerItemFailedToPlayToEndTimeNotification
 import platform.AVFoundation.AVPlayerItemPlaybackStalledNotification
 import platform.AVFoundation.AVPlayerItemStatusFailed
-import platform.AVFoundation.AVPlayerItemErrorLogEvent
 import platform.AVFoundation.AVPlayerItemStatusReadyToPlay
 import platform.AVFoundation.AVPlayerLayer
 import platform.AVFoundation.AVPlayerRateDidChangeNotification
 import platform.AVFoundation.AVPlayerTimeControlStatusPlaying
 import platform.AVFoundation.AVPlayerTimeControlStatusWaitingToPlayAtSpecifiedRate
+import platform.AVFoundation.CMTimeRangeValue
+import platform.AVFoundation.accessLog
 import platform.AVFoundation.asset
 import platform.AVFoundation.currentItem
+import platform.AVFoundation.currentTime
+import platform.AVFoundation.duration
 import platform.AVFoundation.errorLog
+import platform.AVFoundation.loadedTimeRanges
 import platform.AVFoundation.mediaSelectionGroupForMediaCharacteristic
 import platform.AVFoundation.pause
 import platform.AVFoundation.play
+import platform.AVFoundation.presentationSize
+import platform.AVFoundation.rate
 import platform.AVFoundation.replaceCurrentItemWithPlayerItem
-import platform.AVFoundation.CMTimeRangeValue
-import platform.AVFoundation.currentTime
-import platform.AVFoundation.duration
 import platform.AVFoundation.seekToTime
 import platform.AVFoundation.seekableTimeRanges
-import platform.AVFoundation.loadedTimeRanges
-import platform.CoreMedia.CMTimeGetSeconds
-import platform.CoreMedia.CMTimeMakeWithSeconds
-import platform.Foundation.NSValue
 import platform.AVFoundation.selectMediaOption
+import platform.AVFoundation.selectedMediaOptionInMediaSelectionGroup
 import platform.AVFoundation.timeControlStatus
 import platform.AVFoundation.volume
 import platform.CoreGraphics.CGRectMake
+import platform.CoreMedia.CMTimeGetSeconds
+import platform.CoreMedia.CMTimeMakeWithSeconds
 import platform.Foundation.NSData
 import platform.Foundation.NSError
 import platform.Foundation.NSNotificationCenter
@@ -77,6 +84,7 @@ import platform.Foundation.NSURL
 import platform.Foundation.NSURLErrorDomain
 import platform.Foundation.NSURLErrorTimedOut
 import platform.Foundation.NSURLSession
+import platform.Foundation.NSValue
 import platform.Foundation.dataTaskWithURL
 import platform.MediaPlayer.MPMediaItemArtwork
 import platform.MediaPlayer.MPMediaItemPropertyArtist
@@ -91,9 +99,6 @@ import platform.UIKit.UIColor
 import platform.UIKit.UIImage
 import platform.UIKit.UIView
 import platform.darwin.NSObjectProtocol
-import androidx.compose.runtime.LaunchedEffect
-import platform.AVFoundation.AVLayerVideoGravityResize
-import platform.AVFoundation.AVLayerVideoGravityResizeAspectFill
 
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
@@ -111,11 +116,15 @@ actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
 @OptIn(ExperimentalForeignApi::class)
 internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLivePlayer() {
     private val av = AVPlayer()
-    private val playerLayer = AVPlayerLayer.playerLayerWithPlayer(av).apply { videoGravity = AVLayerVideoGravityResizeAspect }
+    private val playerLayer = AVPlayerLayer.playerLayerWithPlayer(av).apply {
+        videoGravity =
+            AVLayerVideoGravityResizeAspect
+    }
     private val scope = MainScope()
     private var captionsOn = false
     private var ended = false
     private var reportedFailure: AVPlayerItem? = null
+
     // The item whose caption track was chosen, and its legible group. Both are read once the item is ready to play:
     // the asset has no group to report before then, and asking for it blocks the main thread while it loads.
     private var captionsAppliedTo: AVPlayerItem? = null
@@ -134,7 +143,11 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         AVPlayerItemPlaybackStalledNotification,
         AVPlayerRateDidChangeNotification,
     ).map { name ->
-        NSNotificationCenter.defaultCenter.addObserverForName(name = name, `object` = null, queue = NSOperationQueue.mainQueue) { note ->
+        NSNotificationCenter.defaultCenter.addObserverForName(
+            name = name,
+            `object` = null,
+            queue = NSOperationQueue.mainQueue,
+        ) { note ->
             if (note?.name == AVPlayerItemDidPlayToEndTimeNotification) ended = true
             refresh()
         }
@@ -151,7 +164,8 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
     override val bufferedMs: Long get() = 0L
     override val supportsCaptionLead: Boolean get() = false
     override val hasTextTrack: Boolean
-        get() = av.currentItem?.takeIf { it === captionsAppliedTo } != null && legibleGroup?.options?.isNotEmpty() == true
+        get() = av.currentItem?.takeIf { it === captionsAppliedTo } != null &&
+            legibleGroup?.options?.isNotEmpty() == true
 
     /**
      * The audio session follows the volume, as audio focus does on Android: audible playback takes the Playback
@@ -167,10 +181,20 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
             audibleSession = audible
             val session = AVAudioSession.sharedInstance()
             if (audible) {
-                session.setCategory(AVAudioSessionCategoryPlayback, mode = AVAudioSessionModeMoviePlayback, options = 0u, error = null)
+                session.setCategory(
+                    AVAudioSessionCategoryPlayback,
+                    mode = AVAudioSessionModeMoviePlayback,
+                    options = 0u,
+                    error = null,
+                )
                 session.setActive(true, error = null)
             } else {
-                session.setCategory(AVAudioSessionCategoryAmbient, mode = AVAudioSessionModeDefault, options = 0u, error = null)
+                session.setCategory(
+                    AVAudioSessionCategoryAmbient,
+                    mode = AVAudioSessionModeDefault,
+                    options = 0u,
+                    error = null,
+                )
             }
         }
 
@@ -197,11 +221,17 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         readAudioTracks(item)
     }
 
-    /** AVFoundation reports the picture size and the stream's indicated bitrate; the codec and frame rate stay unknown. */
+    /**
+     * AVFoundation reports the picture size and the stream's indicated bitrate; the codec and frame rate stay unknown.
+     */
     override fun streamInfo(): StreamInfo {
         val item = av.currentItem ?: return StreamInfo()
         val (width, height) = item.presentationSize.useContents { width.toInt() to height.toInt() }
-        val bitrate = (item.accessLog()?.events?.lastOrNull() as? AVPlayerItemAccessLogEvent)?.indicatedBitrate?.takeIf { it > 0 }?.toInt()
+        val bitrate = (
+            item.accessLog()?.events?.lastOrNull() as? AVPlayerItemAccessLogEvent
+            )?.indicatedBitrate?.takeIf {
+            it > 0
+        }?.toInt()
         return StreamInfo(width = width.takeIf { it > 0 }, height = height.takeIf { it > 0 }, bitrateBps = bitrate)
     }
 
@@ -213,7 +243,18 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         val group = audibleGroup(item)
         val options = group?.options.orEmpty().filterIsInstance<AVMediaSelectionOption>()
         val selected = group?.let { item.selectedMediaOptionInMediaSelectionGroup(it) }
-        _audioTracks.value = if (options.size > 1) options.mapIndexed { index, option -> AudioTrack(index.toString(), option.displayName, option == selected) } else emptyList()
+        _audioTracks.value =
+            if (options.size > 1) {
+                options.mapIndexed { index, option ->
+                    AudioTrack(
+                        index.toString(),
+                        option.displayName,
+                        option == selected,
+                    )
+                }
+            } else {
+                emptyList()
+            }
     }
 
     override fun prepare() {
@@ -243,12 +284,21 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         deepColor = listOf("hevc"),
     )
 
-    override val isSeekable: Boolean get() = stream?.seekable == true && av.currentItem?.status == AVPlayerItemStatusReadyToPlay
+    override val isSeekable: Boolean get() = stream?.seekable == true &&
+        av.currentItem?.status == AVPlayerItemStatusReadyToPlay
 
     override val positionMs: Long
-        get() = if (isSeekable) (CMTimeGetSeconds(av.currentTime()) * 1000).takeIf { it.isFinite() }?.toLong()?.coerceAtLeast(0L) ?: 0L else 0L
+        get() = if (isSeekable) {
+            (CMTimeGetSeconds(av.currentTime()) * 1000).takeIf { it.isFinite() }?.toLong()?.coerceAtLeast(0L)
+                ?: 0L
+        } else {
+            0L
+        }
 
-    /** A finished file reports its duration; a growing recording's is indefinite, so the end of its seekable range stands in. */
+    /**
+     * A finished file reports its duration; a growing recording's is indefinite, so the end
+     * of its seekable range stands in.
+     */
     override val durationMs: Long?
         get() {
             val item = av.currentItem?.takeIf { isSeekable } ?: return null
@@ -363,7 +413,8 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
             modifier.onSizeChanged { size ->
                 CATransaction.begin()
                 CATransaction.setDisableActions(true)
-                playerLayer.frame = CGRectMake(0.0, 0.0, size.width / density.toDouble(), size.height / density.toDouble())
+                playerLayer.frame =
+                    CGRectMake(0.0, 0.0, size.width / density.toDouble(), size.height / density.toDouble())
                 CATransaction.commit()
             },
         ) {
@@ -424,9 +475,9 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         if (item != null && item.status == AVPlayerItemStatusFailed && reportedFailure != item) {
             reportedFailure = item
             val httpStatus = (item.errorLog()?.events?.lastOrNull() as? AVPlayerItemErrorLogEvent)?.errorStatusCode
-            _errors.tryEmit(playerErrorFor(item.error, httpStatus))
+            mutableErrors.tryEmit(playerErrorFor(item.error, httpStatus))
         }
-        _status.value = PlayerStatus(state, playing, playWhenReady)
+        mutableStatus.value = PlayerStatus(state, playing, playWhenReady)
         // Like Android's shutter, it covers only from a reset until the first frame, not each rebuffer.
         val shown = item != null && playerLayer.readyForDisplay
         hasFrame.value = shown
@@ -443,15 +494,23 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
  * status of a failed segment or playlist; 410 is the relay closing the session.
  */
 private fun playerErrorFor(error: NSError?, httpStatus: Long?): PlayerError {
-    if (httpStatus != null && httpStatus >= 400) return PlayerError(PlayerErrorCodes.BAD_HTTP_STATUS, streamGone = httpStatus == 410L)
+    if (httpStatus != null && httpStatus >= 400) {
+        return PlayerError(PlayerErrorCodes.BAD_HTTP_STATUS, streamGone = httpStatus == 410L)
+    }
     if (error == null) return PlayerError(PlayerErrorCodes.UNSPECIFIED)
     val code = when (error.domain) {
-        NSURLErrorDomain -> if (error.code == NSURLErrorTimedOut) PlayerErrorCodes.NETWORK_CONNECTION_TIMEOUT else PlayerErrorCodes.NETWORK_CONNECTION_FAILED
+        NSURLErrorDomain -> if (error.code == NSURLErrorTimedOut) {
+            PlayerErrorCodes.NETWORK_CONNECTION_TIMEOUT
+        } else {
+            PlayerErrorCodes.NETWORK_CONNECTION_FAILED
+        }
+
         AVFoundationErrorDomain -> when (error.code) {
             AVErrorFileFormatNotRecognized, AVErrorFailedToParse -> PlayerErrorCodes.PARSING_CONTAINER_UNSUPPORTED
             AVErrorDecoderNotFound, AVErrorDecodeFailed -> PlayerErrorCodes.DECODING_FAILED
             else -> PlayerErrorCodes.UNSPECIFIED
         }
+
         else -> PlayerErrorCodes.UNSPECIFIED
     }
     return PlayerError(code)

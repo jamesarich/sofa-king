@@ -69,7 +69,10 @@ private fun rememberPictureInPicture(activity: ComponentActivity, player: LivePl
             override fun onPictureInPictureEvent(event: PictureInPictureDelegate.Event, config: Configuration?) {
                 when (event) {
                     // Android 15 says when the window starts to shrink, so the overlays go before it does.
-                    PictureInPictureDelegate.Event.ENTER_ANIMATION_START, PictureInPictureDelegate.Event.ENTERED -> inPictureInPicture = true
+                    PictureInPictureDelegate.Event.ENTER_ANIMATION_START, PictureInPictureDelegate.Event.ENTERED ->
+                        inPictureInPicture =
+                            true
+
                     PictureInPictureDelegate.Event.EXITED -> inPictureInPicture = false
                 }
             }
@@ -91,7 +94,9 @@ private fun rememberPictureInPicture(activity: ComponentActivity, player: LivePl
     return inPictureInPicture
 }
 
-/** The shape of the picture the player shows, or null before it knows; core-pip keeps it within what the system allows. */
+/**
+ * The shape of the picture the player shows, or null before it knows; core-pip keeps it within what the system allows.
+ */
 @Composable
 private fun rememberVideoAspect(player: LivePlayer): Rational? {
     val exo = (player as? ExoLivePlayer)?.exo ?: return null

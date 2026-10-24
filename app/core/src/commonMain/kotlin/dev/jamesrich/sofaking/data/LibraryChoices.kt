@@ -20,7 +20,11 @@ sealed interface PrimaryAction {
 fun primaryAction(detail: MediaItemDetail): PrimaryAction? {
     val target = if (detail.item.kind.playable) detail.item else detail.next?.takeIf { it.kind.playable } ?: return null
     val progress = target.progress
-    return if (progress != null && progress.inProgress) PrimaryAction.Resume(target, progress.positionMs) else PrimaryAction.Play(target)
+    return if (progress != null && progress.inProgress) {
+        PrimaryAction.Resume(target, progress.positionMs)
+    } else {
+        PrimaryAction.Play(target)
+    }
 }
 
 /**
@@ -67,7 +71,10 @@ fun textSubtitles(detail: MediaItemDetail): List<MediaTrackInfo> = detail.subtit
  */
 fun isPictureSubtitle(track: MediaTrackInfo): Boolean = track.codec !in TEXT_SUBTITLE_CODECS
 
-/** Where the server numbers the subtitle files beside a video, such as the ones Bazarr downloads, after the file's own streams. */
+/**
+ * Where the server numbers the subtitle files beside a video, such as the ones Bazarr
+ * downloads, after the file's own streams.
+ */
 const val SUBTITLE_FILE_BASE = 1000
 
 /** True for a subtitle file beside the video rather than a stream inside it. */
@@ -81,7 +88,8 @@ fun initialSubtitle(detail: MediaItemDetail): MediaTrackInfo? =
     detail.subtitles.filter { it.forced }.minByOrNull { isPictureSubtitle(it) }
 
 /** The audio track playing when none is picked: the file's default, else its first. */
-fun defaultAudio(detail: MediaItemDetail): MediaTrackInfo? = detail.audio.firstOrNull { it.default } ?: detail.audio.firstOrNull()
+fun defaultAudio(detail: MediaItemDetail): MediaTrackInfo? =
+    detail.audio.firstOrNull { it.default } ?: detail.audio.firstOrNull()
 
 /**
  * A track as a picker lists it: its language and its own title, with an audio track's codec and channels, such as
@@ -111,7 +119,9 @@ private fun channelLayout(channels: Int): String = when (channels) {
 data class FileFacts(val sound: String?, val audioLanguages: List<String>, val subtitleLanguages: List<String>)
 
 fun fileFacts(detail: MediaItemDetail): FileFacts = FileFacts(
-    sound = defaultAudio(detail)?.let { track -> listOfNotNull(codecName(track.codec), track.channels?.let(::channelLayout)).joinToString(" ") },
+    sound = defaultAudio(detail)?.let { track ->
+        listOfNotNull(codecName(track.codec), track.channels?.let(::channelLayout)).joinToString(" ")
+    },
     audioLanguages = languageNames(detail.audio),
     subtitleLanguages = languageNames(detail.subtitles.filterNot { it.forced }),
 )
@@ -154,7 +164,9 @@ fun initialSubtitle(detail: MediaItemDetail, choice: TrackChoice?): MediaTrackIn
         ?: initialSubtitle(detail)
 }
 
-/** What the viewer picked, by language: the audio track [audioIndex] and the subtitle track [subtitleIndex], or none. */
+/**
+ * What the viewer picked, by language: the audio track [audioIndex] and the subtitle track [subtitleIndex], or none.
+ */
 fun trackChoice(detail: MediaItemDetail, audioIndex: Int?, subtitleIndex: Int?): TrackChoice {
     val subtitle = subtitleIndex?.let { index -> detail.subtitles.firstOrNull { it.index == index } }
     return TrackChoice(
@@ -174,22 +186,34 @@ private fun languageKey(tag: String?): String? {
 
 /** ISO 639-1 codes, as subtitle file names carry them, as the ISO 639-2 codes files carry. */
 private val TWO_LETTER = mapOf(
-    "en" to "eng", "es" to "spa", "fr" to "fre", "de" to "ger", "it" to "ita", "pt" to "por", "ja" to "jpn", "zh" to "chi",
-    "ko" to "kor", "ru" to "rus", "nl" to "dut", "sv" to "swe", "no" to "nor", "da" to "dan", "fi" to "fin", "pl" to "pol",
+    "en" to "eng", "es" to "spa", "fr" to "fre", "de" to "ger", "it" to "ita", "pt" to "por", "ja" to "jpn",
+    "zh" to "chi",
+    "ko" to "kor", "ru" to "rus", "nl" to "dut", "sv" to "swe", "no" to "nor", "da" to "dan", "fi" to "fin",
+    "pl" to "pol",
     "ar" to "ara", "he" to "heb", "hi" to "hin", "tr" to "tur", "el" to "gre", "cs" to "cze", "hu" to "hun",
 )
 
 /** ISO 639-2 terminology codes as the bibliographic ones. */
-private val TERMINOLOGY = mapOf("fra" to "fre", "deu" to "ger", "zho" to "chi", "nld" to "dut", "ces" to "cze", "ell" to "gre")
+private val TERMINOLOGY = mapOf(
+    "fra" to "fre",
+    "deu" to "ger",
+    "zho" to "chi",
+    "nld" to "dut",
+    "ces" to "cze",
+    "ell" to "gre",
+)
 
 /** Subtitle codecs the server converts to WebVTT. */
 private val TEXT_SUBTITLE_CODECS = setOf("subrip", "srt", "ass", "ssa", "mov_text", "webvtt", "text")
 
 /** English names for the ISO 639-2 codes files carry most, by the bibliographic code [languageKey] answers. */
 private val LANGUAGES = mapOf(
-    "eng" to "English", "spa" to "Spanish", "fre" to "French", "ger" to "German", "ita" to "Italian", "por" to "Portuguese",
-    "jpn" to "Japanese", "chi" to "Chinese", "kor" to "Korean", "rus" to "Russian", "dut" to "Dutch", "swe" to "Swedish",
-    "nor" to "Norwegian", "dan" to "Danish", "fin" to "Finnish", "pol" to "Polish", "tur" to "Turkish", "ara" to "Arabic",
+    "eng" to "English", "spa" to "Spanish", "fre" to "French", "ger" to "German", "ita" to "Italian",
+    "por" to "Portuguese",
+    "jpn" to "Japanese", "chi" to "Chinese", "kor" to "Korean", "rus" to "Russian", "dut" to "Dutch",
+    "swe" to "Swedish",
+    "nor" to "Norwegian", "dan" to "Danish", "fin" to "Finnish", "pol" to "Polish", "tur" to "Turkish",
+    "ara" to "Arabic",
     "hin" to "Hindi", "heb" to "Hebrew", "gre" to "Greek", "cze" to "Czech", "hun" to "Hungarian", "tha" to "Thai",
     "vie" to "Vietnamese", "ukr" to "Ukrainian", "und" to "Unknown",
 )

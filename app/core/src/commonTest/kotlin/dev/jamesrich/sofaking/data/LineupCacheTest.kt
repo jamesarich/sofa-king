@@ -30,7 +30,9 @@ class LineupCacheTest {
     /** [bytes] as the serializer reads them from the store's file. */
     private suspend fun decode(bytes: ByteArray) = CachedLineupSerializer.readFrom(Buffer().write(bytes))
 
-    private suspend fun encode(cached: CachedLineup?): ByteArray = Buffer().also { CachedLineupSerializer.writeTo(cached, it) }.readByteArray()
+    private suspend fun encode(cached: CachedLineup?): ByteArray = Buffer().also {
+        CachedLineupSerializer.writeTo(cached, it)
+    }.readByteArray()
 
     @Test
     fun `round trip keeps channels and programs`() = runTest {
@@ -108,7 +110,12 @@ class LineupCacheTest {
 
     @Test
     fun `a truncated record is corruption`() = runTest {
-        cache().write(Lineup(listOf(channelOne), mapOf("1" to listOf(program("1", "2026-10-09T11:00:00Z", "2026-10-09T12:00:00Z", "T")))))
+        cache().write(
+            Lineup(
+                listOf(channelOne),
+                mapOf("1" to listOf(program("1", "2026-10-09T11:00:00Z", "2026-10-09T12:00:00Z", "T"))),
+            ),
+        )
         val bytes = encode(store.value)
 
         assertFailsWith<CorruptionException> { decode(bytes.copyOf(bytes.size / 2)) }
@@ -127,7 +134,9 @@ class LineupCacheTest {
 
     @Test
     fun `a record that does not make a lineup reads as null and is cleared`() = runTest {
-        store.updateData { CachedLineup(KEY, channels = listOf(CachedChannel("1", 1.0, "One", null, emptyList(), "AVAILABLE"))) }
+        store.updateData {
+            CachedLineup(KEY, channels = listOf(CachedChannel("1", 1.0, "One", null, emptyList(), "AVAILABLE")))
+        }
 
         assertNull(cache().read())
         assertNull(store.value)
@@ -145,9 +154,18 @@ class LineupCacheTest {
 
     @Test
     fun `a file from before the programs were nested still reads`() = runTest {
-        val program = CachedProgram(Instant.parse("2026-10-09T09:00:00Z").epochSeconds, Instant.parse("2026-10-09T11:00:00Z").epochSeconds, "Morning")
+        val program =
+            CachedProgram(
+                Instant.parse("2026-10-09T09:00:00Z").epochSeconds,
+                Instant.parse("2026-10-09T11:00:00Z").epochSeconds,
+                "Morning",
+            )
         store.updateData {
-            CachedLineup(KEY, channels = listOf(CachedChannel("1", 1.0, "One", null, listOf("News"), "AVAILABLE")), guide = listOf(CachedGuide("1", listOf(program))))
+            CachedLineup(
+                KEY,
+                channels = listOf(CachedChannel("1", 1.0, "One", null, listOf("News"), "AVAILABLE")),
+                guide = listOf(CachedGuide("1", listOf(program))),
+            )
         }
 
         val lineup = assertNotNull(cache().read())
@@ -156,7 +174,13 @@ class LineupCacheTest {
 
     @Test
     fun `programs that do not decode read as null and clear the cache`() = runTest {
-        store.updateData { CachedLineup(KEY, channels = listOf(CachedChannel("1", 1.0, "One", null, listOf("News"), "AVAILABLE")), guideBytes = byteArrayOf(10, 99)) }
+        store.updateData {
+            CachedLineup(
+                KEY,
+                channels = listOf(CachedChannel("1", 1.0, "One", null, listOf("News"), "AVAILABLE")),
+                guideBytes = byteArrayOf(10, 99),
+            )
+        }
 
         val opened = assertNotNull(cache().open())
         assertNull(opened.guide())
@@ -188,7 +212,8 @@ class LineupCacheTest {
     fun `a store that cannot be read reads as null`() = runTest {
         val failing = object : androidx.datastore.core.DataStore<CachedLineup?> {
             override val data = kotlinx.coroutines.flow.flow<CachedLineup?> { error("disk gone") }
-            override suspend fun updateData(transform: suspend (t: CachedLineup?) -> CachedLineup?): CachedLineup? = error("disk gone")
+            override suspend fun updateData(transform: suspend (t: CachedLineup?) -> CachedLineup?): CachedLineup? =
+                error("disk gone")
         }
 
         assertNull(LineupCache(failing, KEY) { now }.read())

@@ -31,7 +31,11 @@ internal fun Modifier.horizontalFadingEdges(state: ScrollableState, width: Dp = 
             }
             if (state.canScrollForward) {
                 drawRect(
-                    Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - fade, endX = size.width),
+                    Brush.horizontalGradient(
+                        listOf(Color.Black, Color.Transparent),
+                        startX = size.width - fade,
+                        endX = size.width,
+                    ),
                     topLeft = Offset(size.width - fade, 0f),
                     size = Size(fade, size.height),
                     blendMode = BlendMode.DstIn,

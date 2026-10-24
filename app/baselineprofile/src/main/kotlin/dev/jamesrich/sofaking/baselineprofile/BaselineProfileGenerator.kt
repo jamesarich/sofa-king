@@ -37,10 +37,22 @@ class BaselineProfileGenerator {
         }
 
         // Scroll the guide down a page of channels and back, then along the timeline.
-        repeat(GUIDE_STEPS) { device.pressDPadDown(); device.waitForIdle() }
-        repeat(GUIDE_STEPS) { device.pressDPadUp(); device.waitForIdle() }
-        repeat(TIMELINE_STEPS) { device.pressDPadRight(); device.waitForIdle() }
-        repeat(TIMELINE_STEPS) { device.pressDPadLeft(); device.waitForIdle() }
+        repeat(GUIDE_STEPS) {
+            device.pressDPadDown()
+            device.waitForIdle()
+        }
+        repeat(GUIDE_STEPS) {
+            device.pressDPadUp()
+            device.waitForIdle()
+        }
+        repeat(TIMELINE_STEPS) {
+            device.pressDPadRight()
+            device.waitForIdle()
+        }
+        repeat(TIMELINE_STEPS) {
+            device.pressDPadLeft()
+            device.waitForIdle()
+        }
 
         // Tune the focused channel, open it full screen, change channel, then return to the guide.
         device.pressDPadCenter()
@@ -62,7 +74,9 @@ class BaselineProfileGenerator {
     private fun MacrobenchmarkScope.launch() {
         pressHome()
         startActivityAndWait()
-        check(device.wait(Until.hasObject(By.res(FIRST_PAGE)), TIMEOUT_MS)) { "Neither the guide nor the player opened" }
+        check(device.wait(Until.hasObject(By.res(FIRST_PAGE)), TIMEOUT_MS)) {
+            "Neither the guide nor the player opened"
+        }
         device.waitForIdle()
     }
 

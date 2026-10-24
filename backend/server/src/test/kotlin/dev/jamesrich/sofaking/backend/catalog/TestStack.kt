@@ -19,7 +19,8 @@ suspend fun lineupStack(
     adopt: Boolean = true,
 ): Stack {
     lateinit var lineup: LineupService
-    val guideService = GuideService(guides, store, http, clock, UpstreamPolicy(allowLoopback = true)) { lineup.wanted() }
+    val guideService =
+        GuideService(guides, store, http, clock, UpstreamPolicy(allowLoopback = true)) { lineup.wanted() }
     guideService.initialize()
     lineup = LineupService(store, clock, feeds, guideService)
     lineup.initialize()

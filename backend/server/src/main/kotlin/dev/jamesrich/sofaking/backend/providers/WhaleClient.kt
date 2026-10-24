@@ -32,7 +32,8 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
         val now = context.clock.instant()
         val programs = ArrayList<GuideProgram>()
         for (batch in ids.chunked(EPG_BATCH)) {
-            val url = "$epgUrl?channelIds=${batch.joinToString(",")}&startTime=${now.toEpochMilli()}&endTime=${now.plus(EPG_HORIZON).toEpochMilli()}&langCode=en&countryCode=US"
+            val url = "$epgUrl?channelIds=${batch.joinToString(",")}&startTime=${now.toEpochMilli()}&" +
+                "endTime=${now.plus(EPG_HORIZON).toEpochMilli()}&langCode=en&countryCode=US"
             val data = authorized { token -> context.http.get(url, HEADERS + ("token" to token)) }.json()["data"].array
             for (row in data) {
                 val channelId = row.str("chlId") ?: continue
@@ -41,7 +42,14 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
                     val end = program["prgEtm"].long ?: continue
                     val title = program.str("prgTitle") ?: continue
                     if (end <= start) continue
-                    programs += GuideProgram(channelId, Instant.ofEpochMilli(start), Instant.ofEpochMilli(end), title, program.str("prgDesc"))
+                    programs +=
+                        GuideProgram(
+                            channelId,
+                            Instant.ofEpochMilli(start),
+                            Instant.ofEpochMilli(end),
+                            title,
+                            program.str("prgDesc"),
+                        )
                 }
             }
         }
@@ -50,14 +58,19 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun resolve(channelId: String): ResolvedStream {
         val template = listed().firstOrNull { it.channel.id == channelId }?.template
-            ?: run { context.invalidate(CHANNELS); listed().firstOrNull { it.channel.id == channelId }?.template }
+            ?: run {
+                context.invalidate(CHANNELS)
+                listed().firstOrNull { it.channel.id == channelId }?.template
+            }
             ?: throw ProviderFailure("Channel is no longer listed", transient = false)
         val now = context.clock.instant()
         val url = Macros.fill(
             template,
             mapOf(
-                "did" to context.deviceId(), "session_id" to UUID.randomUUID().toString(), "cachebuster" to now.toEpochMilli().toString(),
-                "dnt" to "0", "lmt" to "0", "content_language" to "en", "device_language" to "en", "country_2" to "US", "livestream" to "1",
+                "did" to context.deviceId(), "session_id" to UUID.randomUUID().toString(),
+                "cachebuster" to now.toEpochMilli().toString(),
+                "dnt" to "0", "lmt" to "0", "content_language" to "en", "device_language" to "en", "country_2" to "US",
+                "livestream" to "1",
             ),
         )
         return ResolvedStream(url, STREAM_HEADERS, now.plus(URL_LIFETIME))
@@ -67,11 +80,18 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
     private suspend fun listed(): List<Listed> = context.cached(CHANNELS, Duration.ofMinutes(10)) { fetchChannels() }
 
     private suspend fun fetchChannels(): List<Listed> {
-        val payload = authorized { token -> context.http.get("$channelsUrl?langCode=en&countryCode=US", HEADERS + ("token" to token)) }.json()
+        val payload = authorized { token ->
+            context.http.get(
+                "$channelsUrl?langCode=en&countryCode=US",
+                HEADERS + ("token" to token),
+            )
+        }.json()
         val categories = payload["data"].array
         val result = LinkedHashMap<String, Listed>()
-        // Every channel also sits in the "All" bucket; the themed buckets name its group, "All" only catches stragglers.
-        for (category in categories.filterNot { it.str("ctgName") in UNGROUPED } + categories.filter { it.str("ctgName") in UNGROUPED }) {
+        // Every channel also sits in the "All" bucket; the themed buckets name its group,
+        // "All" only catches stragglers.
+        for (category in categories.filterNot { it.str("ctgName") in UNGROUPED } +
+            categories.filter { it.str("ctgName") in UNGROUPED }) {
             val group = category.str("ctgName")?.takeUnless { it in UNGROUPED }
             for (channel in category["channels"].array) {
                 val id = channel.str("chlId") ?: continue
@@ -80,7 +100,16 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
                 if (result.containsKey(id)) continue
                 val image = channel.str("imageIdentifier")
                 result[id] = Listed(
-                    ProviderChannel(id, name, channel.str("chlNum"), image?.let { "$LOGO_BASE/${it}_white.png" }, group, listOf("us")),
+                    ProviderChannel(
+                        id,
+                        name,
+                        channel.str("chlNum"),
+                        image?.let {
+                            "$LOGO_BASE/${it}_white.png"
+                        },
+                        group,
+                        listOf("us"),
+                    ),
                     template,
                 )
             }
@@ -99,7 +128,10 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun token(): String {
         context.state(TOKEN)?.let { return it }
-        val answer = context.http.get("$authUrl?uuid=1&apiToken=$API_KEY&langCode=en", HEADERS).require("Whale auth").json()
+        val answer = context.http.get(
+            "$authUrl?uuid=1&apiToken=$API_KEY&langCode=en",
+            HEADERS,
+        ).require("Whale auth").json()
         val token = (answer["data"] ?: answer).str("token") ?: throw ProviderFailure("Whale auth returned no token")
         context.saveState(TOKEN, token, context.clock.instant().plus(TOKEN_LIFETIME))
         return token
@@ -107,7 +139,9 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
 
     companion object {
         private const val API_BASE = "https://rlaxx.zeasn.tv/livetv/api"
-        private const val LOGO_BASE = "https://d3b6luslimvglo.cloudfront.net/images/79/rlaxximages/channels-rescaled/icon-white"
+        private const val LOGO_BASE = "https://d3b6luslimvglo.cloudfront.net/images/79/rlaxximages/channels-rescaled/" +
+            "icon-white"
+
         /** The key the public web client at watch.whaletvplus.com sends; it identifies the client, not a user. */
         private const val API_KEY = "4ef13b5f3d2744e3b0a569feb8dde298"
         private const val CHANNELS = "channels"
@@ -117,7 +151,11 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
         private val TOKEN_LIFETIME = Duration.ofHours(23)
         private val URL_LIFETIME = Duration.ofHours(1)
         private val UNGROUPED = setOf("All", "Featured all other countries")
-        private val STREAM_HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Origin" to "https://watch.whaletvplus.com", "Referer" to "https://watch.whaletvplus.com/")
+        private val STREAM_HEADERS = mapOf(
+            "User-Agent" to BROWSER_USER_AGENT,
+            "Origin" to "https://watch.whaletvplus.com",
+            "Referer" to "https://watch.whaletvplus.com/",
+        )
         private val HEADERS = STREAM_HEADERS + ("Accept" to "application/json, text/plain, */*")
     }
 }

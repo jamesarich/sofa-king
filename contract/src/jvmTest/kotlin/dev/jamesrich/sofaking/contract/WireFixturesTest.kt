@@ -1,8 +1,5 @@
 package dev.jamesrich.sofaking.contract
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -10,13 +7,19 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 /**
  * The fixtures under `wire/` are real server responses, frozen per API version; the server's tests check that it
  * still sends every field in them. These tests check that the types still read them with a client's settings.
  */
 class WireFixturesTest {
-    private val client = Json { ignoreUnknownKeys = true; explicitNulls = false }
+    private val client = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
 
     private fun fixture(name: String): String =
         checkNotNull(javaClass.getResource("/wire/$name")) { "missing fixture $name" }.readText()
@@ -24,14 +27,36 @@ class WireFixturesTest {
     @Test
     fun `every v1 fixture decodes with a client's settings`() {
         assertEquals(true, client.decodeFromString<Bootstrap>(fixture("v1/bootstrap.json")).capabilities.playback)
-        assertEquals("available", client.decodeFromString<Catalog>(fixture("v1/catalog.json")).channels.single().guideStatus)
-        assertEquals("Morning", client.decodeFromString<GuideWindow>(fixture("v1/guide-window.json")).channels.single().programs.single().title)
-        assertEquals("hls", client.decodeFromString<PlaybackSession>(fixture("v1/playback-session.json")).descriptor.protocol)
+        assertEquals(
+            "available",
+            client.decodeFromString<Catalog>(fixture("v1/catalog.json")).channels.single().guideStatus,
+        )
+        assertEquals(
+            "Morning",
+            client.decodeFromString<GuideWindow>(
+                fixture("v1/guide-window.json"),
+            ).channels.single().programs.single().title,
+        )
+        assertEquals(
+            "hls",
+            client.decodeFromString<PlaybackSession>(fixture("v1/playback-session.json")).descriptor.protocol,
+        )
         assertEquals(Wire.ErrorCode.AUTH_REQUIRED, client.decodeFromString<ApiError>(fixture("v1/api-error.json")).code)
         assertEquals(64, client.decodeFromString<PairingResult>(fixture("v1/pairing-result.json")).apiToken.length)
-        assertEquals("Living room TV", client.decodeFromString<ViewerPreferences>(fixture("v1/viewer-preferences.json")).name)
-        assertEquals(Wire.ItemKind.SHOW, client.decodeFromString<LibraryPage>(fixture("v1/library-page.json")).items.single().kind)
-        assertEquals(listOf(1, 2), client.decodeFromString<LibraryItemDetail>(fixture("v1/library-item-detail.json")).children.map { it.episode })
+        assertEquals(
+            "Living room TV",
+            client.decodeFromString<ViewerPreferences>(fixture("v1/viewer-preferences.json")).name,
+        )
+        assertEquals(
+            Wire.ItemKind.SHOW,
+            client.decodeFromString<LibraryPage>(fixture("v1/library-page.json")).items.single().kind,
+        )
+        assertEquals(
+            listOf(1, 2),
+            client.decodeFromString<LibraryItemDetail>(fixture("v1/library-item-detail.json")).children.map {
+                it.episode
+            },
+        )
         val episode = client.decodeFromString<LibraryItemDetail>(fixture("v1/library-episode-detail.json"))
         assertEquals(listOf(Wire.SegmentKind.INTRO, Wire.SegmentKind.CREDITS), episode.segments.map { it.kind })
         assertEquals(1, episode.scrub?.sheets?.size)
@@ -47,8 +72,14 @@ class WireFixturesTest {
         val recordings = client.decodeFromString<RecordingList>(fixture("v1/recording-list.json"))
         assertEquals(listOf(RecordingBreak(1000, 2500)), recordings.recordings.single().breaks)
         assertEquals(Wire.RecordingState.COMPLETED, recordings.recordings.single().state)
-        assertEquals(5, client.decodeFromString<RecordingRuleList>(fixture("v1/recording-rule-list.json")).rules.single().keep)
-        assertEquals(Wire.LibraryKind.SHOWS, client.decodeFromString<List<Library>>(fixture("v1/libraries.json")).single().kind)
+        assertEquals(
+            5,
+            client.decodeFromString<RecordingRuleList>(fixture("v1/recording-rule-list.json")).rules.single().keep,
+        )
+        assertEquals(
+            Wire.LibraryKind.SHOWS,
+            client.decodeFromString<List<Library>>(fixture("v1/libraries.json")).single().kind,
+        )
         val item = client.decodeFromString<LibraryItem>(fixture("v1/library-item.json"))
         assertEquals(2, item.episodeEnd)
         assertEquals(600000, item.playState?.positionMs)
@@ -89,15 +120,22 @@ class WireFixturesTest {
         val catalog = client.decodeFromString<Catalog>("""{"channels":[{"id":"c","displayNumber":"2","name":"PBS"}]}""")
         assertEquals(Wire.GuideStatus.AVAILABLE, catalog.channels.single().guideStatus)
         val window = client.decodeFromString<GuideWindow>(
-            """{"revision":"r","channels":[{"channelId":"c","programs":[{"startsAt":"a","endsAt":"b","title":"News"}]}]}""",
+            """{"revision":"r","channels":[{"channelId":"c","programs":[""" +
+                """{"startsAt":"a","endsAt":"b","title":"News"}]}]}""",
         )
         assertEquals("News", window.channels.single().programs.single().title)
         val session = client.decodeFromString<PlaybackSession>(
-            """{"id":"s","channelId":"c","intent":"watch","descriptor":{"protocol":"hls","mimeType":"m","url":"/u","epoch":1}}""",
+            """{"id":"s","channelId":"c","intent":"watch","descriptor":{"protocol":"hls","mimeType":"m","url":"/""" +
+                """u","epoch":1}}""",
         )
         assertEquals("", session.expiresAt)
         assertEquals(false, client.decodeFromString<ApiError>("""{"code":"X","message":"m"}""").retryable)
-        assertEquals(false, client.decodeFromString<Bootstrap>("""{"serverId":"s","serverTime":"t","capabilities":{"catalog":true}}""").capabilities.viewers)
+        assertEquals(
+            false,
+            client.decodeFromString<Bootstrap>(
+                """{"serverId":"s","serverTime":"t","capabilities":{"catalog":true}}""",
+            ).capabilities.viewers,
+        )
         assertEquals("", client.decodeFromString<PairingResult>("""{"apiToken":"t"}""").serverId)
         assertEquals(ViewerPreferences(), client.decodeFromString<ViewerPreferences>("{}"))
         assertEquals(PlayState(), client.decodeFromString<PlayState>("{}"))
@@ -109,22 +147,42 @@ class WireFixturesTest {
 
     @Test
     fun `a client opens a VOD session with its profile and where to start`() {
-        val body = Json.encodeToString(OpenVodPlayback.serializer(), OpenVodPlayback("i", ClientProfile(listOf("mp4"), listOf("h264"), listOf("aac"), 1080), 5000))
-        assertEquals("""{"itemId":"i","profile":{"containers":["mp4"],"videoCodecs":["h264"],"audioCodecs":["aac"],"maxHeight":1080},"startMs":5000}""", body)
-        assertEquals(VodSession("s", "i", "direct", PlaybackDescriptor("file", "video/mp4", "/u", 1)), client.decodeFromString<VodSession>(
-            """{"id":"s","itemId":"i","mode":"direct","descriptor":{"protocol":"file","mimeType":"video/mp4","url":"/u","epoch":1}}""",
-        ))
+        val body = Json.encodeToString(
+            OpenVodPlayback.serializer(),
+            OpenVodPlayback("i", ClientProfile(listOf("mp4"), listOf("h264"), listOf("aac"), 1080), 5000),
+        )
+        assertEquals(
+            """{"itemId":"i","profile":{"containers":["mp4"],"videoCodecs":["h264"],"audioCodecs":""" +
+                """["aac"],"maxHeight":1080},"startMs":5000}""",
+            body,
+        )
+        assertEquals(
+            VodSession("s", "i", "direct", PlaybackDescriptor("file", "video/mp4", "/u", 1)),
+            client.decodeFromString<VodSession>(
+                """{"id":"s","itemId":"i","mode":"direct","descriptor":{"protocol":"file","mimeType":"video/""" +
+                    """mp4","url":"/u","epoch":1}}""",
+            ),
+        )
     }
 
     @Test
     fun `a client sends only the play state it changes`() {
-        assertEquals("""{"positionMs":1000}""", Json.encodeToString(UpdatePlayState.serializer(), UpdatePlayState(positionMs = 1000)))
-        assertEquals("""{"watched":true}""", Json.encodeToString(UpdatePlayState.serializer(), UpdatePlayState(watched = true)))
+        assertEquals(
+            """{"positionMs":1000}""",
+            Json.encodeToString(UpdatePlayState.serializer(), UpdatePlayState(positionMs = 1000)),
+        )
+        assertEquals(
+            """{"watched":true}""",
+            Json.encodeToString(UpdatePlayState.serializer(), UpdatePlayState(watched = true)),
+        )
     }
 
     @Test
     fun `a pairing claim carries the code and who claims it`() {
-        val body = Json.encodeToString(PairingClaim.serializer(), PairingClaim("123456", "client-1", "Den", "android-tv"))
+        val body = Json.encodeToString(
+            PairingClaim.serializer(),
+            PairingClaim("123456", "client-1", "Den", "android-tv"),
+        )
         assertEquals("""{"code":"123456","clientId":"client-1","name":"Den","platform":"android-tv"}""", body)
     }
 

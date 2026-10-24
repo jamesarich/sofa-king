@@ -16,7 +16,12 @@ class IssuedCode(val code: String, val expiresAt: Instant)
  * matches it, and voided by [maxAttempts] claims that do not, so guessing six digits never pays. Nothing is stored;
  * a restart simply forgets the code.
  */
-class PairingService(private val clock: Clock, private val lifetime: Duration = Duration.ofMinutes(10), private val maxAttempts: Int = 5, private val random: SecureRandom = SecureRandom()) {
+class PairingService(
+    private val clock: Clock,
+    private val lifetime: Duration = Duration.ofMinutes(10),
+    private val maxAttempts: Int = 5,
+    private val random: SecureRandom = SecureRandom(),
+) {
     private var live: IssuedCode? = null
     private var attempts = 0
 
@@ -35,13 +40,21 @@ class PairingService(private val clock: Clock, private val lifetime: Duration = 
     /** Whether [code] is the live code; a match spends it, [maxAttempts] misses void it. */
     @Synchronized
     fun claim(code: String): Boolean {
-        val issued = current() ?: run { live = null; return false }
-        if (sameSecret(code.trim(), issued.code)) { live = null; return true }
+        val issued = current() ?: run {
+            live = null
+            return false
+        }
+        if (sameSecret(code.trim(), issued.code)) {
+            live = null
+            return true
+        }
         if (++attempts >= maxAttempts) live = null
         return false
     }
 
     /** Drops the live code, if any. */
     @Synchronized
-    fun cancel() { live = null }
+    fun cancel() {
+        live = null
+    }
 }

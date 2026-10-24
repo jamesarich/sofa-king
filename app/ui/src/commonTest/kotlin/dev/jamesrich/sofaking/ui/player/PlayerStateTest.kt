@@ -12,25 +12,52 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class PlayerStateTest {
-    private fun channel(id: String, number: Double = id.toDouble()) = Channel(id, number, "Ch $id", null, listOf("Test"))
+    private fun channel(id: String, number: Double = id.toDouble()) =
+        Channel(id, number, "Ch $id", null, listOf("Test"))
     private val lineup = listOf(channel("1"), channel("2"), channel("3"), channel("4"))
 
     /** Records what the keys asked of the stream and the way out. */
     private class Controls : PlayerControls {
         val calls = mutableListOf<String>()
-        override fun guide() { calls += "guide" }
-        override fun search() { calls += "search" }
-        override fun toggleCaptions() { calls += "captions" }
-        override fun adjustCaptionTiming(direction: Int) { calls += "timing $direction" }
-        override fun playPause() { calls += "playPause" }
-        override fun play() { calls += "play" }
-        override fun pause() { calls += "pause" }
-        override fun retry() { calls += "retry" }
-        override fun focusButtons() { calls += "buttons" }
-        override fun focusPicture() { calls += "picture" }
-        override fun record() { calls += "record" }
-        override fun zoom() { calls += "zoom" }
-        override fun stop() { calls += "stop" }
+        override fun guide() {
+            calls += "guide"
+        }
+        override fun search() {
+            calls += "search"
+        }
+        override fun toggleCaptions() {
+            calls += "captions"
+        }
+        override fun adjustCaptionTiming(direction: Int) {
+            calls += "timing $direction"
+        }
+        override fun playPause() {
+            calls += "playPause"
+        }
+        override fun play() {
+            calls += "play"
+        }
+        override fun pause() {
+            calls += "pause"
+        }
+        override fun retry() {
+            calls += "retry"
+        }
+        override fun focusButtons() {
+            calls += "buttons"
+        }
+        override fun focusPicture() {
+            calls += "picture"
+        }
+        override fun record() {
+            calls += "record"
+        }
+        override fun zoom() {
+            calls += "zoom"
+        }
+        override fun stop() {
+            calls += "stop"
+        }
     }
 
     private val controls = Controls()

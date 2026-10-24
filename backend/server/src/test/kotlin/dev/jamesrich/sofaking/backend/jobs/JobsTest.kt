@@ -1,9 +1,14 @@
 package dev.jamesrich.sofaking.backend.jobs
 
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
-import java.time.Duration
 import kotlinx.coroutines.test.runTest
-import kotlin.test.*
+import java.time.Duration
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class JobsTest {
     @Test fun `a run records its start, duration, outcome and when the loop is next due`() = runTest {
@@ -13,7 +18,9 @@ class JobsTest {
         jobs.register("import:a", "Import a", Duration.ofMinutes(15)) { kicked++ }
         val before = jobs.snapshot().single()
         assertEquals("Import a", before.label)
-        assertNull(before.lastStartedAt); assertNull(before.nextDueAt); assertFalse(before.running)
+        assertNull(before.lastStartedAt)
+        assertNull(before.nextDueAt)
+        assertFalse(before.running)
         jobs.record("import:a") {
             assertTrue(jobs.snapshot().single().running)
             clock.now = clock.now.plusSeconds(3)
@@ -25,11 +32,13 @@ class JobsTest {
         assertEquals(true, after.lastOk)
         assertEquals("12 channels", after.lastNote)
         assertEquals(clock.instant().plus(Duration.ofMinutes(15)), after.nextDueAt)
-        assertTrue(jobs.runNow("import:a")); assertEquals(1, kicked)
+        assertTrue(jobs.runNow("import:a"))
+        assertEquals(1, kicked)
         assertFalse(jobs.runNow("nothing"))
     }
 
-    @Test fun `a thrown run is recorded as failed by class and rethrown, and a job registers on first record`() = runTest {
+    @Test
+    fun `a thrown run is recorded as failed by class and rethrown, and a job registers on first record`() = runTest {
         val jobs = Jobs(MutableClock())
         assertFailsWith<IllegalStateException> { jobs.record("policy") { error("boom") } }
         val job = jobs.snapshot().single()
@@ -42,7 +51,9 @@ class JobsTest {
 
     @Test fun `jobs keep registration order`() {
         val jobs = Jobs(MutableClock())
-        jobs.register("b", "B"); jobs.register("a", "A"); jobs.register("c", "C")
+        jobs.register("b", "B")
+        jobs.register("a", "A")
+        jobs.register("c", "C")
         assertEquals(listOf("b", "a", "c"), jobs.snapshot().map { it.id })
     }
 }

@@ -15,13 +15,18 @@ import kotlinx.serialization.json.Json
 data class PublishedBuild(
     /** The release title's version, such as `0.4.0-dev.123+abc1234`, or the tag when the title carries none. */
     val version: String,
-    /** The build number, the commit count `.github/version.sh` gives, parsed from [version]; null for a release not built by the snapshot workflow. */
+    /**
+     * The build number, the commit count `.github/version.sh` gives, parsed from [version]; null for a release not
+     * built by the snapshot workflow.
+     */
     val run: Int?,
     /** The release page, which lists every package. */
     val pageUrl: String,
     /** The Android package's download address, when the release carries one. */
     val apkUrl: String?,
-    /** The package's SHA-256 in lowercase hex, from the digest GitHub records for the asset; null when it records none. */
+    /**
+     * The package's SHA-256 in lowercase hex, from the digest GitHub records for the asset; null when it records none.
+     */
     val apkSha256: String? = null,
     /** The user-facing changes of the recent snapshots, newest first, read from the release notes. */
     val notes: List<ReleaseNote> = emptyList(),
@@ -40,18 +45,21 @@ sealed interface UpdateState {
     /** A newer snapshot is published; [changes] are its notes for the builds newer than the running one. */
     data class Available(val latest: PublishedBuild, val changes: List<ReleaseNote> = emptyList()) : UpdateState
 
-    /** The running build is not a snapshot (a local or release build), so there is nothing to compare; [latest] is shown as is. */
+    /**
+     * The running build is not a snapshot (a local or release build), so there is nothing to
+     * compare; [latest] is shown as is.
+     */
     data class Unknown(val latest: PublishedBuild) : UpdateState
 
     /** GitHub could not be asked, or answered with something that is not the release. */
     data object Failed : UpdateState
 }
 
-/** Reads the published snapshot from GitHub's public releases API; no token, so the per-address limit of 60 an hour applies. */
-class UpdateChecker(
-    private val http: HttpClient = apiHttpClient,
-    private val releaseUrl: String = RELEASE_URL,
-) {
+/**
+ * Reads the published snapshot from GitHub's public releases API; no token, so the
+ * per-address limit of 60 an hour applies.
+ */
+class UpdateChecker(private val http: HttpClient = apiHttpClient, private val releaseUrl: String = RELEASE_URL) {
     /** The published build, or null when GitHub did not answer with it. Transport failures surface as exceptions. */
     suspend fun latest(): PublishedBuild? {
         val response = http.get(releaseUrl) { header(HttpHeaders.Accept, "application/vnd.github+json") }
@@ -98,7 +106,10 @@ class UpdateChecker(
         const val RELEASE_URL = "https://api.github.com/repos/jamesarich/sofa-king/releases/tags/snapshot"
         private val json = Json { ignoreUnknownKeys = true }
 
-        /** The snapshot's build number, the commit count, in a version like `0.4.0-dev.123+abc1234`, or null for any other version. */
+        /**
+         * The snapshot's build number, the commit count, in a version like `0.4.0-dev.123+abc1234`,
+         * or null for any other version.
+         */
         fun runNumber(version: String): Int? = RUN.find(version)?.groupValues?.get(1)?.toIntOrNull()
 
         /** Where [running], the version this build reports, stands against [latest]. */
@@ -110,9 +121,10 @@ class UpdateChecker(
         }
 
         /**
-         * The notes `publish-snapshot.yml` writes with `.github/cliff.toml`: a `## <version>` section per recent snapshot,
-         * `### New` and `### Fixes` within it, and a `- scope: summary (#123)` line per change. The scope and the pull
-         * request are dropped, since neither means anything on a TV; lines outside a numbered section are skipped.
+         * The notes `publish-snapshot.yml` writes with `.github/cliff.toml`: a `## <version>` section per recent
+         * snapshot, `### New` and `### Fixes` within it, and a `- scope: summary (#123)` line per change. The scope and
+         * the pull request are dropped, since neither means anything on a TV; lines outside a numbered section are
+         * skipped.
          */
         fun releaseNotes(body: String?): List<ReleaseNote> {
             var section: Int? = null
@@ -124,20 +136,23 @@ class UpdateChecker(
                         section = runNumber(line.removePrefix("## ").trim())
                         fix = null
                     }
+
                     line.startsWith("### ") -> fix = when (line.removePrefix("### ").trim()) {
                         "New" -> false
                         "Fixes" -> true
                         else -> null
                     }
-                    else -> {
-                        val build = section ?: continue
-                        val isFix = fix ?: continue
-                        val text = NOTE.matchEntire(line)?.groupValues?.get(1) ?: continue
-                        notes += ReleaseNote(build, isFix, text)
-                    }
+
+                    else -> note(section, fix, line)?.let(notes::add)
                 }
             }
             return notes
+        }
+
+        /** The change on [line], a `- ` line of the build numbered [run] under a known group, or null for any other. */
+        private fun note(run: Int?, fix: Boolean?, line: String): ReleaseNote? {
+            val text = NOTE.matchEntire(line)?.groupValues?.get(1)
+            return if (run != null && fix != null && text != null) ReleaseNote(run, fix, text) else null
         }
 
         /** The hex of a `sha256:<hex>` asset digest, lowercased, or null for any other algorithm or shape. */

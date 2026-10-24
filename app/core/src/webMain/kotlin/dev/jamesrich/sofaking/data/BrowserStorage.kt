@@ -78,12 +78,19 @@ internal class LegacyLocalStorageMigration(private val key: String) : DataMigrat
             val value = entry.getValue("v")
             when (entry.getValue("t").jsonPrimitive.content) {
                 "b" -> prefs[booleanPreferencesKey(name)] = value.jsonPrimitive.boolean
+
                 "i" -> prefs[intPreferencesKey(name)] = value.jsonPrimitive.int
+
                 "l" -> prefs[longPreferencesKey(name)] = value.jsonPrimitive.long
+
                 "f" -> prefs[floatPreferencesKey(name)] = value.jsonPrimitive.float
+
                 "d" -> prefs[doublePreferencesKey(name)] = value.jsonPrimitive.double
+
                 "s" -> prefs[stringPreferencesKey(name)] = value.jsonPrimitive.content
-                "ss" -> prefs[stringSetPreferencesKey(name)] = value.jsonArray.mapTo(HashSet()) { it.jsonPrimitive.content }
+
+                "ss" -> prefs[stringSetPreferencesKey(name)] =
+                    value.jsonArray.mapTo(HashSet()) { it.jsonPrimitive.content }
             }
         }
     }

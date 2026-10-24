@@ -27,13 +27,23 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.player_control_back
+import dev.jamesrich.sofaking.resources.player_control_sleep
+import dev.jamesrich.sofaking.resources.player_sleep_end_item
+import dev.jamesrich.sofaking.resources.player_sleep_end_program
+import dev.jamesrich.sofaking.resources.player_sleep_minutes
+import dev.jamesrich.sofaking.resources.player_zoom_fill
+import dev.jamesrich.sofaking.resources.player_zoom_fit
+import dev.jamesrich.sofaking.resources.player_zoom_notice
+import dev.jamesrich.sofaking.resources.player_zoom_stretch
+import dev.jamesrich.sofaking.resources.vod_control_speed
 import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.LastInput
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import org.jetbrains.compose.resources.StringResource
-import kotlin.time.Clock
 import org.jetbrains.compose.resources.stringResource
+import kotlin.time.Clock
 
 /** How long a player's bar stays up after the last key, tap or mouse movement, unless something holds it. */
 internal const val BAR_IDLE_MS = 5_000L
@@ -89,17 +99,21 @@ internal fun vodButtons(
     inCredits: Boolean = false,
     creditsToNext: Boolean = false,
     speedAdjustable: Boolean = false,
-): List<VodButton> = if (failed) emptyList() else buildList {
-    if (inBreak) add(VodButton.SKIP_BREAK)
-    if (inIntro) add(VodButton.SKIP_INTRO)
-    if (inCredits) add(VodButton.SKIP_CREDITS)
-    if (tracksPickable) add(VodButton.TRACKS)
-    if (captions) add(VodButton.CAPTIONS)
-    add(VodButton.ZOOM)
-    add(VodButton.SLEEP)
-    if (speedAdjustable) add(VodButton.SPEED)
-    if (pastStart) add(VodButton.START_OVER)
-    if (hasNext && !(inCredits && creditsToNext)) add(VodButton.NEXT)
+): List<VodButton> = if (failed) {
+    emptyList()
+} else {
+    buildList {
+        if (inBreak) add(VodButton.SKIP_BREAK)
+        if (inIntro) add(VodButton.SKIP_INTRO)
+        if (inCredits) add(VodButton.SKIP_CREDITS)
+        if (tracksPickable) add(VodButton.TRACKS)
+        if (captions) add(VodButton.CAPTIONS)
+        add(VodButton.ZOOM)
+        add(VodButton.SLEEP)
+        if (speedAdjustable) add(VodButton.SPEED)
+        if (pastStart) add(VodButton.START_OVER)
+        if (hasNext && !(inCredits && creditsToNext)) add(VodButton.NEXT)
+    }
 }
 
 /** A button on the live player's bar; [liveButtons] chooses them. */
@@ -130,10 +144,16 @@ internal enum class LiveButton {
 
 /**
  * The live player's buttons, in the bar's order: the channel list first, the previous channel once there is one
- * ([hasPrevious]), then what the CC, Play/Pause, Info and Zoom keys do, the sleep timer, Record where the server records and there is a program on, the star where favorites can change, and the guide.
- * A finger or a mouse has play and pause beside the channel buttons instead ([pointer]).
+ * ([hasPrevious]), then what the CC, Play/Pause, Info and Zoom keys do, the sleep timer, Record where the server
+ * records and there is a program on, the star where favorites can change, and the guide. A finger or a mouse has play
+ * and pause beside the channel buttons instead ([pointer]).
  */
-internal fun liveButtons(pointer: Boolean, canRecord: Boolean, canFavorite: Boolean, hasPrevious: Boolean = false): List<LiveButton> = buildList {
+internal fun liveButtons(
+    pointer: Boolean,
+    canRecord: Boolean,
+    canFavorite: Boolean,
+    hasPrevious: Boolean = false,
+): List<LiveButton> = buildList {
     add(LiveButton.CHANNELS)
     if (hasPrevious) add(LiveButton.PREVIOUS)
     if (!pointer) add(LiveButton.PLAY_PAUSE)
@@ -166,12 +186,19 @@ internal enum class ButtonRowKey {
  * picture; Down stays put; every other key (media keys, digits) goes back to the picture and acts there.
  */
 internal fun Key.inButtonRow(): ButtonRowKey = when (this) {
-    Key.DirectionLeft, Key.DirectionRight, Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.DirectionDown -> ButtonRowKey.ROW
+    Key.DirectionLeft, Key.DirectionRight, Key.DirectionCenter, Key.Enter, Key.NumPadEnter,
+    Key.DirectionDown,
+    -> ButtonRowKey.ROW
+
     Key.DirectionUp, Key.Back, Key.Escape -> ButtonRowKey.LEAVE
+
     else -> ButtonRowKey.PLAYER
 }
 
-/** Where a double tap on a touch screen's picture seeks: its left third back (-1), its right third forward (1), the middle not at all (0). */
+/**
+ * Where a double tap on a touch screen's picture seeks: its left third back (-1), its right third forward
+ * (1), the middle not at all (0).
+ */
 internal fun doubleTapSeek(x: Float, width: Float): Int = when {
     width <= 0f -> 0
     x < width / 3 -> -1
@@ -197,14 +224,18 @@ internal val VideoZoom.label: StringResource
 
 /** Zoom on either bar, named with the zoom it is at, as "Zoom: Fit". */
 @Composable
-internal fun zoomButtonItem(zoom: VideoZoom, onClick: () -> Unit): PlayerButtonItem =
-    PlayerButtonItem(SofaIcons.AspectRatio, stringResource(Res.string.player_zoom_notice, stringResource(zoom.label)), onClick)
+internal fun zoomButtonItem(zoom: VideoZoom, onClick: () -> Unit): PlayerButtonItem = PlayerButtonItem(
+    SofaIcons.AspectRatio,
+    stringResource(Res.string.player_zoom_notice, stringResource(zoom.label)),
+    onClick,
+)
 
 /** The library player's speeds, which its Speed button steps through and back to the first. */
 internal val PLAYBACK_SPEEDS = listOf(1f, 1.25f, 1.5f, 2f)
 
 /** The speed after [speed] on the Speed button; one not in [PLAYBACK_SPEEDS] goes back to normal. */
-internal fun nextSpeed(speed: Float): Float = PLAYBACK_SPEEDS.getOrNull(PLAYBACK_SPEEDS.indexOf(speed) + 1) ?: PLAYBACK_SPEEDS.first()
+internal fun nextSpeed(speed: Float): Float =
+    PLAYBACK_SPEEDS.getOrNull(PLAYBACK_SPEEDS.indexOf(speed) + 1) ?: PLAYBACK_SPEEDS.first()
 
 /** [speed] as the Speed button names it, as "1.25" or "2". */
 internal fun speedText(speed: Float): String = speed.toString().removeSuffix(".0")
@@ -263,7 +294,13 @@ internal fun PlayerButtonRow(
                     modifier = Modifier
                         .then(if (position == 0) Modifier.focusRequester(entry) else Modifier)
                         .onFocusChanged { if (it.isFocused) focusedIndex = position }
-                        .then(if (item.state != null) Modifier.semantics { stateDescription = item.state } else Modifier),
+                        .then(
+                            if (item.state != null) {
+                                Modifier.semantics { stateDescription = item.state }
+                            } else {
+                                Modifier
+                            },
+                        ),
                 )
             }
         }

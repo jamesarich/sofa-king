@@ -12,7 +12,9 @@ import org.jetbrains.exposed.v1.jdbc.upsert
 
 /** The scrub thumbnails made for [itemIds], by item id. */
 suspend fun BackendStore.libraryScrubs(itemIds: Collection<String>): Map<String, ScrubRecord> = read {
-    itemIds.chunked(500).flatMap { chunk -> LibraryScrubRows.selectAll().where { LibraryScrubRows.itemId inList chunk }.map { it.scrub() } }
+    itemIds.chunked(500).flatMap { chunk ->
+        LibraryScrubRows.selectAll().where { LibraryScrubRows.itemId inList chunk }.map { it.scrub() }
+    }
         .associateBy { it.itemId }
 }
 
@@ -43,7 +45,14 @@ suspend fun BackendStore.deleteOrphanLibraryScrubs(): Set<String> = query {
 }
 
 private fun ResultRow.scrub() = ScrubRecord(
-    this[LibraryScrubRows.itemId], this[LibraryScrubRows.fileKey], this[LibraryScrubRows.intervalMs], this[LibraryScrubRows.tileWidth],
-    this[LibraryScrubRows.tileHeight], this[LibraryScrubRows.columnCount], this[LibraryScrubRows.rowCount], this[LibraryScrubRows.sheets],
-    this[LibraryScrubRows.frames], this[LibraryScrubRows.madeAt],
+    this[LibraryScrubRows.itemId],
+    this[LibraryScrubRows.fileKey],
+    this[LibraryScrubRows.intervalMs],
+    this[LibraryScrubRows.tileWidth],
+    this[LibraryScrubRows.tileHeight],
+    this[LibraryScrubRows.columnCount],
+    this[LibraryScrubRows.rowCount],
+    this[LibraryScrubRows.sheets],
+    this[LibraryScrubRows.frames],
+    this[LibraryScrubRows.madeAt],
 )

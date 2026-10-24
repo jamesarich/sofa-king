@@ -1,16 +1,16 @@
 package dev.jamesrich.sofaking.data
 
 import dev.jamesrich.sofaking.contract.Wire
-import java.net.Inet4Address
-import java.net.NetworkInterface
-import javax.jmdns.JmDNS
-import javax.jmdns.ServiceEvent
-import javax.jmdns.ServiceListener
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
+import java.net.Inet4Address
+import java.net.NetworkInterface
+import javax.jmdns.JmDNS
+import javax.jmdns.ServiceEvent
+import javax.jmdns.ServiceListener
 
 /** Browses with JmDNS on each IPv4 address of the desktop's network interfaces that are up and carry multicast. */
 class JmdnsServerDiscovery : ServerDiscovery {
@@ -31,12 +31,19 @@ class JmdnsServerDiscovery : ServerDiscovery {
             runCatching { JmDNS.create(address).also { it.addServiceListener(type, listener) } }.getOrNull()
         }
         awaitClose {
-            browsers.forEach { runCatching { it.removeServiceListener(type, listener); it.close() } }
+            browsers.forEach {
+                runCatching {
+                    it.removeServiceListener(type, listener)
+                    it.close()
+                }
+            }
         }
     }.flowOn(ioDispatcher)
 
     private fun lanAddresses() = NetworkInterface.networkInterfaces().toList()
-        .filter { runCatching { it.isUp && !it.isLoopback && !it.isVirtual && it.supportsMulticast() }.getOrDefault(false) }
+        .filter {
+            runCatching { it.isUp && !it.isLoopback && !it.isVirtual && it.supportsMulticast() }.getOrDefault(false)
+        }
         .flatMap { it.inetAddresses.toList() }
         .filter { it is Inet4Address && !it.isLinkLocalAddress }
 }

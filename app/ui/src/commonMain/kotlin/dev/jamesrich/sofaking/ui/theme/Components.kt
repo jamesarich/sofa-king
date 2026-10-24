@@ -48,13 +48,12 @@ const val TV_FOCUS_SCALE = 1.1f
  * The cue lives in a modifier node, so a focus move redraws the control without recomposing its caller.
  */
 @Composable
-fun Modifier.tvFocus(shape: Shape, focusedScale: Float = TV_FOCUS_SCALE): Modifier =
-    this then TvFocusElement(
-        shape = shape,
-        focusedScale = focusedScale,
-        ring = MaterialTheme.colorScheme.onSurface,
-        spec = MaterialTheme.motionScheme.fastSpatialSpec(),
-    )
+fun Modifier.tvFocus(shape: Shape, focusedScale: Float = TV_FOCUS_SCALE): Modifier = this then TvFocusElement(
+    shape = shape,
+    focusedScale = focusedScale,
+    ring = MaterialTheme.colorScheme.onSurface,
+    spec = MaterialTheme.motionScheme.fastSpatialSpec(),
+)
 
 private data class TvFocusElement(
     val shape: Shape,
@@ -78,7 +77,10 @@ private class TvFocusNode(
     private var focusedScale: Float,
     ring: Color,
     private var spec: FiniteAnimationSpec<Float>,
-) : Modifier.Node(), FocusEventModifierNode, LayoutModifierNode, DrawModifierNode {
+) : Modifier.Node(),
+    FocusEventModifierNode,
+    LayoutModifierNode,
+    DrawModifierNode {
     private val scale = Animatable(1f)
 
     // Snapshot state, so a change redraws the layer that records the ring.
@@ -171,7 +173,9 @@ fun SofaButton(
 private const val DISABLED_CONTAINER_ALPHA = 0.12f
 private const val DISABLED_CONTENT_ALPHA = 0.38f
 
-/** A Material 3 filter chip in the label type, with the D-pad focus cue: the guide's filters and the library's choices. */
+/**
+ * A Material 3 filter chip in the label type, with the D-pad focus cue: the guide's filters and the library's choices.
+ */
 @Composable
 internal fun SofaChip(selected: Boolean, onClick: () -> Unit, label: String, modifier: Modifier = Modifier) {
     FilterChip(

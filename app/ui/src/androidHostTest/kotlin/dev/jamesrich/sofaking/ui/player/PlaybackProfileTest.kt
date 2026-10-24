@@ -44,6 +44,10 @@ class PlaybackProfileTest {
     fun `deep color lists the codecs a decoder takes at 10 bits`() {
         assertEquals(listOf("hevc"), profile().deepColor)
         assertEquals(emptyList<String>(), profile(deep = emptySet()).deepColor)
-        assertEquals("no VP9 decoder at all", listOf("h264"), profile(deep = setOf(MimeTypes.VIDEO_H264, MimeTypes.VIDEO_VP9)).deepColor)
+        assertEquals(
+            "no VP9 decoder at all",
+            listOf("h264"),
+            profile(deep = setOf(MimeTypes.VIDEO_H264, MimeTypes.VIDEO_VP9)).deepColor,
+        )
     }
 }

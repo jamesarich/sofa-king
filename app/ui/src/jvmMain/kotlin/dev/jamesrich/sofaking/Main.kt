@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking
 
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -15,16 +16,18 @@ import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
 import dev.jamesrich.sofaking.ui.WindowFullScreen
 import org.jetbrains.compose.resources.stringResource
+import java.awt.Dimension
 import java.io.File
 import java.net.InetAddress
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
-import androidx.compose.runtime.LaunchedEffect
-import java.awt.Dimension
 
 /** Sofa King on Linux, macOS and Windows desktops; a keyboard's arrows, Enter and Escape stand in for the remote. */
 fun main() {
-    initSofaKing(AppStorage.inDirectory(desktopDataDirectory().absolutePath, ClientInfo("desktop", hostName())), JmdnsServerDiscovery())
+    initSofaKing(
+        AppStorage.inDirectory(desktopDataDirectory().absolutePath, ClientInfo("desktop", hostName())),
+        JmdnsServerDiscovery(),
+    )
     application {
         val state = rememberWindowState(width = 1280.dp, height = 720.dp)
         val fullScreen = remember(state) { DesktopFullScreen(state) }

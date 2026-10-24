@@ -72,13 +72,14 @@ class TsRemux(private val ffmpeg: String, private val relay: LoopbackRelay) {
                     withContext(Dispatchers.IO) {
                         val input = process.inputStream
                         val buffer = ByteArray(64 * 1024)
-                        while (true) {
-                            val read = input.read(buffer)
-                            if (read < 0) break
-                            if (read == 0) continue
-                            writeFully(buffer, 0, read)
-                            sent(read)
-                            flush()
+                        var read = input.read(buffer)
+                        while (read >= 0) {
+                            if (read > 0) {
+                                writeFully(buffer, 0, read)
+                                sent(read)
+                                flush()
+                            }
+                            read = input.read(buffer)
                         }
                         // The watchdog killing FFmpeg for a client that left also ends the read; only a read
                         // still wanted is the source ending.

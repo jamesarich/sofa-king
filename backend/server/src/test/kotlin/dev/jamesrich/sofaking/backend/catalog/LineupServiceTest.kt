@@ -156,7 +156,12 @@ class LineupServiceTest {
         /** The source a new preview session under [key] plays. */
         suspend fun selected(key: String): String {
             val opened = sessions.open(OpenPlayback(entry.id, "preview", key))
-            return sessions.acquire(opened.id, 1, opened.descriptor.url.substringAfterLast('/'), Job()).offering.id
+            return sessions.media.acquire(
+                opened.id,
+                1,
+                opened.descriptor.url.substringAfterLast('/'),
+                Job(),
+            ).offering.id
         }
     }
 

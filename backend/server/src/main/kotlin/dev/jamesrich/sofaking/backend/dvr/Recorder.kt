@@ -101,11 +101,11 @@ class Recorder internal constructor(
      * attempt and the next one reopens, never the whole recording.
      */
     private suspend fun attempt(channelId: String, file: Path, until: Instant): String? {
-        val session = sessions.openExternal(channelId, CLIENT, shareable = false)
+        val session = sessions.external.open(channelId, CLIENT, shareable = false)
         try {
             return try {
                 coroutineScope {
-                    sessions.attach(session.id, coroutineContext.job)
+                    sessions.media.attach(session.id, coroutineContext.job)
                     read(session.id, file, until)
                 }
             } catch (_: CancellationException) {
@@ -120,15 +120,15 @@ class Recorder internal constructor(
 
     /** Reads the session's source into [file] until [until], through the shared connection or FFmpeg. */
     private suspend fun read(sessionId: String, file: Path, until: Instant): String? {
-        val offering = sessions.offeringOf(sessionId)
+        val offering = sessions.media.offeringOf(sessionId)
         val stream = feeds.playable(offering)
         feeds.upstream.check(URI(stream.url))
         if (shared != null && offering.protocol == "mpegts") {
-            copyShared(shared, offering, stream, file, until, sessions.bytesOf(sessionId))?.let {
+            copyShared(shared, offering, stream, file, until, sessions.media.bytesOf(sessionId))?.let {
                 return it.ifEmpty { null }
             }
         }
-        val bytes = sessions.bytesOf(sessionId)
+        val bytes = sessions.media.bytesOf(sessionId)
         return relay.reading(stream, offering.protocol) { source -> remux(source, file, until, bytes) }
     }
 

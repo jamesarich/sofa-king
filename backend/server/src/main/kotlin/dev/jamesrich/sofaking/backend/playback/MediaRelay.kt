@@ -15,6 +15,7 @@ import dev.jamesrich.sofaking.backend.upstream.tsSyncOffset
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.HttpClient
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.request
 import io.ktor.http.ContentType
@@ -26,6 +27,8 @@ import io.ktor.server.response.header
 import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondBytesWriter
 import io.ktor.server.response.respondText
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.copyTo
 import io.ktor.utils.io.readAvailable
 import io.ktor.utils.io.readBuffer
@@ -63,19 +66,14 @@ class MediaRelay(
 
     suspend fun serve(call: ApplicationCall, id: String, epoch: Int, token: String) = coroutineScope {
         val job = coroutineContext[Job]!!
-        val resource = sessions.acquire(id, epoch, token, job, call.request.origin.remoteAddress)
+        val resource = sessions.media.acquire(id, epoch, token, job, call.request.origin.remoteAddress)
         try {
             // A native source resolves to its playable URL now; the headers it needs go with every request to it. One
             // that fails moves the session to the channel's next source, and the 410 sends the player to it.
             val stream = try {
                 feeds.playable(resource.offering)
             } catch (_: ProviderFailure) {
-                if (sessions.sourceFailed(
-                        id,
-                        epoch,
-                        job,
-                    )
-                ) {
+                if (sessions.media.sourceFailed(id, epoch, job)) {
                     throw ApiFailure(
                         HttpStatusCode.Gone,
                         Wire.ErrorCode.STREAM_CHANGED,
@@ -86,19 +84,12 @@ class MediaRelay(
                 throw ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
             }
             if (resource.shared) {
-                serveShared(
-                    call,
-                    id,
-                    epoch,
-                    job,
-                    resource,
-                    stream,
-                )
+                serveShared(call, id, epoch, job, resource, stream)
             } else {
                 serveDirect(call, id, epoch, job, resource, stream)
             }
         } finally {
-            withContext(NonCancellable) { sessions.finished(id, job) }
+            withContext(NonCancellable) { sessions.media.finished(id, job) }
         }
     }
 
@@ -118,7 +109,7 @@ class MediaRelay(
      * The descriptor promised one protocol and the body carries the other: bump the epoch so the player re-reads it.
      */
     private suspend fun protocolMismatch(id: String, epoch: Int, job: Job, protocol: String): Nothing {
-        sessions.protocolObserved(id, epoch, protocol, job)
+        sessions.media.protocolObserved(id, epoch, protocol, job)
         throw ApiFailure(
             HttpStatusCode.Gone,
             Wire.ErrorCode.STREAM_CHANGED,
@@ -164,7 +155,7 @@ class MediaRelay(
             } catch (_: Exception) {
                 // The session let this request go before the stream started (released, retuned, or replaced by the
                 // player's next request); that cancels the wait, and is not the upstream's failure.
-                if (!job.isActive) throw withContext(NonCancellable) { sessions.letGo(id) }
+                if (!job.isActive) throw withContext(NonCancellable) { sessions.media.letGo(id) }
                 throw ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
             }
             call.response.header(HttpHeaders.CacheControl, "no-store")
@@ -197,13 +188,10 @@ class MediaRelay(
         permits.withPermit {
             relayResource(
                 http, feeds.upstream, call, withDeliveryDirectives(url, call), stream,
-                path = { sessions.resourcePath(id, epoch, it) },
+                path = { sessions.media.resourcePath(id, epoch, it) },
                 sent = { resource.bytes.addAndGet(it) },
                 manifest = { text, source ->
-                    resource.playlists.steady(text, source).let {
-                        ads?.annotate(it, source)
-                            ?: it
-                    }
+                    resource.playlists.steady(text, source).let { ads?.annotate(it, source) ?: it }
                 },
                 sniffed = { protocol -> if (root && protocol == "mpegts") protocolMismatch(id, epoch, job, "mpegts") },
                 tap = ads?.let { { found -> tapped = found } },
@@ -214,10 +202,8 @@ class MediaRelay(
         val bytes = tapped?.bytes
         // Read after the segment is answered, so the player never waits on it.
         if (ads != null && audio != null && bytes != null) {
-            synchronized(ads) {
-                ads.follower
-                    ?: AudioFollower(audio, ads, scope).also { ads.follower = it }
-            }.offer(url, bytes)
+            synchronized(ads) { ads.follower ?: AudioFollower(audio, ads, scope).also { ads.follower = it } }
+                .offer(url, bytes)
         }
     }
 }
@@ -259,9 +245,7 @@ internal suspend fun relayResource(
     stream: ResolvedStream,
     path: suspend (String) -> String,
     sent: (Long) -> Unit = {},
-    refused: (
-        Int,
-    ) -> Nothing = {
+    refused: (Int) -> Nothing = {
         throw ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
     },
     sniffed: suspend (String?) -> Unit = {},
@@ -283,84 +267,110 @@ internal suspend fun relayResource(
         // Some origins gzip a manifest whatever the request asked for; the signature is in the inflated bytes.
         val protocol = sniffProtocol(inflateHead(head))
         sniffed(protocol)
-        val type = response.headers[HttpHeaders.ContentType].orEmpty().substringBefore(';')
-        val manifest =
-            protocol == "hls" ||
-                (
-                    protocol == null && (
-                        URI(
-                            response.request.url.toString(),
-                        ).path.endsWith(".m3u8", true) || type.contains("mpegurl", true)
-                        )
-                    )
+        val relayed = RelayedBody(call, response, body, head, sent)
         call.response.header(HttpHeaders.CacheControl, "no-store")
-        if (manifest) {
-            // One byte past the limit tells a manifest at the limit from one too large.
-            val raw = head + body.readBuffer(MANIFEST_LIMIT + 1L - head.size).readByteArray()
-            if (raw.size > MANIFEST_LIMIT) {
-                throw ApiFailure(HttpStatusCode.BadGateway, "INVALID_MANIFEST", "Manifest too large")
-            }
-            val bytes = if (isGzip(raw)) inflateHead(raw, MANIFEST_LIMIT) else raw
-            val source = URI(response.request.url.toString())
-            val rewritten = HlsRewriter.rewrite(manifest(bytes.toString(Charsets.UTF_8), source), source, path)
-            sent(rewritten.length.toLong())
-            call.respondText(rewritten, ContentType.parse("application/vnd.apple.mpegurl"))
-        } else {
-            val contentType =
-                try {
-                    ContentType.parse(type.ifBlank { "video/mp2t" })
-                } catch (_: Exception) {
-                    ContentType.Application.OctetStream
-                }
-            // A CDN may gzip a key or a small resource on its own; the reader gets the bytes it would decrypt with.
-            val encoded =
-                response.headers[HttpHeaders.ContentEncoding]?.contains("gzip", true) == true ||
-                    (isGzip(head) && !type.startsWith("video/", true))
-            if (encoded) {
-                val raw = head + body.readBuffer(ENCODED_LIMIT + 1L - head.size).readByteArray()
-                if (raw.size > ENCODED_LIMIT) {
-                    throw ApiFailure(
-                        HttpStatusCode.BadGateway,
-                        "UPSTREAM_UNAVAILABLE",
-                        "Encoded resource too large",
-                        true,
-                    )
-                }
-                val plain = if (isGzip(raw)) inflateHead(raw, ENCODED_LIMIT * 8) else raw
-                sent(plain.size.toLong())
-                call.respondBytes(plain, contentType)
-            } else {
-                response.headers[HttpHeaders.ContentRange]?.let { call.response.header(HttpHeaders.ContentRange, it) }
-                response.headers[HttpHeaders.AcceptRanges]?.let { call.response.header(HttpHeaders.AcceptRanges, it) }
-                val sync = if (tap != null && protocol == "mpegts") tsSyncOffset(head, 3) else null
-                val reader = sync?.let { SpliceReader() }
-                var kept = if (sync != null && keepBytes) {
-                    ByteArrayOutputStream().apply { write(head, sync, head.size - sync) }
-                } else {
-                    null
-                }
-                call.respondBytesWriter(contentType = contentType, status = response.status) {
-                    writeFully(head)
-                    sent(head.size.toLong())
-                    if (reader == null) {
-                        sent(body.copyTo(this))
-                    } else {
-                        reader.feed(head, sync!!)
-                        val buffer = ByteArray(SEGMENT_READ)
-                        while (true) {
-                            val count = body.readAvailable(buffer)
-                            if (count < 0) break
-                            if (count == 0) continue
-                            writeFully(buffer, 0, count)
-                            reader.feed(buffer, 0, count)
-                            kept?.write(buffer, 0, count)
-                            if ((kept?.size() ?: 0) > SEGMENT_KEEP_LIMIT) kept = null
-                            sent(count.toLong())
-                        }
-                    }
-                }
-                reader?.let { tap?.invoke(TappedSegment(it.finish(), kept?.toByteArray())) }
-            }
+        when {
+            relayed.isManifest(protocol) -> relayed.manifest(manifest, path)
+            relayed.isEncoded() -> relayed.encoded()
+            else -> relayed.streamed(tap?.takeIf { protocol == "mpegts" }, keepBytes)
         }
     }
+}
+
+/** An upstream [response] that [relayResource] answers [call] with: its [body], of which [head] is read already. */
+private class RelayedBody(
+    private val call: ApplicationCall,
+    private val response: HttpResponse,
+    private val body: ByteReadChannel,
+    private val head: ByteArray,
+    private val sent: (Long) -> Unit,
+) {
+    private val type = response.headers[HttpHeaders.ContentType].orEmpty().substringBefore(';')
+    private val source get() = URI(response.request.url.toString())
+
+    /** Whether the body is an HLS manifest: its head says so, or names no protocol and its URL or type does. */
+    fun isManifest(protocol: String?): Boolean = protocol == "hls" ||
+        (protocol == null && (source.path.endsWith(".m3u8", true) || type.contains("mpegurl", true)))
+
+    /** Whether the body is gzip-encoded: a CDN may gzip a key or a small resource on its own. */
+    fun isEncoded(): Boolean = response.headers[HttpHeaders.ContentEncoding]?.contains("gzip", true) == true ||
+        (isGzip(head) && !type.startsWith("video/", true))
+
+    /** Answers with the manifest, inflated when gzipped, after [edit] and the rewrite that maps its URIs by [path]. */
+    suspend fun manifest(edit: (String, URI) -> String, path: suspend (String) -> String) {
+        val raw = upTo(MANIFEST_LIMIT) {
+            throw ApiFailure(HttpStatusCode.BadGateway, "INVALID_MANIFEST", "Manifest too large")
+        }
+        val bytes = if (isGzip(raw)) inflateHead(raw, MANIFEST_LIMIT) else raw
+        val source = source
+        val rewritten = HlsRewriter.rewrite(edit(bytes.toString(Charsets.UTF_8), source), source, path)
+        sent(rewritten.length.toLong())
+        call.respondText(rewritten, ContentType.parse("application/vnd.apple.mpegurl"))
+    }
+
+    /** Answers with the inflated bytes, the ones a reader would decrypt with. */
+    suspend fun encoded() {
+        val raw = upTo(ENCODED_LIMIT) {
+            throw ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Encoded resource too large", true)
+        }
+        val plain = if (isGzip(raw)) inflateHead(raw, ENCODED_LIMIT * 8) else raw
+        sent(plain.size.toLong())
+        call.respondBytes(plain, contentType())
+    }
+
+    /**
+     * Streams the body as the upstream sent it, with its range headers. Given [tap], a transport stream segment is
+     * read for its cues as it passes, and [tap] gets them once all of it is answered.
+     */
+    suspend fun streamed(tap: ((TappedSegment) -> Unit)?, keepBytes: Boolean) {
+        response.headers[HttpHeaders.ContentRange]?.let { call.response.header(HttpHeaders.ContentRange, it) }
+        response.headers[HttpHeaders.AcceptRanges]?.let { call.response.header(HttpHeaders.AcceptRanges, it) }
+        val tapping = tap?.let { tsSyncOffset(head, 3) }?.let { Tapping(head, it, keepBytes) }
+        call.respondBytesWriter(contentType = contentType(), status = response.status) {
+            writeFully(head)
+            sent(head.size.toLong())
+            if (tapping == null) sent(body.copyTo(this)) else tapping.copy(body, this, sent)
+        }
+        if (tap != null && tapping != null) tap(tapping.finish())
+    }
+
+    private fun contentType(): ContentType = try {
+        ContentType.parse(type.ifBlank { "video/mp2t" })
+    } catch (_: Exception) {
+        ContentType.Application.OctetStream
+    }
+
+    /** The whole body, up to [limit] bytes; [tooLarge] when it holds more. */
+    private suspend fun upTo(limit: Int, tooLarge: () -> Nothing): ByteArray {
+        // One byte past the limit tells a body at the limit from one too large.
+        val raw = head + body.readBuffer(limit + 1L - head.size).readByteArray()
+        return if (raw.size > limit) tooLarge() else raw
+    }
+}
+
+/**
+ * Reads a transport stream segment for SCTE-35 cues as it passes (see [SpliceReader]), from its first sync byte at
+ * [sync] in [head], and keeps its bytes when [keepBytes], up to [SEGMENT_KEEP_LIMIT].
+ */
+private class Tapping(head: ByteArray, sync: Int, keepBytes: Boolean) {
+    private val reader = SpliceReader().apply { feed(head, sync) }
+    private var kept = if (keepBytes) ByteArrayOutputStream().apply { write(head, sync, head.size - sync) } else null
+
+    /** Copies the rest of the segment [from] the upstream [to] the player, telling [sent] each count of bytes. */
+    suspend fun copy(from: ByteReadChannel, to: ByteWriteChannel, sent: (Long) -> Unit) {
+        val buffer = ByteArray(SEGMENT_READ)
+        var count = from.readAvailable(buffer)
+        while (count >= 0) {
+            if (count > 0) {
+                to.writeFully(buffer, 0, count)
+                reader.feed(buffer, 0, count)
+                kept?.write(buffer, 0, count)
+                if ((kept?.size() ?: 0) > SEGMENT_KEEP_LIMIT) kept = null
+                sent(count.toLong())
+            }
+            count = from.readAvailable(buffer)
+        }
+    }
+
+    fun finish(): TappedSegment = TappedSegment(reader.finish(), kept?.toByteArray())
 }

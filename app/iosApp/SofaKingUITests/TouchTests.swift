@@ -75,10 +75,10 @@ final class TouchTests: XCTestCase {
             let frame = frames[Int(random.next() % UInt64(frames.count))]
             app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
         }),
-        ("swipeUp", 3, { app, _ in app.swipeUp() }),
-        ("swipeDown", 3, { app, _ in app.swipeDown() }),
-        ("swipeLeft", 2, { app, _ in app.swipeLeft() }),
-        ("swipeRight", 2, { app, _ in app.swipeRight() }),
+        ("swipeUp", 3, { app, _ in swipe(app, from: CGVector(dx: 0.5, dy: 0.75), to: CGVector(dx: 0.5, dy: 0.25)) }),
+        ("swipeDown", 3, { app, _ in swipe(app, from: CGVector(dx: 0.5, dy: 0.25), to: CGVector(dx: 0.5, dy: 0.75)) }),
+        ("swipeLeft", 2, { app, _ in swipe(app, from: CGVector(dx: 0.65, dy: 0.5), to: CGVector(dx: 0.35, dy: 0.5)) }),
+        ("swipeRight", 2, { app, _ in swipe(app, from: CGVector(dx: 0.35, dy: 0.5), to: CGVector(dx: 0.65, dy: 0.5)) }),
         ("back", 3, { app, _ in
             // The system's back gesture: a swipe in from the left edge.
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.5))
@@ -137,7 +137,7 @@ final class TouchTests: XCTestCase {
         eventually("the guide or the player to load", timeout: 120) {
             if labeled("All ").exists || labeled("Now playing").exists { return true }
             if retry.exists {
-                if retry.isHittable { retry.tap() } else { app.swipeUp() }
+                if retry.isHittable { retry.tap() } else { swipe(app, from: CGVector(dx: 0.5, dy: 0.75), to: CGVector(dx: 0.5, dy: 0.25)) }
             }
             return false
         }
@@ -261,6 +261,15 @@ struct FixtureServer {
     private final class Response: @unchecked Sendable {
         var data: Data?
     }
+}
+
+/// A quick drag from `start` to `end`, each a fraction of the app's window. XCUIElement's own swipes are not used: in
+/// landscape they center on the unrotated screen, so they start past its edge, and a swipe down pulls Notification
+/// Center over the app; the walk then taps SpringBoard until its accessibility queries time out.
+@MainActor
+private func swipe(_ app: XCUIApplication, from start: CGVector, to end: CGVector) {
+    app.coordinate(withNormalizedOffset: start)
+        .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: end), withVelocity: .fast, thenHoldForDuration: 0)
 }
 
 /// The frames of the enabled buttons in `snapshot` and below it.

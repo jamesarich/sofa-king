@@ -47,15 +47,15 @@ internal fun EpisodeRow(
     episode: MediaItem,
     spoilersHidden: Boolean,
     onClick: () -> Unit,
-    menu: CardMenu? = null,
     modifier: Modifier = Modifier,
+    menu: CardMenu? = null,
 ) {
     var open by remember { mutableStateOf(false) }
-    Box {
+    Box(modifier.fillMaxWidth()) {
         Card(
             shape = RowShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-            modifier = modifier.fillMaxWidth().playKey(onClick).tvFocus(RowShape, focusedScale = 1f).clip(RowShape)
+            modifier = Modifier.fillMaxWidth().playKey(onClick).tvFocus(RowShape, focusedScale = 1f).clip(RowShape)
                 .clickOrHoldForMenu(onClick, menu?.let { { open = true } }),
         ) {
             Row(

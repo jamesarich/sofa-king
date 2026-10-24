@@ -57,7 +57,9 @@ internal fun cardMenuEntries(
     details: Boolean = false,
 ): List<CardMenuEntry> = listOfNotNull(
     CardMenuEntry.DETAILS.takeIf { details },
-    CardMenuEntry.PLAY_FROM_START.takeIf { playFromStart && item.kind.playable && item.progress?.inProgress == true },
+    CardMenuEntry.PLAY_FROM_START.takeIf {
+        playFromStart && item.kind.playable && item.progress?.inProgress == true
+    },
     if (isWatched(item)) CardMenuEntry.MARK_UNWATCHED else CardMenuEntry.MARK_WATCHED,
 )
 

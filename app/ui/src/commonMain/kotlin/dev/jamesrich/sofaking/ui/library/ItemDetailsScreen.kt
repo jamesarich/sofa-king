@@ -104,14 +104,7 @@ private fun Details(
     LaunchedEffect(returnToExtra) { if (returnToExtra != null) requestFocusWhenAttached(episodeFocus) }
     LaunchedEffect(returnToRelated) { if (returnToRelated != null) requestFocusWhenAttached(episodeFocus) }
 
-    val episodeMenu = remember(actions) {
-        CardMenu(
-            onOpen = actions.onOpenItem,
-            onPlayFromStart = { actions.onPlay(it, true) },
-            onSetWatched = actions.onSetWatched,
-        )
-    }
-
+    val episodeMenu = remember(actions) { episodeMenu(actions) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val heroHeight = maxHeight * HERO_FRACTION
         Hero(item.backdrop ?: item.poster, Modifier.fillMaxWidth().height(heroHeight))
@@ -153,6 +146,13 @@ private fun Details(
         }
     }
 }
+
+/** An episode row's menu: Details opens its own page, then Play from beginning and the watched toggle. */
+private fun episodeMenu(actions: ItemDetailsActions) = CardMenu(
+    onOpen = actions.onOpenItem,
+    onPlayFromStart = { actions.onPlay(it, true) },
+    onSetWatched = actions.onSetWatched,
+)
 
 /**
  * The episodes the page lists: a season's own, or those of the [season] picked in a show; any other item's playable

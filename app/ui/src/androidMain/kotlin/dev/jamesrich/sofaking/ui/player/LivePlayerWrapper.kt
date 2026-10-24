@@ -42,7 +42,11 @@ internal class LivePlayerWrapper(private val live: ExoLivePlayer) : ForwardingSi
     override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
         when {
             playWhenReady -> live.play()
-            live.ignoresSystemPause() -> log.i { "player: ignored a media-session pause during a display mode switch" }
+
+            live.systemPause.ignoring() -> log.i {
+                "player: ignored a media-session pause during a display mode switch"
+            }
+
             else -> live.pause()
         }
         return Futures.immediateVoidFuture()

@@ -1,0 +1,205 @@
+package dev.jamesrich.sofaking.ui.player
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.stream_card_audio
+import dev.jamesrich.sofaking.resources.stream_card_audio_codec
+import dev.jamesrich.sofaking.resources.stream_card_buffered
+import dev.jamesrich.sofaking.resources.stream_card_fps
+import dev.jamesrich.sofaking.resources.stream_card_mbps
+import dev.jamesrich.sofaking.resources.stream_card_seconds
+import dev.jamesrich.sofaking.resources.stream_card_session
+import dev.jamesrich.sofaking.resources.stream_card_size
+import dev.jamesrich.sofaking.resources.stream_card_source
+import dev.jamesrich.sofaking.resources.stream_card_title
+import dev.jamesrich.sofaking.resources.stream_card_unknown
+import dev.jamesrich.sofaking.resources.stream_card_video
+import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
+import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.oneDecimal
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
+import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
+import dev.jamesrich.sofaking.ui.theme.tvFocus
+import org.jetbrains.compose.resources.stringResource
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.DurationUnit
+
+/**
+ * The stream card, on Info held: the audio tracks to pick from, what the engine knows about the stream, the server's
+ * source and session, and the key legend. [info] and [bufferedMs] are read again by the owner while it is open.
+ */
+@Composable
+internal fun BoxScope.StreamCard(
+    tracks: List<AudioTrack>,
+    info: StreamInfo,
+    stream: PlaybackStream?,
+    bufferedMs: Long,
+    onSelectTrack: (String) -> Unit,
+) {
+    // Focus starts on the playing track's row, so OK and Up/Down act on the tracks at once; with
+    // none, the card itself holds it.
+    val focusRequester = remember { FocusRequester() }
+    val focusTrack = tracks.indexOfFirst { it.selected }.coerceAtLeast(0)
+    LaunchedEffect(Unit) { requestFocusWhenAttached(focusRequester) }
+    Column(
+        Modifier
+            .align(Alignment.TopEnd)
+            .screenPadding()
+            .width(400.dp)
+            .background(SofaOverlayScrim, OverlayShape)
+            .padding(24.dp)
+            .then(if (tracks.isEmpty()) Modifier.focusRequester(focusRequester) else Modifier)
+            .focusable(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            stringResource(Res.string.stream_card_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        if (tracks.isNotEmpty()) {
+            Text(
+                stringResource(Res.string.stream_card_audio),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            tracks.forEachIndexed { position, track ->
+                TrackRow(
+                    track.label,
+                    track.selected,
+                    onClick = { onSelectTrack(track.id) },
+                    modifier = if (position == focusTrack) Modifier.focusRequester(focusRequester) else Modifier,
+                )
+            }
+        }
+        StreamStats(info, stream, bufferedMs)
+        Spacer(Modifier.height(4.dp))
+        KeyLegend()
+    }
+}
+
+/** What the engine knows about the video and audio, how much is buffered, and the server's source and session. */
+@Composable
+private fun StreamStats(info: StreamInfo, stream: PlaybackStream?, bufferedMs: Long) {
+    val unknown = stringResource(Res.string.stream_card_unknown)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val video = listOfNotNull(
+            info.videoCodec,
+            if (info.width != null && info.height != null) {
+                stringResource(Res.string.stream_card_size, info.width, info.height)
+            } else {
+                null
+            },
+            info.frameRate?.let { stringResource(Res.string.stream_card_fps, oneDecimal(it.toDouble())) },
+            info.bitrateBps?.let { stringResource(Res.string.stream_card_mbps, oneDecimal(it / 1_000_000.0)) },
+        )
+        StatLine(stringResource(Res.string.stream_card_video), video.joinToString(DETAIL_SEPARATOR).ifEmpty { unknown })
+        StatLine(stringResource(Res.string.stream_card_audio_codec), info.audioCodec ?: unknown)
+        StatLine(
+            stringResource(Res.string.stream_card_buffered),
+            stringResource(
+                Res.string.stream_card_seconds,
+                oneDecimal(bufferedMs.milliseconds.toDouble(DurationUnit.SECONDS)),
+            ),
+        )
+        StatLine(
+            stringResource(Res.string.stream_card_source),
+            stream?.providerId?.takeIf { it.isNotEmpty() } ?: unknown,
+        )
+        StatLine(stringResource(Res.string.stream_card_session), stream?.sessionId?.take(n = 8) ?: unknown)
+    }
+}
+
+@Composable
+private fun StatLine(label: String, value: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(96.dp),
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** A track to pick; the playing one reads as [selected], and OK on any row plays it. */
+@Composable
+internal fun TrackRow(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val interactions = remember { MutableInteractionSource() }
+    val focused by interactions.collectIsFocusedAsState()
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier
+            .fillMaxWidth()
+            .tvFocus(OverlayShape, focusedScale = 1f)
+            .background(if (focused) colors.primary else Color.Transparent, OverlayShape)
+            .selectable(
+                selected = selected,
+                interactionSource = interactions,
+                indication = ripple(),
+                role = Role.RadioButton,
+                onClick = onClick,
+            )
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            if (selected) SofaIcons.Recordings else SofaIcons.RadioButtonUnchecked,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = if (focused) colors.onPrimary else colors.primary,
+        )
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (focused) colors.onPrimary else colors.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}

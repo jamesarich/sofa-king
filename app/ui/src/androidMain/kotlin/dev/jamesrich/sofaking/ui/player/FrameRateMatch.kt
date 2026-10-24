@@ -51,7 +51,7 @@ internal fun MatchExoDisplayFrameRate(player: LivePlayer, enabled: Boolean) {
             DisplayMode(it.modeId, it.physicalWidth, it.physicalHeight, it.refreshRate)
         }
         val match = matchingDisplayMode(modes, display.mode.modeId, frameRate)
-        if (match != null && activity.preferDisplayMode(match.id)) player.ignoreSystemPauseForModeSwitch()
+        if (match != null && activity.preferDisplayMode(match.id)) player.systemPause.ignoreForModeSwitch()
     }
 }
 

@@ -1,8 +1,7 @@
 # detekt's settings for every Kotlin project, on top of its defaults (the sofaking.lint convention in build-logic). Only
 # what differs from the defaults is here; each change says why.
 
-# A build whose code is not yet refactored to some of the size and complexity rules turns them off in its own
-# gradle/detekt-pending/<build>.yml, which the pull request that does the refactoring shrinks; there is no baseline.
+# Every build's code meets these rules as they stand: there is no baseline, and no build turns a rule off.
 
 # The defaults skip test code for some rules by the usual test source set names. This repository also has androidHostTest,
 # fileTest, tvosTest and screenshotTest, so every source set whose name ends in Test is skipped instead.

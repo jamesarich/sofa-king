@@ -6,9 +6,6 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import dev.jamesrich.sofaking.data.PlaybackSessions
-import dev.jamesrich.sofaking.data.PublishedBuild
-import dev.jamesrich.sofaking.data.UpdateInstaller
 
 /**
  * Back on every platform: the remote's or system Back on Android, the swipe on iOS, Escape on desktops and the
@@ -32,58 +29,10 @@ internal expect fun rememberIsTelevision(): Boolean
 internal expect fun rememberSystem24HourClock(): Boolean
 
 /**
- * Opens the platform's own caption settings (Android's captioning preferences, the app's page in iOS Settings),
- * or null where there is no such page, so Settings leaves the row out.
- */
-@Composable
-internal expect fun rememberSystemCaptionSettings(): (() -> Unit)?
-
-/** The engine that draws captions on this platform, named for the Settings help text. */
-internal expect fun captionEngineName(): String
-
-/**
- * True where the engine honors [dev.jamesrich.sofaking.data.PlaybackPreferences] (Android's Media3); Settings hides
- * the Playback section elsewhere.
- */
-internal expect val supportsPlaybackPreferences: Boolean
-
-/**
  * True where the platform moves focus on the arrow keys itself (Android maps the D-pad); Compose on the desktop, the
  * web and iOS moves it only on Tab, so the app moves it there ([arrowKeysMoveFocus]).
  */
 internal expect val platformMovesFocusOnArrows: Boolean
-
-/**
- * True where captions are drawn through `CaptionSync` (Android's Media3), so smoothing and timing apply;
- * Settings hides those rows elsewhere.
- */
-internal expect val supportsCaptionSync: Boolean
-
-/**
- * The address Settings offers while none is saved: the web page's own origin, which serves the
- * API beside it; null elsewhere.
- */
-internal expect val pageServerUrl: String?
-
-/**
- * What Get the update opens for a published [latest] build: the Android package on Android, the release page on a
- * desktop or in a browser, or null where no package is published (iOS), so Settings says so instead.
- */
-internal expect fun updateDownloadUrl(latest: PublishedBuild): String?
-
-/**
- * Installs a published build from inside the app: on Android, unless an app store installed it; null elsewhere,
- * where Get the update opens [updateDownloadUrl] instead.
- */
-@Composable
-internal expect fun rememberUpdateInstaller(): UpdateInstaller?
-
-/**
- * While [enabled], switches the display to a mode that matches the frame rate of the video [player] plays, and
- * restores the default when it leaves composition or is disabled; nothing happens on platforms without display modes.
- */
-@Composable
-internal expect fun MatchDisplayFrameRate(player: dev.jamesrich.sofaking.ui.player.LivePlayer, enabled: Boolean)
 
 /** True while a screen reader explores by touch (TalkBack), which a channel opening full screen would cut off. */
 @Composable
@@ -101,13 +50,6 @@ internal expect fun KeepScreenOn(on: Boolean)
  */
 @Composable
 internal expect fun rememberAppLifecycleOwner(host: LifecycleOwner): LifecycleOwner
-
-/**
- * Frees the session [sessions] holds as a browser tab closes, which would otherwise keep its lease until it runs
- * out: the stop's own release never leaves a closing page. Nothing elsewhere.
- */
-@Composable
-internal expect fun ReleaseOnPageExit(sessions: PlaybackSessions)
 
 /**
  * Speech input for the guide search. The returned function starts it and is false when the platform has no

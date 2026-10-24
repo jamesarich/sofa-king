@@ -19,8 +19,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryAmbient
@@ -36,13 +34,8 @@ import platform.AVFoundation.AVFoundationErrorDomain
 import platform.AVFoundation.AVLayerVideoGravityResize
 import platform.AVFoundation.AVLayerVideoGravityResizeAspect
 import platform.AVFoundation.AVLayerVideoGravityResizeAspectFill
-import platform.AVFoundation.AVMediaCharacteristicAudible
-import platform.AVFoundation.AVMediaCharacteristicLegible
-import platform.AVFoundation.AVMediaSelectionGroup
-import platform.AVFoundation.AVMediaSelectionOption
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
-import platform.AVFoundation.AVPlayerItemAccessLogEvent
 import platform.AVFoundation.AVPlayerItemDidPlayToEndTimeNotification
 import platform.AVFoundation.AVPlayerItemErrorLogEvent
 import platform.AVFoundation.AVPlayerItemFailedToPlayToEndTimeNotification
@@ -54,49 +47,31 @@ import platform.AVFoundation.AVPlayerRateDidChangeNotification
 import platform.AVFoundation.AVPlayerTimeControlStatusPlaying
 import platform.AVFoundation.AVPlayerTimeControlStatusWaitingToPlayAtSpecifiedRate
 import platform.AVFoundation.CMTimeRangeValue
-import platform.AVFoundation.accessLog
-import platform.AVFoundation.asset
 import platform.AVFoundation.currentItem
 import platform.AVFoundation.currentTime
 import platform.AVFoundation.duration
 import platform.AVFoundation.errorLog
 import platform.AVFoundation.loadedTimeRanges
-import platform.AVFoundation.mediaSelectionGroupForMediaCharacteristic
 import platform.AVFoundation.pause
 import platform.AVFoundation.play
-import platform.AVFoundation.presentationSize
 import platform.AVFoundation.rate
 import platform.AVFoundation.replaceCurrentItemWithPlayerItem
 import platform.AVFoundation.seekToTime
 import platform.AVFoundation.seekableTimeRanges
-import platform.AVFoundation.selectMediaOption
-import platform.AVFoundation.selectedMediaOptionInMediaSelectionGroup
 import platform.AVFoundation.timeControlStatus
 import platform.AVFoundation.volume
 import platform.CoreGraphics.CGRectMake
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMakeWithSeconds
-import platform.Foundation.NSData
 import platform.Foundation.NSError
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLErrorDomain
 import platform.Foundation.NSURLErrorTimedOut
-import platform.Foundation.NSURLSession
 import platform.Foundation.NSValue
-import platform.Foundation.dataTaskWithURL
-import platform.MediaPlayer.MPMediaItemArtwork
-import platform.MediaPlayer.MPMediaItemPropertyArtist
-import platform.MediaPlayer.MPMediaItemPropertyArtwork
-import platform.MediaPlayer.MPMediaItemPropertyTitle
-import platform.MediaPlayer.MPNowPlayingInfoCenter
-import platform.MediaPlayer.MPNowPlayingInfoPropertyIsLiveStream
-import platform.MediaPlayer.MPRemoteCommandCenter
-import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
 import platform.QuartzCore.CATransaction
 import platform.UIKit.UIColor
-import platform.UIKit.UIImage
 import platform.UIKit.UIView
 import platform.darwin.NSObjectProtocol
 import kotlin.time.Duration.Companion.milliseconds
@@ -116,26 +91,21 @@ actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
  * until it settles: playing with a frame on screen, paused, idle, failed or ended.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLivePlayer() {
-    private val av = AVPlayer()
+internal class AvLivePlayer(
+    override val captionSync: CaptionSync,
+    private val av: AVPlayer = AVPlayer(),
+    private val tracks: AvTracks = AvTracks(av),
+) : StreamLivePlayer(),
+    PlayerTracks by tracks {
     private val playerLayer = AVPlayerLayer.playerLayerWithPlayer(av).apply {
         videoGravity =
             AVLayerVideoGravityResizeAspect
     }
     private val scope = MainScope()
-    private var captionsOn = false
     private var ended = false
     private var reportedFailure: AVPlayerItem? = null
 
-    // The item whose caption track was chosen, and its legible group. Both are read once the item is ready to play:
-    // the asset has no group to report before then, and asking for it blocks the main thread while it loads.
-    private var captionsAppliedTo: AVPlayerItem? = null
-    private var legibleGroup: AVMediaSelectionGroup? = null
     private val hasFrame = MutableStateFlow(false)
-
-    override val cues: StateFlow<List<CaptionCue>> = MutableStateFlow(emptyList<CaptionCue>()).asStateFlow()
-    private val _audioTracks = MutableStateFlow<List<AudioTrack>>(emptyList())
-    override val audioTracks: StateFlow<List<AudioTrack>> = _audioTracks.asStateFlow()
 
     private val wake = Channel<Unit>(Channel.CONFLATED)
 
@@ -165,9 +135,6 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
 
     override val bufferedMs: Long get() = 0L
     override val supportsCaptionLead: Boolean get() = false
-    override val hasTextTrack: Boolean
-        get() = av.currentItem?.takeIf { it === captionsAppliedTo } != null &&
-            legibleGroup?.options?.isNotEmpty() == true
 
     /**
      * The audio session follows the volume, as audio focus does on Android: audible playback takes the Playback
@@ -206,64 +173,15 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
     override var playWhenReady: Boolean = true
         set(value) {
             field = value
-            if (value) start() else av.pause()
+            if (value) av.start(speed) else av.pause()
             refresh()
         }
-
-    override fun setCaptionsEnabled(enabled: Boolean) {
-        captionsOn = enabled
-        applyCaptions()
-    }
-
-    override fun selectAudioTrack(id: String) {
-        val item = av.currentItem ?: return
-        val group = audibleGroup(item) ?: return
-        val option = id.toIntOrNull()?.let { group.options.getOrNull(it) } as? AVMediaSelectionOption ?: return
-        item.selectMediaOption(option, group)
-        readAudioTracks(item)
-    }
-
-    /**
-     * AVFoundation reports the picture size and the stream's indicated bitrate; the codec and frame rate stay unknown.
-     */
-    override fun streamInfo(): StreamInfo {
-        val item = av.currentItem ?: return StreamInfo()
-        val (width, height) = item.presentationSize.useContents { width.toInt() to height.toInt() }
-        val bitrate = (
-            item.accessLog()?.events?.lastOrNull() as? AVPlayerItemAccessLogEvent
-            )?.indicatedBitrate?.takeIf {
-            it > 0
-        }?.toInt()
-        return StreamInfo(width = width.takeIf { it > 0 }, height = height.takeIf { it > 0 }, bitrateBps = bitrate)
-    }
-
-    private fun audibleGroup(item: AVPlayerItem): AVMediaSelectionGroup? =
-        item.asset.mediaSelectionGroupForMediaCharacteristic(AVMediaCharacteristicAudible)
-
-    /** The item's audible options, numbered by position; one option is no choice. */
-    private fun readAudioTracks(item: AVPlayerItem) {
-        val group = audibleGroup(item)
-        val options = group?.options.orEmpty().filterIsInstance<AVMediaSelectionOption>()
-        val selected = group?.let { item.selectedMediaOptionInMediaSelectionGroup(it) }
-        _audioTracks.value =
-            if (options.size > 1) {
-                options.mapIndexed { index, option ->
-                    AudioTrack(
-                        index.toString(),
-                        option.displayName,
-                        option == selected,
-                    )
-                }
-            } else {
-                emptyList()
-            }
-    }
 
     override fun prepare() {
         val url = stream?.url?.let(NSURL::URLWithString) ?: return
         ended = false
         av.replaceCurrentItemWithPlayerItem(AVPlayerItem(uRL = url))
-        if (playWhenReady) start()
+        if (playWhenReady) av.start(speed)
         refresh()
     }
 
@@ -332,7 +250,7 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         av.seekToTime(CMTimeMakeWithSeconds(target.milliseconds.toDouble(DurationUnit.SECONDS), SEEK_TIMESCALE))
     }
 
-    /** What [start] plays at; AVPlayer's play() starts at normal speed, so the rate is set after it. */
+    /** What [AVPlayer.start] plays at; AVPlayer's play() starts at normal speed, so the rate is set after it. */
     private var speed = 1f
 
     override val speedAdjustable: Boolean get() = true
@@ -342,69 +260,9 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         if (av.rate != 0f) av.rate = rate
     }
 
-    private fun start() {
-        av.play()
-        if (speed != 1f) av.rate = speed
-    }
-
-    private val mediaSessions = NewestMediaSession(::openNowPlaying)
+    private val mediaSessions = NewestMediaSession { onZapStep -> openNowPlaying(this, scope, onZapStep) }
 
     override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = mediaSessions.open(onZapStep)
-
-    private fun openNowPlaying(onZapStep: (Int) -> Unit): MediaSessionHandle {
-        val commands = MPRemoteCommandCenter.sharedCommandCenter()
-        val next = commands.nextTrackCommand.addTargetWithHandler { _ ->
-            onZapStep(1)
-            MPRemoteCommandHandlerStatusSuccess
-        }
-        val previous = commands.previousTrackCommand.addTargetWithHandler { _ ->
-            onZapStep(-1)
-            MPRemoteCommandHandlerStatusSuccess
-        }
-        val playCommand = commands.playCommand.addTargetWithHandler { _ ->
-            play()
-            MPRemoteCommandHandlerStatusSuccess
-        }
-        val pauseCommand = commands.pauseCommand.addTargetWithHandler { _ ->
-            pause()
-            MPRemoteCommandHandlerStatusSuccess
-        }
-        return object : MediaSessionHandle {
-            private var current: NowPlaying? = null
-
-            override fun publish(nowPlaying: NowPlaying) {
-                current = nowPlaying
-                show(nowPlaying, artwork = null)
-                // The lock screen needs the logo as an image; it replaces the text-only info once it arrives.
-                val url = nowPlaying.artworkUrl?.let(NSURL::URLWithString) ?: return
-                NSURLSession.sharedSession.dataTaskWithURL(url) { data: NSData?, _, _ ->
-                    val image = data?.let { UIImage(data = it) } ?: return@dataTaskWithURL
-                    scope.launch {
-                        if (current !== nowPlaying) return@launch
-                        show(nowPlaying, MPMediaItemArtwork(boundsSize = image.size) { _ -> image })
-                    }
-                }.resume()
-            }
-
-            private fun show(nowPlaying: NowPlaying, artwork: MPMediaItemArtwork?) {
-                MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = buildMap<Any?, Any?> {
-                    put(MPMediaItemPropertyTitle, nowPlaying.title)
-                    put(MPMediaItemPropertyArtist, nowPlaying.subtitle)
-                    put(MPNowPlayingInfoPropertyIsLiveStream, true)
-                    if (artwork != null) put(MPMediaItemPropertyArtwork, artwork)
-                }
-            }
-
-            override fun close() {
-                current = null
-                commands.nextTrackCommand.removeTarget(next)
-                commands.previousTrackCommand.removeTarget(previous)
-                commands.playCommand.removeTarget(playCommand)
-                commands.pauseCommand.removeTarget(pauseCommand)
-                MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
-            }
-        }
-    }
 
     @Composable
     override fun Video(modifier: Modifier, zoom: VideoZoom, shutter: @Composable () -> Unit) {
@@ -441,37 +299,15 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         scope.cancel()
     }
 
-    private fun applyCaptions() {
-        val item = av.currentItem?.takeIf { it === captionsAppliedTo } ?: return
-        val group = legibleGroup ?: return
-        val option = if (captionsOn) group.options.firstOrNull() as? AVMediaSelectionOption else null
-        item.selectMediaOption(option, group)
-    }
-
     /** Publishes the state now and keeps reading it until it settles. */
     private fun refresh() {
         publishStatus()
         wake.trySend(Unit)
     }
 
-    private fun stateOf(item: AVPlayerItem?, playing: Boolean): PlaybackState = when {
-        item == null -> PlaybackState.IDLE
-        ended -> PlaybackState.ENDED
-        item.status == AVPlayerItemStatusFailed -> PlaybackState.IDLE
-        playing -> PlaybackState.READY
-        av.timeControlStatus == AVPlayerTimeControlStatusWaitingToPlayAtSpecifiedRate -> PlaybackState.BUFFERING
-        item.status == AVPlayerItemStatusReadyToPlay -> PlaybackState.READY
-        else -> PlaybackState.BUFFERING
-    }
-
-    /** Applies the captions and reads the audio tracks once [item] is ready, and reports its failure once. */
+    /** Hands [item] to the tracks once it is ready, and reports its failure once. */
     private fun readItem(item: AVPlayerItem) {
-        if (item.status == AVPlayerItemStatusReadyToPlay && captionsAppliedTo !== item) {
-            captionsAppliedTo = item
-            legibleGroup = item.asset.mediaSelectionGroupForMediaCharacteristic(AVMediaCharacteristicLegible)
-            applyCaptions()
-            readAudioTracks(item)
-        }
+        tracks.ready(item)
         if (item.status == AVPlayerItemStatusFailed && reportedFailure != item) {
             reportedFailure = item
             val httpStatus = (item.errorLog()?.events?.lastOrNull() as? AVPlayerItemErrorLogEvent)?.errorStatusCode
@@ -483,8 +319,9 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
     private fun publishStatus(): Boolean {
         val item = av.currentItem
         val playing = av.timeControlStatus == AVPlayerTimeControlStatusPlaying
-        val state = stateOf(item, playing)
-        if (item == null) _audioTracks.value = emptyList() else readItem(item)
+        val waiting = av.timeControlStatus == AVPlayerTimeControlStatusWaitingToPlayAtSpecifiedRate
+        val state = stateOf(item, playing, ended, waiting)
+        if (item == null) tracks.clear() else readItem(item)
         mutableStatus.value = PlayerStatus(state, playing, playWhenReady)
         // Like Android's shutter, it covers only from a reset until the first frame, not each rebuffer.
         val shown = item != null && playerLayer.readyForDisplay
@@ -495,6 +332,23 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
             else -> item.status == AVPlayerItemStatusReadyToPlay && shown
         }
     }
+}
+
+/** What [item] is doing, as [AvLivePlayer] reads it; [waiting] is AVPlayer waiting to play at its rate. */
+private fun stateOf(item: AVPlayerItem?, playing: Boolean, ended: Boolean, waiting: Boolean): PlaybackState = when {
+    item == null -> PlaybackState.IDLE
+    ended -> PlaybackState.ENDED
+    item.status == AVPlayerItemStatusFailed -> PlaybackState.IDLE
+    playing -> PlaybackState.READY
+    waiting -> PlaybackState.BUFFERING
+    item.status == AVPlayerItemStatusReadyToPlay -> PlaybackState.READY
+    else -> PlaybackState.BUFFERING
+}
+
+/** Plays at [speed]; AVPlayer's play() starts at normal speed, so the rate is set after it. */
+private fun AVPlayer.start(speed: Float) {
+    play()
+    if (speed != 1f) rate = speed
 }
 
 /**

@@ -15,28 +15,21 @@ import kotlinx.coroutines.flow.asStateFlow
  * A player for a host that cannot play (no libVLC installed): every prepare fails with [code], so the guide and
  * the full screen show their failure cards instead of a black box, and the rest of the app works.
  */
-internal class UnavailableLivePlayer(override val captionSync: CaptionSync, private val code: String) : LivePlayer {
+internal class UnavailableLivePlayer(override val captionSync: CaptionSync, private val code: String) :
+    LivePlayer,
+    PlayerTracks by NoTracks {
     private val _errors = MutableSharedFlow<PlayerError>(extraBufferCapacity = 8)
     private var stream: PlaybackStream? = null
 
     override val status: StateFlow<PlayerStatus> = MutableStateFlow(PlayerStatus()).asStateFlow()
     override val errors: SharedFlow<PlayerError> = _errors.asSharedFlow()
-    override val cues: StateFlow<List<CaptionCue>> = MutableStateFlow(emptyList<CaptionCue>()).asStateFlow()
     override val currentChannelId: String? get() = stream?.channelId
     override val currentStreamUrl: String? get() = stream?.url
     override val hasItem: Boolean get() = stream != null
     override val bufferedMs: Long = 0L
     override val supportsCaptionLead: Boolean = false
-    override val hasTextTrack: Boolean = false
-    override val audioTracks: StateFlow<List<AudioTrack>> = MutableStateFlow(emptyList<AudioTrack>()).asStateFlow()
     override var volume: Float = 1f
     override var playWhenReady: Boolean = true
-
-    override fun setCaptionsEnabled(enabled: Boolean) = Unit
-
-    override fun selectAudioTrack(id: String) = Unit
-
-    override fun streamInfo(): StreamInfo = StreamInfo()
 
     override fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying?) {
         this.stream = stream
@@ -56,11 +49,7 @@ internal class UnavailableLivePlayer(override val captionSync: CaptionSync, priv
 
     override fun pause() = Unit
 
-    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = object : MediaSessionHandle {
-        override fun publish(nowPlaying: NowPlaying) = Unit
-
-        override fun close() = Unit
-    }
+    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = NoMediaSession
 
     @Composable
     override fun Video(modifier: Modifier, zoom: VideoZoom, shutter: @Composable () -> Unit) {

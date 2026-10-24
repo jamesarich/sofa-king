@@ -4,8 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.KeyEvent
-import dev.jamesrich.sofaking.data.PublishedBuild
-import dev.jamesrich.sofaking.data.UpdateInstaller
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import kotlinx.browser.window
 
@@ -43,28 +41,8 @@ internal actual val KeyEvent.repeatCountOrNull: Int? get() = null
 
 internal actual val KeyEvent.isLongPress: Boolean get() = false
 
-@Composable
-internal actual fun rememberSystemCaptionSettings(): (() -> Unit)? = null
-
-internal actual fun captionEngineName(): String = "the browser's video element"
-
-internal actual val supportsPlaybackPreferences: Boolean = false
-
 internal actual val platformMovesFocusOnArrows: Boolean = false
-
-internal actual val supportsCaptionSync: Boolean = false
-
-internal actual val pageServerUrl: String? =
-    window.location.takeIf { it.protocol == "http:" || it.protocol == "https:" }?.origin
-
-@Composable
-internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit
 
 /** The page goes full screen through [WindowFullScreen], from the players; the canvas has no picture-in-picture. */
 @Composable
 internal actual fun rememberPlayerWindow(player: LivePlayer, active: Boolean): Boolean = false
-
-internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = latest.pageUrl
-
-@Composable
-internal actual fun rememberUpdateInstaller(): UpdateInstaller? = null

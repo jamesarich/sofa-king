@@ -6,7 +6,10 @@ import kotlin.test.assertEquals
 class MediaElementErrorTest {
     @Test
     fun `a source the browser cannot play is a format error`() {
-        assertEquals(PlayerError(PlayerErrorCodes.PARSING_CONTAINER_UNSUPPORTED), mediaElementError(MEDIA_ERR_SRC_NOT_SUPPORTED, playable = false, loaded = false))
+        assertEquals(
+            PlayerError(PlayerErrorCodes.PARSING_CONTAINER_UNSUPPORTED),
+            mediaElementError(MEDIA_ERR_SRC_NOT_SUPPORTED, playable = false, loaded = false),
+        )
     }
 
     @Test
@@ -25,6 +28,9 @@ class MediaElementErrorTest {
 
     @Test
     fun `any other element error is a network failure`() {
-        assertEquals(PlayerError(PlayerErrorCodes.NETWORK_CONNECTION_FAILED), mediaElementError(2, playable = true, loaded = true))
+        assertEquals(
+            PlayerError(PlayerErrorCodes.NETWORK_CONNECTION_FAILED),
+            mediaElementError(2, playable = true, loaded = true),
+        )
     }
 }

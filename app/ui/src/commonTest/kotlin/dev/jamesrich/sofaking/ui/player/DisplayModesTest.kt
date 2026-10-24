@@ -31,7 +31,13 @@ class DisplayModesTest {
     @Test
     fun `only modes of the current size count and the highest fitting refresh rate wins`() {
         assertEquals(DisplayMode(2, 3840, 2160, 59.94f), matchingDisplayMode(modes, currentId = 5, frameRate = 29.97f))
-        assertNull(matchingDisplayMode(listOf(DisplayMode(1, 3840, 2160, 60f), DisplayMode(6, 1920, 1080, 50f)), currentId = 1, frameRate = 25f))
+        assertNull(
+            matchingDisplayMode(
+                listOf(DisplayMode(1, 3840, 2160, 60f), DisplayMode(6, 1920, 1080, 50f)),
+                currentId = 1,
+                frameRate = 25f,
+            ),
+        )
     }
 
     @Test

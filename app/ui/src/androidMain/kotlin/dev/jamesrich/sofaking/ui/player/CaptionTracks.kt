@@ -16,7 +16,6 @@ internal fun captionFormats(): List<Format> = listOf(
     Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_CEA708).setAccessibilityChannel(1).build(),
 )
 
-
 /**
  * Points the text selection at CEA-708 service 1, else CEA-608 CC1 (see [CaptionPolicy.preferredTextTrack]).
  * Runs on every track change because ad breaks can drop the 708 track. Only sets the parameters when the

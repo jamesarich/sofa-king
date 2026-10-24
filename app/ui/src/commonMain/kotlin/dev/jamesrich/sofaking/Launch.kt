@@ -10,6 +10,7 @@ internal sealed interface LaunchTarget {
     data object Undecided : LaunchTarget
     data object Guide : LaunchTarget
     data class Player(val guideId: String) : LaunchTarget
+
     /** Library or Recordings, on the tab's first page with nothing playing. */
     data class OpenTab(val tab: Tab) : LaunchTarget
 }
@@ -35,7 +36,11 @@ internal fun launchTarget(state: LineupState, settings: AppSettings?): LaunchTar
         StartupTarget.CHANNEL -> settings.startupChannel
         StartupTarget.GUIDE, StartupTarget.LIBRARY -> null
     }
-    return if (wanted != null && state.lineup.channels.any { it.guideId == wanted }) LaunchTarget.Player(wanted) else LaunchTarget.Guide
+    return if (wanted != null && state.lineup.channels.any { it.guideId == wanted }) {
+        LaunchTarget.Player(wanted)
+    } else {
+        LaunchTarget.Guide
+    }
 }
 
 /** The settings' name for a tab, and back. */

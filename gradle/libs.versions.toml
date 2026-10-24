@@ -52,6 +52,12 @@ zxing = "3.5.4"
 jmdns = "3.6.4"
 # The server's tests: JUnit Jupiter and the launcher Gradle runs it with.
 junit = "6.1.3"
+# Lint (the sofaking.lint convention): Spotless runs ktlint to format, detekt analyzes with the Compose rules added.
+spotless = "8.10.4"
+ktlint = "1.8.0"
+detekt = "2.0.0-alpha.6"
+# Built against the detekt above; a detekt bump waits for a Compose rules release that matches it.
+compose-rules = "0.6.8"
 
 [libraries]
 # Shared
@@ -145,6 +151,9 @@ junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher
 # build-logic compiles against these; each build applies them through its plugins block.
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 android-gradle-api = { module = "com.android.tools.build:gradle-api", version.ref = "agp" }
+spotless-gradle-plugin = { module = "com.diffplug.spotless:spotless-plugin-gradle", version.ref = "spotless" }
+detekt-gradle-plugin = { module = "dev.detekt:detekt-gradle-plugin", version.ref = "detekt" }
+compose-rules-detekt = { module = "io.nlopez.compose.rules:detekt", version.ref = "compose-rules" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -157,3 +166,4 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
 compose-hot-reload = { id = "org.jetbrains.compose.hot-reload", version.ref = "compose-hot-reload" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

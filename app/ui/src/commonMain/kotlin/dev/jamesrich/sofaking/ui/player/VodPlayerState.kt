@@ -13,7 +13,9 @@ import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.delay
 
-/** What the library and recordings player's keys do beyond its own state: the stream, captions, focus and the way out. */
+/**
+ * What the library and recordings player's keys do beyond its own state: the stream, captions, focus and the way out.
+ */
 internal interface VodControls {
     /** Moves to [targetMs] in the item. */
     fun seek(targetMs: Long)
@@ -102,7 +104,9 @@ internal class VodPlayerState {
     // focus and OK skips, as other players' skip pill does.
     var focusSkip by mutableStateOf(false)
 
-    /** The starts of the intros the bar has offered to skip, each once, so a viewer who goes back into one stays there. */
+    /**
+     * The starts of the intros the bar has offered to skip, each once, so a viewer who goes back into one stays there.
+     */
     private val offeredIntros = mutableSetOf<Long>()
 
     /** Whole seconds until the intro skips itself, counting down on Skip intro; null while it waits for a press. */
@@ -168,7 +172,8 @@ internal class VodPlayerState {
 
     /**
      * Playback is in [intro], or the credits: the first time, the bar comes up with Skip intro (or Skip credits) on it,
-     * focused for the remote, and with [autoSkip] a countdown of [AUTO_SKIP_MS] starts on it. While the track card is open the offer waits for it to close.
+     * focused for the remote, and with [autoSkip] a countdown of [AUTO_SKIP_MS] starts on it. While the track card is
+     * open the offer waits for it to close.
      */
     fun inIntro(intro: VodMarker, autoSkip: Boolean = false, nowMs: Long = uptimeMs()) {
         if (tracksOpen || !offeredIntros.add(intro.startMs)) return
@@ -233,20 +238,26 @@ internal class VodPlayerState {
         }
     }
 
-    /** The system Back: a focused button hands focus to the picture, the track card closes, a scrub is dropped; true when the player is left. */
+    /**
+     * The system Back: a focused button hands focus to the picture, the track card closes, a scrub is
+     * dropped; true when the player is left.
+     */
     fun back(controls: VodControls): Boolean {
         cancelAutoSkip()
         when {
             // Where Back skips the key path (Android with predictive back), a focused bar button hands focus back here.
             buttonsFocused -> controls.focusPicture()
+
             tracksOpen -> {
                 tracksOpen = false
                 controls.focusPicture()
             }
+
             scrubTarget != null -> {
                 scrub.cancel()
                 scrubTarget = null
             }
+
             else -> return true
         }
         return false
@@ -280,11 +291,13 @@ internal class VodPlayerState {
             showInfo()
             when (key.inButtonRow()) {
                 ButtonRowKey.ROW -> return false
+
                 // Up, Back and Escape hand focus back to the picture on key-up, so the key-up cannot act there too.
                 ButtonRowKey.LEAVE -> {
                     if (type == KeyEventType.KeyUp) controls.focusPicture()
                     return true
                 }
+
                 ButtonRowKey.PLAYER -> controls.focusPicture()
             }
         }
@@ -298,27 +311,43 @@ internal class VodPlayerState {
                 val direction = if (action == VodAction.BACK) -1 else 1
                 scrubTarget = scrub.press(direction, positionMs, durationMs, repeatCount ?: 0, nowMs)
             }
+
             VodAction.PLAY_PAUSE -> when {
                 failure != null -> controls.retry()
+
                 scrubTarget != null -> {
                     scrubTarget = null
                     scrub.commit()?.let(controls::seek)
                     showInfo()
                 }
+
                 key in QUIET_PLAY_KEYS -> mediaPlayPause(controls, paused)
+
                 else -> playPause(controls)
             }
+
             VodAction.PLAY -> if (paused) mediaPlayPause(controls, paused)
+
             VodAction.PAUSE -> if (!paused) mediaPlayPause(controls, paused)
-            VodAction.SHOW_INFO -> if (overlayVisible && !paused && key == Key.Info) overlayVisible = false else showInfo()
+
+            VodAction.SHOW_INFO -> if (overlayVisible && !paused && key == Key.Info) {
+                overlayVisible = false
+            } else {
+                showInfo()
+            }
+
             // Down shows the bar, and on the bar moves into its buttons.
             VodAction.BUTTONS -> {
                 if (overlayVisible && hasButtons) controls.focusButtons()
                 showInfo()
             }
+
             VodAction.CAPTIONS -> controls.toggleCaptions()
+
             VodAction.TRACKS -> if (tracksPickable && failure == null) openTracks() else showInfo()
+
             VodAction.ZOOM -> controls.zoom()
+
             VodAction.STOP -> controls.exit()
         }
         return true
@@ -363,4 +392,5 @@ internal enum class TransportHint { PLAY, PAUSE }
  */
 private val QUIET_PLAY_KEYS = setOf(Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause, Key.Spacebar, Key.K)
 
-private val UP_NEXT_PLAY_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause, Key.MediaPlay, Key.Spacebar)
+private val UP_NEXT_PLAY_KEYS =
+    setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause, Key.MediaPlay, Key.Spacebar)

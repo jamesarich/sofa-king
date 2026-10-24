@@ -10,10 +10,15 @@ val DEFAULT_RENEWABLE_QUERY: Set<String> = setOf(
 private val queryName = Regex("[A-Za-z0-9_.-]{1,64}")
 
 fun validateRenewableQuery(names: Collection<String>) {
-    require(names.all { it.matches(queryName) }) { "Renewable query parameter names must be 1 to 64 letters, digits, '_', '.' or '-'" }
+    require(
+        names.all {
+            it.matches(queryName)
+        },
+    ) { "Renewable query parameter names must be 1 to 64 letters, digits, '_', '.' or '-'" }
 }
 
-fun renewableQuery(names: Collection<String>?): Set<String> = names?.mapTo(HashSet()) { it.lowercase() } ?: DEFAULT_RENEWABLE_QUERY
+fun renewableQuery(names: Collection<String>?): Set<String> =
+    names?.mapTo(HashSet()) { it.lowercase() } ?: DEFAULT_RENEWABLE_QUERY
 
 /**
  * `scheme://authority/path` with the path percent-decoded, followed by `?name=value&...` for the query

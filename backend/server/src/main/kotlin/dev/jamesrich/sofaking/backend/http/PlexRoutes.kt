@@ -11,12 +11,20 @@ import io.ktor.server.routing.put
 
 /** Plex sync under the admin route: the last sync's status, and a sync now. */
 fun Route.plexRoutes(plex: PlexSync?) {
-    fun loaded(): PlexSync = plex ?: throw ApiFailure(404, "PLEX_NOT_CONFIGURED", "Plex sync is not configured; set SOFA_PLEX_URL and SOFA_PLEX_TOKEN")
+    fun loaded(): PlexSync = plex
+        ?: throw ApiFailure(
+            404,
+            "PLEX_NOT_CONFIGURED",
+            "Plex sync is not configured; set SOFA_PLEX_URL and SOFA_PLEX_TOKEN",
+        )
     get("/plex") { call.respond(loaded().status()) }
     post("/plex/sync") { call.respond(loaded().sync("api")) }
 }
 
-/** Who may reach the HDHomeRun emulation under the admin route: the lists and the refused clients, and the portal's list replaced. */
+/**
+ * Who may reach the HDHomeRun emulation under the admin route: the lists and the refused clients,
+ * and the portal's list replaced.
+ */
 fun Route.hdhrAccessRoutes(access: HdhrAccess, enabled: Boolean) {
     get("/hdhr/access") { call.respond(access.status(enabled)) }
     put("/hdhr/access") {

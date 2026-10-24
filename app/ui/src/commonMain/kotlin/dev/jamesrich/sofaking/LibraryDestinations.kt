@@ -22,7 +22,12 @@ import dev.jamesrich.sofaking.data.initialSubtitle
 import dev.jamesrich.sofaking.data.isPictureSubtitle
 import dev.jamesrich.sofaking.data.trackChoice
 import dev.jamesrich.sofaking.data.trackLabel
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.library_load_failed
+import dev.jamesrich.sofaking.resources.library_loading
+import dev.jamesrich.sofaking.resources.loading
+import dev.jamesrich.sofaking.resources.retry
+import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.library.CardMenu
@@ -53,7 +58,13 @@ private fun cardMenu(shell: AppShellState, libraryVm: LibraryViewModel) = CardMe
 
 /** The Library tab's first page: the shelves. [tabBack] climbs to the header, then opens Live. */
 @Composable
-internal fun LibraryHomeDestination(arrival: Arrival, shell: AppShellState, libraryVm: LibraryViewModel, tabBack: () -> Unit, headerFocused: Boolean) {
+internal fun LibraryHomeDestination(
+    arrival: Arrival,
+    shell: AppShellState,
+    libraryVm: LibraryViewModel,
+    tabBack: () -> Unit,
+    headerFocused: Boolean,
+) {
     val home by libraryVm.home.collectAsStateWithLifecycle()
     BackHandler(onBack = tabBack)
     LibraryHomeScreen(
@@ -73,7 +84,12 @@ internal fun LibraryHomeDestination(arrival: Arrival, shell: AppShellState, libr
 
 /** Search across every library; the query outlives a trip to an item's page and back, in the entry's saved state. */
 @Composable
-internal fun LibrarySearchDestination(route: Route.LibrarySearch, arrival: Arrival, shell: AppShellState, libraryVm: LibraryViewModel) {
+internal fun LibrarySearchDestination(
+    route: Route.LibrarySearch,
+    arrival: Arrival,
+    shell: AppShellState,
+    libraryVm: LibraryViewModel,
+) {
     LibrarySearchScreen(
         actions = LibrarySearchActions(
             search = libraryVm::search,
@@ -89,12 +105,22 @@ internal fun LibrarySearchDestination(route: Route.LibrarySearch, arrival: Arriv
 
 /** One library's grid, kept in the order, filter and genre it was last shown in. */
 @Composable
-internal fun LibraryGridDestination(route: Route.LibraryGrid, arrival: Arrival, shell: AppShellState, libraryVm: LibraryViewModel) {
+internal fun LibraryGridDestination(
+    route: Route.LibraryGrid,
+    arrival: Arrival,
+    shell: AppShellState,
+    libraryVm: LibraryViewModel,
+) {
     val home by libraryVm.home.collectAsStateWithLifecycle()
     val grid by libraryVm.grid.collectAsStateWithLifecycle()
     LaunchedEffect(route.libraryId) {
         val open = grid
-        libraryVm.openGrid(route.libraryId, open?.sort ?: LibrarySort.TITLE, open?.unwatched ?: false, open?.takeIf { it.libraryId == route.libraryId }?.genre)
+        libraryVm.openGrid(
+            route.libraryId,
+            open?.sort ?: LibrarySort.TITLE,
+            open?.unwatched ?: false,
+            open?.takeIf { it.libraryId == route.libraryId }?.genre,
+        )
     }
     val shown = grid?.takeIf { it.libraryId == route.libraryId }
     LibraryGridScreen(
@@ -103,7 +129,9 @@ internal fun LibraryGridDestination(route: Route.LibraryGrid, arrival: Arrival, 
         actions = LibraryGridActions(
             onSort = { libraryVm.openGrid(route.libraryId, it, shown?.unwatched ?: false, shown?.genre) },
             onUnwatched = { libraryVm.openGrid(route.libraryId, shown?.sort ?: LibrarySort.TITLE, it, shown?.genre) },
-            onGenre = { libraryVm.openGrid(route.libraryId, shown?.sort ?: LibrarySort.TITLE, shown?.unwatched ?: false, it) },
+            onGenre = {
+                libraryVm.openGrid(route.libraryId, shown?.sort ?: LibrarySort.TITLE, shown?.unwatched ?: false, it)
+            },
             onOpenItem = { shell.push(Route.LibraryItem(it.id)) },
             onPlayItem = { shell.push(Route.Vod(it.id)) },
             onLoadMore = libraryVm::loadMore,
@@ -116,7 +144,13 @@ internal fun LibraryGridDestination(route: Route.LibraryGrid, arrival: Arrival, 
 
 /** A movie, show, season or episode's page; a show lists the season picked, else the one with the next episode. */
 @Composable
-internal fun LibraryItemDestination(route: Route.LibraryItem, arrival: Arrival, shell: AppShellState, libraryVm: LibraryViewModel, hideSpoilers: Boolean) {
+internal fun LibraryItemDestination(
+    route: Route.LibraryItem,
+    arrival: Arrival,
+    shell: AppShellState,
+    libraryVm: LibraryViewModel,
+    hideSpoilers: Boolean,
+) {
     val detail by remember(route.itemId) { libraryVm.detail(route.itemId) }.collectAsStateWithLifecycle()
     val ready = (detail as? ItemDetailState.Ready)?.detail
     var pickedSeason by rememberSaveable(route.itemId) { mutableStateOf<String?>(null) }
@@ -145,7 +179,13 @@ internal fun LibraryItemDestination(route: Route.LibraryItem, arrival: Arrival, 
  * next episodes.
  */
 @Composable
-internal fun VodDestination(route: Route.Vod, shell: AppShellState, vm: LineupViewModel, libraryVm: LibraryViewModel, player: LivePlayer) {
+internal fun VodDestination(
+    route: Route.Vod,
+    shell: AppShellState,
+    vm: LineupViewModel,
+    libraryVm: LibraryViewModel,
+    player: LivePlayer,
+) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val detail by remember(route.itemId) { libraryVm.detail(route.itemId) }.collectAsStateWithLifecycle()
     val item = (detail as? ItemDetailState.Ready)?.detail?.item
@@ -160,13 +200,17 @@ internal fun VodDestination(route: Route.Vod, shell: AppShellState, vm: LineupVi
             val startSubtitle = remember { ready?.let { initialSubtitle(it, choice) } }
             // The tracks the stream carries, so a retry opens the item with them again: an audio track other
             // than the default, and a picture subtitle drawn in from the first stream.
-            var audio by remember { mutableStateOf(startAudio?.index?.takeIf { it != ready?.let(::defaultAudio)?.index }) }
+            var audio by remember {
+                mutableStateOf(startAudio?.index?.takeIf { it != ready?.let(::defaultAudio)?.index })
+            }
             var pictureSubtitle by remember { mutableStateOf(startSubtitle?.takeIf(::isPictureSubtitle)?.index) }
             val tracks = remember(detail) {
                 (detail as? ItemDetailState.Ready)?.detail?.let { d ->
                     VodTracks(
                         audio = d.audio.mapIndexed { i, t -> VodTrack(t.index, trackLabel(t, i + 1)) },
-                        subtitles = d.subtitles.mapIndexed { i, t -> VodTrack(t.index, trackLabel(t, i + 1), isPictureSubtitle(t)) },
+                        subtitles = d.subtitles.mapIndexed { i, t ->
+                            VodTrack(t.index, trackLabel(t, i + 1), isPictureSubtitle(t))
+                        },
                         initialAudio = startAudio?.index ?: defaultAudio(d)?.index,
                         initialSubtitle = startSubtitle?.index,
                         onPicked = { audioIndex, subtitleIndex ->
@@ -201,16 +245,21 @@ internal fun VodDestination(route: Route.Vod, shell: AppShellState, vm: LineupVi
                 autoplays = shell.autoplays,
             )
         }
+
         detail is ItemDetailState.Failed -> MessageScreen(
             message = stringResource(Res.string.library_load_failed),
             detail = (detail as ItemDetailState.Failed).message,
             onRetry = { libraryVm.detail(route.itemId, refresh = true) },
         )
+
         else -> MessageScreen(stringResource(Res.string.library_loading), loading = true)
     }
 }
 
-/** What the player shows for a library item: an episode under its show and number, a movie with its year, its [intro] and [credits], and its [scrub] thumbnails. */
+/**
+ * What the player shows for a library item: an episode under its show and number, a movie with its year,
+ * its [intro] and [credits], and its [scrub] thumbnails.
+ */
 private fun MediaItem.vodTitle(intro: IntroSpan?, credits: IntroSpan?, scrub: ScrubTiles?): VodTitle {
     val subtitle = when (kind) {
         ItemKind.EPISODE -> listOfNotNull(showTitle, episodeLabel).joinToString(" · ").ifEmpty { null }

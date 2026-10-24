@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.data
 
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.timeout
@@ -24,7 +25,6 @@ import io.ktor.http.content.TextContent
 import io.ktor.http.encodeURLPathPart
 import io.ktor.http.isSuccess
 import io.ktor.http.takeFrom
-import dev.jamesrich.sofaking.contract.Wire
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -34,12 +34,10 @@ import kotlinx.io.IOException
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 
-/** An error answer from the server: HTTP [status] with the API's [code], or `HTTP_<status>` when the body was not one. */
-class SofaKingException(
-    val status: Int,
-    val code: String,
-    message: String,
-) : IOException(message)
+/**
+ * An error answer from the server: HTTP [status] with the API's [code], or `HTTP_<status>` when the body was not one.
+ */
+class SofaKingException(val status: Int, val code: String, message: String) : IOException(message)
 
 /** The catalog as the server sent it, or [NotModified] when the ETag offered still matches. */
 internal sealed interface CatalogResult {
@@ -92,9 +90,10 @@ class SofaKingApi(
         http.post("guide/query") { json(query) }.decode()
     }
 
-    internal suspend fun openSession(channelId: String, intent: String, idempotencyKey: String): PlaybackSessionDto = call {
-        http.post("playback-sessions") { json(OpenPlaybackDto(channelId, intent, idempotencyKey)) }.decode()
-    }
+    internal suspend fun openSession(channelId: String, intent: String, idempotencyKey: String): PlaybackSessionDto =
+        call {
+            http.post("playback-sessions") { json(OpenPlaybackDto(channelId, intent, idempotencyKey)) }.decode()
+        }
 
     internal suspend fun session(id: String): PlaybackSessionDto = call {
         http.get(sessionPath(id)).decode()
@@ -105,7 +104,10 @@ class SofaKingApi(
         http.patch(sessionPath(id)) { json(UpdatePlaybackDto(intent)) }.decode()
     }
 
-    /** Whether the session's player shows an ad, for an engine that cannot read the playlist's marks; [aheadMs] is what it loaded past the picture. */
+    /**
+     * Whether the session's player shows an ad, for an engine that cannot read the playlist's marks; [aheadMs] is
+     * what it loaded past the picture.
+     */
     internal suspend fun adBreak(id: String, aheadMs: Long): AdBreakStateDto = call {
         http.get(sessionPath(id) + "/ad-break") { parameter("aheadMs", aheadMs) }.decode()
     }
@@ -114,7 +116,10 @@ class SofaKingApi(
         http.delete(sessionPath(id)).checkSuccess()
     }
 
-    /** Claims a pairing code; the client built for this has no token yet. A wrong or spent code is a [SofaKingException] with [Wire.ErrorCode.PAIRING_INVALID]. */
+    /**
+     * Claims a pairing code; the client built for this has no token yet. A wrong or spent code is a [SofaKingException]
+     * with [Wire.ErrorCode.PAIRING_INVALID].
+     */
     internal suspend fun pair(claim: PairingClaimDto): PairingResultDto = call {
         http.post("pair") { json(claim) }.decode()
     }
@@ -127,15 +132,23 @@ class SofaKingApi(
     }
 
     /** Replaces the server's copy of [clientId]'s preferences; the answer carries the server's stamp. */
-    internal suspend fun savePreferences(clientId: String, preferences: ViewerPreferencesDto): ViewerPreferencesDto = call {
-        http.put("preferences/" + clientId.encodeURLPathPart()) { json(preferences) }.decode()
-    }
+    internal suspend fun savePreferences(clientId: String, preferences: ViewerPreferencesDto): ViewerPreferencesDto =
+        call {
+            http.put("preferences/" + clientId.encodeURLPathPart()) { json(preferences) }.decode()
+        }
 
     /**
      * One page of [libraryId]'s top-level items in [sort] order (`title`, `added`, `year`, `rating` or `watched`), only
      * those in [genre] when given, from [cursor].
      */
-    internal suspend fun libraryItems(libraryId: String, sort: String, unwatched: Boolean, cursor: String?, limit: Int, genre: String? = null): LibraryPageDto = call {
+    internal suspend fun libraryItems(
+        libraryId: String,
+        sort: String,
+        unwatched: Boolean,
+        cursor: String?,
+        limit: Int,
+        genre: String? = null,
+    ): LibraryPageDto = call {
         http.get("libraries/" + libraryId.encodeURLPathPart() + "/items") {
             url.parameters.append("sort", sort)
             url.parameters.append("limit", limit.toString())
@@ -173,7 +186,9 @@ class SofaKingApi(
         }
     }
 
-    /** Saves where the household stopped in [id], or marks it (a show or season: every episode in it) watched or not. */
+    /**
+     * Saves where the household stopped in [id], or marks it (a show or season: every episode in it) watched or not.
+     */
     internal suspend fun updatePlayState(id: String, update: UpdatePlayStateDto): LibraryItemDto = call {
         http.put(itemPath(id) + "/play-state") { json(update) }.decode()
     }
@@ -291,7 +306,10 @@ class SofaKingApi(
         throw SofaKingException(code, error.code, error.message)
     }
 
-    /** Engines throw their own transport errors (Darwin's NSError, a browser's TypeError); every one becomes an [IOException]. */
+    /**
+     * Engines throw their own transport errors (Darwin's NSError, a browser's TypeError);
+     * every one becomes an [IOException].
+     */
     private suspend inline fun <T> call(block: () -> T): T = try {
         block()
     } catch (e: CancellationException) {
@@ -314,9 +332,17 @@ class SofaKingApi(
  * The MIME type to give the player. Media3 recognizes HLS only by its own constant, so the server's
  * `application/vnd.apple.mpegurl` is translated; anything else, including `video/mp2t`, is passed through.
  */
-internal fun mediaMimeType(descriptor: PlaybackDescriptorDto): String =
-    if (descriptor.protocol == "hls" || descriptor.mimeType.lowercase() in HLS_MIME_TYPES) HLS_MIME_TYPE else descriptor.mimeType
+internal fun mediaMimeType(descriptor: PlaybackDescriptorDto): String = if (descriptor.protocol == "hls" ||
+    descriptor.mimeType.lowercase() in HLS_MIME_TYPES
+) {
+    HLS_MIME_TYPE
+} else {
+    descriptor.mimeType
+}
 
-/** The HLS MIME type the players are handed; Media3 matches it exactly, and the other players compare it case-insensitively. */
+/**
+ * The HLS MIME type the players are handed; Media3 matches it exactly, and the other players
+ * compare it case-insensitively.
+ */
 const val HLS_MIME_TYPE = "application/x-mpegURL"
 private val HLS_MIME_TYPES = setOf("application/vnd.apple.mpegurl", "application/x-mpegurl")

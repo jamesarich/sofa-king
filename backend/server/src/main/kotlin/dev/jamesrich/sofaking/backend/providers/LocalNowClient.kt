@@ -3,18 +3,19 @@ package dev.jamesrich.sofaking.backend.providers
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
-import java.net.URLEncoder
-import java.time.Duration
-import java.time.Instant
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import java.net.URLEncoder
+import java.time.Duration
+import java.time.Instant
 
 /**
  * Local Now as localnow.com uses it: the page's runtime config carries a public app token and the data-store host,
  * the `live/epg` document lists every channel for a DMA and market with its next few programs, and `video/play`
- * answers each channel's ad-stitched HLS master. Channels that are not `unlocked` or that carry a DRM config are left out.
+ * answers each channel's ad-stitched HLS master. Channels that are not `unlocked` or that
+ * carry a DRM config are left out.
  */
 class LocalNowClient(private val context: ProviderContext) : ProviderClient {
     override val service: String get() = "localnow"
@@ -33,27 +34,49 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val snapshot = snapshot()
-        return ParsedGuide(snapshot.channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }, snapshot.programs.filter { it.channelId in wanted })
+        return ParsedGuide(
+            snapshot.channels.map {
+                GuideChannel(it.channel.id, it.channel.name, it.channel.logo)
+            },
+            snapshot.programs.filter {
+                it.channelId in
+                    wanted
+            },
+        )
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
         val listed = snapshot().channels.firstOrNull { it.channel.id == channelId }
-            ?: run { context.invalidate(SNAPSHOT); snapshot().channels.firstOrNull { it.channel.id == channelId } }
+            ?: run {
+                context.invalidate(SNAPSHOT)
+                snapshot().channels.firstOrNull { it.channel.id == channelId }
+            }
             ?: throw ProviderFailure("Channel is no longer listed", transient = false)
         val page = URLEncoder.encode("https://localnow.com/channels/${listed.slug ?: ""}", Charsets.UTF_8)
-        val query = "page_url=$page&device_devicetype=desktop_web&app_version=0.0.0&app_bundle=web.localnow&ccpa_us_privacy=1YNY"
-        val play = authorized { runtime -> context.http.get("${runtime.host}/video/play/$channelId/1920/1080?$query", headers(runtime)) }.json()
+        val query = "page_url=$page&device_devicetype=desktop_web&app_version=0.0.0&app_bundle=web.localnow&" +
+            "ccpa_us_privacy=1YNY"
+        val play = authorized { runtime ->
+            context.http.get("${runtime.host}/video/play/$channelId/1920/1080?$query", headers(runtime))
+        }.json()
         if (needsDrm(play["drm_config"])) throw ProviderFailure("Local Now channel needs DRM", transient = false)
-        val url = play.str("video_m3u8") ?: play.str("session_m3u8") ?: throw ProviderFailure("Local Now answered no stream")
+        val url =
+            play.str("video_m3u8") ?: play.str("session_m3u8") ?: throw ProviderFailure("Local Now answered no stream")
         return ResolvedStream(url, STREAM_HEADERS, context.clock.instant().plus(URL_LIFETIME))
     }
 
     private suspend fun snapshot(): Snapshot = context.cached(SNAPSHOT, Duration.ofMinutes(15)) { fetch() }
 
     private suspend fun fetch(): Snapshot {
-        val query = listOfNotNull(dma?.let { "dma=${URLEncoder.encode(it, Charsets.UTF_8)}" }, market?.let { "market=${URLEncoder.encode(it, Charsets.UTF_8)}" })
+        val query = listOfNotNull(
+            dma?.let {
+                "dma=${URLEncoder.encode(it, Charsets.UTF_8)}"
+            },
+            market?.let { "market=${URLEncoder.encode(it, Charsets.UTF_8)}" },
+        )
             .joinToString("&").let { if (it.isEmpty()) "" else "?$it" }
-        val payload = authorized { runtime -> context.http.get("${runtime.host}/live/epg/US/website$query", headers(runtime)) }.json()
+        val payload = authorized { runtime ->
+            context.http.get("${runtime.host}/live/epg/US/website$query", headers(runtime))
+        }.json()
         val channels = LinkedHashMap<String, Listed>()
         val programs = ArrayList<GuideProgram>()
         for (channel in payload["channels"].array) {
@@ -61,14 +84,30 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
             val name = channel.str("name") ?: continue
             if (!channel["subscription_access"]["unlocked"].truthy || channels.containsKey(id)) continue
             channels[id] = Listed(
-                ProviderChannel(id, name, channel.str("channel_number"), httpOrNull(channel.str("logo")), channel["genres"][0].string, listOf("us")),
+                ProviderChannel(
+                    id,
+                    name,
+                    channel.str("channel_number"),
+                    httpOrNull(channel.str("logo")),
+                    channel["genres"][0].string,
+                    listOf("us"),
+                ),
                 channel.str("slug"),
             )
             for (program in channel["program"].array) {
                 val start = program["starts_at"].long ?: continue
                 val end = program["ends_at"].long ?: continue
                 val title = program.str("program_title") ?: continue
-                if (end > start) programs += GuideProgram(id, Instant.ofEpochSecond(start), Instant.ofEpochSecond(end), title, program.str("program_description"))
+                if (end > start) {
+                    programs +=
+                        GuideProgram(
+                            id,
+                            Instant.ofEpochSecond(start),
+                            Instant.ofEpochSecond(end),
+                            title,
+                            program.str("program_description"),
+                        )
+                }
             }
         }
         if (channels.isEmpty()) throw ProviderFailure("Channel list is empty")
@@ -87,10 +126,17 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
         context.state(RUNTIME)?.split('\n')?.takeIf { it.size == 2 }?.let { return Runtime(it[0], it[1]) }
         val html = context.http.get(pageUrl, PAGE_HEADERS).require("Local Now page").text()
         val config = nextData(html, "Local Now page")["runtimeConfig"]
-        val host = config.str("DSP_API_URL")?.let { if (it.startsWith("http")) it else "https://$it" } ?: throw ProviderFailure("Local Now runtime config has no API host")
-        val token = config.str("DSP_TOKEN")?.let { runCatching { lenientJson.parseToJsonElement(it).str("token") }.getOrNull() }
-            ?: throw ProviderFailure("Local Now runtime config has no token")
-        context.saveState(RUNTIME, "${context.options["apiBase"] ?: host}\n$token", context.clock.instant().plus(RUNTIME_LIFETIME))
+        val host =
+            config.str("DSP_API_URL")?.let { if (it.startsWith("http")) it else "https://$it" }
+                ?: throw ProviderFailure("Local Now runtime config has no API host")
+        val token =
+            config.str("DSP_TOKEN")?.let { runCatching { lenientJson.parseToJsonElement(it).str("token") }.getOrNull() }
+                ?: throw ProviderFailure("Local Now runtime config has no token")
+        context.saveState(
+            RUNTIME,
+            "${context.options["apiBase"] ?: host}\n$token",
+            context.clock.instant().plus(RUNTIME_LIFETIME),
+        )
         return Runtime(context.options["apiBase"] ?: host, token)
     }
 
@@ -102,7 +148,8 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
         is JsonArray -> config.isNotEmpty()
     }
 
-    private fun headers(runtime: Runtime) = STREAM_HEADERS + mapOf("Accept" to "application/json, text/plain, */*", "x-access-token" to runtime.token)
+    private fun headers(runtime: Runtime) =
+        STREAM_HEADERS + mapOf("Accept" to "application/json, text/plain, */*", "x-access-token" to runtime.token)
 
     companion object {
         private const val PAGE_URL = "https://localnow.com/"
@@ -110,7 +157,11 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
         private const val RUNTIME = "runtime"
         private val RUNTIME_LIFETIME = Duration.ofHours(12)
         private val URL_LIFETIME = Duration.ofHours(1)
-        private val STREAM_HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Origin" to "https://localnow.com", "Referer" to "https://localnow.com/")
+        private val STREAM_HEADERS = mapOf(
+            "User-Agent" to BROWSER_USER_AGENT,
+            "Origin" to "https://localnow.com",
+            "Referer" to "https://localnow.com/",
+        )
         private val PAGE_HEADERS = STREAM_HEADERS + ("Accept" to "text/html,application/xhtml+xml,*/*;q=0.8")
     }
 }

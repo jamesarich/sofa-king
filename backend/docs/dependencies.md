@@ -19,6 +19,8 @@ CI's API fuzz (`scripts/api-fuzz.py`) installs [Schemathesis](https://schemathes
 
 The server targets JVM 21. The [contract](../../contract/README.md) it shares with the app compiles to JVM 17 bytecode for the server and Android, and to every other target the app builds; it pins the same Kotlin and kotlinx.serialization versions as the server.
 
+The catalog also pins the [formatting and static analysis](../../CONTRIBUTING.md#formatting-and-static-analysis) tools: Spotless and the ktlint version it runs (`ktlint`), and detekt with the Compose rules. detekt is on its 2.0 prerelease line (plugin id `dev.detekt`); Renovate proposes its updates like any other.
+
 ## Vendored htmx
 
 The [admin portal](admin.md) serves htmx from `server/src/main/resources/admin/htmx.min.js`, the `dist/htmx.min.js` of the npm package `htmx.org` 2.0.11, unchanged. Its SHA-256 is `d6fdc75f204e6bdefa99b69bf1e6d4ac69b8a364f77929f45c13476b4000f717`. To update it, take `dist/htmx.min.js` from the new release's npm tarball, check the tarball against the registry's `integrity` value, and record the new version and SHA-256 here.

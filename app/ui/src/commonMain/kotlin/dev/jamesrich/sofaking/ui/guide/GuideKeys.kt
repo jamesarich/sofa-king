@@ -49,7 +49,10 @@ internal fun Key.stopsAtRowEdge(cell: GuideCell, windowMinutes: Long): Boolean =
 /** How many days ahead of the live window the grid can show; the server's guide data rarely reaches further. */
 internal const val MAX_DAY_OFFSET = 6
 
-/** The day offset a Fast Forward or Rewind lands on from [current]: one day either way, held within the window the app loads. */
+/**
+ * The day offset a Fast Forward or Rewind lands on from [current]: one day either way, held
+ * within the window the app loads.
+ */
 internal fun dayOffsetAfter(current: Int, shortcut: GuideShortcut): Int = when (shortcut) {
     GuideShortcut.DAY_FORWARD -> (current + 1).coerceAtMost(MAX_DAY_OFFSET)
     GuideShortcut.DAY_BACK -> (current - 1).coerceAtLeast(0)

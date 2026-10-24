@@ -46,7 +46,10 @@ internal fun SettingsDestination(
             val pairing by vm.pairing.collectAsStateWithLifecycle()
             SettingsScreen(
                 settings = s,
-                onSave = { url, token -> vm.saveServer(url, token); shell.startOver() },
+                onSave = { url, token ->
+                    vm.saveServer(url, token)
+                    shell.startOver()
+                },
                 discoveredServers = vm.discoveredServers,
                 onBack = shell::leaveSettings,
                 channelCount = lineup?.channels?.size ?: 0,
@@ -86,11 +89,17 @@ internal fun SettingsDestination(
                         shell.settingsUnlocked = true
                     },
                 ),
-                pairing = PairingUi(busy = pairing.busy, failure = pairing.failure, onPair = vm::pair, onDismiss = vm::pairingDismissed),
+                pairing = PairingUi(
+                    busy = pairing.busy,
+                    failure = pairing.failure,
+                    onPair = vm::pair,
+                    onDismiss = vm::pairingDismissed,
+                ),
                 update = update,
                 returnedFrom = arrival.returnedFrom,
             )
         }
+
         Route.Channels -> ChannelManagerScreen(
             channels = lineup?.channels.orEmpty(),
             favorites = s.favorites,
@@ -103,6 +112,7 @@ internal fun SettingsDestination(
             onZapSkipsHiddenChanged = vm::setZapSkipsHidden,
             onBack = shell::back,
         )
+
         Route.StartupChannel -> ChannelPickerScreen(
             channels = lineup?.channels.orEmpty(),
             selected = s.startupChannel,
@@ -112,6 +122,7 @@ internal fun SettingsDestination(
             },
             onBack = shell::back,
         )
+
         else -> Unit
     }
 }

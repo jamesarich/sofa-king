@@ -16,7 +16,12 @@ class IntroMatchTest {
 
     /** [points] with up to [bits] random bits of each point flipped, as a re-encode does. */
     private fun blurred(points: IntArray, seed: Int, bits: Int = 3) = Random(seed).let { r ->
-        IntArray(points.size) { i -> (0 until r.nextInt(bits + 1)).fold(points[i]) { word, _ -> word xor (1 shl r.nextInt(32)) } }
+        IntArray(points.size) { i ->
+            (0 until r.nextInt(bits + 1)).fold(points[i]) { word, _ ->
+                word xor
+                    (1 shl r.nextInt(32))
+            }
+        }
     }
 
     private fun assertNear(expectedMs: Long, actualMs: Long) =

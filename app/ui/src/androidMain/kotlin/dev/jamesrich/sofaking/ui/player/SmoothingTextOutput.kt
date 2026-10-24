@@ -14,11 +14,8 @@ import androidx.media3.exoplayer.text.TextOutput
  * the held flush both run on [looper], the player's output thread, so no locking is needed.
  */
 @UnstableApi
-class SmoothingTextOutput(
-    private val delegate: TextOutput,
-    looper: Looper,
-    private val enabled: () -> Boolean,
-) : TextOutput {
+class SmoothingTextOutput(private val delegate: TextOutput, looper: Looper, private val enabled: () -> Boolean) :
+    TextOutput {
     private val handler = Handler(looper)
     private val flush = Runnable {
         flushScheduled = false
@@ -45,6 +42,7 @@ class SmoothingTextOutput(
                 cancelHeld()
                 emit(cueGroup, text, now)
             }
+
             CaptionSmoother.Decision.HOLD -> {
                 // Latest wins: the flush reads whatever is pending when it fires.
                 pending = cueGroup

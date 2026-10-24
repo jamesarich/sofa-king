@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui.guide
 
-import dev.jamesrich.sofaking.ui.theme.SofaChip
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.BringIntoViewSpec
@@ -15,6 +14,10 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableIntState
@@ -26,25 +29,35 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.data.ProgramKind
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.filter_all
+import dev.jamesrich.sofaking.resources.filter_favorites
+import dev.jamesrich.sofaking.resources.filter_kids_now
+import dev.jamesrich.sofaking.resources.filter_movies_now
+import dev.jamesrich.sofaking.resources.filter_news_now
+import dev.jamesrich.sofaking.resources.filter_recent
+import dev.jamesrich.sofaking.resources.filter_sports_now
+import dev.jamesrich.sofaking.resources.guide_filter_count
+import dev.jamesrich.sofaking.resources.guide_now
+import dev.jamesrich.sofaking.resources.guide_search
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.horizontalFadingEdges
+import dev.jamesrich.sofaking.ui.theme.SofaChip
 import dev.jamesrich.sofaking.ui.theme.tvFocus
+import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
-/** Visible time range above the channel names, for example "Today 1:00 PM - 2:30 PM" or "Tomorrow 9:00 AM - 10:30 AM". Reads scroll in its own scope. */
+/**
+ * Visible time range above the channel names, for example "Today 1:00 PM - 2:30 PM" or "Tomorrow 9:00 AM - 10:30 AM".
+ * Reads scroll in its own scope.
+ */
 @Composable
 internal fun VisibleRange(
     scrollState: ScrollState,
@@ -201,9 +214,13 @@ private fun NowLine(nowMinute: Long?) {
 @Composable
 internal fun GuideFilter.label(): String = when (this) {
     GuideFilter.All -> stringResource(Res.string.filter_all)
+
     GuideFilter.Favorites -> stringResource(Res.string.filter_favorites)
+
     GuideFilter.Recent -> stringResource(Res.string.filter_recent)
+
     is GuideFilter.Group -> name
+
     is GuideFilter.OnNow -> stringResource(
         when (kind) {
             ProgramKind.MOVIE -> Res.string.filter_movies_now

@@ -5,11 +5,18 @@ import kotlinx.serialization.Serializable
 // Media libraries under /api/v1/libraries and /api/v1/library. The same rule as the live TV types: add a field with
 // a default, give a field no client reads a default, and never rename or remove one.
 
-/** A library as the app lists it; [kind] is a [Wire.LibraryKind] value and [items] counts its movies, shows or videos. */
+/**
+ * A library as the app lists it; [kind] is a [Wire.LibraryKind] value and [items] counts its movies, shows or videos.
+ */
 @Serializable data class Library(val id: String, val name: String, val kind: String, val items: Int = 0)
 
 /** The household's place in an item: where it stopped, and whether it was watched to the end. */
-@Serializable data class PlayState(val positionMs: Long = 0, val durationMs: Long? = null, val watched: Boolean = false, val updatedAt: String = "")
+@Serializable data class PlayState(
+    val positionMs: Long = 0,
+    val durationMs: Long? = null,
+    val watched: Boolean = false,
+    val updatedAt: String = "",
+)
 
 /**
  * One movie, show, season, episode, video or extra ([kind] is a [Wire.ItemKind] value). [poster] and [backdrop] are
@@ -67,7 +74,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class LetterCount(val letter: String, val count: Int)
 
 /** A row of the library home ([id] is a [Wire.ShelfId] value), for one library when [libraryId] is set. */
-@Serializable data class LibraryShelf(val id: String, val title: String, val items: List<LibraryItem>, val libraryId: String? = null)
+@Serializable
+data class LibraryShelf(val id: String, val title: String, val items: List<LibraryItem>, val libraryId: String? = null)
 
 /** The library home: Continue watching, then Recently added per library, and every library. */
 @Serializable data class LibraryHome(val shelves: List<LibraryShelf>, val libraries: List<Library> = emptyList())
@@ -77,9 +85,20 @@ import kotlinx.serialization.Serializable
  * file beside it. A subtitle whose [codec] is pictures (`hdmv_pgs_subtitle`, `dvd_subtitle`, `dvb_subtitle`) has no
  * text, so a player shows it by asking for it in [OpenVodPlayback.subtitleIndex].
  */
-@Serializable data class MediaTrack(val index: Int, val codec: String, val language: String? = null, val title: String? = null, val channels: Int? = null, val default: Boolean = false, val forced: Boolean = false)
+@Serializable data class MediaTrack(
+    val index: Int,
+    val codec: String,
+    val language: String? = null,
+    val title: String? = null,
+    val channels: Int? = null,
+    val default: Boolean = false,
+    val forced: Boolean = false,
+)
 
-/** A span of a movie, episode or video from [startMs] to [endMs] that a player offers to skip; [kind] is a [Wire.SegmentKind] value. */
+/**
+ * A span of a movie, episode or video from [startMs] to [endMs] that a player offers to skip; [kind]
+ * is a [Wire.SegmentKind] value.
+ */
 @Serializable data class MediaSegment(val kind: String, val startMs: Long, val endMs: Long)
 
 /**
@@ -100,7 +119,10 @@ import kotlinx.serialization.Serializable
     val container: String? = null,
     val videoCodec: String? = null,
     val segments: List<MediaSegment> = emptyList(),
-    /** Thumbnails to show over the seek bar while scrubbing; null until the server has made them, or for a short file. */
+    /**
+     * Thumbnails to show over the seek bar while scrubbing; null until the server has made them, or for a short
+     * file.
+     */
     val scrub: ScrubThumbnails? = null,
     /** A movie's or show's trailers, featurettes and other extras, trailers first. */
     val extras: List<LibraryItem> = emptyList(),
@@ -123,13 +145,17 @@ import kotlinx.serialization.Serializable
     val sheets: List<String>,
 )
 
-/** `PUT /api/v1/library/items/{id}/play-state`: where playback stopped; [watched] set by hand wins over the position. */
-@Serializable data class UpdatePlayState(val positionMs: Long = 0, val durationMs: Long? = null, val watched: Boolean? = null)
+/**
+ * `PUT /api/v1/library/items/{id}/play-state`: where playback stopped; [watched] set by hand wins over the position.
+ */
+@Serializable
+data class UpdatePlayState(val positionMs: Long = 0, val durationMs: Long? = null, val watched: Boolean? = null)
 
 /**
  * What a player can play as is: containers (`mp4`, `mkv`, `webm`, `ts`), video codecs (`h264`, `hevc`, `vp9`, `av1`)
  * and audio codecs (`aac`, `ac3`, `eac3`, `mp3`, `opus`, `flac`, `dts`, `truehd`), the tallest video it decodes, and
- * whether it shows HDR. What it cannot play the server remuxes or converts. An empty profile plays only what the server converts.
+ * whether it shows HDR. What it cannot play the server remuxes or converts. An empty profile plays
+ * only what the server converts.
  */
 @Serializable data class ClientProfile(
     val containers: List<String> = emptyList(),
@@ -168,7 +194,8 @@ import kotlinx.serialization.Serializable
  * A library file being played. [mode] is a [Wire.VodMode] value. The descriptor's protocol is `file` for direct play,
  * which seeks on its own, or `hls` for the others, whose media time 0 is [startMs] into the item: a seek past what the
  * stream holds asks for a restart there with [UpdateVodPlayback]. [durationMs] is the item's whole length. A recording
- * has [recordingId] and an empty [itemId]; while it records, its stream grows and [durationMs] is the length it will have.
+ * has [recordingId] and an empty [itemId]; while it records, its stream grows and
+ * [durationMs] is the length it will have.
  */
 @Serializable data class VodSession(
     val id: String,

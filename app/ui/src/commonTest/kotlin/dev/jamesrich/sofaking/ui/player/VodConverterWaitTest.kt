@@ -34,7 +34,12 @@ class VodConverterWaitTest {
     @Test
     fun `after 20 seconds of busy answers the failure shows`() = runTest {
         var tries = 0
-        val thrown = assertFailsWith<SofaKingException> { state.waitForConverter<String> { tries++; throw busy } }
+        val thrown = assertFailsWith<SofaKingException> {
+            state.waitForConverter<String> {
+                tries++
+                throw busy
+            }
+        }
         assertEquals(Wire.ErrorCode.CAPACITY_EXHAUSTED, thrown.code)
         assertEquals(5, tries)
         assertEquals(CONVERTER_WAIT_MS, currentTime)
@@ -45,7 +50,10 @@ class VodConverterWaitTest {
     fun `any other failure shows at once`() = runTest {
         var tries = 0
         assertFailsWith<SofaKingException> {
-            state.waitForConverter<String> { tries++; throw SofaKingException(503, "TRANSCODER_UNAVAILABLE", "No converter") }
+            state.waitForConverter<String> {
+                tries++
+                throw SofaKingException(503, "TRANSCODER_UNAVAILABLE", "No converter")
+            }
         }
         assertEquals(1, tries)
         assertEquals(0, currentTime)

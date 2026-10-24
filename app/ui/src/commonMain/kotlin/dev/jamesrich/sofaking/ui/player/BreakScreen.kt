@@ -43,21 +43,39 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.banner_logo
+import dev.jamesrich.sofaking.resources.break_ads_dodged
+import dev.jamesrich.sofaking.resources.break_corner_again
+import dev.jamesrich.sofaking.resources.break_corner_first
+import dev.jamesrich.sofaking.resources.break_quip_adjust
+import dev.jamesrich.sofaking.resources.break_quip_almost
+import dev.jamesrich.sofaking.resources.break_quip_castle
+import dev.jamesrich.sofaking.resources.break_quip_cushion
+import dev.jamesrich.sofaking.resources.break_quip_patient
+import dev.jamesrich.sofaking.resources.break_quip_pillows
+import dev.jamesrich.sofaking.resources.break_quip_realm
+import dev.jamesrich.sofaking.resources.break_quip_recline
+import dev.jamesrich.sofaking.resources.break_quip_snacks
+import dev.jamesrich.sofaking.resources.break_quip_stretch
+import dev.jamesrich.sofaking.resources.break_quip_throne
+import dev.jamesrich.sofaking.resources.break_quip_unknown
+import dev.jamesrich.sofaking.resources.break_screen_back_in
+import dev.jamesrich.sofaking.resources.break_screen_title
 import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.hoursAndMinutes
 import dev.jamesrich.sofaking.ui.theme.SofaMauve
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.minutes
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 
 /** Where the break screen's logo is, which way it is heading on each axis, and which of [BOUNCE_HUES] it wears. */
 internal data class Bounce(val x: Float, val y: Float, val right: Boolean, val down: Boolean, val tint: Int = 0)
@@ -81,7 +99,7 @@ internal fun Bounce.step(distance: Float, roomX: Float, roomY: Float, cornerSlop
     val (nextY, down, hitY) = reflect(y, down, distance, roomY)
     fun nearEdge(position: Float, room: Float) = position <= cornerSlop || position >= room - cornerSlop
     val hit = when {
-        hitX && (hitY || nearEdge(nextY, roomY)) || hitY && nearEdge(nextX, roomX) -> BounceHit.CORNER
+        (hitX && (hitY || nearEdge(nextY, roomY))) || (hitY && nearEdge(nextX, roomX)) -> BounceHit.CORNER
         hitX || hitY -> BounceHit.EDGE
         else -> BounceHit.NONE
     }
@@ -111,9 +129,12 @@ internal fun hueRotation(degrees: Float): ColorMatrix {
     val s = sin(radians)
     return ColorMatrix(
         floatArrayOf(
-            0.213f + c * 0.787f - s * 0.213f, 0.715f - c * 0.715f - s * 0.715f, 0.072f - c * 0.072f + s * 0.928f, 0f, 0f,
-            0.213f - c * 0.213f + s * 0.143f, 0.715f + c * 0.285f + s * 0.140f, 0.072f - c * 0.072f - s * 0.283f, 0f, 0f,
-            0.213f - c * 0.213f - s * 0.787f, 0.715f - c * 0.715f + s * 0.715f, 0.072f + c * 0.928f + s * 0.072f, 0f, 0f,
+            0.213f + c * 0.787f - s * 0.213f, 0.715f - c * 0.715f - s * 0.715f, 0.072f - c * 0.072f + s * 0.928f, 0f,
+            0f,
+            0.213f - c * 0.213f + s * 0.143f, 0.715f + c * 0.285f + s * 0.140f, 0.072f - c * 0.072f - s * 0.283f, 0f,
+            0f,
+            0.213f - c * 0.213f - s * 0.787f, 0.715f - c * 0.715f + s * 0.715f, 0.072f + c * 0.928f + s * 0.072f, 0f,
+            0f,
             0f, 0f, 0f, 1f, 0f,
         ),
     )
@@ -150,7 +171,9 @@ private val BREAK_QUIPS = listOf(
     Res.string.break_quip_recline,
 )
 
-/** What the break screen remembers from one break to the next while the app runs: the next line, and the corners seen. */
+/**
+ * What the break screen remembers from one break to the next while the app runs: the next line, and the corners seen.
+ */
 private object BreakTally {
     val quips = Deck(BREAK_QUIPS.size)
     var corners = 0
@@ -178,7 +201,10 @@ internal fun BreakScreen(
         modifier
             .fillMaxSize()
             .background(SofaScrim)
-            .semantics { contentDescription = label; liveRegion = LiveRegionMode.Polite },
+            .semantics {
+                contentDescription = label
+                liveRegion = LiveRegionMode.Polite
+            },
     ) {
         val density = LocalDensity.current
         val logoSize = (minOf(maxWidth, maxHeight) * 0.22f).coerceIn(96.dp, 240.dp)
@@ -186,7 +212,9 @@ internal fun BreakScreen(
         val cornerSlop = with(density) { CORNER_SLOP.toPx() }
         val area = with(density) { IntSize(maxWidth.roundToPx(), maxHeight.roundToPx()) }
         var unit by remember { mutableStateOf(IntSize.Zero) }
-        var bounce by remember { mutableStateOf(Bounce(area.width * 0.3f, area.height * 0.2f, right = true, down = true)) }
+        var bounce by remember {
+            mutableStateOf(Bounce(area.width * 0.3f, area.height * 0.2f, right = true, down = true))
+        }
         var tint by remember { mutableIntStateOf(0) }
         val pop = remember { Animatable(1f) }
         val quip = remember { BreakTally.quips.next() }
@@ -206,7 +234,11 @@ internal fun BreakScreen(
             if (unit == IntSize.Zero) return@LaunchedEffect
             val roomX = (area.width - unit.width).toFloat()
             val roomY = (area.height - unit.height).toFloat()
-            bounce = bounce.copy(x = bounce.x.coerceIn(0f, roomX.coerceAtLeast(0f)), y = bounce.y.coerceIn(0f, roomY.coerceAtLeast(0f)))
+            bounce =
+                bounce.copy(
+                    x = bounce.x.coerceIn(0f, roomX.coerceAtLeast(0f)),
+                    y = bounce.y.coerceIn(0f, roomY.coerceAtLeast(0f)),
+                )
             var last = 0L
             while (true) {
                 val hit = withFrameNanos { now ->
@@ -237,7 +269,8 @@ internal fun BreakScreen(
                 .offset { IntOffset(bounce.x.roundToInt(), bounce.y.roundToInt()) }
                 .onSizeChanged { unit = it }
                 .graphicsLayer {
-                    // The pop grows out of the corner just hit, which the mark is now heading away from, so it stays on screen.
+                    // The pop grows out of the corner just hit, which the mark is now heading
+                    // away from, so it stays on screen.
                     transformOrigin = TransformOrigin(if (bounce.right) 0f else 1f, if (bounce.down) 0f else 1f)
                     scaleX = pop.value
                     scaleY = pop.value
@@ -245,7 +278,12 @@ internal fun BreakScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Image(painterResource(Res.drawable.banner_logo), contentDescription = null, colorFilter = filter, modifier = Modifier.size(logoSize))
+            Image(
+                painterResource(Res.drawable.banner_logo),
+                contentDescription = null,
+                colorFilter = filter,
+                modifier = Modifier.size(logoSize),
+            )
             val left = remainingMs?.invoke()
             Text(
                 if (left != null) stringResource(Res.string.break_screen_back_in, formatPlayTime(left)) else label,
@@ -270,7 +308,14 @@ internal fun BreakScreen(
             )
             val faint = SofaMauve.copy(alpha = 0.7f)
             if (upNext != null) {
-                Text(upNext, style = MaterialTheme.typography.bodySmall, color = faint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = lineWidth)
+                Text(
+                    upNext,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = faint,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = lineWidth,
+                )
             }
             if (dodgedMinutes > 0) {
                 Text(
@@ -287,14 +332,18 @@ internal fun BreakScreen(
 
 /** How fast the mark drifts, on each axis. */
 private val BOUNCE_SPEED = 72.dp
+
 /** How close to the other edge an edge hit may land and still count as a corner. */
 private val CORNER_SLOP = 6.dp
 private const val MAX_FRAME_SECONDS = 0.05f
 private const val CORNER_POP = 1.25f
 private const val CORNER_POP_MS = 600
+
 /** How long a corner's line shows. */
 private const val CORNER_LINE_MS = 4_000L
+
 /** A frame gap longer than this was the app away, not the screen up. */
 private const val MAX_COVERED_GAP_NANOS = 1_000_000_000L
+
 /** The last stretch of a break, when the line tells everyone to get back on the sofa. */
 private const val ALMOST_BACK_MS = 10_000L

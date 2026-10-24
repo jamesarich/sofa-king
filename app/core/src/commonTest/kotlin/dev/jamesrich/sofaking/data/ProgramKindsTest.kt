@@ -33,6 +33,9 @@ class ProgramKindsTest {
     @Test
     fun `equal kinds share one set`() {
         assertSame(programKinds(listOf("Movies")), programKinds(listOf("Feature Film")))
-        assertEquals(setOf(ProgramKind.KIDS, ProgramKind.NEWS), kindsOf(setOf(ProgramKind.NEWS, ProgramKind.KIDS).mask()))
+        assertEquals(
+            setOf(ProgramKind.KIDS, ProgramKind.NEWS),
+            kindsOf(setOf(ProgramKind.NEWS, ProgramKind.KIDS).mask()),
+        )
     }
 }

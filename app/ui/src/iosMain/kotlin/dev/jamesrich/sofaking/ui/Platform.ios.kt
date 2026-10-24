@@ -9,25 +9,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.lifecycle.LifecycleOwner
 import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.data.PublishedBuild
+import dev.jamesrich.sofaking.data.UpdateInstaller
+import dev.jamesrich.sofaking.ui.player.LivePlayer
 import platform.Foundation.NSDateFormatter
 import platform.Foundation.NSLocale
 import platform.Foundation.NSNotificationCenter
-import platform.Foundation.currentLocale
 import platform.Foundation.NSOperationQueue
+import platform.Foundation.NSURL
+import platform.Foundation.currentLocale
 import platform.UIKit.UIAccessibilityIsVoiceOverRunning
 import platform.UIKit.UIAccessibilityVoiceOverStatusDidChangeNotification
 import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationOpenSettingsURLString
-import platform.Foundation.NSURL
-import dev.jamesrich.sofaking.ui.player.LivePlayer
-import dev.jamesrich.sofaking.data.PublishedBuild
-import dev.jamesrich.sofaking.data.UpdateInstaller
 
 /** iPhone and iPad; Apple TV is not a target. */
 @Composable
 internal actual fun rememberIsTelevision(): Boolean = false
 
-/** The current locale's hour template: a pattern without an AM/PM marker means a 24-hour clock, which iOS's own setting feeds. */
+/**
+ * The current locale's hour template: a pattern without an AM/PM marker means a 24-hour clock,
+ * which iOS's own setting feeds.
+ */
 @Composable
 internal actual fun rememberSystem24HourClock(): Boolean = remember {
     val pattern = NSDateFormatter.dateFormatFromTemplate("j", 0u, NSLocale.currentLocale) ?: ""
@@ -72,7 +75,11 @@ internal actual val KeyEvent.isLongPress: Boolean get() = false
 @Composable
 internal actual fun rememberSystemCaptionSettings(): (() -> Unit)? = remember {
     val url = NSURL.URLWithString(UIApplicationOpenSettingsURLString)
-    if (url == null) null else { { UIApplication.sharedApplication.openURL(url, options = emptyMap<Any?, Any>(), completionHandler = null) } }
+    if (url == null) {
+        null
+    } else {
+        { UIApplication.sharedApplication.openURL(url, options = emptyMap<Any?, Any>(), completionHandler = null) }
+    }
 }
 
 internal actual fun captionEngineName(): String = "AVPlayer"

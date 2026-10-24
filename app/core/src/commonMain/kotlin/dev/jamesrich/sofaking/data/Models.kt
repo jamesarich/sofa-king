@@ -2,7 +2,10 @@ package dev.jamesrich.sofaking.data
 
 import kotlin.time.Instant
 
-/** Models are immutable values; the UI module's stability configuration lets Compose skip rows and cells whose inputs are equal. */
+/**
+ * Models are immutable values; the UI module's stability configuration lets Compose skip rows
+ * and cells whose inputs are equal.
+ */
 data class Channel(
     /** The server's channel id: the key for guide data, favorites, caption timing and playback sessions. */
     val guideId: String,
@@ -19,9 +22,11 @@ data class Channel(
 enum class GuideStatus {
     /** No guide is mapped to the channel. */
     UNASSIGNED,
+
     /** A guide is mapped but lists nothing for the channel. */
     EMPTY,
     AVAILABLE,
+
     /** The mapped guide's data has run out. */
     STALE,
 }

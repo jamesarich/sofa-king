@@ -71,12 +71,18 @@ internal fun sidecarStream(index: Int, suffix: String): SubtitleStream {
         val word = part.lowercase()
         when {
             word == "forced" || word == "foreign" -> forced = true
+
             word == "default" -> default = true
+
             word in HEARING_IMPAIRED -> title += "SDH"
+
             language == null && word in LANGUAGE_NAMES -> language = LANGUAGE_NAMES.getValue(word)
+
             language == null && (word.length == 2 || word.length == 3) && word.all { it in 'a'..'z' } -> language = word
+
             // A region such as `pt-BR` keeps its language.
             language == null && REGIONAL.matches(word) -> language = word.substringBefore('-')
+
             else -> title += part
         }
     }

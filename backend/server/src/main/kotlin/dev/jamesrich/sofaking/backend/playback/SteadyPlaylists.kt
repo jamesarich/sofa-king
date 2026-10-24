@@ -41,8 +41,13 @@ class SteadyPlaylists(private val limit: Int = 16) {
         private var discontinuities = 0
         private var sequenceOffset = 0L
         private var discontinuityOffset = 0L
-        /** The numbers, as sent, of segments a restart put a discontinuity in front of, while they may still be in a window. */
+
+        /**
+         * The numbers, as sent, of segments a restart put a discontinuity in front of, while
+         * they may still be in a window.
+         */
         private val restarts = ArrayList<Long>()
+
         /** The segments sent lately, to tell a stale copy from a restart. */
         private val recent = LinkedHashSet<String>()
 
@@ -50,10 +55,13 @@ class SteadyPlaylists(private val limit: Int = 16) {
             val previous = sent
             if (previous != null && window.sequence + sequenceOffset < first) {
                 if (recent.containsAll(window.uris)) return previous
-                // A restart: its first segment follows the last one sent, and the discontinuities sent so far have left the window.
+                // A restart: its first segment follows the last one sent, and the discontinuities
+                // sent so far have left the window.
                 sequenceOffset = first + count - window.sequence
                 restarts += first + count
-                discontinuityOffset = discontinuitySequence + discontinuities - window.discontinuitySequence - restarts.count { it < first + count }
+                discontinuityOffset =
+                    discontinuitySequence + discontinuities - window.discontinuitySequence -
+                    restarts.count { it < first + count }
             }
             val outFirst = window.sequence + sequenceOffset
             // A restart's discontinuity that left the window is counted in the sequence from now on.
@@ -71,14 +79,26 @@ class SteadyPlaylists(private val limit: Int = 16) {
             discontinuities = Window.parse(text).discontinuities
             recent.addAll(window.uris)
             val excess = recent.iterator()
-            repeat(recent.size - RECENT) { excess.next(); excess.remove() }
+            repeat(recent.size - RECENT) {
+                excess.next()
+                excess.remove()
+            }
             return text
         }
     }
 
     /** A live media playlist's numbering and segments. */
-    private class Window(val text: String, val sequence: Long, val discontinuitySequence: Long, val uris: List<String>, val discontinuities: Int) {
-        /** [text] numbered from [sequence], its discontinuities from [discontinuitySequence], with a discontinuity before each segment index in [breaks]. */
+    private class Window(
+        val text: String,
+        val sequence: Long,
+        val discontinuitySequence: Long,
+        val uris: List<String>,
+        val discontinuities: Int,
+    ) {
+        /**
+         * [text] numbered from [sequence], its discontinuities from [discontinuitySequence], with a discontinuity
+         * before each segment index in [breaks].
+         */
         fun renumbered(sequence: Long, discontinuitySequence: Long, breaks: Set<Int>): String {
             val out = StringBuilder()
             var index = 0
@@ -90,24 +110,34 @@ class SteadyPlaylists(private val limit: Int = 16) {
                 when {
                     trimmed == "#EXTM3U" && !numbered -> {
                         out.append(line).append('\n').append(MEDIA_SEQUENCE).append(sequence).append('\n')
-                        if (discontinuitySequence != 0L) out.append(DISCONTINUITY_SEQUENCE).append(discontinuitySequence).append('\n')
+                        if (discontinuitySequence != 0L) {
+                            out.append(DISCONTINUITY_SEQUENCE).append(discontinuitySequence).append('\n')
+                        }
                         counted = true
                     }
+
                     trimmed.startsWith(MEDIA_SEQUENCE) -> {
                         out.append(MEDIA_SEQUENCE).append(sequence).append('\n')
-                        if (!counted && discontinuitySequence != 0L) out.append(DISCONTINUITY_SEQUENCE).append(discontinuitySequence).append('\n')
+                        if (!counted && discontinuitySequence != 0L) {
+                            out.append(DISCONTINUITY_SEQUENCE).append(discontinuitySequence).append('\n')
+                        }
                         counted = true
                     }
+
                     trimmed.startsWith(DISCONTINUITY_SEQUENCE) -> {
                         if (!counted) out.append(DISCONTINUITY_SEQUENCE).append(discontinuitySequence).append('\n')
                         counted = true
                     }
+
                     trimmed == DISCONTINUITY -> {
                         tagged = true
                         out.append(line).append('\n')
                     }
+
                     trimmed.isEmpty() -> Unit
+
                     trimmed.startsWith("#") -> out.append(line).append('\n')
+
                     else -> {
                         // The tag goes after the segment's own tags (its key, its length), right before its URI.
                         if (index in breaks && !tagged) out.append(DISCONTINUITY).append('\n')
@@ -130,10 +160,19 @@ class SteadyPlaylists(private val limit: Int = 16) {
                     val line = raw.trim()
                     when {
                         line.isEmpty() -> Unit
-                        line.startsWith(MEDIA_SEQUENCE) -> sequence = line.substringAfter(':').trim().toLongOrNull() ?: 0L
-                        line.startsWith(DISCONTINUITY_SEQUENCE) -> discontinuitySequence = line.substringAfter(':').trim().toLongOrNull() ?: 0L
+
+                        line.startsWith(MEDIA_SEQUENCE) ->
+                            sequence =
+                                line.substringAfter(':').trim().toLongOrNull() ?: 0L
+
+                        line.startsWith(DISCONTINUITY_SEQUENCE) ->
+                            discontinuitySequence =
+                                line.substringAfter(':').trim().toLongOrNull() ?: 0L
+
                         line == DISCONTINUITY -> discontinuities++
+
                         line.startsWith("#") -> Unit
+
                         else -> uris += line
                     }
                 }

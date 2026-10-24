@@ -4,13 +4,13 @@ import SwiftUI
 /// way an old DVD player's screensaver did, a new color on every edge and the brand colors back on a corner, with a line
 /// to mark the occasion. The screen starts black, and each hit paints it the sofa's color from before the hit, a little
 /// see-through so the picture faintly shows under it. `remainingMs`, when known, counts down in the middle of the
-/// screen, over `quip` (the line the player dealt for this break), `upNext` and the ads dodged today: `dodgedBeforeMs`
+/// screen, over `quip` (the line the player dealt for this break), `watching` (the program on now) and the ads dodged today: `dodgedBeforeMs`
 /// before this break plus the time since `coveredSince`. Only the mark moves; the words stay put. It draws only; the
 /// player decides about the sound.
 struct BreakScreen: View {
     let remainingMs: Int64?
     var quip = ""
-    var upNext: String?
+    var watching: String?
     var dodgedBeforeMs: Int64 = 0
     var coveredSince = Date.now
 
@@ -73,7 +73,7 @@ struct BreakScreen: View {
                             .multilineTextAlignment(.center)
                         // Both faint lines keep their place while empty, so the ads dodged showing up a minute in
                         // does not move the words above it.
-                        Text(upNext ?? " ").font(.caption).lineLimit(1).opacity(0.7)
+                        Text(watching ?? " ").font(.caption).lineLimit(1).opacity(0.7)
                         let dodgedMinutes = (dodgedBeforeMs + Int64(max(context.date.timeIntervalSince(coveredSince), 0) * 1000)) / 60_000
                         Text(dodgedMinutes > 0 ? "Ads dodged today: \(BreakScreen.hoursAndMinutes(dodgedMinutes))" : " ")
                             .font(.caption).lineLimit(1).opacity(0.7)

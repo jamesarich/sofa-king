@@ -117,6 +117,6 @@
     <string name="break_quip_almost">Places, everyone. Feet up.</string>
     <string name="break_corner_first">Corner! You saw it. Nobody will believe you.</string>
     <string name="break_corner_again">Corner number %1$d. Sofa King lucky.</string>
-    <string name="break_up_next">Up next: %1$s at %2$s</string>
+    <string name="break_watching">You're watching: %1$s</string>
     <string name="break_ads_dodged">Ads dodged today: %1$s</string>
 </resources>

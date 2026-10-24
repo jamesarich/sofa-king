@@ -39,7 +39,7 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.resources.Res
-import dev.jamesrich.sofaking.resources.break_up_next
+import dev.jamesrich.sofaking.resources.break_watching
 import dev.jamesrich.sofaking.resources.no_channels
 import dev.jamesrich.sofaking.resources.now_playing
 import dev.jamesrich.sofaking.resources.now_playing_channel
@@ -55,7 +55,6 @@ import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.isLongPress
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
-import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.repeatCountOrNull
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import org.jetbrains.compose.resources.stringResource
@@ -333,7 +332,7 @@ private fun Modifier.liveTouches(
         }
 }
 
-/** The break screen over the picture, with what is up next on the channel. */
+/** The break screen over the picture, with the program on now. */
 @Composable
 private fun LiveBreakScreen(
     state: PlayerState,
@@ -343,12 +342,11 @@ private fun LiveBreakScreen(
     dodgedBeforeMs: Long,
     onCover: (Long) -> Unit,
 ) {
-    val timeFormat = rememberTimeFormatter()
-    val next = state.currentChannel?.let { lineup.nowAndNext(it, now).second }
+    val program = state.currentChannel?.let { lineup.nowAndNext(it, now).first }
     BreakScreen(
         Modifier.fillMaxSize(),
         remainingMs = { cover.leftMs },
-        upNext = next?.let { stringResource(Res.string.break_up_next, it.title, timeFormat.format(it.start)) },
+        watching = program?.let { stringResource(Res.string.break_watching, it.title) },
         dodgedBeforeMs = dodgedBeforeMs,
         onCover = onCover,
     )

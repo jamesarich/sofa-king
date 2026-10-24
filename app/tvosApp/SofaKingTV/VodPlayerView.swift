@@ -146,8 +146,8 @@ struct VodPlayerView: View {
                     if detail == nil {
                         // The tracks picked in this show start its episodes, as playItem opened the stream with them.
                         let choice = model.core.trackChoice(item: item)
-                        audioIndex = LibraryChoicesKt.initialAudio(detail: ready.detail, choice: choice).map { $0.index }
-                        subtitleIndex = LibraryChoicesKt.initialSubtitle(detail: ready.detail, choice: choice).map { $0.index }
+                        audioIndex = TrackPicksKt.initialAudio(detail: ready.detail, choice: choice).map { $0.index }
+                        subtitleIndex = TrackPicksKt.initialSubtitle(detail: ready.detail, choice: choice).map { $0.index }
                     }
                     detail = ready.detail
                 }
@@ -417,7 +417,7 @@ struct VodPlayerView: View {
         var menus: [UIMenuElement] = []
         if detail.audio.count > 1 {
             let actions = detail.audio.enumerated().map { number, track in
-                UIAction(title: LibraryChoicesKt.trackLabel(track: track, number: Int32(number + 1)), state: track.index == audioIndex ? .on : .off) { _ in
+                UIAction(title: TrackNamesKt.trackLabel(track: track, number: Int32(number + 1)), state: track.index == audioIndex ? .on : .off) { _ in
                     pickAudio(track.index)
                 }
             }
@@ -426,7 +426,7 @@ struct VodPlayerView: View {
         if !detail.subtitles.isEmpty {
             var actions = [UIAction(title: "Off", state: subtitleIndex == nil ? .on : .off) { _ in pickSubtitle(nil) }]
             actions += detail.subtitles.enumerated().map { number, track in
-                UIAction(title: LibraryChoicesKt.trackLabel(track: track, number: Int32(number + 1)), state: track.index == subtitleIndex ? .on : .off) { _ in
+                UIAction(title: TrackNamesKt.trackLabel(track: track, number: Int32(number + 1)), state: track.index == subtitleIndex ? .on : .off) { _ in
                     pickSubtitle(track.index)
                 }
             }
@@ -460,7 +460,7 @@ struct VodPlayerView: View {
 
     /// True when subtitle track `index` is pictures (PGS, DVD), which the server draws into the picture.
     private func isPicture(_ index: Int32) -> Bool {
-        detail?.subtitles.first { $0.index == index }.map { LibraryChoicesKt.isPictureSubtitle(track: $0) } ?? false
+        detail?.subtitles.first { $0.index == index }.map { TrackPicksKt.isPictureSubtitle(track: $0) } ?? false
     }
 
     /// Plays the item again from where it is with the picked audio track and picture subtitle.

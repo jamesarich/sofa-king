@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.data.PairingClaimDto
 import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.ServerConnection
 import dev.jamesrich.sofaking.data.SofaKingException
+import dev.jamesrich.sofaking.data.pair
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope

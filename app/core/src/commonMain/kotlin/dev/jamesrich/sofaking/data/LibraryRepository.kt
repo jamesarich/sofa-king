@@ -11,9 +11,9 @@ class LibraryRepository(private val api: SofaKingApi) {
     suspend fun home(): MediaHome = api.libraryHome().let { dto ->
         MediaHome(
             shelves = dto.shelves.map {
-                MediaShelf(it.id, it.title, it.items.map(::item), it.libraryId)
+                MediaShelf(it.id, it.title, it.items.map(api::mediaItem), it.libraryId)
             }.filter { it.items.isNotEmpty() },
-            libraries = dto.libraries.map(::library),
+            libraries = dto.libraries.map(::mediaLibrary),
         )
     }
 
@@ -24,25 +24,25 @@ class LibraryRepository(private val api: SofaKingApi) {
         cursor: String? = null,
         limit: Int = PAGE_SIZE,
         genre: String? = null,
-    ): MediaPage = page(api.libraryItems(libraryId, sort.wire, unwatched, cursor, limit, genre))
+    ): MediaPage = api.mediaPage(api.libraryItems(libraryId, sort.wire, unwatched, cursor, limit, genre))
 
-    suspend fun search(query: String): List<MediaItem> = page(api.librarySearch(query)).items
+    suspend fun search(query: String): List<MediaItem> = api.mediaPage(api.librarySearch(query)).items
 
     suspend fun detail(id: String): MediaItemDetail = api.libraryItem(id).let { dto ->
         MediaItemDetail(
-            item = item(dto.item),
-            children = dto.children.map(::item),
-            next = dto.next?.let(::item),
+            item = api.mediaItem(dto.item),
+            children = dto.children.map(api::mediaItem),
+            next = dto.next?.let(api::mediaItem),
             tagline = dto.tagline,
             studio = dto.studio,
             cast = dto.cast,
             directors = dto.directors,
-            audio = dto.audio.map(::track),
-            subtitles = dto.subtitles.map(::track),
+            audio = dto.audio.map(::mediaTrack),
+            subtitles = dto.subtitles.map(::mediaTrack),
             container = dto.container,
             videoCodec = dto.videoCodec,
-            intro = segment(dto.segments, Wire.SegmentKind.INTRO),
-            credits = segment(dto.segments, Wire.SegmentKind.CREDITS),
+            intro = introSpan(dto.segments, Wire.SegmentKind.INTRO),
+            credits = introSpan(dto.segments, Wire.SegmentKind.CREDITS),
             scrub = dto.scrub?.let {
                 ScrubTiles(
                     it.intervalMs,
@@ -54,8 +54,8 @@ class LibraryRepository(private val api: SofaKingApi) {
                     it.sheets.mapNotNull(api::logoUrl),
                 )
             },
-            extras = dto.extras.map(::item),
-            related = dto.related.map(::item),
+            extras = dto.extras.map(api::mediaItem),
+            related = dto.related.map(api::mediaItem),
         )
     }
 
@@ -63,7 +63,7 @@ class LibraryRepository(private val api: SofaKingApi) {
     suspend fun subtitles(id: String, index: Int): Subtitles = parseWebVtt(api.librarySubtitles(id, index))
 
     /** Saves [positionMs] into [id]; the server marks it watched past 90% and clears a position under 5%. */
-    suspend fun savePosition(id: String, positionMs: Long, durationMs: Long?): MediaItem = item(
+    suspend fun savePosition(id: String, positionMs: Long, durationMs: Long?): MediaItem = api.mediaItem(
         api.updatePlayState(
             id,
             UpdatePlayStateDto(positionMs = positionMs.coerceAtLeast(0), durationMs = durationMs),
@@ -72,63 +72,63 @@ class LibraryRepository(private val api: SofaKingApi) {
 
     /** Marks [id] watched or not; a show or season marks every episode in it. */
     suspend fun setWatched(id: String, watched: Boolean): MediaItem =
-        item(api.updatePlayState(id, UpdatePlayStateDto(watched = watched)))
-
-    private fun page(dto: LibraryPageDto) = MediaPage(
-        dto.items.map(::item),
-        dto.total,
-        dto.next,
-        dto.genres,
-        dto.letters?.let { runs ->
-            letterJumps(
-                runs.map {
-                    it.letter to
-                        it.count
-                },
-            )
-        },
-    )
-
-    private fun library(dto: LibraryDto) = MediaLibrary(dto.id, dto.name, LibraryKind.fromWire(dto.kind), dto.items)
-
-    /** The first span of [kind] among [segments] that has a length. */
-    private fun segment(segments: List<MediaSegmentDto>, kind: String) =
-        segments.firstOrNull { it.kind == kind && it.endMs > it.startMs }?.let { IntroSpan(it.startMs, it.endMs) }
-
-    private fun track(dto: MediaTrackDto) =
-        MediaTrackInfo(dto.index, dto.codec, dto.language, dto.title, dto.channels, dto.default, dto.forced)
-
-    private fun item(dto: LibraryItemDto) = MediaItem(
-        id = dto.id,
-        libraryId = dto.libraryId,
-        kind = ItemKind.fromWire(dto.kind),
-        title = dto.title,
-        parentId = dto.parentId,
-        showId = dto.showId,
-        showTitle = dto.showTitle,
-        year = dto.year,
-        season = dto.season,
-        episode = dto.episode,
-        episodeEnd = dto.episodeEnd,
-        aired = dto.aired,
-        overview = dto.overview?.trim()?.takeIf { it.isNotEmpty() },
-        durationMs = dto.durationMs,
-        poster = dto.poster?.let(api::logoUrl),
-        backdrop = dto.backdrop?.let(api::logoUrl),
-        addedAt = Instant.parseOrNull(dto.addedAt),
-        genres = dto.genres,
-        contentRating = dto.contentRating,
-        rating = dto.rating,
-        videoHeight = dto.videoHeight,
-        hdr = dto.hdr,
-        children = dto.children,
-        unwatched = dto.unwatched,
-        progress = dto.playState?.let { PlayProgress(it.positionMs, it.durationMs, it.watched) },
-        extra = dto.extra?.let(ExtraKind::fromWire) ?: ExtraKind.OTHER.takeIf { dto.kind == Wire.ItemKind.EXTRA },
-    )
+        api.mediaItem(api.updatePlayState(id, UpdatePlayStateDto(watched = watched)))
 
     companion object {
         /** Items per grid page: a few screens of posters. */
         const val PAGE_SIZE = 60
     }
 }
+
+private fun SofaKingApi.mediaPage(dto: LibraryPageDto) = MediaPage(
+    dto.items.map { mediaItem(it) },
+    dto.total,
+    dto.next,
+    dto.genres,
+    dto.letters?.let { runs ->
+        letterJumps(
+            runs.map {
+                it.letter to
+                    it.count
+            },
+        )
+    },
+)
+
+private fun mediaLibrary(dto: LibraryDto) = MediaLibrary(dto.id, dto.name, LibraryKind.fromWire(dto.kind), dto.items)
+
+/** The first span of [kind] among [segments] that has a length. */
+private fun introSpan(segments: List<MediaSegmentDto>, kind: String) =
+    segments.firstOrNull { it.kind == kind && it.endMs > it.startMs }?.let { IntroSpan(it.startMs, it.endMs) }
+
+private fun mediaTrack(dto: MediaTrackDto) =
+    MediaTrackInfo(dto.index, dto.codec, dto.language, dto.title, dto.channels, dto.default, dto.forced)
+
+private fun SofaKingApi.mediaItem(dto: LibraryItemDto) = MediaItem(
+    id = dto.id,
+    libraryId = dto.libraryId,
+    kind = ItemKind.fromWire(dto.kind),
+    title = dto.title,
+    parentId = dto.parentId,
+    showId = dto.showId,
+    showTitle = dto.showTitle,
+    year = dto.year,
+    season = dto.season,
+    episode = dto.episode,
+    episodeEnd = dto.episodeEnd,
+    aired = dto.aired,
+    overview = dto.overview?.trim()?.takeIf { it.isNotEmpty() },
+    durationMs = dto.durationMs,
+    poster = dto.poster?.let(::logoUrl),
+    backdrop = dto.backdrop?.let(::logoUrl),
+    addedAt = Instant.parseOrNull(dto.addedAt),
+    genres = dto.genres,
+    contentRating = dto.contentRating,
+    rating = dto.rating,
+    videoHeight = dto.videoHeight,
+    hdr = dto.hdr,
+    children = dto.children,
+    unwatched = dto.unwatched,
+    progress = dto.playState?.let { PlayProgress(it.positionMs, it.durationMs, it.watched) },
+    extra = dto.extra?.let(ExtraKind::fromWire) ?: ExtraKind.OTHER.takeIf { dto.kind == Wire.ItemKind.EXTRA },
+)

@@ -1,0 +1,31 @@
+# Media keys on the library player leave its bar down (see usage.md, Library): play and pause show Paused and the
+# disc, a step shows the badge, and the bar's "Down for more" stays away. The script opens the first episode first.
+appId: dev.jamesrich.sofaking
+name: Library player media keys
+---
+# The bar is up as the episode starts and leaves 5 seconds after.
+- extendedWaitUntil:
+    notVisible: "Starting"
+    timeout: 30000
+- extendedWaitUntil:
+    notVisible: "Down for more"
+    timeout: 20000
+- pressKey: Remote Media Play Pause
+- extendedWaitUntil:
+    visible: "Paused"
+    timeout: 5000
+- assertNotVisible: "Down for more"
+- pressKey: Remote Media Play Pause
+- extendedWaitUntil:
+    notVisible: "Paused"
+    timeout: 5000
+- pressKey: Remote Media Rewind
+- extendedWaitUntil:
+    visible: ".* to \\d+:\\d\\d"
+    timeout: 5000
+- assertNotVisible: "Down for more"
+# The step plays once the presses rest, and Back then leaves the player.
+- extendedWaitUntil:
+    notVisible: ".* to \\d+:\\d\\d"
+    timeout: 10000
+- pressKey: Back

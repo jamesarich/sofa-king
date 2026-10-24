@@ -155,7 +155,7 @@ The journeys and the fuzz walk focus in the TV layout on the JVM, but not Androi
 - [ ] CC then Left/Right moves the channel's caption timing both ways and the toast follows; Info held opens the stream card, and Up/Down and OK pick an audio track on a channel with several.
 - [ ] Settings → Open on start set to Guide opens the guide on a cold start, Library opens the Library tab, and A channel with one chosen opens that channel; Save & reload is off until the server fields change.
 - [ ] Settings → Manage channels: a group switched off empties its chip in the guide and its channels leave the channel list; the arrow opens the group's channels and one switched back on returns alone; hidden channels leave Channel Up/Down only once Skip hidden channels is on; the move buttons reorder the Favorites filter.
-- [ ] Settings opens on its first setting with no Back button drawn and Down walks General, Live TV, Recordings, Captions, Playback, Server; the header shows only the tabs and Settings. Settings → Server → Reload shows Reloading while the lineup loads. Settings → Recordings → Skip commercials jumps a recording's breaks.
+- [ ] Settings opens on its first setting with no Back button drawn and Down walks General, Live TV, Recordings, Library, Captions, Playback, Server; the header shows only the tabs and Settings. Settings → Server → Reload shows Reloading while the lineup loads. Settings → Recordings → Skip commercials jumps a recording's breaks.
 - [ ] Settings → Time format 24-hour and Guide rows Compact change the guide at once; Open system caption settings opens the TV's captioning page.
 - [ ] Settings → Lock → Set a PIN, Back, open Settings: the lock page focuses the PIN field; a wrong PIN says so and the fifth starts a 30 s wait; the right PIN opens Settings; Forgot the PIN with the server's API token removes it.
 - [ ] Settings → Match frame rate on: a 29.97 or 25 fps channel switches the TV's refresh rate (the panel may blank for a moment) and the launcher's rate returns on Back, with playback still running after the switch (logcat shows "ignored a media-session pause" on a box that sends one); Decoder Software and Buffer Smoother still play the channel.
@@ -231,6 +231,20 @@ Set the `ANDROID_DEBUG_KEYSTORE` repository secret to a base64 debug keystore so
 ```sh
 base64 -w0 ~/.android/debug.keystore | gh secret set ANDROID_DEBUG_KEYSTORE --repo jamesarich/sofa-king
 ```
+
+## Screenshots
+
+The screenshots in the [README](../../README.md#screenshots) come from [`scripts/screenshots.py`](../scripts/screenshots.py), which starts the server's installed distribution with the showcase lineup from [`scripts/showcase.py`](../scripts/showcase.py): twelve made-up channels playing as live HLS, a day of made-up programs, and a Movies and a TV Shows library, all cut from the Blender Foundation's open movies (CC BY). Nothing in them comes from a real server or provider. The first run downloads the movies and cuts them into `~/.cache/sofa-king-showcase` (about 300 MB, around ten minutes); later runs reuse it until the lineup or the cutting changes.
+
+[`screenshots.yml`](../../.github/workflows/screenshots.yml) takes them on every platform a runner can show without a screen, and uploads one artifact per runner: the web app in Chrome and the Linux desktop app on a virtual display, the Android phone, tablet and TV apps in emulators, and the iPhone, iPad and Apple TV apps in simulators. Run it from the Actions tab after a visible change, then copy the images the README shows into `docs/images` at the repository root. Each platform tours the guide with its preview, a channel full screen, the Library tab, a show's page and a movie's page as far as it can be driven from a script: the simulators take no keys or taps from one, so iPhone, iPad and Apple TV stop at the Library tab, and Apple TV, which asks before a link opens the app, has no channel full screen. The iOS app runs in landscape on simulators that boot upright, so the script turns the iPhone's pictures and crops the iPad's to the app. Locally, with the server's distribution, FFmpeg and what each platform needs (the script's header lists it):
+
+```sh
+python3 scripts/screenshots.py web --channel chrome --app ui/build/dist/wasmJs/productionExecutable --out build/screenshots
+python3 scripts/screenshots.py desktop --app "ui/build/compose/binaries/main/app/Sofa King/bin/Sofa King" --out build/screenshots
+python3 scripts/screenshots.py android-phone --app androidApp/build/outputs/apk/debug/androidApp-debug.apk --out build/screenshots
+```
+
+The desktop run uses a display of its own (Xvfb), and Android and Apple runs use an emulator or simulator already booted, so run those headless (`emulator -no-window -noaudio`) rather than in front of you.
 
 ## Banner
 

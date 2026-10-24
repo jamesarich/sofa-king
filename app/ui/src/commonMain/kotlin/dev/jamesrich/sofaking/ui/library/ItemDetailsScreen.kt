@@ -53,8 +53,8 @@ import org.jetbrains.compose.resources.stringResource
  * or Resume (focused on arrival), Play from beginning and Mark watched. A show lists its seasons as chips with
  * [season]'s episodes under them, the season [selectedSeasonId] names; a season lists its own episodes. OK on an
  * episode plays it, resuming where it stopped; holding OK opens a menu with Details (its own page), Play from beginning
- * and the watched toggle. Under them are the item's Extras, which OK plays, and More like this,
- * which OK opens. [returnedFrom] is the episode or extra the viewer just watched, or the title like it whose page
+ * and the watched toggle. Under them are the item's Extras, which OK plays, and More like this, which OK opens.
+ * [returnedFrom] is the episode or extra the viewer just watched, or the title like it whose page
  * they just left, which takes focus instead of the first button.
  */
 @Composable

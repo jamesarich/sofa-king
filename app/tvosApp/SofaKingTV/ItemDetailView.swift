@@ -3,7 +3,8 @@ import SofaKingCore
 
 /// An item's page: its backdrop, details and buttons to play, resume, start over and mark watched. A show adds its
 /// seasons, opening on the one with the next episode, and that season's episodes, which play when selected; holding
-/// the touch surface on one offers Details, its own page, Play from beginning and Mark watched. Under them are the item's Extras, which play when selected, and More like this, which opens the other item's page.
+/// the touch surface on one offers Details, its own page, Play from beginning and Mark watched. Under them are the
+/// item's Extras, which play when selected, and More like this, which opens the other item's page.
 struct ItemDetailView: View {
     @Environment(AppModel.self) private var model
     let itemId: String

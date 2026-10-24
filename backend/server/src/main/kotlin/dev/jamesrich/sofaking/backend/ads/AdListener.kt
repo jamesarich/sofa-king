@@ -50,7 +50,7 @@ private val log = LoggerFactory.getLogger(AdListener::class.java)
  * off, then channels watched lately with markers, whose breaks teach the library the ads the viewers see, then
  * channels never heard, then the least recently heard. A channel someone is watching is left to the session, and a
  * listener on it ends its turn when the viewer arrives. While anyone watches, at most [WHILE_WATCHING] listen, since
- * they share the household's connection with the viewers; [slots] is 0, off, unless `SOFA_AD_LISTENERS` sets it.
+ * they share the household's connection with the viewers; [slots] is `SOFA_AD_LISTENERS`, 6 by default.
  *
  * A listener reads the lowest variant's media playlist (or its audio rendition) as a player would, through its own
  * [AdClock] in shadow, and hands its segments' audio to an [AudioFollower]: marked breaks are learned, and matches and

@@ -29,7 +29,7 @@ data class RuntimeValues(
     val recordingsFreeGib: Int = 10,
     val recordingsKeepDays: Int = 0,
     val learnedBreaks: String = LearnedBreaks.SHADOW.setting,
-    val adListeners: Int = 0,
+    val adListeners: Int = 6,
 ) {
     /** The values by their variable name, as the settings page and the database name them. */
     fun byName(): Map<String, String> = mapOf(

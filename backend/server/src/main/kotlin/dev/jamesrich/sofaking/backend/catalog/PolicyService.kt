@@ -110,7 +110,7 @@ class PolicyService(
      */
     fun wantedGuides(): Map<String, Set<String>> {
         val stations = lastApplied()?.stations.orEmpty()
-        val coverage = guides.coverage()
+        val coverage = guides.coverage
         val now = clock.instant()
         val wanted = stations.filter { it.enabled }.flatMap { station ->
             val guide = station.guide ?: return@flatMap station.guideCandidates
@@ -133,8 +133,12 @@ class PolicyService(
      * loosely are compared by schedule first, and the aliases that evidence learns are built with.
      */
     suspend fun run(loaded: LoadedPolicy = file.current()): BuildResult {
-        val candidates = feeds.channels().map { channel ->
-            FeedCandidate(channel, feeds.providerOf(channel.id).orEmpty(), feeds.offeringsOf(channel.id))
+        val candidates = feeds.published.channels().map { channel ->
+            FeedCandidate(
+                channel,
+                feeds.published.providerOf(channel.id).orEmpty(),
+                feeds.published.offeringsOf(channel.id),
+            )
         }
         val providerIds = feeds.configs.mapTo(HashSet()) { it.id }
         val health = store.allHealth()
@@ -149,7 +153,7 @@ class PolicyService(
         } else {
             emptySet()
         }
-        val coverage = guides.coverage()
+        val coverage = guides.coverage
         val covered = { mapping: GuideMapping ->
             coverage[mapping.guideId]?.get(mapping.channelId)?.isAfter(now) == true
         }
@@ -260,10 +264,12 @@ class PolicyService(
         val started = clock.instant()
         val loaded = file.current()
         // Numbers assigned now are written into the policy for good, so a partial catalog must never be built from.
-        val waiting = feeds.providers().filter {
+        val waiting = feeds.statuses.filter {
             it.lastSuccessAt == null && it.errorCode == null
         }.map { it.id }.sorted()
-        if (waiting.isNotEmpty() || feeds.channels().none { feeds.offeringsOf(it.id).isNotEmpty() }) {
+        if (waiting.isNotEmpty() ||
+            feeds.published.channels().none { feeds.published.offeringsOf(it.id).isNotEmpty() }
+        ) {
             val reason = if (waiting.isNotEmpty()) {
                 "waiting for the first import of ${waiting.joinToString()}"
             } else {
@@ -420,9 +426,9 @@ class PolicyService(
         val pins = request.offerings?.let { ids ->
             ids.map { id ->
                 val offering =
-                    feeds.offering(id)
+                    feeds.published.offering(id)
                         ?: throw ApiFailure(HttpStatusCode.NotFound, "SOURCE_NOT_FOUND", "Unknown source $id")
-                val channel = feeds.channel(offering.channelId)
+                val channel = feeds.published.channel(offering.channelId)
                 SourcePin(offering.providerId, channel?.legacyGuideId, channel?.name)
             }.distinctBy(::pinIdentity)
         }

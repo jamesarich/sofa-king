@@ -57,16 +57,16 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
                         entry.id
                 }
             }
-            val matches = runtime.feeds.channels(provider).filter { channel ->
+            val matches = runtime.feeds.published.channels(provider).filter { channel ->
                 query.isEmpty() || channel.name.lowercase().contains(query) ||
                     channel.displayNumber.lowercase() == query ||
                     channel.legacyGuideId?.lowercase()?.contains(query) == true
             }.sortedWith(LineupService.channelOrder)
             val items = matches.drop(offset).take(limit).map { channel ->
-                val offerings = runtime.feeds.offeringsOf(channel.id)
+                val offerings = runtime.feeds.published.offeringsOf(channel.id)
                 Candidate(
                     channel.id,
-                    runtime.feeds.providerOf(
+                    runtime.feeds.published.providerOf(
                         channel.id,
                     ).orEmpty(),
                     channel.displayNumber, channel.name, channel.logo, channel.tags.firstOrNull(),
@@ -84,7 +84,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
             }
             call.respond(CandidatePage(matches.size, items))
         }
-        get("/guides") { call.respond(runtime.guides.statuses()) }
+        get("/guides") { call.respond(runtime.guides.statuses) }
         get("/guides/{id}/channels") {
             val id = call.parameters["id"]!!
             if (runtime.guides.config(id) ==
@@ -174,17 +174,17 @@ private fun LineupEntryRecord.info(
     position: Int,
     now: Instant,
 ): LineupEntry {
-    val coverage = guide?.let { runtime.guides.coverage()[it.guideId]?.get(it.channelId) }
+    val coverage = guide?.let { runtime.guides.coverage[it.guideId]?.get(it.channelId) }
     return LineupEntry(
         id, position, number, name, group, logo, enabled, guide,
         offeringIds.map { id ->
-            val offering = runtime.feeds.offering(id)
+            val offering = runtime.feeds.published.offering(id)
             val state = states[id]
             LineupOfferingInfo(
                 id,
                 offering?.providerId,
                 offering?.let {
-                    runtime.feeds.channel(it.channelId)?.name
+                    runtime.feeds.published.channel(it.channelId)?.name
                 },
                 offering?.protocol,
                 if (offering == null) {

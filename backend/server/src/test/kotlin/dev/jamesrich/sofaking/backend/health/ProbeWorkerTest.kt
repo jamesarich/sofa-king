@@ -258,14 +258,14 @@ class ProbeWorkerTest {
                             val feeds = FeedService(listOf(config), store, http, clock, policy)
                             feeds.refresh(config)
                             val catalog = lineupStack(feeds, store, clock, http).catalog
-                            val offering = feeds.offerings().single()
+                            val offering = feeds.published.offerings.single()
                             assertEquals("mpegts", offering.protocol)
                             // No FFmpeg here: the decode tier fails as LOCAL, which neither strikes nor
                             // hides the HTTP tier's detection.
                             val worker = ProbeWorker(feeds, store, clock, "unused", http)
                             assertTrue(worker.step())
                             assertEquals(mapOf(offering.id to "hls"), store.offeringProtocols())
-                            assertEquals("hls", feeds.offering(offering.id)!!.protocol)
+                            assertEquals("hls", feeds.published.offering(offering.id)!!.protocol)
                             assertEquals(HealthStatus.UNVERIFIED, store.health(offering.id)!!.status)
                             val channelId = catalog.catalog().channels.single().id
                             val opened = SessionManager(
@@ -281,10 +281,10 @@ class ProbeWorkerTest {
                         openStore(dir).use { store ->
                             val feeds = FeedService(listOf(config), store, http, clock, policy)
                             feeds.initialize()
-                            assertEquals("hls", feeds.offerings().single().protocol)
+                            assertEquals("hls", feeds.published.offerings.single().protocol)
                             // A re-import assigns mpegts again; the persisted detection still wins.
                             feeds.refresh(config)
-                            assertEquals("hls", feeds.offerings().single().protocol)
+                            assertEquals("hls", feeds.published.offerings.single().protocol)
                             val catalog = lineupStack(feeds, store, clock, http, adopt = false).catalog
                             val opened = SessionManager(
                                 catalog,

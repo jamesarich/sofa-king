@@ -38,12 +38,12 @@ class FeedServiceTest {
                         feeds.refresh(fixture.feed)
                         val stack = lineupStack(feeds, store, clock, http, guides = listOf(fixture.gzipGuide))
                         id = stack.catalog.catalog().channels.single().id
-                        offering = feeds.offerings().single().id
+                        offering = feeds.published.offerings.single().id
                         store.setManuallyDisabled(offering, true)
                         fixture.malformed = true
                         feeds.refresh(fixture.feed)
                         assertEquals(id, stack.catalog.catalog().channels.single().id)
-                        assertEquals("IMPORT_FAILED", feeds.providers().single().errorCode)
+                        assertEquals("IMPORT_FAILED", feeds.statuses.single().errorCode)
                         assertFalse(stack.catalog.catalog().channels.single().playbackEligible)
                     }
                     openStore(dir).use { store ->
@@ -86,7 +86,7 @@ class FeedServiceTest {
                         feeds.refresh(config)
                         val catalog = lineupStack(feeds, store, clock, http).catalog
                         val channel = catalog.catalog().channels.single()
-                        val offering = feeds.offerings().single()
+                        val offering = feeds.published.offerings.single()
                         val before = catalog.catalogRevision()
                         assertTrue(catalog.catalog(before).channels.single().playbackEligible)
                         fixture.withdrawn = true
@@ -99,12 +99,12 @@ class FeedServiceTest {
                         )
                         assertEquals(channel.id, catalog.catalog().channels.single().id)
                         assertFalse(catalog.catalog(withdrawn).channels.single().playbackEligible)
-                        assertTrue(feeds.offerings().isEmpty())
+                        assertTrue(feeds.published.offerings.isEmpty())
                         store.setManuallyDisabled(offering.id, true)
                         fixture.withdrawn = false
                         feeds.refresh(config)
                         assertNotEquals(withdrawn, catalog.catalogRevision())
-                        assertEquals(offering.id, feeds.offerings().single().id)
+                        assertEquals(offering.id, feeds.published.offerings.single().id)
                         assertTrue(store.health(offering.id)!!.manuallyDisabled)
                     }
                 }
@@ -130,22 +130,22 @@ class FeedServiceTest {
                             )
                         fixture.partial = true
                         feeds.refresh(fixture.feed)
-                        val status = feeds.providers().single()
+                        val status = feeds.statuses.single()
                         assertNull(status.errorCode)
                         assertEquals(2, status.channels)
                         assertEquals(2, status.sources)
                         assertEquals(1, status.skippedEntries)
                         assertEquals("duplicate-source=1", status.skipReasons)
                         assertEquals("url-identity=1", status.notes)
-                        assertEquals(listOf("Station", "Nameless Id"), feeds.channels().map { it.name })
-                        val nameless = feeds.channels().last()
+                        assertEquals(listOf("Station", "Nameless Id"), feeds.published.channels().map { it.name })
+                        val nameless = feeds.published.channels().last()
                         assertEquals("9", nameless.displayNumber)
                         assertNull(nameless.legacyGuideId)
                         fixture.partial = false
                         feeds.refresh(fixture.feed)
-                        assertEquals(0, feeds.providers().single().skippedEntries)
-                        assertNull(feeds.providers().single().skipReasons)
-                        assertNull(feeds.providers().single().notes)
+                        assertEquals(0, feeds.statuses.single().skippedEntries)
+                        assertNull(feeds.statuses.single().skipReasons)
+                        assertNull(feeds.statuses.single().notes)
                     }
                 }
             }
@@ -170,7 +170,7 @@ class FeedServiceTest {
                         assertEquals(initial, catalog.catalogRevision())
                         assertEquals(initial, catalog.catalog(initial).revision)
                         assertEquals("available", catalog.catalog().channels.single().guideStatus)
-                        store.setManuallyDisabled(feeds.offerings().single().id, true)
+                        store.setManuallyDisabled(feeds.published.offerings.single().id, true)
                         val disabled = catalog.catalogRevision()
                         assertNotEquals(initial, disabled)
                         assertFalse(catalog.catalog(disabled).channels.single().playbackEligible)
@@ -263,7 +263,7 @@ class FeedServiceTest {
                         assertEquals(1, imported)
                         assertEquals(
                             clock.now.toString(),
-                            feeds.providers().single().lastSuccessAt,
+                            feeds.statuses.single().lastSuccessAt,
                             "the import still counts as a success",
                         )
 

@@ -339,7 +339,7 @@ fun Application.backendModule(
                     )
                 }
             }
-            get("/api/v1/providers") { call.respond(runtime.feeds.providers()) }
+            get("/api/v1/providers") { call.respond(runtime.feeds.statuses) }
             get("/api/v1/sources") { call.respond(runtime.feeds.sources()) }
             patch("/api/v1/sources/{id}") {
                 val source = runtime.feeds.updateSource(call.parameters["id"]!!, call.body<UpdateSource>())

@@ -1139,8 +1139,8 @@ class AdminPortal(
         val merges = applied?.result?.suggestedAliases?.size ?: 0
         val required = applied?.stations?.count { it.required && !it.enabled } ?: 0
         val sources =
-            runtime.feeds.providers().count { it.errorCode != null } +
-                runtime.guides.statuses().count { it.errorCode != null }
+            runtime.feeds.statuses.count { it.errorCode != null } +
+                runtime.guides.statuses.count { it.errorCode != null }
         val refused = if (hdhr.enabled) runtime.hdhrAccess.refusals().size else 0
         val plexCount = (if (plex?.lastError != null) 1 else 0) + (plex?.missingDevices?.size ?: 0) + refused
         return mapOf(
@@ -1414,7 +1414,7 @@ class AdminPortal(
         val entries = runtime.lineup.entries()
         val policy = runtime.policy
         val applied = policy?.lastApplied()
-        val coverage = runtime.guides.coverage()
+        val coverage = runtime.guides.coverage
         val enabled = entries.filter { it.enabled }
         val byGuide = enabled.groupingBy { guideStatus(it, coverage, now) }.eachCount()
         val guide = GuideCoverage(
@@ -1423,8 +1423,8 @@ class AdminPortal(
             byGuide["empty"] ?: 0,
             byGuide["unassigned"] ?: 0,
         )
-        val providers = runtime.feeds.providers()
-        val guides = runtime.guides.statuses()
+        val providers = runtime.feeds.statuses
+        val guides = runtime.guides.statuses
         val plex = plexStatus?.status()
         val stations = applied?.stations
         val requiredOff = stations?.count { it.required && !it.enabled }
@@ -1803,7 +1803,7 @@ class AdminPortal(
         val overrides = runtime.policy?.policy?.let { p ->
             p.stations.filter { (key, station) -> isOverride(key, station, p) }.keys
         }.orEmpty()
-        val coverage = runtime.guides.coverage()
+        val coverage = runtime.guides.coverage
         val health = runtime.store.allHealth()
         val now = clock.instant()
         return runtime.lineup.entries().map { entry ->
@@ -1857,7 +1857,7 @@ class AdminPortal(
         val row = rows.firstOrNull { it.entry.id == id } ?: return null
         val health = runtime.store.allHealth()
         val sources = row.entry.offeringIds.map { offeringId ->
-            val offering = runtime.feeds.offering(offeringId)
+            val offering = runtime.feeds.published.offering(offeringId)
             val state = health[offeringId]
             if (offering == null) {
                 SourceLine(offeringId, "gone", null, "", "WITHDRAWN", state?.manuallyDisabled == true)
@@ -1865,7 +1865,7 @@ class AdminPortal(
                 SourceLine(
                     offeringId,
                     offering.providerId,
-                    runtime.feeds.channel(offering.channelId)?.name,
+                    runtime.feeds.published.channel(offering.channelId)?.name,
                     offering.protocol,
                     state?.status?.name ?: "UNVERIFIED",
                     state?.manuallyDisabled == true,
@@ -1979,9 +1979,11 @@ class AdminPortal(
         val document = runtime.policy?.document()
         val entries = document?.policy?.providers
         val led = runtime.policy?.lastApplied()?.stations.orEmpty()
-            .mapNotNull { station -> station.offeringIds.firstOrNull()?.let { runtime.feeds.offering(it)?.providerId } }
+            .mapNotNull { station ->
+                station.offeringIds.firstOrNull()?.let { runtime.feeds.published.offering(it)?.providerId }
+            }
             .groupingBy { it }.eachCount()
-        val rows = runtime.feeds.providers().map { status ->
+        val rows = runtime.feeds.statuses.map { status ->
             val config = configs[status.id]
             val kind = when {
                 config == null -> ""
@@ -1993,7 +1995,7 @@ class AdminPortal(
         }
         return ProvidersView(
             rows,
-            runtime.guides.statuses(),
+            runtime.guides.statuses,
             entries,
             document?.revision,
             led,

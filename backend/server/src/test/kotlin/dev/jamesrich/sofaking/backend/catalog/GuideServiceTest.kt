@@ -44,7 +44,7 @@ class GuideServiceTest {
                                 http,
                                 guides = listOf(fixture.brokenGuide, fixture.gzipGuide),
                             )
-                        val statuses = stack.guides.statuses().associateBy { it.id }
+                        val statuses = stack.guides.statuses.associateBy { it.id }
                         assertEquals("IMPORT_FAILED", statuses.getValue("broken").errorCode)
                         assertNull(statuses.getValue("gz").errorCode)
                         assertEquals(2, statuses.getValue("gz").channels, "the channel index lists every channel")
@@ -86,10 +86,10 @@ class GuideServiceTest {
                         lineup = LineupService(store, clock, feeds, guides)
                         lineup.initialize()
                         val catalog = CatalogService(feeds, guides, lineup, store, clock)
-                        assertEquals(1, guides.statuses().single().programs)
+                        assertEquals(1, guides.statuses.single().programs)
                         assertEquals(
                             Instant.parse("2026-10-10T14:00:00Z"),
-                            guides.coverage().getValue("gz").getValue("station"),
+                            guides.coverage.getValue("gz").getValue("station"),
                         )
                         val window = catalog.guide(
                             GuideQuery(listOf(channelId), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z"),
@@ -119,7 +119,7 @@ class GuideServiceTest {
                                 http,
                                 guides = listOf(fixture.redirectedDoctypeGuide, fixture.doctypeGuide),
                             )
-                        val statuses = stack.guides.statuses().associateBy { it.id }
+                        val statuses = stack.guides.statuses.associateBy { it.id }
                         assertNull(statuses.getValue("mjh").errorCode)
                         assertEquals(clock.now.toString(), statuses.getValue("mjh").lastSuccessAt)
                         assertEquals(2, statuses.getValue("mjh").channels)
@@ -176,7 +176,7 @@ class GuideServiceTest {
                             val other = stack.lineup.create(
                                 CreateLineupEntry(number = "9", name = "Other", guide = GuideMapping("gz", "other")),
                             )
-                            pollUntil(10_000, 50) { stack.guides.statuses().single().programs >= 2 }
+                            pollUntil(10_000, 50) { stack.guides.statuses.single().programs >= 2 }
                             val window = stack.catalog.guide(
                                 GuideQuery(listOf(other.id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z"),
                             ).channels.single()
@@ -227,12 +227,12 @@ class GuideServiceTest {
                             }
                             assertEquals(
                                 setOf("gz", "tvapp2"),
-                                stack.guides.coverage().keys,
+                                stack.guides.coverage.keys,
                                 "round $round lost a concurrent import",
                             )
                             assertEquals(
                                 setOf("gz", "tvapp2"),
-                                stack.guides.statuses().filter {
+                                stack.guides.statuses.filter {
                                     it.errorCode == null && it.lastSuccessAt != null
                                 }.map { it.id }.toSet(),
                                 "round $round status lost",

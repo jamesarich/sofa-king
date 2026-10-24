@@ -106,7 +106,7 @@ class ProbeWorker(
      * when no provider lists the offering or a probe of it is already in flight.
      */
     suspend fun probeNow(offeringId: String): Boolean {
-        val offering = feeds.offering(offeringId) ?: return false
+        val offering = feeds.published.offering(offeringId) ?: return false
         return mutex.withLock {
             if (offeringId in inFlight) return@withLock false
             pending.removeAll { it.id == offeringId }
@@ -160,7 +160,7 @@ class ProbeWorker(
         val attempts = store.probeAttempts()
         val plan = targets?.invoke()
         return feeds
-            .offerings()
+            .published.offerings
             .asSequence()
             .filter {
                 val feed = feeds.config(it.providerId)

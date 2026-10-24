@@ -123,8 +123,8 @@ class LineupService(
         val referenced = entries.flatMapTo(HashSet()) { it.offeringIds }
         var added = 0
         var skipped = 0
-        for (channel in feeds.channels(request.providerId).sortedWith(channelOrder)) {
-            val offerings = feeds.offeringsOf(channel.id)
+        for (channel in feeds.published.channels(request.providerId).sortedWith(channelOrder)) {
+            val offerings = feeds.published.offeringsOf(channel.id)
             if (offerings.isEmpty() || offerings.any { it.id in referenced }) {
                 skipped++
                 continue
@@ -155,7 +155,7 @@ class LineupService(
 
     private fun draft(request: CreateLineupEntry, entries: List<LineupEntryRecord>): LineupEntryRecord {
         val candidate = request.channelId?.let {
-            feeds.channel(it)
+            feeds.published.channel(it)
                 ?: throw ApiFailure(HttpStatusCode.NotFound, "CHANNEL_NOT_FOUND", "Unknown feed channel")
         }
         val id =
@@ -175,7 +175,7 @@ class LineupService(
         }
         val offerings =
             request.offerings?.also(::requireKnownOfferings)
-                ?: candidate?.let { feeds.offeringsOf(it.id).map { o -> o.id } }.orEmpty()
+                ?: candidate?.let { feeds.published.offeringsOf(it.id).map { o -> o.id } }.orEmpty()
         val guide =
             request.guide
                 ?: candidate?.legacyGuideId?.let { tvgId ->
@@ -208,7 +208,7 @@ class LineupService(
             throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Duplicate offering IDs")
         }
         ids.firstOrNull {
-            feeds.offering(it) == null
+            feeds.published.offering(it) == null
         }?.let { throw ApiFailure(HttpStatusCode.NotFound, "SOURCE_NOT_FOUND", "Unknown source $it") }
     }
 

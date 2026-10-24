@@ -135,7 +135,7 @@ class StatusApiTest {
                 assertEquals("IMPORT_FAILED", status.guides.failing.single().errorCode)
                 assertEquals(
                     listOf("gz", "broken", "fixture").sorted(),
-                    runtime.guides.statuses().map {
+                    runtime.guides.statuses.map {
                         it.id
                     }.sorted(),
                 )

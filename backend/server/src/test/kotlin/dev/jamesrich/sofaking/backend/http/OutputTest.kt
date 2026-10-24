@@ -401,7 +401,7 @@ class OutputTest {
                     assertEquals(HttpStatusCode.OK, playlist.status)
                     assertTrue(playlist.bodyAsText().lines().contains("#EXT-X-MEDIA-SEQUENCE:7"))
                     assertEquals(
-                        mapOf(served.runtime.feeds.offerings().single().id to "hls"),
+                        mapOf(served.runtime.feeds.published.offerings.single().id to "hls"),
                         served.store.offeringProtocols(),
                     )
                     assertTrue(

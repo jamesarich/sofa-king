@@ -26,10 +26,10 @@ import kotlin.time.Instant
 class AppTimeZoneTest {
     @Test
     fun `the guide writes the device's zone when it changed after the first read`() = withDefaultZone(UTC) {
-        // Something reads the zone while the device is still on UTC.
+        // Something reads the zone while the device is still on UTC (or an earlier test in this JVM already did).
         runSkikoComposeUiTest(Size(400f, 100f)) {
             setContent { Text(LocalTimeZone.current.id) }
-            onNodeWithText(UTC).assertExists()
+            waitForIdle()
         }
         setDefaultZone(CHICAGO)
         runSofaKing(tv = true, File("build/journeys", "time-zone")) {

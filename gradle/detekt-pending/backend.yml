@@ -1,18 +1,19 @@
 # The server packages not yet refactored to these rules (see gradle/detekt.yml), main and test sources alike. Each
-# package leaves its lists in the pull request that refactors it, and this file goes with the last one.
+# package leaves its lists in the pull request that refactors it (the http tests trail its main code), and this
+# file goes with the last one.
 complexity:
   LongMethod:
-    excludes: ['**/admin/**', '**/http/**']
+    excludes: ['**/admin/**', '**/test/**/http/**']
   LargeClass:
-    excludes: ['**/admin/**', '**/http/**']
+    excludes: ['**/admin/**', '**/test/**/http/**']
   TooManyFunctions:
     # The tests stay excluded as gradle/detekt.yml has them, since these excludes replace those.
-    excludes: ['**/*Test/**', '**/test/**', '**/admin/**', '**/http/**']
+    excludes: ['**/*Test/**', '**/test/**', '**/admin/**']
   CyclomaticComplexMethod:
-    excludes: ['**/admin/**', '**/http/**']
+    excludes: ['**/admin/**']
 
 style:
   ReturnCount:
-    excludes: ['**/admin/**', '**/http/**']
+    excludes: ['**/admin/**']
   ThrowsCount:
-    excludes: ['**/admin/**', '**/http/**']
+    excludes: ['**/admin/**']

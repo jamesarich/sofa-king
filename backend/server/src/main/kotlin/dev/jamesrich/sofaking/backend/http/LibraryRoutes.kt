@@ -117,12 +117,10 @@ fun Route.vodRoutes(vod: VodSessions) {
         // Direct play seeks with byte ranges; the HLS files are small and served whole.
         install(PartialContent)
         get {
-            val epoch =
-                call.parameters["epoch"]?.toIntOrNull()
-                    ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown media")
-            val media =
-                vod.files.media(call.parameters["id"]!!, epoch, call.parameters["secret"]!!, call.parameters["name"]!!)
-                    ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown media")
+            val params = call.parameters
+            val media = params["epoch"]?.toIntOrNull()
+                ?.let { epoch -> vod.files.media(params["id"]!!, epoch, params["secret"]!!, params["name"]!!) }
+                ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown media")
             call.response.header(
                 HttpHeaders.CacheControl,
                 if (media.contentType.endsWith("mpegurl")) "no-store" else "private, max-age=3600",

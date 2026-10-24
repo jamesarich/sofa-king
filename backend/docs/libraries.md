@@ -30,7 +30,7 @@ The scan reads the same names Plex, Jellyfin and Kodi read, so a collection alre
 
 Each show is one top folder of a TV library. An episode's season comes from its `.nfo`, then its season folder, then its file name, then its air date's year.
 
-The scan skips hidden files and folders (a name starting with `.`), extras folders (`Extras`, `Featurettes`, `Behind The Scenes`, `Deleted Scenes`, `Interviews`, `Scenes`, `Shorts`, `Trailers`, `Samples`, `Other`), files ending in `-trailer`, `-sample` and the like, and NAS folders such as `@eaDir` and `#recycle`. It reads these containers: `mkv`, `mp4`, `m4v`, `mov`, `avi`, `ts`, `m2ts`, `mts`, `webm`, `wmv`, `mpg`, `mpeg`, `flv`, `ogv` and `3gp`.
+The scan skips hidden files and folders (a name starting with `.`), samples (a `Sample` or `Samples` folder, or a name ending in `-sample`), and NAS folders such as `@eaDir` and `#recycle`. Extras are listed on the page of the movie or show they belong to, not in its library's grid, search or home rows: the files in a movie's folder or a show's folder (a season's included) under `Trailers`, `Featurettes`, `Behind The Scenes`, `Deleted Scenes`, `Interviews`, `Scenes`, `Shorts`, `Extras` or `Other`, and a movie's files named for it with `-trailer`, `-featurette`, `-behindthescenes`, `-deleted`, `-interview`, `-scene`, `-short` or `-other`, such as `Alien (1979)-trailer.mkv`. An extra in a folder of loose movies, or anywhere in an Other videos library, is left out. It reads these containers: `mkv`, `mp4`, `m4v`, `mov`, `avi`, `ts`, `m2ts`, `mts`, `webm`, `wmv`, `mpg`, `mpeg`, `flv`, `ogv` and `3gp`.
 
 ## Details and artwork
 

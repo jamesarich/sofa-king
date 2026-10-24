@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking
 
+import dev.jamesrich.sofaking.data.ExtraKind
 import dev.jamesrich.sofaking.data.FAKE_BASE
 import dev.jamesrich.sofaking.data.IntroSpan
 import dev.jamesrich.sofaking.data.ItemKind
@@ -432,5 +433,27 @@ class LibraryViewModelTest {
         assertEquals(ScrubTile("${FAKE_BASE}artwork/m1/scrub/1?v=a", 0, 0), tiles.tileAt(1_000_000))
         // Past the last frame the last tile stands.
         assertEquals(ScrubTile("${FAKE_BASE}artwork/m1/scrub/1?v=a", 9, 4), tiles.tileAt(9_000_000))
+    }
+
+    @Test
+    fun `a movie's page carries its extras with their kinds and the titles like it`() = fixture.viewModelTest {
+        val server = RouteServer(this) { _, path, _ ->
+            when (path) {
+                "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+                "/api/v1/library/items/m1" -> 200 to """{"item":${item("m1", "movie")},"extras":[${item("x1", "extra", ""","extra":"trailer"""")},${item("x2", "extra", ""","extra":"blooper"""")}],"related":[${item("m2", "movie")}]}"""
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+        val page = model.detail("m1")
+        runCurrent()
+        advanceTimeBy(1.seconds)
+        val detail = assertIs<ItemDetailState.Ready>(page.value).detail
+        assertEquals(listOf(ItemKind.EXTRA, ItemKind.EXTRA), detail.extras.map { it.kind })
+        assertEquals(listOf(ExtraKind.TRAILER, ExtraKind.OTHER), detail.extras.map { it.extra }, "a kind the app does not know is an extra")
+        assertTrue(detail.extras.all { it.kind.playable })
+        assertEquals(listOf("m2"), detail.related.map { it.id })
+        assertNull(detail.item.extra)
     }
 }

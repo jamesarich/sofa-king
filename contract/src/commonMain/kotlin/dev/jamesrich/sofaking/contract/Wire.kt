@@ -59,6 +59,20 @@ object Wire {
         const val SEASON = "season"
         const val EPISODE = "episode"
         const val VIDEO = "video"
+        /** A trailer, featurette or other extra, listed in its movie's or show's [LibraryItemDetail.extras]. */
+        const val EXTRA = "extra"
+    }
+
+    /** What kind of extra an [ItemKind.EXTRA] item is, from its folder or its name; a client shows one it does not know as an extra. */
+    object ExtraKind {
+        const val TRAILER = "trailer"
+        const val FEATURETTE = "featurette"
+        const val BEHIND_THE_SCENES = "behind_the_scenes"
+        const val DELETED_SCENE = "deleted_scene"
+        const val INTERVIEW = "interview"
+        const val SCENE = "scene"
+        const val SHORT = "short"
+        const val OTHER = "other"
     }
 
     /** How a VOD session plays its file. */

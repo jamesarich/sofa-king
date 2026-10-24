@@ -38,8 +38,11 @@ private const val WATCHED_AT = 0.90
 /** How many items a home row holds. */
 private const val SHELF_SIZE = 20
 
+/** How many items More like this lists. */
+private const val RELATED_SIZE = 12
+
 /** The kinds that show a frame of their video when they have no picture. */
-private val FRAMED = setOf(ItemKind.MOVIE, ItemKind.EPISODE, ItemKind.VIDEO)
+private val FRAMED = setOf(ItemKind.MOVIE, ItemKind.EPISODE, ItemKind.VIDEO, ItemKind.EXTRA)
 
 /** Where a frame is taken: a tenth of the way in, past any opening titles, but no later than ten minutes. */
 internal fun frameAt(durationMs: Long?): Long = durationMs?.let { (it / 10).coerceAtMost(600_000) } ?: 0
@@ -82,6 +85,8 @@ internal class Snapshot(
     val episodes: Map<String, List<View>>,
     /** The movies, shows and videos of each library. */
     val tops: Map<String, List<View>>,
+    /** A movie's or show's extras, in their kinds' order and then by title. */
+    val extras: Map<String, List<View>> = emptyMap(),
 ) {
     /** Where [view]'s file is: a movie, episode or video inside its library's folder; null for anything else. */
     fun fileOf(view: View): Path? {
@@ -218,7 +223,23 @@ class LibraryCatalog internal constructor(
             videoCodec = media?.video?.codec,
             segments = if (view.record.kind == ItemKind.EPISODE) segments(view.record) else emptyList(),
             scrub = if (view.record.path != null) scrub(view.record) else null,
+            extras = snapshot.extras[id].orEmpty().map { it.out(snapshot, states) },
+            related = related(snapshot, view).map { it.out(snapshot, states) },
         )
+    }
+
+    /** Others of [view]'s library, a movie, show or video, that share its genres: the most shared first, then the best rated. */
+    private fun related(snapshot: Snapshot, view: View): List<View> {
+        if (view.record.parentId != null) return emptyList()
+        val genres = view.item.genres.mapTo(HashSet()) { it.lowercase() }
+        if (genres.isEmpty()) return emptyList()
+        return snapshot.tops[view.record.libraryId].orEmpty()
+            .filter { it.record.id != view.record.id }
+            .map { other -> other to other.item.genres.count { it.lowercase() in genres } }
+            .filter { it.second > 0 }
+            .sortedWith(compareByDescending<Pair<View, Int>> { it.second }.thenByDescending { it.first.item.rating ?: 0.0 }.thenBy { it.first.record.sortTitle })
+            .take(RELATED_SIZE)
+            .map { it.first }
     }
 
     /** The scrub thumbnails made from the item's file as it is now; those of a file since replaced are not offered. */
@@ -311,13 +332,18 @@ class LibraryCatalog internal constructor(
             views[record.id] = view(library, record, facts[record.id]?.facts, show, show?.let { views[it.id] })
         }
         val playOrder = compareBy<View>({ it.record.season ?: Int.MAX_VALUE }, { it.record.episode ?: Int.MAX_VALUE }, { it.record.aired ?: "" }, { it.record.sortTitle })
-        val children = views.values.filter { it.record.parentId != null }.groupBy { it.record.parentId!! }.mapValues { (_, list) -> list.sortedWith(playOrder) }
+        val (extraViews, held) = views.values.filter { it.record.parentId != null }.partition { it.record.kind == ItemKind.EXTRA }
+        val children = held.groupBy { it.record.parentId!! }.mapValues { (_, list) -> list.sortedWith(playOrder) }
+        val extras = extraViews.groupBy { it.record.parentId!! }.mapValues { (_, list) -> list.sortedBy { it.record.sortTitle } }
         val episodes = views.values.filter { it.record.kind == ItemKind.EPISODE }.groupBy { shows[it.record.id]!!.id }.mapValues { (_, list) -> list.sortedWith(playOrder) }
         val tops = views.values.filter { it.record.parentId == null }.groupBy { it.record.libraryId }
         // A show's count is its seasons, or its episodes when it has no season folders.
         val counted = views.mapValues { (id, view) -> View(view.record, view.item.copy(children = children[id].orEmpty().size), view.tagline, view.studio, view.cast, view.directors, view.poster, view.backdrop) }
         fun List<View>.fresh() = map { counted.getValue(it.record.id) }
-        return Snapshot(revision, libraries, counted, children.mapValues { it.value.fresh() }, episodes.mapValues { it.value.fresh() }, tops.mapValues { it.value.fresh() })
+        return Snapshot(
+            revision, libraries, counted, children.mapValues { it.value.fresh() }, episodes.mapValues { it.value.fresh() }, tops.mapValues { it.value.fresh() },
+            extras.mapValues { it.value.fresh() },
+        )
     }
 
     private fun view(library: LibraryRecord, record: LibraryItemRecord, facts: MetadataFacts?, show: LibraryItemRecord?, showView: View?): View {
@@ -348,6 +374,7 @@ class LibraryCatalog internal constructor(
             addedAt = record.addedAt,
             genres = nfoFirst(details?.genres, facts?.genres), contentRating = nfoFirst(details?.contentRating, facts?.contentRating),
             rating = nfoFirst(details?.rating, facts?.rating), videoHeight = video?.height, hdr = video?.transfer != null,
+            extra = details?.extra?.takeIf { record.kind == ItemKind.EXTRA },
         )
         return View(
             record, item, nfoFirst(details?.tagline, facts?.tagline), nfoFirst(details?.studio, facts?.studio),
@@ -362,7 +389,7 @@ class LibraryCatalog internal constructor(
     private fun continueWatching(snapshot: Snapshot, states: Map<String, PlayStateRecord>): List<View> {
         val picks = LinkedHashMap<String, Pair<View, String>>()
         for (state in states.values) {
-            val view = snapshot.views[state.itemId] ?: continue
+            val view = snapshot.views[state.itemId]?.takeIf { it.record.kind != ItemKind.EXTRA } ?: continue
             if (state.positionMs > 0) picks[view.record.id] = view to state.updatedAt
         }
         for ((_, episodes) in snapshot.episodes) {

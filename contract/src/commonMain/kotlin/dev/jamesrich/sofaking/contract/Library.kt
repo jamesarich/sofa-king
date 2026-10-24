@@ -12,7 +12,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class PlayState(val positionMs: Long = 0, val durationMs: Long? = null, val watched: Boolean = false, val updatedAt: String = "")
 
 /**
- * One movie, show, season, episode or video ([kind] is a [Wire.ItemKind] value). [poster] and [backdrop] are
+ * One movie, show, season, episode, video or extra ([kind] is a [Wire.ItemKind] value). [poster] and [backdrop] are
  * server-relative `/artwork/KEY` paths a client fetches without credentials, like logos. An episode carries its
  * show's title and id; a show or season counts [children] and how many episodes are [unwatched].
  */
@@ -43,6 +43,8 @@ import kotlinx.serialization.Serializable
     val children: Int = 0,
     val unwatched: Int = 0,
     val playState: PlayState? = null,
+    /** For an [Wire.ItemKind.EXTRA], its [Wire.ExtraKind] value. */
+    val extra: String? = null,
 )
 
 /**
@@ -100,6 +102,10 @@ import kotlinx.serialization.Serializable
     val segments: List<MediaSegment> = emptyList(),
     /** Thumbnails to show over the seek bar while scrubbing; null until the server has made them, or for a short file. */
     val scrub: ScrubThumbnails? = null,
+    /** A movie's or show's trailers, featurettes and other extras, trailers first. */
+    val extras: List<LibraryItem> = emptyList(),
+    /** For a movie, show or video, others in its library that share its genres, the most shared first. */
+    val related: List<LibraryItem> = emptyList(),
 )
 
 /**

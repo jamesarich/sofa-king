@@ -151,6 +151,60 @@ class LibraryApiTest {
         } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
     }
 
+    @Test fun `a movie's page lists its extras and others that share its genres, and extras stay off grids, search and shelves`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-library-extras-")
+        val movies = Files.createDirectories(dir.resolve("media/movies"))
+        for ((name, genres, rating) in listOf(
+            Triple("Alien (1979)", listOf("Horror", "Science Fiction"), 8.5),
+            Triple("Aliens (1986)", listOf("Action", "Science Fiction"), 8.4),
+            Triple("Prometheus (2012)", listOf("Science Fiction", "horror"), 7.0),
+            Triple("Heat (1995)", listOf("Crime"), 8.3),
+        )) {
+            val folder = Files.createDirectories(movies.resolve(name))
+            Files.writeString(folder.resolve("$name.mkv"), "x")
+            Files.writeString(folder.resolve("$name.nfo"), "<movie>" + genres.joinToString("") { "<genre>$it</genre>" } + "<rating>$rating</rating></movie>")
+        }
+        Files.writeString(movies.resolve("Alien (1979)/Alien (1979)-trailer.mkv"), "x")
+        Files.createDirectories(movies.resolve("Alien (1979)/Behind The Scenes"))
+        Files.writeString(movies.resolve("Alien (1979)/Behind The Scenes/The Beast Within.mkv"), "x")
+        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
+        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, hdhr = HdhrConfig(enabled = false), updateImage = null)
+        val store = openStore(dir)
+        val clock = MutableClock()
+        val runtime = LiveRuntime.create(store, config, clock, probes = false)
+        try {
+            val library = runtime.libraries!!.create("Movies", LibraryKind.MOVIES, movies.toString())
+            runtime.libraries!!.scan(library.id)
+            application { backendModule(store, clock, runtime, token, config = config) }
+            suspend fun get(path: String) = client.get(path) { bearerAuth(token) }.bodyAsText()
+
+            val page = json.decodeFromString<LibraryPage>(get("/api/v1/libraries/${library.id}/items"))
+            assertEquals(listOf("Alien", "Aliens", "Heat", "Prometheus"), page.items.map { it.title })
+            assertEquals(4, json.decodeFromString<List<Library>>(get("/api/v1/libraries")).single().items)
+            val alien = page.items.first()
+            val body = get("/api/v1/library/items/${alien.id}")
+            val detail = json.decodeFromString<LibraryItemDetail>(body)
+            assertEquals(listOf("Trailer", "The Beast Within"), detail.extras.map { it.title })
+            assertEquals(listOf(Wire.ExtraKind.TRAILER, Wire.ExtraKind.BEHIND_THE_SCENES), detail.extras.map { it.extra })
+            assertEquals(setOf(Wire.ItemKind.EXTRA), detail.extras.map { it.kind }.toSet())
+            assertEquals(emptyList(), detail.children)
+            assertEquals(listOf("Prometheus", "Aliens"), detail.related.map { it.title }, "two genres shared, then one")
+            assertEquals(emptyList(), json.decodeFromString<LibraryItemDetail>(get("/api/v1/library/items/${page.items[2].id}")).related)
+            assertEquals(emptyList(), json.decodeFromString<LibraryPage>(get("/api/v1/library/search?q=trailer")).items)
+            assertKeepsWireFixture("v1/library-movie-detail.json", body)
+
+            // An extra plays and keeps its place, but does not come up in Continue watching.
+            val trailer = detail.extras.first()
+            assertEquals(Wire.ItemKind.EXTRA, json.decodeFromString<LibraryItemDetail>(get("/api/v1/library/items/${trailer.id}")).item.kind)
+            client.put("/api/v1/library/items/${trailer.id}/play-state") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"positionMs":30000,"durationMs":120000}""")
+            }
+            val home = json.decodeFromString<LibraryHome>(get("/api/v1/library/home"))
+            assertEquals(listOf(Wire.ShelfId.RECENT), home.shelves.map { it.id })
+            assertEquals(4, home.shelves.single().items.size)
+        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+    }
+
     @Test fun `an episode with every fact a scan reads keeps every field of the library item and library list fixtures`() = testApplication {
         val dir = Files.createTempDirectory("sofa-library-full-")
         val show = Files.createDirectories(dir.resolve("media/tv/Show (2020)"))
@@ -188,7 +242,8 @@ class LibraryApiTest {
             assertEquals(180, item.videoHeight)
             assertTrue(item.hdr, "FFprobe read the PQ transfer")
             assertEquals(600000, item.playState?.positionMs)
-            val nulls = Json.parseToJsonElement(itemBody).jsonObject.filterValues { it is JsonNull }.keys
+            // Only an extra says what kind of extra it is.
+            val nulls = Json.parseToJsonElement(itemBody).jsonObject.filterValues { it is JsonNull }.keys - "extra"
             assertTrue(nulls.isEmpty(), "the item still has nulls: $nulls")
             assertKeepsWireFixture("v1/library-item.json", itemBody)
 

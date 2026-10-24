@@ -1,7 +1,7 @@
 import SwiftUI
 import SofaKingCore
 
-/// The Recordings tab: what is recording now, then what was recorded, newest first, then what is scheduled,
+/// The DVR tab: what is recording now, then what was recorded, newest first, then what is scheduled,
 /// soonest first. Selecting a recorded or running one plays it, resuming where the household stopped; holding
 /// select offers From start and Delete (Stop on a running one, Cancel on a scheduled one), which asks first. The
 /// series rules follow, each with whether it takes repeats, how many recordings it keeps, and Stop series.
@@ -13,7 +13,7 @@ struct RecordingsView: View {
 
     var body: some View {
         NavigationStack {
-            content.navigationTitle("Recordings")
+            content.navigationTitle("DVR")
         }
         .onAppear { model.core.refreshRecordings() }
         .fullScreenCover(item: $playing) { request in

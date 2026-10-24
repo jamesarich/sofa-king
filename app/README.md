@@ -2,14 +2,14 @@
 
 The Sofa King app is the front of a home media center: live TV with a program guide, recordings and your own movies and shows, all from your own [Sofa King server](../backend/README.md). It is built for Android TV and Google TV, and the same app runs on Android phones, Linux, macOS and Windows desktops, iOS and the web. Channels, the guide, recordings, the libraries and the streams come from that server; the app includes no subscription.
 
-Three tabs, one remote, Sofa King simple: **Live** for the guide and the channels, **Library** for the movies and shows, and **Recordings** for what the server recorded, each of the last two shown when the server keeps it.
+Three tabs, one remote, Sofa King simple: **Live** for the guide and the channels, **Library** for the movies and shows, and **DVR** for what the server recorded, each of the last two shown when the server keeps it.
 
 ## Why
 
 - **Made for a remote.** Every screen works with the five-way D-pad, Back, and the Guide, Menu, Search, channel and digit keys. A keyboard, touch or a mouse work too.
 - **Previews that become the show.** The focused channel plays muted in the guide, its sound comes on after 5 seconds, and it opens full screen after 10 on the same stream, with no second tune.
-- **Everything else you watch, in the same app.** The Library tab resumes a movie or episode where you stopped and offers Up next, and the Recordings tab plays a recording while it still records and can skip its commercial breaks. Every file plays on every platform, since the server converts what a player cannot take.
-- **Back where you left off.** A cold start opens the last channel you watched, or the Library or Recordings tab if you left from there, and Back from the player lands on that channel in the guide with your filter and scroll intact.
+- **Everything else you watch, in the same app.** The Library tab resumes a movie or episode where you stopped and offers Up next, and the DVR tab plays a recording while it still records and can skip its commercial breaks. Every file plays on every platform, since the server converts what a player cannot take.
+- **Back where you left off.** A cold start opens the last channel you watched, or the Library or DVR tab if you left from there, and Back from the player lands on that channel in the guide with your filter and scroll intact.
 - **Light on the server.** The app holds one playback session at a time, renews it while you watch and releases it when you leave, so a small server's few slots go further.
 - **Live captions that keep up.** CEA-608 and CEA-708 captions, with timing you can set per channel to line delayed live captions up with the speech.
 - **One codebase.** Kotlin Multiplatform and Compose Multiplatform on every platform, with each platform's own player underneath.
@@ -18,11 +18,11 @@ Three tabs, one remote, Sofa King simple: **Live** for the guide and the channel
 
 - A program guide covering 24 hours, a day at a time up to a week ahead, with category, favorite and recent filters, program details, search and voice search
 - Muted previews that open full screen after 10 seconds, 30 seconds or never ([using Sofa King](docs/usage.md#guide))
-- Favorites, and a start where you left off: the last channel full screen, or the Library or Recordings tab
+- Favorites, and a start where you left off: the last channel full screen, or the Library or DVR tab
 - A full-screen player with channel up and down, number entry, the previous channel, a channel list with Recent, Favorites and filter chips, and a stream card with audio tracks and stream details
 - Closed captions, with per-channel timing on Android and a style setting where the app draws them ([captions](docs/usage.md#captions))
 - A saved lineup that shows at once while the app refreshes from the server
-- Record a program or a series from its details, and a Recordings tab that plays recordings as they grow, resumes them and can skip the commercial breaks the server found ([recordings](docs/usage.md#recordings))
+- Record a program or a series from its details, and a DVR tab that plays recordings as they grow, resumes them and can skip the commercial breaks the server found ([recordings](docs/usage.md#recordings))
 - A Library tab with search, Continue watching, recent additions, poster grids and item pages for movies and shows, a seekable player with audio and subtitle choices, Skip intro, and Up next for the following episode ([library](docs/usage.md#library))
 - Reconnection with backoff when a stream fails, and the channel followed by number, then name, when the server's lineup drops its id
 

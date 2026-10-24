@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="recordings_title">Recordings</string>
+    <string name="nav_dvr">DVR</string>
     <string name="recordings_loading">Sofa King close, loading recordings…</string>
     <string name="recordings_now">Recording now</string>
     <string name="recordings_recorded">Recorded</string>

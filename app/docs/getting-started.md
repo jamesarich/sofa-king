@@ -88,6 +88,6 @@ Move through the guide with the D-pad or the arrow keys. The focused channel pla
 
 In the player, Up and Down change channels in the direction they move the guide and Back returns to the guide. The next start opens the channel you last watched.
 
-When the server keeps [media libraries](../../backend/docs/libraries.md), a Library tab sits beside Live, and a server that records adds a Recordings tab; program details then offer Record.
+When the server keeps [media libraries](../../backend/docs/libraries.md), a Library tab sits beside Live, and a server that records adds a DVR tab; program details then offer Record.
 
 [Using Sofa King](usage.md) has every control, the library, recordings, captions and the settings. [Troubleshooting](troubleshooting.md) covers a guide that stays empty or a channel that does not play.

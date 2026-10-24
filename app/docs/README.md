@@ -40,5 +40,5 @@ The [repository glossary](../../docs/README.md#glossary) defines the terms the a
 | Stream card | The card the player opens on Info held or Stream info on the info bar, with the audio tracks, stream details and the server's source |
 | Live edge | The newest part of a live stream. Resuming after a long pause, or falling behind, returns to it |
 | Caption timing | How far captions are shifted against the picture, saved per channel |
-| Library, Recordings | The tabs beside Live that a server with media libraries, or one that records, adds |
+| Library, DVR | The tabs beside Live that a server with media libraries, or one that records, adds |
 | Snapshot | A test build from `main`, published as the `snapshot` prerelease |

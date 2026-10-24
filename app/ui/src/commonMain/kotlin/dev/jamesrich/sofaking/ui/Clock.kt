@@ -45,3 +45,21 @@ internal fun rememberMinuteNow(): State<Instant> {
         }
     }
 }
+
+/**
+ * The device's zone, read again on every wall-clock minute and each time [lifecycle] comes to the front, so times
+ * follow a zone set while the app runs: a trip, or an emulator whose zone arrives from the network after the app
+ * started. The app provides it as [LocalTimeZone]; a zone read once would keep the first for the life of the process.
+ */
+@Composable
+internal fun rememberSystemTimeZone(lifecycle: Lifecycle): State<TimeZone> {
+    val initial = remember { TimeZone.currentSystemDefault() }
+    return produceState(initial, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                value = TimeZone.currentSystemDefault()
+                delay(msToNextMinute(Clock.System.now().toEpochMilliseconds()))
+            }
+        }
+    }
+}

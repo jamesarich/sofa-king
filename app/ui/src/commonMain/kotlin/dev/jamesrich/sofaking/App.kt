@@ -39,6 +39,7 @@ import dev.jamesrich.sofaking.ui.LocalClockFormat
 import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
+import dev.jamesrich.sofaking.ui.LocalTimeZone
 import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
 import dev.jamesrich.sofaking.ui.WindowFullScreen
 import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
@@ -53,6 +54,7 @@ import dev.jamesrich.sofaking.ui.rememberAppLifecycleOwner
 import dev.jamesrich.sofaking.ui.rememberLastInput
 import dev.jamesrich.sofaking.ui.rememberLayoutProfile
 import dev.jamesrich.sofaking.ui.rememberPlayerWindow
+import dev.jamesrich.sofaking.ui.rememberSystemTimeZone
 import dev.jamesrich.sofaking.ui.sofaKingImageLoader
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import dev.jamesrich.sofaking.ui.togglesFullScreen
@@ -163,6 +165,7 @@ private fun SofaKingApp(
     val entries = rememberTabEntries(shell.nav) { route -> page(route) }
     CompositionLocalProvider(
         LocalClockFormat provides (settings?.clockFormat ?: ClockFormat.AUTO),
+        LocalTimeZone provides rememberSystemTimeZone(lifecycleOwner.lifecycle).value,
         LocalGuideDensity provides (settings?.guideDensity ?: GuideDensity.COMFORTABLE),
         LocalAppLifecycleOwner provides lifecycleOwner,
         LocalInPictureInPicture provides inPictureInPicture,

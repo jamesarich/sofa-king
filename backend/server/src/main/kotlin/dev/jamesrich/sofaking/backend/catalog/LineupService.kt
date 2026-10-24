@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.lineup
 import dev.jamesrich.sofaking.backend.store.saveLineup
 import dev.jamesrich.sofaking.contract.Channel
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Clock
@@ -66,7 +67,7 @@ class LineupService(
 
     suspend fun update(id: String, request: UpdateLineupEntry): LineupEntryRecord = mutate { entries ->
         val index = entries.indexOfFirst { it.id == id }
-        if (index < 0) throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+        if (index < 0) throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
         val current = entries[index]
         // An enabled flag the household sets is its own, so an automatic disable no longer explains it.
         val household = request.enabled != null
@@ -89,14 +90,23 @@ class LineupService(
     }
 
     suspend fun delete(id: String) = mutate { entries ->
-        if (!entries.removeIf { it.id == id }) throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+        if (!entries.removeIf {
+                it.id == id
+            }
+        ) {
+            throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+        }
     }
 
     /** [ids] must name every entry exactly once. */
     suspend fun reorder(ids: List<String>) = mutate { entries ->
         val byId = entries.associateBy { it.id }
         if (ids.size != entries.size || ids.toSet() != byId.keys) {
-            throw ApiFailure(400, "INVALID_REQUEST", "Order must list every lineup entry exactly once")
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                "Order must list every lineup entry exactly once",
+            )
         }
         entries.clear()
         ids.mapTo(entries) { byId.getValue(it) }
@@ -108,13 +118,13 @@ class LineupService(
                 it.id == request.providerId
             }
         ) {
-            throw ApiFailure(404, "PROVIDER_NOT_FOUND", "Unknown provider")
+            throw ApiFailure(HttpStatusCode.NotFound, "PROVIDER_NOT_FOUND", "Unknown provider")
         }
         val referenced = entries.flatMapTo(HashSet()) { it.offeringIds }
         var added = 0
         var skipped = 0
-        for (channel in feeds.channels(request.providerId).sortedWith(channelOrder)) {
-            val offerings = feeds.offeringsOf(channel.id)
+        for (channel in feeds.published.channels(request.providerId).sortedWith(channelOrder)) {
+            val offerings = feeds.published.offeringsOf(channel.id)
             if (offerings.isEmpty() || offerings.any { it.id in referenced }) {
                 skipped++
                 continue
@@ -145,20 +155,27 @@ class LineupService(
 
     private fun draft(request: CreateLineupEntry, entries: List<LineupEntryRecord>): LineupEntryRecord {
         val candidate = request.channelId?.let {
-            feeds.channel(it)
-                ?: throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown feed channel")
+            feeds.published.channel(it)
+                ?: throw ApiFailure(HttpStatusCode.NotFound, "CHANNEL_NOT_FOUND", "Unknown feed channel")
         }
         val id =
             request.id?.let {
                 runCatching {
                     UUID.fromString(it).toString()
-                }.getOrElse { throw ApiFailure(400, "INVALID_REQUEST", "Entry ID must be a UUID") }
+                }.getOrElse {
+                    throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Entry ID must be a UUID")
+                }
             }
                 ?: UUID.randomUUID().toString()
-        if (entries.any { it.id == id }) throw ApiFailure(409, "LINEUP_ENTRY_EXISTS", "Lineup entry already exists")
+        if (entries.any {
+                it.id == id
+            }
+        ) {
+            throw ApiFailure(HttpStatusCode.Conflict, "LINEUP_ENTRY_EXISTS", "Lineup entry already exists")
+        }
         val offerings =
             request.offerings?.also(::requireKnownOfferings)
-                ?: candidate?.let { feeds.offeringsOf(it.id).map { o -> o.id } }.orEmpty()
+                ?: candidate?.let { feeds.published.offeringsOf(it.id).map { o -> o.id } }.orEmpty()
         val guide =
             request.guide
                 ?: candidate?.legacyGuideId?.let { tvgId ->
@@ -169,9 +186,9 @@ class LineupService(
                 id = id,
                 number =
                 request.number ?: candidate?.displayNumber
-                    ?: throw ApiFailure(400, "INVALID_REQUEST", "A number is required"),
+                    ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "A number is required"),
                 name = request.name ?: candidate?.name ?: throw ApiFailure(
-                    400,
+                    HttpStatusCode.BadRequest,
                     "INVALID_REQUEST",
                     "A name is required",
                 ),
@@ -185,29 +202,37 @@ class LineupService(
     }
 
     private fun requireKnownOfferings(ids: List<String>) {
-        if (ids.distinct().size != ids.size) throw ApiFailure(400, "INVALID_REQUEST", "Duplicate offering IDs")
+        if (ids.distinct().size !=
+            ids.size
+        ) {
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Duplicate offering IDs")
+        }
         ids.firstOrNull {
-            feeds.offering(it) == null
-        }?.let { throw ApiFailure(404, "SOURCE_NOT_FOUND", "Unknown source $it") }
+            feeds.published.offering(it) == null
+        }?.let { throw ApiFailure(HttpStatusCode.NotFound, "SOURCE_NOT_FOUND", "Unknown source $it") }
     }
 
     internal fun validated(entry: LineupEntryRecord): LineupEntryRecord {
-        fun invalid(message: String): Nothing = throw ApiFailure(400, "INVALID_REQUEST", message)
-        if (entry.number.isBlank() || entry.number.length > 32 || entry.number.any { it.isWhitespace() }) {
-            invalid("Number must be 1 to 32 characters without spaces")
+        fun invalid(message: String): Nothing = throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", message)
+        if (!fits(entry.number, NUMBER_LIMIT) || entry.number.any { it.isWhitespace() }) {
+            invalid("Number must be 1 to $NUMBER_LIMIT characters without spaces")
         }
-        if (entry.name.isBlank() || entry.name.length > 256) invalid("Name must be 1 to 256 characters")
-        if (entry.group != null && (entry.group.isBlank() || entry.group.length > 128)) {
-            invalid("Group must be 1 to 128 characters")
+        if (!fits(entry.name, NAME_LIMIT)) invalid("Name must be 1 to $NAME_LIMIT characters")
+        if (entry.group != null &&
+            !fits(entry.group, GROUP_LIMIT)
+        ) {
+            invalid("Group must be 1 to $GROUP_LIMIT characters")
         }
         val logo = entry.logo?.let { normalizeLogoUrl(it) ?: invalid("Logo must be an HTTP(S) URL") }
         entry.guide?.let { mapping ->
             if (guides.config(mapping.guideId) == null) invalid("Unknown guide ${mapping.guideId}")
-            if (mapping.channelId.isBlank() || mapping.channelId.length > 256) {
-                invalid("Guide channel ID must be 1 to 256 characters")
+            if (!fits(mapping.channelId, NAME_LIMIT)) {
+                invalid("Guide channel ID must be 1 to $NAME_LIMIT characters")
             }
         }
-        if (entry.offeringIds.size > 64) invalid("At most 64 sources per entry")
+        if (entry.offeringIds.size > SOURCES_PER_STATION_LIMIT) {
+            invalid("At most $SOURCES_PER_STATION_LIMIT sources per entry")
+        }
         return entry.copy(
             name = entry.name.trim(),
             number = entry.number.trim(),

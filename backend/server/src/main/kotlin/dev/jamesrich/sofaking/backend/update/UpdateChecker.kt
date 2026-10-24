@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.update
 
+import dev.jamesrich.sofaking.backend.MIB
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
@@ -108,7 +109,7 @@ class UpdateChecker(
     val running: RunningBuild,
     private val jobs: Jobs,
     private val firstCheckAfter: Duration = Duration.ofMinutes(2),
-    private val every: Duration = Duration.ofMinutes(5),
+    private val every: Duration = CHECK_EVERY,
 ) {
     private val log = LoggerFactory.getLogger(UpdateChecker::class.java)
     private val mutex = Mutex()
@@ -310,7 +311,7 @@ class UpdateChecker(
 
     private suspend fun parse(response: HttpResponse): JsonObject {
         val text = response.bodyAsText()
-        require(text.length <= 1_048_576) { "the registry's answer is too large" }
+        require(text.length <= MIB) { "the registry's answer is too large" }
         return Json.parseToJsonElement(text).jsonObject
     }
 
@@ -356,6 +357,7 @@ class UpdateChecker(
         const val JOB = "update"
         const val STATUS_FILE = "update-status.json"
         const val REQUEST_FILE = "update-requested"
+        private val CHECK_EVERY: Duration = Duration.ofMinutes(5)
 
         /** The updater's outcomes for an image it will not install again. */
         private val REFUSED = setOf("rolled-back", "skipped")

@@ -216,7 +216,7 @@ class LoopbackRelayTest {
 
         fun number(number: String): String = runtime.lineup.entries().single { it.number == number }.id
 
-        fun offering(url: String): Offering = runtime.feeds.offerings().single { it.url == url }
+        fun offering(url: String): Offering = runtime.feeds.published.offerings.single { it.url == url }
 
         override fun close() {
             server.close()

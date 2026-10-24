@@ -17,6 +17,7 @@ import dev.jamesrich.sofaking.backend.store.markLibraryItemsMissing
 import dev.jamesrich.sofaking.backend.store.recordLibraryScan
 import dev.jamesrich.sofaking.backend.store.renameLibrary
 import dev.jamesrich.sofaking.backend.store.saveLibraryItems
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -39,6 +40,9 @@ private val log = LoggerFactory.getLogger(LibraryService::class.java)
 
 /** The scan job's id on the Jobs page. */
 internal const val LIBRARY_SCAN_JOB = "library-scan"
+
+private val SCAN_EVERY: Duration = Duration.ofHours(6)
+private const val LIBRARY_NAME_LIMIT = 100
 
 /**
  * A folder a library may be added from: [root] is where the operator mounted media, [label] how the portal names it.
@@ -71,7 +75,7 @@ class LibraryService(
     val roots: List<MediaRoot>,
     private val scanner: LibraryScanner,
     private val jobs: Jobs,
-    private val every: Duration = Duration.ofHours(6),
+    private val every: Duration = SCAN_EVERY,
     /** TMDB lookups after each scan, when `SOFA_TMDB_TOKEN` is set. */
     val metadata: LibraryMetadata? = null,
     /** The posters and backdrops `/artwork` serves. */
@@ -108,7 +112,7 @@ class LibraryService(
     suspend fun libraries(): List<LibraryRecord> = store.libraries()
 
     suspend fun library(id: String): LibraryRecord =
-        store.library(id) ?: throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
+        store.library(id) ?: throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
 
     /** Present items by library and kind. */
     suspend fun counts(): Map<String, Map<String, Int>> = store.libraryItemCounts()
@@ -163,8 +167,12 @@ class LibraryService(
 
     suspend fun create(name: String, kind: LibraryKind, path: String): LibraryRecord {
         val title = name.trim()
-        if (title.isEmpty() || title.length > 100) {
-            throw ApiFailure(400, "INVALID_REQUEST", "A library name has 1 to 100 characters")
+        if (title.isEmpty() || title.length > LIBRARY_NAME_LIMIT) {
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                "A library name has 1 to $LIBRARY_NAME_LIMIT characters",
+            )
         }
         val folder = allowed(path)
         val library =
@@ -174,7 +182,7 @@ class LibraryService(
                     it.path == folder.toString()
                 }
             ) {
-                throw ApiFailure(409, "LIBRARY_EXISTS", "Another library already uses that folder")
+                throw ApiFailure(HttpStatusCode.Conflict, "LIBRARY_EXISTS", "Another library already uses that folder")
             }
             store.insertLibrary(library)
         }
@@ -185,10 +193,20 @@ class LibraryService(
 
     suspend fun rename(id: String, name: String): LibraryRecord {
         val title = name.trim()
-        if (title.isEmpty() || title.length > 100) {
-            throw ApiFailure(400, "INVALID_REQUEST", "A library name has 1 to 100 characters")
+        if (title.isEmpty() || title.length > LIBRARY_NAME_LIMIT) {
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                "A library name has 1 to $LIBRARY_NAME_LIMIT characters",
+            )
         }
-        if (!store.renameLibrary(id, title)) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
+        if (!store.renameLibrary(
+                id,
+                title,
+            )
+        ) {
+            throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
+        }
         revision.incrementAndGet()
         return library(id)
     }
@@ -196,7 +214,12 @@ class LibraryService(
     /** Forgets the library, its items and their watch state; its files stay where they are. */
     suspend fun delete(id: String) {
         scanLock.withLock {
-            if (!store.deleteLibrary(id)) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
+            if (!store.deleteLibrary(
+                    id,
+                )
+            ) {
+                throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
+            }
         }
         revision.incrementAndGet()
         // Its scrub thumbnails go with the next pass, which finds their items gone.
@@ -223,7 +246,7 @@ class LibraryService(
                         it.id == library.id
                     }
                 ) {
-                    throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
+                    throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
                 }
                 if (plan.save.isNotEmpty()) store.saveLibraryItems(plan.save)
                 if (plan.missing.isNotEmpty()) store.markLibraryItemsMissing(plan.missing, now)
@@ -298,19 +321,24 @@ class LibraryService(
         val candidate = try {
             Path.of(path.trim()).toAbsolutePath().normalize()
         } catch (_: Exception) {
-            throw ApiFailure(400, "INVALID_REQUEST", "Not a folder path")
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Not a folder path")
         }
         val root = roots.firstOrNull { candidate.startsWith(it.root.toAbsolutePath().normalize()) }
             ?: throw ApiFailure(
-                400,
+                HttpStatusCode.BadRequest,
                 "INVALID_REQUEST",
                 "A library folder must be inside ${roots.joinToString(" or ") { it.root.toString() }}",
             )
-        if (!Files.isDirectory(candidate)) throw ApiFailure(400, "INVALID_REQUEST", "No folder at that path")
+        if (!Files.isDirectory(
+                candidate,
+            )
+        ) {
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "No folder at that path")
+        }
         // A link inside the root must not lead the scan outside it.
         val real = candidate.toRealPath()
         if (!real.startsWith(root.root.toRealPath())) {
-            throw ApiFailure(400, "INVALID_REQUEST", "That folder links outside ${root.root}")
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "That folder links outside ${root.root}")
         }
         return candidate
     }

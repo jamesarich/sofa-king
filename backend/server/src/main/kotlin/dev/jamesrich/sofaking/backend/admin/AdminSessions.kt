@@ -37,7 +37,7 @@ class AdminSessions(
     private val clock: Clock,
     private val secret: String?,
     private val store: BackendStore? = null,
-    private val lifetime: Duration = Duration.ofHours(12),
+    private val lifetime: Duration = LIFETIME,
     private val limit: Int = 32,
 ) {
     private val random = SecureRandom()
@@ -96,7 +96,7 @@ class AdminSessions(
         store?.deleteAdminSession(key)
     }
 
-    private fun token(): String = ByteArray(32).also(random::nextBytes).let {
+    private fun token(): String = ByteArray(TOKEN_BYTES).also(random::nextBytes).let {
         Base64.getUrlEncoder().withoutPadding().encodeToString(it)
     }
 
@@ -112,3 +112,7 @@ internal fun sameSecret(presented: String?, expected: String): Boolean {
     val digest = { value: String -> MessageDigest.getInstance("SHA-256").digest(value.toByteArray()) }
     return MessageDigest.isEqual(digest(presented), digest(expected))
 }
+
+/** How long a sign-in lasts, and the random bytes in a session token. */
+private val LIFETIME: Duration = Duration.ofHours(12)
+private const val TOKEN_BYTES = 32

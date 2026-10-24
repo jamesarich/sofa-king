@@ -1,8 +1,11 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.SECONDS_PER_MINUTE
+import dev.jamesrich.sofaking.backend.dvr.Dvr
 import dev.jamesrich.sofaking.contract.Recording
 import dev.jamesrich.sofaking.contract.RecordingRule
 import dev.jamesrich.sofaking.contract.Wire
+import io.ktor.http.HttpStatusCode
 import kotlinx.html.A
 import kotlinx.html.ButtonType
 import kotlinx.html.FORM
@@ -45,6 +48,7 @@ import kotlinx.html.thead
 import kotlinx.html.time
 import kotlinx.html.title
 import kotlinx.html.tr
+import java.time.Duration
 
 /** A recording's name as a list shows it: the show, then its season and episode or episode title. */
 internal fun recordingName(recording: Recording): String {
@@ -387,13 +391,16 @@ internal fun formInt(form: io.ktor.http.Parameters, name: String, label: String,
     if (text.isNullOrEmpty() && default != null) return default
     return text?.toIntOrNull()
         ?: throw dev.jamesrich.sofaking.backend.catalog.ApiFailure(
-            400,
+            HttpStatusCode.BadRequest,
             "INVALID_REQUEST",
             "$label must be a whole number",
         )
 }
 
-private fun minutes(seconds: Int): String = if (seconds % 60 == 0) "${seconds / 60} min" else "$seconds s"
+private fun seconds(seconds: Int): Duration = Duration.ofSeconds(seconds.toLong())
+
+private fun minutes(seconds: Int): String =
+    if (seconds % SECONDS_PER_MINUTE == 0) "${seconds / SECONDS_PER_MINUTE} min" else "$seconds s"
 
 /**
  * A rule's channel, episodes, keep, padding and priority fields; [rule] fills them for an edit,
@@ -443,8 +450,7 @@ private fun FORM.ruleFields(prefix: String, view: RecordingsView, rule: Recordin
         }
         numberInput(name = "startPadding") {
             id = "$prefix-start"
-            value =
-                ((rule?.startPaddingSeconds ?: 60) / 60).toString()
+            value = (rule?.startPaddingSeconds?.let(::seconds) ?: Dvr.DEFAULT_START_PADDING).toMinutes().toString()
             min = "0"
             max = "60"
             required = true
@@ -457,8 +463,7 @@ private fun FORM.ruleFields(prefix: String, view: RecordingsView, rule: Recordin
         }
         numberInput(name = "endPadding") {
             id = "$prefix-end"
-            value =
-                ((rule?.endPaddingSeconds ?: 120) / 60).toString()
+            value = (rule?.endPaddingSeconds?.let(::seconds) ?: Dvr.DEFAULT_END_PADDING).toMinutes().toString()
             min = "0"
             max = "60"
             required = true

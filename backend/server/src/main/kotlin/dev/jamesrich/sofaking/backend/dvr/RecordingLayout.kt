@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.dvr
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.SeasonEpisode
 import dev.jamesrich.sofaking.backend.catalog.seasonEpisode
+import dev.jamesrich.sofaking.backend.library.yearOf
 import java.nio.file.Path
 import java.time.Instant
 import java.time.LocalDate
@@ -25,6 +26,9 @@ data class RecordingTitle(
         /** The guide calls a program a movie through one of its categories. */
         private val MOVIE_CATEGORIES = setOf("movie", "movies", "film", "feature film")
 
+        /** The years a guide date may name, from the first motion pictures on. */
+        private val YEARS = 1870..9999
+
         fun of(program: GuideProgram): RecordingTitle {
             val movie = program.categories.any { it.trim().lowercase() in MOVIE_CATEGORIES }
             return RecordingTitle(
@@ -32,7 +36,7 @@ data class RecordingTitle(
                 episodeTitle = program.subTitle,
                 numbering = if (movie) null else seasonEpisode(program.episodeNumbers),
                 movie = movie,
-                year = program.date?.take(4)?.toIntOrNull()?.takeIf { it in 1870..9999 },
+                year = yearOf(program.date)?.takeIf { it in YEARS },
             )
         }
     }

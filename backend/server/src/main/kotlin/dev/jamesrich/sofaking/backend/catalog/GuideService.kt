@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.catalog
 
+import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.api.GuideChannelInfo
 import dev.jamesrich.sofaking.backend.api.GuideStatus
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
@@ -15,6 +16,7 @@ import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -63,7 +65,8 @@ class GuideService(
 
     private val log = LoggerFactory.getLogger(GuideService::class.java)
     private val published = AtomicReference(Published(emptyMap()))
-    private val statuses = AtomicReference(configs.map { GuideStatus(it.id) })
+    private val _statuses = AtomicReference(configs.map { GuideStatus(it.id) })
+    private val fetcher = GuideFetcher(http, upstream, providers)
     private val locks = configs.associate { it.id to Mutex() }
 
     init {
@@ -82,7 +85,7 @@ class GuideService(
     suspend fun initialize() {
         val stored = store.guides().filterKeys { id -> configs.any { it.id == id } }
         published.set(Published(stored))
-        statuses.set(
+        _statuses.set(
             configs.map { config ->
                 stored[config.id]?.let {
                     GuideStatus(
@@ -97,7 +100,8 @@ class GuideService(
         )
     }
 
-    fun statuses(): List<GuideStatus> = statuses.get()
+    /** Each configured guide's last import. */
+    val statuses: List<GuideStatus> get() = _statuses.get()
 
     fun config(id: String): GuideConfig? = configs.firstOrNull { it.id == id }
 
@@ -105,7 +109,7 @@ class GuideService(
     fun revision(): String = published.get().revision
 
     /** When the retained programs of each mapped channel end, keyed by guide id then channel id. */
-    fun coverage(): Map<String, Map<String, Instant>> = published.get().guides.mapValues { it.value.programEnds }
+    val coverage: Map<String, Map<String, Instant>> get() = published.get().guides.mapValues { it.value.programEnds }
 
     fun channels(guideId: String): List<GuideChannel> = published.get().guides[guideId]?.channels.orEmpty()
 
@@ -140,50 +144,20 @@ class GuideService(
             val started = clock.instant()
             runCatchingCancellable {
                 val wantedIds = wanted()[config.id].orEmpty()
-                val parsed = if (config.provider != null) {
-                    val client =
-                        checkNotNull(providers?.client(config.provider)) { "No client for provider ${config.provider}" }
-                    checkNotNull(client.guide(wantedIds)) { "Service has no guide" }
-                } else {
-                    val url = checkNotNull(config.url)
-                    // Guides run to tens of megabytes; only socket inactivity bounds the download,
-                    // never a total request timeout.
-                    http.withUpstreamResponse(
-                        url,
-                        url,
-                        config.headers,
-                        unbounded = true,
-                        policy = upstream,
-                    ) { response ->
-                        require(response.status.value == 200) { "Guide fetch failed" }
-                        val body = response.bodyAsChannel()
-                        withContext(Dispatchers.IO) {
-                            body.toInputStream().use {
-                                FeedParser.guide(it, config.url) { id ->
-                                    id in
-                                        wantedIds
-                                }
-                            }
-                        }
-                    }
-                }
+                val parsed = fetcher.fetch(config, wantedIds)
                 val importedAt = clock.instant()
                 store.saveGuide(config.id, importedAt, parsed.channels, parsed.programs)
                 val ends = parsed.programs.groupBy { it.channelId }.mapValues { (_, rows) -> rows.maxOf { it.endsAt } }
                 val stored = StoredGuide(config.id, importedAt, parsed.channels, ends, parsed.programs.size)
                 published.updateAndGet { Published(it.guides + (config.id to stored)) }
-                statuses.updateAndGet { list ->
-                    list.map {
-                        if (it.id == config.id) {
-                            GuideStatus(
-                                config.id,
-                                importedAt.toString(),
-                                channels = parsed.channels.size,
-                                programs = parsed.programs.size,
-                            )
-                        } else {
-                            it
-                        }
+                _statuses.updateAndGet { all ->
+                    all.replacing(config.id) {
+                        GuideStatus(
+                            config.id,
+                            importedAt.toString(),
+                            channels = parsed.channels.size,
+                            programs = parsed.programs.size,
+                        )
                     }
                 }
                 log.info(
@@ -198,15 +172,7 @@ class GuideService(
                 onImported()
                 JobOutcome(true, "${parsed.channels.size} channels, ${parsed.programs.size} programs")
             }.getOrElse { e ->
-                statuses.updateAndGet { list ->
-                    list.map {
-                        if (it.id == config.id) {
-                            it.copy(errorCode = "IMPORT_FAILED")
-                        } else {
-                            it
-                        }
-                    }
-                }
+                _statuses.updateAndGet { all -> all.replacing(config.id) { it.copy(errorCode = "IMPORT_FAILED") } }
                 log.warn(
                     "guide import guide={} failed class={} message=\"{}\" durationMs={}",
                     config.id,
@@ -232,8 +198,37 @@ class GuideService(
                 refresh(config)
                 select<Unit> {
                     trigger.onReceive {}
-                    onTimeout(config.refreshSeconds * 1000) {}
+                    onTimeout(config.refreshSeconds * MS_PER_SECOND) {}
                 }
+            }
+        }
+    }
+}
+
+/** This list with the status of guide [id] replaced by what [update] makes of it. */
+private fun List<GuideStatus>.replacing(id: String, update: (GuideStatus) -> GuideStatus) =
+    map { if (it.id == id) update(it) else it }
+
+/** Fetches a guide: from its service's client for a `provider` guide, else as XMLTV from its URL. */
+private class GuideFetcher(
+    private val http: HttpClient,
+    private val upstream: UpstreamPolicy,
+    private val providers: ProviderRegistry?,
+) {
+    /** The guide, holding the programs of the channels in [wanted] only. */
+    suspend fun fetch(config: GuideConfig, wanted: Set<String>): ParsedGuide {
+        if (config.provider != null) {
+            val client =
+                checkNotNull(providers?.client(config.provider)) { "No client for provider ${config.provider}" }
+            return checkNotNull(client.guide(wanted)) { "Service has no guide" }
+        }
+        val url = checkNotNull(config.url)
+        // Guides run to tens of megabytes; only socket inactivity bounds the download, never a total request timeout.
+        return http.withUpstreamResponse(url, url, config.headers, unbounded = true, policy = upstream) { response ->
+            require(response.status == HttpStatusCode.OK) { "Guide fetch failed" }
+            val body = response.bodyAsChannel()
+            withContext(Dispatchers.IO) {
+                body.toInputStream().use { FeedParser.guide(it, config.url) { id -> id in wanted } }
             }
         }
     }
@@ -241,6 +236,7 @@ class GuideService(
 
 private val urlInMessage = Regex("""https?://[^\s"'\]\[<>]+""")
 private val whitespace = Regex("\\s+")
+private const val MESSAGE_LIMIT = 300
 
 /** The exception's message with every URL (and so any query token) replaced by `<url>`, on one line, bounded. */
 internal fun redactedMessage(e: Throwable): String =
@@ -251,4 +247,4 @@ internal fun redactedMessage(e: Throwable): String =
  * fetchers' lines carry tokens in URLs.
  */
 internal fun redactedMessage(message: String): String =
-    urlInMessage.replace(message, "<url>").replace(whitespace, " ").trim().take(300)
+    urlInMessage.replace(message, "<url>").replace(whitespace, " ").trim().take(MESSAGE_LIMIT)

@@ -16,12 +16,12 @@ data class CorsOrigin(val scheme: String, val host: String) {
 }
 
 /** Player outputs: the token the M3U, XMLTV and stream URLs carry, and how far ahead the XMLTV reaches. */
-data class OutputConfig(val token: String? = null, val guideDays: Int = 3)
+data class OutputConfig(val token: String? = null, val guideDays: Int = ServerConfig.DEFAULT_GUIDE_DAYS)
 
 /** HDHomeRun emulation for Plex: the device Plex sees, how many streams it may open, and who may reach it. */
 data class HdhrConfig(
     val enabled: Boolean = true,
-    val tuners: Int = 2,
+    val tuners: Int = ServerConfig.DEFAULT_TUNERS,
     /** Eight hex digits; null derives one from the server identity. */
     val deviceId: String? = null,
     val friendlyName: String = "Sofa King",
@@ -37,7 +37,7 @@ data class HdhrConfig(
      */
     val extraPorts: List<Int> = emptyList(),
     /** Channels per device when the lineup policy splits devices by range. */
-    val deviceSize: Int = 250,
+    val deviceSize: Int = DEFAULT_DEVICE_SIZE,
     /** The host ports Plex reaches each device on, in device order; empty means the listening ports. */
     val publicPorts: List<Int> = emptyList(),
 ) {
@@ -45,6 +45,10 @@ data class HdhrConfig(
 
     /** The port Plex reaches each device on, in device order. */
     fun publicPorts(port: Int): List<Int> = publicPorts.ifEmpty { listOf(port) + extraPorts }
+
+    companion object {
+        const val DEFAULT_DEVICE_SIZE = 250
+    }
 }
 
 /**
@@ -55,7 +59,7 @@ class PlexConfig(
     /** Scheme, host and port, without a trailing slash. */
     val url: String,
     val token: String,
-    val syncMinutes: Int = 60,
+    val syncMinutes: Int = ServerConfig.DEFAULT_PLEX_SYNC_MINUTES,
     /** Scheme and host Plex reaches this server's tuners on; null leaves adding devices to an admin. */
     val tunerBase: String? = null,
 ) {
@@ -68,11 +72,11 @@ data class ServerConfig(
     val dataDirectory: Path,
     val sourcesFile: Path? = null,
     val apiToken: String? = null,
-    val maxSessions: Int = 4,
+    val maxSessions: Int = DEFAULT_MAX_SESSIONS,
     val ffmpeg: String = "ffmpeg",
-    val probeParallelism: Int = 6,
+    val probeParallelism: Int = DEFAULT_PROBE_PARALLELISM,
     val restreamOrigins: Set<String> = emptySet(),
-    val observationRetentionDays: Int = 7,
+    val observationRetentionDays: Int = DEFAULT_RETENTION_DAYS,
     val allowLoopbackUpstreams: Boolean = false,
     val adminToken: String? = null,
     val outputs: OutputConfig = OutputConfig(),
@@ -109,14 +113,14 @@ data class ServerConfig(
     /** `SOFA_TMDB_TOKEN` and `SOFA_TMDB_LANGUAGE`: TMDB lookups for the media libraries; null leaves them off. */
     val tmdb: TmdbConfig? = null,
     /** Library files FFmpeg converts or remuxes at once (`SOFA_MAX_TRANSCODES`); direct play is not counted. */
-    val maxTranscodes: Int = 2,
+    val maxTranscodes: Int = DEFAULT_MAX_TRANSCODES,
     /** `SOFA_HWACCEL` and `SOFA_HWACCEL_DEVICE`: the GPU encoder library conversions use; software when unset. */
     val videoEncoder: VideoEncoder = VideoEncoder(),
     /**
      * `SOFA_RECORDINGS_FREE_GIB`: the space the DVR keeps free on the recordings folder's disk by
      * deleting the oldest recordings.
      */
-    val recordingsFreeGib: Int = 10,
+    val recordingsFreeGib: Int = DEFAULT_RECORDINGS_FREE_GIB,
     /** `SOFA_RECORDINGS_KEEP_DAYS`: the days the DVR keeps a recording; 0 keeps it until space runs short. */
     val recordingsKeepDays: Int = 0,
     /** `SOFA_LEARNED_BREAKS`: what live sessions do with breaks the server learns from the stream itself. */
@@ -125,7 +129,7 @@ data class ServerConfig(
      * `SOFA_AD_LISTENERS`: how many channels the ad listener plays at once, at most 2 while anyone watches; 0 turns
      * it off.
      */
-    val adListeners: Int = 6,
+    val adListeners: Int = DEFAULT_AD_LISTENERS,
     /** `SOFA_COMSKIP`: the Comskip executable that finds commercial breaks in recordings; null when set to `none`. */
     val comskip: String? = "comskip",
     /** `SOFA_MDNS`: advertise the server on the LAN over mDNS, so apps find it; on by default off loopback. */
@@ -134,6 +138,37 @@ data class ServerConfig(
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
         const val DEFAULT_UPDATE_IMAGE = "ghcr.io/jamesarich/sofa-king:main"
+
+        // The defaults of the numeric variables, and the values each accepts.
+        const val DEFAULT_PORT = 8080
+        const val DEFAULT_MAX_SESSIONS = 4
+        const val DEFAULT_PROBE_PARALLELISM = 6
+        const val DEFAULT_RETENTION_DAYS = 7
+        const val DEFAULT_GUIDE_DAYS = 3
+        const val DEFAULT_RECORDINGS_FREE_GIB = 10
+        const val DEFAULT_AD_LISTENERS = 6
+        const val DEFAULT_TUNERS = 2
+        const val DEFAULT_MAX_TRANSCODES = 2
+        const val DEFAULT_PLEX_SYNC_MINUTES = 60
+        internal val PORT_RANGE = 1..65_535
+        internal val MAX_SESSIONS_RANGE = 1..16
+        internal val PROBE_PARALLELISM_RANGE = 1..32
+        internal val RETENTION_DAYS_RANGE = 1..3650
+        internal val GUIDE_DAYS_RANGE = 1..14
+        internal val RECORDINGS_FREE_GIB_RANGE = 0..100_000
+        internal val RECORDINGS_KEEP_DAYS_RANGE = 0..3650
+        internal val AD_LISTENERS_RANGE = 0..24
+        internal val DEVICE_SIZE_RANGE = 1..5000
+        internal val MAX_TRANSCODES_RANGE = 1..8
+        internal val PLEX_SYNC_MINUTES_RANGE = 5..1440
+
+        /** The shortest token the server accepts, and the shortest Plex token. */
+        internal const val TOKEN_MIN_LENGTH = 32
+        private const val PLEX_TOKEN_MIN_LENGTH = 8
+
+        /** The longest name Plex shows for a device, and the most devices beside the first. */
+        private const val DEVICE_NAME_LIMIT = 64
+        private const val EXTRA_PORTS_LIMIT = 7
 
         /** Where earlier images kept the database; a database there and none in the data directory stops the start. */
         private val LEGACY_DATA_DIRECTORY: Path = Path.of("/data")
@@ -259,16 +294,16 @@ data class ServerConfig(
         fun fromEnvironment(environment: Map<String, String>, requireToken: Boolean = true): ServerConfig {
             val host = environment["SOFA_HOST"] ?: "127.0.0.1"
             require(host.isNotBlank()) { "SOFA_HOST must not be blank" }
-            val port = (environment["SOFA_PORT"] ?: "8080").toIntOrNull()
-            require(port != null && port in 1..65535) { "SOFA_PORT must be between 1 and 65535" }
+            val port = number(environment, "SOFA_PORT", DEFAULT_PORT, PORT_RANGE)
             val directory = environment["SOFA_DATA_DIR"] ?: "data"
             require(directory.isNotBlank()) { "SOFA_DATA_DIR must not be blank" }
             val token = environment["SOFA_API_TOKEN"]
-            require(token == null || token.length >= 32) { "SOFA_API_TOKEN must contain at least 32 characters" }
+            require(token == null || token.length >= TOKEN_MIN_LENGTH) {
+                "SOFA_API_TOKEN must contain at least $TOKEN_MIN_LENGTH characters"
+            }
             val loopbackBind = isLoopback(host)
             require(loopbackBind || token != null || !requireToken) { "Non-loopback binding requires SOFA_API_TOKEN" }
-            val capacity = (environment["SOFA_MAX_SESSIONS"] ?: "4").toIntOrNull()
-            require(capacity != null && capacity in 1..16) { "SOFA_MAX_SESSIONS must be between 1 and 16" }
+            val capacity = number(environment, "SOFA_MAX_SESSIONS", DEFAULT_MAX_SESSIONS, MAX_SESSIONS_RANGE)
             val sources = environment["SOFA_SOURCES"]?.let {
                 require(it.isNotBlank())
                 Path.of(it)
@@ -277,8 +312,8 @@ data class ServerConfig(
                 require(it.isNotBlank()) { "SOFA_POLICY must not be blank" }
                 Path.of(it)
             }
-            val parallelism = (environment["SOFA_PROBE_PARALLELISM"] ?: "6").toIntOrNull()
-            require(parallelism != null && parallelism in 1..32) { "SOFA_PROBE_PARALLELISM must be between 1 and 32" }
+            val parallelism =
+                number(environment, "SOFA_PROBE_PARALLELISM", DEFAULT_PROBE_PARALLELISM, PROBE_PARALLELISM_RANGE)
             val origins =
                 environment["SOFA_RESTREAM_ORIGINS"].orEmpty().split(',').map {
                     it.trim().lowercase()
@@ -288,40 +323,36 @@ data class ServerConfig(
                     it.matches(Regex("[a-z0-9.\\-\\[\\]:]+"))
                 },
             ) { "SOFA_RESTREAM_ORIGINS entries must be host or host:port" }
-            val retention = (environment["SOFA_OBSERVATION_RETENTION_DAYS"] ?: "7").toIntOrNull()
-            require(retention != null && retention in 1..3650) {
-                "SOFA_OBSERVATION_RETENTION_DAYS must be between 1 and 3650"
-            }
+            val retention =
+                number(environment, "SOFA_OBSERVATION_RETENTION_DAYS", DEFAULT_RETENTION_DAYS, RETENTION_DAYS_RANGE)
             val adminToken = environment["SOFA_ADMIN_TOKEN"]
-            require(adminToken == null || adminToken.length >= 32) {
-                "SOFA_ADMIN_TOKEN must contain at least 32 characters"
+            require(adminToken == null || adminToken.length >= TOKEN_MIN_LENGTH) {
+                "SOFA_ADMIN_TOKEN must contain at least $TOKEN_MIN_LENGTH characters"
             }
             val loopback = flag(environment, "SOFA_ALLOW_LOOPBACK_UPSTREAMS", false)
             val outputToken = environment["SOFA_OUTPUT_TOKEN"]
             require(
                 outputToken == null ||
-                    (outputToken.length >= 32 && outputToken.all { it.isLetterOrDigit() || it == '-' || it == '_' }),
+                    (
+                        outputToken.length >= TOKEN_MIN_LENGTH &&
+                            outputToken.all { it.isLetterOrDigit() || it == '-' || it == '_' }
+                        ),
             ) {
-                "SOFA_OUTPUT_TOKEN must contain at least 32 letters, digits, hyphens or underscores"
+                "SOFA_OUTPUT_TOKEN must contain at least $TOKEN_MIN_LENGTH letters, digits, hyphens or underscores"
             }
-            val guideDays = (environment["SOFA_XMLTV_DAYS"] ?: "3").toIntOrNull()
-            require(guideDays != null && guideDays in 1..14) { "SOFA_XMLTV_DAYS must be between 1 and 14" }
-            val freeGib = (environment["SOFA_RECORDINGS_FREE_GIB"] ?: "10").toIntOrNull()
-            require(freeGib != null && freeGib in 0..100_000) {
-                "SOFA_RECORDINGS_FREE_GIB must be between 0 and 100000"
-            }
-            val keepDays = (environment["SOFA_RECORDINGS_KEEP_DAYS"] ?: "0").toIntOrNull()
-            require(keepDays != null && keepDays in 0..3650) { "SOFA_RECORDINGS_KEEP_DAYS must be between 0 and 3650" }
+            val guideDays = number(environment, "SOFA_XMLTV_DAYS", DEFAULT_GUIDE_DAYS, GUIDE_DAYS_RANGE)
+            val freeGib =
+                number(environment, "SOFA_RECORDINGS_FREE_GIB", DEFAULT_RECORDINGS_FREE_GIB, RECORDINGS_FREE_GIB_RANGE)
+            val keepDays = number(environment, "SOFA_RECORDINGS_KEEP_DAYS", 0, RECORDINGS_KEEP_DAYS_RANGE)
             val learnedBreaks = LearnedBreaks.of(environment["SOFA_LEARNED_BREAKS"] ?: "shadow")
                 ?: throw IllegalArgumentException("SOFA_LEARNED_BREAKS must be one of off, shadow, on")
-            val adListeners = (environment["SOFA_AD_LISTENERS"] ?: "6").toIntOrNull()
-            require(adListeners != null && adListeners in 0..24) { "SOFA_AD_LISTENERS must be between 0 and 24" }
+            val adListeners = number(environment, "SOFA_AD_LISTENERS", DEFAULT_AD_LISTENERS, AD_LISTENERS_RANGE)
             val comskip = (environment["SOFA_COMSKIP"] ?: "comskip").trim()
             require(comskip.isNotEmpty()) {
                 "SOFA_COMSKIP must not be blank; set it to none to turn commercial detection off"
             }
             val hdhrEnabled = flag(environment, "SOFA_HDHR_ENABLED", true)
-            val tuners = (environment["SOFA_HDHR_TUNERS"] ?: "2").toIntOrNull()
+            val tuners = (environment["SOFA_HDHR_TUNERS"] ?: DEFAULT_TUNERS.toString()).toIntOrNull()
             require(tuners != null && tuners in 1..capacity) {
                 "SOFA_HDHR_TUNERS must be between 1 and SOFA_MAX_SESSIONS"
             }
@@ -331,10 +362,10 @@ data class ServerConfig(
             }
             val friendlyName = environment["SOFA_HDHR_NAME"] ?: "Sofa King"
             require(
-                friendlyName.isNotBlank() && friendlyName.length <= 64 && friendlyName.none {
+                friendlyName.isNotBlank() && friendlyName.length <= DEVICE_NAME_LIMIT && friendlyName.none {
                     it < ' '
                 },
-            ) { "SOFA_HDHR_NAME must be 1 to 64 printable characters" }
+            ) { "SOFA_HDHR_NAME must be 1 to $DEVICE_NAME_LIMIT printable characters" }
             val allow = environment["SOFA_HDHR_ALLOW"].orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
             AddressAllowList(allow)
             val extraPorts = environment["SOFA_HDHR_EXTRA_PORTS"].orEmpty().split(',').map {
@@ -344,14 +375,14 @@ data class ServerConfig(
                     ?: 0
             }
             require(
-                extraPorts.all { it in 1..65535 } && extraPorts.distinct().size == extraPorts.size &&
+                extraPorts.all { it in PORT_RANGE } && extraPorts.distinct().size == extraPorts.size &&
                     port !in extraPorts &&
-                    extraPorts.size <= 7,
+                    extraPorts.size <= EXTRA_PORTS_LIMIT,
             ) {
-                "SOFA_HDHR_EXTRA_PORTS must list up to 7 distinct ports other than SOFA_PORT"
+                "SOFA_HDHR_EXTRA_PORTS must list up to $EXTRA_PORTS_LIMIT distinct ports other than SOFA_PORT"
             }
-            val deviceSize = (environment["SOFA_HDHR_DEVICE_SIZE"] ?: "250").toIntOrNull()
-            require(deviceSize != null && deviceSize in 1..5000) { "SOFA_HDHR_DEVICE_SIZE must be between 1 and 5000" }
+            val deviceSize =
+                number(environment, "SOFA_HDHR_DEVICE_SIZE", HdhrConfig.DEFAULT_DEVICE_SIZE, DEVICE_SIZE_RANGE)
             val publicPorts = environment["SOFA_HDHR_PUBLIC_PORTS"].orEmpty().split(',').map {
                 it.trim()
             }.filter { it.isNotEmpty() }.map {
@@ -360,7 +391,7 @@ data class ServerConfig(
             }
             require(
                 publicPorts.isEmpty() || (
-                    publicPorts.size == 1 + extraPorts.size && publicPorts.all { it in 1..65535 } &&
+                    publicPorts.size == 1 + extraPorts.size && publicPorts.all { it in PORT_RANGE } &&
                         publicPorts.distinct().size == publicPorts.size
                     ),
             ) {
@@ -406,8 +437,12 @@ data class ServerConfig(
                 }
                     ?: Path.of(directory).resolve("media"),
                 tmdb = tmdbConfig(environment),
-                maxTranscodes = (environment["SOFA_MAX_TRANSCODES"] ?: "2").toIntOrNull()?.takeIf { it in 1..8 }
-                    ?: throw IllegalArgumentException("SOFA_MAX_TRANSCODES must be between 1 and 8"),
+                maxTranscodes = number(
+                    environment,
+                    "SOFA_MAX_TRANSCODES",
+                    DEFAULT_MAX_TRANSCODES,
+                    MAX_TRANSCODES_RANGE,
+                ),
                 videoEncoder = VideoEncoder(
                     HardwareAccel.parse(environment["SOFA_HWACCEL"]),
                     environment["SOFA_HWACCEL_DEVICE"]?.trim()?.ifEmpty { null } ?: VideoEncoder.DEFAULT_DEVICE,
@@ -444,7 +479,7 @@ data class ServerConfig(
             }
             val token = environment["SOFA_TMDB_TOKEN"]?.trim()?.takeIf { it.isNotEmpty() } ?: return null
             require(
-                token.length >= 32 && token.none {
+                token.length >= TOKEN_MIN_LENGTH && token.none {
                     it <= ' ' || it == '\u007f'
                 },
             ) { "SOFA_TMDB_TOKEN must be a TMDB API read access token or API key" }
@@ -458,12 +493,12 @@ data class ServerConfig(
             if (url == null || token == null) return null
             require(hdhrEnabled) { "SOFA_PLEX_URL requires SOFA_HDHR_ENABLED" }
             require(
-                token.length >= 8 && token.none {
+                token.length >= PLEX_TOKEN_MIN_LENGTH && token.none {
                     it <= ' ' || it == '\u007f'
                 },
-            ) { "SOFA_PLEX_TOKEN must contain at least 8 printable characters without spaces" }
-            val minutes = (environment["SOFA_PLEX_SYNC_MINUTES"] ?: "60").toIntOrNull()
-            require(minutes != null && minutes in 5..1440) { "SOFA_PLEX_SYNC_MINUTES must be between 5 and 1440" }
+            ) { "SOFA_PLEX_TOKEN must contain at least $PLEX_TOKEN_MIN_LENGTH printable characters without spaces" }
+            val minutes =
+                number(environment, "SOFA_PLEX_SYNC_MINUTES", DEFAULT_PLEX_SYNC_MINUTES, PLEX_SYNC_MINUTES_RANGE)
             val base = environment["SOFA_PLEX_TUNER_BASE"]?.let { origin(it, "SOFA_PLEX_TUNER_BASE", withPort = false) }
             return PlexConfig(origin(url, "SOFA_PLEX_URL", withPort = true), token, minutes, base)
         }
@@ -480,6 +515,13 @@ data class ServerConfig(
                 if (withPort) "$name must be http(s)://host[:port]" else "$name must be http(s)://host without a port"
             }
             return "${uri.scheme.lowercase()}://${uri.rawAuthority}"
+        }
+
+        /** [name]'s whole number, [default] when it is unset; one outside [range] stops the start. */
+        private fun number(environment: Map<String, String>, name: String, default: Int, range: IntRange): Int {
+            val value = (environment[name] ?: default.toString()).toIntOrNull()
+            require(value != null && value in range) { "$name must be between ${range.first} and ${range.last}" }
+            return value
         }
 
         private fun flag(environment: Map<String, String>, name: String, default: Boolean): Boolean {

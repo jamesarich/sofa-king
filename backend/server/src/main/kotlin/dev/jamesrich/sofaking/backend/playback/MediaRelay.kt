@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.playback
 
+import dev.jamesrich.sofaking.backend.MIB
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.Offering
@@ -18,6 +19,7 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.request
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.plugins.origin
 import io.ktor.server.response.header
@@ -52,7 +54,7 @@ class MediaRelay(
     private val audio: SegmentAudio? = null,
 ) {
     /** Upstream requests in flight across the server, players' and FFmpeg's through [LoopbackRelay] alike. */
-    internal val permits = Semaphore(32)
+    internal val permits = Semaphore(UPSTREAM_REQUESTS)
 
     private companion object {
         val DIRECTIVE_VALUE = Regex("[A-Za-z0-9_,]{1,32}")
@@ -75,13 +77,13 @@ class MediaRelay(
                     )
                 ) {
                     throw ApiFailure(
-                        410,
+                        HttpStatusCode.Gone,
                         Wire.ErrorCode.STREAM_CHANGED,
                         "The source failed; fetch the current session descriptor",
                         true,
                     )
                 }
-                throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
+                throw ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
             }
             if (resource.shared) {
                 serveShared(
@@ -118,7 +120,7 @@ class MediaRelay(
     private suspend fun protocolMismatch(id: String, epoch: Int, job: Job, protocol: String): Nothing {
         sessions.protocolObserved(id, epoch, protocol, job)
         throw ApiFailure(
-            410,
+            HttpStatusCode.Gone,
             Wire.ErrorCode.STREAM_CHANGED,
             "Stream protocol changed; fetch the current session descriptor",
             true,
@@ -139,7 +141,7 @@ class MediaRelay(
                     unbounded = true,
                     policy = feeds.upstream,
                 ) { response ->
-                    if (response.status.value != 200) throw UpstreamStatusException(response.status.value)
+                    if (response.status != HttpStatusCode.OK) throw UpstreamStatusException(response.status.value)
                     consume(response.bodyAsChannel())
                 }
             }
@@ -163,7 +165,7 @@ class MediaRelay(
                 // The session let this request go before the stream started (released, retuned, or replaced by the
                 // player's next request); that cancels the wait, and is not the upstream's failure.
                 if (!job.isActive) throw withContext(NonCancellable) { sessions.letGo(id) }
-                throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
+                throw ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
             }
             call.response.header(HttpHeaders.CacheControl, "no-store")
             call.respondBytesWriter(contentType = ContentType.parse("video/mp2t")) {
@@ -223,6 +225,9 @@ class MediaRelay(
 /** How much of a segment read for cues passes through at a time. */
 private const val SEGMENT_READ = 64 * 1024
 
+/** The most an HLS manifest may hold, as sent and once inflated. */
+private const val MANIFEST_LIMIT = 2 * MIB
+
 /** The most of a segment kept for [TappedSegment.bytes]; a longer one is not kept. */
 private const val SEGMENT_KEEP_LIMIT = 32 * 1024 * 1024
 
@@ -254,7 +259,11 @@ internal suspend fun relayResource(
     stream: ResolvedStream,
     path: suspend (String) -> String,
     sent: (Long) -> Unit = {},
-    refused: (Int) -> Nothing = { throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true) },
+    refused: (
+        Int,
+    ) -> Nothing = {
+        throw ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
+    },
     sniffed: suspend (String?) -> Unit = {},
     manifest: (String, URI) -> String = { text, _ -> text },
     tap: ((TappedSegment) -> Unit)? = null,
@@ -286,9 +295,12 @@ internal suspend fun relayResource(
                     )
         call.response.header(HttpHeaders.CacheControl, "no-store")
         if (manifest) {
-            val raw = head + body.readBuffer(2_097_153L - head.size).readByteArray()
-            if (raw.size > 2_097_152) throw ApiFailure(502, "INVALID_MANIFEST", "Manifest too large")
-            val bytes = if (isGzip(raw)) inflateHead(raw, 2_097_152) else raw
+            // One byte past the limit tells a manifest at the limit from one too large.
+            val raw = head + body.readBuffer(MANIFEST_LIMIT + 1L - head.size).readByteArray()
+            if (raw.size > MANIFEST_LIMIT) {
+                throw ApiFailure(HttpStatusCode.BadGateway, "INVALID_MANIFEST", "Manifest too large")
+            }
+            val bytes = if (isGzip(raw)) inflateHead(raw, MANIFEST_LIMIT) else raw
             val source = URI(response.request.url.toString())
             val rewritten = HlsRewriter.rewrite(manifest(bytes.toString(Charsets.UTF_8), source), source, path)
             sent(rewritten.length.toLong())
@@ -307,7 +319,12 @@ internal suspend fun relayResource(
             if (encoded) {
                 val raw = head + body.readBuffer(ENCODED_LIMIT + 1L - head.size).readByteArray()
                 if (raw.size > ENCODED_LIMIT) {
-                    throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Encoded resource too large", true)
+                    throw ApiFailure(
+                        HttpStatusCode.BadGateway,
+                        "UPSTREAM_UNAVAILABLE",
+                        "Encoded resource too large",
+                        true,
+                    )
                 }
                 val plain = if (isGzip(raw)) inflateHead(raw, ENCODED_LIMIT * 8) else raw
                 sent(plain.size.toLong())

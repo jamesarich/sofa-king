@@ -16,7 +16,7 @@ import java.nio.ByteOrder
 
 /** The stored fingerprints, intros and credits of [itemIds], by item id. */
 suspend fun BackendStore.libraryIntros(itemIds: Collection<String>): Map<String, IntroRecord> = read {
-    itemIds.chunked(500).flatMap { chunk ->
+    itemIds.chunked(ROW_CHUNK).flatMap { chunk ->
         LibraryIntroRows.selectAll().where {
             LibraryIntroRows.itemId inList chunk
         }.map { it.intro(withFingerprint = true) }
@@ -99,7 +99,9 @@ private fun ResultRow.intro(withFingerprint: Boolean): IntroRecord {
 
 /** Chromaprint's points as little-endian 32-bit words, as FFmpeg writes them. */
 internal fun bytes(points: IntArray): ByteArray =
-    ByteBuffer.allocate(points.size * 4).order(ByteOrder.LITTLE_ENDIAN).apply { asIntBuffer().put(points) }.array()
+    ByteBuffer.allocate(points.size * Int.SIZE_BYTES).order(ByteOrder.LITTLE_ENDIAN).apply {
+        asIntBuffer().put(points)
+    }.array()
 
 internal fun points(bytes: ByteArray): IntArray {
     val words = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer()

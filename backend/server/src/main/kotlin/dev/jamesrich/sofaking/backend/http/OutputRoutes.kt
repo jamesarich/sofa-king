@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.contract.PlaybackSession
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.withCharset
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.plugins.origin
@@ -60,7 +61,7 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
             authorizeOutput(call, config.token, apiToken)
             val days = call.request.queryParameters["days"]?.let { raw ->
                 raw.toIntOrNull()?.takeIf { it in 1..14 }
-                    ?: throw ApiFailure(400, "INVALID_QUERY", "days must be between 1 and 14")
+                    ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_QUERY", "days must be between 1 and 14")
             } ?: runtime.settings.current.guideDays
             val now = clock.instant()
             val from = now.minus(Duration.ofHours(3))
@@ -102,7 +103,7 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
             val id = call.parameters["id"]!!.substringBefore('.')
             val entry =
                 runtime.lineup.entry(id)?.takeIf { it.enabled }
-                    ?: throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel")
+                    ?: throw ApiFailure(HttpStatusCode.NotFound, "CHANNEL_NOT_FOUND", "Unknown channel")
             val base = publicBase(call)
             serveExternal(call, runtime, entry.id, shareHls = true) { session ->
                 call.respondRedirect(base + session.descriptor.url)
@@ -166,7 +167,11 @@ internal suspend fun serveExternal(
 internal fun authorizeOutput(call: ApplicationCall, outputToken: String?, apiToken: String?) {
     if (outputToken == null && apiToken == null) {
         if (call.request.fromThisMachine()) return
-        throw ApiFailure(403, "LOOPBACK_ONLY", "Without a token the outputs answer only this machine")
+        throw ApiFailure(
+            HttpStatusCode.Forbidden,
+            "LOOPBACK_ONLY",
+            "Without a token the outputs answer only this machine",
+        )
     }
     val bearer = call.request.headers[HttpHeaders.Authorization]?.takeIf {
         it.startsWith("Bearer ")
@@ -177,7 +182,7 @@ internal fun authorizeOutput(call: ApplicationCall, outputToken: String?, apiTok
             (apiToken != null && sameSecret(bearer, apiToken))
     if (!authorized) {
         call.authFailed()
-        throw ApiFailure(401, "AUTH_REQUIRED", "Output token required")
+        throw ApiFailure(HttpStatusCode.Unauthorized, "AUTH_REQUIRED", "Output token required")
     }
 }
 

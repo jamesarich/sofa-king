@@ -159,7 +159,7 @@ class PolicyApplyTest {
                 assertEquals(
                     listOf("fixture", "alt", "twin"),
                     entries.first().offeringIds.map {
-                        runtime.feeds.offering(it)!!.providerId
+                        runtime.feeds.published.offering(it)!!.providerId
                     },
                 )
 
@@ -301,7 +301,9 @@ class PolicyApplyTest {
     @Test fun `PATCH and DELETE on a lineup entry write the station override and apply`() = testApplication {
         withPolicy {
             runtime.policy!!.apply("test")
-            val fixtureOffering = runtime.feeds.offeringsOf(runtime.feeds.channels("fixture").single().id).single().id
+            val fixtureOffering = runtime.feeds.published.offeringsOf(
+                runtime.feeds.published.channels("fixture").single().id,
+            ).single().id
             val patched = client.patch("/api/v1/admin/lineup/${stationId("station")}") {
                 asAdmin()
                 setBody(
@@ -469,7 +471,7 @@ class PolicyApplyTest {
                 assertEquals(
                     listOf("learn", "learn2"),
                     entries.getValue("30").offeringIds.map {
-                        runtime.feeds.offering(it)!!.providerId
+                        runtime.feeds.published.offering(it)!!.providerId
                     },
                 )
 

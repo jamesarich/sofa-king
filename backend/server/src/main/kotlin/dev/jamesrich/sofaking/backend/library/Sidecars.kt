@@ -8,6 +8,9 @@ import java.nio.file.Path
 /** Where the indexes of subtitle files beside a video start, after any stream index a file has. */
 internal const val SIDECAR_BASE = 1000
 
+/** ISO 639-1 and 639-2 codes. */
+private val LANGUAGE_CODE_LENGTHS = 2..3
+
 /** A subtitle file's codec by extension: text that FFmpeg reads, or pictures (`.sup` for PGS, `.idx` for VobSub). */
 private val SIDECAR_CODECS = mapOf(
     "srt" to "subrip",
@@ -78,7 +81,7 @@ internal fun sidecarStream(index: Int, suffix: String): SubtitleStream {
 
             language == null && word in LANGUAGE_NAMES -> language = LANGUAGE_NAMES.getValue(word)
 
-            language == null && (word.length == 2 || word.length == 3) && word.all { it in 'a'..'z' } -> language = word
+            language == null && word.length in LANGUAGE_CODE_LENGTHS && word.all { it in 'a'..'z' } -> language = word
 
             // A region such as `pt-BR` keeps its language.
             language == null && REGIONAL.matches(word) -> language = word.substringBefore('-')

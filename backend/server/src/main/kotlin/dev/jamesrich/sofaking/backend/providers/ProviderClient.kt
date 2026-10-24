@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import dev.jamesrich.sofaking.backend.catalog.ProgramRating
 import java.net.URLEncoder
@@ -138,9 +139,37 @@ internal fun usRating(value: String?): ProgramRating? {
 internal const val BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like " +
     "Gecko) Chrome/148.0.0.0 Safari/537.36"
 
+/**
+ * What [find] finds in the listing cached under [key], reading the listing again once when it finds nothing, as for a
+ * channel added since the last read. Still nothing fails permanently with [missing].
+ */
+internal suspend fun <T : Any> ProviderContext.findListed(
+    key: String,
+    missing: String = "Channel is no longer listed",
+    find: suspend () -> T?,
+): T = find() ?: run {
+    invalidate(key)
+    find()
+} ?: throw ProviderFailure(missing, transient = false)
+
 /** An ISO-8601 instant, or null for anything else. */
 internal fun instantOrNull(value: String): Instant? = try {
     Instant.parse(value)
 } catch (_: Exception) {
     null
+}
+
+/**
+ * A program on [channelId] from [start] to [end] titled [title]; null when one of them is missing or it does not end
+ * after it starts.
+ */
+internal fun guideProgram(
+    channelId: String,
+    start: Instant?,
+    end: Instant?,
+    title: String?,
+    description: String? = null,
+): GuideProgram? {
+    if (start == null || end == null || title == null) return null
+    return if (end > start) GuideProgram(channelId, start, end, title, description) else null
 }

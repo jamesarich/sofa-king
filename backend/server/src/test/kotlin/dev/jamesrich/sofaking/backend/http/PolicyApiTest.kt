@@ -115,11 +115,13 @@ class PolicyApiTest {
                 )
                 assertEquals("Local", explained.station?.group)
                 assertEquals("5", explained.station?.number, "the provider number is free")
-                val alt = runtime.feeds.channels("alt").single()
+                val alt = runtime.feeds.published.channels("alt").single()
                 assertEquals(
                     listOf(
-                        runtime.feeds.offeringsOf(alt.id).single().id,
-                        runtime.feeds.offeringsOf(runtime.feeds.channels("fixture").single().id).single().id,
+                        runtime.feeds.published.offeringsOf(alt.id).single().id,
+                        runtime.feeds.published.offeringsOf(
+                            runtime.feeds.published.channels("fixture").single().id,
+                        ).single().id,
                     ),
                     explained.station?.offeringIds,
                 )

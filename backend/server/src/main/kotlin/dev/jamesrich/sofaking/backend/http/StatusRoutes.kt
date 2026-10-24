@@ -40,8 +40,8 @@ internal suspend fun serverStatus(runtime: LiveRuntime, clock: Clock, revision: 
             }.eachCount().toSortedMap(),
             sources.count { it.manuallyDisabled },
         ),
-        providers = imports(runtime.feeds.providers().map { Import(it.id, it.lastSuccessAt, it.errorCode) }),
-        guides = imports(runtime.guides.statuses().map { Import(it.id, it.lastSuccessAt, it.errorCode) }),
+        providers = imports(runtime.feeds.statuses.map { Import(it.id, it.lastSuccessAt, it.errorCode) }),
+        guides = imports(runtime.guides.statuses.map { Import(it.id, it.lastSuccessAt, it.errorCode) }),
         policy = policy?.let { service ->
             val last = service.lastApplied()?.result
             StatusPolicy(service.document().revision, last?.appliedAt, last?.changed)

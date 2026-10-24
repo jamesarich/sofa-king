@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.catalog
 
+import dev.jamesrich.sofaking.backend.KIB
 import dev.jamesrich.sofaking.contract.Channel
 import java.io.ByteArrayInputStream
 import java.io.FilterInputStream
@@ -66,7 +67,7 @@ private class ControlCharacterStrippingInputStream(input: InputStream) : FilterI
         while (true) {
             val count = read(one, 0, 1)
             if (count < 0) return -1
-            if (count == 1) return one[0].toInt() and 0xff
+            if (count == 1) return one[0].toInt() and BYTE_MASK
         }
     }
 
@@ -97,10 +98,10 @@ private class ControlCharacterStrippingInputStream(input: InputStream) : FilterI
 
     /** The parser reads the prolog a byte at a time, so the decision needs its own read-ahead. */
     private fun sniff(): ByteArray {
-        val bytes = ByteArray(4)
+        val bytes = ByteArray(SNIFF_BYTES)
         var read = 0
-        while (read < 4) {
-            val count = super.read(bytes, read, 4 - read)
+        while (read < SNIFF_BYTES) {
+            val count = super.read(bytes, read, SNIFF_BYTES - read)
             if (count < 0) break
             read += count
         }
@@ -115,7 +116,8 @@ private class ControlCharacterStrippingInputStream(input: InputStream) : FilterI
         return first
     }
 
-    private fun forbidden(byte: Int) = byte < 0x20 && byte != 0x09 && byte != 0x0a && byte != 0x0d
+    /** The C0 controls XML 1.0 forbids: all below a space but tab, line feed and carriage return. */
+    private fun forbidden(byte: Int) = byte < ' '.code && byte != '\t'.code && byte != '\n'.code && byte != '\r'.code
 }
 
 /** Fails once more than [limit] decompressed bytes have been read, so a hostile guide cannot run unbounded. */
@@ -137,8 +139,6 @@ private class BoundedInputStream(input: InputStream, private val limit: Long) : 
 }
 
 object FeedParser {
-    private val attribute = Regex("([\\w-]+)=\"([^\"]*)\"")
-
     fun playlist(
         provider: String,
         text: String,
@@ -146,100 +146,7 @@ object FeedParser {
         renewable: Set<String> = DEFAULT_RENEWABLE_QUERY,
         /** The playlist's own URL; relative `tvg-logo` references resolve against it. */
         baseUrl: String? = null,
-    ): ParsedPlaylist {
-        require(text.trimStart('\uFEFF', ' ', '\r', '\n').startsWith("#EXTM3U")) { "Not an extended M3U playlist" }
-        val channels = linkedMapOf<String, Channel>()
-        val offerings = mutableListOf<Offering>()
-        val offeringIds = HashSet<String>()
-        val skipped = sortedMapOf<String, Int>()
-        val notes = sortedMapOf<String, Int>()
-        fun skip(reason: String) {
-            skipped.merge(reason, 1, Int::plus)
-        }
-        fun note(reason: String) {
-            notes.merge(reason, 1, Int::plus)
-        }
-        var info: String? = null
-        for (raw in text.lineSequence()) {
-            val line = raw.trim()
-            if (line.startsWith("#EXTINF:")) {
-                info = line
-                continue
-            }
-            if (line.isBlank() || line.startsWith('#')) continue
-            val metadata = info
-            info = null
-            if (metadata == null) {
-                skip("no-extinf")
-                continue
-            }
-            val uri =
-                try {
-                    httpUri(line)
-                } catch (_: Exception) {
-                    skip("invalid-url")
-                    continue
-                }
-            val attrs = attribute.findAll(metadata).associate { it.groupValues[1] to it.groupValues[2] }
-            // Use the comma outside quoted attributes, preserving commas in station names.
-            var quoted = false
-            val split =
-                metadata.indexOfFirst { c ->
-                    if (c == '"') quoted = !quoted
-                    c == ',' && !quoted
-                }
-            val name = if (split < 0) {
-                ""
-            } else {
-                metadata.substring(split + 1).trim().ifBlank { attrs["tvg-name"].orEmpty() }
-            }
-            if (name.isBlank()) {
-                skip("missing-name")
-                continue
-            }
-            val protocol =
-                attrs["stream-type"] ?: defaultProtocol ?: if (uri.path.endsWith(".m3u8", true)) "hls" else "mpegts"
-            if (protocol !in setOf("hls", "mpegts")) {
-                skip("bad-protocol")
-                continue
-            }
-            val sourceKey = attrs["stream-id"] ?: checkNotNull(sourceKey(line, renewable))
-            val published = attrs["channel-id"] ?: attrs["tvg-id"]?.takeIf { it.isNotBlank() } ?: attrs["channel-uuid"]
-            // An entry without a published identity is its own channel, keyed by its URL; the name is display only.
-            val key = published ?: "url\u0000$sourceKey"
-            val id =
-                try {
-                    attrs["channel-uuid"]?.let { java.util.UUID.fromString(it).toString() }
-                        ?: stableId("channel:$provider:$key")
-                } catch (_: IllegalArgumentException) {
-                    skip("invalid-uuid")
-                    continue
-                }
-            val channel =
-                Channel(
-                    id,
-                    attrs["tvg-chno"] ?: attrs["channel-number"] ?: published ?: id.take(8),
-                    name,
-                    normalizeLogoUrl(attrs["tvg-logo"], baseUrl),
-                    attrs["group-title"]?.takeIf(String::isNotBlank)?.let(::listOf).orEmpty(),
-                    attrs["tvg-id"],
-                )
-            val offeringId = stableId("offering:$provider:$key:$sourceKey")
-            if (!offeringIds.add(offeringId)) {
-                skip("duplicate-source")
-                continue
-            }
-            if (published == null) note("url-identity")
-            // Multiple URLs with one exact provider key are alternatives of the first entry, never fuzzy name merges.
-            if (channels[id]?.let { it.name == name && it.displayNumber == channel.displayNumber } == false) {
-                note("merged-key")
-            }
-            channels.putIfAbsent(id, channel)
-            offerings += Offering(offeringId, id, provider, line, protocol)
-            require(channels.size <= 10_000 && offerings.size <= 20_000) { "Playlist exceeds import limits" }
-        }
-        return ParsedPlaylist(channels.values.toList(), offerings, skipped, notes)
-    }
+    ): ParsedPlaylist = PlaylistReader(provider, defaultProtocol, renewable, baseUrl).read(text)
 
     /**
      * Parses XMLTV from [input] (plain or gzip), keeping only programs whose channel [wanted] accepts.
@@ -262,228 +169,16 @@ object FeedParser {
             }
         val stripped = ControlCharacterStrippingInputStream(BoundedInputStream(decompressed(input), GUIDE_BYTE_LIMIT))
         val reader = factory.createXMLStreamReader(stripped)
-        val channels = linkedMapOf<String, GuideChannel>()
-        val seen = HashSet<String>()
-        val programs = ArrayList<GuideProgram>()
-        val keys = HashSet<String>()
-        try {
-            var root = false
-            while (reader.hasNext()) {
-                when (reader.next()) {
-                    XMLStreamConstants.START_ELEMENT -> {
-                        if (!root) {
-                            require(reader.localName == "tv") { "Not XMLTV" }
-                            root = true
-                            continue
-                        }
-                        when (reader.localName) {
-                            "channel" -> {
-                                val id = reader.getAttributeValue(null, "id")?.trim()
-                                var name: String? = null
-                                var icon: String? = null
-                                while (reader.hasNext()) {
-                                    val event = reader.next()
-                                    if (event == XMLStreamConstants.END_ELEMENT && reader.localName == "channel") break
-                                    if (event != XMLStreamConstants.START_ELEMENT) continue
-                                    when (reader.localName) {
-                                        "display-name" -> {
-                                            val text = reader.elementText.trim().take(256)
-                                            if (name == null && text.isNotEmpty()) name = text
-                                        }
-
-                                        "icon" -> if (icon == null) {
-                                            icon =
-                                                normalizeLogoUrl(reader.getAttributeValue(null, "src"), baseUrl)
-                                        }
-                                    }
-                                }
-                                if (!id.isNullOrEmpty()) channels.putIfAbsent(id, GuideChannel(id, name ?: id, icon))
-                                require(channels.size <= GUIDE_CHANNEL_LIMIT) { "Guide exceeds import limits" }
-                            }
-
-                            "programme" -> {
-                                val channel = reader.getAttributeValue(null, "channel")?.trim().orEmpty()
-                                val start = reader.getAttributeValue(null, "start")
-                                val stop = reader.getAttributeValue(null, "stop")
-                                val keep = channel.isNotEmpty() && wanted(channel)
-                                val read = readProgram(reader, baseUrl, keep)
-                                val title = read.title
-                                if (channel.isNotEmpty() && seen.add(channel)) {
-                                    require(seen.size <= GUIDE_CHANNEL_LIMIT) { "Guide exceeds import limits" }
-                                }
-                                if (!keep) continue
-                                val from = xmlTime(start)
-                                val to = xmlTime(stop)
-                                if (from == null || to == null) continue
-                                if (!to.isAfter(from) || title.isBlank()) continue
-                                if (!keys.add("$channel\u0000$from\u0000$to\u0000$title")) continue
-                                programs +=
-                                    read.copy(
-                                        channelId = channel,
-                                        startsAt = from,
-                                        endsAt = to,
-                                        title = title.trim(),
-                                    ).bounded()
-                                require(programs.size <= GUIDE_PROGRAM_LIMIT) { "Guide exceeds import limits" }
-                            }
-                        }
-                    }
-                }
-            }
-            require(root) { "Empty XMLTV" }
+        val (channels, programs) = try {
+            XmltvReader(reader, baseUrl, wanted).read()
         } finally {
             reader.close()
         }
-        for (id in seen) channels.putIfAbsent(id, GuideChannel(id, id))
-        return ParsedGuide(
-            channels.values.toList(),
-            programs.sortedWith(
-                compareBy({
-                    it.channelId
-                }, { it.startsAt }),
-            ),
-            stripped.dropped,
-        )
+        return ParsedGuide(channels, programs, stripped.dropped)
     }
 
     fun guide(text: String, wanted: (String) -> Boolean = { true }): ParsedGuide =
         guide(ByteArrayInputStream(text.toByteArray(Charsets.UTF_8)), wanted = wanted)
-
-    /**
-     * Reads a `<programme>`'s children up to its end tag. Only direct children count, so an `<icon>` or `<value>`
-     * inside credits or a star rating is never taken for the program's own. Without [collect] the element is only
-     * consumed. The result carries no channel or times; the caller sets them.
-     */
-    private fun readProgram(reader: XMLStreamReader, baseUrl: String?, collect: Boolean): GuideProgram {
-        var title = ""
-        var description: String? = null
-        var subTitle: String? = null
-        val numbers = ArrayList<EpisodeNumber>()
-        var icon: String? = null
-        val categories = ArrayList<String>()
-        var rating: ProgramRating? = null
-        var isNew = false
-        var previouslyShown: PreviouslyShown? = null
-        var date: String? = null
-        var titleLanguage: String? = null
-        var descLanguage: String? = null
-        var languageElement: String? = null
-        var depth = 0
-        while (reader.hasNext()) {
-            val event = reader.next()
-            if (event == XMLStreamConstants.END_ELEMENT) {
-                if (depth == 0) break
-                depth--
-                continue
-            }
-            if (event != XMLStreamConstants.START_ELEMENT) continue
-            if (depth > 0 || !collect) {
-                depth++
-                continue
-            }
-            // Each branch either reads the element through its end tag or counts it as open.
-            when (reader.localName) {
-                "title" -> {
-                    val lang = reader.getAttributeValue(null, "lang")
-                    val text = reader.elementText.take(GuideProgram.TITLE_LIMIT)
-                    if (title.isBlank()) {
-                        title = text
-                        titleLanguage = lang
-                    }
-                }
-
-                "sub-title" -> {
-                    val text = reader.elementText.take(GuideProgram.TITLE_LIMIT).trim()
-                    if (subTitle == null && text.isNotEmpty()) subTitle = text
-                }
-
-                "desc" -> {
-                    val lang = reader.getAttributeValue(null, "lang")
-                    val text = reader.elementText.take(GuideProgram.DESCRIPTION_LIMIT)
-                    if (description == null) {
-                        description = text
-                        descLanguage = lang
-                    }
-                }
-
-                "episode-num" -> {
-                    val system = reader.getAttributeValue(null, "system")?.trim()?.ifEmpty { null } ?: "onscreen"
-                    val text = reader.elementText.trim()
-                    if (numbers.size < GuideProgram.EPISODE_NUMBER_LIMIT && text.isNotEmpty() &&
-                        text.length <= GuideProgram.EPISODE_VALUE_LIMIT
-                    ) {
-                        numbers += EpisodeNumber(system.take(64), text)
-                    }
-                }
-
-                "category" -> {
-                    val text = reader.elementText.trim().take(GuideProgram.CATEGORY_LENGTH_LIMIT)
-                    if (categories.size < GuideProgram.CATEGORY_LIMIT && text.isNotEmpty()) categories += text
-                }
-
-                "date" -> {
-                    val text = reader.elementText.take(64)
-                    if (date == null) date = text
-                }
-
-                "language" -> {
-                    val text = reader.elementText.trim().take(16)
-                    if (languageElement == null && text.isNotEmpty()) languageElement = text
-                }
-
-                "rating" -> {
-                    val system = reader.getAttributeValue(null, "system")?.take(64)
-                    val value = ratingValue(reader)
-                    if (rating == null && value != null) rating = ProgramRating(value, system)
-                }
-
-                "icon" -> {
-                    if (icon == null) icon = normalizeLogoUrl(reader.getAttributeValue(null, "src"), baseUrl)
-                    depth++
-                }
-
-                "new" -> {
-                    isNew = true
-                    depth++
-                }
-
-                "previously-shown" -> {
-                    if (previouslyShown == null) {
-                        previouslyShown = PreviouslyShown(reader.getAttributeValue(null, "start")?.take(64))
-                    }
-                    depth++
-                }
-
-                else -> depth++
-            }
-        }
-        return GuideProgram(
-            "", Instant.EPOCH, Instant.EPOCH, title, description, subTitle, numbers, icon, categories, rating, isNew,
-            previouslyShown, date,
-            titleLanguage ?: descLanguage ?: languageElement,
-        )
-    }
-
-    /** The text of a `<rating>`'s direct `<value>` child, reading the rating through its end tag. */
-    private fun ratingValue(reader: XMLStreamReader): String? {
-        var value: String? = null
-        var depth = 0
-        while (reader.hasNext()) {
-            val event = reader.next()
-            if (event == XMLStreamConstants.END_ELEMENT) {
-                if (depth == 0) break
-                depth--
-                continue
-            }
-            if (event != XMLStreamConstants.START_ELEMENT) continue
-            if (depth == 0 && reader.localName == "value" && value == null) {
-                value = reader.elementText.trim().take(64).ifEmpty { null }
-            } else {
-                depth++
-            }
-        }
-        return value
-    }
 
     /** Gzip is recognized by its magic bytes, whatever the URL or content type says. */
     private fun decompressed(input: InputStream): InputStream {
@@ -497,26 +192,17 @@ object FeedParser {
         }
         if (read > 0) stream.unread(head, 0, read)
         return if (read == 2 && head[0] == 0x1f.toByte() && head[1] == 0x8b.toByte()) {
-            GZIPInputStream(stream, 65_536)
+            GZIPInputStream(stream, GZIP_BUFFER)
         } else {
             stream
         }
     }
 
     private const val GUIDE_BYTE_LIMIT = 1L shl 30
-    private const val GUIDE_CHANNEL_LIMIT = 100_000
-    private const val GUIDE_PROGRAM_LIMIT = 1_000_000
-
-    private fun xmlTime(value: String?): Instant? = try {
-        // Reject unspecified local zones; never silently shift a regional schedule.
-        OffsetDateTime
-            .parse(
-                value?.trim(),
-                DateTimeFormatter.ofPattern(
-                    "uuuuMMddHHmmss Z",
-                ).withResolverStyle(java.time.format.ResolverStyle.STRICT),
-            ).toInstant()
-    } catch (_: Exception) {
-        null
-    }
+    private const val GZIP_BUFFER = 64 * KIB
 }
+
+private const val BYTE_MASK = 0xFF
+
+/** How much of a body is read ahead to tell its encoding: enough for any byte order mark. */
+private const val SNIFF_BYTES = 4

@@ -53,6 +53,15 @@ private const val PLEX_STATUS_KEY = "plex_status"
 /** A transaction holding its connection longer than this is logged; on one writer, everything behind it waited too. */
 private const val SLOW_TRANSACTION_MS = 500L
 
+/**
+ * Keys in one `IN` list, or rows in one upsert: SQLite binds at most 32,766 variables per statement, and a library
+ * row binds dozens.
+ */
+internal const val ROW_CHUNK = 500
+
+/** How long closing waits for `PRAGMA optimize`. */
+private const val OPTIMIZE_TIMEOUT_SECONDS = 10L
+
 private val log = LoggerFactory.getLogger(BackendStore::class.java)
 
 interface IdentityStore {
@@ -199,7 +208,7 @@ class BackendStore internal constructor(
                         !decodeHealth(row[OfferingHealth.stateJson]).manuallyDisabled
                 }
             }
-            for (chunk in stale.chunked(500)) {
+            for (chunk in stale.chunked(ROW_CHUNK)) {
                 HealthObservations.deleteWhere { offeringId inList chunk }
                 ProbeAttempts.deleteWhere { offeringId inList chunk }
                 OfferingProtocols.deleteWhere { offeringId inList chunk }
@@ -427,7 +436,7 @@ class BackendStore internal constructor(
                     maxAttempts = 1
                     exec("PRAGMA optimize")
                 }
-            }.get(10, TimeUnit.SECONDS)
+            }.get(OPTIMIZE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
         } catch (_: Exception) {

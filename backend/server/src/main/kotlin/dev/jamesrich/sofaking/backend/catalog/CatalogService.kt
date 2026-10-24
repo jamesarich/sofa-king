@@ -11,6 +11,7 @@ import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.contract.GuideWindow
 import dev.jamesrich.sofaking.contract.Program
 import dev.jamesrich.sofaking.contract.Wire
+import io.ktor.http.HttpStatusCode
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -28,7 +29,7 @@ class CatalogService(
      */
     suspend fun catalogRevision(): String {
         val now = clock.instant()
-        val coverage = guides.coverage()
+        val coverage = guides.coverage
         val current = buildString {
             for (entry in lineup.entries()) {
                 val end = entry.guide?.let { coverage[it.guideId]?.get(it.channelId) }
@@ -44,14 +45,16 @@ class CatalogService(
             }
         }
         return hash(
-            "${lineup.revision()}:${feeds.revision()}:${guides.revision()}:${store.healthVersion()}:${hash(current)}",
+            "${lineup.revision()}:${feeds.published.revision()}:${guides.revision()}:${store.healthVersion()}:${hash(
+                current,
+            )}",
         )
     }
 
     suspend fun catalog(revision: String? = null): Catalog {
         val stamped = revision ?: catalogRevision()
         val states = store.allHealth()
-        val coverage = guides.coverage()
+        val coverage = guides.coverage
         val now = clock.instant()
         val channels = lineup.entries().filter { it.enabled }.map { entry -> channel(entry, states, coverage, now) }
         return Catalog(stamped, channels)
@@ -63,7 +66,7 @@ class CatalogService(
         coverage: Map<String, Map<String, Instant>>,
         now: Instant,
     ): Channel {
-        val offerings = entry.offeringIds.mapNotNull(feeds::offering)
+        val offerings = entry.offeringIds.mapNotNull(feeds.published::offering)
         val end = entry.guide?.let { coverage[it.guideId]?.get(it.channelId) }
         return Channel(
             id = entry.id,
@@ -87,41 +90,41 @@ class CatalogService(
      * channel's icon.
      */
     fun logoSource(entry: LineupEntryRecord): String? = entry.logo
-        ?: entry.offeringIds.asSequence().mapNotNull(feeds::offering).mapNotNull {
-            feeds.channel(it.channelId)?.logo
+        ?: entry.offeringIds.asSequence().mapNotNull(feeds.published::offering).mapNotNull {
+            feeds.published.channel(it.channelId)?.logo
         }.firstOrNull()
         ?: entry.guide?.let { guides.channel(it.guideId, it.channelId)?.icon }
 
     /** The entry's sources in failover order; the session manager ranks them by health. */
     fun offeringsFor(channelId: String): List<Offering>? =
-        lineup.entry(channelId)?.takeIf { it.enabled }?.offeringIds?.mapNotNull(feeds::offering)
+        lineup.entry(channelId)?.takeIf { it.enabled }?.offeringIds?.mapNotNull(feeds.published::offering)
 
-    fun offering(id: String): Offering? = feeds.offering(id)
+    fun offering(id: String): Offering? = feeds.published.offering(id)
 
     suspend fun guide(query: GuideQuery): GuideWindow {
         if (query.channelIds.size !in 1..Wire.GUIDE_MAX_CHANNELS ||
             query.channelIds.distinct().size != query.channelIds.size
         ) {
-            throw ApiFailure(400, "INVALID_QUERY", "Request 1 to 200 distinct channel IDs")
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_QUERY",
+                "Request 1 to ${Wire.GUIDE_MAX_CHANNELS} distinct channel IDs",
+            )
         }
-        val from = try {
-            Instant.parse(query.from)
-        } catch (_: Exception) {
-            throw ApiFailure(400, "INVALID_QUERY", "Invalid from timestamp")
-        }
-        val to = try {
-            Instant.parse(query.to)
-        } catch (_: Exception) {
-            throw ApiFailure(400, "INVALID_QUERY", "Invalid to timestamp")
-        }
+        val from = timestamp(query.from, "from")
+        val to = timestamp(query.to, "to")
         if (to <= from || Duration.between(from, to) > Duration.ofHours(Wire.GUIDE_MAX_HOURS.toLong())) {
-            throw ApiFailure(400, "INVALID_QUERY", "Guide window must be positive and at most 24 hours")
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_QUERY",
+                "Guide window must be positive and at most ${Wire.GUIDE_MAX_HOURS} hours",
+            )
         }
         // A client's catalog can name an entry removed or disabled since; it gets a removed row, not a failed query.
         val requested = query.channelIds.map { id -> id to lineup.entry(id)?.takeIf { it.enabled } }
         val revision = hash("${guides.revision()}:${lineup.revision()}")
         if (query.revision != null && query.revision != revision) {
-            throw ApiFailure(409, Wire.ErrorCode.RESYNC_REQUIRED, "Guide revision changed", true)
+            throw ApiFailure(HttpStatusCode.Conflict, Wire.ErrorCode.RESYNC_REQUIRED, "Guide revision changed", true)
         }
         val entries = requested.mapNotNull { it.second }
         val mapped = entries.mapNotNull { entry -> entry.guide?.let { entry to it } }
@@ -135,37 +138,47 @@ class CatalogService(
             from.toString(),
             to.toString(),
             requested.map { (id, entry) ->
-                if (entry == null) return@map ChannelGuide(id, Wire.GuideStatus.REMOVED, emptyList())
-                val rows = programs[entry.id].orEmpty().map { program ->
-                    val start = program.startsAt.toString()
-                    val end = program.endsAt.toString()
-                    Program(
-                        stableId(
-                            "programme:${entry.id}:$start:$end:${program.title}",
-                        ),
-                        entry.id, start, end, program.title, program.description,
-                        program.subTitle,
-                        episodeLabel(
-                            program.episodeNumbers,
-                        ),
-                        program.isNew, program.rating?.value, program.icon,
-                        program.categories.map(String::trim).filter(String::isNotEmpty).distinct(),
-                    )
-                }
-                val status = if (entry.guide == null) {
-                    Wire.GuideStatus.UNASSIGNED
-                } else if (rows.isEmpty()) {
-                    Wire.GuideStatus.EMPTY
+                if (entry == null) {
+                    ChannelGuide(id, Wire.GuideStatus.REMOVED, emptyList())
                 } else {
-                    Wire.GuideStatus.AVAILABLE
+                    channelGuide(entry, programs[entry.id].orEmpty())
                 }
-                ChannelGuide(entry.id, status, rows)
             },
         )
     }
+
+    private fun timestamp(value: String, field: String): Instant = try {
+        Instant.parse(value)
+    } catch (_: Exception) {
+        throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_QUERY", "Invalid $field timestamp")
+    }
+
+    private fun channelGuide(entry: LineupEntryRecord, programs: List<GuideProgram>): ChannelGuide {
+        val rows = programs.map { program ->
+            val start = program.startsAt.toString()
+            val end = program.endsAt.toString()
+            Program(
+                stableId("programme:${entry.id}:$start:$end:${program.title}"),
+                entry.id, start, end, program.title, program.description,
+                program.subTitle,
+                episodeLabel(program.episodeNumbers),
+                program.isNew, program.rating?.value, program.icon,
+                program.categories.map(String::trim).filter(String::isNotEmpty).distinct(),
+            )
+        }
+        val status = when {
+            entry.guide == null -> Wire.GuideStatus.UNASSIGNED
+            rows.isEmpty() -> Wire.GuideStatus.EMPTY
+            else -> Wire.GuideStatus.AVAILABLE
+        }
+        return ChannelGuide(entry.id, status, rows)
+    }
 }
 
-private val onscreenSeasonEpisode = Regex("[Ss](\\d{1,4})\\s*[Ee](\\d{1,5})")
+/** The counts from 0 an `xmltv_ns` episode number may hold. */
+private val XMLTV_NS_NUMBERS = 0..99_999
+
+private val ONSCREEN_SEASON_EPISODE = Regex("[Ss](\\d{1,4})\\s*[Ee](\\d{1,5})")
 
 /** One-based season and episode numbers; either may be unknown. */
 data class SeasonEpisode(val season: Int?, val episode: Int?)
@@ -174,17 +187,20 @@ data class SeasonEpisode(val season: Int?, val episode: Int?)
  * The season and episode a program's numbering names: from a zero-based `xmltv_ns` value first, then an
  * `S02E05`-style `onscreen` one; null when neither names a number.
  */
-fun seasonEpisode(numbers: List<EpisodeNumber>): SeasonEpisode? {
-    numbers.firstOrNull { it.system == "xmltv_ns" }?.value?.split('.')?.let { parts ->
-        fun part(index: Int) = parts.getOrNull(index)?.substringBefore('/')?.trim()?.toIntOrNull()?.takeIf {
-            it in
-                0..99_999
-        }?.plus(1)
-        val numbered = SeasonEpisode(part(0), part(1))
-        if (numbered.season != null || numbered.episode != null) return numbered
-    }
+fun seasonEpisode(numbers: List<EpisodeNumber>): SeasonEpisode? = xmltvNsSeasonEpisode(numbers)
+    ?: onscreenSeasonEpisode(numbers)
+
+private fun xmltvNsSeasonEpisode(numbers: List<EpisodeNumber>): SeasonEpisode? {
+    val parts = numbers.firstOrNull { it.system == "xmltv_ns" }?.value?.split('.') ?: return null
+    fun part(index: Int) = parts.getOrNull(index)?.substringBefore('/')?.trim()?.toIntOrNull()?.takeIf {
+        it in XMLTV_NS_NUMBERS
+    }?.plus(1)
+    return SeasonEpisode(part(0), part(1)).takeIf { it.season != null || it.episode != null }
+}
+
+private fun onscreenSeasonEpisode(numbers: List<EpisodeNumber>): SeasonEpisode? {
     val onscreen = numbers.firstOrNull { it.system == "onscreen" }?.value ?: return null
-    return onscreenSeasonEpisode.matchEntire(onscreen.trim())?.let { match ->
+    return ONSCREEN_SEASON_EPISODE.matchEntire(onscreen.trim())?.let { match ->
         SeasonEpisode(match.groupValues[1].toInt(), match.groupValues[2].toInt())
     }
 }
@@ -197,7 +213,7 @@ fun episodeLabel(numbers: List<EpisodeNumber>): String? {
     seasonEpisode(numbers)?.let { (season, episode) ->
         return listOfNotNull(season?.let { "S$it" }, episode?.let { "E$it" }).joinToString(" ")
     }
-    return numbers.firstOrNull { it.system == "onscreen" }?.value?.take(32)
+    return numbers.firstOrNull { it.system == "onscreen" }?.value?.take(NUMBER_LIMIT)
 }
 
 fun eligible(state: HealthState): Boolean = !state.manuallyDisabled &&

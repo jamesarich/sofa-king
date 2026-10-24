@@ -206,8 +206,8 @@ class SessionManagerTest {
                         val token = session.descriptor.url.substringAfterLast('/')
                         val job = Job()
                         sessions.acquire(session.id, 1, token, job)
-                        store.setManuallyDisabled(feeds.offerings().single().id, true)
-                        sessions.healthChanged(feeds.offerings().single().id)
+                        store.setManuallyDisabled(feeds.published.offerings.single().id, true)
+                        sessions.healthChanged(feeds.published.offerings.single().id)
                         assertTrue(job.isCancelled)
                         assertEquals(
                             "SOURCE_UNAVAILABLE",
@@ -424,7 +424,7 @@ class SessionManagerTest {
                         val feeds =
                             FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true))
                         feeds.refresh(fixture.feed)
-                        val offering = feeds.offerings().single()
+                        val offering = feeds.published.offerings.single()
                         for (minute in listOf(0L, 5L, 10L)) {
                             val at = clock.now.plusSeconds(minute * 60)
                             store.recordObservation(

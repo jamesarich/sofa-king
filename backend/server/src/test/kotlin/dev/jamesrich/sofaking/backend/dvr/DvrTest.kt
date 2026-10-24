@@ -19,6 +19,7 @@ import dev.jamesrich.sofaking.contract.ScheduleRecording
 import dev.jamesrich.sofaking.contract.UpdateRecording
 import dev.jamesrich.sofaking.contract.UpdateRecordingRule
 import dev.jamesrich.sofaking.contract.Wire
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -285,7 +286,7 @@ class DvrTest {
                         ),
                     )
                 }
-                assertEquals(400, tooLong.status)
+                assertEquals(HttpStatusCode.BadRequest, tooLong.status)
                 val manual = dvr.schedule(
                     ScheduleRecording(live.id, start.toString(), start.plusSeconds(1800).toString(), "  Late Game  "),
                 )
@@ -327,7 +328,7 @@ class DvrTest {
                     assertFailsWith<dev.jamesrich.sofaking.backend.catalog.ApiFailure> {
                         dvr.updateRule(rule.id, UpdateRecordingRule(channelId = "nope"))
                     }
-                assertEquals(404, unknown.status)
+                assertEquals(HttpStatusCode.NotFound, unknown.status)
             } finally {
                 runtime.close()
                 runtime.store.close()

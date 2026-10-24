@@ -40,19 +40,21 @@ class AddressAllowList(entries: List<String>) {
     private companion object {
         /** An IPv4-mapped IPv6 address's first 12 bytes: ten zeros and two 0xFF (::ffff:0:0/96). */
         val V4_MAPPED_PREFIX = ByteArray(10) + byteArrayOf(-1, -1)
+        const val IPV4_BYTES = 4
+        const val IPV6_BYTES = 16
+        const val IPV4_DOTS = 3
 
         /** The address bytes of an IP literal (IPv4-mapped IPv6 as IPv4), or null for anything that would need DNS. */
         fun literal(host: String): ByteArray? {
             val bare = host.trim('[', ']')
             val dotted = bare.isNotEmpty() && bare.all { it.isDigit() || it == '.' }
             // Java reads "192.168.1" as 192.168.0.1; a configuration value must spell all four parts.
-            if (dotted && bare.count { it == '.' } != 3) return null
+            if (dotted && bare.count { it == '.' } != IPV4_DOTS) return null
             if (!dotted && !bare.contains(':')) return null
             val bytes = runCatching { InetAddress.getByName(bare).address }.getOrNull() ?: return null
-            if (bytes.size == 16 &&
-                bytes.copyOfRange(0, 12).contentEquals(V4_MAPPED_PREFIX)
-            ) {
-                return bytes.copyOfRange(12, 16)
+            val mappedAt = IPV6_BYTES - IPV4_BYTES
+            if (bytes.size == IPV6_BYTES && bytes.copyOfRange(0, mappedAt).contentEquals(V4_MAPPED_PREFIX)) {
+                return bytes.copyOfRange(mappedAt, IPV6_BYTES)
             }
             return bytes
         }

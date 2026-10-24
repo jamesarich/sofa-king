@@ -51,7 +51,7 @@ internal fun Route.viewerRoutes(runtime: LiveRuntime, clock: Clock, apiToken: St
             if (!runtime.pairing.claim(claim.code)) {
                 call.authFailed()
                 throw ApiFailure(
-                    403,
+                    HttpStatusCode.Forbidden,
                     Wire.ErrorCode.PAIRING_INVALID,
                     "That pairing code is not valid; show a new one in the admin portal",
                 )
@@ -68,7 +68,11 @@ internal fun Route.viewerRoutes(runtime: LiveRuntime, clock: Clock, apiToken: St
             val viewer = runtime.store.viewer(clientId)
             val preferences =
                 viewer?.preferences
-                    ?: throw ApiFailure(404, "VIEWER_NOT_FOUND", "No preferences are stored for this client")
+                    ?: throw ApiFailure(
+                        HttpStatusCode.NotFound,
+                        "VIEWER_NOT_FOUND",
+                        "No preferences are stored for this client",
+                    )
             runtime.store.touchViewer(clientId, "", "", clock.instant())
             call.respond(preferences)
         }
@@ -85,7 +89,7 @@ internal fun Route.viewerAdminRoutes(runtime: LiveRuntime) {
     get("/viewers") { call.respond(runtime.store.viewers()) }
     delete("/viewers/{clientId}") {
         if (!runtime.store.forgetViewer(validClientId(call.parameters["clientId"]!!))) {
-            throw ApiFailure(404, "VIEWER_NOT_FOUND", "Unknown viewer")
+            throw ApiFailure(HttpStatusCode.NotFound, "VIEWER_NOT_FOUND", "Unknown viewer")
         }
         call.respond(HttpStatusCode.NoContent)
     }
@@ -97,7 +101,7 @@ internal fun Route.viewerAdminRoutes(runtime: LiveRuntime) {
 
 internal fun validClientId(raw: String): String = raw.takeIf { CLIENT_ID.matches(it) }
     ?: throw ApiFailure(
-        400,
+        HttpStatusCode.BadRequest,
         "INVALID_REQUEST",
         "clientId must be 1 to 64 letters, digits, dots, dashes or underscores",
     )
@@ -107,12 +111,16 @@ private val whitespace = Regex("\\s+")
 private fun label(raw: String): String = raw.trim().replace(whitespace, " ").take(MAX_LABEL)
 
 private fun ids(list: List<String>, field: String): List<String> {
-    if (list.size > MAX_LIST) throw ApiFailure(400, "INVALID_REQUEST", "$field lists more than $MAX_LIST channels")
+    if (list.size >
+        MAX_LIST
+    ) {
+        throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "$field lists more than $MAX_LIST channels")
+    }
     if (list.any {
             it.isEmpty() || it.length > MAX_ID
         }
     ) {
-        throw ApiFailure(400, "INVALID_REQUEST", "$field holds an unusable channel id")
+        throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "$field holds an unusable channel id")
     }
     return list.distinct()
 }

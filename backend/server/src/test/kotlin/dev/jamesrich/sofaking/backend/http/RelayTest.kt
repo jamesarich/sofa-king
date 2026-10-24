@@ -417,7 +417,7 @@ class RelayTest {
                 val runtime = LiveRuntime.create(store, config, MutableClock())
                 try {
                     runtime.feeds.refresh(fixture.extensionlessFeed)
-                    runtime.feeds.recordProtocol(runtime.feeds.offerings().single().id, "hls")
+                    runtime.feeds.recordProtocol(runtime.feeds.published.offerings.single().id, "hls")
                 } finally {
                     runtime.close()
                 }
@@ -477,7 +477,7 @@ class RelayTest {
                 try {
                     runtime.feeds.refresh(fixture.proxyFeed)
                     runtime.adoptAll()
-                    val offering = runtime.feeds.offerings().single()
+                    val offering = runtime.feeds.published.offerings.single()
                     assertEquals("mpegts", offering.protocol)
                     assertEquals(fixture.proxyStreamUrl, offering.url)
                     application { backendModule(store, MutableClock(), runtime, token) }

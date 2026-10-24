@@ -30,7 +30,7 @@ fun Route.libraryRoutes(libraries: LibraryService) {
         val limit =
             call.request.queryParameters["limit"]?.let {
                 it.toIntOrNull()?.takeIf { n -> n in 1..500 }
-                    ?: throw ApiFailure(400, "INVALID_REQUEST", "limit is 1 to 500")
+                    ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "limit is 1 to 500")
             }
                 ?: 100
         val unwatched = call.request.queryParameters["unwatched"] == "true"
@@ -42,9 +42,9 @@ fun Route.libraryRoutes(libraries: LibraryService) {
     get("/api/v1/library/home") { call.respond(catalog.home()) }
     get("/api/v1/library/search") {
         val query =
-            call.request.queryParameters["q"]?.takeIf { it.length <= 100 }
-                ?: throw ApiFailure(400, "INVALID_REQUEST", "q is 1 to 100 characters")
-        call.respond(catalog.search(query, 50))
+            call.request.queryParameters["q"]?.takeIf { it.length <= QUERY_LIMIT }
+                ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "q is 1 to $QUERY_LIMIT characters")
+        call.respond(catalog.search(query, SEARCH_RESULTS))
     }
     get("/api/v1/library/items/{id}") { call.respond(catalog.item(call.parameters["id"]!!)) }
     put("/api/v1/library/items/{id}/play-state") {
@@ -61,29 +61,31 @@ fun Route.artworkRoutes(libraries: LibraryService) {
     get("/artwork/{id}/scrub/{sheet}") {
         val sheet = call.parameters["sheet"]?.toIntOrNull()
             ?.let { libraries.scrub?.sheet(call.parameters["id"]!!, it) }
-            ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown artwork")
+            ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown artwork")
         // The URL carries the version of the sheets, which a changed file replaces.
         call.response.header(HttpHeaders.CacheControl, "public, max-age=604800")
         call.response.header("X-Content-Type-Options", "nosniff")
         call.respond(LocalPathContent(sheet, ContentType.Image.JPEG))
     }
     get("/artwork/{id}/{role}") {
-        val artwork = libraries.artwork ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown artwork")
+        val artwork =
+            libraries.artwork ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown artwork")
         val view =
             libraries.catalog.snapshot().views[call.parameters["id"]!!]
-                ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown artwork")
+                ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown artwork")
         val source = when (call.parameters["role"]) {
             "poster" -> view.poster
             "backdrop" -> view.backdrop
             else -> null
-        } ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown artwork")
+        } ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown artwork")
         val etag = "\"${source.version}\""
         call.response.header(HttpHeaders.ETag, etag)
         // The URL carries the version, so a changed image gets a new URL and the old one may be kept.
         call.response.header(HttpHeaders.CacheControl, "public, max-age=604800")
         call.response.header("X-Content-Type-Options", "nosniff")
         if (call.request.headers[HttpHeaders.IfNoneMatch] == etag) return@get call.respond(HttpStatusCode.NotModified)
-        val image = artwork.image(source) ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown artwork")
+        val image =
+            artwork.image(source) ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown artwork")
         call.respond(LocalPathContent(image.file, ContentType.parse(image.contentType)))
     }
 }
@@ -106,7 +108,7 @@ fun Route.vodRoutes(vod: VodSessions) {
     get("/api/v1/library/items/{id}/subtitles/{index}") {
         val index =
             call.parameters["index"]?.toIntOrNull()
-                ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "No such subtitle stream")
+                ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "No such subtitle stream")
         val file = vod.subtitles(call.parameters["id"]!!, index)
         call.response.header(HttpHeaders.CacheControl, "private, max-age=3600")
         call.respond(LocalPathContent(file, ContentType.parse("text/vtt; charset=utf-8")))
@@ -116,10 +118,11 @@ fun Route.vodRoutes(vod: VodSessions) {
         install(PartialContent)
         get {
             val epoch =
-                call.parameters["epoch"]?.toIntOrNull() ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown media")
+                call.parameters["epoch"]?.toIntOrNull()
+                    ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown media")
             val media =
                 vod.media(call.parameters["id"]!!, epoch, call.parameters["secret"]!!, call.parameters["name"]!!)
-                    ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown media")
+                    ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown media")
             call.response.header(
                 HttpHeaders.CacheControl,
                 if (media.contentType.endsWith("mpegurl")) "no-store" else "private, max-age=3600",
@@ -128,3 +131,6 @@ fun Route.vodRoutes(vod: VodSessions) {
         }
     }
 }
+
+private const val QUERY_LIMIT = 100
+private const val SEARCH_RESULTS = 50

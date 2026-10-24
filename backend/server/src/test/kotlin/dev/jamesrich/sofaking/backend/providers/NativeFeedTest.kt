@@ -156,14 +156,14 @@ class NativeFeedTest {
                 val runtime = runtime(dir, fake, clock, http)
                 try {
                     runtime.feeds.refresh(config)
-                    val status = runtime.feeds.providers().single()
+                    val status = runtime.feeds.statuses.single()
                     assertEquals(2, status.channels)
                     assertEquals(2, status.sources)
                     assertNull(status.errorCode)
-                    val offerings = runtime.feeds.offerings()
+                    val offerings = runtime.feeds.published.offerings
                     assertEquals(setOf("svc://whale/one", "svc://whale/two"), offerings.map { it.url }.toSet())
                     assertTrue(offerings.all { it.protocol == "hls" })
-                    val one = runtime.feeds.channels().first { it.name == "Channel One" }
+                    val one = runtime.feeds.published.channels().first { it.name == "Channel One" }
                     assertEquals("101", one.displayNumber)
                     assertEquals(listOf("News", "us"), one.tags)
                     assertEquals("one", one.legacyGuideId)
@@ -271,8 +271,8 @@ class NativeFeedTest {
                     assertTrue(worker.step())
                     assertTrue(worker.step())
                     assertFalse(worker.step())
-                    val one = runtime.feeds.offerings().first { it.url == "svc://whale/one" }
-                    val two = runtime.feeds.offerings().first { it.url == "svc://whale/two" }
+                    val one = runtime.feeds.published.offerings.first { it.url == "svc://whale/one" }
+                    val two = runtime.feeds.published.offerings.first { it.url == "svc://whale/two" }
                     assertEquals(HealthStatus.HEALTHY, runtime.store.health(one.id)!!.status)
                     assertEquals(
                         "${fixture.base}/master.m3u8?session=1" to

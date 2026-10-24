@@ -47,17 +47,19 @@ class LineupServiceTest {
                                 stack.catalog.catalog().channels.isEmpty(),
                                 "nothing is served until it enters the lineup",
                             )
-                            assertEquals(2, feeds.channels().size)
-                            val ts = feeds.channels("ts").single()
+                            assertEquals(2, feeds.published.channels().size)
+                            val ts = feeds.published.channels("ts").single()
                             val created = stack.lineup.create(CreateLineupEntry(channelId = ts.id, number = "100"))
                             assertEquals("TS Station", created.name)
                             assertEquals("100", created.number)
-                            assertEquals(feeds.offeringsOf(ts.id).map { it.id }, created.offeringIds)
+                            assertEquals(feeds.published.offeringsOf(ts.id).map { it.id }, created.offeringIds)
                             val manual = stack.lineup.create(
                                 CreateLineupEntry(
                                     number = "1",
                                     name = "Manual",
-                                    offerings = feeds.offeringsOf(feeds.channels("fixture").single().id).map {
+                                    offerings = feeds.published.offeringsOf(
+                                        feeds.published.channels("fixture").single().id,
+                                    ).map {
                                         it.id
                                     },
                                     position = 0,
@@ -177,11 +179,15 @@ class LineupServiceTest {
                             feeds.refresh(fixture.feed)
                             feeds.refresh(fixture.altFeed)
                             val stack = lineupStack(feeds, store, clock, http, adopt = false)
-                            val primary = feeds.offeringsOf(feeds.channels("fixture").single().id).single()
-                            val alternate = feeds.offeringsOf(feeds.channels("alt").single().id).single()
+                            val primary = feeds.published.offeringsOf(
+                                feeds.published.channels("fixture").single().id,
+                            ).single()
+                            val alternate = feeds.published.offeringsOf(
+                                feeds.published.channels("alt").single().id,
+                            ).single()
                             val entry = stack.lineup.create(
                                 CreateLineupEntry(
-                                    channelId = feeds.channels("fixture").single().id,
+                                    channelId = feeds.published.channels("fixture").single().id,
                                     offerings = listOf(primary.id, alternate.id),
                                 ),
                             )
@@ -222,7 +228,7 @@ class LineupServiceTest {
                             assertEquals(
                                 "CHANNEL_NOT_FOUND",
                                 assertFailsWith<ApiFailure> {
-                                    selected0(sessions, feeds.channels("fixture").single().id)
+                                    selected0(sessions, feeds.published.channels("fixture").single().id)
                                 }.code,
                                 "feed channel ids are not playable",
                             )

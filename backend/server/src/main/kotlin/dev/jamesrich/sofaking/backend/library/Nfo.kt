@@ -72,7 +72,7 @@ internal fun parseNfo(input: InputStream): Nfo? {
     return Nfo(
         title = text("title"),
         sortTitle = text("sorttitle"),
-        year = text("year")?.toIntOrNull() ?: aired?.take(4)?.toIntOrNull(),
+        year = text("year")?.toIntOrNull() ?: yearOf(aired),
         plot = text("plot") ?: text("outline"),
         tagline = text("tagline"),
         runtimeMinutes = text("runtime")?.toIntOrNull(),
@@ -83,7 +83,9 @@ internal fun parseNfo(input: InputStream): Nfo? {
         studio = text("studio"),
         contentRating = text("mpaa") ?: text("certification"),
         rating = rating,
-        cast = root.children("actor").mapNotNull { it.child("name")?.textContent?.trim()?.ifEmpty { null } }.take(20),
+        cast = root.children("actor").mapNotNull {
+            it.child("name")?.textContent?.trim()?.ifEmpty { null }
+        }.take(CAST_LIMIT),
         directors = all("director"),
         tmdbId =
         root.children("uniqueid").firstOrNull {

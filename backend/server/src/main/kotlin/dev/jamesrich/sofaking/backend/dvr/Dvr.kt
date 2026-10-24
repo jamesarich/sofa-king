@@ -33,6 +33,7 @@ import dev.jamesrich.sofaking.contract.ScheduleRecording
 import dev.jamesrich.sofaking.contract.UpdateRecording
 import dev.jamesrich.sofaking.contract.UpdateRecordingRule
 import dev.jamesrich.sofaking.contract.Wire
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -80,7 +81,7 @@ class Dvr(
     /** How many recordings may run at once: the playback slots, `SOFA_MAX_SESSIONS`. */
     private val capacity: () -> Int,
     /** How far ahead the scheduler reads the guide. */
-    private val horizon: () -> Duration = { Duration.ofDays(3) },
+    private val horizon: () -> Duration = { HORIZON },
     /** What the culler keeps: free space and age, `SOFA_RECORDINGS_FREE_GIB` and `SOFA_RECORDINGS_KEEP_DAYS`. */
     private val retention: () -> Retention = { Retention() },
     /** The free space on the recordings folder's disk; a seam for tests. */
@@ -183,12 +184,16 @@ class Dvr(
 
     suspend fun createRule(request: CreateRecordingRule): RecordingRule {
         val title = request.title.trim()
-        if (title.isEmpty() || title.length > 200) {
-            throw ApiFailure(400, "INVALID_REQUEST", "A rule needs a title of 1 to 200 characters")
+        if (title.isEmpty() || title.length > TITLE_LIMIT) {
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                "A rule needs a title of 1 to $TITLE_LIMIT characters",
+            )
         }
         request.channelId?.let {
             if (lineup.entry(it) == null) {
-                throw ApiFailure(404, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")
+                throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")
             }
         }
         val rule = StoredRule(
@@ -206,10 +211,12 @@ class Dvr(
     }
 
     suspend fun updateRule(id: String, update: UpdateRecordingRule): RecordingRule {
-        val rule = store.recordingRule(id) ?: throw ApiFailure(404, "RULE_NOT_FOUND", "Unknown recording rule")
+        val rule =
+            store.recordingRule(id)
+                ?: throw ApiFailure(HttpStatusCode.NotFound, "RULE_NOT_FOUND", "Unknown recording rule")
         update.channelId?.let {
             if (lineup.entry(it) == null) {
-                throw ApiFailure(404, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")
+                throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")
             }
         }
         val changed = rule.copy(
@@ -228,7 +235,7 @@ class Dvr(
     /** Deletes the rule and its scheduled recordings; what it recorded stays. */
     suspend fun deleteRule(id: String) {
         if (!store.deleteRecordingRule(id, listOf(Wire.RecordingState.SCHEDULED, CANCELED))) {
-            throw ApiFailure(404, "RULE_NOT_FOUND", "Unknown recording rule")
+            throw ApiFailure(HttpStatusCode.NotFound, "RULE_NOT_FOUND", "Unknown recording rule")
         }
     }
 
@@ -276,34 +283,46 @@ class Dvr(
     suspend fun schedule(request: ScheduleRecording): Recording {
         val entry =
             lineup.entry(request.channelId)?.takeIf { it.enabled }
-                ?: throw ApiFailure(404, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")
+                ?: throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")
         val start = instant(request.startsAt, "startsAt")
         val manual = request.endsAt != null
         val program = if (manual) {
             val end = instant(request.endsAt!!, "endsAt")
             if (end <= start || Duration.between(start, end) > MAX_MANUAL) {
                 throw ApiFailure(
-                    400,
+                    HttpStatusCode.BadRequest,
                     "INVALID_REQUEST",
                     "endsAt must be after startsAt and at most ${MAX_MANUAL.toHours()} hours later",
                 )
             }
             val title = request.title?.trim()?.takeIf { it.isNotEmpty() } ?: entry.name
-            if (title.length > 200) throw ApiFailure(400, "INVALID_REQUEST", "A title has at most 200 characters")
+            if (title.length >
+                200
+            ) {
+                throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "A title has at most 200 characters")
+            }
             GuideProgram(channelId = entry.id, startsAt = start, endsAt = end, title = title)
         } else {
             val mapping =
                 entry.guide
                     ?: throw ApiFailure(
-                        404,
+                        HttpStatusCode.NotFound,
                         "PROGRAM_NOT_FOUND",
                         "The channel has no guide; give endsAt to record a time window",
                     )
             guides.programs(mapping.guideId, listOf(mapping.channelId), start, start.plusSeconds(1))[mapping.channelId]
                 ?.firstOrNull { it.startsAt == start }
-                ?: throw ApiFailure(404, "PROGRAM_NOT_FOUND", "No program starts then on that channel")
+                ?: throw ApiFailure(
+                    HttpStatusCode.NotFound,
+                    "PROGRAM_NOT_FOUND",
+                    "No program starts then on that channel",
+                )
         }
-        if (program.endsAt <= clock.instant()) throw ApiFailure(409, "PROGRAM_ENDED", "The program has already ended")
+        if (program.endsAt <=
+            clock.instant()
+        ) {
+            throw ApiFailure(HttpStatusCode.Conflict, "PROGRAM_ENDED", "The program has already ended")
+        }
         // A window someone picked by the clock is recorded as given; a guide program gets the usual padding.
         val padding = if (manual) Duration.ZERO to Duration.ZERO else DEFAULT_START_PADDING to DEFAULT_END_PADDING
         return mutex.withLock {
@@ -695,22 +714,35 @@ class Dvr(
     private fun instant(text: String, field: String): Instant = try {
         Instant.parse(text)
     } catch (_: Exception) {
-        throw ApiFailure(400, "INVALID_REQUEST", "Invalid $field timestamp")
+        throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Invalid $field timestamp")
     }
 
-    private fun notFound() = ApiFailure(404, "RECORDING_NOT_FOUND", "Unknown recording")
+    private fun notFound() = ApiFailure(HttpStatusCode.NotFound, "RECORDING_NOT_FOUND", "Unknown recording")
 
-    private fun keep(value: Int): Int =
-        value.takeIf { it in 0..1000 } ?: throw ApiFailure(400, "INVALID_REQUEST", "keep must be 0 to 1000")
-    private fun priority(value: Int): Int =
-        value.takeIf { it in -100..100 } ?: throw ApiFailure(400, "INVALID_REQUEST", "priority must be -100 to 100")
+    private fun keep(value: Int): Int = value.takeIf { it in KEEP_RANGE }
+        ?: throw ApiFailure(
+            HttpStatusCode.BadRequest,
+            "INVALID_REQUEST",
+            "keep must be ${KEEP_RANGE.first} to ${KEEP_RANGE.last}",
+        )
+
+    private fun priority(value: Int): Int = value.takeIf { it in PRIORITY_RANGE }
+        ?: throw ApiFailure(
+            HttpStatusCode.BadRequest,
+            "INVALID_REQUEST",
+            "priority must be ${PRIORITY_RANGE.first} to ${PRIORITY_RANGE.last}",
+        )
     private fun padding(seconds: Int?, default: Duration): Duration = seconds?.let {
         if (it in
             0..MAX_PADDING_SECONDS
         ) {
             Duration.ofSeconds(it.toLong())
         } else {
-            throw ApiFailure(400, "INVALID_REQUEST", "Padding must be 0 to $MAX_PADDING_SECONDS seconds")
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                "Padding must be 0 to $MAX_PADDING_SECONDS seconds",
+            )
         }
     }
         ?: default
@@ -723,6 +755,14 @@ class Dvr(
         val DEFAULT_START_PADDING: Duration = Duration.ofMinutes(1)
         val DEFAULT_END_PADDING: Duration = Duration.ofMinutes(2)
         const val MAX_PADDING_SECONDS = 3600
+
+        /** How far ahead the scheduler reads the guide unless a test says otherwise. */
+        private val HORIZON: Duration = Duration.ofDays(3)
+        private const val TITLE_LIMIT = 200
+
+        /** A rule's episodes to keep, 0 for all of them, and its priority over the other rules. */
+        private val KEEP_RANGE = 0..1000
+        private val PRIORITY_RANGE = -100..100
 
         /** The longest window a manual recording may span. */
         val MAX_MANUAL: Duration = Duration.ofHours(12)

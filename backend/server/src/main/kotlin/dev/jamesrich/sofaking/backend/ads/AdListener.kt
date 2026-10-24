@@ -20,6 +20,7 @@ import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.request
+import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.readBuffer
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -227,8 +228,8 @@ class AdListener(
                 follower.offer(segment.url, bytes)
                 last = segment.sequence
             }
-            val target = segments.maxOfOrNull { it.durationMs } ?: 6_000L
-            delay((target / 2).coerceIn(2_000L, 6_000L))
+            val target = segments.maxOfOrNull { it.durationMs } ?: POLL_MS.last
+            delay((target / 2).coerceIn(POLL_MS))
         }
     }
 
@@ -266,9 +267,11 @@ class AdListener(
         read: (ByteArray, String) -> T,
     ): T? = permits.withPermit {
         http.withUpstreamResponse(url, stream.url, stream.headers, policy = feeds.upstream) { response ->
-            val status = response.status.value
-            if (status == 403 || status == 429) throw Refused(status)
-            if (status != 200) return@withUpstreamResponse null
+            val status = response.status
+            if (status == HttpStatusCode.Forbidden || status == HttpStatusCode.TooManyRequests) {
+                throw Refused(status.value)
+            }
+            if (status != HttpStatusCode.OK) return@withUpstreamResponse null
             val bytes = response.bodyAsChannel().readBuffer(limit + 1).readByteArray()
             if (bytes.size > limit) null else read(bytes, response.request.url.toString())
         }
@@ -288,6 +291,9 @@ class AdListener(
         /** The most channels listened to while anyone watches. */
         const val WHILE_WATCHING = 2
         private const val RECONCILE_MS = 30_000L
+
+        /** How long a listener waits between playlist reads: half the target segment length, within these bounds. */
+        private val POLL_MS = 2_000L..6_000L
         private const val START_DELAY_MS = 300_000L
         private const val START_SEGMENTS = 3
         private const val MAX_PLAYLIST = 2L * 1024 * 1024

@@ -24,22 +24,8 @@ class RokuClient(private val context: ProviderContext) : ProviderClient {
     override suspend fun channels(): List<ProviderChannel> = listed()
 
     override suspend fun resolve(channelId: String): ResolvedStream {
-        if (listed().none { it.id == channelId }) {
-            context.invalidate(CHANNELS)
-            if (listed().none {
-                    it.id == channelId
-                }
-            ) {
-                throw ProviderFailure("Channel is no longer listed", transient = false)
-            }
-        }
-        val playId = context.cached("play:$channelId", PLAY_ID_LIFETIME) {
-            val proxy = "$webBase/api/v2/homescreen/content/" +
-                "${URLEncoder.encode(contentBase + channelId, Charsets.UTF_8)}"
-            val content = session { context.http.get(proxy, apiHeaders(it)) }.require("Roku content").json()
-            content["viewOptions"][0].str("playId")
-                ?: throw ProviderFailure("Roku content has no playId", transient = false)
-        }
+        context.findListed(CHANNELS) { listed().firstOrNull { it.id == channelId } }
+        val playId = context.cached("play:$channelId", PLAY_ID_LIFETIME) { playId(channelId) }
         val body = buildJsonObject {
             put("rokuId", channelId)
             put("playId", playId)
@@ -62,7 +48,14 @@ class RokuClient(private val context: ProviderContext) : ProviderClient {
         return ResolvedStream(url, STREAM_HEADERS, context.clock.instant().plus(URL_LIFETIME))
     }
 
-    private suspend fun listed(): List<ProviderChannel> = context.cached(CHANNELS, Duration.ofMinutes(30)) {
+    private suspend fun playId(channelId: String): String {
+        val proxy = "$webBase/api/v2/homescreen/content/${URLEncoder.encode(contentBase + channelId, Charsets.UTF_8)}"
+        val content = session { context.http.get(proxy, apiHeaders(it)) }.require("Roku content").json()
+        return content["viewOptions"][0].str("playId")
+            ?: throw ProviderFailure("Roku content has no playId", transient = false)
+    }
+
+    private suspend fun listed(): List<ProviderChannel> = context.cached(CHANNELS, CACHED_FOR) {
         fetchChannels()
     }
 
@@ -87,7 +80,7 @@ class RokuClient(private val context: ProviderContext) : ProviderClient {
     /** Runs [request] in the stored web session; a 401 or 403 boots a new session and tries once more. */
     private suspend fun session(request: suspend (Session) -> Fetched): Fetched {
         val first = request(current())
-        if (first.status != 401 && first.status != 403) return first
+        if (!first.refused) return first
         context.clearState(SESSION)
         return request(current())
     }
@@ -124,6 +117,9 @@ class RokuClient(private val context: ProviderContext) : ProviderClient {
         private const val WEB_BASE = "https://therokuchannel.roku.com"
         private const val CONTENT_BASE = "https://content.sr.roku.com/content/v1/roku-trc/"
         private const val CHANNELS = "channels"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(30)
         private const val SESSION = "session"
         private val SESSION_LIFETIME = Duration.ofMinutes(55)
         private val PLAY_ID_LIFETIME = Duration.ofHours(6)

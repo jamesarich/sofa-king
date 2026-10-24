@@ -31,7 +31,7 @@ suspend fun BackendStore.saveAdBreaks(entries: Collection<BreakEntry>) = query {
 
 /** Drops the entries [ids] names. */
 suspend fun BackendStore.deleteAdBreaks(ids: Collection<String>) = query {
-    ids.chunked(500).forEach { chunk -> AdBreakRows.deleteWhere { AdBreakRows.id inList chunk } }
+    ids.chunked(ROW_CHUNK).forEach { chunk -> AdBreakRows.deleteWhere { AdBreakRows.id inList chunk } }
 }
 
 private fun ResultRow.entry(): BreakEntry {

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.catalog
 
+import dev.jamesrich.sofaking.backend.MIB
 import dev.jamesrich.sofaking.backend.api.GuideMapping
 import dev.jamesrich.sofaking.backend.providers.NativeServices
 import dev.jamesrich.sofaking.contract.Channel
@@ -67,7 +68,7 @@ private fun validateHeaders(headers: Map<String, String>) {
             require(playlistUrl == null) { "A native provider takes no playlistUrl" }
             require(
                 options.all { (key, value) ->
-                    key.matches(optionKey) && value.length <= 256
+                    key.matches(optionKey) && value.length <= NAME_LIMIT
                 },
             ) { "Invalid provider options" }
         } else {
@@ -76,7 +77,9 @@ private fun validateHeaders(headers: Map<String, String>) {
         }
         guideUrl?.let(::httpUri)
         require(defaultProtocol == null || defaultProtocol in setOf("hls", "mpegts")) { "Unsupported default protocol" }
-        require(refreshInterval >= 60) { "Refresh interval must be at least 60 seconds" }
+        require(refreshInterval >= MIN_REFRESH_SECONDS) {
+            "Refresh interval must be at least $MIN_REFRESH_SECONDS seconds"
+        }
         validateHeaders(headers)
         renewableQuery?.let(::validateRenewableQuery)
     }
@@ -97,7 +100,9 @@ private fun validateHeaders(headers: Map<String, String>) {
         require(id.matches(idPattern)) { "Invalid guide ID" }
         require((url == null) != (provider == null)) { "A guide needs a url" }
         url?.let(::httpUri)
-        require(refreshSeconds >= 300) { "Guide refresh interval must be at least 300 seconds" }
+        require(refreshSeconds >= MIN_GUIDE_REFRESH_SECONDS) {
+            "Guide refresh interval must be at least $MIN_GUIDE_REFRESH_SECONDS seconds"
+        }
         validateHeaders(headers)
     }
 }
@@ -124,6 +129,9 @@ data class SourceConfig(val providers: List<FeedConfig> = emptyList(), val guide
 /** Native guides cover hours to days ahead and some are fetched per channel; an hour keeps every horizon filled. */
 const val NATIVE_GUIDE_REFRESH: Long = 3600
 
+private const val MIN_REFRESH_SECONDS = 60
+private const val MIN_GUIDE_REFRESH_SECONDS = 300
+
 /** The source file as written: providers and guides, with `${NAME}` references left as they are. */
 @Serializable
 data class SourceDocument(val providers: List<FeedConfig> = emptyList(), val guides: List<GuideConfig> = emptyList())
@@ -147,7 +155,7 @@ fun loadSources(path: Path?, environment: Map<String, String> = System.getenv())
 
 /** The source file as written, without variable expansion, so a write keeps `${NAME}` references. */
 fun readSourceDocument(path: Path): SourceDocument {
-    require(Files.size(path) <= 1_048_576) { "Source configuration is too large" }
+    require(Files.size(path) <= MIB) { "Source configuration is too large" }
     return when (val element = configJson.parseToJsonElement(Files.readString(path))) {
         is JsonArray -> SourceDocument(providers = configJson.decodeFromJsonElement(element))
         is JsonObject -> configJson.decodeFromJsonElement<SourceDocument>(element)
@@ -295,6 +303,8 @@ data class GuideProgram(
         const val CATEGORY_LIMIT = 8
         const val CATEGORY_LENGTH_LIMIT = 128
         const val RATING_LIMIT = 32
+        private const val YEAR_DIGITS = 4
+        private val YEARS = 1800..2999
         private val SYSTEM = Regex("[A-Za-z0-9_.:-]{1,32}")
         private val LANGUAGE = Regex("[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,2}")
         private val XMLTV_TIME = Regex("\\d{4,14}( ?[+-]\\d{4})?")
@@ -307,7 +317,7 @@ data class GuideProgram(
                 digits.length == 6 || digits.length == 4 -> digits
                 else -> return null
             }
-            return date.takeIf { it.take(4).toInt() in 1800..2999 }
+            return date.takeIf { it.take(YEAR_DIGITS).toInt() in YEARS }
         }
     }
 }

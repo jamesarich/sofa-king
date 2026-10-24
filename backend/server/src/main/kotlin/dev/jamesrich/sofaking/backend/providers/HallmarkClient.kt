@@ -39,19 +39,15 @@ class HallmarkClient(private val context: ProviderContext) : ProviderClient {
                     ?: throw ProviderFailure("Hallmark catalog does not list ${channel.identifier}")
             val url = "$apiBase/channels/$contentId/schedule?from=${TIMESTAMP.format(from)}&" +
                 "until=${TIMESTAMP.format(from.plus(GUIDE_HORIZON))}&locale=en"
-            for (item in context.http.get(url, HEADERS).require("Hallmark schedule").json()["data"].array) {
-                val start = item["schedule"].str("startsAt")?.let(::instantOrNull) ?: continue
-                val end = item["schedule"].str("endsAt")?.let(::instantOrNull) ?: continue
-                val title = item["display"]["epg"].str("title") ?: item.str("title") ?: continue
-                if (end <= start) continue
-                programs +=
-                    GuideProgram(
-                        channel.id,
-                        start,
-                        end,
-                        title,
-                        item.str("description") ?: item["display"]["epg"].str("description"),
-                    )
+            context.http.get(url, HEADERS).require("Hallmark schedule").json()["data"].array.mapNotNullTo(programs) {
+                val epg = it["display"]["epg"]
+                guideProgram(
+                    channel.id,
+                    it["schedule"].str("startsAt")?.let(::instantOrNull),
+                    it["schedule"].str("endsAt")?.let(::instantOrNull),
+                    epg.str("title") ?: it.str("title"),
+                    it.str("description") ?: epg.str("description"),
+                )
             }
         }
         return ParsedGuide(index, programs)
@@ -67,13 +63,15 @@ class HallmarkClient(private val context: ProviderContext) : ProviderClient {
     /** `channelIdentifier` to the catalog's current content id and logo, cached for an hour. */
     private suspend fun catalog(): Map<String, Pair<String, String?>> = context.cached(CATALOG, Duration.ofHours(1)) {
         val items = context.http.get("$apiBase/channels", HEADERS).require("Hallmark catalog").json()["data"].array
-        val result = HashMap<String, Pair<String, String?>>()
-        for (item in items) {
-            val identifier = item["extras"].str("channelIdentifier") ?: continue
-            val id = item.str("id") ?: continue
-            result[identifier] = id to httpOrNull(item["images"]["logo"]["landscape"][0].str("url"))
-        }
-        result
+        items.mapNotNull { item ->
+            val identifier = item["extras"].str("channelIdentifier")
+            val id = item.str("id")
+            if (identifier == null || id == null) {
+                null
+            } else {
+                identifier to (id to httpOrNull(item["images"]["logo"]["landscape"][0].str("url")))
+            }
+        }.toMap()
     }
 
     companion object {

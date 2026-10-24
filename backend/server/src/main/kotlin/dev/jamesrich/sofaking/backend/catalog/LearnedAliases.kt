@@ -30,10 +30,9 @@ fun loosePairs(result: BuildResult, never: List<List<String>>): List<Pair<String
     val live = result.stations.filter { it.offeringIds.isNotEmpty() }.mapTo(HashSet()) { it.key }
     val byLoose = sortedMapOf<String, java.util.TreeSet<String>>()
     for (candidate in result.candidates) {
-        val station = candidate.station ?: continue
-        if (candidate.outcome == "skipped" || station !in live) continue
-        val loose = looseName(candidate.name) ?: continue
-        byLoose.getOrPut(loose) { java.util.TreeSet() } += station
+        val station = candidate.station?.takeIf { candidate.outcome != "skipped" && it in live }
+        val loose = station?.let { looseName(candidate.name) }
+        if (station != null && loose != null) byLoose.getOrPut(loose) { java.util.TreeSet() } += station
     }
     val pairs = sortedSetOf<Pair<String, String>>(compareBy({ it.first }, { it.second }))
     for (stations in byLoose.values) {
@@ -77,8 +76,11 @@ fun matchingPrograms(a: List<GuideProgram>, b: List<GuideProgram>): Int {
 fun sameSchedule(a: List<GuideProgram>, b: List<GuideProgram>): Boolean {
     if (a.isEmpty() || b.isEmpty()) return false
     val matched = matchingPrograms(a, b)
-    return matched >= 3 && matched * 5 >= 3 * min(a.size, b.size)
+    return matched >= SAME_SCHEDULE_PROGRAMS && matched >= SAME_SCHEDULE_SHARE * min(a.size, b.size)
 }
+
+private const val SAME_SCHEDULE_PROGRAMS = 3
+private const val SAME_SCHEDULE_SHARE = 0.6
 
 /** An override that holds nothing but a number, which a learned alias may drop with its station. */
 internal fun numberOnly(override: StationOverride?): Boolean =
@@ -94,30 +96,21 @@ fun learnAliases(result: BuildResult, policy: LineupPolicy, schedules: Map<Strin
     val never = policy.names.never
     val sources = result.stations.associate { it.key to it.offeringIds.size }
     val target = compareBy<String> { sources[it] ?: 0 }.thenByDescending { it }
-    val parent = HashMap<String, String>()
-    fun root(key: String): String = parent[key]?.takeIf { it != key }?.let(::root) ?: key
     val suggestions = sortedSetOf<String>()
+    val matched = ArrayList<Pair<String, String>>()
     for ((a, b) in loosePairs(result, never)) {
         val left = schedules[a]
         val right = schedules[b]
         if (left.isNullOrEmpty() || right.isNullOrEmpty()) {
             val (from, to) = if (target.compare(a, b) >= 0) b to a else a to b
             suggestions += "$from: possible alias of $to"
-            continue
-        }
-        if (!sameSchedule(left, right)) continue
-        val (ra, rb) = root(a) to root(b)
-        if (ra != rb) {
-            val (low, high) = listOf(ra, rb).sorted()
-            parent[high] = low
+        } else if (sameSchedule(left, right)) {
+            matched += a to b
         }
     }
-    val components = parent.keys.plus(parent.values).distinct().groupBy(::root).values.map {
-        it.sorted()
-    }.sortedBy { it.first() }
     val learned = sortedMapOf<String, String>()
     val findings = ArrayList<String>()
-    for (members in components) {
+    for (members in components(matched)) {
         val into = members.maxWith(target)
         val apart = members.flatMap { a ->
             members.filter { b -> a < b && neverMerges(never, a, b) }.map { b -> "$a and $b" }
@@ -126,27 +119,46 @@ fun learnAliases(result: BuildResult, policy: LineupPolicy, schedules: Map<Strin
             findings +=
                 "$into: schedules match ${members.filter { it != into }.joinToString()}, but names.never keeps " +
                 "${apart.joinToString()} apart; not merged"
-            continue
-        }
-        for (from in members.filter { it != into }) {
-            val override = policy.stations[from]
-            // A number the household set is never released, so a merge would lose it; one the
-            // server wrote goes with the key.
-            val handNumbered = override?.number != null && from !in policy.numbering.assigned
-            if (numberOnly(override) && !handNumbered) {
-                learned[from] = into
-            } else {
-                val why = if (handNumbered && numberOnly(override)) {
-                    "its number was set by hand"
+        } else {
+            for (from in members.filter { it != into }) {
+                val blocked = mergeBlocked(from, policy)
+                if (blocked == null) {
+                    learned[from] = into
                 } else {
-                    "its station override holds more than a number"
+                    findings += "$from: schedule matches $into, but $blocked; not merged"
+                    suggestions += "$from: possible alias of $into"
                 }
-                findings += "$from: schedule matches $into, but $why; not merged"
-                suggestions += "$from: possible alias of $into"
             }
         }
     }
     return Learning(learned, suggestions.toList(), findings.sorted())
+}
+
+/** The connected groups of [pairs], each sorted, in the order of their first keys. */
+private fun components(pairs: List<Pair<String, String>>): List<List<String>> {
+    val parent = HashMap<String, String>()
+    fun root(key: String): String = parent[key]?.takeIf { it != key }?.let(::root) ?: key
+    for ((a, b) in pairs) {
+        val (ra, rb) = root(a) to root(b)
+        if (ra != rb) {
+            val (low, high) = listOf(ra, rb).sorted()
+            parent[high] = low
+        }
+    }
+    return parent.keys.plus(parent.values).distinct().groupBy(::root).values.map { it.sorted() }.sortedBy { it.first() }
+}
+
+/** Why the station [from] may not merge into another under [policy]; null when it may. */
+private fun mergeBlocked(from: String, policy: LineupPolicy): String? {
+    val override = policy.stations[from]
+    // A number the household set is never released, so a merge would lose it; one the
+    // server wrote goes with the key.
+    val handNumbered = override?.number != null && from !in policy.numbering.assigned
+    return when {
+        !numberOnly(override) -> "its station override holds more than a number"
+        handNumbered -> "its number was set by hand"
+        else -> null
+    }
 }
 
 /**

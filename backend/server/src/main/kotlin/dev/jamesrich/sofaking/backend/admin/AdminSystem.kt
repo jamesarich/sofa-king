@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.api.ServerStatus
 import dev.jamesrich.sofaking.backend.jobs.JobStatus
 import dev.jamesrich.sofaking.backend.logging.LogEvent
@@ -139,7 +140,7 @@ internal suspend fun ffmpegVersion(ffmpeg: String): String = withContext(Dispatc
         val process = ProcessBuilder(ffmpeg, "-version").redirectErrorStream(true).start()
         // The few lines it prints fit the pipe's buffer, so the exit comes first and an FFmpeg
         // that hangs never holds the page.
-        if (!process.waitFor(5, TimeUnit.SECONDS)) {
+        if (!process.waitFor(VERSION_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
             process.destroyForcibly()
             return@withContext "not readable at $ffmpeg"
         }
@@ -153,19 +154,22 @@ internal suspend fun ffmpegVersion(ffmpeg: String): String = withContext(Dispatc
 
 /** A duration as "12 min", "6 h" or "1.5 s". */
 internal fun period(duration: Duration): String {
-    val s = duration.seconds
+    val wholeHours = duration.toMinutesPart() == 0 && duration.toSecondsPart() == 0
     return when {
-        s >= 86_400 && s % 86_400 == 0L -> "${s / 86_400} d"
-        s >= 3600 && s % 3600 == 0L -> "${s / 3600} h"
-        s >= 60 -> "${s / 60} min"
-        else -> "$s s"
+        duration.toDays() > 0 && duration.toHoursPart() == 0 && wholeHours -> "${duration.toDays()} d"
+        duration.toHours() > 0 && wholeHours -> "${duration.toHours()} h"
+        duration.toMinutes() > 0 -> "${duration.toMinutes()} min"
+        else -> "${duration.seconds} s"
     }
 }
 
-internal fun took(ms: Long): String = when {
-    ms >= 60_000 -> "${ms / 60_000} min ${ms % 60_000 / 1000} s"
-    ms >= 1000 -> "%.1f s".format(java.util.Locale.US, ms / 1000.0)
-    else -> "$ms ms"
+internal fun took(ms: Long): String {
+    val duration = Duration.ofMillis(ms)
+    return when {
+        duration.toMinutes() > 0 -> "${duration.toMinutes()} min ${duration.toSecondsPart()} s"
+        duration.seconds > 0 -> "%.1f s".format(java.util.Locale.US, ms.toDouble() / MS_PER_SECOND)
+        else -> "$ms ms"
+    }
 }
 
 internal fun jobsPage(chrome: Chrome, view: JobsView): String = layout("Jobs", chrome, "/admin/system/jobs") {
@@ -729,3 +733,6 @@ internal fun MAIN.updateConfirm(chrome: Chrome, update: UpdateState) {
         }
     }
 }
+
+/** How long `ffmpeg -version` may take. */
+private const val VERSION_TIMEOUT_SECONDS = 5L

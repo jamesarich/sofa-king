@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.io.runFor
@@ -10,6 +11,7 @@ import dev.jamesrich.sofaking.contract.PlaybackDescriptor
 import dev.jamesrich.sofaking.contract.UpdateVodPlayback
 import dev.jamesrich.sofaking.contract.VodSession
 import dev.jamesrich.sofaking.contract.Wire
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
@@ -37,13 +39,14 @@ private val log = LoggerFactory.getLogger(VodSessions::class.java)
 
 /** The HLS segment length FFmpeg cuts to, in seconds. */
 private const val SEGMENT_SECONDS = 4
-private const val SEGMENT_MS = SEGMENT_SECONDS * 1000L
+private const val SEGMENT_MS = SEGMENT_SECONDS * MS_PER_SECOND.toLong()
 
 /**
  * How many segments a whole playlist of an item [durationMs] long lists. Less than a second left over joins the last
  * segment, as the stream's last frames can end that much before its audio does.
  */
-internal fun segmentCount(durationMs: Long): Int = maxOf(1, ((durationMs + SEGMENT_MS - 1000) / SEGMENT_MS).toInt())
+internal fun segmentCount(durationMs: Long): Int =
+    maxOf(1, ((durationMs + SEGMENT_MS - MS_PER_SECOND) / SEGMENT_MS).toInt())
 
 /** A VOD playlist of every segment of an item [durationMs] long, the last one as long as what is left. */
 internal fun wholePlaylist(durationMs: Long): String = buildString {
@@ -54,7 +57,7 @@ internal fun wholePlaylist(durationMs: Long): String = buildString {
     val count = segmentCount(durationMs)
     for (i in 0 until count) {
         val length = if (i == count - 1) durationMs - i * SEGMENT_MS else SEGMENT_MS
-        append("#EXTINF:%.3f,\nseg$i.ts\n".format(java.util.Locale.ROOT, length / 1000.0))
+        append("#EXTINF:%.3f,\nseg$i.ts\n".format(java.util.Locale.ROOT, length.toDouble() / MS_PER_SECOND))
     }
     append("#EXT-X-ENDLIST\n")
 }
@@ -94,6 +97,17 @@ private const val SUBTITLE_EXTRACTIONS = 3
 
 /** How long FFmpeg waits for a growing recording to grow before it ends the stream. */
 private const val FOLLOW_TIMEOUT_MICROS = 60_000_000L
+
+/** How long an idle VOD session lasts. */
+private val LEASE: Duration = Duration.ofMinutes(5)
+
+/** How often, and how many times, a request checks for the segment FFmpeg is writing: 20 seconds in all. */
+private const val READY_CHECKS = 200
+private const val READY_CHECK_MS = 100L
+private const val SECRET_BYTES = 16
+
+/** Bits a sample in 8-bit video, which every decoder takes. */
+private const val STANDARD_BIT_DEPTH = 8
 
 /**
  * A recording's file as [VodSessions] plays it. [growing] is true while it records, so its stream follows the file;
@@ -160,7 +174,7 @@ class VodSessions(
     private val ffmpeg: String,
     private val directory: Path,
     private val maxConverting: Int = 2,
-    private val lease: Duration = Duration.ofMinutes(5),
+    private val lease: Duration = LEASE,
     private val recordings: (suspend (String) -> PlayableFile?)? = null,
     private val probe: suspend (Path) -> MediaInfo? = { null },
     private var encoder: VideoEncoder = VideoEncoder(),
@@ -213,14 +227,18 @@ class VodSessions(
     }
 
     suspend fun open(request: OpenVodPlayback): VodSession {
-        if (request.startMs < 0) throw ApiFailure(400, "INVALID_REQUEST", "startMs is not negative")
+        if (request.startMs <
+            0
+        ) {
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "startMs is not negative")
+        }
         request.recordingId?.let { return openRecording(it, request) }
         val (item, file) = itemFile(request.itemId)
         val burn = request.subtitleIndex?.let { index ->
             subtitleSource(item, file, index).also {
                 if (!it.picture) {
                     throw ApiFailure(
-                        400,
+                        HttpStatusCode.BadRequest,
                         "INVALID_REQUEST",
                         "Subtitle stream $index is text; the player draws it",
                     )
@@ -248,7 +266,13 @@ class VodSessions(
     suspend fun subtitles(itemId: String, index: Int): Path {
         val (item, video) = itemFile(itemId)
         val source = subtitleSource(item, video, index)
-        if (source.picture) throw ApiFailure(415, "SUBTITLE_NOT_TEXT", "Subtitle stream $index is pictures, not text")
+        if (source.picture) {
+            throw ApiFailure(
+                HttpStatusCode.UnsupportedMediaType,
+                "SUBTITLE_NOT_TEXT",
+                "Subtitle stream $index is pictures, not text",
+            )
+        }
         val file = source.file ?: video
         val map = if (source.file == null) "0:$index" else "0:s:0"
         val dir = directory.resolve(SUBTITLES)
@@ -271,7 +295,11 @@ class VodSessions(
                                 runs(command, SUBTITLE_TIMEOUT_MINUTES)
                             }
                         ) {
-                            throw ApiFailure(502, "SUBTITLE_FAILED", "The subtitles could not be read from the file")
+                            throw ApiFailure(
+                                HttpStatusCode.BadGateway,
+                                "SUBTITLE_FAILED",
+                                "The subtitles could not be read from the file",
+                            )
                         }
                         Files.move(
                             partial,
@@ -302,13 +330,13 @@ class VodSessions(
     /** The library item [itemId] and its file, which must be a movie, episode or video inside its library's folder. */
     private suspend fun itemFile(itemId: String): Pair<View, Path> {
         val snapshot = catalog.snapshot()
-        val view = snapshot.views[itemId] ?: throw ApiFailure(404, "ITEM_NOT_FOUND", "No such item")
+        val view = snapshot.views[itemId] ?: throw ApiFailure(HttpStatusCode.NotFound, "ITEM_NOT_FOUND", "No such item")
         if (view.record.path == null || view.record.kind == ItemKind.SHOW || view.record.kind == ItemKind.SEASON) {
-            throw ApiFailure(400, "INVALID_REQUEST", "Only a movie, episode or video plays")
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Only a movie, episode or video plays")
         }
         val file = snapshot.fileOf(view)
         if (file == null || withContext(Dispatchers.IO) { !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }) {
-            throw ApiFailure(404, "ITEM_MISSING", "The file is not there; is its disk mounted?")
+            throw ApiFailure(HttpStatusCode.NotFound, "ITEM_MISSING", "The file is not there; is its disk mounted?")
         }
         return view to file
     }
@@ -323,27 +351,35 @@ class VodSessions(
         } else {
             item.record.media?.subtitles?.firstOrNull { it.index == index }?.let { return SubtitleSource(it, null) }
         }
-        throw ApiFailure(404, "RESOURCE_NOT_FOUND", "No subtitle stream $index")
+        throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "No subtitle stream $index")
     }
 
     /** Plays a recording; one still recording is never played directly, as its stream has to follow the file. */
     private suspend fun openRecording(id: String, request: OpenVodPlayback): VodSession {
         if (request.subtitleIndex != null) {
-            throw ApiFailure(400, "INVALID_REQUEST", "A recording has no subtitle tracks to draw")
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "A recording has no subtitle tracks to draw")
         }
         val playable =
             recordings?.invoke(id)
-                ?: throw ApiFailure(404, "RECORDING_NOT_FOUND", "No such recording, or nothing recorded yet")
+                ?: throw ApiFailure(
+                    HttpStatusCode.NotFound,
+                    "RECORDING_NOT_FOUND",
+                    "No such recording, or nothing recorded yet",
+                )
         val size =
             withContext(Dispatchers.IO) {
                 if (Files.isRegularFile(playable.file, LinkOption.NOFOLLOW_LINKS)) Files.size(playable.file) else -1L
             }
         if (size < 0) {
-            throw ApiFailure(404, "RECORDING_MISSING", "The recording's file is not there; is its disk mounted?")
+            throw ApiFailure(
+                HttpStatusCode.NotFound,
+                "RECORDING_MISSING",
+                "The recording's file is not there; is its disk mounted?",
+            )
         }
         if (size == 0L) {
             throw ApiFailure(
-                409,
+                HttpStatusCode.Conflict,
                 "RECORDING_NOT_READY",
                 "Nothing has been recorded yet; try again in a few seconds",
                 true,
@@ -365,7 +401,7 @@ class VodSessions(
     ): VodSession {
         val audio = request.audioIndex?.let { index ->
             media?.audio?.firstOrNull { it.index == index }
-                ?: throw ApiFailure(400, "INVALID_REQUEST", "No audio stream $index")
+                ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "No audio stream $index")
         }
         // Drawing subtitles into the picture means encoding it.
         val mode = if (burn != null) {
@@ -384,7 +420,7 @@ class VodSessions(
                 } >= maxConverting
             ) {
                 throw ApiFailure(
-                    503,
+                    HttpStatusCode.ServiceUnavailable,
                     Wire.ErrorCode.CAPACITY_EXHAUSTED,
                     "Too many files are being converted; try again when one stops",
                     true,
@@ -423,7 +459,11 @@ class VodSessions(
     /** Renews [id]'s lease; with a start, restarts a converted stream there under a new epoch. */
     suspend fun update(id: String, update: UpdateVodPlayback): VodSession {
         val start = update.startMs
-        if (start != null && start < 0) throw ApiFailure(400, "INVALID_REQUEST", "startMs is not negative")
+        if (start != null &&
+            start < 0
+        ) {
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "startMs is not negative")
+        }
         // A recording may have finished and moved since the stream started, so a restart finds its file again.
         val recordingId = locked { live(id).recordingId }
         val playable = if (start != null && recordingId != null) recordings?.invoke(recordingId) else null
@@ -519,20 +559,21 @@ class VodSessions(
     }
 
     private suspend fun waitFor(state: VodState, epoch: Int, ready: () -> Boolean): Unit? {
-        repeat(200) {
+        repeat(READY_CHECKS) {
             if (withContext(Dispatchers.IO) { ready() }) return Unit
             val running = locked {
                 state.epoch == epoch && state.process?.isAlive == true && sessions[state.id] === state
             }
             if (!running) return if (withContext(Dispatchers.IO) { ready() }) Unit else null
-            delay(100)
+            delay(READY_CHECK_MS)
         }
         return null
     }
 
     private fun live(id: String): VodState {
         reap()
-        return sessions[id] ?: throw ApiFailure(410, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
+        return sessions[id]
+            ?: throw ApiFailure(HttpStatusCode.Gone, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
     }
 
     private fun reap() {
@@ -563,7 +604,12 @@ class VodSessions(
             ProcessBuilder(command).redirectErrorStream(true).redirectOutput(dir.resolve("ffmpeg.log").toFile()).start()
         } catch (e: IOException) {
             log.warn("vod ffmpeg did not start class={}", e.javaClass.simpleName)
-            throw ApiFailure(503, "TRANSCODER_UNAVAILABLE", "FFmpeg could not start", true)
+            throw ApiFailure(
+                HttpStatusCode.ServiceUnavailable,
+                "TRANSCODER_UNAVAILABLE",
+                "FFmpeg could not start",
+                true,
+            )
         }
         log.info(
             "vod session started session={} mode={} startMs={}",
@@ -596,7 +642,7 @@ class VodSessions(
         return VodSession(id, itemId, mode, descriptor, startMs, durationMs, expires.toString(), recordingId)
     }
 
-    private fun secret(): String = HexFormat.of().formatHex(ByteArray(16).also(random::nextBytes))
+    private fun secret(): String = HexFormat.of().formatHex(ByteArray(SECRET_BYTES).also(random::nextBytes))
 
     private companion object {
         val SEGMENT = Regex("seg([0-9]{1,6})\\.ts")
@@ -706,8 +752,8 @@ private val DEEP_PIXEL_FORMAT = Regex("""(p9|p1[0-6]|p01[0-6])(le|be)?$""")
  * True when [video] has more than 8 bits a sample, as HEVC Main 10 and H.264 High 10 do. Most hardware decoders take
  * 10-bit HEVC, VP9 and AV1, but no phone, TV or browser takes 10-bit H.264.
  */
-internal fun deepColor(video: VideoStream): Boolean =
-    (video.bitDepth ?: 0) > 8 || video.pixelFormat?.let { DEEP_PIXEL_FORMAT.containsMatchIn(it) } == true
+internal fun deepColor(video: VideoStream): Boolean = (video.bitDepth ?: 0) > STANDARD_BIT_DEPTH ||
+    video.pixelFormat?.let { DEEP_PIXEL_FORMAT.containsMatchIn(it) } == true
 
 /**
  * True when the stream is written as fragmented MP4 rather than MPEG-TS: copied HEVC, which AVPlayer plays only in
@@ -776,7 +822,7 @@ internal fun vodCommand(
             addAll(
                 listOf(
                     "-output_ts_offset",
-                    "%.3f".format(java.util.Locale.ROOT, startMs / 1000.0),
+                    "%.3f".format(java.util.Locale.ROOT, startMs.toDouble() / MS_PER_SECOND),
                     "-start_number",
                     "$firstSegment",
                 ),

@@ -12,7 +12,7 @@ private val factsJson = Json { ignoreUnknownKeys = true }
 
 /** The stored lookups of [itemIds], by item id. */
 suspend fun BackendStore.libraryMetadata(itemIds: Collection<String>): Map<String, MetadataRecord> = read {
-    itemIds.chunked(500).flatMap { chunk ->
+    itemIds.chunked(ROW_CHUNK).flatMap { chunk ->
         LibraryMetadataRows.selectAll().where {
             LibraryMetadataRows.itemId inList
                 chunk
@@ -22,7 +22,7 @@ suspend fun BackendStore.libraryMetadata(itemIds: Collection<String>): Map<Strin
 }
 
 suspend fun BackendStore.saveLibraryMetadata(records: List<MetadataRecord>) = query {
-    records.chunked(500).forEach { chunk ->
+    records.chunked(ROW_CHUNK).forEach { chunk ->
         LibraryMetadataRows.batchUpsert(chunk) { record ->
             this[LibraryMetadataRows.itemId] = record.itemId
             this[LibraryMetadataRows.tmdbId] = record.tmdbId

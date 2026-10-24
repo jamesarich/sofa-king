@@ -12,6 +12,7 @@ import dev.jamesrich.sofaking.backend.catalog.loadPolicy
 import dev.jamesrich.sofaking.backend.catalog.loadSources
 import dev.jamesrich.sofaking.backend.catalog.readSourceDocument
 import dev.jamesrich.sofaking.backend.providers.NativeServices
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.parameters
 import kotlinx.coroutines.test.runTest
 import java.nio.file.Files
@@ -357,7 +358,7 @@ class SetupServiceTest {
                     throw dev.jamesrich.sofaking.backend.library.TmdbFailure("TMDB_UNREACHABLE (ConnectException)")
                 })
             val failure = assertFailsWith<ApiFailure> { setup.saveTmdbToken("t".repeat(40)) }
-            assertEquals(502, failure.status)
+            assertEquals(HttpStatusCode.BadGateway, failure.status)
             assertEquals("TMDB_UNREACHABLE", failure.code)
             assertFalse(Files.exists(dir.resolve("secrets.json")))
         } finally {

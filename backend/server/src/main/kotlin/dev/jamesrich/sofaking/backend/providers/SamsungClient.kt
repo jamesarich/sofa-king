@@ -17,15 +17,7 @@ class SamsungClient(private val context: ProviderContext) : ProviderClient {
     override suspend fun channels(): List<ProviderChannel> = listed()
 
     override suspend fun resolve(channelId: String): ResolvedStream {
-        if (listed().none { it.id == channelId }) {
-            context.invalidate(CHANNELS)
-            if (listed().none {
-                    it.id == channelId
-                }
-            ) {
-                throw ProviderFailure("Channel is no longer listed", transient = false)
-            }
-        }
+        context.findListed(CHANNELS) { listed().firstOrNull { it.id == channelId } }
         val hop = context.http.get("$streamBase$channelId", HEADERS, follow = false)
         val target = when {
             hop.status in 300..399 && hop.location != null -> hop.location
@@ -44,7 +36,7 @@ class SamsungClient(private val context: ProviderContext) : ProviderClient {
         return ResolvedStream(url, HEADERS, now.plus(URL_LIFETIME))
     }
 
-    private suspend fun listed(): List<ProviderChannel> = context.cached(CHANNELS, Duration.ofMinutes(30)) {
+    private suspend fun listed(): List<ProviderChannel> = context.cached(CHANNELS, CACHED_FOR) {
         fetchChannels()
     }
 
@@ -76,6 +68,9 @@ class SamsungClient(private val context: ProviderContext) : ProviderClient {
         private const val CHANNELS_URL = "https://i.mjh.nz/SamsungTVPlus/.channels.json.gz"
         private const val STREAM_BASE = "https://jmp2.uk/stvp-"
         private const val CHANNELS = "channels"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(30)
         private val URL_LIFETIME = Duration.ofHours(1)
         private val HEADERS = mapOf("User-Agent" to "okhttp/4.12.0")
     }

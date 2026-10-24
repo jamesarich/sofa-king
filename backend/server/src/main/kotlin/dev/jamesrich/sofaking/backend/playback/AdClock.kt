@@ -1,5 +1,9 @@
 package dev.jamesrich.sofaking.backend.playback
 
+import dev.jamesrich.sofaking.backend.MS_PER_SECOND
+import dev.jamesrich.sofaking.backend.PTS_BITS
+import dev.jamesrich.sofaking.backend.PTS_MASK
+import dev.jamesrich.sofaking.backend.TICKS_PER_MS
 import dev.jamesrich.sofaking.backend.ads.BreakLibrary
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.contract.AdBreakState
@@ -717,7 +721,7 @@ private const val REPEAT_SLACK_MS = 2_000L
 /**
  * How far a cue's splice time may be from its segment's first frame; one further off counts from the segment itself.
  */
-private const val SPLICE_REACH_TICKS = 60L * 90_000
+private const val SPLICE_REACH_TICKS = 60L * MS_PER_SECOND * TICKS_PER_MS
 
 /**
  * How many ms after a segment's first frame, at [firstPtsTicks], a splice at [ptsTicks] falls, on the 33-bit 90 kHz
@@ -725,9 +729,10 @@ private const val SPLICE_REACH_TICKS = 60L * 90_000
  */
 internal fun spliceOffsetMs(firstPtsTicks: Long?, ptsTicks: Long?): Long {
     if (firstPtsTicks == null || ptsTicks == null) return 0L
-    var ticks = (ptsTicks - firstPtsTicks) and ((1L shl 33) - 1)
-    if (ticks >= 1L shl 32) ticks -= 1L shl 33
-    return if (ticks in -SPLICE_REACH_TICKS..SPLICE_REACH_TICKS) ticks / 90 else 0L
+    // The difference on the wrapping clock, taken as the nearer of forward and back.
+    var ticks = (ptsTicks - firstPtsTicks) and PTS_MASK
+    if (ticks >= 1L shl (PTS_BITS - 1)) ticks -= 1L shl PTS_BITS
+    return if (ticks in -SPLICE_REACH_TICKS..SPLICE_REACH_TICKS) ticks / TICKS_PER_MS else 0L
 }
 
 /**

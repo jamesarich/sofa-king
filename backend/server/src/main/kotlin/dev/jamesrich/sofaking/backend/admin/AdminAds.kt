@@ -22,6 +22,7 @@ import kotlinx.html.th
 import kotlinx.html.thead
 import kotlinx.html.time
 import kotlinx.html.tr
+import java.time.Duration
 
 /** One channel's ad census, named as the lineup names it. */
 internal class AdChannelRow(val record: AdChannelRecord, val name: String?, val listening: Boolean)
@@ -35,14 +36,7 @@ internal class AdsView(
 )
 
 /** A length of time as "3 h 12 min", "7 min" or "40 s". */
-internal fun spoken(ms: Long): String {
-    val s = ms / 1000
-    return when {
-        s >= 3600 -> "${s / 3600} h ${s % 3600 / 60} min"
-        s >= 60 -> "${s / 60} min"
-        else -> "$s s"
-    }
-}
+internal fun spoken(ms: Long): String = hoursAndMinutes(Duration.ofMillis(ms))
 
 internal fun adsPage(chrome: Chrome, view: AdsView): String = layout("Ads", chrome, "/admin/ads") {
     val now = chrome.now
@@ -81,7 +75,7 @@ internal fun adsPage(chrome: Chrome, view: AdsView): String = layout("Ads", chro
                     } else {
                         +"%.1f%% of %s".format(
                             java.util.Locale.US,
-                            precision * 100,
+                            precision * PERCENT,
                             plural(library.canaryHits + library.canaryFalse, "check"),
                         )
                     }

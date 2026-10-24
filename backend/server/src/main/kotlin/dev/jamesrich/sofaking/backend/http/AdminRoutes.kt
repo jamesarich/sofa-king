@@ -57,16 +57,16 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
                         entry.id
                 }
             }
-            val matches = runtime.feeds.channels(provider).filter { channel ->
+            val matches = runtime.feeds.published.channels(provider).filter { channel ->
                 query.isEmpty() || channel.name.lowercase().contains(query) ||
                     channel.displayNumber.lowercase() == query ||
                     channel.legacyGuideId?.lowercase()?.contains(query) == true
             }.sortedWith(LineupService.channelOrder)
             val items = matches.drop(offset).take(limit).map { channel ->
-                val offerings = runtime.feeds.offeringsOf(channel.id)
+                val offerings = runtime.feeds.published.offeringsOf(channel.id)
                 Candidate(
                     channel.id,
-                    runtime.feeds.providerOf(
+                    runtime.feeds.published.providerOf(
                         channel.id,
                     ).orEmpty(),
                     channel.displayNumber, channel.name, channel.logo, channel.tags.firstOrNull(),
@@ -84,10 +84,14 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
             }
             call.respond(CandidatePage(matches.size, items))
         }
-        get("/guides") { call.respond(runtime.guides.statuses()) }
+        get("/guides") { call.respond(runtime.guides.statuses) }
         get("/guides/{id}/channels") {
             val id = call.parameters["id"]!!
-            if (runtime.guides.config(id) == null) throw ApiFailure(404, "GUIDE_NOT_FOUND", "Unknown guide")
+            if (runtime.guides.config(id) ==
+                null
+            ) {
+                throw ApiFailure(HttpStatusCode.NotFound, "GUIDE_NOT_FOUND", "Unknown guide")
+            }
             val limit = (call.request.queryParameters["limit"]?.toIntOrNull() ?: 100).coerceIn(1, 1000)
             call.respond(runtime.guides.searchChannels(id, call.request.queryParameters["q"], limit))
         }
@@ -122,7 +126,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
         get("/lineup/{id}") {
             val entry =
                 runtime.lineup.entry(call.parameters["id"]!!)
-                    ?: throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+                    ?: throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
             call.respond(entryInfo(entry))
         }
         patch("/lineup/{id}") {
@@ -134,7 +138,11 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
                 call.respond(
                     entryInfo(
                         policy.updateStation(id, request, call.ifMatch())
-                            ?: throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "The station left the lineup"),
+                            ?: throw ApiFailure(
+                                HttpStatusCode.NotFound,
+                                "LINEUP_ENTRY_NOT_FOUND",
+                                "The station left the lineup",
+                            ),
                     ),
                 )
             }
@@ -155,7 +163,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
 
 /** What a route the lineup policy replaces answers while a policy is configured. */
 internal fun policyManaged() = ApiFailure(
-    410,
+    HttpStatusCode.Gone,
     "POLICY_MANAGED",
     "The lineup is built from the lineup policy; change it through /api/v1/admin/policy",
 )
@@ -166,17 +174,17 @@ private fun LineupEntryRecord.info(
     position: Int,
     now: Instant,
 ): LineupEntry {
-    val coverage = guide?.let { runtime.guides.coverage()[it.guideId]?.get(it.channelId) }
+    val coverage = guide?.let { runtime.guides.coverage[it.guideId]?.get(it.channelId) }
     return LineupEntry(
         id, position, number, name, group, logo, enabled, guide,
         offeringIds.map { id ->
-            val offering = runtime.feeds.offering(id)
+            val offering = runtime.feeds.published.offering(id)
             val state = states[id]
             LineupOfferingInfo(
                 id,
                 offering?.providerId,
                 offering?.let {
-                    runtime.feeds.channel(it.channelId)?.name
+                    runtime.feeds.published.channel(it.channelId)?.name
                 },
                 offering?.protocol,
                 if (offering == null) {

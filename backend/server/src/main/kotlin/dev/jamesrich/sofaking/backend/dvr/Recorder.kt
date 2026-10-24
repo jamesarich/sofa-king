@@ -57,7 +57,7 @@ class Recorder internal constructor(
     /** The relay FFmpeg reads the source through. */
     private val relay: LoopbackRelay,
     /** How long to wait before reopening a source that ended or could not be opened. */
-    private val retryDelay: Duration = Duration.ofSeconds(5),
+    private val retryDelay: Duration = RETRY_DELAY,
     /**
      * Joins an MPEG-TS source's one shared upstream connection, the one players of it read; null
      * records every source through FFmpeg.
@@ -209,5 +209,6 @@ class Recorder internal constructor(
     companion object {
         /** The client the portal's Watching now shows for a recording's session. */
         const val CLIENT = "DVR"
+        private val RETRY_DELAY: Duration = Duration.ofSeconds(5)
     }
 }

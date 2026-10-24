@@ -1603,7 +1603,8 @@ class AdminPortalTest {
             runtime.adoptAll()
             browser.signIn()
             val station = runtime.lineup.entries().single {
-                it.name == "Station" && runtime.feeds.offering(it.offeringIds.first())?.providerId == "fixture"
+                it.name == "Station" &&
+                    runtime.feeds.published.offering(it.offeringIds.first())?.providerId == "fixture"
             }
             val opened = browser.post("/api/v1/playback-sessions") {
                 bearerAuth(token)
@@ -1659,7 +1660,8 @@ class AdminPortalTest {
                 runtime.adoptAll()
                 browser.signIn()
                 val station = runtime.lineup.entries().single {
-                    it.name == "Station" && runtime.feeds.offering(it.offeringIds.first())?.providerId == "fixture"
+                    it.name == "Station" &&
+                        runtime.feeds.published.offering(it.offeringIds.first())?.providerId == "fixture"
                 }
                 val offeringId = station.offeringIds.first()
                 val page = browser.get("/admin/lineup/${station.id}?q=stat").bodyAsText()

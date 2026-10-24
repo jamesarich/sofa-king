@@ -22,6 +22,7 @@ import dev.jamesrich.sofaking.contract.PlayState
 import dev.jamesrich.sofaking.contract.ScrubThumbnails
 import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.Wire
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -45,7 +46,11 @@ private const val RELATED_SIZE = 12
 private val FRAMED = setOf(ItemKind.MOVIE, ItemKind.EPISODE, ItemKind.VIDEO, ItemKind.EXTRA)
 
 /** Where a frame is taken: a tenth of the way in, past any opening titles, but no later than ten minutes. */
-internal fun frameAt(durationMs: Long?): Long = durationMs?.let { (it / 10).coerceAtMost(600_000) } ?: 0
+internal fun frameAt(durationMs: Long?): Long =
+    durationMs?.let { (it / FRAME_SHARE).coerceAtMost(LATEST_FRAME_MS) } ?: 0
+
+private const val FRAME_SHARE = 10
+private const val LATEST_FRAME_MS = 600_000L
 
 /** Where an item's poster or backdrop comes from: a file in its library folder, or a TMDB image path. */
 sealed interface ArtSource {
@@ -205,7 +210,7 @@ class LibraryCatalog internal constructor(
                 it.id == libraryId
             }
         ) {
-            throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
+            throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
         }
         val states = playStates()
         val byTitle = compareBy<View>({ it.item.title.let(::sortTitle) }, { it.item.year })
@@ -231,7 +236,11 @@ class LibraryCatalog internal constructor(
                 compareBy<View, Instant?>(nullsLast(reverseOrder())) { lastWatched[it.record.id] }.then(byTitle)
             }
 
-            else -> throw ApiFailure(400, "INVALID_REQUEST", "sort is title, added, year, rating or watched")
+            else -> throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                "sort is title, added, year, rating or watched",
+            )
         }
         val tops = snapshot.tops[libraryId].orEmpty()
         val wanted = genre?.trim()?.ifEmpty { null }
@@ -245,7 +254,7 @@ class LibraryCatalog internal constructor(
         val from =
             cursor?.let {
                 it.toIntOrNull()?.takeIf { offset -> offset >= 0 }
-                    ?: throw ApiFailure(400, "INVALID_REQUEST", "Invalid cursor")
+                    ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Invalid cursor")
             }
                 ?: 0
         val page = all.drop(from).take(limit)
@@ -261,7 +270,7 @@ class LibraryCatalog internal constructor(
 
     suspend fun item(id: String): LibraryItemDetail {
         val snapshot = snapshot()
-        val view = snapshot.views[id] ?: throw ApiFailure(404, "ITEM_NOT_FOUND", "No such item")
+        val view = snapshot.views[id] ?: throw ApiFailure(HttpStatusCode.NotFound, "ITEM_NOT_FOUND", "No such item")
         val states = playStates()
         val media = view.record.media
         // Subtitle files beside the video, read now so a file added since the scan shows.
@@ -347,7 +356,7 @@ class LibraryCatalog internal constructor(
     /** Movies, shows and videos whose title holds [query], then episodes; at most [limit]. */
     suspend fun search(query: String, limit: Int): LibraryPage {
         val needle = query.trim().lowercase()
-        if (needle.isEmpty()) throw ApiFailure(400, "INVALID_REQUEST", "q is required")
+        if (needle.isEmpty()) throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "q is required")
         val snapshot = snapshot()
         val states = playStates()
         val matches = snapshot.views.values.filter { needle in it.item.title.lowercase() }
@@ -367,18 +376,23 @@ class LibraryCatalog internal constructor(
      */
     suspend fun updatePlayState(id: String, update: UpdatePlayState): LibraryItem = writing.withLock {
         val snapshot = snapshot()
-        val view = snapshot.views[id] ?: throw ApiFailure(404, "ITEM_NOT_FOUND", "No such item")
+        val view = snapshot.views[id] ?: throw ApiFailure(HttpStatusCode.NotFound, "ITEM_NOT_FOUND", "No such item")
         val states = playStates()
         val now = clock.instant().toString()
         val folder = view.record.kind == ItemKind.SHOW || view.record.kind == ItemKind.SEASON
         if (update.positionMs < 0 || (update.durationMs ?: 0) < 0) {
-            throw ApiFailure(400, "INVALID_REQUEST", "Positions are not negative")
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Positions are not negative")
         }
         // Counted even when a write fails partway, so the next read is never served the copy from before it.
         try {
             if (folder) {
                 val watched =
-                    update.watched ?: throw ApiFailure(400, "INVALID_REQUEST", "A show or season takes watched only")
+                    update.watched
+                        ?: throw ApiFailure(
+                            HttpStatusCode.BadRequest,
+                            "INVALID_REQUEST",
+                            "A show or season takes watched only",
+                        )
                 val episodes = if (view.record.kind == ItemKind.SHOW) {
                     snapshot.episodes[id].orEmpty()
                 } else {

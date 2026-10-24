@@ -19,8 +19,9 @@ fun Route.logoRoutes(logos: LogoCache) {
     get("/logos/{key}") {
         val key =
             call.parameters["key"]?.takeIf { LogoCache.KEY.matches(it) }
-                ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown logo")
-        val record = logos.lookup(key) ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown logo")
+                ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown logo")
+        val record =
+            logos.lookup(key) ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown logo")
         val etag = "\"${record.contentHash}\""
         call.response.header(HttpHeaders.ETag, etag)
         call.response.header(HttpHeaders.CacheControl, "public, max-age=86400")
@@ -30,7 +31,7 @@ fun Route.logoRoutes(logos: LogoCache) {
         call.response.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
         if (call.request.headers[HttpHeaders.IfNoneMatch] == etag) return@get call.respond(HttpStatusCode.NotModified)
         // Streamed from the cache file, with its length and modification time; a HEAD or a range costs no read here.
-        val file = logos.file(record) ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown logo")
+        val file = logos.file(record) ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown logo")
         call.respond(LocalPathContent(file, ContentType.parse(record.contentType!!)))
     }
 }

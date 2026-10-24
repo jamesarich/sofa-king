@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.PolicyService
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receive
 import io.ktor.server.response.header
@@ -16,6 +17,9 @@ import io.ktor.server.routing.route
 
 internal const val POLICY_BODY_LIMIT = 4 * 1024 * 1024L
 
+/** How many change log entries a read returns when it names no limit. */
+private const val CHANGES_SHOWN = 100
+
 /** The `If-Match` revision without quotes or a weak prefix; null when absent. */
 internal fun ApplicationCall.ifMatch(): String? =
     request.headers[HttpHeaders.IfMatch]?.trim()?.removePrefix("W/")?.trim('"')?.takeIf { it.isNotEmpty() }
@@ -25,8 +29,12 @@ internal fun ApplicationCall.ifMatch(): String? =
  * log and one station's candidates.
  */
 fun Route.policyRoutes(policy: PolicyService?) {
-    fun loaded(): PolicyService =
-        policy ?: throw ApiFailure(404, "POLICY_NOT_CONFIGURED", "No lineup policy is configured; set SOFA_POLICY")
+    fun loaded(): PolicyService = policy
+        ?: throw ApiFailure(
+            HttpStatusCode.NotFound,
+            "POLICY_NOT_CONFIGURED",
+            "No lineup policy is configured; set SOFA_POLICY",
+        )
     get("/policy") {
         val document = loaded().document()
         call.response.header(HttpHeaders.ETag, "\"${document.revision}\"")
@@ -37,7 +45,7 @@ fun Route.policyRoutes(policy: PolicyService?) {
         val revision =
             call.ifMatch()
                 ?: throw ApiFailure(
-                    428,
+                    HttpStatusCode.PreconditionRequired,
                     "PRECONDITION_REQUIRED",
                     "Send If-Match with the policy revision from GET /api/v1/admin/policy",
                 )
@@ -49,7 +57,7 @@ fun Route.policyRoutes(policy: PolicyService?) {
     post("/policy/apply") { call.respond(loaded().apply("api")) }
     get("/policy/findings") { call.respond(loaded().findings()) }
     get("/policy/changes") {
-        call.respond(loaded().changes(call.request.queryParameters["limit"]?.toIntOrNull() ?: 100))
+        call.respond(loaded().changes(call.request.queryParameters["limit"]?.toIntOrNull() ?: CHANGES_SHOWN))
     }
     get("/stations/{key}") { call.respond(loaded().explain(call.parameters["key"]!!)) }
 }

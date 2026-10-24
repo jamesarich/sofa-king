@@ -21,6 +21,12 @@ private val UNMATCHED_FOR: Duration = Duration.ofDays(7)
 /** Lookups in a row that cannot reach TMDB before a run stops. */
 private const val UNREACHABLE_STOP = 3
 
+/** The wait between TMDB calls, well inside its rate limit. */
+private val TMDB_PAUSE: Duration = Duration.ofMillis(60)
+
+/** How many of the cast an item keeps, from TMDB or a `.nfo`. */
+internal const val CAST_LIMIT = 20
+
 /** What one metadata refresh did, for the scan's job note. [stopped] names the failure that ended it early. */
 data class MetadataResult(
     val fetched: Int,
@@ -48,7 +54,7 @@ class LibraryMetadata internal constructor(
     private val clock: Clock,
     private val region: String = "US",
     /** The wait between TMDB calls, well inside its rate limit. */
-    private val pause: Duration = Duration.ofMillis(60),
+    private val pause: Duration = TMDB_PAUSE,
 ) {
     val enabled: Boolean get() = tmdb != null
 
@@ -170,7 +176,7 @@ class LibraryMetadata internal constructor(
                                 null
                             },
                             aired = it.airDate,
-                            year = it.airDate?.take(4)?.toIntOrNull(),
+                            year = yearOf(it.airDate),
                             overview = it.overview?.ifEmpty {
                                 null
                             },
@@ -199,12 +205,12 @@ private fun normalized(title: String): String = title.lowercase().filter { it.is
  * a lone result whose year does.
  */
 internal fun pickMovie(results: List<TmdbMovieResult>, item: LibraryItemRecord): Int? = pick(
-    results.map { Triple(it.id, listOf(it.title, it.originalTitle), it.releaseDate?.take(4)?.toIntOrNull()) },
+    results.map { Triple(it.id, listOf(it.title, it.originalTitle), yearOf(it.releaseDate)) },
     item,
 )
 
 internal fun pickShow(results: List<TmdbShowResult>, item: LibraryItemRecord): Int? = pick(
-    results.map { Triple(it.id, listOf(it.name, it.originalName), it.firstAirDate?.take(4)?.toIntOrNull()) },
+    results.map { Triple(it.id, listOf(it.name, it.originalName), yearOf(it.firstAirDate)) },
     item,
 )
 
@@ -217,10 +223,14 @@ private fun pick(results: List<Triple<Int, List<String>, Int?>>, item: LibraryIt
         ?: results.singleOrNull()?.takeIf { (_, _, year) -> item.year != null && yearFits(year) }?.first
 }
 
-private fun Double?.rating(): Double? = this?.takeIf { it > 0 }?.let { (it * 10).roundToInt() / 10.0 }
+/** A rating rounded to one decimal place. */
+private fun Double?.rating(): Double? =
+    this?.takeIf { it > 0 }?.let { (it * RATING_SCALE).roundToInt() / RATING_SCALE.toDouble() }
+
+private const val RATING_SCALE = 10
 
 internal fun TmdbMovie.facts(region: String) = MetadataFacts(
-    title = title.ifEmpty { null }, year = releaseDate?.take(4)?.toIntOrNull(), aired = releaseDate?.ifEmpty { null },
+    title = title.ifEmpty { null }, year = yearOf(releaseDate), aired = releaseDate?.ifEmpty { null },
     overview = overview?.ifEmpty {
         null
     },
@@ -229,19 +239,19 @@ internal fun TmdbMovie.facts(region: String) = MetadataFacts(
     contentRating = releaseDates?.results?.firstOrNull {
         it.country == region
     }?.dates?.firstOrNull { it.certification.isNotBlank() }?.certification,
-    rating = voteAverage.rating(), cast = credits?.cast.orEmpty().map { it.name }.take(20),
+    rating = voteAverage.rating(), cast = credits?.cast.orEmpty().map { it.name }.take(CAST_LIMIT),
     directors = credits?.crew.orEmpty().filter { it.job == "Director" }.map { it.name },
     runtimeMinutes = runtime?.takeIf { it > 0 }, poster = posterPath, backdrop = backdropPath,
 )
 
 internal fun TmdbShow.facts(region: String) = MetadataFacts(
-    title = name.ifEmpty { null }, year = firstAirDate?.take(4)?.toIntOrNull(), aired = firstAirDate?.ifEmpty { null },
+    title = name.ifEmpty { null }, year = yearOf(firstAirDate), aired = firstAirDate?.ifEmpty { null },
     overview = overview?.ifEmpty {
         null
     },
     tagline = tagline?.ifEmpty { null }, genres = genres.map { it.name }.filter { it.isNotEmpty() },
     studio = networks.firstOrNull()?.name?.ifEmpty { null },
     contentRating = contentRatings?.results?.firstOrNull { it.country == region }?.rating?.ifEmpty { null },
-    rating = voteAverage.rating(), cast = credits?.cast.orEmpty().map { it.name }.take(20),
+    rating = voteAverage.rating(), cast = credits?.cast.orEmpty().map { it.name }.take(CAST_LIMIT),
     runtimeMinutes = episodeRunTime.firstOrNull(), poster = posterPath, backdrop = backdropPath,
 )

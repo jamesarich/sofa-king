@@ -2,18 +2,23 @@ package dev.jamesrich.sofaking.backend.playback
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.httpUri
+import io.ktor.http.HttpStatusCode
 import java.net.URI
 
 object HlsRewriter {
     private val uriAttribute = Regex("(?<![A-Z-])URI=\"([^\"]+)\"")
     suspend fun rewrite(text: String, base: URI, path: suspend (String) -> String): String {
         if (!text.trimStart().startsWith("#EXTM3U")) {
-            throw ApiFailure(502, "INVALID_MANIFEST", "Invalid HLS manifest", true)
+            throw ApiFailure(HttpStatusCode.BadGateway, "INVALID_MANIFEST", "Invalid HLS manifest", true)
         }
         val output = StringBuilder()
         for (line in text.lineSequence()) {
             if (line.startsWith("#EXT-X-DEFINE") || line.startsWith("#EXT-X-CONTENT-STEERING")) {
-                throw ApiFailure(422, "FORMAT_UNSUPPORTED", "HLS variables and content steering are not supported")
+                throw ApiFailure(
+                    HttpStatusCode.UnprocessableEntity,
+                    "FORMAT_UNSUPPORTED",
+                    "HLS variables and content steering are not supported",
+                )
             }
             if (line.isBlank()) {
                 output.append('\n')
@@ -35,12 +40,25 @@ object HlsRewriter {
         return output.toString()
     }
     private fun resolve(base: URI, reference: String): String {
-        if (reference.contains("{$")) throw ApiFailure(422, "FORMAT_UNSUPPORTED", "HLS variables are not supported")
+        if (reference.contains(
+                "{$",
+            )
+        ) {
+            throw ApiFailure(
+                HttpStatusCode.UnprocessableEntity,
+                "FORMAT_UNSUPPORTED",
+                "HLS variables are not supported",
+            )
+        }
         val resolved = base.resolve(reference).toString()
         try {
             httpUri(resolved)
         } catch (_: Exception) {
-            throw ApiFailure(422, "FORMAT_UNSUPPORTED", "Only HTTP(S) HLS resources are supported")
+            throw ApiFailure(
+                HttpStatusCode.UnprocessableEntity,
+                "FORMAT_UNSUPPORTED",
+                "Only HTTP(S) HLS resources are supported",
+            )
         }
         return resolved
     }

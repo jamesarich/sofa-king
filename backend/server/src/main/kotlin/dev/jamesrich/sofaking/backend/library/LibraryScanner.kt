@@ -16,10 +16,15 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /** The deepest folder a scan descends to below a library's folder. */
 private const val MAX_DEPTH = 10
+
+private val MISSING_GRACE: Duration = Duration.ofDays(7)
+
+private fun minutesMs(minutes: Int): Long = TimeUnit.MINUTES.toMillis(minutes.toLong())
 
 /**
  * One video file found under a library folder; [relative] uses `/` on every platform. An [extra] belongs to the item
@@ -57,7 +62,7 @@ internal fun itemId(libraryId: String, key: String): String =
 class LibraryScanner(
     private val probe: suspend (Path) -> MediaInfo?,
     private val probeParallelism: Int = 2,
-    private val missingGrace: Duration = Duration.ofDays(7),
+    private val missingGrace: Duration = MISSING_GRACE,
 ) {
     suspend fun scan(library: LibraryRecord, root: Path, existing: List<LibraryItemRecord>, now: Instant): ScanPlan {
         val files = withContext(Dispatchers.IO) { listFiles(root) }
@@ -291,7 +296,7 @@ class LibraryScanner(
                 nfo?.sortTitle ?: title,
             ),
             year = nfo?.year ?: named.year, aired = nfo?.aired, overview = nfo?.plot,
-            durationMs = nfo?.runtimeMinutes?.let { it * 60_000L }, size = file.size, modifiedAt = file.modifiedAt,
+            durationMs = nfo?.runtimeMinutes?.let(::minutesMs), size = file.size, modifiedAt = file.modifiedAt,
             details = (tmdbIdIn(stem) ?: folder?.let { tmdbIdIn(it.fileName.toString()) }).let { tag ->
                 nfo?.details(tag)
                     ?: tagged(tag)
@@ -437,15 +442,11 @@ class LibraryScanner(
                 parentId =
                 season?.id ?: show.id,
                 path = file.relative, title = title, sortTitle = order,
-                year = aired?.take(
-                    4,
-                )?.toIntOrNull(),
+                year = yearOf(aired),
                 season = seasonNumber,
                 episode = nfo?.episode ?: parsed.episode, episodeEnd = parsed.episodeEnd, aired = aired,
                 overview = nfo?.plot,
-                durationMs = nfo?.runtimeMinutes?.let {
-                    it * 60_000L
-                },
+                durationMs = nfo?.runtimeMinutes?.let(::minutesMs),
                 size = file.size, modifiedAt = file.modifiedAt, details = nfo?.details(),
                 poster = art(root, path.resolveSibling("$stem-thumb"), path.resolveSibling(stem)),
                 addedAt = "",

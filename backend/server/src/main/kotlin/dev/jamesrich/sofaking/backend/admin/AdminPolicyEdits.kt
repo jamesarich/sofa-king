@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.api.LineupPolicy
 import dev.jamesrich.sofaking.backend.api.PolicyStation
 import dev.jamesrich.sofaking.backend.api.PolicyUnmappedCategory
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.Parameters
 import kotlinx.html.A
 import kotlinx.html.ButtonType
@@ -64,7 +65,7 @@ import kotlinx.serialization.json.put
  */
 internal class PolicyEdit(val describe: String, val section: String, val change: (JsonObject) -> JsonObject)
 
-private fun bad(message: String): Nothing = throw ApiFailure(400, "INVALID_REQUEST", message)
+private fun bad(message: String): Nothing = throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", message)
 
 private fun Parameters.text(name: String, what: String = name): String =
     this[name]?.trim()?.takeIf { it.isNotEmpty() } ?: bad("$what is required")
@@ -370,7 +371,7 @@ internal fun FlowContent.confirmDialog(chrome: Chrome, confirm: Confirm?) {
                     if (items.isEmpty()) return
                     h3 { +"${plural(items.size, "channel")} $title" }
                     ul("small") {
-                        for (item in items.take(6)) {
+                        for (item in items.take(MOVED_SHOWN)) {
                             li {
                                 +item.name
                                 if (item.before != null || item.after != null) {
@@ -378,7 +379,7 @@ internal fun FlowContent.confirmDialog(chrome: Chrome, confirm: Confirm?) {
                                 }
                             }
                         }
-                        if (items.size > 6) li("muted") { +"and ${thousands(items.size - 6)} more" }
+                        if (items.size > MOVED_SHOWN) li("muted") { +"and ${thousands(items.size - MOVED_SHOWN)} more" }
                     }
                 }
                 list("turn off", impact.turnedOff)
@@ -1041,3 +1042,6 @@ internal fun MAIN.providerEntries(chrome: Chrome, view: ProvidersView, errors: E
     }
     confirmDialog(chrome, confirm)
 }
+
+/** How many moved channels a preview names before it counts the rest. */
+private const val MOVED_SHOWN = 6

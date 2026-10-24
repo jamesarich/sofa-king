@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.providers
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.net.URLEncoder
@@ -41,12 +42,7 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
-        val listed = snapshot().channels.firstOrNull { it.channel.id == channelId }
-            ?: run {
-                context.invalidate(SNAPSHOT)
-                snapshot().channels.firstOrNull { it.channel.id == channelId }
-            }
-            ?: throw ProviderFailure("Channel is no longer listed", transient = false)
+        val listed = context.findListed(SNAPSHOT) { snapshot().channels.firstOrNull { it.channel.id == channelId } }
         val deviceId = context.deviceId()
         val request = buildJsonObject {
             put("type", "channel")
@@ -79,7 +75,7 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
         )
     }
 
-    private suspend fun snapshot(): Snapshot = context.cached(SNAPSHOT, Duration.ofMinutes(55)) { fetch() }
+    private suspend fun snapshot(): Snapshot = context.cached(SNAPSHOT, CACHED_FOR) { fetch() }
 
     private suspend fun fetch(): Snapshot {
         val deviceId = URLEncoder.encode(context.deviceId(), Charsets.UTF_8)
@@ -103,24 +99,18 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
             )
                 .require("TCL category").json()
             for (channel in payload["channels"].array) {
-                val id = channel.str("bundle_id") ?: channel.str("id") ?: continue
-                val name = channel.str("name") ?: continue
-                val template = channel.str("media") ?: continue
-                if (channel["drm"] != null || channels.containsKey(id)) continue
-                val logo = (channel.str("logo_color") ?: channel.str("logo_white"))?.let {
-                    if (it.startsWith("/")) "$IMAGE_BASE$it" else it
-                }
-                channels[id] =
-                    Listed(
-                        ProviderChannel(id, name, null, httpOrNull(logo), group, listOf("us")),
-                        template,
-                        channel.str("source"),
+                val listed = listing(channel, group)
+                if (listed == null || channels.containsKey(listed.channel.id)) continue
+                val id = listed.channel.id
+                channels[id] = listed
+                for (item in channel["programs"].array) {
+                    val program = guideProgram(
+                        id,
+                        item.str("start")?.let(::instantOrNull),
+                        item.str("end")?.let(::instantOrNull),
+                        item.str("title"),
                     )
-                for (program in channel["programs"].array) {
-                    val from = program.str("start")?.let(::instantOrNull) ?: continue
-                    val until = program.str("end")?.let(::instantOrNull) ?: continue
-                    val title = program.str("title") ?: continue
-                    if (until > from) programs.putIfAbsent(id to from, GuideProgram(id, from, until, title))
+                    if (program != null) programs.putIfAbsent(id to program.startsAt, program)
                 }
             }
         }
@@ -128,10 +118,29 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
         return Snapshot(channels.values.toList(), programs.values.toList())
     }
 
+    /** A clear channel in [group]; null for a DRM one or when a field is missing. */
+    private fun listing(channel: JsonElement, group: String?): Listed? {
+        val id = channel.str("bundle_id") ?: channel.str("id") ?: return null
+        val name = channel.str("name") ?: return null
+        val template = channel.str("media") ?: return null
+        if (channel["drm"] != null) return null
+        val logo = (channel.str("logo_color") ?: channel.str("logo_white"))?.let {
+            if (it.startsWith("/")) "$IMAGE_BASE$it" else it
+        }
+        return Listed(
+            ProviderChannel(id, name, null, httpOrNull(logo), group, listOf("us")),
+            template,
+            channel.str("source"),
+        )
+    }
+
     companion object {
         private const val API_BASE = "https://gateway-prod.ideonow.com"
         private const val IMAGE_BASE = "https://tcl-channel-cdn.ideonow.com"
         private const val SNAPSHOT = "snapshot"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(55)
         private val GUIDE_HORIZON = Duration.ofHours(12)
         private val URL_LIFETIME = Duration.ofHours(1)
         private val CURATED = setOf("TCL TOP 15", "Featured", "Bingeable", "TV Favorites")

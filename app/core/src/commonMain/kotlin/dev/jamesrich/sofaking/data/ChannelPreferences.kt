@@ -26,7 +26,10 @@ fun movedFavorite(current: List<String>, guideId: String, step: Int): List<Strin
     if (from < 0 || step == 0) return current
     val to = (from + step).coerceIn(0, current.lastIndex)
     if (to == from) return current
-    return current.toMutableList().apply { removeAt(from); add(to, guideId) }
+    return current.toMutableList().apply {
+        removeAt(from)
+        add(to, guideId)
+    }
 }
 
 /** One guide group as the channel manager lists it: its channels in lineup order and how many of them are shown. */

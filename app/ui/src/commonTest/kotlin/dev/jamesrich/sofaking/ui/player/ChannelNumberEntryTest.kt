@@ -1,10 +1,10 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.data.Channel
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
-import kotlin.test.Test
 
 class ChannelNumberEntryTest {
     private val channels = listOf(

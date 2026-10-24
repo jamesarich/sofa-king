@@ -16,21 +16,83 @@ internal object PgsFixture {
         val y = height - boxHeight - 10
         var composition = 0
         for (cue in cues) {
-            out.write(segment(cue.first, 0x16) { short(width); short(height); byte(0x10); short(composition++); byte(0x80); byte(0); byte(0); byte(1); short(0); byte(0); byte(0); short(x); short(y) })
-            out.write(segment(cue.first, 0x17) { byte(1); byte(0); short(x); short(y); short(boxWidth); short(boxHeight) })
-            out.write(segment(cue.first, 0x14) { byte(0); byte(0); byte(1); byte(235); byte(128); byte(128); byte(255) })
+            out.write(
+                segment(cue.first, 0x16) {
+                    short(width)
+                    short(height)
+                    byte(0x10)
+                    short(composition++)
+                    byte(0x80)
+                    byte(0)
+                    byte(0)
+                    byte(1)
+                    short(0)
+                    byte(0)
+                    byte(0)
+                    short(x)
+                    short(y)
+                },
+            )
+            out.write(
+                segment(cue.first, 0x17) {
+                    byte(1)
+                    byte(0)
+                    short(x)
+                    short(y)
+                    short(boxWidth)
+                    short(boxHeight)
+                },
+            )
+            out.write(
+                segment(cue.first, 0x14) {
+                    byte(0)
+                    byte(0)
+                    byte(1)
+                    byte(235)
+                    byte(128)
+                    byte(128)
+                    byte(255)
+                },
+            )
             // Every line is one run of palette entry 1, then the end-of-line code.
             val line = byteArrayOf(0, (0xC0 or (boxWidth shr 8)).toByte(), boxWidth.toByte(), 1, 0, 0)
             val rle = ByteArray(line.size * boxHeight) { line[it % line.size] }
-            out.write(segment(cue.first, 0x15) {
-                short(0); byte(0); byte(0xC0)
-                val length = rle.size + 4
-                byte(length shr 16); short(length and 0xFFFF)
-                short(boxWidth); short(boxHeight); write(rle)
-            })
+            out.write(
+                segment(cue.first, 0x15) {
+                    short(0)
+                    byte(0)
+                    byte(0xC0)
+                    val length = rle.size + 4
+                    byte(length shr 16)
+                    short(length and 0xFFFF)
+                    short(boxWidth)
+                    short(boxHeight)
+                    write(rle)
+                },
+            )
             out.write(segment(cue.first, 0x80) {})
-            out.write(segment(cue.last, 0x16) { short(width); short(height); byte(0x10); short(composition++); byte(0); byte(0); byte(0); byte(0) })
-            out.write(segment(cue.last, 0x17) { byte(1); byte(0); short(x); short(y); short(boxWidth); short(boxHeight) })
+            out.write(
+                segment(cue.last, 0x16) {
+                    short(width)
+                    short(height)
+                    byte(0x10)
+                    short(composition++)
+                    byte(0)
+                    byte(0)
+                    byte(0)
+                    byte(0)
+                },
+            )
+            out.write(
+                segment(cue.last, 0x17) {
+                    byte(1)
+                    byte(0)
+                    short(x)
+                    short(y)
+                    short(boxWidth)
+                    short(boxHeight)
+                },
+            )
             out.write(segment(cue.last, 0x80) {})
         }
         Files.createDirectories(file.parent)
@@ -40,7 +102,14 @@ internal object PgsFixture {
     private fun segment(ms: Long, type: Int, body: DataOutputStream.() -> Unit): ByteArray {
         val data = ByteArrayOutputStream().also { DataOutputStream(it).body() }.toByteArray()
         return ByteArrayOutputStream().also {
-            DataOutputStream(it).apply { writeBytes("PG"); writeInt((ms * 90).toInt()); writeInt(0); byte(type); short(data.size); write(data) }
+            DataOutputStream(it).apply {
+                writeBytes("PG")
+                writeInt((ms * 90).toInt())
+                writeInt(0)
+                byte(type)
+                short(data.size)
+                write(data)
+            }
         }.toByteArray()
     }
 

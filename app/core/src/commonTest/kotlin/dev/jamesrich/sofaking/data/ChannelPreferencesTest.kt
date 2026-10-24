@@ -18,7 +18,12 @@ class ChannelPreferencesTest {
     fun `favorites follow the stored order then the lineup`() {
         val favorites = setOf("1", "2", "4")
         assertEquals(listOf("1", "2", "4"), orderedFavorites(channels, favorites, emptyList()).map { it.guideId })
-        assertEquals(listOf("4", "1", "2"), orderedFavorites(channels, favorites, listOf("4", "3", "9", "4")).map { it.guideId })
+        assertEquals(
+            listOf("4", "1", "2"),
+            orderedFavorites(channels, favorites, listOf("4", "3", "9", "4")).map {
+                it.guideId
+            },
+        )
     }
 
     @Test
@@ -39,7 +44,12 @@ class ChannelPreferencesTest {
         )
         val groups = channelGroups(lineup, hidden = setOf("2", "3"))
         assertEquals(listOf("Local", "News", "Sports"), groups.map { it.name })
-        assertEquals(listOf(listOf("1"), listOf("1", "2"), listOf("3")), groups.map { g -> g.channels.map { it.guideId } })
+        assertEquals(
+            listOf(listOf("1"), listOf("1", "2"), listOf("3")),
+            groups.map { g ->
+                g.channels.map { it.guideId }
+            },
+        )
         assertEquals(listOf(1, 1, 0), groups.map { it.shown })
         assertEquals(listOf(true, true, false), groups.map { it.anyShown })
         assertEquals(2, groups[1].total)

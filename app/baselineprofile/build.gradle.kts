@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.test)
     alias(libs.plugins.androidx.baselineprofile)
     id("sofaking.kotlin")
+    id("sofaking.lint")
     id("sofaking.android")
 }
 

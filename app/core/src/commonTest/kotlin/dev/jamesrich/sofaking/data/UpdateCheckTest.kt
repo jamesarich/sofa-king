@@ -35,7 +35,12 @@ class UpdateCheckTest {
     @Test
     fun `a release titled without a version reads as its tag`() = runTest {
         val untitled = release.replace("Snapshot 0.4.0-dev.140+abc1234", "Snapshot")
-        val latest = UpdateChecker(FakeHttp(this) { respond(untitled, HttpStatusCode.OK) }.client, "${FAKE_BASE}release").latest()!!
+        val latest = UpdateChecker(
+            FakeHttp(this) {
+                respond(untitled, HttpStatusCode.OK)
+            }.client,
+            "${FAKE_BASE}release",
+        ).latest()!!
         assertEquals("snapshot", latest.version)
         assertNull(latest.run)
     }
@@ -50,8 +55,22 @@ class UpdateCheckTest {
 
     @Test
     fun `a missing release or a body that is not one reads as null`() = runTest {
-        assertNull(UpdateChecker(FakeHttp(this) { respond("{}", HttpStatusCode.NotFound) }.client, "${FAKE_BASE}r").latest())
-        assertNull(UpdateChecker(FakeHttp(this) { respond("<html>", HttpStatusCode.OK) }.client, "${FAKE_BASE}r").latest())
+        assertNull(
+            UpdateChecker(
+                FakeHttp(this) {
+                    respond("{}", HttpStatusCode.NotFound)
+                }.client,
+                "${FAKE_BASE}r",
+            ).latest(),
+        )
+        assertNull(
+            UpdateChecker(
+                FakeHttp(this) {
+                    respond("<html>", HttpStatusCode.OK)
+                }.client,
+                "${FAKE_BASE}r",
+            ).latest(),
+        )
     }
 
     @Test

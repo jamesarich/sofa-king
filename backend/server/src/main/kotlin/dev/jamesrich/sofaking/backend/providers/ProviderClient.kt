@@ -20,14 +20,22 @@ data class ProviderChannel(
     val tags: List<String> = emptyList(),
 )
 
-/** A URL the relay can fetch, the headers every request to it needs, and when it stops working (null: it does not expire). */
-data class ResolvedStream(val url: String, val headers: Map<String, String> = emptyMap(), val expiresAt: Instant? = null)
+/**
+ * A URL the relay can fetch, the headers every request to it needs, and when it stops
+ * working (null: it does not expire).
+ */
+data class ResolvedStream(
+    val url: String,
+    val headers: Map<String, String> = emptyMap(),
+    val expiresAt: Instant? = null,
+)
 
 /**
  * A provider call that failed. [transient] means the service or the network is at fault (provider evidence);
  * otherwise the channel is gone from the service (offering evidence). Messages never carry tokens or URLs.
  */
-class ProviderFailure(message: String, val transient: Boolean = true, cause: Throwable? = null) : RuntimeException(message, cause)
+class ProviderFailure(message: String, val transient: Boolean = true, cause: Throwable? = null) :
+    RuntimeException(message, cause)
 
 /** One service's unofficial client: the channel list, its own guide when it has one, and a playable URL per channel. */
 interface ProviderClient {
@@ -38,7 +46,10 @@ interface ProviderClient {
 
     suspend fun channels(): List<ProviderChannel>
 
-    /** The service's guide: every channel in the index, programs only for the ids in [wanted]. Null when the service has none. */
+    /**
+     * The service's guide: every channel in the index, programs only for the ids in [wanted].
+     * Null when the service has none.
+     */
     suspend fun guide(wanted: Set<String>): ParsedGuide? = null
 
     suspend fun resolve(channelId: String): ResolvedStream
@@ -49,7 +60,8 @@ object NativeServices {
     private val guides = mapOf(
         "whale" to true, "vizio" to true, "lg" to true, "freelivesports" to true, "hallmark" to true,
         "ballysports" to true, "adultswim" to true, "pbs" to true, "samsung" to false, "plex" to true, "stirr" to true,
-        "tcl" to true, "roku" to false, "localnow" to true, "xumo" to true, "pluto" to true, "tubi" to true, "hdhomerun" to true,
+        "tcl" to true, "roku" to false, "localnow" to true, "xumo" to true, "pluto" to true, "tubi" to true,
+        "hdhomerun" to true,
         "direct" to false,
     )
 
@@ -65,12 +77,14 @@ object NativeServices {
     }
 
     /** The URL a native offering carries: the service and its channel id, nothing a player could fetch. */
-    fun offeringUrl(service: String, channelId: String): String = "svc://$service/${URLEncoder.encode(channelId, Charsets.UTF_8)}"
+    fun offeringUrl(service: String, channelId: String): String =
+        "svc://$service/${URLEncoder.encode(channelId, Charsets.UTF_8)}"
 
     fun isNative(url: String): Boolean = url.startsWith("svc://")
 
     /** The channel id a native offering URL names, decoded as [offeringUrl] encoded it (a space is `+` there). */
-    fun channelId(url: String): String = java.net.URLDecoder.decode(java.net.URI(url).rawPath.removePrefix("/"), Charsets.UTF_8)
+    fun channelId(url: String): String =
+        java.net.URLDecoder.decode(java.net.URI(url).rawPath.removePrefix("/"), Charsets.UTF_8)
 }
 
 /**
@@ -108,11 +122,25 @@ private val mpaa = setOf("G", "PG", "PG-13", "R", "NC-17")
 internal fun usRating(value: String?): ProgramRating? {
     val rating = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
     val upper = rating.uppercase()
-    return ProgramRating(rating, if (upper in vchip) "VCHIP" else if (upper in mpaa) "MPAA" else null)
+    return ProgramRating(
+        rating,
+        if (upper in vchip) {
+            "VCHIP"
+        } else if (upper in mpaa) {
+            "MPAA"
+        } else {
+            null
+        },
+    )
 }
 
 /** The desktop Chrome the services' own web players are written for. */
-internal const val BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+internal const val BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like " +
+    "Gecko) Chrome/148.0.0.0 Safari/537.36"
 
 /** An ISO-8601 instant, or null for anything else. */
-internal fun instantOrNull(value: String): Instant? = try { Instant.parse(value) } catch (_: Exception) { null }
+internal fun instantOrNull(value: String): Instant? = try {
+    Instant.parse(value)
+} catch (_: Exception) {
+    null
+}

@@ -11,8 +11,15 @@ class PairingLinkTest {
             PairingRequest("http://192.168.1.3:9193", "123456"),
             parsePairingLink("sofaking://pair?server=http%3A%2F%2F192.168.1.3%3A9193&code=123456"),
         )
-        assertEquals(PairingRequest("https://tv.example.org", "000001"), parsePairingLink(" sofaking://pair?code=000001&server=https://tv.example.org/ "))
-        assertEquals(PairingRequest("http://192.168.1.3:9193", "123456"), parsePairingLink("sofaking://pair?server=192.168.1.3&code=123456"), "a bare address is completed as Settings completes it")
+        assertEquals(
+            PairingRequest("https://tv.example.org", "000001"),
+            parsePairingLink(" sofaking://pair?code=000001&server=https://tv.example.org/ "),
+        )
+        assertEquals(
+            PairingRequest("http://192.168.1.3:9193", "123456"),
+            parsePairingLink("sofaking://pair?server=192.168.1.3&code=123456"),
+            "a bare address is completed as Settings completes it",
+        )
     }
 
     @Test

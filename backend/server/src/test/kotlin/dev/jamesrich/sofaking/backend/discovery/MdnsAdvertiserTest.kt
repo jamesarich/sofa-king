@@ -2,7 +2,10 @@ package dev.jamesrich.sofaking.backend.discovery
 
 import dev.jamesrich.sofaking.contract.Wire
 import java.net.InetAddress
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class MdnsAdvertiserTest {
     @Test fun `the service carries the type, the name, the port and the version`() {
@@ -15,12 +18,21 @@ class MdnsAdvertiserTest {
 
     @Test fun `only up multicast LAN interfaces carry the advertisement`() {
         assertTrue(MdnsAdvertiser.advertisable("eth0", up = true, loopback = false, virtual = false, multicast = true))
-        assertTrue(MdnsAdvertiser.advertisable("enp3s0", up = true, loopback = false, virtual = false, multicast = true))
-        assertFalse(MdnsAdvertiser.advertisable("eth0", up = false, loopback = false, virtual = false, multicast = true))
+        assertTrue(
+            MdnsAdvertiser.advertisable("enp3s0", up = true, loopback = false, virtual = false, multicast = true),
+        )
+        assertFalse(
+            MdnsAdvertiser.advertisable("eth0", up = false, loopback = false, virtual = false, multicast = true),
+        )
         assertFalse(MdnsAdvertiser.advertisable("lo", up = true, loopback = true, virtual = false, multicast = true))
-        assertFalse(MdnsAdvertiser.advertisable("eth0", up = true, loopback = false, virtual = false, multicast = false))
+        assertFalse(
+            MdnsAdvertiser.advertisable("eth0", up = true, loopback = false, virtual = false, multicast = false),
+        )
         for (name in listOf("docker0", "br-4f2a", "veth12ab", "virbr0", "tailscale0", "wg0", "tun0")) {
-            assertFalse(MdnsAdvertiser.advertisable(name, up = true, loopback = false, virtual = false, multicast = true), name)
+            assertFalse(
+                MdnsAdvertiser.advertisable(name, up = true, loopback = false, virtual = false, multicast = true),
+                name,
+            )
         }
     }
 

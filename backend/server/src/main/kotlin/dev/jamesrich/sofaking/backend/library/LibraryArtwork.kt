@@ -9,10 +9,6 @@ import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
 import io.ktor.utils.io.readBuffer
-import java.nio.file.Files
-import java.nio.file.LinkOption
-import java.nio.file.Path
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -21,6 +17,10 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.io.readByteArray
 import org.slf4j.LoggerFactory
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
+import kotlin.time.Duration.Companion.seconds
 
 private val log = LoggerFactory.getLogger(LibraryArtwork::class.java)
 
@@ -78,11 +78,16 @@ class LibraryArtwork(
                     Files.createDirectories(directory)
                     val seconds = "%.3f".format(java.util.Locale.ROOT, source.atMs / 1000.0)
                     val command = listOf(
-                        ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-ss", seconds, "-i", video.toString(),
+                        ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-ss", seconds, "-i",
+                        video.toString(),
                         "-map", "0:v:0", "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", partial.toString(),
                     )
                     val made = try {
-                        ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(FRAME_SECONDS.seconds) == 0
+                        ProcessBuilder(
+                            command,
+                        ).redirectErrorStream(
+                            true,
+                        ).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(FRAME_SECONDS.seconds) == 0
                     } catch (_: java.io.IOException) {
                         false
                     }
@@ -90,7 +95,12 @@ class LibraryArtwork(
                         log.info("artwork frame failed")
                         return@withContext null
                     }
-                    Files.move(partial, file, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                    Files.move(
+                        partial,
+                        file,
+                        java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    )
                     Artwork(file, "image/jpeg")
                 }
             } finally {
@@ -103,7 +113,9 @@ class LibraryArtwork(
     private suspend fun local(source: ArtSource.Local): Artwork? = withContext(Dispatchers.IO) {
         val type = typeOf(source.relative) ?: return@withContext null
         val file = source.root.resolve(source.relative).normalize()
-        if (!file.startsWith(source.root.normalize()) || !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) return@withContext null
+        if (!file.startsWith(source.root.normalize()) || !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            return@withContext null
+        }
         Artwork(file, type)
     }
 

@@ -20,11 +20,6 @@ import dev.jamesrich.sofaking.backend.catalog.validateSources
 import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.library.TmdbConfig
 import dev.jamesrich.sofaking.backend.library.TmdbFailure
-import java.nio.file.Files
-import java.nio.file.Path
-import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.concurrent.thread
-import kotlin.system.exitProcess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -32,8 +27,16 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.thread
+import kotlin.system.exitProcess
 
-/** What a setup write answers: the file it wrote, the starter policy when it wrote one too, and that the server is restarting to read them. */
+/**
+ * What a setup write answers: the file it wrote, the starter policy when it wrote one too, and that the
+ * server is restarting to read them.
+ */
 @Serializable data class SetupResult(val path: String, val restarting: Boolean, val policyPath: String? = null)
 
 /**
@@ -47,7 +50,10 @@ class SetupService(
     config: ServerConfig,
     private val restart: () -> Unit = ::exitForRestart,
     private val environment: Map<String, String> = System.getenv(),
-    /** Asks TMDB whether it takes a token, failing with [TmdbFailure]; the runtime passes a [dev.jamesrich.sofaking.backend.library.TmdbClient] check. */
+    /**
+     * Asks TMDB whether it takes a token, failing with [TmdbFailure]; the runtime passes a
+     * [dev.jamesrich.sofaking.backend.library.TmdbClient] check.
+     */
     private val checkTmdb: suspend (TmdbConfig) -> Unit = {},
 ) {
     private val log = LoggerFactory.getLogger(SetupService::class.java)
@@ -70,7 +76,9 @@ class SetupService(
     val secretsPath: Path = config.dataDirectory.resolve(SecretsFile.NAME)
 
     /** Whether the environment sets the TMDB token, which then cannot be saved from here. */
-    val tmdbFromEnvironment: Boolean = config.secretOrigins["SOFA_TMDB_TOKEN"].let { it == SecretOrigin.ENVIRONMENT || it == SecretOrigin.FILE }
+    val tmdbFromEnvironment: Boolean = config.secretOrigins["SOFA_TMDB_TOKEN"].let {
+        it == SecretOrigin.ENVIRONMENT || it == SecretOrigin.FILE
+    }
 
     private val tmdbLanguage = config.tmdb?.language ?: "en-US"
 
@@ -89,12 +97,22 @@ class SetupService(
      * is written then.
      */
     suspend fun replaceSources(document: SourceDocument, starterPolicy: Boolean = false): SetupResult = mutex.withLock {
-        if (starterPolicy && !canWriteStarterPolicy) throw ApiFailure(409, "POLICY_EXISTS", "A lineup policy is already configured at $policyPath")
-        if (starterPolicy && document.providers.isEmpty()) throw ApiFailure(409, "NO_SOURCES", "Add providers to build the starter lineup from")
-        try { validateSources(document, environment) } catch (e: IllegalArgumentException) {
+        if (starterPolicy && !canWriteStarterPolicy) {
+            throw ApiFailure(409, "POLICY_EXISTS", "A lineup policy is already configured at $policyPath")
+        }
+        if (starterPolicy && document.providers.isEmpty()) {
+            throw ApiFailure(409, "NO_SOURCES", "Add providers to build the starter lineup from")
+        }
+        try {
+            validateSources(document, environment)
+        } catch (e: IllegalArgumentException) {
             throw ApiFailure(400, "INVALID_SOURCES", e.message ?: "The source configuration is not valid")
         } catch (e: kotlinx.serialization.SerializationException) {
-            throw ApiFailure(400, "INVALID_SOURCES", e.message?.lineSequence()?.firstOrNull() ?: "The source configuration is not valid")
+            throw ApiFailure(
+                400,
+                "INVALID_SOURCES",
+                e.message?.lineSequence()?.firstOrNull() ?: "The source configuration is not valid",
+            )
         }
         withContext(Dispatchers.IO) {
             Files.createDirectories(sourcesPath.toAbsolutePath().parent)
@@ -111,7 +129,13 @@ class SetupService(
      * already runs a policy or the file is there, and 409 NO_SOURCES with no providers to build from.
      */
     suspend fun writeStarterPolicy(): SetupResult = mutex.withLock {
-        if (!canWriteStarterPolicy) throw ApiFailure(409, "POLICY_EXISTS", "A lineup policy is already configured at $policyPath")
+        if (!canWriteStarterPolicy) {
+            throw ApiFailure(
+                409,
+                "POLICY_EXISTS",
+                "A lineup policy is already configured at $policyPath",
+            )
+        }
         val providers = document().providers
         if (providers.isEmpty()) throw ApiFailure(409, "NO_SOURCES", "Add providers to the source file first")
         writeStarter(providers)
@@ -126,12 +150,24 @@ class SetupService(
      * written then. The token never reaches a log or an error message.
      */
     suspend fun saveTmdbToken(token: String): SetupResult = mutex.withLock {
-        if (tmdbFromEnvironment) throw ApiFailure(409, "TMDB_FROM_ENVIRONMENT", "SOFA_TMDB_TOKEN is set in the environment; change it there")
+        if (tmdbFromEnvironment) {
+            throw ApiFailure(
+                409,
+                "TMDB_FROM_ENVIRONMENT",
+                "SOFA_TMDB_TOKEN is set in the environment; change it there",
+            )
+        }
         val trimmed = token.trim()
         if (trimmed.length < 32 || trimmed.any { it <= ' ' || it == '\u007f' }) {
-            throw ApiFailure(400, "INVALID_REQUEST", "A TMDB API read access token or API key has at least 32 characters and no spaces")
+            throw ApiFailure(
+                400,
+                "INVALID_REQUEST",
+                "A TMDB API read access token or API key has at least 32 characters and no spaces",
+            )
         }
-        try { checkTmdb(TmdbConfig(trimmed, tmdbLanguage)) } catch (e: TmdbFailure) {
+        try {
+            checkTmdb(TmdbConfig(trimmed, tmdbLanguage))
+        } catch (e: TmdbFailure) {
             if (e.code == "TMDB_AUTH") throw ApiFailure(400, "TMDB_REJECTED", "TMDB did not accept the token")
             throw ApiFailure(502, "TMDB_UNREACHABLE", "TMDB could not be asked (${e.code}); try again")
         }
@@ -185,16 +221,23 @@ class SetupService(
  */
 object StarterPolicy {
     @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
-    private val json = Json { prettyPrint = true; prettyPrintIndent = "  "; encodeDefaults = false }
+    private val json = Json {
+        prettyPrint = true
+        prettyPrintIndent = "  "
+        encodeDefaults = false
+    }
 
     /** Each block runs to the next block's start, sized for the free services' catalogs with room to grow. */
     val GROUP_BLOCKS: Map<String, Int> = linkedMapOf(
-        "Local" to 1, "Local News (US)" to 10, "News" to 100, "Sports" to 300, "En Español" to 600, "Entertainment" to 700,
-        "Drama" to 900, "Classic TV" to 1050, "Movies" to 1200, "Sci-Fi & Horror" to 1400, "Comedy" to 1500, "Crime" to 1600,
+        "Local" to 1, "Local News (US)" to 10, "News" to 100, "Sports" to 300, "En Español" to 600,
+        "Entertainment" to 700,
+        "Drama" to 900, "Classic TV" to 1050, "Movies" to 1200, "Sci-Fi & Horror" to 1400, "Comedy" to 1500,
+        "Crime" to 1600,
         "Documentary" to 1700, "Lifestyle" to 1850, "Food & Travel" to 2100, "Kids & Family" to 2200, "Anime" to 2300,
         "Music" to 2350, "Game Shows" to 2500, "Faith" to 2550, "Shopping" to 2580, "Ambiance" to 2600,
     )
     const val GROUP_SIZE = 400
+
     /** Stations the policy keeps off, and new stations past a full block, number from here, clear of every block. */
     const val NUMBER_FLOOR = 3000
     const val DEFAULT_GROUP = "Entertainment"
@@ -207,10 +250,18 @@ object StarterPolicy {
             when (provider.service) {
                 "localnow" -> listOf(
                     PolicyProvider(provider.id, include = CandidateFilter(groups = listOf("My City"))),
-                    PolicyProvider(provider.id, include = CandidateFilter(groups = listOf("More Cities")), enabled = false),
+                    PolicyProvider(
+                        provider.id,
+                        include = CandidateFilter(groups = listOf("More Cities")),
+                        enabled = false,
+                    ),
                     PolicyProvider(provider.id),
                 )
-                "vizio" -> listOf(PolicyProvider(provider.id, exclude = CandidateFilter(groups = listOf("Local channels"))))
+
+                "vizio" -> listOf(
+                    PolicyProvider(provider.id, exclude = CandidateFilter(groups = listOf("Local channels"))),
+                )
+
                 else -> listOf(PolicyProvider(provider.id))
             }
         } + providers.filter { !it.native }.map { PolicyProvider(it.id) }
@@ -218,12 +269,24 @@ object StarterPolicy {
         return LineupPolicy(
             names = PolicyNames(version = 2),
             providers = entries,
-            groups = PolicyGroups(map = groups.map, patterns = groups.patterns, default = DEFAULT_GROUP, weak = groups.weak.sorted(), builtIn = false),
-            numbering = PolicyNumbering(floor = NUMBER_FLOOR, groups = GROUP_BLOCKS, groupSize = GROUP_SIZE, followGroup = true),
+            groups = PolicyGroups(
+                map = groups.map,
+                patterns = groups.patterns,
+                default = DEFAULT_GROUP,
+                weak = groups.weak.sorted(),
+                builtIn = false,
+            ),
+            numbering = PolicyNumbering(
+                floor = NUMBER_FLOOR,
+                groups = GROUP_BLOCKS,
+                groupSize = GROUP_SIZE,
+                followGroup = true,
+            ),
             health = PolicyHealth(requireVerified = true),
         )
     }
 
     @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
-    fun bytes(policy: LineupPolicy): ByteArray = (json.encodeToString(LineupPolicy.serializer(), policy) + "\n").toByteArray()
+    fun bytes(policy: LineupPolicy): ByteArray =
+        (json.encodeToString(LineupPolicy.serializer(), policy) + "\n").toByteArray()
 }

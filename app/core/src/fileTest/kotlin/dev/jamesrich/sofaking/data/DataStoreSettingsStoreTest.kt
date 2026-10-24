@@ -173,7 +173,10 @@ class DataStoreSettingsStoreTest {
     @Test
     fun `library subtitles start medium at the bottom on a box and keep what is chosen`() = runTest {
         val store = newStore()
-        assertEquals(SubtitleLook(SubtitleSize.MEDIUM, SubtitleRaise.NONE, box = true), store.settings.first().subtitleLook)
+        assertEquals(
+            SubtitleLook(SubtitleSize.MEDIUM, SubtitleRaise.NONE, box = true),
+            store.settings.first().subtitleLook,
+        )
         val chosen = SubtitleLook(SubtitleSize.LARGE, SubtitleRaise.HIGH, box = false)
         store.setSubtitleLook(chosen)
         assertEquals(chosen, store.settings.first().subtitleLook)
@@ -234,7 +237,12 @@ class DataStoreSettingsStoreTest {
         store.setChannelDecoder("x", DecoderPreference.AUTO)
         val playback = store.settings.first().playback
         assertEquals(
-            PlaybackPreferences(matchFrameRate = true, decoder = DecoderPreference.SOFTWARE, decoderByChannel = mapOf("x" to DecoderPreference.AUTO), buffer = BufferPreference.SMOOTH),
+            PlaybackPreferences(
+                matchFrameRate = true,
+                decoder = DecoderPreference.SOFTWARE,
+                decoderByChannel = mapOf("x" to DecoderPreference.AUTO),
+                buffer = BufferPreference.SMOOTH,
+            ),
             playback,
         )
         assertEquals(DecoderPreference.AUTO, playback.decoderFor("x"))

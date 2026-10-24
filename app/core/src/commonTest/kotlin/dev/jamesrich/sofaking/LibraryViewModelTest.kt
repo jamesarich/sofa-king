@@ -37,19 +37,35 @@ class LibraryViewModelTest {
     fun tearDown() = fixture.tearDown()
 
     private fun item(id: String, kind: String = "movie", extra: String = "") =
-        """{"id":"$id","libraryId":"lib","kind":"$kind","title":"Title $id","addedAt":"2026-10-10T13:00:00Z","poster":"/artwork/$id/poster?v=1"$extra}"""
+        """{"id":"$id","libraryId":"lib","kind":"$kind","title":"Title """ +
+            """$id","addedAt":"2026-10-10T13:00:00Z","poster":"/artwork/$id/poster?v=1"$extra}"""
 
     /** The model on [server], stopped as the test ends. */
-    private suspend fun TestScope.viewModel(server: RouteServer, api: SofaKingApi? = server.http.api()): LibraryViewModel =
-        fixture.started(LibraryViewModel(MutableStateFlow(api), fixture.sessions(this, api), timeSource = testScheduler.timeSource, saveInterval = 10.seconds))
+    private suspend fun TestScope.viewModel(
+        server: RouteServer,
+        api: SofaKingApi? = server.http.api(),
+    ): LibraryViewModel = fixture.started(
+        LibraryViewModel(
+            MutableStateFlow(api),
+            fixture.sessions(this, api),
+            timeSource = testScheduler.timeSource,
+            saveInterval = 10.seconds,
+        ),
+    )
 
     @Test
     fun `the home maps shelves and libraries and resolves artwork against the server`() = fixture.viewModelTest {
+        val playState = """"playState":{"positionMs":600000,"durationMs":2400000,"watched":false}"""
+        val inProgress = item("e1", "episode", ""","showTitle":"Show","season":2,"episode":5,$playState""")
         val server = RouteServer(this) { method, path, _ ->
-            if (method == "GET" && path == "/api/v1/library/home") 200 to """{"shelves":[
-                {"id":"continue","title":"Continue watching","items":[${item("e1", "episode", ""","showTitle":"Show","season":2,"episode":5,"playState":{"positionMs":600000,"durationMs":2400000,"watched":false}""")}]},
+            if (method == "GET" && path == "/api/v1/library/home") {
+                200 to """{"shelves":[
+                {"id":"continue","title":"Continue watching","items":[$inProgress]},
                 {"id":"recent","title":"Recently added in Movies","libraryId":"lib","items":[]}],
-                "libraries":[{"id":"lib","name":"Movies","kind":"movies","items":3},{"id":"new","name":"Odd","kind":"photos"}]}""" else null
+                "libraries":[{"id":"lib","name":"Movies","kind":"movies","items":3},{"id":"new","name":"Odd","kind":"photos"}]}"""
+            } else {
+                null
+            }
         }
         val model = viewModel(server)
         runCurrent()
@@ -67,24 +83,30 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun `a server without libraries reads as unavailable and none configured as unconfigured`() = fixture.viewModelTest {
-        val model = viewModel(RouteServer(this) { _, _, _ -> null })
-        runCurrent()
-        assertEquals(LibraryHomeState.Unavailable, model.home.value)
+    fun `a server without libraries reads as unavailable and none configured as unconfigured`() =
+        fixture.viewModelTest {
+            val model = viewModel(RouteServer(this) { _, _, _ -> null })
+            runCurrent()
+            assertEquals(LibraryHomeState.Unavailable, model.home.value)
 
-        val none = viewModel(RouteServer(this) { _, _, _ -> null }, api = null)
-        runCurrent()
-        assertEquals(LibraryHomeState.Unconfigured, none.home.value)
-    }
+            val none = viewModel(RouteServer(this) { _, _, _ -> null }, api = null)
+            runCurrent()
+            assertEquals(LibraryHomeState.Unconfigured, none.home.value)
+        }
 
     @Test
     fun `every Recently added row has its own key`() = fixture.viewModelTest {
+        val show = item("s1", "show")
         val server = RouteServer(this) { _, path, _ ->
-            if (path == "/api/v1/library/home") 200 to """{"shelves":[
+            if (path == "/api/v1/library/home") {
+                200 to """{"shelves":[
                 {"id":"continue","title":"Continue watching","items":[${item("e1", "episode")}]},
                 {"id":"recent","title":"Recently added in Movies","libraryId":"movies","items":[${item("m1")}]},
-                {"id":"recent","title":"Recently added in TV shows","libraryId":"shows","items":[${item("s1", "show")}]}],
-                "libraries":[{"id":"movies","name":"Movies","kind":"movies"},{"id":"shows","name":"TV shows","kind":"shows"}]}""" else null
+                {"id":"recent","title":"Recently added in TV shows","libraryId":"shows","items":[$show]}],
+                "libraries":[{"id":"movies","name":"Movies","kind":"movies"},{"id":"shows","name":"TV shows","kind":"shows"}]}"""
+            } else {
+                null
+            }
         }
         val model = viewModel(server)
         runCurrent()
@@ -116,7 +138,11 @@ class LibraryViewModelTest {
         val server = RouteServer(this) { _, path, _ ->
             when (path) {
                 "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
-                "/api/v1/libraries/lib/items" -> 200 to """{"items":[${item("m1")},${item("m2")}],"total":3,"next":"c2"}"""
+
+                "/api/v1/libraries/lib/items" ->
+                    200 to
+                        """{"items":[${item("m1")},${item("m2")}],"total":3,"next":"c2"}"""
+
                 else -> null
             }
         }
@@ -141,36 +167,58 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun `a letter jump loads pages through its first item with the letters from the first page`() = fixture.viewModelTest {
-        var pages = 0
-        val server = RouteServer(this) { _, path, _ ->
-            when (path) {
-                "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
-                "/api/v1/libraries/lib/items" -> when (pages++) {
-                    0 -> 200 to """{"items":[${item("m1")}],"total":3,"next":"1","letters":[{"letter":"A","count":1},{"letter":"B","count":1},{"letter":"A","count":1}]}"""
-                    1 -> 200 to """{"items":[${item("m2")}],"total":3,"next":"2"}"""
-                    else -> 200 to """{"items":[${item("m3")}],"total":3}"""
+    fun `a letter jump loads pages through its first item with the letters from the first page`() =
+        fixture.viewModelTest {
+            var pages = 0
+            val server = RouteServer(this) { _, path, _ ->
+                when (path) {
+                    "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+
+                    "/api/v1/libraries/lib/items" -> when (pages++) {
+                        0 ->
+                            200 to
+                                """{"items":[${item("m1")}],"total":3,"next":"1","letters":[{"letter":"A","count":""" +
+                                """1},{"letter":"B","count":1},{"letter":"A","count":1}]}"""
+
+                        1 -> 200 to """{"items":[${item("m2")}],"total":3,"next":"2"}"""
+
+                        else -> 200 to """{"items":[${item("m3")}],"total":3}"""
+                    }
+
+                    else -> null
                 }
-                else -> null
             }
+            val model = viewModel(server)
+            runCurrent()
+            model.openGrid("lib")
+            runCurrent()
+            assertEquals(
+                listOf(LetterJump("A", 0), LetterJump("B", 1)),
+                model.grid.value!!.letters,
+                "a letter in two runs jumps to its first",
+            )
+
+            model.loadThrough(2)
+            runCurrent()
+            assertEquals(listOf("m1", "m2", "m3"), model.grid.value!!.items.map { it.id })
+            assertEquals(
+                listOf(LetterJump("A", 0), LetterJump("B", 1)),
+                model.grid.value!!.letters,
+                "later pages keep the letters",
+            )
+            val limits = server.http.requests.filter {
+                it.path == "/api/v1/libraries/lib/items"
+            }.map { it.query.substringAfter("limit=").substringBefore('&') }
+            assertEquals(
+                listOf("60", "62", "61"),
+                limits,
+                "each page asks for what the jump still needs and a page more",
+            )
+
+            model.loadThrough(1)
+            runCurrent()
+            assertEquals(3, pages, "an item already in loads nothing")
         }
-        val model = viewModel(server)
-        runCurrent()
-        model.openGrid("lib")
-        runCurrent()
-        assertEquals(listOf(LetterJump("A", 0), LetterJump("B", 1)), model.grid.value!!.letters, "a letter in two runs jumps to its first")
-
-        model.loadThrough(2)
-        runCurrent()
-        assertEquals(listOf("m1", "m2", "m3"), model.grid.value!!.items.map { it.id })
-        assertEquals(listOf(LetterJump("A", 0), LetterJump("B", 1)), model.grid.value!!.letters, "later pages keep the letters")
-        val limits = server.http.requests.filter { it.path == "/api/v1/libraries/lib/items" }.map { it.query.substringAfter("limit=").substringBefore('&') }
-        assertEquals(listOf("60", "62", "61"), limits, "each page asks for what the jump still needs and a page more")
-
-        model.loadThrough(1)
-        runCurrent()
-        assertEquals(3, pages, "an item already in loads nothing")
-    }
 
     @Test
     fun `a grid whose next page failed keeps its pages when opened again`() = fixture.viewModelTest {
@@ -178,8 +226,13 @@ class LibraryViewModelTest {
         val server = RouteServer(this) { _, path, _ ->
             when (path) {
                 "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
-                "/api/v1/libraries/lib/items" -> if (++pages == 2) 503 to """{"code":"NOT_READY","message":"NOT_READY","retryable":true}"""
-                    else 200 to """{"items":[${item("m1")},${item("m2")}],"total":4,"next":"c2"}"""
+
+                "/api/v1/libraries/lib/items" -> if (++pages == 2) {
+                    503 to """{"code":"NOT_READY","message":"NOT_READY","retryable":true}"""
+                } else {
+                    200 to """{"items":[${item("m1")},${item("m2")}],"total":4,"next":"c2"}"""
+                }
+
                 else -> null
             }
         }
@@ -203,7 +256,11 @@ class LibraryViewModelTest {
         val server = RouteServer(this) { _, path, _ ->
             when (path) {
                 "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
-                "/api/v1/libraries/lib/items" -> 200 to """{"items":[${item("m1")}],"total":1,"genres":["Comedy","Drama"]}"""
+
+                "/api/v1/libraries/lib/items" ->
+                    200 to
+                        """{"items":[${item("m1")}],"total":1,"genres":["Comedy","Drama"]}"""
+
                 else -> null
             }
         }
@@ -230,10 +287,12 @@ class LibraryViewModelTest {
         val server = RouteServer(this) { method, path, body ->
             when {
                 path == "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+
                 method == "PUT" && path == "/api/v1/library/items/m1/play-state" -> {
                     saves += body
                     200 to item("m1")
                 }
+
                 else -> null
             }
         }
@@ -254,7 +313,12 @@ class LibraryViewModelTest {
         model.stopped("m1", 14_000, 60_000)
         runCurrent()
         assertEquals("""{"positionMs":14000,"durationMs":60000}""", saves.last())
-        assertTrue(server.requests.count { it.startsWith("GET /api/v1/library/home") } >= 2, "the home reloads after a stop")
+        assertTrue(
+            server.requests.count {
+                it.startsWith("GET /api/v1/library/home")
+            } >= 2,
+            "the home reloads after a stop",
+        )
     }
 
     @Test
@@ -263,21 +327,42 @@ class LibraryViewModelTest {
         val server = RouteServer(this) { method, path, body ->
             when {
                 path == "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+
                 method == "POST" && path == "/api/v1/vod-sessions" -> {
                     opens += body
-                    201 to """{"id":"v1","itemId":"m1","mode":"direct","descriptor":{"protocol":"file","mimeType":"video/mp4","url":"/media/vod/v1/1/k/file.mp4","epoch":1}}"""
+                    201 to
+                        """{"id":"v1","itemId":"m1","mode":"direct","descriptor":""" +
+                        """{"protocol":"file","mimeType":"video/mp4","url":"/media/vod/v1/1/k/""" +
+                        """file.mp4","epoch":""" +
+                        """1}}"""
                 }
+
                 else -> null
             }
         }
         val model = viewModel(server)
         runCurrent()
-        val movie = MediaItem("m1", "lib", ItemKind.MOVIE, "Movie", progress = PlayProgress(300_000, 6_000_000, watched = false))
+        val movie =
+            MediaItem(
+                "m1",
+                "lib",
+                ItemKind.MOVIE,
+                "Movie",
+                progress = PlayProgress(300_000, 6_000_000, watched = false),
+            )
 
         assertEquals(300_000, model.play(movie, PlaybackProfile()).startAtMs)
         assertEquals(0, model.play(movie, PlaybackProfile(), fromStart = true).startAtMs)
-        assertEquals(300_000, model.play(movie.copy(progress = movie.progress!!.copy(watched = true)), PlaybackProfile()).startAtMs, "a rewatch resumes")
-        assertEquals(0, model.play(movie.copy(progress = PlayProgress(0, 6_000_000, watched = true)), PlaybackProfile()).startAtMs, "a watched item starts over")
+        assertEquals(
+            300_000,
+            model.play(movie.copy(progress = movie.progress!!.copy(watched = true)), PlaybackProfile()).startAtMs,
+            "a rewatch resumes",
+        )
+        assertEquals(
+            0,
+            model.play(movie.copy(progress = PlayProgress(0, 6_000_000, watched = true)), PlaybackProfile()).startAtMs,
+            "a watched item starts over",
+        )
         assertEquals(4, opens.size)
     }
 
@@ -287,15 +372,28 @@ class LibraryViewModelTest {
         val server = RouteServer(this) { _, path, _ ->
             when (path) {
                 "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
-                "/api/v1/library/items/s1" -> 200 to """{"item":${item("s1", "season")},"children":[${episode("e1", "s1")},${episode("e2", "s1")}]}"""
-                "/api/v1/library/items/s2" -> 200 to """{"item":${item("s2", "season")},"children":[${episode("e3", "s2")}]}"""
-                "/api/v1/library/items/show" -> 200 to """{"item":${item("show", "show")},"children":[${item("s1", "season", ""","season":1""")},${item("s2", "season", ""","season":2""")}]}"""
+
+                "/api/v1/library/items/s1" ->
+                    200 to
+                        """{"item":${item("s1", "season")},"children":[${episode("e1", "s1")},""" +
+                        """${episode("e2", "s1")}]}"""
+
+                "/api/v1/library/items/s2" ->
+                    200 to
+                        """{"item":${item("s2", "season")},"children":[${episode("e3", "s2")}]}"""
+
+                "/api/v1/library/items/show" ->
+                    200 to
+                        """{"item":${item("show", "show")},"children":[${item("s1", "season", ""","season":1""")},""" +
+                        """${item("s2", "season", ""","season":2""")}]}"""
+
                 else -> null
             }
         }
         val model = viewModel(server)
         runCurrent()
-        fun mapped(id: String, season: String) = MediaItem(id, "lib", ItemKind.EPISODE, "Title $id", parentId = season, showId = "show")
+        fun mapped(id: String, season: String) =
+            MediaItem(id, "lib", ItemKind.EPISODE, "Title $id", parentId = season, showId = "show")
 
         assertEquals("e2", model.upNext(mapped("e1", "s1"))?.id)
         assertEquals("e3", model.upNext(mapped("e2", "s1"))?.id, "the last of a season goes on to the next")
@@ -304,44 +402,67 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun `marking an episode watched reloads its pages with its show's grid card and the home`() = fixture.viewModelTest {
-        var watched = false
-        fun episode() = item("e1", "episode", ""","parentId":"s1","showId":"show","playState":{"positionMs":0,"watched":$watched}""")
-        fun show() = item("show", "show", ""","children":1,"unwatched":${if (watched) 0 else 1}""")
-        val server = RouteServer(this) { method, path, body ->
-            when {
-                path == "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
-                path == "/api/v1/libraries/lib/items" -> 200 to """{"items":[${show()},${item("m1")}],"total":2}"""
-                method == "PUT" && path == "/api/v1/library/items/e1/play-state" -> {
-                    watched = "\"watched\":true" in body
-                    200 to episode()
+    fun `marking an episode watched reloads its pages with its show's grid card and the home`() =
+        fixture.viewModelTest {
+            var watched = false
+            fun episode() = item(
+                "e1",
+                "episode",
+                ""","parentId":"s1","showId":"show","playState":{"positionMs":0,"watched":$watched}""",
+            )
+            fun show() = item("show", "show", ""","children":1,"unwatched":${if (watched) 0 else 1}""")
+            val server = RouteServer(this) { method, path, body ->
+                when {
+                    path == "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+
+                    path == "/api/v1/libraries/lib/items" -> 200 to """{"items":[${show()},${item("m1")}],"total":2}"""
+
+                    method == "PUT" && path == "/api/v1/library/items/e1/play-state" -> {
+                        watched = "\"watched\":true" in body
+                        200 to episode()
+                    }
+
+                    path == "/api/v1/library/items/e1" -> 200 to """{"item":${episode()}}"""
+
+                    path == "/api/v1/library/items/s1" ->
+                        200 to
+                            """{"item":${item("s1", "season", ""","parentId":"show","showId":"show"""")},"childre""" +
+                            """n":""" +
+                            """[${episode()}]}"""
+
+                    path == "/api/v1/library/items/show" -> 200 to """{"item":${show()}}"""
+
+                    else -> null
                 }
-                path == "/api/v1/library/items/e1" -> 200 to """{"item":${episode()}}"""
-                path == "/api/v1/library/items/s1" -> 200 to """{"item":${item("s1", "season", ""","parentId":"show","showId":"show"""")},"children":[${episode()}]}"""
-                path == "/api/v1/library/items/show" -> 200 to """{"item":${show()}}"""
-                else -> null
             }
+            val model = viewModel(server)
+            runCurrent()
+            model.openGrid("lib")
+            val season = model.detail("s1")
+            model.detail("e1")
+            model.detail("show")
+            runCurrent()
+            fun gets(id: String) = server.requests.count { it == "GET /api/v1/library/items/$id" }
+            assertEquals(listOf(1, 1, 1), listOf(gets("e1"), gets("s1"), gets("show")))
+
+            model.setWatched(
+                MediaItem("e1", "lib", ItemKind.EPISODE, "Title e1", parentId = "s1", showId = "show"),
+                watched = true,
+            )
+            runCurrent()
+
+            assertEquals(
+                """PUT /api/v1/library/items/e1/play-state {"watched":true}""",
+                server.requests.first {
+                    it.startsWith("PUT")
+                },
+            )
+            assertEquals(listOf(2, 2), listOf(gets("e1"), gets("s1")), "the episode's page and its season's reload")
+            assertEquals(3, gets("show"), "the show's page reloads, and its grid card with it")
+            assertEquals(0, model.grid.value!!.items.first { it.id == "show" }.unwatched)
+            assertTrue(assertIs<ItemDetailState.Ready>(season.value).detail.children.single().progress!!.watched)
+            assertEquals(2, server.requests.count { it == "GET /api/v1/library/home" }, "the home reloads")
         }
-        val model = viewModel(server)
-        runCurrent()
-        model.openGrid("lib")
-        val season = model.detail("s1")
-        model.detail("e1")
-        model.detail("show")
-        runCurrent()
-        fun gets(id: String) = server.requests.count { it == "GET /api/v1/library/items/$id" }
-        assertEquals(listOf(1, 1, 1), listOf(gets("e1"), gets("s1"), gets("show")))
-
-        model.setWatched(MediaItem("e1", "lib", ItemKind.EPISODE, "Title e1", parentId = "s1", showId = "show"), watched = true)
-        runCurrent()
-
-        assertEquals("""PUT /api/v1/library/items/e1/play-state {"watched":true}""", server.requests.first { it.startsWith("PUT") })
-        assertEquals(listOf(2, 2), listOf(gets("e1"), gets("s1")), "the episode's page and its season's reload")
-        assertEquals(3, gets("show"), "the show's page reloads, and its grid card with it")
-        assertEquals(0, model.grid.value!!.items.first { it.id == "show" }.unwatched)
-        assertTrue(assertIs<ItemDetailState.Ready>(season.value).detail.children.single().progress!!.watched)
-        assertEquals(2, server.requests.count { it == "GET /api/v1/library/home" }, "the home reloads")
-    }
 
     @Test
     fun `search trims the query and finds nothing for a blank one or when the server fails`() = fixture.viewModelTest {
@@ -349,7 +470,15 @@ class LibraryViewModelTest {
         val server = RouteServer(this) { _, path, _ ->
             when (path) {
                 "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
-                "/api/v1/library/search" -> if (fail) 503 to """{"code":"NOT_READY","message":"NOT_READY","retryable":true}""" else 200 to """{"items":[${item("m1")}],"total":1}"""
+
+                "/api/v1/library/search" -> if (fail) {
+                    503 to
+                        """{"code":"NOT_READY","message":"NOT_READY","retryable":true}"""
+                } else {
+                    200 to
+                        """{"items":[${item("m1")}],"total":1}"""
+                }
+
                 else -> null
             }
         }
@@ -370,12 +499,14 @@ class LibraryViewModelTest {
         val server = RouteServer(this) { _, path, _ ->
             when (path) {
                 "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+
                 "/api/v1/library/items/m1" -> {
                     val title = if (++loads == 1) "Old" else "New"
                     // The first answer is slow, so it would land after the second.
                     if (loads == 1) delay(5.seconds)
                     200 to """{"item":{"id":"m1","libraryId":"lib","kind":"movie","title":"$title"}}"""
                 }
+
                 else -> null
             }
         }
@@ -390,57 +521,82 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun `an episode's page carries the intro and credits the server found and skips segments it does not know`() = fixture.viewModelTest {
-        val server = RouteServer(this) { _, path, _ ->
-            when (path) {
-                "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
-                "/api/v1/library/items/e1" -> 200 to """{"item":${item("e1", "episode")},"segments":[{"kind":"recap","startMs":0,"endMs":500},{"kind":"credits","startMs":1300000,"endMs":1400000},{"kind":"intro","startMs":600,"endMs":53100}]}"""
-                "/api/v1/library/items/e2" -> 200 to """{"item":${item("e2", "episode")}}"""
-                else -> null
+    fun `an episode's page carries the intro and credits the server found and skips segments it does not know`() =
+        fixture.viewModelTest {
+            val server = RouteServer(this) { _, path, _ ->
+                when (path) {
+                    "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+
+                    "/api/v1/library/items/e1" ->
+                        200 to
+                            """{"item":${item("e1", "episode")},"segments":[{"kind":"recap","startMs":0,"endMs":""" +
+                            """500},{"kind":"credits","startMs":1300000,"endMs":1400000},""" +
+                            """{"kind":"intro","startMs":600,"endMs":53100}]}"""
+
+                    "/api/v1/library/items/e2" -> 200 to """{"item":${item("e2", "episode")}}"""
+
+                    else -> null
+                }
             }
+            val model = viewModel(server)
+            runCurrent()
+            val first = model.detail("e1")
+            val second = model.detail("e2")
+            runCurrent()
+            advanceTimeBy(1.seconds)
+            assertEquals(IntroSpan(600, 53_100), assertIs<ItemDetailState.Ready>(first.value).detail.intro)
+            assertEquals(IntroSpan(1_300_000, 1_400_000), assertIs<ItemDetailState.Ready>(first.value).detail.credits)
+            assertNull(assertIs<ItemDetailState.Ready>(second.value).detail.intro)
+            assertNull(assertIs<ItemDetailState.Ready>(second.value).detail.credits)
         }
-        val model = viewModel(server)
-        runCurrent()
-        val first = model.detail("e1")
-        val second = model.detail("e2")
-        runCurrent()
-        advanceTimeBy(1.seconds)
-        assertEquals(IntroSpan(600, 53_100), assertIs<ItemDetailState.Ready>(first.value).detail.intro)
-        assertEquals(IntroSpan(1_300_000, 1_400_000), assertIs<ItemDetailState.Ready>(first.value).detail.credits)
-        assertNull(assertIs<ItemDetailState.Ready>(second.value).detail.intro)
-        assertNull(assertIs<ItemDetailState.Ready>(second.value).detail.credits)
-    }
 
     @Test
-    fun `an item's page carries its scrub thumbnails with their sheets resolved against the server`() = fixture.viewModelTest {
-        val scrub = """{"intervalMs":10000,"tileWidth":240,"tileHeight":136,"columns":10,"rows":10,"frames":150,"sheets":["/artwork/m1/scrub/0?v=a","/artwork/m1/scrub/1?v=a"]}"""
-        val server = RouteServer(this) { _, path, _ ->
-            when (path) {
-                "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
-                "/api/v1/library/items/m1" -> 200 to """{"item":${item("m1", "movie")},"scrub":$scrub}"""
-                else -> null
+    fun `an item's page carries its scrub thumbnails with their sheets resolved against the server`() =
+        fixture.viewModelTest {
+            val scrub =
+                """{"intervalMs":10000,"tileWidth":240,"tileHeight":136,"columns":10,"rows":10,"frames":150,""" +
+                    """"sheets":["/artwork/m1/scrub/0?v=a","/artwork/m1/scrub/1?v=a"]}"""
+            val server = RouteServer(this) { _, path, _ ->
+                when (path) {
+                    "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+                    "/api/v1/library/items/m1" -> 200 to """{"item":${item("m1", "movie")},"scrub":$scrub}"""
+                    else -> null
+                }
             }
+            val model = viewModel(server)
+            runCurrent()
+            val page = model.detail("m1")
+            runCurrent()
+            advanceTimeBy(1.seconds)
+            val tiles = assertNotNull(assertIs<ItemDetailState.Ready>(page.value).detail.scrub)
+            assertEquals(
+                listOf("${FAKE_BASE}artwork/m1/scrub/0?v=a", "${FAKE_BASE}artwork/m1/scrub/1?v=a"),
+                tiles.sheets,
+            )
+            assertEquals(ScrubTile("${FAKE_BASE}artwork/m1/scrub/0?v=a", 0, 0), tiles.tileAt(4_000))
+            assertEquals(ScrubTile("${FAKE_BASE}artwork/m1/scrub/0?v=a", 3, 1), tiles.tileAt(130_000))
+            assertEquals(ScrubTile("${FAKE_BASE}artwork/m1/scrub/1?v=a", 0, 0), tiles.tileAt(1_000_000))
+            // Past the last frame the last tile stands.
+            assertEquals(ScrubTile("${FAKE_BASE}artwork/m1/scrub/1?v=a", 9, 4), tiles.tileAt(9_000_000))
         }
-        val model = viewModel(server)
-        runCurrent()
-        val page = model.detail("m1")
-        runCurrent()
-        advanceTimeBy(1.seconds)
-        val tiles = assertNotNull(assertIs<ItemDetailState.Ready>(page.value).detail.scrub)
-        assertEquals(listOf("${FAKE_BASE}artwork/m1/scrub/0?v=a", "${FAKE_BASE}artwork/m1/scrub/1?v=a"), tiles.sheets)
-        assertEquals(ScrubTile("${FAKE_BASE}artwork/m1/scrub/0?v=a", 0, 0), tiles.tileAt(4_000))
-        assertEquals(ScrubTile("${FAKE_BASE}artwork/m1/scrub/0?v=a", 3, 1), tiles.tileAt(130_000))
-        assertEquals(ScrubTile("${FAKE_BASE}artwork/m1/scrub/1?v=a", 0, 0), tiles.tileAt(1_000_000))
-        // Past the last frame the last tile stands.
-        assertEquals(ScrubTile("${FAKE_BASE}artwork/m1/scrub/1?v=a", 9, 4), tiles.tileAt(9_000_000))
-    }
 
     @Test
     fun `a movie's page carries its extras with their kinds and the titles like it`() = fixture.viewModelTest {
         val server = RouteServer(this) { _, path, _ ->
             when (path) {
                 "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
-                "/api/v1/library/items/m1" -> 200 to """{"item":${item("m1", "movie")},"extras":[${item("x1", "extra", ""","extra":"trailer"""")},${item("x2", "extra", ""","extra":"blooper"""")}],"related":[${item("m2", "movie")}]}"""
+
+                "/api/v1/library/items/m1" ->
+                    200 to
+                        """{"item":${item(
+                            "m1",
+                            "movie",
+                        )},"extras":[${item(
+                            "x1",
+                            "extra",
+                            ""","extra":"trailer"""",
+                        )},${item("x2", "extra", ""","extra":"blooper"""")}],"related":[${item("m2", "movie")}]}"""
+
                 else -> null
             }
         }
@@ -451,7 +607,13 @@ class LibraryViewModelTest {
         advanceTimeBy(1.seconds)
         val detail = assertIs<ItemDetailState.Ready>(page.value).detail
         assertEquals(listOf(ItemKind.EXTRA, ItemKind.EXTRA), detail.extras.map { it.kind })
-        assertEquals(listOf(ExtraKind.TRAILER, ExtraKind.OTHER), detail.extras.map { it.extra }, "a kind the app does not know is an extra")
+        assertEquals(
+            listOf(ExtraKind.TRAILER, ExtraKind.OTHER),
+            detail.extras.map {
+                it.extra
+            },
+            "a kind the app does not know is an extra",
+        )
         assertTrue(detail.extras.all { it.kind.playable })
         assertEquals(listOf("m2"), detail.related.map { it.id })
         assertNull(detail.item.extra)

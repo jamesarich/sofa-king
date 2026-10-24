@@ -57,7 +57,10 @@ internal class SpliceReader {
         if (from >= PACKET) return
         when {
             pid == videoPid -> if (start && firstPts == null) firstPts = pesPts(p, from)
-            pid == 0 || pid in pmtPids || pid in cuePids -> sections.getOrPut(pid) { SectionBuffer() }.add(p, from, start) { section(pid, it) }
+
+            pid == 0 || pid in pmtPids || pid in cuePids -> sections.getOrPut(pid) {
+                SectionBuffer()
+            }.add(p, from, start) { section(pid, it) }
         }
     }
 
@@ -93,7 +96,10 @@ internal class SpliceReader {
         }
     }
 
-    /** The splice a `splice_info_section` announces, or null for a keepalive, a cancel, an encrypted one or another command. */
+    /**
+     * The splice a `splice_info_section` announces, or null for a keepalive, a cancel, an
+     * encrypted one or another command.
+     */
     private fun spliceInfo(s: ByteArray): Splice? {
         if (s.size < 17 || s[4].u and 0x80 != 0) return null
         val adjust = (s[4].u.toLong() and 1 shl 32) or s.uint(5, 4)
@@ -131,7 +137,10 @@ internal class SpliceReader {
         return Splice(out, pts, duration)
     }
 
-    /** A `time_signal`: a splice only when one of its segmentation descriptors starts or ends a break, ad or placement opportunity. */
+    /**
+     * A `time_signal`: a splice only when one of its segmentation descriptors starts or ends a
+     * break, ad or placement opportunity.
+     */
     private fun timeSignal(s: ByteArray, at: Int, descriptorsAt: Int): Splice? {
         val pts = spliceTime(s, at)
         if (descriptorsAt + 2 > s.size) return null
@@ -140,13 +149,18 @@ internal class SpliceReader {
         while (i + 2 <= end) {
             val tag = s[i].u
             val length = s[i + 1].u
-            if (tag == 0x02 && i + 2 + length <= end) segmentation(s, i + 2, i + 2 + length)?.let { (out, duration) -> return Splice(out, pts, duration) }
+            if (tag == 0x02 && i + 2 + length <= end) {
+                segmentation(s, i + 2, i + 2 + length)?.let { (out, duration) -> return Splice(out, pts, duration) }
+            }
             i += 2 + length
         }
         return null
     }
 
-    /** From a segmentation descriptor's body: whether it leaves for a break (true) or returns (false), and the length it plans. */
+    /**
+     * From a segmentation descriptor's body: whether it leaves for a break (true) or returns
+     * (false), and the length it plans.
+     */
     private fun segmentation(s: ByteArray, from: Int, to: Int): Pair<Boolean, Long?>? {
         // identifier "CUEI" (4), segmentation_event_id (4), then the cancel flag.
         var i = from + 8
@@ -169,17 +183,27 @@ internal class SpliceReader {
     }
 
     /** A `splice_time()` at [at]: its PTS, or null when none is specified. */
-    private fun spliceTime(s: ByteArray, at: Int): Long? =
-        if (at < s.size && s[at].u and 0x80 != 0 && at + 5 <= s.size) (s[at].u.toLong() and 1 shl 32) or s.uint(at + 1, 4) else null
+    private fun spliceTime(s: ByteArray, at: Int): Long? = if (at < s.size && s[at].u and 0x80 != 0 &&
+        at + 5 <= s.size
+    ) {
+        (s[at].u.toLong() and 1 shl 32) or s.uint(at + 1, 4)
+    } else {
+        null
+    }
 
     /** A 33-bit field in the last bits of the 5 bytes at [at], as in `break_duration()`. */
     private fun ticks(s: ByteArray, at: Int): Long = (s[at].u.toLong() and 1 shl 32) or s.uint(at + 1, 4)
 
     /** The PTS of the PES packet starting at [from], or null when it has none. */
     private fun pesPts(p: ByteArray, from: Int): Long? {
-        if (from + 14 > PACKET || p[from].u != 0 || p[from + 1].u != 0 || p[from + 2].u != 1 || p[from + 7].u and 0x80 == 0) return null
+        if (from + 14 > PACKET || p[from].u != 0 || p[from + 1].u != 0 || p[from + 2].u != 1 ||
+            p[from + 7].u and 0x80 == 0
+        ) {
+            return null
+        }
         val b = from + 9
-        return ((p[b].u.toLong() shr 1 and 7) shl 30) or (p[b + 1].u.toLong() shl 22) or ((p[b + 2].u.toLong() shr 1) shl 15) or
+        return ((p[b].u.toLong() shr 1 and 7) shl 30) or (p[b + 1].u.toLong() shl 22) or
+            ((p[b + 2].u.toLong() shr 1) shl 15) or
             (p[b + 3].u.toLong() shl 7) or (p[b + 4].u.toLong() shr 1)
     }
 
@@ -206,7 +230,11 @@ internal class SpliceReader {
         }
 
         private fun append(p: ByteArray, from: Int, to: Int) {
-            if (bytes.size + (to - from) > SECTION_LIMIT) { bytes = ByteArray(0); started = false; return }
+            if (bytes.size + (to - from) > SECTION_LIMIT) {
+                bytes = ByteArray(0)
+                started = false
+                return
+            }
             bytes += p.copyOfRange(from, to)
         }
 
@@ -219,7 +247,10 @@ internal class SpliceReader {
                 bytes = bytes.copyOfRange(length, bytes.size)
             }
             // A new section only begins where a packet says, so a finished buffer waits for the next start.
-            if (bytes.isEmpty() || bytes[0].u == 0xFF) { bytes = ByteArray(0); started = false }
+            if (bytes.isEmpty() || bytes[0].u == 0xFF) {
+                bytes = ByteArray(0)
+                started = false
+            }
         }
     }
 }
@@ -240,7 +271,11 @@ private const val STREAM_H264 = 0x1B
 private const val STREAM_H265 = 0x24
 private const val PTS_MASK = (1L shl 33) - 1
 
-/** Segmentation types that begin a break: break, provider and distributor ad, provider and distributor placement opportunity. */
+/**
+ * Segmentation types that begin a break: break, provider and distributor ad, provider and
+ * distributor placement opportunity.
+ */
 private val BREAK_STARTS = setOf(0x22, 0x30, 0x32, 0x34, 0x36)
+
 /** The types that end them. */
 private val BREAK_ENDS = setOf(0x23, 0x31, 0x33, 0x35, 0x37)

@@ -1,8 +1,8 @@
 package dev.jamesrich.sofaking.ui
 
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.Test
 
 class VoiceQueryTest {
     @Test

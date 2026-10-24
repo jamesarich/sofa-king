@@ -1,10 +1,10 @@
 package dev.jamesrich.sofaking.ui.guide
 
 import dev.jamesrich.sofaking.data.Channel
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import kotlin.test.Test
 
 class GuideFocusTest {
     private fun channel(id: String) = Channel(id, id.toDouble(), "Ch $id", null, listOf("Test"))
@@ -56,8 +56,12 @@ class GuideFocusTest {
 
     // guideBackAction
 
-    private fun back(searchOpen: Boolean = false, grid: Boolean = false, chips: Boolean = false, header: Boolean = true) =
-        guideBackAction(searchOpen = searchOpen, gridFocused = grid, chipsFocused = chips, hasHeader = header)
+    private fun back(
+        searchOpen: Boolean = false,
+        grid: Boolean = false,
+        chips: Boolean = false,
+        header: Boolean = true,
+    ) = guideBackAction(searchOpen = searchOpen, gridFocused = grid, chipsFocused = chips, hasHeader = header)
 
     @Test
     fun `open search closes before anything else`() {

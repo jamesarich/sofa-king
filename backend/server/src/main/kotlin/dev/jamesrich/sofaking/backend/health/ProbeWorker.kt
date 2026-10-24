@@ -11,11 +11,6 @@ import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.backend.upstream.ffmpegBase
 import dev.jamesrich.sofaking.backend.upstream.ffmpegProcess
 import io.ktor.client.HttpClient
-import java.nio.file.Files
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
-import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -29,8 +24,13 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.time.Duration.Companion.seconds
 import org.slf4j.LoggerFactory
+import java.nio.file.Files
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.util.UUID
+import kotlin.time.Duration.Companion.seconds
 
 data class ProbeConfig(
     val parallelism: Int = 6,
@@ -62,22 +62,26 @@ class ProbeWorker(
      * ranks before health status (lower first). Offerings it leaves out are never probed. Null without a policy.
      */
     private val targets: (() -> Map<String, Int>)? = null,
-    /** The relay the decode tier's FFmpeg reads sources through; without one, the decode tier fails as [FailureClass.LOCAL]. */
+    /**
+     * The relay the decode tier's FFmpeg reads sources through; without one, the decode tier
+     * fails as [FailureClass.LOCAL].
+     */
     private val relay: LoopbackRelay? = null,
     private val qualifier: (suspend (Offering, Map<String, String>) -> FailureClass?)? = null,
 ) {
     private val log = LoggerFactory.getLogger(ProbeWorker::class.java)
-    private val fastTier = http?.let { HttpQualifier(it, config.restreamOrigins, config.httpTimeoutMillis, feeds.upstream) }
+    private val fastTier = http?.let {
+        HttpQualifier(it, config.restreamOrigins, config.httpTimeoutMillis, feeds.upstream)
+    }
     private val mutex = Mutex()
     private val pending = ArrayDeque<Offering>()
     private val inFlight = HashSet<String>()
     private val outcomes = HashMap<String, Int>()
     private var batchStartedAt: Instant? = null
 
-    suspend fun run() =
-        coroutineScope {
-            repeat(config.parallelism) { launch { worker() } }
-        }
+    suspend fun run() = coroutineScope {
+        repeat(config.parallelism) { launch { worker() } }
+    }
 
     private suspend fun worker() {
         var idle = 1000L
@@ -126,25 +130,34 @@ class ProbeWorker(
         return true
     }
 
-    private suspend fun claim(): Offering? =
-        mutex.withLock {
-            if (pending.isEmpty()) {
-                val now = clock.instant()
-                batchStartedAt?.let { started ->
-                    log.info("probe batch done outcomes={} durationMs={}", outcomes.toSortedMap(), Duration.between(started, now).toMillis())
-                }
-                outcomes.clear()
-                pending += due(now).filter { it.id !in inFlight }
-                batchStartedAt = if (pending.isEmpty()) null else now
-                val pruned = store.pruneObservations(now.minus(config.observationRetention))
-                if (pruned > 0) log.info("pruned health observations count={} retentionDays={}", pruned, config.observationRetention.toDays())
+    private suspend fun claim(): Offering? = mutex.withLock {
+        if (pending.isEmpty()) {
+            val now = clock.instant()
+            batchStartedAt?.let { started ->
+                log.info(
+                    "probe batch done outcomes={} durationMs={}",
+                    outcomes.toSortedMap(),
+                    Duration.between(started, now).toMillis(),
+                )
             }
-            val next = pending.removeFirstOrNull() ?: return@withLock null
-            // Recorded before it counts as in flight: a failed write must not leave it unprobeable until a restart.
-            store.markProbeAttempt(next.id, clock.instant())
-            inFlight += next.id
-            next
+            outcomes.clear()
+            pending += due(now).filter { it.id !in inFlight }
+            batchStartedAt = if (pending.isEmpty()) null else now
+            val pruned = store.pruneObservations(now.minus(config.observationRetention))
+            if (pruned > 0) {
+                log.info(
+                    "pruned health observations count={} retentionDays={}",
+                    pruned,
+                    config.observationRetention.toDays(),
+                )
+            }
         }
+        val next = pending.removeFirstOrNull() ?: return@withLock null
+        // Recorded before it counts as in flight: a failed write must not leave it unprobeable until a restart.
+        store.markProbeAttempt(next.id, clock.instant())
+        inFlight += next.id
+        next
+    }
 
     private suspend fun due(now: Instant): List<Offering> {
         val states = store.allHealth()
@@ -162,18 +175,22 @@ class ProbeWorker(
                     !state.manuallyDisabled && state.status != HealthStatus.ARCHIVED && due(state, now) &&
                         attempts[offering.id]?.let { now < it.plusSeconds(300) } != true
                 if (probeable) offering to state else null
-            }.sortedWith(compareBy({ plan?.get(it.first.id) ?: 0 }, { priority(it.second.status) }, { attempts[it.first.id] ?: Instant.MIN }))
+            }.sortedWith(
+                compareBy({ plan?.get(it.first.id) ?: 0 }, { priority(it.second.status) }, {
+                    attempts[it.first.id]
+                        ?: Instant.MIN
+                }),
+            )
             .take(config.parallelism * 4)
             .map { it.first }
             .toList()
     }
 
-    private fun priority(status: HealthStatus): Int =
-        when (status) {
-            HealthStatus.HEALTHY -> 2
-            HealthStatus.UNVERIFIED -> 1
-            else -> 0
-        }
+    private fun priority(status: HealthStatus): Int = when (status) {
+        HealthStatus.HEALTHY -> 2
+        HealthStatus.UNVERIFIED -> 1
+        else -> 0
+    }
 
     private suspend fun probe(offering: Offering) {
         val before = store.health(offering.id)?.status
@@ -206,10 +223,24 @@ class ProbeWorker(
                 val protocol = qualification.protocol
                 // The body is the authority on the protocol; the decode tier's reconnect flags depend on it too.
                 if (protocol != null && protocol != offering.protocol) feeds.recordProtocol(offering.id, protocol)
-                qualification.failure ?: decode(if (protocol == null) target else target.copy(protocol = protocol), headers, recheck = before == HealthStatus.HEALTHY)
+                qualification.failure
+                    ?: decode(
+                        if (protocol == null) {
+                            target
+                        } else {
+                            target.copy(protocol = protocol)
+                        },
+                        headers,
+                        recheck =
+                        before == HealthStatus.HEALTHY,
+                    )
             }
         val at = clock.instant()
-        val after = store.recordObservation(offering.id, Observation(UUID.randomUUID().toString(), at, failure == null, failure), at)
+        val after = store.recordObservation(
+            offering.id,
+            Observation(UUID.randomUUID().toString(), at, failure == null, failure),
+            at,
+        )
         mutex.withLock { outcomes.merge(failure?.name ?: "QUALIFIED", 1, Int::plus) }
         onObserved(offering.id)
         if (before != after.status) {
@@ -218,26 +249,19 @@ class ProbeWorker(
         }
     }
 
-    internal fun classify(error: String): FailureClass =
-        when {
-            AUTH_ERROR.containsMatchIn(error) -> FailureClass.AUTH
+    internal fun classify(error: String): FailureClass = when {
+        AUTH_ERROR.containsMatchIn(error) -> FailureClass.AUTH
+        RATE_LIMIT_ERROR.containsMatchIn(error) -> FailureClass.RATE_LIMIT
+        PROVIDER_ERROR.containsMatchIn(error) -> FailureClass.PROVIDER
+        LOCAL_ERROR.containsMatchIn(error) -> FailureClass.LOCAL
+        else -> FailureClass.OFFERING
+    }
 
-            RATE_LIMIT_ERROR.containsMatchIn(error) -> FailureClass.RATE_LIMIT
-
-            PROVIDER_ERROR.containsMatchIn(error) -> FailureClass.PROVIDER
-
-            LOCAL_ERROR.containsMatchIn(error) -> FailureClass.LOCAL
-
-            else -> FailureClass.OFFERING
-        }
-
-    private fun due(
-        state: HealthState,
-        now: Instant,
-    ): Boolean {
+    private fun due(state: HealthState, now: Instant): Boolean {
         if (state.nextCheckAt != null) return now >= state.nextCheckAt
         val last = state.lastObservationAt ?: return true
-        return now >= last.plus(if (state.status == HealthStatus.HEALTHY) Duration.ofHours(6) else Duration.ofMinutes(5))
+        return now >=
+            last.plus(if (state.status == HealthStatus.HEALTHY) Duration.ofHours(6) else Duration.ofMinutes(5))
     }
 
     /**
@@ -252,7 +276,9 @@ class ProbeWorker(
         recheck: Boolean = false,
     ): FailureClass? {
         val relay = relay ?: return FailureClass.LOCAL
-        return relay.reading(ResolvedStream(offering.url, headers), offering.protocol) { source -> decode(source, offering.protocol, recheck) }
+        return relay.reading(ResolvedStream(offering.url, headers), offering.protocol) { source ->
+            decode(source, offering.protocol, recheck)
+        }
     }
 
     private suspend fun decode(source: FfmpegSource, protocol: String, recheck: Boolean): FailureClass? =
@@ -261,7 +287,9 @@ class ProbeWorker(
             val errors = Files.createTempFile("sofa-probe-", ".errors")
             try {
                 val command = decodeCommand(ffmpeg, source, protocol, config.decodeSeconds, recheck)
-                val exit = ffmpegProcess(command).redirectOutput(output.toFile()).redirectError(errors.toFile()).runFor(config.deadlineSeconds.seconds)
+                val exit = ffmpegProcess(
+                    command,
+                ).redirectOutput(output.toFile()).redirectError(errors.toFile()).runFor(config.deadlineSeconds.seconds)
                 if (exit == null) {
                     FailureClass.PROVIDER
                 } else {
@@ -290,23 +318,34 @@ private val AUTH_ERROR = Regex("(?i)(HTTP error |server returned )(401|403)\\b")
 private val RATE_LIMIT_ERROR = Regex("(?i)(HTTP error |server returned )429\\b")
 private val PROVIDER_ERROR =
     Regex(
-        "(?i)HTTP error 5[0-9]{2}|server returned 5(XX|[0-9]{2})|connection refused|failed to resolve|network is unreachable|connection timed out|connection reset|broken pipe|TLS handshake",
+        "(?i)HTTP error 5[0-9]{2}|server returned 5(XX|[0-9]{2})|connection refused|failed to resolve|network is " +
+            "unreachable|connection timed out|connection reset|broken pipe|TLS handshake",
     )
 private val LOCAL_ERROR =
     Regex(
-        "(?i)decoder .*not found|unknown decoder|permission denied|no space left|cannot allocate memory|resource temporarily unavailable|protocol not found",
+        "(?i)decoder .*not found|unknown decoder|permission denied|no space left|cannot allocate memory|resource " +
+            "temporarily unavailable|protocol not found",
     )
 
 /** Lines of FFmpeg's `-progress` output. */
 private val FRAME_LINE = Regex("(?m)^frame=(\\d+)$")
 private val OUT_TIME_LINE = Regex("(?m)^out_time_us=(\\d+)$")
 
-/** The FFmpeg command that reads [seconds] of [source]'s first video stream, decoding it or, with [copy], copying it. */
-internal fun decodeCommand(ffmpeg: String, source: FfmpegSource, protocol: String, seconds: Int, copy: Boolean): List<String> {
+/**
+ * The FFmpeg command that reads [seconds] of [source]'s first video stream, decoding it or, with [copy], copying it.
+ */
+internal fun decodeCommand(
+    ffmpeg: String,
+    source: FfmpegSource,
+    protocol: String,
+    seconds: Int,
+    copy: Boolean,
+): List<String> {
     val command = ffmpegBase(ffmpeg, "error", source)
     // The HLS demuxer handles segment boundaries itself; reconnect-at-EOF there loops on the first segment.
     if (protocol == "mpegts") {
-        command += listOf("-reconnect", "1", "-reconnect_at_eof", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5")
+        command +=
+            listOf("-reconnect", "1", "-reconnect_at_eof", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5")
     }
     command += listOf("-i", source.url, "-t", seconds.toString(), "-map", "0:v:0")
     if (copy) command += listOf("-c", "copy")

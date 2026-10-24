@@ -24,8 +24,12 @@ fun interface WatchNext {
  * no server or no library, and null (the row stays as it is) while they load or fail to.
  */
 fun watchNextItems(home: LibraryHomeState): List<MediaItem>? = when (home) {
-    is LibraryHomeState.Ready -> home.home.shelves.firstOrNull { it.id == Wire.ShelfId.CONTINUE }?.items.orEmpty().filter { it.kind.playable }
+    is LibraryHomeState.Ready -> home.home.shelves.firstOrNull {
+        it.id == Wire.ShelfId.CONTINUE
+    }?.items.orEmpty().filter { it.kind.playable }
+
     LibraryHomeState.Unconfigured, LibraryHomeState.Unavailable -> emptyList()
+
     LibraryHomeState.Loading, is LibraryHomeState.Failed -> null
 }
 

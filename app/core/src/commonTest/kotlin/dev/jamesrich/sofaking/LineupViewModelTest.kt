@@ -56,6 +56,7 @@ class LineupViewModelTest {
         val removed = mutableSetOf<String>()
         var catalogRequests = 0
         var guideRequests = 0
+
         /** The bootstrap's capabilities; null answers 404, as a server from before the route. */
         var capabilities: String? = null
 
@@ -64,28 +65,45 @@ class LineupViewModelTest {
                 "/api/v1/channels" -> {
                     catalogRequests++
                     if (failCatalog) return@FakeHttp apiError(503, "NOT_READY")
-                    val channels = channelIds.mapIndexed { i, id -> """{"id":"$id","displayNumber":"${i + 1}","name":"Channel $id","playbackEligible":true}""" }
+                    val channels = channelIds.mapIndexed { i, id ->
+                        """{"id":"$id","displayNumber":"${i + 1}","name":"Channel $id","playbackEligible":true}"""
+                    }
                     json("""{"revision":"r","channels":[${channels.joinToString(",")}]}""")
                 }
+
                 "/api/v1/guide/query" -> {
                     if (failGuide) return@FakeHttp apiError(503, "NOT_READY")
                     guideRequests++
-                    // One program per channel at the start of the window asked for, so a second day reads apart from the first.
+                    // One program per channel at the start of the window asked for, so a second
+                    // day reads apart from the first.
                     val from = Regex(""""from":"([^"]+)"""").find(request.body)?.groupValues?.get(1)
                     val start = from?.let { Instant.parse(it) } ?: Instant.parse("2026-10-10T10:00:00Z")
                     val rows = channelIds.joinToString(",") { id ->
-                        if (id in removed) """{"channelId":"$id","status":"removed","programs":[]}"""
-                        else """{"channelId":"$id","status":"available","programs":[{"id":"p-$id","channelId":"$id","startsAt":"$start","endsAt":"${start + 1.hours}","title":"Show $id"}]}"""
+                        if (id in removed) {
+                            """{"channelId":"$id","status":"removed","programs":[]}"""
+                        } else {
+                            """{"channelId":"$id","status":"available","programs":[""" +
+                                """{"id":"p-$id","channelId":"$id","startsAt":"$start","endsA""" +
+                                """t":"${start + 1.hours}","title":"Show $id"}]}"""
+                        }
                     }
                     json("""{"revision":"r","from":"x","to":"y","channels":[$rows]}""")
                 }
+
                 "/api/v1/pair" -> {
                     if (request.headers["Authorization"] != null) return@FakeHttp apiError(500, "TOKEN_SENT")
-                    if (request.body.contains(""""code":"654321"""")) json("""{"apiToken":"issued-token","serverId":"srv"}""")
-                    else apiError(403, "PAIRING_INVALID")
+                    if (request.body.contains(""""code":"654321"""")) {
+                        json("""{"apiToken":"issued-token","serverId":"srv"}""")
+                    } else {
+                        apiError(403, "PAIRING_INVALID")
+                    }
                 }
-                "/api/v1/bootstrap" -> capabilities?.let { json("""{"serverId":"srv","serverTime":"$NOW","capabilities":$it}""") }
+
+                "/api/v1/bootstrap" -> capabilities?.let {
+                    json("""{"serverId":"srv","serverTime":"$NOW","capabilities":$it}""")
+                }
                     ?: apiError(404, "RESOURCE_NOT_FOUND")
+
                 else -> apiError(404, "RESOURCE_NOT_FOUND")
             }
         }
@@ -99,7 +117,11 @@ class LineupViewModelTest {
     fun tearDown() = fixture.tearDown()
 
     /** The ViewModel over [server], with the server saved in Settings unless [configured] is false. */
-    private suspend fun TestScope.start(server: FakeServer, configured: Boolean = true, store: SettingsStore = settings): LineupViewModel {
+    private suspend fun TestScope.start(
+        server: FakeServer,
+        configured: Boolean = true,
+        store: SettingsStore = settings,
+    ): LineupViewModel {
         if (configured) store.setServer("http://sofa.test", "t")
         return fixture.started(
             LineupViewModel(
@@ -172,7 +194,9 @@ class LineupViewModelTest {
 
         // The channels show first, while the cached programs decode.
         assertEquals(cached.channels, viewModel.state.first { it is LineupState.Ready }.lineup.channels)
-        val fresh = viewModel.state.first { it is LineupState.Ready && it.lineup.channels.first().guideId == "c1" }.lineup
+        val fresh = viewModel.state.first {
+            it is LineupState.Ready && it.lineup.channels.first().guideId == "c1"
+        }.lineup
         assertEquals(listOf("c1", "c2"), fresh.channels.map { it.guideId })
     }
 
@@ -184,7 +208,12 @@ class LineupViewModelTest {
         server.failCatalog = true
         val viewModel = start(server)
 
-        assertTrue(viewModel.state.first { it is LineupState.Ready }.lineup.guideLoading, "the rows read loading, not no listing")
+        assertTrue(
+            viewModel.state.first {
+                it is LineupState.Ready
+            }.lineup.guideLoading,
+            "the rows read loading, not no listing",
+        )
         val settled = viewModel.state.first { it is LineupState.Ready && !it.lineup.guideLoading }.lineup
         assertEquals(cached.channels, settled.channels, "a failed load stops loading and keeps the cached channels")
     }
@@ -230,7 +259,9 @@ class LineupViewModelTest {
 
         viewModel.loadGuideWindow(tomorrow)
         viewModel.loadGuideWindow(tomorrow)
-        val lineup = viewModel.state.first { it is LineupState.Ready && it.lineup.guide.getValue("c1").size == 2 }.lineup
+        val lineup = viewModel.state.first {
+            it is LineupState.Ready && it.lineup.guide.getValue("c1").size == 2
+        }.lineup
         assertEquals(listOf(live, tomorrow), lineup.guide.getValue("c1").map { it.start })
         assertEquals(2, server.guideRequests)
 
@@ -247,7 +278,12 @@ class LineupViewModelTest {
         // So does a reload asked for by hand, which nothing would follow by asking for the day again.
         viewModel.refresh()
         runCurrent()
-        assertEquals(2, viewModel.state.first { it is LineupState.Ready && !it.lineup.guideLoading }.lineup.guide.getValue("c1").size)
+        assertEquals(
+            2,
+            viewModel.state.first {
+                it is LineupState.Ready && !it.lineup.guideLoading
+            }.lineup.guide.getValue("c1").size,
+        )
     }
 
     @Test
@@ -272,7 +308,12 @@ class LineupViewModelTest {
         assertEquals(LineupState.Unconfigured, viewModel.state.first { it != LineupState.Loading })
 
         viewModel.saveServer("http://sofa.test", "t")
-        assertEquals(2, viewModel.state.first { it is LineupState.Ready && !it.lineup.guideLoading }.lineup.channels.size)
+        assertEquals(
+            2,
+            viewModel.state.first {
+                it is LineupState.Ready && !it.lineup.guideLoading
+            }.lineup.channels.size,
+        )
     }
 
     @Test
@@ -283,15 +324,28 @@ class LineupViewModelTest {
 
         assertEquals(PairingFailure.INVALID_CODE, viewModel.pairAndWait("http://sofa.test", "111 111"))
         assertEquals("", settings.settings.first().serverUrl)
-        assertEquals(PairingFailure.INVALID_CODE, viewModel.pairAndWait("http://sofa.test", "12"), "a malformed code is not even sent")
+        assertEquals(
+            PairingFailure.INVALID_CODE,
+            viewModel.pairAndWait("http://sofa.test", "12"),
+            "a malformed code is not even sent",
+        )
         assertEquals(1, server.http.requests.count { it.path == "/api/v1/pair" })
 
         assertNull(viewModel.pairAndWait("http://sofa.test/", "654 321"))
         assertEquals("http://sofa.test", settings.settings.first().serverUrl)
         assertEquals("issued-token", settings.settings.first().apiToken)
-        assertTrue(server.http.requests.last { it.path == "/api/v1/pair" }.body.contains(""""clientId":"${settings.settings.first().clientId}""""))
+        assertTrue(
+            server.http.requests.last {
+                it.path == "/api/v1/pair"
+            }.body.contains(""""clientId":"${settings.settings.first().clientId}""""),
+        )
         assertIs<LineupState.Ready>(viewModel.state.first { it is LineupState.Ready })
-        assertEquals("Bearer issued-token", server.http.requests.last { it.path == "/api/v1/channels" }.headers["Authorization"])
+        assertEquals(
+            "Bearer issued-token",
+            server.http.requests.last {
+                it.path == "/api/v1/channels"
+            }.headers["Authorization"],
+        )
     }
 
     @Test
@@ -303,8 +357,19 @@ class LineupViewModelTest {
         viewModel.pair("http://sofa.test", "111 111")
         assertTrue(viewModel.pairing.value.busy)
         viewModel.pair("http://sofa.test", "654 321")
-        assertEquals(PairingState(failure = PairingFailure.INVALID_CODE, outcome = PairingOutcome.FAILED), viewModel.pairing.first { !it.busy })
-        assertEquals(1, server.http.requests.count { it.path == "/api/v1/pair" }, "a second code while one is claimed is ignored")
+        assertEquals(
+            PairingState(failure = PairingFailure.INVALID_CODE, outcome = PairingOutcome.FAILED),
+            viewModel.pairing.first {
+                !it.busy
+            },
+        )
+        assertEquals(
+            1,
+            server.http.requests.count {
+                it.path == "/api/v1/pair"
+            },
+            "a second code while one is claimed is ignored",
+        )
         viewModel.pairingHandled()
         assertEquals(PairingState(failure = PairingFailure.INVALID_CODE), viewModel.pairing.value)
 
@@ -317,7 +382,8 @@ class LineupViewModelTest {
     fun `a settings write the store refuses is logged and the app carries on`() = viewModelTest {
         val refusing = object : DataStore<Preferences> {
             override val data = flowOf(emptyPreferences())
-            override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences = throw IOException("disk full")
+            override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
+                throw IOException("disk full")
         }
         val viewModel = start(FakeServer(this), configured = false, store = DataStoreSettingsStore(refusing))
 

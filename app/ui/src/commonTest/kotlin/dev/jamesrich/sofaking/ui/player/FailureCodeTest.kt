@@ -1,8 +1,8 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.data.SofaKingException
-import kotlin.test.assertEquals
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class FailureCodeTest {
     @Test

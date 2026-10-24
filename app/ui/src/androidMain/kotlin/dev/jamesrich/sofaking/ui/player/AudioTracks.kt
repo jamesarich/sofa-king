@@ -10,13 +10,22 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import java.util.Locale
 
-/** The stream's audio tracks as the stream card lists them; a track's id is its group and index, which [selectAudioTrack] reads back. */
+/**
+ * The stream's audio tracks as the stream card lists them; a track's id is its group and index, which
+ * [selectAudioTrack] reads back.
+ */
 internal fun audioTracksOf(tracks: Tracks): List<AudioTrack> = buildList {
     tracks.groups.forEachIndexed { groupIndex, group ->
         if (group.type != C.TRACK_TYPE_AUDIO) return@forEachIndexed
         for (trackIndex in 0 until group.length) {
             if (!group.isTrackSupported(trackIndex)) continue
-            add(AudioTrack("$groupIndex:$trackIndex", group.getTrackFormat(trackIndex).audioLabel(size + 1), group.isTrackSelected(trackIndex)))
+            add(
+                AudioTrack(
+                    "$groupIndex:$trackIndex",
+                    group.getTrackFormat(trackIndex).audioLabel(size + 1),
+                    group.isTrackSelected(trackIndex),
+                ),
+            )
         }
     }
 }
@@ -33,11 +42,17 @@ private fun Format.audioLabel(ordinal: Int): String {
     return "Track $ordinal"
 }
 
-/** Points the audio selection at the track [id] from [audioTracksOf]; an id that no longer matches a group is ignored. */
+/**
+ * Points the audio selection at the track [id] from [audioTracksOf]; an id that no longer matches a group is ignored.
+ */
 @OptIn(UnstableApi::class)
 internal fun selectAudioTrack(player: ExoPlayer, id: String) {
     val (groupIndex, trackIndex) = id.split(':').mapNotNull { it.toIntOrNull() }.takeIf { it.size == 2 } ?: return
-    val group = player.currentTracks.groups.getOrNull(groupIndex)?.takeIf { it.type == C.TRACK_TYPE_AUDIO && trackIndex < it.length } ?: return
+    val group =
+        player.currentTracks.groups.getOrNull(groupIndex)?.takeIf {
+            it.type == C.TRACK_TYPE_AUDIO && trackIndex < it.length
+        }
+            ?: return
     player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
         .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
         .build()
@@ -49,7 +64,9 @@ internal fun streamInfoOf(video: Format?, audio: Format?): StreamInfo = StreamIn
     width = video?.width?.takeIf { it != Format.NO_VALUE },
     height = video?.height?.takeIf { it != Format.NO_VALUE },
     frameRate = video?.frameRate?.takeIf { it != Format.NO_VALUE.toFloat() },
-    bitrateBps = video?.let { listOf(it.averageBitrate, it.peakBitrate, it.bitrate).firstOrNull { b -> b != Format.NO_VALUE } },
+    bitrateBps = video?.let {
+        listOf(it.averageBitrate, it.peakBitrate, it.bitrate).firstOrNull { b -> b != Format.NO_VALUE }
+    },
     audioCodec = audio?.let { codecName(it.codecs, it.sampleMimeType) },
 )
 

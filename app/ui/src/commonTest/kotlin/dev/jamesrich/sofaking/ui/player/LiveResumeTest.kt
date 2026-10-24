@@ -1,9 +1,9 @@
 package dev.jamesrich.sofaking.ui.player
 
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import kotlin.test.Test
 
 class LiveResumeTest {
     private val pausedAt = 1_000_000L

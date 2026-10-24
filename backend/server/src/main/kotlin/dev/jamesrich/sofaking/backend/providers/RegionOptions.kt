@@ -12,7 +12,7 @@ internal class RegionOptions(options: Map<String, String>) {
 
     private val forwardedFor: String? = options["forwardedFor"]?.trim()?.takeIf { it.isNotEmpty() }
 
-    /** `X-Forwarded-For` when `forwardedFor` is set; throws a non-transient [ProviderFailure] when it is not an IP address. */
+    /** `X-Forwarded-For` when `forwardedFor` is set; a non-transient [ProviderFailure] when it is not an IP address. */
     val headers: Map<String, String>
         get() = when {
             forwardedFor == null -> emptyMap()

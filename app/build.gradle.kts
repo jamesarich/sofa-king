@@ -9,4 +9,5 @@ plugins {
     alias(libs.plugins.compose.hot.reload) apply false
     alias(libs.plugins.kotlin.serialization) apply false
     id("sofaking.kotlin")
+    id("sofaking.lint")
 }

@@ -114,7 +114,9 @@ private val SKIPPED_BLOCKS = listOf("WEBVTT", "NOTE", "STYLE", "REGION")
 /** A line break tag in any spelling, with or without its closing `>`. */
 private val BREAK = Regex("""<\s*br\b(?:[^<>\n]*>)?""", RegexOption.IGNORE_CASE)
 
-/** A tag cut off at the end of a line: `<`, a few characters of `br`, `b`, `/` or spaces, and one replaced character. */
+/**
+ * A tag cut off at the end of a line: `<`, a few characters of `br`, `b`, `/` or spaces, and one replaced character.
+ */
 private val CUT_TAG = Regex("""<[bBrR/ ]{0,5}[^<>\n\d]?$""", RegexOption.MULTILINE)
 
 /** A cut break that lost both brackets, after the sentence it ends: `her?R /.` */

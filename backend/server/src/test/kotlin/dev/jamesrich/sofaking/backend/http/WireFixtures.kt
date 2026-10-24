@@ -1,7 +1,5 @@
 package dev.jamesrich.sofaking.backend.http
 
-import java.io.File
-import kotlin.test.assertTrue
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -9,6 +7,8 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import java.io.File
+import kotlin.test.assertTrue
 
 /**
  * Fails when [body] drops or retypes a field of the frozen fixture [name] in the contract's wire fixtures, which
@@ -23,7 +23,18 @@ internal fun assertKeepsWireFixture(name: String, body: String) {
 
 private fun shape(element: JsonElement, path: String = "$"): Set<String> = setOf(path) + when (element) {
     is JsonObject -> element.flatMap { (key, value) -> shape(value, "$path.$key") }.toSet() + "$path:object"
+
     is JsonArray -> element.flatMap { shape(it, "$path[]") }.toSet() + "$path:array"
+
     JsonNull -> emptySet()
-    is JsonPrimitive -> setOf("$path:" + if (element.isString) "string" else if (element.booleanOrNull != null) "boolean" else "number")
+
+    is JsonPrimitive -> setOf(
+        "$path:" + if (element.isString) {
+            "string"
+        } else if (element.booleanOrNull != null) {
+            "boolean"
+        } else {
+            "number"
+        },
+    )
 }

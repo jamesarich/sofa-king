@@ -8,8 +8,8 @@ import java.io.PushbackInputStream
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
-import javax.xml.stream.XMLInputFactory
 import java.util.zip.GZIPInputStream
+import javax.xml.stream.XMLInputFactory
 import javax.xml.stream.XMLStreamConstants
 import javax.xml.stream.XMLStreamReader
 
@@ -31,11 +31,20 @@ data class ParsedPlaylist(
     /** For example `merged-key=2, url-identity=724`, or null when every identity was published. */
     val noteSummary: String? get() = summary(notes)
 
-    private fun summary(counts: Map<String, Int>) = counts.entries.sortedBy { it.key }.joinToString(", ") { "${it.key}=${it.value}" }.ifEmpty { null }
+    private fun summary(counts: Map<String, Int>) = counts.entries.sortedBy {
+        it.key
+    }.joinToString(", ") { "${it.key}=${it.value}" }.ifEmpty { null }
 }
 
-/** [controlCharacters] counts bytes XML 1.0 forbids (C0 controls other than tab, LF and CR) that were dropped before parsing. */
-data class ParsedGuide(val channels: List<GuideChannel>, val programs: List<GuideProgram>, val controlCharacters: Int = 0)
+/**
+ * [controlCharacters] counts bytes XML 1.0 forbids (C0 controls other than tab, LF and CR)
+ * that were dropped before parsing.
+ */
+data class ParsedGuide(
+    val channels: List<GuideChannel>,
+    val programs: List<GuideProgram>,
+    val controlCharacters: Int = 0,
+)
 
 /**
  * Drops the C0 control bytes XML 1.0 forbids, which real guides carry in titles (a raw backspace, for
@@ -47,6 +56,7 @@ private class ControlCharacterStrippingInputStream(input: InputStream) : FilterI
     var dropped = 0
         private set
     private var active = true
+
     /** The first four bytes, read ahead for the encoding decision and served before the rest. */
     private var head: ByteArray? = null
     private var headOffset = 0
@@ -95,7 +105,11 @@ private class ControlCharacterStrippingInputStream(input: InputStream) : FilterI
             read += count
         }
         val first = bytes.copyOf(read)
-        val bom16 = read >= 2 && ((first[0] == 0xfe.toByte() && first[1] == 0xff.toByte()) || (first[0] == 0xff.toByte() && first[1] == 0xfe.toByte()))
+        val bom16 =
+            read >= 2 && (
+                (first[0] == 0xfe.toByte() && first[1] == 0xff.toByte()) ||
+                    (first[0] == 0xff.toByte() && first[1] == 0xfe.toByte())
+                )
         active = !bom16 && first.none { it == 0.toByte() }
         head = first
         return first
@@ -110,7 +124,11 @@ private class BoundedInputStream(input: InputStream, private val limit: Long) : 
 
     override fun read(): Int = super.read().also { if (it >= 0) consumed(1) }
 
-    override fun read(b: ByteArray, off: Int, len: Int): Int = super.read(b, off, len).also { if (it > 0) consumed(it.toLong()) }
+    override fun read(b: ByteArray, off: Int, len: Int): Int = super.read(b, off, len).also {
+        if (it > 0) {
+            consumed(it.toLong())
+        }
+    }
 
     private fun consumed(bytes: Long) {
         count += bytes
@@ -129,7 +147,7 @@ object FeedParser {
         /** The playlist's own URL; relative `tvg-logo` references resolve against it. */
         baseUrl: String? = null,
     ): ParsedPlaylist {
-        require(text.trimStart('﻿', ' ', '\r', '\n').startsWith("#EXTM3U")) { "Not an extended M3U playlist" }
+        require(text.trimStart('\uFEFF', ' ', '\r', '\n').startsWith("#EXTM3U")) { "Not an extended M3U playlist" }
         val channels = linkedMapOf<String, Channel>()
         val offerings = mutableListOf<Offering>()
         val offeringIds = HashSet<String>()
@@ -170,12 +188,17 @@ object FeedParser {
                     if (c == '"') quoted = !quoted
                     c == ',' && !quoted
                 }
-            val name = if (split < 0) "" else metadata.substring(split + 1).trim().ifBlank { attrs["tvg-name"].orEmpty() }
+            val name = if (split < 0) {
+                ""
+            } else {
+                metadata.substring(split + 1).trim().ifBlank { attrs["tvg-name"].orEmpty() }
+            }
             if (name.isBlank()) {
                 skip("missing-name")
                 continue
             }
-            val protocol = attrs["stream-type"] ?: defaultProtocol ?: if (uri.path.endsWith(".m3u8", true)) "hls" else "mpegts"
+            val protocol =
+                attrs["stream-type"] ?: defaultProtocol ?: if (uri.path.endsWith(".m3u8", true)) "hls" else "mpegts"
             if (protocol !in setOf("hls", "mpegts")) {
                 skip("bad-protocol")
                 continue
@@ -186,7 +209,8 @@ object FeedParser {
             val key = published ?: "url\u0000$sourceKey"
             val id =
                 try {
-                    attrs["channel-uuid"]?.let { java.util.UUID.fromString(it).toString() } ?: stableId("channel:$provider:$key")
+                    attrs["channel-uuid"]?.let { java.util.UUID.fromString(it).toString() }
+                        ?: stableId("channel:$provider:$key")
                 } catch (_: IllegalArgumentException) {
                     skip("invalid-uuid")
                     continue
@@ -207,7 +231,9 @@ object FeedParser {
             }
             if (published == null) note("url-identity")
             // Multiple URLs with one exact provider key are alternatives of the first entry, never fuzzy name merges.
-            if (channels[id]?.let { it.name == name && it.displayNumber == channel.displayNumber } == false) note("merged-key")
+            if (channels[id]?.let { it.name == name && it.displayNumber == channel.displayNumber } == false) {
+                note("merged-key")
+            }
             channels.putIfAbsent(id, channel)
             offerings += Offering(offeringId, id, provider, line, protocol)
             require(channels.size <= 10_000 && offerings.size <= 20_000) { "Playlist exceeds import limits" }
@@ -264,7 +290,11 @@ object FeedParser {
                                             val text = reader.elementText.trim().take(256)
                                             if (name == null && text.isNotEmpty()) name = text
                                         }
-                                        "icon" -> if (icon == null) icon = normalizeLogoUrl(reader.getAttributeValue(null, "src"), baseUrl)
+
+                                        "icon" -> if (icon == null) {
+                                            icon =
+                                                normalizeLogoUrl(reader.getAttributeValue(null, "src"), baseUrl)
+                                        }
                                     }
                                 }
                                 if (!id.isNullOrEmpty()) channels.putIfAbsent(id, GuideChannel(id, name ?: id, icon))
@@ -278,13 +308,21 @@ object FeedParser {
                                 val keep = channel.isNotEmpty() && wanted(channel)
                                 val read = readProgram(reader, baseUrl, keep)
                                 val title = read.title
-                                if (channel.isNotEmpty() && seen.add(channel)) require(seen.size <= GUIDE_CHANNEL_LIMIT) { "Guide exceeds import limits" }
+                                if (channel.isNotEmpty() && seen.add(channel)) {
+                                    require(seen.size <= GUIDE_CHANNEL_LIMIT) { "Guide exceeds import limits" }
+                                }
                                 if (!keep) continue
                                 val from = xmlTime(start)
                                 val to = xmlTime(stop)
                                 if (from == null || to == null || !to.isAfter(from) || title.isBlank()) continue
                                 if (!keys.add("$channel\u0000$from\u0000$to\u0000$title")) continue
-                                programs += read.copy(channelId = channel, startsAt = from, endsAt = to, title = title.trim()).bounded()
+                                programs +=
+                                    read.copy(
+                                        channelId = channel,
+                                        startsAt = from,
+                                        endsAt = to,
+                                        title = title.trim(),
+                                    ).bounded()
                                 require(programs.size <= GUIDE_PROGRAM_LIMIT) { "Guide exceeds import limits" }
                             }
                         }
@@ -296,13 +334,19 @@ object FeedParser {
             reader.close()
         }
         for (id in seen) channels.putIfAbsent(id, GuideChannel(id, id))
-        return ParsedGuide(channels.values.toList(), programs.sortedWith(compareBy({ it.channelId }, { it.startsAt })), stripped.dropped)
+        return ParsedGuide(
+            channels.values.toList(),
+            programs.sortedWith(
+                compareBy({
+                    it.channelId
+                }, { it.startsAt }),
+            ),
+            stripped.dropped,
+        )
     }
 
-    fun guide(
-        text: String,
-        wanted: (String) -> Boolean = { true },
-    ): ParsedGuide = guide(ByteArrayInputStream(text.toByteArray(Charsets.UTF_8)), wanted = wanted)
+    fun guide(text: String, wanted: (String) -> Boolean = { true }): ParsedGuide =
+        guide(ByteArrayInputStream(text.toByteArray(Charsets.UTF_8)), wanted = wanted)
 
     /**
      * Reads a `<programme>`'s children up to its end tag. Only direct children count, so an `<icon>` or `<value>`
@@ -346,10 +390,12 @@ object FeedParser {
                         titleLanguage = lang
                     }
                 }
+
                 "sub-title" -> {
                     val text = reader.elementText.take(GuideProgram.TITLE_LIMIT).trim()
                     if (subTitle == null && text.isNotEmpty()) subTitle = text
                 }
+
                 "desc" -> {
                     val lang = reader.getAttributeValue(null, "lang")
                     val text = reader.elementText.take(GuideProgram.DESCRIPTION_LIMIT)
@@ -358,47 +404,61 @@ object FeedParser {
                         descLanguage = lang
                     }
                 }
+
                 "episode-num" -> {
                     val system = reader.getAttributeValue(null, "system")?.trim()?.ifEmpty { null } ?: "onscreen"
                     val text = reader.elementText.trim()
-                    if (numbers.size < GuideProgram.EPISODE_NUMBER_LIMIT && text.isNotEmpty() && text.length <= GuideProgram.EPISODE_VALUE_LIMIT) {
+                    if (numbers.size < GuideProgram.EPISODE_NUMBER_LIMIT && text.isNotEmpty() &&
+                        text.length <= GuideProgram.EPISODE_VALUE_LIMIT
+                    ) {
                         numbers += EpisodeNumber(system.take(64), text)
                     }
                 }
+
                 "category" -> {
                     val text = reader.elementText.trim().take(GuideProgram.CATEGORY_LENGTH_LIMIT)
                     if (categories.size < GuideProgram.CATEGORY_LIMIT && text.isNotEmpty()) categories += text
                 }
+
                 "date" -> {
                     val text = reader.elementText.take(64)
                     if (date == null) date = text
                 }
+
                 "language" -> {
                     val text = reader.elementText.trim().take(16)
                     if (languageElement == null && text.isNotEmpty()) languageElement = text
                 }
+
                 "rating" -> {
                     val system = reader.getAttributeValue(null, "system")?.take(64)
                     val value = ratingValue(reader)
                     if (rating == null && value != null) rating = ProgramRating(value, system)
                 }
+
                 "icon" -> {
                     if (icon == null) icon = normalizeLogoUrl(reader.getAttributeValue(null, "src"), baseUrl)
                     depth++
                 }
+
                 "new" -> {
                     isNew = true
                     depth++
                 }
+
                 "previously-shown" -> {
-                    if (previouslyShown == null) previouslyShown = PreviouslyShown(reader.getAttributeValue(null, "start")?.take(64))
+                    if (previouslyShown == null) {
+                        previouslyShown = PreviouslyShown(reader.getAttributeValue(null, "start")?.take(64))
+                    }
                     depth++
                 }
+
                 else -> depth++
             }
         }
         return GuideProgram(
-            "", Instant.EPOCH, Instant.EPOCH, title, description, subTitle, numbers, icon, categories, rating, isNew, previouslyShown, date,
+            "", Instant.EPOCH, Instant.EPOCH, title, description, subTitle, numbers, icon, categories, rating, isNew,
+            previouslyShown, date,
             titleLanguage ?: descLanguage ?: languageElement,
         )
     }
@@ -435,22 +495,27 @@ object FeedParser {
             read += count
         }
         if (read > 0) stream.unread(head, 0, read)
-        return if (read == 2 && head[0] == 0x1f.toByte() && head[1] == 0x8b.toByte()) GZIPInputStream(stream, 65_536) else stream
+        return if (read == 2 && head[0] == 0x1f.toByte() && head[1] == 0x8b.toByte()) {
+            GZIPInputStream(stream, 65_536)
+        } else {
+            stream
+        }
     }
 
     private const val GUIDE_BYTE_LIMIT = 1L shl 30
     private const val GUIDE_CHANNEL_LIMIT = 100_000
     private const val GUIDE_PROGRAM_LIMIT = 1_000_000
 
-    private fun xmlTime(value: String?): Instant? =
-        try {
-            // Reject unspecified local zones; never silently shift a regional schedule.
-            OffsetDateTime
-                .parse(
-                    value?.trim(),
-                    DateTimeFormatter.ofPattern("uuuuMMddHHmmss Z").withResolverStyle(java.time.format.ResolverStyle.STRICT),
-                ).toInstant()
-        } catch (_: Exception) {
-            null
-        }
+    private fun xmlTime(value: String?): Instant? = try {
+        // Reject unspecified local zones; never silently shift a regional schedule.
+        OffsetDateTime
+            .parse(
+                value?.trim(),
+                DateTimeFormatter.ofPattern(
+                    "uuuuMMddHHmmss Z",
+                ).withResolverStyle(java.time.format.ResolverStyle.STRICT),
+            ).toInstant()
+    } catch (_: Exception) {
+        null
+    }
 }

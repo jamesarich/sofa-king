@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
+import kotlin.time.DurationUnit
+import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -240,7 +242,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     override fun seekTo(positionMs: Long) {
         if (!isSeekable) return
         val target = clampSeek(positionMs, durationMs)
-        video.currentTime = target / 1000.0
+        video.currentTime = target.milliseconds.toDouble(DurationUnit.SECONDS)
     }
 
     override val speedAdjustable: Boolean get() = true

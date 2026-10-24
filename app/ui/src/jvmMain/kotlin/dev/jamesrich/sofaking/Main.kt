@@ -37,7 +37,7 @@ fun main() {
             state = state,
         ) {
             // Below this the guide has no room for a row; the layout adapts to anything larger.
-            LaunchedEffect(Unit) { window.minimumSize = Dimension(480, 360) }
+            LaunchedEffect(Unit) { window.minimumSize = Dimension(MIN_WIDTH, MIN_HEIGHT) }
             App(windowFullScreen = fullScreen)
         }
     }
@@ -74,6 +74,10 @@ private fun resolvedHostName(): String? = runCatching {
 }.getOrNull()?.takeIf { it.isNotBlank() }
 
 private const val HOST_LOOKUP_MS = 300L
+
+/** The smallest window, in pixels, that still has room for a guide row. */
+private const val MIN_WIDTH = 480
+private const val MIN_HEIGHT = 360
 
 /** The OS's per-user application data directory: Application Support on macOS, APPDATA on Windows, XDG elsewhere. */
 private fun desktopDataDirectory(): File {

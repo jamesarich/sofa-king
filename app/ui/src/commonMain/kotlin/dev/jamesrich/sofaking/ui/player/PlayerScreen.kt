@@ -1,5 +1,9 @@
 package dev.jamesrich.sofaking.ui.player
 
+import kotlin.time.Duration.Companion.seconds
+import dev.jamesrich.sofaking.ui.secondsUp
+import kotlin.time.Duration.Companion.microseconds
+import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -97,6 +101,10 @@ private const val STREAM_CARD_IDLE_MS = 15_000L
 private const val LIVE_TOAST_MS = 1_500L
 private const val NOTICE_MS = 3_000L
 private const val SLEEP_CHECK_MS = 1_000L
+
+/** How often the caption lead follows the buffer, and how many of those steps pass between its debug lines. */
+private val CAPTION_LEAD_TICK = 250.milliseconds
+private const val CAPTION_LOG_TICKS = 8
 
 /** A swipe up this far on a touch screen opens the channel list. */
 private const val SWIPE_UP_DP = 80
@@ -413,18 +421,18 @@ fun PlayerScreen(
         }
         var tick = 0
         while (true) {
-            delay(250)
+            delay(CAPTION_LEAD_TICK)
             // While (re)buffering the start gate guards the lead; clamping then would collapse it to zero.
             if (!player.status.value.isPlaying) continue
             captionSync.effectiveUs = CaptionSync.nextEffectiveUs(
                 currentUs = captionSync.effectiveUs,
                 advanceUs = captionSync.advanceUs,
-                bufferedUs = player.bufferedMs * 1_000L,
+                bufferedUs = player.bufferedMs.milliseconds.inWholeMicroseconds,
             )
-            if (++tick % 8 == 0) {
+            if (++tick % CAPTION_LOG_TICKS == 0) {
                 log.d {
-                    "captions: buffered=${player.bufferedMs}ms lead=${captionSync.effectiveUs / 1000}ms of " +
-                        "${captionSync.advanceUs / 1000}ms"
+                    "captions: buffered=${player.bufferedMs}ms lead=${captionSync.effectiveUs.microseconds} of " +
+                        "${captionSync.advanceUs.microseconds}"
                 }
             }
         }
@@ -472,8 +480,8 @@ fun PlayerScreen(
             while (true) {
                 val remaining = until - uptimeMs()
                 if (remaining <= 0L) break
-                state.retryIn = ((remaining + 999L) / 1_000L).toInt()
-                delay(minOf(remaining, 1_000L))
+                state.retryIn = secondsUp(remaining)
+                delay(minOf(remaining.milliseconds, 1.seconds))
             }
         }
         state.retryIn = 0
@@ -756,7 +764,7 @@ private fun PlayerTimers(state: PlayerState, player: LivePlayer, paused: Boolean
         while (state.streamCardOpen) {
             state.streamInfo = player.streamInfo()
             state.streamBufferedMs = player.bufferedMs
-            delay(1_000)
+            delay(1.seconds)
         }
     }
     // The pause pill counts how far behind live the picture is; a resume past the live-resume
@@ -775,7 +783,7 @@ private fun PlayerTimers(state: PlayerState, player: LivePlayer, paused: Boolean
         val pausedAt = uptimeMs()
         while (true) {
             state.pauseState = pauseStatus(pausedAt, uptimeMs())
-            delay(1_000)
+            delay(1.seconds)
         }
     }
     // The bar stays up while paused, as the library player's does.

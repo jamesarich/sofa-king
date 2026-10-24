@@ -22,7 +22,7 @@ internal const val NUMBER_MISS_MS = 2_000L
 internal data class ChannelNumberEntry(val digits: String = "") {
 
     fun append(digit: Int): ChannelNumberEntry {
-        require(digit in 0..9) { "digit out of range: $digit" }
+        require(digit in DIGITS) { "digit out of range: $digit" }
         return if (digits.length >= MAX_DIGITS) this else copy(digits = digits + digit)
     }
 
@@ -99,3 +99,5 @@ internal fun rememberChannelNumberInput(): ChannelNumberInput {
     }
     return input
 }
+
+private val DIGITS = 0..9

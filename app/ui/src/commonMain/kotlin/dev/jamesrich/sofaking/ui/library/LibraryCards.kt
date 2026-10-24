@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.library
 
+import dev.jamesrich.sofaking.ui.WIDESCREEN
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -160,7 +161,7 @@ private fun WideCard(
             onClick,
             onPlay,
             menu,
-            aspectRatio = 16f / 9f,
+            aspectRatio = WIDESCREEN,
             focusScale = WIDE_FOCUS_SCALE,
         ) {
             Artwork(item.backdrop ?: item.poster, label = null)

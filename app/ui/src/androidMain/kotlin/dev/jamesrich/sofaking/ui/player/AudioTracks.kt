@@ -32,14 +32,10 @@ internal fun audioTracksOf(tracks: Tracks): List<AudioTrack> = buildList {
 
 /** The stream's own label, else its language spelled out, else a number. */
 private fun Format.audioLabel(ordinal: Int): String {
-    label?.takeIf { it.isNotBlank() }?.let { return it }
     val language = language?.takeIf { it.isNotBlank() && it != C.LANGUAGE_UNDETERMINED }
-    if (language != null) {
-        val display = Locale.forLanguageTag(language).displayLanguage
-        if (display.isNotBlank() && display != language) return display
-        return language
-    }
-    return "Track $ordinal"
+    return label?.takeIf { it.isNotBlank() }
+        ?: language?.let { Locale.forLanguageTag(it).displayLanguage.ifBlank { null } ?: it }
+        ?: "Track $ordinal"
 }
 
 /**

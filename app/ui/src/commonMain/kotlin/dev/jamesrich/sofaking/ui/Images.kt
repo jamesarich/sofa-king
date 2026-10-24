@@ -74,3 +74,6 @@ internal fun BoxScope.Artwork(url: String?, label: String?, hidden: Boolean = fa
 
 private val HIDDEN_BLUR = 16.dp
 private const val HIDDEN_DIM = 0.6f
+
+/** The 16:9 frame of a TV picture, and of the artwork cut to fit one. */
+internal const val WIDESCREEN = 16f / 9f

@@ -257,7 +257,7 @@ private fun GridHeader(
                 Modifier.focusRequester(letterRow).focusRestorer(firstLetter),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                itemsIndexed(grid?.letters.orEmpty(), key = { _, it -> it.letter }) { i, letter ->
+                itemsIndexed(grid?.letters.orEmpty(), key = { _, jump -> jump.letter }) { i, letter ->
                     val description = stringResource(Res.string.library_letter_jump, letter.letter)
                     val focus = if (i == 0) Modifier.focusRequester(firstLetter) else Modifier
                     SofaChip(

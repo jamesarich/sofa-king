@@ -7,14 +7,14 @@ import androidx.compose.runtime.setValue
 
 /** The sleep timer's settings, in the order a press on its button steps through them. */
 enum class SleepChoice(val minutes: Int?) {
-    OFF(null),
-    MINUTES_15(15),
-    MINUTES_30(30),
-    MINUTES_60(60),
-    MINUTES_90(90),
+    OFF(minutes = null),
+    MINUTES_15(minutes = 15),
+    MINUTES_30(minutes = 30),
+    MINUTES_60(minutes = 60),
+    MINUTES_90(minutes = 90),
 
     /** The end of the live program on now, or of the library item or recording playing. */
-    END(null),
+    END(minutes = null),
 }
 
 /**

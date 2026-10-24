@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import kotlin.time.Duration.Companion.milliseconds
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import dev.jamesrich.sofaking.data.BufferPreference
@@ -26,7 +27,8 @@ class PlaybackTuning {
     }
 
     /** How much must be buffered before playback starts, on a fresh start or after a stall. */
-    fun bufferNeededUs(rebuffering: Boolean): Long = (if (rebuffering) rebufferMs else startBufferMs) * 1_000L
+    fun bufferNeededUs(rebuffering: Boolean): Long =
+        (if (rebuffering) rebufferMs else startBufferMs).milliseconds.inWholeMicroseconds
 
     /** Media3's own decoder order, or the software decoders first for the stream a hardware decoder cannot play. */
     @UnstableApi

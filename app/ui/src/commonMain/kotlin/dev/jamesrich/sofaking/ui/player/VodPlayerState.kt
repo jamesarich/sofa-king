@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.ui.secondsUp
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -200,7 +201,7 @@ internal class VodPlayerState {
         autoSkipSeconds = null
     }
 
-    private fun secondsUntil(atMs: Long, nowMs: Long): Int = ((atMs - nowMs + 999) / 1000).toInt()
+    private fun secondsUntil(atMs: Long, nowMs: Long): Int = secondsUp(atMs - nowMs)
 
     /** A finger or a mouse dragging the slider: the times follow [targetMs] until [endScrub]. */
     fun dragTo(targetMs: Long) {
@@ -279,33 +280,59 @@ internal class VodPlayerState {
         nowMs: Long = uptimeMs(),
     ): Boolean {
         if (type == KeyEventType.KeyDown) cancelAutoSkip()
-        // The card's rows take the D-pad and OK; Back closes it through the BackHandler.
-        if (tracksOpen) return false
-        if (next != null) {
-            // With the Up next card up, OK and play/pause play it now; Back leaves through the BackHandler.
-            if (key !in UP_NEXT_PLAY_KEYS) return false
-            if (type == KeyEventType.KeyUp) controls.playNext()
-            return true
+        val taken = when {
+            // The card's rows take the D-pad and OK; Back closes it through the BackHandler.
+            tracksOpen -> false
+            next != null -> upNextKey(key, type, controls)
+            else -> buttonRowKey(key, type, controls)
         }
-        if (buttonsFocused) {
-            showInfo()
-            when (key.inButtonRow()) {
-                ButtonRowKey.ROW -> return false
+        val action = key.vodAction()
+        if (taken == null && action != null && type == KeyEventType.KeyDown) {
+            act(action, key, controls, paused, hasButtons, tracksPickable, repeatCount, nowMs)
+        }
+        return taken ?: (action != null)
+    }
 
-                // Up, Back and Escape hand focus back to the picture on key-up, so the key-up cannot act there too.
-                ButtonRowKey.LEAVE -> {
-                    if (type == KeyEventType.KeyUp) controls.focusPicture()
-                    return true
-                }
+    /** With the Up next card up, OK and play/pause play it now; Back leaves through the BackHandler. */
+    private fun upNextKey(key: Key, type: KeyEventType, controls: VodControls): Boolean {
+        if (key !in UP_NEXT_PLAY_KEYS) return false
+        if (type == KeyEventType.KeyUp) controls.playNext()
+        return true
+    }
 
-                ButtonRowKey.PLAYER -> controls.focusPicture()
+    /** A key while the button row has focus: the row's own keys stay there; null when the key goes on. */
+    private fun buttonRowKey(key: Key, type: KeyEventType, controls: VodControls): Boolean? {
+        if (!buttonsFocused) return null
+        showInfo()
+        return when (key.inButtonRow()) {
+            ButtonRowKey.ROW -> false
+
+            // Up, Back and Escape hand focus back to the picture on key-up, so the key-up cannot act there too.
+            ButtonRowKey.LEAVE -> {
+                if (type == KeyEventType.KeyUp) controls.focusPicture()
+                true
+            }
+
+            ButtonRowKey.PLAYER -> {
+                controls.focusPicture()
+                null
             }
         }
-        val action = key.vodAction() ?: return false
-        if (type != KeyEventType.KeyDown) return true
+    }
+
+    /** What a key-down of [action] does with the picture in front. */
+    private fun act(
+        action: VodAction,
+        key: Key,
+        controls: VodControls,
+        paused: Boolean,
+        hasButtons: Boolean,
+        tracksPickable: Boolean,
+        repeatCount: Int?,
+        nowMs: Long,
+    ) {
         when (action) {
-            VodAction.BACK, VodAction.FORWARD -> {
-                if (failure != null) return true
+            VodAction.BACK, VodAction.FORWARD -> if (failure == null) {
                 // With the bar down a scrub builds under a badge instead, so the picture stays clear.
                 if (overlayVisible) showInfo()
                 val direction = if (action == VodAction.BACK) -1 else 1
@@ -350,7 +377,6 @@ internal class VodPlayerState {
 
             VodAction.STOP -> controls.exit()
         }
-        return true
     }
 
     private fun playPause(controls: VodControls) {

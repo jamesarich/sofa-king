@@ -84,7 +84,7 @@ internal fun playbackProfileOf(
         containers = listOf("mp4", "mkv", "webm", "ts"),
         videoCodecs = video,
         audioCodecs = audio,
-        maxHeight = decoderMaxHeight?.coerceAtMost(2160) ?: 1080,
+        maxHeight = decoderMaxHeight?.coerceAtMost(UHD_LINES) ?: FULL_HD_LINES,
         hdr = hevcHdr10 && hdr10Display,
         deepColor = DEEP_PROFILES.filterKeys { decodes(it) && decodesDeep(it) }.keys.map(CODEC_NAMES::getValue),
     )
@@ -123,3 +123,7 @@ private fun displayHdrTypes(context: Context): IntArray {
     val types = display.hdrCapabilities?.supportedHdrTypes
     return types ?: IntArray(0)
 }
+
+/** The tallest picture asked for, 2160-line 4K, and the height a decoder that does not say is held to. */
+private const val UHD_LINES = 2160
+private const val FULL_HD_LINES = 1080

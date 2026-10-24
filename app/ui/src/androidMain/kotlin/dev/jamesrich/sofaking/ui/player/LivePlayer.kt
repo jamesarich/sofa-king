@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import kotlin.time.Duration.Companion.microseconds
 import android.content.Context
 import androidx.annotation.OptIn
 import androidx.compose.runtime.Composable
@@ -253,8 +254,8 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
         adMarks.add(
             tags = playlist.tags,
             mediaSequence = playlist.mediaSequence,
-            startsMs = segments.map { windowStartMs + it.relativeStartTimeUs / 1_000 },
-            durationsMs = segments.map { it.durationUs / 1_000 },
+            startsMs = segments.map { windowStartMs + it.relativeStartTimeUs.microseconds.inWholeMilliseconds },
+            durationsMs = segments.map { it.durationUs.microseconds.inWholeMilliseconds },
         )
         return adMarks.at(windowStartMs + exo.currentPosition)
     }

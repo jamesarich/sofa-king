@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.ui.WIDESCREEN
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,7 +72,7 @@ internal fun BoxScope.UpNextCard(
         )
         Box(
             Modifier.fillMaxWidth().aspectRatio(
-                16f / 9f,
+                WIDESCREEN,
             ).clip(CardShape).background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
             Artwork(next.artworkUrl, next.title)

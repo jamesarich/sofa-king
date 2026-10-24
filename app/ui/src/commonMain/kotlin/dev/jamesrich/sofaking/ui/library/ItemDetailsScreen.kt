@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.library
 
+import dev.jamesrich.sofaking.ui.WIDESCREEN
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -281,12 +282,16 @@ private fun Hero(url: String?, modifier: Modifier = Modifier) {
             Modifier.fillMaxSize().background(
                 Brush.horizontalGradient(
                     0f to page,
-                    0.55f to page.copy(alpha = 0.6f),
+                    BACKDROP_FADE_AT to page.copy(alpha = BACKDROP_FADE_ALPHA),
                     1f to Color.Transparent,
                 ),
             ),
         )
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to page)))
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(BACKDROP_FLOOR_AT to Color.Transparent, 1f to page)),
+        )
     }
 }
 
@@ -561,7 +566,7 @@ private fun EpisodeRow(
             Box(
                 Modifier.width(
                     EPISODE_THUMB_WIDTH,
-                ).aspectRatio(16f / 9f).background(MaterialTheme.colorScheme.surfaceVariant, CardShape),
+                ).aspectRatio(WIDESCREEN).background(MaterialTheme.colorScheme.surfaceVariant, CardShape),
             ) {
                 Artwork(
                     episode.stillOrBackdrop(),
@@ -662,12 +667,24 @@ private fun seasonLabel(season: MediaItem): String = when (val number = season.s
 /** The picture's size as the badge the live info bar would show; null below HD or when unknown. */
 internal fun pictureBadge(height: Int?): String? = when {
     height == null -> null
-    height >= 2000 -> "4K"
-    height >= 720 -> "HD"
+    height >= UHD_HEIGHT -> "4K"
+    height >= HD_HEIGHT -> "HD"
     else -> null
 }
 
 private const val HDR = "HDR"
+
+/** The lowest picture heights shown as 4K (a 2160-line picture cropped to scope still is) and as HD. */
+private const val UHD_HEIGHT = 2000
+private const val HD_HEIGHT = 720
+
+/**
+ * The backdrop's fades into the page: across, from solid at the left to [BACKDROP_FADE_ALPHA] at [BACKDROP_FADE_AT]
+ * and clear at the right, and down, from clear at [BACKDROP_FLOOR_AT] to solid at the bottom.
+ */
+private const val BACKDROP_FADE_AT = 0.55f
+private const val BACKDROP_FADE_ALPHA = 0.6f
+private const val BACKDROP_FLOOR_AT = 0.4f
 private const val HERO_FRACTION = 0.6f
 private const val CAST_SHOWN = 6
 private val EPISODE_THUMB_WIDTH = 176.dp

@@ -223,8 +223,8 @@ private object Samples {
         durationMs = 6_480_000,
         genres = listOf("Drama", "Mystery"),
         progress = when (i) {
-            0 -> PlayProgress(1_800_000, 6_480_000, watched = false)
-            2 -> PlayProgress(0, 6_480_000, watched = true)
+            0 -> PlayProgress(positionMs = 1_800_000, durationMs = 6_480_000, watched = false)
+            2 -> PlayProgress(positionMs = 0, durationMs = 6_480_000, watched = true)
             else -> null
         },
     )

@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
+import kotlin.time.DurationUnit
+import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
@@ -701,13 +703,16 @@ internal fun BoxScope.StreamCard(
         StatLine(stringResource(Res.string.stream_card_audio_codec), info.audioCodec ?: unknown)
         StatLine(
             stringResource(Res.string.stream_card_buffered),
-            stringResource(Res.string.stream_card_seconds, oneDecimal(bufferedMs / 1_000.0)),
+            stringResource(
+                Res.string.stream_card_seconds,
+                oneDecimal(bufferedMs.milliseconds.toDouble(DurationUnit.SECONDS)),
+            ),
         )
         StatLine(
             stringResource(Res.string.stream_card_source),
             stream?.providerId?.takeIf { it.isNotEmpty() } ?: unknown,
         )
-        StatLine(stringResource(Res.string.stream_card_session), stream?.sessionId?.take(8) ?: unknown)
+        StatLine(stringResource(Res.string.stream_card_session), stream?.sessionId?.take(n = 8) ?: unknown)
         Spacer(Modifier.height(4.dp))
         KeyLegend()
     }

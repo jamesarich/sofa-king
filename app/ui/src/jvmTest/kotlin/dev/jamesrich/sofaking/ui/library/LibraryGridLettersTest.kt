@@ -103,7 +103,9 @@ class LibraryGridLettersTest {
                 libraryId = library.id,
                 sort = LibrarySort.TITLE,
                 unwatched = false,
-                items = (0 until 84).map { MediaItem("m$it", library.id, ItemKind.MOVIE, "${alphabet[it % 27]} movie $it") },
+                items = (0 until 84).map {
+                    MediaItem("m$it", library.id, ItemKind.MOVIE, "${alphabet[it % 27]} movie $it")
+                },
                 letters = alphabet.mapIndexed { i, letter -> LetterJump(letter, i * 3) },
                 total = 84,
                 next = null,

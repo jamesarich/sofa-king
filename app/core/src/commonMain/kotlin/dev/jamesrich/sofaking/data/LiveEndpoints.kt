@@ -48,6 +48,14 @@ internal suspend fun SofaKingApi.adBreak(id: String, aheadMs: Long): AdBreakStat
     http.get(sessionPath(id) + "/ad-break") { parameter("aheadMs", aheadMs) }.decode()
 }
 
+/** What TMDB says about the program titled [title], through the server; [movie] when the guide files it as one. */
+internal suspend fun SofaKingApi.programFacts(title: String, movie: Boolean): ProgramFactsDto = call {
+    http.get("program-facts") {
+        parameter("title", title)
+        parameter("movie", movie)
+    }.decode()
+}
+
 internal suspend fun SofaKingApi.releaseSession(id: String) = call {
     http.delete(sessionPath(id)).checkSuccess()
 }

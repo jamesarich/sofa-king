@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
@@ -37,7 +38,9 @@ import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.data.ProgramFacts
 import dev.jamesrich.sofaking.data.RecordingMarks
+import dev.jamesrich.sofaking.data.breakFacts
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.break_watching
 import dev.jamesrich.sofaking.resources.no_channels
@@ -55,6 +58,7 @@ import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.isLongPress
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
+import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.repeatCountOrNull
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import org.jetbrains.compose.resources.stringResource
@@ -127,6 +131,8 @@ fun PlayerScreen(
     /** The ads the break screen covered today before now, and where each break screen's time goes when it closes. */
     adsDodgedTodayMs: Long = 0,
     onAdsDodge: (Long) -> Unit = {},
+    /** What TMDB says about a program, for the break screen's facts; null when nothing is known. */
+    programFacts: suspend (Program) -> ProgramFacts? = { null },
     /** The sleep timer, which leaves the player as Back does once it runs out. */
     sleep: SleepTimer = remember { SleepTimer() },
 ) {
@@ -174,7 +180,7 @@ fun PlayerScreen(
         },
     )
     LiveSurface(parts, controls, lineup, now, breakScreen, zoom, captionStyle, onExit, modifier) {
-        if (breakScreen) LiveBreakScreen(state, lineup, now, parts.cover, adsDodgedTodayMs, onAdsDodge)
+        if (breakScreen) LiveBreakScreen(state, lineup, now, parts.cover, adsDodgedTodayMs, onAdsDodge, programFacts)
         LiveOverlays(
             parts = parts,
             controls = controls,
@@ -332,8 +338,9 @@ private fun Modifier.liveTouches(
         }
 }
 
-/** The break screen over the picture, with the program on now. */
+/** The break screen over the picture, with the program on now, facts about it and the time. */
 @Composable
+@Suppress("LongParameterList") // The player's parts the break screen draws from, and where its time goes.
 private fun LiveBreakScreen(
     state: PlayerState,
     lineup: Lineup,
@@ -341,12 +348,18 @@ private fun LiveBreakScreen(
     cover: BreakCover,
     dodgedBeforeMs: Long,
     onCover: (Long) -> Unit,
+    programFacts: suspend (Program) -> ProgramFacts?,
 ) {
-    val program = state.currentChannel?.let { lineup.nowAndNext(it, now).first }
+    val (program, next) = state.currentChannel?.let { lineup.nowAndNext(it, now) } ?: (null to null)
+    val lookUp by rememberUpdatedState(programFacts)
+    val facts by produceState<ProgramFacts?>(null, program) { value = program?.let { lookUp(it) } }
+    val timeFormat = rememberTimeFormatter()
     BreakScreen(
         Modifier.fillMaxSize(),
         remainingMs = { cover.leftMs },
         watching = program?.let { stringResource(Res.string.break_watching, it.title) },
+        facts = breakFactLines(breakFacts(program, next, facts), timeFormat),
+        clock = timeFormat.format(now),
         dodgedBeforeMs = dodgedBeforeMs,
         onCover = onCover,
     )

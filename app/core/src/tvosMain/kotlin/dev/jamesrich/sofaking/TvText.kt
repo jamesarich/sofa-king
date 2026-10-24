@@ -1,13 +1,16 @@
 package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.data.Airing
+import dev.jamesrich.sofaking.data.BreakFact
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.DvrRecording
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.data.ProgramFacts
 import dev.jamesrich.sofaking.data.airingsOf
 import kotlinx.coroutines.flow.first
 import kotlin.time.Clock
+import dev.jamesrich.sofaking.data.breakFacts as breakFactsOf
 
 /**
  * What Swift reads off the guide's and the recordings' values: times as milliseconds since the epoch, which it turns
@@ -15,6 +18,9 @@ import kotlin.time.Clock
  */
 interface TvText {
     fun nowAndNext(lineup: Lineup, channel: Channel): NowNext
+
+    /** The facts the break screen turns through while [now] is on, before [next]; see [breakFacts]. */
+    fun breakFacts(now: Program?, next: Program?, facts: ProgramFacts?): List<BreakFact>
 
     /** The other airings of [program] in [lineup], from the one on now onwards, soonest first. */
     fun airings(lineup: Lineup, program: Program): List<Airing>
@@ -41,6 +47,9 @@ interface TvText {
 internal object TvTextCalls : TvText {
     override fun nowAndNext(lineup: Lineup, channel: Channel): NowNext =
         lineup.nowAndNext(channel, Clock.System.now()).let { (now, next) -> NowNext(now, next) }
+
+    override fun breakFacts(now: Program?, next: Program?, facts: ProgramFacts?): List<BreakFact> =
+        breakFactsOf(now, next, facts)
 
     override fun airings(lineup: Lineup, program: Program): List<Airing> = lineup.airingsOf(program, Clock.System.now())
 

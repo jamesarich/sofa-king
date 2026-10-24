@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -30,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -211,8 +213,10 @@ private object BreakTally {
  * mark the occasion. The screen starts black, and each hit paints it the sofa's color from before the hit, a little
  * see-through so the picture faintly shows under it. [remainingMs], when known, counts down in the middle of the
  * screen, over a line picked for the break, [watching] (the program on now) and the ads dodged today,
- * [dodgedBeforeMs] before this break plus the time it has been up. Only the mark moves; the words stay put in the
- * middle, and the changing color behind them keeps them from burning in. When it goes, [onCover] gets the milliseconds
+ * [dodgedBeforeMs] before this break plus the time it has been up. Under the program, the screen turns through
+ * [facts] about it, one every [FACT_SECONDS], and [clock], the time, sits in the top corner. Only the mark moves,
+ * squashing against each wall it hits; the words stay put, and the changing color behind them keeps them from burning
+ * in. When it goes, [onCover] gets the milliseconds
  * it was on screen, counted in drawn frames, so time in the background is left out. It draws only; the player decides
  * whether the sound plays under it.
  */
@@ -221,6 +225,8 @@ internal fun BreakScreen(
     modifier: Modifier = Modifier,
     remainingMs: (() -> Long?)? = null,
     watching: String? = null,
+    facts: List<String> = emptyList(),
+    clock: String? = null,
     dodgedBeforeMs: Long = 0,
     onCover: (Long) -> Unit = {},
 ) {
@@ -233,6 +239,8 @@ internal fun BreakScreen(
         val area = with(density) { IntSize(maxWidth.roundToPx(), maxHeight.roundToPx()) }
         val unit = with(density) { logoSize.roundToPx() }
         val lineWidth = maxWidth * LINE_SHARE
+        val safeX = maxWidth * SAFE_SHARE
+        val safeY = maxHeight * SAFE_SHARE
         val motion = remember {
             BreakMotion(Bounce(area.width * START_X, area.height * START_Y, right = true, down = true))
         }
@@ -251,12 +259,29 @@ internal fun BreakScreen(
                     liveRegion = LiveRegionMode.Polite
                 },
         ) {
+            if (clock != null) {
+                // Inside a TV's overscan, and drawn under the mark, which passes over it.
+                Text(
+                    clock,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = ink.copy(alpha = FAINT_ALPHA),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(horizontal = safeX, vertical = safeY),
+                )
+            }
             BouncingMark(motion, logoSize)
             val left = remainingMs?.invoke()
+            val fact by remember(facts) {
+                derivedStateOf {
+                    facts.getOrNull((motion.coveredNanos / FACT_NANOS % facts.size.coerceAtLeast(1)).toInt())
+                }
+            }
             BreakLines(
                 if (left != null) stringResource(Res.string.break_screen_back_in, formatPlayTime(left)) else label,
                 breakLine(motion.corner, left, quip),
                 watching,
+                fact,
                 dodgedMinutes,
                 ink,
                 lineWidth = lineWidth,
@@ -283,8 +308,11 @@ private fun BouncingMark(motion: BreakMotion, size: Dp) {
                 // away from, so it stays on screen.
                 val bounce = motion.bounce
                 transformOrigin = TransformOrigin(if (bounce.right) 0f else 1f, if (bounce.down) 0f else 1f)
-                scaleX = motion.pop.value
-                scaleY = motion.pop.value
+                // Squashed against the wall it hit, and as much taller or wider, so it keeps its bulk.
+                val squashX = motion.squash(motion.xHitNanos)
+                val squashY = motion.squash(motion.yHitNanos)
+                scaleX = motion.pop.value * squashX * (1f + (1f - squashY) * BULK)
+                scaleY = motion.pop.value * squashY * (1f + (1f - squashX) * BULK)
             },
     )
 }
@@ -332,6 +360,22 @@ private class BreakMotion(start: Bounce) {
     var coveredNanos by mutableLongStateOf(0L)
         private set
 
+    /** When, on the [coveredNanos] clock, the mark last hit a side wall and the top or bottom; -1 before it has. */
+    var xHitNanos = -1L
+        private set
+    var yHitNanos = -1L
+        private set
+
+    /** False where the system turns animations off, so the mark only bounces. */
+    private var squashes = true
+
+    /** How squashed the mark is now along the axis it hit at [hitNanos]: 1 when it is not. */
+    fun squash(hitNanos: Long): Float = if (!squashes || hitNanos < 0) {
+        1f
+    } else {
+        squashAfter((coveredNanos - hitNanos).nanoseconds.toDouble(DurationUnit.SECONDS))
+    }
+
     /** Takes the corner's line down once it has shown a while. */
     suspend fun endCornerLine() {
         if (corner == null) return
@@ -341,6 +385,7 @@ private class BreakMotion(start: Bounce) {
 
     /** Moves the mark, [unit] in size, around [area] at [speedPxPerSecond], one step a frame, until canceled. */
     suspend fun drift(area: IntSize, unit: IntSize, speedPxPerSecond: Float, cornerSlop: Float): Unit = coroutineScope {
+        squashes = coroutineContext[MotionDurationScale]?.scaleFactor != 0f
         val roomX = (area.width - unit.width).toFloat()
         val roomY = (area.height - unit.height).toFloat()
         bounce =
@@ -359,6 +404,8 @@ private class BreakMotion(start: Bounce) {
                 val seconds = gap.nanoseconds.toDouble(DurationUnit.SECONDS).toFloat()
                     .coerceAtMost(MAX_FRAME_SECONDS)
                 val (next, hit) = bounce.step(speedPxPerSecond * seconds, roomX, roomY, cornerSlop)
+                if (next.right != bounce.right) xHitNanos = coveredNanos
+                if (next.down != bounce.down) yHitNanos = coveredNanos
                 bounce = next
                 hit
             }
@@ -387,8 +434,8 @@ private fun breakLine(corner: Int?, leftMs: Long?, quip: Int): String = when {
 }
 
 /**
- * The countdown, the [line] under it, then fainter, the program on now and the ads dodged today, all in [ink] and
- * each at most [lineWidth] wide.
+ * The countdown, the [line] under it, then fainter, the program on now, a [fact] about it and the ads dodged today,
+ * all in [ink] and each at most [lineWidth] wide.
  */
 @Composable
 @Suppress("LongParameterList") // One argument per line drawn, plus their look.
@@ -396,6 +443,7 @@ private fun BreakLines(
     countdown: String,
     line: String,
     watching: String?,
+    fact: String?,
     dodgedMinutes: Long,
     ink: Color,
     lineWidth: Dp,
@@ -421,9 +469,9 @@ private fun BreakLines(
             maxLines = 2,
             modifier = width,
         )
-        val faint = ink.copy(alpha = 0.7f)
-        // Both faint lines keep their place while empty, so the ads dodged showing up a minute in does not move the
-        // words above it.
+        val faint = ink.copy(alpha = FAINT_ALPHA)
+        // The faint lines keep their place while empty, so a fact arriving or the ads dodged showing up a minute in
+        // does not move the words above them.
         Text(
             watching ?: " ",
             style = MaterialTheme.typography.bodySmall,
@@ -432,6 +480,17 @@ private fun BreakLines(
             overflow = TextOverflow.Ellipsis,
             modifier = width,
         )
+        Crossfade(fact, animationSpec = tween(FACT_FADE_MS), label = "fact") { shown ->
+            Text(
+                shown ?: " ",
+                style = MaterialTheme.typography.bodySmall,
+                color = faint,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = width,
+            )
+        }
         Text(
             if (dodgedMinutes > 0) {
                 stringResource(Res.string.break_ads_dodged, dodgedMinutes.minutes.hoursAndMinutes())
@@ -445,6 +504,20 @@ private fun BreakLines(
         )
     }
 }
+
+/** How much of a squash goes into stretching the other way. */
+private const val BULK = 0.5f
+
+/** How long each fact shows, and how long one takes to fade into the next. */
+private const val FACT_SECONDS = 8L
+private const val FACT_NANOS = FACT_SECONDS * 1_000_000_000L
+private const val FACT_FADE_MS = 600
+
+/** How see-through the faint lines and the clock are. */
+private const val FAINT_ALPHA = 0.7f
+
+/** How far in from the screen's edges the clock sits, as a share of each side: inside a TV's overscan. */
+private const val SAFE_SHARE = 0.05f
 
 /** How fast the mark drifts, on each axis. */
 private val BOUNCE_SPEED = 72.dp

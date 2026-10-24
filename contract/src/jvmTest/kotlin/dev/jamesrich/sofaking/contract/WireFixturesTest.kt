@@ -85,12 +85,19 @@ class WireFixturesTest {
         assertEquals(600000, item.playState?.positionMs)
     }
 
+    @Test
+    fun `the program facts fixture decodes with a client's settings`() {
+        val facts = client.decodeFromString<ProgramFacts>(fixture("v1/program-facts.json"))
+        assertEquals(Wire.ItemKind.SHOW, facts.kind)
+        assertEquals(406, facts.episodes)
+    }
+
     /**
      * The full fixtures hold a value in every field, so the server's check types each one rather than only finding it
      * present; they decode with no unknown field. A field added later is absent from them, which the rules allow.
      */
     @Test
-    fun `the full recording, rule and library item fixtures hold no nulls and no unknown fields`() {
+    fun `the full recording, rule, library item and program facts fixtures hold no nulls and no unknown fields`() {
         val strict = Json { explicitNulls = false }
         fun nulls(element: JsonElement): Set<String> = (element as JsonObject).filterValues { it is JsonNull }.keys
 
@@ -110,6 +117,9 @@ class WireFixturesTest {
         assertEquals(emptySet(), nulls(item))
         assertEquals(emptySet(), nulls(item.jsonObject["playState"]!!))
         strict.decodeFromJsonElement<List<Library>>(Json.parseToJsonElement(fixture("v1/libraries.json")))
+        val facts = Json.parseToJsonElement(fixture("v1/program-facts.json"))
+        strict.decodeFromJsonElement<ProgramFacts>(facts)
+        assertEquals(emptySet(), nulls(facts))
     }
 
     @Test

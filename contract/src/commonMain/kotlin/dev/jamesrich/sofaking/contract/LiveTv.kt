@@ -87,3 +87,27 @@ data class GuideQuery(val channelIds: List<String>, val from: String, val to: St
  * long the break has left, when the playlist says.
  */
 @Serializable data class AdBreakState(val inBreak: Boolean = false, val remainingMs: Long? = null)
+
+/**
+ * What TMDB says about a live program, found by its guide title, for the break screen to show a fact at a time:
+ * `GET /api/v1/program-facts?title=&movie=`. [kind] is [Wire.ItemKind.SHOW] or [Wire.ItemKind.MOVIE], and empty, with
+ * nothing else set, when TMDB lists no program of that title or the server has no TMDB token.
+ */
+@Serializable data class ProgramFacts(
+    val kind: String = "",
+    /** When a show first aired, or a movie came out. */
+    val year: Int? = null,
+    /** When a show that has ended last aired. */
+    val endYear: Int? = null,
+    /** The network a show first aired on, or the studio that made a movie. */
+    val studio: String? = null,
+    val seasons: Int? = null,
+    val episodes: Int? = null,
+    /** The first few billed, in billing order. */
+    val cast: List<String> = emptyList(),
+    /** Who created a show, or directed a movie. */
+    val creators: List<String> = emptyList(),
+    val tagline: String? = null,
+    /** TMDB's average vote, out of 10. */
+    val rating: Double? = null,
+)

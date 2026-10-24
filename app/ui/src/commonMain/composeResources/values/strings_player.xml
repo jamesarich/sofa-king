@@ -119,4 +119,18 @@
     <string name="break_corner_again">Corner number %1$d. Sofa King lucky.</string>
     <string name="break_watching">You're watching: %1$s</string>
     <string name="break_ads_dodged">Ads dodged today: %1$s</string>
+    <string name="break_fact_episode">This episode: %1$s</string>
+    <string name="break_fact_first_aired">First aired in %1$d</string>
+    <string name="break_fact_first_aired_on">First aired in %1$d on %2$s</string>
+    <string name="break_fact_aired">Aired from %1$d to %2$d</string>
+    <string name="break_fact_aired_on">Aired from %1$d to %2$d on %3$s</string>
+    <string name="break_fact_released">Released in %1$d</string>
+    <string name="break_fact_released_by">Released in %1$d by %2$s</string>
+    <string name="break_fact_starring">Starring %1$s</string>
+    <string name="break_fact_created_by">Created by %1$s</string>
+    <string name="break_fact_directed_by">Directed by %1$s</string>
+    <string name="break_fact_tagline">“%1$s”</string>
+    <string name="break_fact_rating">Rated %1$s out of 10 on TMDB</string>
+    <string name="break_fact_next">Next at %2$s: %1$s</string>
+    <string name="break_fact_and">%1$s and %2$s</string>
 </resources>

@@ -114,6 +114,12 @@ internal data class TmdbCredits(val cast: List<TmdbPerson> = emptyList(), val cr
     val credits: TmdbCredits? = null,
     @SerialName("content_ratings") val contentRatings: TmdbContentRatings? = null,
     @SerialName("episode_run_time") val episodeRunTime: List<Int> = emptyList(),
+    @SerialName("last_air_date") val lastAirDate: String? = null,
+    /** `Returning Series`, `Ended`, `Canceled` and the like. */
+    val status: String? = null,
+    @SerialName("number_of_seasons") val seasonCount: Int? = null,
+    @SerialName("number_of_episodes") val episodeCount: Int? = null,
+    @SerialName("created_by") val createdBy: List<TmdbPerson> = emptyList(),
 )
 
 @Serializable internal data class TmdbEpisode(

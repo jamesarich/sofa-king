@@ -10,6 +10,7 @@ import dev.jamesrich.sofaking.contract.Bootstrap
 import dev.jamesrich.sofaking.contract.Capabilities
 import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.contract.OpenPlayback
+import dev.jamesrich.sofaking.contract.ProgramFacts
 import dev.jamesrich.sofaking.contract.UpdatePlayback
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -85,7 +86,18 @@ internal fun Route.liveRoutes(runtime: LiveRuntime) {
         call.respond(source)
     }
     post("/api/v1/guide/query") { call.respond(runtime.catalog.guide(call.appBody<GuideQuery>())) }
+    get("/api/v1/program-facts") {
+        val title = call.request.queryParameters["title"]?.trim().orEmpty()
+        if (title.isEmpty() || title.length > MAX_FACTS_TITLE) {
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Invalid title")
+        }
+        val movie = call.request.queryParameters["movie"] == "true"
+        call.respond(runtime.programFacts?.facts(title, movie) ?: ProgramFacts())
+    }
 }
+
+/** The longest program title `GET /api/v1/program-facts` looks up. */
+private const val MAX_FACTS_TITLE = 200
 
 /** The live playback sessions and the media they serve. */
 internal fun Route.playbackRoutes(runtime: LiveRuntime) {

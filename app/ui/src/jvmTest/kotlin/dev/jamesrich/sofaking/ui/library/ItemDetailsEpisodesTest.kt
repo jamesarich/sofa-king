@@ -48,6 +48,9 @@ class ItemDetailsEpisodesTest {
                 }
             }
         }
+        onNodeWithText("1. Pilot").performClick()
+        assertEquals(listOf("e1"), played)
+        played.clear()
         onNodeWithText("1. Pilot").performTouchInput { longClick() }
         onNodeWithText("Details").performClick()
         assertEquals(listOf("e1"), opened)

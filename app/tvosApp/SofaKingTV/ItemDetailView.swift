@@ -32,6 +32,11 @@ struct ItemDetailView: View {
         }
         .onAppear {
             watch = model.core.watchItem(id: itemId) { state = $0 }
+            // Back from an episode's page keeps seasonId, so the season's watch, canceled on leaving, starts again here.
+            if seasonWatch != nil, let id = seasonId {
+                seasonWatch?.cancel()
+                seasonWatch = model.core.watchItem(id: id) { season = $0 }
+            }
         }
         .onDisappear {
             watch?.cancel()

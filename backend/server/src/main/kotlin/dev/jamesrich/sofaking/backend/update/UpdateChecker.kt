@@ -120,6 +120,7 @@ class UpdateChecker(
 
     /** The revision this process last asked the updater for, so each published build is asked for once. */
     private val asked = AtomicReference<String?>()
+    private val registry = Registry(http)
 
     init {
         if (image != null) jobs.register(JOB, "Update check", every) { requests.trySend(Unit) }
@@ -142,7 +143,7 @@ class UpdateChecker(
         mutex.withLock {
             jobs.record(JOB) {
                 runCatchingCancellable {
-                    val build = fetch(target)
+                    val build = registry.fetch(target)
                     published.set(build)
                     error.set(null)
                     checkedAt.set(clock.instant())
@@ -240,84 +241,6 @@ class UpdateChecker(
             ?: runCatching { Files.getLastModifiedTime(file).toInstant() }.getOrNull()
     }
 
-    /**
-     * The tag's index from the registry: `GET /v2/{name}/manifests/{tag}`, answering a bearer challenge with the
-     * anonymous token the challenge's realm issues. The annotations come from the index, else from the manifest, else
-     * from the image config's labels.
-     */
-    private suspend fun fetch(image: String): PublishedBuild {
-        val ref = ImageRef.parse(image)
-        var response = manifest(ref, ref.tag, null)
-        var token: String? = null
-        if (response.status == HttpStatusCode.Unauthorized) {
-            token =
-                anonymousToken(
-                    response.headers[HttpHeaders.WWWAuthenticate]
-                        ?: throw IllegalStateException("the registry asked for credentials without a challenge"),
-                )
-            response = manifest(ref, ref.tag, token)
-        }
-        if (!response.status.isSuccess()) {
-            throw IllegalStateException(
-                "the registry answered ${response.status.value} for the manifest",
-            )
-        }
-        val digest = response.headers["Docker-Content-Digest"]
-        val document = parse(response)
-        document.annotations()?.let { return PublishedBuild(it[REVISION], it[VERSION], digest) }
-        // A single-platform manifest keeps its facts in the config blob's labels.
-        val config = document["config"]?.jsonObject?.get("digest")?.jsonPrimitive?.content
-        if (config != null) {
-            val blob = http.get("https://${ref.host}/v2/${ref.name}/blobs/$config") {
-                token?.let { header(HttpHeaders.Authorization, "Bearer $it") }
-            }
-            if (blob.status.isSuccess()) {
-                parse(blob)["config"]?.jsonObject?.get("Labels")?.jsonObject?.let { labels ->
-                    return PublishedBuild(
-                        labels[REVISION]?.jsonPrimitive?.content,
-                        labels[VERSION]?.jsonPrimitive?.content,
-                        digest,
-                    )
-                }
-            }
-        }
-        return PublishedBuild(null, null, digest)
-    }
-
-    private suspend fun manifest(ref: ImageRef, tag: String, token: String?): HttpResponse =
-        http.get("https://${ref.host}/v2/${ref.name}/manifests/$tag") {
-            header(HttpHeaders.Accept, MANIFEST_TYPES)
-            token?.let { header(HttpHeaders.Authorization, "Bearer $it") }
-        }
-
-    /** The token the `Bearer realm=…,service=…,scope=…` challenge names, requested without credentials. */
-    private suspend fun anonymousToken(challenge: String): String {
-        val fields = CHALLENGE_FIELD.findAll(challenge).associate { it.groupValues[1] to it.groupValues[2] }
-        val realm = fields["realm"] ?: throw IllegalStateException("the registry's challenge names no realm")
-        require(realm.startsWith("https://")) { "the registry's token realm is not https" }
-        val response = http.get(realm) {
-            fields["service"]?.let { parameter("service", it) }
-            fields["scope"]?.let { parameter("scope", it) }
-        }
-        if (!response.status.isSuccess()) {
-            throw IllegalStateException(
-                "the registry answered ${response.status.value} for the token",
-            )
-        }
-        val body = parse(response)
-        return (body["token"] ?: body["access_token"])?.jsonPrimitive?.content
-            ?: throw IllegalStateException("the registry's token answer holds no token")
-    }
-
-    private suspend fun parse(response: HttpResponse): JsonObject {
-        val text = response.bodyAsText()
-        require(text.length <= MIB) { "the registry's answer is too large" }
-        return Json.parseToJsonElement(text).jsonObject
-    }
-
-    private fun JsonObject.annotations(): Map<String, String>? =
-        this["annotations"]?.jsonObject?.takeIf { it.isNotEmpty() }?.mapValues { it.value.jsonPrimitive.content }
-
     /** `host/name[:tag]`; a bare `name:tag` is Docker Hub's library namespace. */
     internal data class ImageRef(val host: String, val name: String, val tag: String) {
         companion object {
@@ -363,11 +286,92 @@ class UpdateChecker(
         private val REFUSED = setOf("rolled-back", "skipped")
         const val REVISION = "org.opencontainers.image.revision"
         const val VERSION = "org.opencontainers.image.version"
-        private const val MANIFEST_TYPES =
-            "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, " +
-                "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json"
-        private val CHALLENGE_FIELD = Regex("""(\w+)="([^"]*)"""")
         private val TAG = Regex("[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}")
         private val json = Json { ignoreUnknownKeys = true }
     }
+}
+
+private const val MANIFEST_TYPES =
+    "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, " +
+        "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json"
+private val CHALLENGE_FIELD = Regex("""(\w+)="([^"]*)"""")
+
+/** Reads a tag's published build from its registry, without credentials. */
+private class Registry(private val http: HttpClient) {
+    /**
+     * The tag's index from the registry: `GET /v2/{name}/manifests/{tag}`, answering a bearer challenge with the
+     * anonymous token the challenge's realm issues. The annotations come from the index, else from the manifest, else
+     * from the image config's labels.
+     */
+    suspend fun fetch(image: String): PublishedBuild {
+        val ref = UpdateChecker.ImageRef.parse(image)
+        val (response, token) = authorizedManifest(ref)
+        check(response.status.isSuccess()) { "the registry answered ${response.status.value} for the manifest" }
+        val digest = response.headers["Docker-Content-Digest"]
+        val document = parse(response)
+        // A single-platform manifest keeps its facts in the config blob's labels.
+        val facts = document.annotations() ?: configLabels(ref, document, token)
+        return PublishedBuild(facts?.get(UpdateChecker.REVISION), facts?.get(UpdateChecker.VERSION), digest)
+    }
+
+    /** The tag's manifest, asked again with an anonymous token when the registry challenges; and that token. */
+    private suspend fun authorizedManifest(ref: UpdateChecker.ImageRef): Pair<HttpResponse, String?> {
+        val first = manifest(ref, null)
+        if (first.status != HttpStatusCode.Unauthorized) return first to null
+        val challenge = checkNotNull(first.headers[HttpHeaders.WWWAuthenticate]) {
+            "the registry asked for credentials without a challenge"
+        }
+        val token = anonymousToken(challenge)
+        return manifest(ref, token) to token
+    }
+
+    /** The revision and version labels of the image config [document] names, or null without a readable config. */
+    private suspend fun configLabels(
+        ref: UpdateChecker.ImageRef,
+        document: JsonObject,
+        token: String?,
+    ): Map<String, String>? {
+        val config = document["config"]?.jsonObject?.get("digest")?.jsonPrimitive?.content ?: return null
+        val blob = http.get("https://${ref.host}/v2/${ref.name}/blobs/$config") {
+            token?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+        }
+        val labels = blob.takeIf { it.status.isSuccess() }?.let { parse(it) }
+            ?.get("config")?.jsonObject?.get("Labels")?.jsonObject
+        return labels?.let { found ->
+            listOf(UpdateChecker.REVISION, UpdateChecker.VERSION).mapNotNull { key ->
+                found[key]?.jsonPrimitive?.content?.let { key to it }
+            }.toMap()
+        }
+    }
+
+    private suspend fun manifest(ref: UpdateChecker.ImageRef, token: String?): HttpResponse =
+        http.get("https://${ref.host}/v2/${ref.name}/manifests/${ref.tag}") {
+            header(HttpHeaders.Accept, MANIFEST_TYPES)
+            token?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+        }
+
+    /** The token the `Bearer realm=…,service=…,scope=…` challenge names, requested without credentials. */
+    private suspend fun anonymousToken(challenge: String): String {
+        val fields = CHALLENGE_FIELD.findAll(challenge).associate { it.groupValues[1] to it.groupValues[2] }
+        val realm = checkNotNull(fields["realm"]) { "the registry's challenge names no realm" }
+        require(realm.startsWith("https://")) { "the registry's token realm is not https" }
+        val response = http.get(realm) {
+            fields["service"]?.let { parameter("service", it) }
+            fields["scope"]?.let { parameter("scope", it) }
+        }
+        check(response.status.isSuccess()) { "the registry answered ${response.status.value} for the token" }
+        val body = parse(response)
+        return checkNotNull((body["token"] ?: body["access_token"])?.jsonPrimitive?.content) {
+            "the registry's token answer holds no token"
+        }
+    }
+
+    private suspend fun parse(response: HttpResponse): JsonObject {
+        val text = response.bodyAsText()
+        require(text.length <= MIB) { "the registry's answer is too large" }
+        return Json.parseToJsonElement(text).jsonObject
+    }
+
+    private fun JsonObject.annotations(): Map<String, String>? =
+        this["annotations"]?.jsonObject?.takeIf { it.isNotEmpty() }?.mapValues { it.value.jsonPrimitive.content }
 }

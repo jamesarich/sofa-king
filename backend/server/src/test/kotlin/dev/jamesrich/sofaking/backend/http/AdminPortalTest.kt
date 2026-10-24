@@ -15,6 +15,7 @@ import dev.jamesrich.sofaking.backend.catalog.stationId
 import dev.jamesrich.sofaking.backend.main
 import dev.jamesrich.sofaking.backend.playback.AdCensus
 import dev.jamesrich.sofaking.backend.store.addRecording
+import dev.jamesrich.sofaking.backend.store.health
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.recordAdChannel
 import dev.jamesrich.sofaking.contract.Wire

@@ -6,13 +6,8 @@ import java.io.ByteArrayInputStream
 import java.io.FilterInputStream
 import java.io.InputStream
 import java.io.PushbackInputStream
-import java.time.Instant
-import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
 import java.util.zip.GZIPInputStream
 import javax.xml.stream.XMLInputFactory
-import javax.xml.stream.XMLStreamConstants
-import javax.xml.stream.XMLStreamReader
 
 /**
  * [skipped] counts malformed entries by short reason; the import still succeeds with the well-formed rest.

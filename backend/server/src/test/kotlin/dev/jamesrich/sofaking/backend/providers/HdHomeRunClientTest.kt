@@ -2,9 +2,6 @@ package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.FeedConfig
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
-import dev.jamesrich.sofaking.backend.store.openStore
-import kotlinx.coroutines.runBlocking
-import java.nio.file.Files
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -56,158 +53,105 @@ class HdHomeRunClientTest {
     private fun options(fixture: ProviderFixture, extra: Map<String, String> = emptyMap()) =
         mapOf("url" to "${fixture.base}/", "guideApi" to "${fixture.base}/api/xmltv") + extra
 
-    @Test fun `lists each clear channel once by its guide number as a local MPEG-TS source`() = runBlocking<Unit> {
-        val dir = Files.createTempDirectory("sofa-hdhr-")
-        try {
-            ProviderFixture().use { fixture ->
-                ProviderFixture.httpClient().use { http ->
-                    openStore(dir).use { store ->
-                        fixture.tuner()
-                        val client =
-                            HdHomeRunClient(
-                                ProviderFixture.context("ota", options(fixture), http, store, MutableClock()),
-                            )
-                        val channels = client.channels()
-                        assertEquals(
-                            listOf("5.1", "5.2"),
-                            channels.map {
-                                it.id
-                            },
-                            "DRM channels, by flag or tag, are left out and a repeated number is listed once",
-                        )
-                        val woi = channels[0]
-                        assertEquals("WOI-DT", woi.name)
-                        assertEquals("5.1", woi.number)
-                        assertEquals("Local", woi.group)
-                        assertEquals(listOf("ota"), woi.tags)
-                        assertEquals("mpegts", client.protocol)
-                        val registry = ProviderRegistry(mapOf("ota" to client), MutableClock())
-                        val parsed = registry.channels(
-                            FeedConfig("ota", type = "native", service = "hdhomerun", options = options(fixture)),
-                        )
-                        assertEquals(
-                            setOf("mpegts"),
-                            parsed.offerings.map {
-                                it.protocol
-                            }.toSet(),
-                            "the registry carries the client's protocol",
-                        )
-                        assertEquals("svc://hdhomerun/5.1", parsed.offerings[0].url)
-                        assertEquals(
-                            1,
-                            fixture.hits("/lineup.json"),
-                            "the lineup is read once for the list and the registry",
-                        )
-                    }
-                }
-            }
-        } finally {
-            dir.toFile().deleteRecursively()
-        }
+    @Test fun `lists each clear channel once by its guide number as a local MPEG-TS source`() = providerTest(
+        "sofa-hdhr-",
+    ) {
+        fixture.tuner()
+        val client =
+            HdHomeRunClient(
+                context("ota", options(fixture)),
+            )
+        val channels = client.channels()
+        assertEquals(
+            listOf("5.1", "5.2"),
+            channels.map { it.id },
+            "DRM channels, by flag or tag, are left out and a repeated number is listed once",
+        )
+        val woi = channels[0]
+        assertEquals("WOI-DT", woi.name)
+        assertEquals("5.1", woi.number)
+        assertEquals("Local", woi.group)
+        assertEquals(listOf("ota"), woi.tags)
+        assertEquals("mpegts", client.protocol)
+        val registry = ProviderRegistry(mapOf("ota" to client), MutableClock())
+        val parsed = registry.channels(
+            FeedConfig("ota", type = "native", service = "hdhomerun", options = options(fixture)),
+        )
+        assertEquals(
+            setOf("mpegts"),
+            parsed.offerings.map { it.protocol }.toSet(),
+            "the registry carries the client's protocol",
+        )
+        assertEquals("svc://hdhomerun/5.1", parsed.offerings[0].url)
+        assertEquals(
+            1,
+            fixture.hits("/lineup.json"),
+            "the lineup is read once for the list and the registry",
+        )
     }
 
     @Test fun `resolve answers the device's own stream URL, with the transcode profile when configured`() =
-        runBlocking<Unit> {
-            val dir = Files.createTempDirectory("sofa-hdhr-")
-            try {
-                ProviderFixture().use { fixture ->
-                    ProviderFixture.httpClient().use { http ->
-                        openStore(dir).use { store ->
-                            fixture.tuner()
-                            val plain =
-                                HdHomeRunClient(
-                                    ProviderFixture.context("ota", options(fixture), http, store, MutableClock()),
-                                )
-                            val resolved = plain.resolve("5.2")
-                            assertEquals("${fixture.base}:5004/auto/v5.2", resolved.url)
-                            assertTrue(resolved.headers.isEmpty())
-                            assertNull(resolved.expiresAt, "a tuner URL does not expire")
-                            assertFailsWith<ProviderFailure> {
-                                plain.resolve("8.1")
-                            }.let { assertFalse(it.transient, "a DRM or unknown channel is gone, not a tuner fault") }
-                            assertEquals(
-                                2,
-                                fixture.hits("/lineup.json"),
-                                "an unknown channel refreshes the lineup once",
-                            )
-                            val extend =
-                                HdHomeRunClient(
-                                    ProviderFixture.context(
-                                        "ota2",
-                                        options(fixture, mapOf("transcode" to "mobile")),
-                                        http,
-                                        store,
-                                        MutableClock(),
-                                    ),
-                                )
-                            assertEquals("${fixture.base}:5004/auto/v5.1?transcode=mobile", extend.resolve("5.1").url)
-                            assertFailsWith<IllegalArgumentException> {
-                                HdHomeRunClient(
-                                    ProviderFixture.context(
-                                        "ota3",
-                                        mapOf("guideApi" to "x"),
-                                        http,
-                                        store,
-                                        MutableClock(),
-                                    ),
-                                )
-                            }
-                        }
-                    }
-                }
-            } finally {
-                dir.toFile().deleteRecursively()
+        providerTest("sofa-hdhr-") {
+            fixture.tuner()
+            val plain =
+                HdHomeRunClient(
+                    context("ota", options(fixture)),
+                )
+            val resolved = plain.resolve("5.2")
+            assertEquals("${fixture.base}:5004/auto/v5.2", resolved.url)
+            assertTrue(resolved.headers.isEmpty())
+            assertNull(resolved.expiresAt, "a tuner URL does not expire")
+            assertFailsWith<ProviderFailure> {
+                plain.resolve("8.1")
+            }.let { assertFalse(it.transient, "a DRM or unknown channel is gone, not a tuner fault") }
+            assertEquals(
+                2,
+                fixture.hits("/lineup.json"),
+                "an unknown channel refreshes the lineup once",
+            )
+            val extend =
+                HdHomeRunClient(
+                    context("ota2", options(fixture, mapOf("transcode" to "mobile"))),
+                )
+            assertEquals("${fixture.base}:5004/auto/v5.1?transcode=mobile", extend.resolve("5.1").url)
+            assertFailsWith<IllegalArgumentException> {
+                HdHomeRunClient(
+                    context("ota3", mapOf("guideApi" to "x")),
+                )
             }
         }
 
     @Test fun `guide fetches the device's XMLTV with its DeviceAuth and maps it onto the lineup numbers`() =
-        runBlocking<Unit> {
-            val dir = Files.createTempDirectory("sofa-hdhr-")
-            try {
-                ProviderFixture().use { fixture ->
-                    ProviderFixture.httpClient().use { http ->
-                        openStore(dir).use { store ->
-                            fixture.tuner()
-                            val clock = MutableClock(Instant.parse("2026-10-10T13:00:00Z"))
-                            val client =
-                                HdHomeRunClient(ProviderFixture.context("ota", options(fixture), http, store, clock))
-                            val index = client.guide(emptySet())
-                            assertEquals(
-                                listOf("5.1", "5.2"),
-                                index.channels.map {
-                                    it.id
-                                },
-                                "the index is the lineup, not the XMLTV's ids",
-                            )
-                            assertTrue(index.programs.isEmpty())
-                            val guide = client.guide(setOf("5.1", "8.1"))
-                            assertEquals(
-                                listOf("Local News"),
-                                guide.programs.map {
-                                    it.title
-                                },
-                                "ended programs, unmapped channels and DRM channels are dropped",
-                            )
-                            assertEquals("5.1", guide.programs[0].channelId)
-                            assertEquals("Noon news.", guide.programs[0].description)
-                            assertEquals(
-                                listOf("Perry Mason"),
-                                client.guide(setOf("5.2")).programs.map {
-                                    it.title
-                                },
-                                "a channel matched by display name maps too",
-                            )
-                            assertEquals(
-                                1,
-                                fixture.hits("/api/xmltv"),
-                                "the XMLTV is fetched once a day, whatever the refresh",
-                            )
-                            assertEquals(1, fixture.hits("/discover.json"))
-                        }
-                    }
-                }
-            } finally {
-                dir.toFile().deleteRecursively()
-            }
+        providerTest("sofa-hdhr-") {
+            fixture.tuner()
+            val clock = MutableClock(Instant.parse("2026-10-10T13:00:00Z"))
+            val client =
+                HdHomeRunClient(ProviderFixture.context("ota", options(fixture), http, store, clock))
+            val index = client.guide(emptySet())
+            assertEquals(
+                listOf("5.1", "5.2"),
+                index.channels.map { it.id },
+                "the index is the lineup, not the XMLTV's ids",
+            )
+            assertTrue(index.programs.isEmpty())
+            val guide = client.guide(setOf("5.1", "8.1"))
+            assertEquals(
+                listOf("Local News"),
+                guide.programs.map { it.title },
+                "ended programs, unmapped channels and DRM channels are dropped",
+            )
+            assertEquals("5.1", guide.programs[0].channelId)
+            assertEquals("Noon news.", guide.programs[0].description)
+            assertEquals(
+                listOf("Perry Mason"),
+                client.guide(setOf("5.2")).programs.map { it.title },
+                "a channel matched by display name maps too",
+            )
+            assertEquals(
+                1,
+                fixture.hits("/api/xmltv"),
+                "the XMLTV is fetched once a day, whatever the refresh",
+            )
+            assertEquals(1, fixture.hits("/discover.json"))
         }
 }

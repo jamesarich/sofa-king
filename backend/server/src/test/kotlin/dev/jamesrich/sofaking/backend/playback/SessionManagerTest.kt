@@ -11,6 +11,9 @@ import dev.jamesrich.sofaking.backend.catalog.lineupStack
 import dev.jamesrich.sofaking.backend.health.FailureClass
 import dev.jamesrich.sofaking.backend.health.Observation
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.store.recordObservation
+import dev.jamesrich.sofaking.backend.store.saveSnapshot
+import dev.jamesrich.sofaking.backend.store.setManuallyDisabled
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.contract.OpenPlayback

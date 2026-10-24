@@ -4,11 +4,14 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
+import kotlinx.coroutines.runBlocking
 import java.net.InetSocketAddress
+import java.nio.file.Files
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -113,3 +116,33 @@ class ProviderFixture : AutoCloseable {
         const val MASTER = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100000\nmedia.m3u8\n"
     }
 }
+
+/** What a provider test runs against: the [fixture], a [http] client, a new [store] and a [clock]. */
+class ProviderScope(
+    val fixture: ProviderFixture,
+    val http: HttpClient,
+    val store: BackendStore,
+    val clock: MutableClock,
+) {
+    /** The context provider [providerId] runs in, with its [options]. */
+    fun context(providerId: String, options: Map<String, String> = emptyMap()): ProviderContext =
+        ProviderFixture.context(providerId, options, http, store, clock)
+}
+
+/**
+ * Runs [block] against a new fixture, client and store in a directory named from [prefix], on [clock], then closes
+ * them and deletes the directory.
+ */
+fun providerTest(prefix: String, clock: MutableClock = MutableClock(), block: suspend ProviderScope.() -> Unit) =
+    runBlocking<Unit> {
+        val dir = Files.createTempDirectory(prefix)
+        try {
+            ProviderFixture().use { fixture ->
+                ProviderFixture.httpClient().use { http ->
+                    openStore(dir).use { store -> ProviderScope(fixture, http, store, clock).block() }
+                }
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }

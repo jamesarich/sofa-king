@@ -32,7 +32,6 @@ import kotlinx.html.th
 import kotlinx.html.thead
 import kotlinx.html.tr
 import kotlinx.html.unsafe
-import java.time.Instant
 
 /** The code the page shows, the address a client reaches this server at, and the QR that carries both. */
 internal class PairingView(val code: IssuedCode, val serverUrl: String) {

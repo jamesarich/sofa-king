@@ -24,34 +24,41 @@ class UpstreamRejectedException(message: String) : RuntimeException(message)
  */
 data class UpstreamPolicy(val allowLoopback: Boolean = false) {
     fun check(target: URI) {
-        if (target.scheme !in setOf("http", "https") || target.host == null || target.userInfo != null) {
-            throw UpstreamRejectedException("Unsupported upstream address")
-        }
-        val host = target.host.trim('[', ']').lowercase().removeSuffix(".")
-        // The C resolver FFmpeg uses reads 0x7f000001, 0177.0.0.1 and 2130706433 as 127.0.0.1; only a plain
-        // dotted quad is a literal here.
-        if (!host.contains(':') && host.split('.').all { NUMERIC_PART.matches(it) } && !DOTTED_QUAD.matches(host)) {
-            throw UpstreamRejectedException("Unsupported upstream address")
-        }
-        val loopbackName = host == "localhost" || host.endsWith(".localhost")
+        rejection(target)?.let { throw UpstreamRejectedException(it) }
+    }
+
+    /** Why the relay refuses to fetch [target], or null when it may. */
+    private fun rejection(target: URI): String? {
+        val host = literalHost(target) ?: return UNSUPPORTED
         val literal = if (host.all { it.isDigit() || it == '.' } || host.contains(':')) {
             runCatching { InetAddress.getByName(host) }.getOrNull()
         } else {
             null
         }
-        if (literal != null) {
-            if (literal.isLinkLocalAddress || literal.isAnyLocalAddress || literal.isMulticastAddress) {
-                throw UpstreamRejectedException("Unroutable upstream address")
-            }
-            if (literal.isLoopbackAddress && !allowLoopback) {
-                throw UpstreamRejectedException("Loopback upstream address")
-            }
-        } else if (loopbackName && !allowLoopback) {
-            throw UpstreamRejectedException("Loopback upstream address")
+        val loopback = literal?.isLoopbackAddress ?: (host == "localhost" || host.endsWith(".localhost"))
+        return when {
+            literal != null && literal.unroutable -> "Unroutable upstream address"
+            loopback && !allowLoopback -> "Loopback upstream address"
+            else -> null
         }
     }
 }
 
+/** [target]'s host, lowercase and without brackets or a trailing dot; null for one the relay never fetches. */
+private fun literalHost(target: URI): String? {
+    val host = target.host?.takeIf { target.scheme in UPSTREAM_SCHEMES && target.userInfo == null }
+        ?.trim('[', ']')?.lowercase()?.removeSuffix(".")
+        ?: return null
+    // The C resolver FFmpeg uses reads 0x7f000001, 0177.0.0.1 and 2130706433 as 127.0.0.1; only a plain
+    // dotted quad is a literal here.
+    val numeric = !host.contains(':') && host.split('.').all { NUMERIC_PART.matches(it) }
+    return host.takeUnless { numeric && !DOTTED_QUAD.matches(it) }
+}
+
+private val InetAddress.unroutable: Boolean get() = isLinkLocalAddress || isAnyLocalAddress || isMulticastAddress
+
+private const val UNSUPPORTED = "Unsupported upstream address"
+private val UPSTREAM_SCHEMES = setOf("http", "https")
 private val NUMERIC_PART = Regex("0x[0-9a-f]*|[0-9]+")
 private val DOTTED_QUAD =
     Regex("((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])")
@@ -67,25 +74,16 @@ internal suspend fun <T> HttpClient.withUpstreamResponse(
     policy: UpstreamPolicy = UpstreamPolicy(),
     consume: suspend (HttpResponse) -> T,
 ): T {
+    val start = runCatching { URI(url) }.getOrNull() ?: throw UpstreamRejectedException("Invalid upstream address")
     val origin = URI(credentialOrigin)
-    val start = try {
-        URI(url)
-    } catch (_: Exception) {
-        throw UpstreamRejectedException("Invalid upstream address")
+    // Every hop after the first stays on https once it is there, as followRedirects requires.
+    if (origin.scheme == "https" &&
+        start.scheme != "https"
+    ) {
+        throw UpstreamRejectedException(RedirectProblem.INSECURE.message)
     }
-    return followRedirects(start, reject = { problem ->
-        throw UpstreamRejectedException(
-            when (problem) {
-                RedirectProblem.TOO_MANY -> "Too many upstream redirects"
-                RedirectProblem.INVALID -> "Invalid redirect location"
-                RedirectProblem.INSECURE -> "Insecure upstream redirect"
-            },
-        )
-    }) { target ->
+    return followRedirects(start, reject = { throw UpstreamRejectedException(it.message) }) { target ->
         policy.check(target)
-        if (origin.scheme == "https" && target.scheme != "https") {
-            throw UpstreamRejectedException("Insecure upstream redirect")
-        }
         prepareGet(target.toString()) {
             providerHeaders.forEach { (key, value) ->
                 if (sameOrigin(origin, target) || key.lowercase() in portableHeaders) header(key, value)
@@ -125,7 +123,11 @@ internal sealed interface Hop<out T> {
     class Redirect(val location: String) : Hop<Nothing>
 }
 
-internal enum class RedirectProblem { TOO_MANY, INVALID, INSECURE }
+internal enum class RedirectProblem(val message: String) {
+    TOO_MANY("Too many upstream redirects"),
+    INVALID("Invalid redirect location"),
+    INSECURE("Insecure upstream redirect"),
+}
 
 /**
  * Redirects followed by hand, for a client that never follows them itself. [send] makes one request and has closed

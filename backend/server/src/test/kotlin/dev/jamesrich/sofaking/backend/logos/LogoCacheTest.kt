@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.logos
 import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.store.LogoRecord
 import dev.jamesrich.sofaking.backend.store.logos
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
@@ -58,7 +59,7 @@ class LogoCacheTest {
             assertEquals("image/png", record.contentType)
             assertEquals(Fixture.PNG.size.toLong(), record.size)
             assertEquals(clock.now, record.fetchedAt)
-            assertContentEquals(Fixture.PNG, logos.read(record))
+            assertContentEquals(Fixture.PNG, logos.bytes(record))
             assertContentEquals(Fixture.PNG, Files.readAllBytes(dir.resolve("logos").resolve(key)))
             assertEquals(1, fixture.logoRequests.get())
             assertEquals(record, logos.lookup(key))
@@ -89,7 +90,7 @@ class LogoCacheTest {
             logos.initialize()
             val stored = assertNotNull(logos.lookup(LogoCache.keyOf(svg)))
             assertEquals("image/svg+xml", stored.contentType)
-            assertContentEquals(Fixture.SVG.toByteArray(), logos.read(stored), "an SVG is stored byte for byte")
+            assertContentEquals(Fixture.SVG.toByteArray(), logos.bytes(stored), "an SVG is stored byte for byte")
             assertEquals("image/png", logos.lookup(LogoCache.keyOf(mislabeled))?.contentType)
             for (refused in listOf(decoy, script, huge)) {
                 val key = LogoCache.keyOf(refused)
@@ -153,7 +154,7 @@ class LogoCacheTest {
                 assertTrue(stale.cached, "a failed refresh keeps the cached file")
                 assertEquals(clock.now, stale.failedAt)
                 assertEquals(clock.now - Duration.ofDays(7), stale.fetchedAt)
-                assertContentEquals(Fixture.PNG, logos.read(stale))
+                assertContentEquals(Fixture.PNG, logos.bytes(stale))
                 logos.sweep()
                 assertEquals(4, fixture.logoRequests.get(), "the failed refresh is not retried within the hour")
                 clock.now += Duration.ofHours(1)
@@ -219,3 +220,6 @@ class LogoCacheTest {
             }
         }
 }
+
+/** The bytes of a cached record, or null when its file is gone. */
+private suspend fun LogoCache.bytes(record: LogoRecord): ByteArray? = file(record)?.let { Files.readAllBytes(it) }

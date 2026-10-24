@@ -38,19 +38,17 @@ class SetupServiceTest {
         assertEquals("direct", ServiceCatalog.order.first(), "the broadcasters' own feeds lead the starter order")
     }
 
-    @Test fun `the services form keeps, drops and adds providers, and refuses an option that does not fit`() {
-        val document = SourceDocument(
-            listOf(
-                FeedConfig(
-                    "pbs",
-                    type = "native",
-                    service = "pbs",
-                    options = mapOf("zip" to "50309", "stations" to "x"),
-                ),
-                FeedConfig("whale", type = "native", service = "whale"),
-                FeedConfig("iptv", playlistUrl = "https://feeds.test/p.m3u"),
-            ),
-        )
+    /** A source file with PBS and its options, Whale TV+ and an M3U playlist. */
+    private val servicesDocument = SourceDocument(
+        listOf(
+            FeedConfig("pbs", type = "native", service = "pbs", options = mapOf("zip" to "50309", "stations" to "x")),
+            FeedConfig("whale", type = "native", service = "whale"),
+            FeedConfig("iptv", playlistUrl = "https://feeds.test/p.m3u"),
+        ),
+    )
+
+    @Test fun `the services form keeps, drops and adds providers`() {
+        val document = servicesDocument
         val next = applyServicesForm(
             document,
             parameters {
@@ -61,9 +59,7 @@ class SetupServiceTest {
         ).getOrThrow()
         assertEquals(
             listOf("pbs", "iptv", "pluto"),
-            next.providers.map {
-                it.id
-            },
+            next.providers.map { it.id },
             "the file's order holds; new services go last; an unticked one leaves",
         )
         assertEquals(
@@ -80,7 +76,10 @@ class SetupServiceTest {
             ),
             servicesChanges(document, next),
         )
+    }
 
+    @Test fun `the services form refuses an option that does not fit, and removes an emptied one`() {
+        val document = servicesDocument
         val bad =
             applyServicesForm(
                 document,
@@ -200,24 +199,22 @@ class SetupServiceTest {
             }
         }
 
+    /** Services, a tuner and a playlist, out of the order the starter policy puts them in. */
+    private val starterProviders = listOf(
+        FeedConfig("pluto", type = "native", service = "pluto"),
+        FeedConfig("localnow", type = "native", service = "localnow"),
+        FeedConfig("antenna", type = "native", service = "hdhomerun", options = mapOf("url" to "http://192.0.2.1")),
+        FeedConfig("vizio", type = "native", service = "vizio"),
+        FeedConfig("iptv", playlistUrl = "https://feeds.test/p.m3u"),
+    )
+
     @Test
     fun `the starter policy takes the services in order, with the shipped groups and blocks, and loads at start`() =
         runTest {
             val dir = Files.createTempDirectory("sofa-setup-")
             try {
                 val sources = dir.resolve("sources.json")
-                val providers = listOf(
-                    FeedConfig("pluto", type = "native", service = "pluto"),
-                    FeedConfig("localnow", type = "native", service = "localnow"),
-                    FeedConfig(
-                        "antenna",
-                        type = "native",
-                        service = "hdhomerun",
-                        options = mapOf("url" to "http://192.0.2.1"),
-                    ),
-                    FeedConfig("vizio", type = "native", service = "vizio"),
-                    FeedConfig("iptv", playlistUrl = "https://feeds.test/p.m3u"),
-                )
+                val providers = starterProviders
                 var restarts = 0
                 val none = SetupService(config(dir), restart = { restarts++ })
                 assertEquals("NO_SOURCES", assertFailsWith<ApiFailure> { none.writeStarterPolicy() }.code)
@@ -234,9 +231,7 @@ class SetupServiceTest {
                 val policy = loaded.policy
                 assertEquals(
                     listOf("antenna", "vizio", "pluto", "localnow", "localnow", "localnow", "iptv"),
-                    policy.providers.map {
-                        it.id
-                    },
+                    policy.providers.map { it.id },
                     "the tuner first, then the catalog's order, then playlists",
                 )
                 assertEquals(listOf("Local channels"), policy.providers[1].exclude?.groups)

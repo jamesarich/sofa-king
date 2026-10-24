@@ -1,13 +1,10 @@
 package dev.jamesrich.sofaking.backend.catalog
 
-import dev.jamesrich.sofaking.backend.api.CandidateFilter
 import dev.jamesrich.sofaking.backend.api.LineupPolicy
 import dev.jamesrich.sofaking.backend.api.SourcePin
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.UUID
-import java.util.regex.PatternSyntaxException
 
 private val policyJson = Json {
     ignoreUnknownKeys = false

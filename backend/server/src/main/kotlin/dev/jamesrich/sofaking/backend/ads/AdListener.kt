@@ -188,49 +188,58 @@ class AdListener(
         reading: CoroutineScope,
     ) {
         val stream = feeds.playable(offering)
-        val follower = AudioFollower(audio, ads, reading)
         val media = mediaPlaylist(stream) ?: return
-        var last = Long.MIN_VALUE
-        while (clock.instant().isBefore(until)) {
+        val turn = Turn(channel, offering, stream, media, ads, AudioFollower(audio, ads, reading))
+        var last: Long? = Long.MIN_VALUE
+        while (last != null && clock.instant().isBefore(until)) {
             // Someone started watching this channel: the turn ends now rather than at the next look.
-            if (channel in sessions.watching()) return
-            val (text, base) = fetchText(stream, media) ?: return
-            if (text.contains("#EXT-X-KEY:METHOD=AES") || text.contains("#EXT-X-MAP:")) {
-                log.info(
-                    "ad listener skips channel={} provider={}: encrypted or fMP4 segments",
-                    channel,
-                    offering.providerId,
-                )
-                return
-            }
-            ads.annotate(text, base)
-            val segments = AdBreaks.parse(text, base)?.segments.orEmpty()
-            // A first look starts near the live edge, as a player does.
-            val fresh = segments.filter { it.sequence > last }.let {
-                if (last == Long.MIN_VALUE) {
-                    it.takeLast(START_SEGMENTS)
-                } else {
-                    it
-                }
-            }
-            for (segment in fresh) {
-                val bytes = fetchBytes(stream, segment.url) ?: continue
-                val cues = tsSyncOffset(bytes, 3)?.let { sync ->
-                    SpliceReader().apply {
-                        feed(
-                            bytes,
-                            sync,
-                            bytes.size - sync,
-                        )
-                    }.finish()
-                }
-                ads.served(segment.url, cues)
-                follower.offer(segment.url, bytes)
-                last = segment.sequence
-            }
-            val target = segments.maxOfOrNull { it.durationMs } ?: POLL_MS.last
-            delay((target / 2).coerceIn(POLL_MS))
+            last = if (channel in sessions.watching()) null else look(turn, last)
         }
+    }
+
+    /** The stream one turn follows, and what reads it. */
+    private class Turn(
+        val channel: String,
+        val offering: Offering,
+        val stream: ResolvedStream,
+        val media: String,
+        val ads: AdClock,
+        val follower: AudioFollower,
+    )
+
+    /**
+     * One look at the turn's media playlist: marks its ads and feeds the segments after [last] to the readers, then
+     * waits for the next. The newest segment read, or null when the playlist cannot be followed.
+     */
+    private suspend fun look(turn: Turn, last: Long): Long? {
+        val (text, base) = fetchText(turn.stream, turn.media) ?: return null
+        if (text.contains("#EXT-X-KEY:METHOD=AES") || text.contains("#EXT-X-MAP:")) {
+            log.info(
+                "ad listener skips channel={} provider={}: encrypted or fMP4 segments",
+                turn.channel,
+                turn.offering.providerId,
+            )
+            return null
+        }
+        turn.ads.annotate(text, base)
+        val segments = AdBreaks.parse(text, base)?.segments.orEmpty()
+        // A first look starts near the live edge, as a player does.
+        val fresh = segments.filter { it.sequence > last }.let {
+            if (last == Long.MIN_VALUE) it.takeLast(START_SEGMENTS) else it
+        }
+        var newest = last
+        for (segment in fresh) {
+            val bytes = fetchBytes(turn.stream, segment.url) ?: continue
+            val cues = tsSyncOffset(bytes, 3)?.let { sync ->
+                SpliceReader().apply { feed(bytes, sync, bytes.size - sync) }.finish()
+            }
+            turn.ads.served(segment.url, cues)
+            turn.follower.offer(segment.url, bytes)
+            newest = segment.sequence
+        }
+        val target = segments.maxOfOrNull { it.durationMs } ?: POLL_MS.last
+        delay((target / 2).coerceIn(POLL_MS))
+        return newest
     }
 
     private class Refused(val status: Int) : Exception("upstream answered $status")

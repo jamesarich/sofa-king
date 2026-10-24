@@ -14,6 +14,7 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.LineupService
 import dev.jamesrich.sofaking.backend.health.HealthState
+import dev.jamesrich.sofaking.backend.store.allHealth
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route

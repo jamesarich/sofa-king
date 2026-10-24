@@ -1,21 +1,23 @@
-# The rules the server's code is not yet refactored to (see gradle/detekt.yml). Each line goes in the pull request that
-# refactors the code it covers, and this file with the last one.
+# The server packages not yet refactored to these rules (see gradle/detekt.yml), main and test sources alike. Each
+# package leaves its lists in the pull request that refactors it, and this file goes with the last one.
 complexity:
   LongMethod:
-    active: false
+    excludes: ['**/admin/**', '**/catalog/**', '**/http/**', '**/library/**', '**/playback/**']
   LargeClass:
-    active: false
+    excludes: ['**/admin/**', '**/catalog/**', '**/http/**']
   NestedBlockDepth:
-    active: false
+    excludes: ['**/library/**']
   TooManyFunctions:
-    active: false
+    # The tests stay excluded as gradle/detekt.yml has them, since these excludes replace those.
+    excludes:
+      ['**/*Test/**', '**/test/**', '**/admin/**', '**/catalog/**', '**/http/**', '**/library/**', '**/playback/**']
   CyclomaticComplexMethod:
-    active: false
+    excludes: ['**/admin/**', '**/catalog/**', '**/http/**', '**/library/**', '**/playback/**']
 
 style:
   LoopWithTooManyJumpStatements:
-    active: false
+    excludes: ['**/catalog/**', '**/library/**', '**/playback/**']
   ReturnCount:
-    active: false
+    excludes: ['**/admin/**', '**/http/**', '**/library/**', '**/playback/**']
   ThrowsCount:
-    active: false
+    excludes: ['**/admin/**', '**/http/**', '**/library/**']

@@ -9,6 +9,9 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+/** A Plex token the tests look for in printed config and errors. */
+private const val PLEX_TOKEN = "plexTOKEN-123"
+
 class ServerConfigTest {
     @Test fun `defaults keep server local with persistent data directory`() {
         val config = ServerConfig.fromEnvironment(emptyMap())
@@ -112,7 +115,7 @@ class ServerConfigTest {
 
     @Test fun `Plex sync is off unless URL and token are set together, and the token never prints`() {
         assertNull(ServerConfig.fromEnvironment(emptyMap()).plex)
-        val token = "plexTOKEN-123"
+        val token = PLEX_TOKEN
         val config = ServerConfig.fromEnvironment(
             mapOf(
                 "SOFA_PLEX_URL" to "http://host.docker.internal:32400/",
@@ -135,6 +138,10 @@ class ServerConfigTest {
                 ),
             ).plex!!.syncMinutes,
         )
+    }
+
+    @Test fun `Plex settings that do not fit stop the start, and the token never prints`() {
+        val token = PLEX_TOKEN
         val invalid = listOf(
             mapOf("SOFA_PLEX_URL" to "http://plex.lan:32400"),
             mapOf("SOFA_PLEX_TOKEN" to token),

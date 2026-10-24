@@ -4,6 +4,8 @@ import dev.jamesrich.sofaking.backend.api.GuideStatus
 import dev.jamesrich.sofaking.backend.health.HealthState
 import dev.jamesrich.sofaking.backend.health.HealthStatus
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.store.allHealth
+import dev.jamesrich.sofaking.backend.store.healthVersion
 import dev.jamesrich.sofaking.contract.Catalog
 import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.contract.ChannelGuide

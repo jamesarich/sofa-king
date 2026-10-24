@@ -66,11 +66,13 @@ object DvrPlanner {
             for (airing in airings.filter { matches(rule, it) }.sortedBy { it.program.startsAt }) {
                 val slot = airing.channelId to airing.program.startsAt
                 wanted += slot
-                if (airing.program.endsAt <= now || slot in taken) continue
                 val episode = key(airing)
-                if (episode != null && !episodes.add(episode)) continue
-                taken += slot
-                add += rule to airing
+                val open = airing.program.endsAt > now && slot !in taken && (episode == null || episode !in episodes)
+                if (open) {
+                    episode?.let(episodes::add)
+                    taken += slot
+                    add += rule to airing
+                }
             }
         }
         val drop = existing.filter {

@@ -10,6 +10,7 @@ import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.GuideService
+import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.LineupService
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
@@ -24,6 +25,7 @@ import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.MediaRelay
 import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.TsRemux
+import dev.jamesrich.sofaking.backend.store.health
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.contract.ApiError
@@ -31,6 +33,7 @@ import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.contract.OpenPlayback
 import dev.jamesrich.sofaking.contract.PlaybackSession
+import io.ktor.client.HttpClient
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.headers
@@ -146,160 +149,151 @@ class NativeFeedTest {
         )
     }
 
-    @Test fun `a native provider imports as svc offerings that the relay resolves with the service headers`() =
-        testApplication {
-            val dir = Files.createTempDirectory("sofa-native-")
-            Fixture().use { fixture ->
-                val clock = MutableClock()
-                val fake = FakeClient(fixture.base, clock)
-                val http = ProviderFixture.httpClient()
-                val runtime = runtime(dir, fake, clock, http)
-                try {
-                    runtime.feeds.refresh(config)
-                    val status = runtime.feeds.statuses.single()
-                    assertEquals(2, status.channels)
-                    assertEquals(2, status.sources)
-                    assertNull(status.errorCode)
-                    val offerings = runtime.feeds.published.offerings
-                    assertEquals(setOf("svc://whale/one", "svc://whale/two"), offerings.map { it.url }.toSet())
-                    assertTrue(offerings.all { it.protocol == "hls" })
-                    val one = runtime.feeds.published.channels().first { it.name == "Channel One" }
-                    assertEquals("101", one.displayNumber)
-                    assertEquals(listOf("News", "us"), one.tags)
-                    assertEquals("one", one.legacyGuideId)
-                    assertEquals("${fixture.base}/logo.png", one.logo)
-                    // The implicit native guide lists the channel, so adopting maps it.
-                    runtime.guides.refresh(runtime.guides.configs.single())
-                    assertEquals("whale", runtime.guides.configs.single().provider)
-                    runtime.lineup.adopt(AdoptProvider("whale"))
-                    val entry = runtime.lineup.entries().first { it.name == "Channel One" }
-                    assertEquals(GuideMapping("whale", "one"), entry.guide)
-                    runtime.guides.refresh(runtime.guides.configs.single())
-                    val window = runtime.catalog.guide(
-                        GuideQuery(listOf(entry.id), "2026-10-10T12:00:00Z", "2026-10-10T13:00:00Z"),
-                    )
-                    assertEquals("Native program", window.channels.single().programs.single().title)
+    /** What a native-feed test runs against: the media [fixture], a [clock], the [fake] service and a [runtime]. */
+    private class Native(val fixture: Fixture, val clock: MutableClock, val fake: FakeClient, val runtime: LiveRuntime)
 
-                    application { backendModule(runtime.store, clock, runtime, token) }
-                    val session = Json.decodeFromString<PlaybackSession>(
-                        client.post("/api/v1/playback-sessions") {
-                            bearerAuth(token)
-                            contentType(ContentType.Application.Json)
-                            setBody(Json.encodeToString(OpenPlayback(entry.id, "watch", "k1")))
-                        }.bodyAsText(),
-                    )
-                    assertEquals("hls", session.descriptor.protocol)
-                    val root = client.get(session.descriptor.url)
-                    assertEquals(HttpStatusCode.OK, root.status)
-                    val manifest = root.bodyAsText()
-                    assertTrue(manifest.startsWith("#EXTM3U") && manifest.contains("/media/sessions/"), manifest)
-                    assertFalse(
-                        manifest.contains("svc://") || manifest.contains(fixture.base),
-                        "nothing upstream leaks to the player",
-                    )
-                    assertEquals(1, fake.resolves.get())
-                    // The media playlist is an absolute upstream URL by now; it still travels with the service headers.
-                    val media = Regex("/media/sessions/\\S+\\.m3u8").findAll(manifest).map { it.value }.first {
-                        it != session.descriptor.url
-                    }
-                    assertEquals(HttpStatusCode.OK, client.get(media).status)
-                    assertEquals(1, fake.resolves.get(), "the resolution is cached for the session")
-                    val second = Json.decodeFromString<PlaybackSession>(
-                        client.post("/api/v1/playback-sessions") {
-                            bearerAuth(token)
-                            contentType(ContentType.Application.Json)
-                            setBody(Json.encodeToString(OpenPlayback(entry.id, "watch", "k2")))
-                        }.bodyAsText(),
-                    )
-                    assertEquals(HttpStatusCode.OK, client.get(second.descriptor.url).status)
-                    assertEquals(1, fake.resolves.get(), "a second session reuses the cached resolution")
-                    clock.now = clock.now.plus(Duration.ofMinutes(59).plusSeconds(1))
-                    val third = Json.decodeFromString<PlaybackSession>(
-                        client.post("/api/v1/playback-sessions") {
-                            bearerAuth(token)
-                            contentType(ContentType.Application.Json)
-                            setBody(Json.encodeToString(OpenPlayback(entry.id, "watch", "k3")))
-                        }.bodyAsText(),
-                    )
-                    assertEquals(HttpStatusCode.OK, client.get(third.descriptor.url).status)
-                    assertEquals(2, fake.resolves.get(), "a minute before expiry the URL is minted again")
-
-                    val two = runtime.lineup.entries().first { it.name == "Channel Two" }
-                    val gone = Json.decodeFromString<PlaybackSession>(
-                        client.post("/api/v1/playback-sessions") {
-                            bearerAuth(token)
-                            contentType(ContentType.Application.Json)
-                            setBody(Json.encodeToString(OpenPlayback(two.id, "watch", "k4")))
-                        }.bodyAsText(),
-                    )
-                    val refused = client.get(gone.descriptor.url)
-                    assertEquals(HttpStatusCode.BadGateway, refused.status)
-                    assertEquals("UPSTREAM_UNAVAILABLE", Json.decodeFromString<ApiError>(refused.bodyAsText()).code)
-                } finally {
-                    runtime.close()
-                    runtime.store.close()
-                    dir.toFile().deleteRecursively()
-                }
+    /** Runs [block] on a runtime over the fake service in a new directory named from [prefix], then removes it. */
+    private suspend fun withNative(prefix: String, block: suspend Native.() -> Unit) {
+        val dir = Files.createTempDirectory(prefix)
+        Fixture().use { fixture ->
+            val clock = MutableClock()
+            val fake = FakeClient(fixture.base, clock)
+            val runtime = runtime(dir, fake, clock, ProviderFixture.httpClient())
+            try {
+                Native(fixture, clock, fake, runtime).block()
+            } finally {
+                runtime.close()
+                runtime.store.close()
+                dir.toFile().deleteRecursively()
             }
         }
+    }
+
+    /** Imports the native feed, adopts it with its implicit guide, and returns Channel One's entry. */
+    private suspend fun LiveRuntime.adoptNative(): LineupEntryRecord {
+        feeds.refresh(config)
+        guides.refresh(guides.configs.single())
+        lineup.adopt(AdoptProvider("whale"))
+        guides.refresh(guides.configs.single())
+        return lineup.entries().first { it.name == "Channel One" }
+    }
+
+    /** Opens a playback session for [entryId] as client [key]. */
+    private suspend fun HttpClient.openSession(entryId: String, key: String): PlaybackSession =
+        Json.decodeFromString<PlaybackSession>(
+            post("/api/v1/playback-sessions") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody(Json.encodeToString(OpenPlayback(entryId, "watch", key)))
+            }.bodyAsText(),
+        )
+
+    @Test fun `a native provider imports as svc offerings, and adopting maps its implicit guide`() = runBlocking<Unit> {
+        withNative("sofa-native-") {
+            runtime.feeds.refresh(config)
+            val status = runtime.feeds.statuses.single()
+            assertEquals(2, status.channels)
+            assertEquals(2, status.sources)
+            assertNull(status.errorCode)
+            val offerings = runtime.feeds.published.offerings
+            assertEquals(setOf("svc://whale/one", "svc://whale/two"), offerings.map { it.url }.toSet())
+            assertTrue(offerings.all { it.protocol == "hls" })
+            val one = runtime.feeds.published.channels().first { it.name == "Channel One" }
+            assertEquals("101", one.displayNumber)
+            assertEquals(listOf("News", "us"), one.tags)
+            assertEquals("one", one.legacyGuideId)
+            assertEquals("${fixture.base}/logo.png", one.logo)
+            // The implicit native guide lists the channel, so adopting maps it.
+            val entry = runtime.adoptNative()
+            assertEquals("whale", runtime.guides.configs.single().provider)
+            assertEquals(GuideMapping("whale", "one"), entry.guide)
+            val window = runtime.catalog.guide(
+                GuideQuery(listOf(entry.id), "2026-10-10T12:00:00Z", "2026-10-10T13:00:00Z"),
+            )
+            assertEquals("Native program", window.channels.single().programs.single().title)
+        }
+    }
+
+    @Test fun `the relay resolves a native offering with its service headers, once per URL`() = testApplication {
+        withNative("sofa-native-") {
+            val entry = runtime.adoptNative()
+            application { backendModule(runtime.store, clock, runtime, token) }
+            val session = client.openSession(entry.id, "k1")
+            assertEquals("hls", session.descriptor.protocol)
+            val root = client.get(session.descriptor.url)
+            assertEquals(HttpStatusCode.OK, root.status)
+            val manifest = root.bodyAsText()
+            assertTrue(manifest.startsWith("#EXTM3U") && manifest.contains("/media/sessions/"), manifest)
+            assertFalse(
+                manifest.contains("svc://") || manifest.contains(fixture.base),
+                "nothing upstream leaks to the player",
+            )
+            assertEquals(1, fake.resolves.get())
+            // The media playlist is an absolute upstream URL by now; it still travels with the service headers.
+            val media = Regex("/media/sessions/\\S+\\.m3u8").findAll(manifest).map { it.value }.first {
+                it != session.descriptor.url
+            }
+            assertEquals(HttpStatusCode.OK, client.get(media).status)
+            assertEquals(1, fake.resolves.get(), "the resolution is cached for the session")
+            assertEquals(HttpStatusCode.OK, client.get(client.openSession(entry.id, "k2").descriptor.url).status)
+            assertEquals(1, fake.resolves.get(), "a second session reuses the cached resolution")
+            clock.now = clock.now.plus(Duration.ofMinutes(59).plusSeconds(1))
+            assertEquals(HttpStatusCode.OK, client.get(client.openSession(entry.id, "k3").descriptor.url).status)
+            assertEquals(2, fake.resolves.get(), "a minute before expiry the URL is minted again")
+
+            val two = runtime.lineup.entries().first { it.name == "Channel Two" }
+            val refused = client.get(client.openSession(two.id, "k4").descriptor.url)
+            assertEquals(HttpStatusCode.BadGateway, refused.status)
+            assertEquals("UPSTREAM_UNAVAILABLE", Json.decodeFromString<ApiError>(refused.bodyAsText()).code)
+        }
+    }
 
     @Test fun `probes qualify a native source at its resolved URL and class a dead service as provider evidence`() =
         runBlocking<Unit> {
-            val dir = Files.createTempDirectory("sofa-native-probe-")
-            Fixture().use { fixture ->
-                val clock = MutableClock()
-                val fake = FakeClient(fixture.base, clock)
-                val http = ProviderFixture.httpClient()
-                val runtime = runtime(dir, fake, clock, http)
-                try {
-                    runtime.feeds.refresh(config)
-                    val seen = ArrayList<Pair<String, Map<String, String>>>()
-                    val worker =
-                        ProbeWorker(
-                            runtime.feeds,
-                            runtime.store,
-                            clock,
-                            "unused",
-                            config = ProbeConfig(parallelism = 1),
-                        ) {
-                                offering,
-                                headers,
-                            ->
-                            seen += offering.url to headers
-                            if (offering.url.startsWith("svc://")) FailureClass.OFFERING else null
-                        }
-                    assertTrue(worker.step())
-                    assertTrue(worker.step())
-                    assertFalse(worker.step())
-                    val one = runtime.feeds.published.offerings.first { it.url == "svc://whale/one" }
-                    val two = runtime.feeds.published.offerings.first { it.url == "svc://whale/two" }
-                    assertEquals(HealthStatus.HEALTHY, runtime.store.health(one.id)!!.status)
-                    assertEquals(
-                        "${fixture.base}/master.m3u8?session=1" to
-                            mapOf("User-Agent" to "sofa-fixture-ua", "Origin" to "https://svc.test"),
-                        seen.single(),
-                    )
-                    assertEquals(
-                        HealthStatus.SUSPECT,
-                        runtime.store.health(two.id)!!.status,
-                        "a channel the service dropped is offering evidence",
-                    )
-                    fake.failResolve = ProviderFailure("api down")
-                    clock.now = clock.now.plus(Duration.ofHours(7))
-                    assertTrue(worker.step())
-                    assertTrue(worker.step())
-                    assertEquals(
-                        HealthStatus.HEALTHY,
-                        runtime.store.health(one.id)!!.status,
-                        "cached resolution still serves the probe",
-                    )
-                    assertEquals(HealthStatus.SUSPECT, runtime.store.health(two.id)!!.status)
-                    assertTrue(runtime.store.health(two.id)!!.failures.size == 1, "a service outage adds no strike")
-                } finally {
-                    runtime.close()
-                    runtime.store.close()
-                    dir.toFile().deleteRecursively()
-                }
+            withNative("sofa-native-probe-") {
+                runtime.feeds.refresh(config)
+                val seen = ArrayList<Pair<String, Map<String, String>>>()
+                val worker =
+                    ProbeWorker(
+                        runtime.feeds,
+                        runtime.store,
+                        clock,
+                        "unused",
+                        config = ProbeConfig(parallelism = 1),
+                    ) {
+                            offering,
+                            headers,
+                        ->
+                        seen += offering.url to headers
+                        if (offering.url.startsWith("svc://")) FailureClass.OFFERING else null
+                    }
+                assertTrue(worker.step())
+                assertTrue(worker.step())
+                assertFalse(worker.step())
+                val one = runtime.feeds.published.offerings.first { it.url == "svc://whale/one" }
+                val two = runtime.feeds.published.offerings.first { it.url == "svc://whale/two" }
+                assertEquals(HealthStatus.HEALTHY, runtime.store.health(one.id)!!.status)
+                assertEquals(
+                    "${fixture.base}/master.m3u8?session=1" to
+                        mapOf("User-Agent" to "sofa-fixture-ua", "Origin" to "https://svc.test"),
+                    seen.single(),
+                )
+                assertEquals(
+                    HealthStatus.SUSPECT,
+                    runtime.store.health(two.id)!!.status,
+                    "a channel the service dropped is offering evidence",
+                )
+                fake.failResolve = ProviderFailure("api down")
+                clock.now = clock.now.plus(Duration.ofHours(7))
+                assertTrue(worker.step())
+                assertTrue(worker.step())
+                assertEquals(
+                    HealthStatus.HEALTHY,
+                    runtime.store.health(one.id)!!.status,
+                    "cached resolution still serves the probe",
+                )
+                assertEquals(HealthStatus.SUSPECT, runtime.store.health(two.id)!!.status)
+                assertTrue(runtime.store.health(two.id)!!.failures.size == 1, "a service outage adds no strike")
             }
         }
 

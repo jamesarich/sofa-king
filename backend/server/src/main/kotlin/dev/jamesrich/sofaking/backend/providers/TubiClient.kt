@@ -5,7 +5,6 @@ import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import kotlinx.serialization.json.JsonElement
 import java.time.Duration
-import java.time.Instant
 
 /**
  * Tubi's live channels as tubitv.com/live serves them to a signed-out visitor: the page's `window.__data` state

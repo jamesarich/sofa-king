@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.api.PolicyUnmappedCategory
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.PolicyService
 import dev.jamesrich.sofaking.backend.store.allHealth
@@ -135,3 +136,12 @@ internal class PolicyPages(private val portal: Portal, private val editor: Polic
 }
 
 private val SUGGESTION = Regex("(.+): possible alias of (.+)")
+
+internal class MergesView(
+    val revision: String,
+    val learned: Map<String, String>,
+    val never: List<List<String>>,
+    val suggestions: List<Pair<String, String>>,
+    val findings: List<String>,
+    val unmapped: List<PolicyUnmappedCategory>,
+)

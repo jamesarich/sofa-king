@@ -136,3 +136,34 @@ internal fun isOverride(key: String, station: StationOverride, policy: LineupPol
         exclude.isNotEmpty() ||
         (number != null && key !in policy.numbering.assigned)
 }
+
+internal class LineupView(
+    val filter: LineupFilter,
+    val rows: List<StationRow>,
+    val matches: Int,
+    val total: Int,
+    val pages: Int,
+    val groups: List<String>,
+    /** The policy revision the row actions write against; null without a policy. */
+    val revision: String?,
+    /** Groups a station can be put in: the lineup's groups and the policy's numbered groups. */
+    val groupChoices: List<String> = groups,
+    val enabled: Int = 0,
+    /** Every row's checkbox starts checked, from the "Select all on this page" link. */
+    val selectAll: Boolean = false,
+    /** The entry ids whose checkboxes stay checked, after a refused bulk edit. */
+    val selected: Set<String> = emptySet(),
+    /** A bulk edit waiting for the operator. */
+    val confirm: Confirm? = null,
+) {
+    /** [view] with the selection state of a bulk edit. */
+    constructor(
+        view: LineupView,
+        selectAll: Boolean = view.selectAll,
+        selected: Set<String> = view.selected,
+        confirm: Confirm? = view.confirm,
+    ) : this(
+        view.filter, view.rows, view.matches, view.total, view.pages, view.groups, view.revision, view.groupChoices,
+        view.enabled, selectAll, selected, confirm,
+    )
+}

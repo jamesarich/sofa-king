@@ -6,7 +6,6 @@ complexity:
       - '**/admin/AdminAds.kt'
       - '**/admin/AdminApi.kt'
       - '**/admin/AdminLibrary.kt'
-      - '**/admin/AdminPages.kt'
       - '**/admin/AdminPolicyEdits.kt'
       - '**/admin/AdminRecordings.kt'
       - '**/admin/AdminSettings.kt'
@@ -19,7 +18,6 @@ complexity:
     excludes:
       - '**/*Test/**'
       - '**/test/**'
-      - '**/admin/AdminPages.kt'
       - '**/admin/AdminPolicyEdits.kt'
       - '**/admin/AdminSettings.kt'
       - '**/admin/AdminSetup.kt'
@@ -27,7 +25,6 @@ complexity:
   CyclomaticComplexMethod:
     excludes:
       - '**/admin/AdminLibrary.kt'
-      - '**/admin/AdminPages.kt'
       - '**/admin/AdminPolicyEdits.kt'
       - '**/admin/AdminRecordings.kt'
       - '**/admin/AdminSettings.kt'

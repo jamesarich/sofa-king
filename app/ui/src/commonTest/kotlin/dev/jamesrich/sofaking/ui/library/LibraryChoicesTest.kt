@@ -76,6 +76,10 @@ class LibraryChoicesTest {
         )
         assertEquals(listOf(CardMenuEntry.MARK_WATCHED), cardMenuEntries(partway, playFromStart = false))
         assertEquals(
+            listOf(CardMenuEntry.DETAILS, CardMenuEntry.PLAY_FROM_START, CardMenuEntry.MARK_WATCHED),
+            cardMenuEntries(partway, playFromStart = true, details = true),
+        )
+        assertEquals(
             listOf(CardMenuEntry.MARK_UNWATCHED),
             cardMenuEntries(item("m", ItemKind.MOVIE, PlayProgress(0, 6_000_000, true)), playFromStart = true),
         )

@@ -10,6 +10,6 @@ internal class ItemDetailsActions(
     val onRetry: () -> Unit,
     val onPerson: (String) -> Unit = {},
     val onOpenShow: (String) -> Unit = {},
-    /** Opens another item's page, from More like this. */
+    /** Opens another item's page: an episode from its row's menu, or a title from More like this. */
     val onOpenItem: (MediaItem) -> Unit = {},
 )

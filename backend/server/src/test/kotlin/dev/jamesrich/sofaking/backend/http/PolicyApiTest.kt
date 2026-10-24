@@ -11,12 +11,12 @@ import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
 import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.store.openStore
-import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.encodeURLPathPart
+import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
@@ -29,11 +29,65 @@ import kotlin.test.assertTrue
 
 class PolicyApiTest {
     private val json = Json { encodeDefaults = true }
+    private val token = "secret".repeat(8)
+    private val admin = "curator".repeat(6)
+    private val policyText = """{"providers":[{"id":"alt"},{"id":"fixture"}],"health":{"requireVerified":false},""" +
+        """"numbering":{"floor":100},"stations":{"station":{"group":"Local"}}}"""
 
-    @Test fun `the policy, its preview and a station's candidates are served read-only`() = testApplication {
+    @Test fun `the policy document is served to the admin token with its revision`() = policyApi {
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/admin/policy") { bearerAuth(token) }.status)
+        val document = admin<PolicyDocument>("/api/v1/admin/policy")
+        assertEquals(hash(policyText), document.revision)
+        assertEquals(listOf("alt", "fixture"), document.policy.providers.map { it.id })
+    }
+
+    @Test fun `the preview shows the merge the policy makes and writes nothing`() = policyApi {
+        val before = runtime.lineup.entries()
+        val preview = admin<PolicyPreview>("/api/v1/admin/policy/preview")
+        assertEquals(1, preview.stations)
+        assertEquals(1, preview.enabledStations)
+        assertEquals(listOf(PolicyRegrouping(listOf("station"), before.map { it.id }.sorted())), preview.merges)
+        assertTrue(preview.added.isEmpty())
+        assertTrue(preview.removed.isEmpty())
+        assertTrue(preview.splits.isEmpty())
+        assertEquals(1, preview.counts["merges"])
+        assertEquals(hash(policyText), preview.revision)
+        assertFalse(
+            client.get("/api/v1/admin/policy/preview") { bearerAuth(admin) }.bodyAsText().contains("/alt.m3u8"),
+            "the preview never carries stream URLs",
+        )
+        assertEquals(before, runtime.lineup.entries(), "a preview writes nothing")
+    }
+
+    @Test fun `a station's explanation lists its sources in order and why each candidate is there`() = policyApi {
+        val explained = admin<StationExplanation>("/api/v1/admin/stations/station")
+        assertEquals("Local", explained.station?.group)
+        assertEquals("5", explained.station?.number, "the provider number is free")
+        val published = runtime.feeds.published
+        val offerings = listOf("alt", "fixture").map { provider ->
+            published.offeringsOf(published.channels(provider).single().id).single().id
+        }
+        assertEquals(offerings, explained.station?.offeringIds)
+        assertEquals(listOf("fallback source", "leading candidate"), explained.candidates.map { it.reason }.sorted())
+        assertEquals("leading candidate", explained.candidates.single { it.providerId == "alt" }.reason)
+    }
+
+    @Test fun `an unknown station explains as no station and no candidates`() = policyApi {
+        val unknown = admin<StationExplanation>("/api/v1/admin/stations/${"no such station".encodeURLPathPart()}")
+        assertNull(unknown.station)
+        assertTrue(unknown.candidates.isEmpty())
+    }
+
+    /** A policy leading with the alt feed over the fixture's, both adopted into the lineup, one entry each. */
+    private inner class PolicyApi(val app: ApplicationTestBuilder, val runtime: LiveRuntime) {
+        val client get() = app.client
+
+        suspend inline fun <reified T> admin(path: String): T =
+            Json.decodeFromString(client.get(path) { bearerAuth(admin) }.bodyAsText())
+    }
+
+    private fun policyApi(block: suspend PolicyApi.() -> Unit) = testApplication {
         val dir = Files.createTempDirectory("sofa-policy-api-")
-        val token = "secret".repeat(8)
-        val admin = "curator".repeat(6)
         Fixture().use { fixture ->
             val sources = dir.resolve("sources.json")
             Files.writeString(
@@ -41,8 +95,6 @@ class PolicyApiTest {
                 """{"providers":${json.encodeToString(listOf(fixture.feed, fixture.altFeed))},"guides":[]}""",
             )
             val policyFile = dir.resolve("policy.json")
-            val policyText = """{"providers":[{"id":"alt"},{"id":"fixture"}],"health":{"requireVerified":false},""" +
-                """"numbering":{"floor":100},"stations":{"station":{"group":"Local"}}}"""
             Files.writeString(policyFile, policyText)
             val store = openStore(dir)
             val config =
@@ -56,89 +108,14 @@ class PolicyApiTest {
                     adminToken = admin,
                     policyFile = policyFile,
                 )
-            val runtime = LiveRuntime.create(
-                store,
-                config,
-                MutableClock(),
-                policyDebounceMillis = 3_600_000,
-                probes = false,
-            )
+            val runtime =
+                LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 3_600_000, probes = false)
             try {
                 for (provider in runtime.feeds.configs) runtime.feeds.refresh(provider)
                 runtime.adoptAll()
-                val before = runtime.lineup.entries()
-                assertEquals(2, before.size, "adoption makes one entry per provider")
+                assertEquals(2, runtime.lineup.entries().size, "adoption makes one entry per provider")
                 application { backendModule(store, MutableClock(), runtime, token, admin) }
-                suspend fun HttpRequestBuilder.asAdmin() {
-                    bearerAuth(admin)
-                }
-
-                assertEquals(
-                    HttpStatusCode.Unauthorized,
-                    client.get("/api/v1/admin/policy") {
-                        bearerAuth(token)
-                    }.status,
-                )
-                val document = Json.decodeFromString<PolicyDocument>(
-                    client.get("/api/v1/admin/policy") {
-                        asAdmin()
-                    }.bodyAsText(),
-                )
-                assertEquals(hash(policyText), document.revision)
-                assertEquals(listOf("alt", "fixture"), document.policy.providers.map { it.id })
-
-                val preview = Json.decodeFromString<PolicyPreview>(
-                    client.get("/api/v1/admin/policy/preview") {
-                        asAdmin()
-                    }.bodyAsText(),
-                )
-                assertEquals(1, preview.stations)
-                assertEquals(1, preview.enabledStations)
-                assertEquals(listOf(PolicyRegrouping(listOf("station"), before.map { it.id }.sorted())), preview.merges)
-                assertTrue(preview.added.isEmpty())
-                assertTrue(preview.removed.isEmpty())
-                assertTrue(preview.splits.isEmpty())
-                assertEquals(1, preview.counts["merges"])
-                assertEquals(document.revision, preview.revision)
-                assertFalse(
-                    client.get("/api/v1/admin/policy/preview") {
-                        asAdmin()
-                    }.bodyAsText().contains("/alt.m3u8"),
-                    "the preview never carries stream URLs",
-                )
-                assertEquals(before, runtime.lineup.entries(), "a preview writes nothing")
-
-                val explained = Json.decodeFromString<StationExplanation>(
-                    client.get("/api/v1/admin/stations/station") {
-                        asAdmin()
-                    }.bodyAsText(),
-                )
-                assertEquals("Local", explained.station?.group)
-                assertEquals("5", explained.station?.number, "the provider number is free")
-                val alt = runtime.feeds.published.channels("alt").single()
-                assertEquals(
-                    listOf(
-                        runtime.feeds.published.offeringsOf(alt.id).single().id,
-                        runtime.feeds.published.offeringsOf(
-                            runtime.feeds.published.channels("fixture").single().id,
-                        ).single().id,
-                    ),
-                    explained.station?.offeringIds,
-                )
-                assertEquals(
-                    listOf("fallback source", "leading candidate"),
-                    explained.candidates.map {
-                        it.reason
-                    }.sorted(),
-                )
-                assertEquals("leading candidate", explained.candidates.single { it.providerId == "alt" }.reason)
-                val unknown = Json.decodeFromString<StationExplanation>(
-                    client.get("/api/v1/admin/stations/${"no such station".encodeURLPathPart()}") {
-                        asAdmin()
-                    }.bodyAsText(),
-                )
-                assertNull(unknown.station)
-                assertTrue(unknown.candidates.isEmpty())
+                PolicyApi(this, runtime).block()
             } finally {
                 runtime.close()
                 store.close()
@@ -149,7 +126,6 @@ class PolicyApiTest {
 
     @Test fun `without SOFA_POLICY the routes answer 404, and an invalid policy stops the start`() = testApplication {
         val dir = Files.createTempDirectory("sofa-policy-off-")
-        val token = "secret".repeat(8)
         Fixture().use { fixture ->
             val sources = dir.resolve("sources.json")
             Files.writeString(sources, """{"providers":${json.encodeToString(listOf(fixture.feed))},"guides":[]}""")

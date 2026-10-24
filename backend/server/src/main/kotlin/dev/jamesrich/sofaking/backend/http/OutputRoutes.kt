@@ -24,8 +24,6 @@ import java.net.URLEncoder
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 
 /**
  * The lineup for third-party players under `/output`: an M3U playlist, an XMLTV guide and one stream URL per
@@ -35,68 +33,15 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
     route("/output") {
         get("/playlist.m3u") {
             authorizeOutput(call, config.token, apiToken)
-            val base = publicBase(call)
-            val query = tokenQuery(config.token)
-            val channels = runtime.catalog.catalog().channels
-            val entries = runtime.lineup.entries().associateBy { it.id }
-            val preferred = runtime.sessions.sources.preferredOfferings(channels.map { it.id })
-            call.response.header(HttpHeaders.CacheControl, "no-store")
-            call.respondTextWriter(ContentType.parse("audio/x-mpegurl").withCharset(Charsets.UTF_8)) {
-                write("#EXTM3U url-tvg=\"$base/output/guide.xml$query\" x-tvg-url=\"$base/output/guide.xml$query\"\n")
-                for (channel in channels) {
-                    // Players infer the stream type from the suffix; a channel with no eligible source
-                    // lists as TS and fails at play time.
-                    val suffix = if (preferred[channel.id]?.protocol == "hls") "m3u8" else "ts"
-                    write(
-                        "#EXTINF:-1 tvg-id=\"${channel.id}\" tvg-chno=\"${attribute(channel.displayNumber)}\" " +
-                            "tvg-name=\"${attribute(channel.name)}\"",
-                    )
-                    channel.logo?.let { write(" tvg-logo=\"${runtime.logos.publicUrl(base, it)}\"") }
-                    entries[channel.id]?.group?.let { write(" group-title=\"${attribute(it)}\"") }
-                    write(",${attribute(channel.name)}\n$base/output/stream/${channel.id}.$suffix$query\n")
-                }
-            }
+            playlist(call, runtime, tokenQuery(config.token))
         }
         get("/guide.xml") {
             authorizeOutput(call, config.token, apiToken)
             val days = call.request.queryParameters["days"]?.let { raw ->
-                raw.toIntOrNull()?.takeIf { it in 1..14 }
+                raw.toIntOrNull()?.takeIf { it in 1..MAX_GUIDE_DAYS }
                     ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_QUERY", "days must be between 1 and 14")
             } ?: runtime.settings.current.guideDays
-            val now = clock.instant()
-            val from = now.minus(Duration.ofHours(3))
-            val to = now.plus(Duration.ofDays(days.toLong()))
-            val channels = runtime.catalog.catalog().channels
-            val entries = channels.mapNotNull { channel -> runtime.lineup.entry(channel.id) }.associateBy { it.id }
-            val mappings = channels.mapNotNull { channel -> entries[channel.id]?.guide?.let { channel.id to it } }
-            val programs = HashMap<String, List<GuideProgram>>()
-            for ((guideId, group) in mappings.groupBy { it.second.guideId }) {
-                val rows = runtime.guides.programs(guideId, group.map { it.second.channelId }, from, to)
-                for ((entryId, mapping) in group) programs[entryId] = rows[mapping.channelId].orEmpty()
-            }
-            val base = publicBase(call)
-            call.response.header(HttpHeaders.CacheControl, "no-store")
-            call.respondTextWriter(ContentType.Application.Xml.withCharset(Charsets.UTF_8)) {
-                write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<tv generator-info-name=\"sofa-king-backend\">\n")
-                for (channel in channels) {
-                    write(
-                        "<channel id=\"${xml(channel.id)}\"><display-name>${xml(channel.name)}</" +
-                            "display-name><display-name>${xml(channel.displayNumber)}</display-name>",
-                    )
-                    channel.logo?.let { write("<icon src=\"${xml(runtime.logos.publicUrl(base, it))}\"/>") }
-                    write("</channel>\n")
-                }
-                for (channel in channels) {
-                    val group = entries[channel.id]?.group
-                    // A channel with nothing in the window gets hourly placeholders, so Plex
-                    // lists and records it like the rest.
-                    val listed = programs[channel.id].orEmpty().ifEmpty {
-                        placeholders(channel.id, channel.name, from, to)
-                    }
-                    for (program in listed) write(xmltvProgram(channel.id, program, group))
-                }
-                write("</tv>\n")
-            }
+            guide(call, runtime, clock.instant(), days)
         }
         get("/stream/{id}") {
             authorizeOutput(call, config.token, apiToken)
@@ -110,6 +55,72 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
                 true
             }
         }
+    }
+}
+
+private const val MAX_GUIDE_DAYS = 14
+
+/** How far back the guide starts, so a player tuning in mid-program still sees it. */
+private val GUIDE_LOOKBACK = Duration.ofHours(3)
+
+/** The M3U playlist of the lineup's channels, each stream URL carrying [query]. */
+private suspend fun playlist(call: ApplicationCall, runtime: LiveRuntime, query: String) {
+    val base = publicBase(call)
+    val channels = runtime.catalog.catalog().channels
+    val entries = runtime.lineup.entries().associateBy { it.id }
+    val preferred = runtime.sessions.sources.preferredOfferings(channels.map { it.id })
+    call.response.header(HttpHeaders.CacheControl, "no-store")
+    call.respondTextWriter(ContentType.parse("audio/x-mpegurl").withCharset(Charsets.UTF_8)) {
+        write("#EXTM3U url-tvg=\"$base/output/guide.xml$query\" x-tvg-url=\"$base/output/guide.xml$query\"\n")
+        for (channel in channels) {
+            // Players infer the stream type from the suffix; a channel with no eligible source
+            // lists as TS and fails at play time.
+            val suffix = if (preferred[channel.id]?.protocol == "hls") "m3u8" else "ts"
+            write(
+                "#EXTINF:-1 tvg-id=\"${channel.id}\" tvg-chno=\"${attribute(channel.displayNumber)}\" " +
+                    "tvg-name=\"${attribute(channel.name)}\"",
+            )
+            channel.logo?.let { write(" tvg-logo=\"${runtime.logos.publicUrl(base, it)}\"") }
+            entries[channel.id]?.group?.let { write(" group-title=\"${attribute(it)}\"") }
+            write(",${attribute(channel.name)}\n$base/output/stream/${channel.id}.$suffix$query\n")
+        }
+    }
+}
+
+/** The XMLTV guide of the lineup's channels for [days] from [now]. */
+private suspend fun guide(call: ApplicationCall, runtime: LiveRuntime, now: Instant, days: Int) {
+    val from = now.minus(GUIDE_LOOKBACK)
+    val to = now.plus(Duration.ofDays(days.toLong()))
+    val channels = runtime.catalog.catalog().channels
+    val entries = channels.mapNotNull { channel -> runtime.lineup.entry(channel.id) }.associateBy { it.id }
+    val mappings = channels.mapNotNull { channel -> entries[channel.id]?.guide?.let { channel.id to it } }
+    val programs = HashMap<String, List<GuideProgram>>()
+    for ((guideId, group) in mappings.groupBy { it.second.guideId }) {
+        val rows = runtime.guides.programs(guideId, group.map { it.second.channelId }, from, to)
+        for ((entryId, mapping) in group) programs[entryId] = rows[mapping.channelId].orEmpty()
+    }
+    val base = publicBase(call)
+    call.response.header(HttpHeaders.CacheControl, "no-store")
+    call.respondTextWriter(ContentType.Application.Xml.withCharset(Charsets.UTF_8)) {
+        write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<tv generator-info-name=\"sofa-king-backend\">\n")
+        for (channel in channels) {
+            write(
+                "<channel id=\"${xml(channel.id)}\"><display-name>${xml(channel.name)}</" +
+                    "display-name><display-name>${xml(channel.displayNumber)}</display-name>",
+            )
+            channel.logo?.let { write("<icon src=\"${xml(runtime.logos.publicUrl(base, it))}\"/>") }
+            write("</channel>\n")
+        }
+        for (channel in channels) {
+            val group = entries[channel.id]?.group
+            // A channel with nothing in the window gets hourly placeholders, so Plex
+            // lists and records it like the rest.
+            val listed = programs[channel.id].orEmpty().ifEmpty {
+                placeholders(channel.id, channel.name, from, to)
+            }
+            for (program in listed) write(xmltvProgram(channel.id, program, group))
+        }
+        write("</tv>\n")
     }
 }
 
@@ -127,37 +138,36 @@ internal suspend fun serveExternal(
     hls: suspend (PlaybackSession) -> Boolean,
 ) {
     val sessions = runtime.sessions
-    if (shareHls) {
-        sessions.external.joinable(channelId)?.let {
-            hls(it)
-            return
+    val joined = if (shareHls) sessions.external.joinable(channelId) else null
+    if (joined != null) {
+        hls(joined)
+    } else {
+        val opened = sessions.external.open(channelId, call.request.origin.remoteAddress)
+        var release = true
+        try {
+            release = serveOpened(call, runtime, opened, hls)
+        } finally {
+            if (release) withContext(NonCancellable) { sessions.release(opened.id) }
         }
     }
-    val opened = sessions.external.open(channelId, call.request.origin.remoteAddress)
-    var release = true
+}
+
+/** Serves [session], once more if the first fetch found the stream changed; true when it is to be released. */
+private suspend fun serveOpened(
+    call: ApplicationCall,
+    runtime: LiveRuntime,
+    session: PlaybackSession,
+    hls: suspend (PlaybackSession) -> Boolean,
+    retried: Boolean = false,
+): Boolean {
+    if (session.descriptor.protocol == "hls") return !hls(session)
     try {
-        var current = opened
-        for (attempt in 0..1) {
-            if (current.descriptor.protocol == "hls") {
-                release = !hls(current)
-                return
-            }
-            try {
-                runtime.relay.serve(
-                    call,
-                    current.id,
-                    current.descriptor.epoch,
-                    current.descriptor.url.substringAfterLast('/'),
-                )
-                return
-            } catch (e: ApiFailure) {
-                if (e.code != "STREAM_CHANGED" || attempt == 1) throw e
-            }
-            current = sessions.get(current.id)
-        }
-    } finally {
-        if (release) withContext(NonCancellable) { sessions.release(opened.id) }
+        runtime.relay.serve(call, session.id, session.descriptor.epoch, session.descriptor.url.substringAfterLast('/'))
+    } catch (e: ApiFailure) {
+        if (e.code != "STREAM_CHANGED" || retried) throw e
+        return serveOpened(call, runtime, runtime.sessions.get(session.id), hls, retried = true)
     }
+    return true
 }
 
 /**
@@ -204,100 +214,3 @@ internal fun tokenQuery(token: String?): String = token?.let { "?token=" + URLEn
 private val LINE_BREAK = Regex("[\\r\\n]")
 
 private fun attribute(value: String): String = value.replace('"', '\'').replace(LINE_BREAK, " ").trim()
-
-private val xmltvFormat = DateTimeFormatter.ofPattern("yyyyMMddHHmmss").withZone(ZoneOffset.UTC)
-
-private fun xmltvTime(instant: Instant): String = xmltvFormat.format(instant) + " +0000"
-
-private val airDateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC)
-
-private fun airDate(instant: Instant): String = airDateFormat.format(instant)
-
-/** One program titled [name] for each hour from the hour [from] falls in up to [to]. */
-internal fun placeholders(channelId: String, name: String, from: Instant, to: Instant): List<GuideProgram> =
-    generateSequence(from.truncatedTo(java.time.temporal.ChronoUnit.HOURS)) { it.plus(Duration.ofHours(1)) }
-        .takeWhile { it < to }
-        .map { start -> GuideProgram(channelId, start, start.plus(Duration.ofHours(1)), name) }
-        .toList()
-
-internal const val XMLTV_MOVIE = "Movie"
-
-/** The kinds Plex sorts a program by, in the order a program's categories list them. */
-private val PLEX_KINDS = listOf(XMLTV_MOVIE, "Sports", "News", "Children", "Series").map(String::lowercase)
-
-/**
- * One `<programme>` line for the channel [channelId], children in XMLTV DTD order. The categories are the source's
- * own with any Plex kind first, else the ones [xmltvCategories] derives from the channel's [group]. A program the
- * source did not number and that is not a movie gets its start time as `original-air-date`, since Plex files a
- * program without episode numbering as a movie.
- */
-internal fun xmltvProgram(channelId: String, program: GuideProgram, group: String?): String = buildString {
-    val lang = program.language?.let { " lang=\"${xml(it)}\"" }.orEmpty()
-    append(
-        "<programme start=\"${xmltvTime(program.startsAt)}\" stop=\"${xmltvTime(program.endsAt)}\" " +
-            "channel=\"${xml(channelId)}\">",
-    )
-    append("<title$lang>${xml(program.title)}</title>")
-    program.subTitle?.let { append("<sub-title$lang>${xml(it)}</sub-title>") }
-    program.description?.let { append("<desc$lang>${xml(it)}</desc>") }
-    program.date?.let { append("<date>${xml(it)}</date>") }
-    val derived = xmltvCategories(group)
-    if (program.categories.isEmpty()) {
-        derived.forEach { append("<category lang=\"en\">${xml(it)}</category>") }
-    } else {
-        program.categories.sortedBy { category ->
-            PLEX_KINDS.indexOf(category.lowercase()).let {
-                if (it < 0) {
-                    PLEX_KINDS.size
-                } else {
-                    it
-                }
-            }
-        }
-            .forEach { append("<category$lang>${xml(it)}</category>") }
-    }
-    program.icon?.let { append("<icon src=\"${xml(it)}\"/>") }
-    program.episodeNumbers.forEach {
-        append("<episode-num system=\"${xml(it.system)}\">${xml(it.value)}</episode-num>")
-    }
-    val movie = derived.first() == XMLTV_MOVIE || program.categories.any { it.equals(XMLTV_MOVIE, ignoreCase = true) }
-    if (program.episodeNumbers.isEmpty() && !movie) {
-        append("<episode-num system=\"original-air-date\">${airDate(program.startsAt)}</episode-num>")
-    }
-    program.previouslyShown?.let { shown ->
-        append(shown.start?.let { "<previously-shown start=\"${xml(it)}\"/>" } ?: "<previously-shown/>")
-    }
-    if (program.isNew) append("<new/>")
-    program.rating?.let { rating ->
-        append(rating.system?.let { "<rating system=\"${xml(it)}\">" } ?: "<rating>")
-        append("<value>${xml(rating.value)}</value></rating>")
-    }
-    append("</programme>\n")
-}
-
-/**
- * A station group's XMLTV categories: the kind Plex sorts by (Movie, Sports, News, Children or Series), then the group.
- */
-internal fun xmltvCategories(group: String?): List<String> {
-    val kind = when (group?.lowercase()) {
-        "movies" -> XMLTV_MOVIE
-        "sports" -> "Sports"
-        "news", "local", "local news (us)" -> "News"
-        "kids & family" -> "Children"
-        else -> "Series"
-    }
-    return listOfNotNull(kind, group?.takeIf { it.isNotBlank() && !it.equals(kind, ignoreCase = true) })
-}
-
-internal fun xml(value: String): String = buildString(value.length) {
-    for (char in value) {
-        when {
-            char == '&' -> append("&amp;")
-            char == '<' -> append("&lt;")
-            char == '>' -> append("&gt;")
-            char == '"' -> append("&quot;")
-            char < ' ' && char != '\t' && char != '\n' && char != '\r' -> Unit
-            else -> append(char)
-        }
-    }
-}

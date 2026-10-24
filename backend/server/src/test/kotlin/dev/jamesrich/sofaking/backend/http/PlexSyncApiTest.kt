@@ -145,82 +145,64 @@ class PlexSyncApiTest {
         }
     }
 
-    @Test
-    fun `an apply that changes the lineup syncs Plex after the debounce, and the status and findings report it`() =
-        testApplication {
-            FakePlex().use { plex ->
-                withRuntime(plex) { runtime ->
-                    val sync = runtime.plex!!
-                    pollUntil(10_000) { sync.status().lastCause == "startup" }
-                    assertEquals(1, plex.syncs())
+    @Test fun `a changing apply syncs Plex after the debounce, a no-op one does not`() = plexSync { plex, runtime ->
+        val sync = runtime.plex!!
+        assertTrue(apply().changed)
+        // Idle: the policy sync has finished and the loop waits for the next request.
+        pollUntil(10_000) {
+            plex.syncs() == 2 && sync.status().lastCause == "policy" &&
+                runtime.jobs.snapshot().none { it.id == "plex" && it.running }
+        }
+        // A sync request of its own after the apply: had the apply asked for one, the loop would already be in
+        // that sync's debounce, swallow this request and sync with the cause "policy".
+        assertFalse(apply().changed)
+        val beforeSentinel = sync.status()
+        sync.requestSync("now")
+        pollUntil(10_000) { sync.status() !== beforeSentinel }
+        assertEquals("now", sync.status().lastCause, "an apply that changed nothing does not sync")
+        assertEquals(3, plex.syncs())
+    }
 
-                    val applied = json.decodeFromString<PolicyApplyResult>(
-                        client.post("/api/v1/admin/policy/apply") {
-                            bearerAuth(admin)
-                        }.bodyAsText(),
-                    )
-                    assertTrue(applied.changed)
-                    // Idle: the policy sync has finished and the loop waits for the next request.
-                    pollUntil(10_000) {
-                        plex.syncs() == 2 && sync.status().lastCause == "policy" &&
-                            runtime.jobs.snapshot().none { it.id == "plex" && it.running }
-                    }
+    @Test fun `the status and findings name the devices Plex holds and the ones it lacks`() = plexSync { _, runtime ->
+        val second = hdhrDeviceId(HdhrConfig(deviceId = "ABCDEF01"), runtime.store.serverId(), 1)
+        val status = json.decodeFromString<PlexStatus>(
+            client.get("/api/v1/admin/plex") { bearerAuth(admin) }.bodyAsText(),
+        )
+        assertEquals(listOf("ABCDEF01" to 1), status.devices.map { it.deviceId to it.mapped })
+        assertEquals(listOf(second), status.missingDevices)
+        assertEquals(listOf("10"), status.dvrs)
+        val findings = json.decodeFromString<PolicyFindings>(
+            client.get("/api/v1/admin/policy/findings") { bearerAuth(admin) }.bodyAsText(),
+        ).findings
+        assertTrue("plex: device $second (device 1) is not added to Plex" in findings, "$findings")
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/admin/plex") { bearerAuth(token) }.status)
+    }
 
-                    // A sync request of its own after the apply: had the apply asked for one, the loop would already be
-                    // in that sync's debounce, swallow this request and sync with the cause "policy".
-                    assertFalse(
-                        json.decodeFromString<PolicyApplyResult>(
-                            client.post("/api/v1/admin/policy/apply") {
-                                bearerAuth(admin)
-                            }.bodyAsText(),
-                        ).changed,
-                    )
-                    val beforeSentinel = sync.status()
-                    sync.requestSync("now")
-                    pollUntil(10_000) { sync.status() !== beforeSentinel }
-                    assertEquals("now", sync.status().lastCause, "an apply that changed nothing does not sync")
-                    assertEquals(3, plex.syncs())
+    @Test fun `an API sync maps the device's channels with the Plex token in a header only`() = plexSync { plex, _ ->
+        val now = json.decodeFromString<PlexStatus>(
+            client.post("/api/v1/admin/plex/sync") { bearerAuth(admin) }.bodyAsText(),
+        )
+        assertEquals("api", now.lastCause)
+        assertEquals(2, plex.syncs())
+        val put = plex.seen.first { it.method == "PUT" }
+        assertTrue(put.uri.startsWith("/media/grabbers/devices/20/channelmap?"))
+        assertTrue(plex.seen.all { it.token == plexToken && plexToken !in it.uri })
+        assertEquals(2, plex.seen.count { it.uri == "/livetv/dvrs/10/reloadGuide" })
+    }
 
-                    val second = hdhrDeviceId(HdhrConfig(deviceId = "ABCDEF01"), runtime.store.serverId(), 1)
-                    val status = json.decodeFromString<PlexStatus>(
-                        client.get("/api/v1/admin/plex") {
-                            bearerAuth(admin)
-                        }.bodyAsText(),
-                    )
-                    assertEquals(listOf("ABCDEF01" to 1), status.devices.map { it.deviceId to it.mapped })
-                    assertEquals(listOf(second), status.missingDevices)
-                    assertEquals(listOf("10"), status.dvrs)
-                    val finding = "plex: device $second (device 1) is not added to Plex"
-                    assertTrue(
-                        finding in
-                            json.decodeFromString<PolicyFindings>(
-                                client.get("/api/v1/admin/policy/findings") {
-                                    bearerAuth(admin)
-                                }.bodyAsText(),
-                            ).findings,
-                    )
+    private suspend fun ApplicationTestBuilder.apply(): PolicyApplyResult =
+        json.decodeFromString(client.post("/api/v1/admin/policy/apply") { bearerAuth(admin) }.bodyAsText())
 
-                    assertEquals(
-                        HttpStatusCode.Unauthorized,
-                        client.get("/api/v1/admin/plex") {
-                            bearerAuth(token)
-                        }.status,
-                    )
-                    val now = json.decodeFromString<PlexStatus>(
-                        client.post("/api/v1/admin/plex/sync") {
-                            bearerAuth(admin)
-                        }.bodyAsText(),
-                    )
-                    assertEquals("api", now.lastCause)
-                    assertEquals(4, plex.syncs())
-
-                    val put = plex.seen.first { it.method == "PUT" }
-                    assertTrue(put.uri.startsWith("/media/grabbers/devices/20/channelmap?"))
-                    assertTrue(plex.seen.all { it.token == plexToken && plexToken !in it.uri })
-                    assertEquals(4, plex.seen.count { it.uri == "/livetv/dvrs/10/reloadGuide" })
-                }
+    /** Runs [block] against a fake Plex and a server syncing to it, once the startup sync has run. */
+    private fun plexSync(block: suspend ApplicationTestBuilder.(FakePlex, LiveRuntime) -> Unit) = testApplication {
+        FakePlex().use { plex ->
+            withRuntime(plex) { runtime ->
+                pollUntil(10_000) { runtime.plex!!.status().lastCause == "startup" }
+                assertEquals(1, plex.syncs())
+                block(plex, runtime)
             }
         }
+    }
 
     @Test fun `without SOFA_PLEX_URL there is no sync and the routes say so`() = testApplication {
         withRuntime(null) { runtime ->

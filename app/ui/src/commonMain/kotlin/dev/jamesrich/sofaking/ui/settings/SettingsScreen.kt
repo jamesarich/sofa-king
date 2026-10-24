@@ -5,42 +5,28 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.foundation.text.input.TextFieldState
-import androidx.compose.foundation.text.input.clearText
-import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.BuildInfo
@@ -58,118 +44,16 @@ import dev.jamesrich.sofaking.data.InstallFailure
 import dev.jamesrich.sofaking.data.InstallState
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.ReleaseNote
-import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.StartupTarget
 import dev.jamesrich.sofaking.data.SubtitleLook
-import dev.jamesrich.sofaking.data.SubtitleRaise
-import dev.jamesrich.sofaking.data.SubtitleSize
 import dev.jamesrich.sofaking.data.UpdateInstaller
 import dev.jamesrich.sofaking.data.UpdateState
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
-import dev.jamesrich.sofaking.resources.caption_smooth
-import dev.jamesrich.sofaking.resources.caption_smooth_help
-import dev.jamesrich.sofaking.resources.caption_style
-import dev.jamesrich.sofaking.resources.caption_style_large
-import dev.jamesrich.sofaking.resources.caption_style_system
-import dev.jamesrich.sofaking.resources.caption_timing
-import dev.jamesrich.sofaking.resources.caption_timing_help
-import dev.jamesrich.sofaking.resources.captions_setting
-import dev.jamesrich.sofaking.resources.recordings_skip_commercials
-import dev.jamesrich.sofaking.resources.recordings_skip_commercials_help
-import dev.jamesrich.sofaking.resources.recordings_title
 import dev.jamesrich.sofaking.resources.settings
-import dev.jamesrich.sofaking.resources.settings_ads_dodged
-import dev.jamesrich.sofaking.resources.settings_api_token
-import dev.jamesrich.sofaking.resources.settings_api_token_help
-import dev.jamesrich.sofaking.resources.settings_api_token_invalid
-import dev.jamesrich.sofaking.resources.settings_auto_open
-import dev.jamesrich.sofaking.resources.settings_auto_open_10
-import dev.jamesrich.sofaking.resources.settings_auto_open_30
-import dev.jamesrich.sofaking.resources.settings_auto_open_help
-import dev.jamesrich.sofaking.resources.settings_auto_open_off
-import dev.jamesrich.sofaking.resources.settings_auto_skip_intros
-import dev.jamesrich.sofaking.resources.settings_auto_skip_intros_help
-import dev.jamesrich.sofaking.resources.settings_buffer
-import dev.jamesrich.sofaking.resources.settings_buffer_fast
-import dev.jamesrich.sofaking.resources.settings_buffer_help
-import dev.jamesrich.sofaking.resources.settings_buffer_smooth
-import dev.jamesrich.sofaking.resources.settings_buffer_standard
-import dev.jamesrich.sofaking.resources.settings_caption_engine
-import dev.jamesrich.sofaking.resources.settings_caption_system
-import dev.jamesrich.sofaking.resources.settings_caption_timing_less
-import dev.jamesrich.sofaking.resources.settings_caption_timing_more
-import dev.jamesrich.sofaking.resources.settings_channels
 import dev.jamesrich.sofaking.resources.settings_channels_loaded
-import dev.jamesrich.sofaking.resources.settings_channels_open
-import dev.jamesrich.sofaking.resources.settings_decoder
-import dev.jamesrich.sofaking.resources.settings_decoder_auto
-import dev.jamesrich.sofaking.resources.settings_decoder_help
-import dev.jamesrich.sofaking.resources.settings_decoder_software
-import dev.jamesrich.sofaking.resources.settings_discovered_server
-import dev.jamesrich.sofaking.resources.settings_discovered_servers
-import dev.jamesrich.sofaking.resources.settings_guide_rows
-import dev.jamesrich.sofaking.resources.settings_hide_spoilers
-import dev.jamesrich.sofaking.resources.settings_hide_spoilers_help
-import dev.jamesrich.sofaking.resources.settings_live_breaks
-import dev.jamesrich.sofaking.resources.settings_live_breaks_help
-import dev.jamesrich.sofaking.resources.settings_live_breaks_play
-import dev.jamesrich.sofaking.resources.settings_live_breaks_screen
-import dev.jamesrich.sofaking.resources.settings_live_breaks_screen_muted
-import dev.jamesrich.sofaking.resources.settings_match_frame_rate
-import dev.jamesrich.sofaking.resources.settings_match_frame_rate_help
-import dev.jamesrich.sofaking.resources.settings_pair
-import dev.jamesrich.sofaking.resources.settings_pairing
-import dev.jamesrich.sofaking.resources.settings_pairing_code
-import dev.jamesrich.sofaking.resources.settings_pairing_code_invalid
-import dev.jamesrich.sofaking.resources.settings_pairing_failed_code
-import dev.jamesrich.sofaking.resources.settings_pairing_failed_server
-import dev.jamesrich.sofaking.resources.settings_pairing_failed_unreachable
-import dev.jamesrich.sofaking.resources.settings_pairing_help
-import dev.jamesrich.sofaking.resources.settings_preview_sound
-import dev.jamesrich.sofaking.resources.settings_rows_comfortable
-import dev.jamesrich.sofaking.resources.settings_rows_compact
-import dev.jamesrich.sofaking.resources.settings_save
 import dev.jamesrich.sofaking.resources.settings_section_about
-import dev.jamesrich.sofaking.resources.settings_section_captions
-import dev.jamesrich.sofaking.resources.settings_section_general
-import dev.jamesrich.sofaking.resources.settings_section_guide
-import dev.jamesrich.sofaking.resources.settings_section_library
 import dev.jamesrich.sofaking.resources.settings_section_lock
-import dev.jamesrich.sofaking.resources.settings_section_playback
-import dev.jamesrich.sofaking.resources.settings_section_server
-import dev.jamesrich.sofaking.resources.settings_server_cancel
-import dev.jamesrich.sofaking.resources.settings_server_change
-import dev.jamesrich.sofaking.resources.settings_server_connected
-import dev.jamesrich.sofaking.resources.settings_server_reload
-import dev.jamesrich.sofaking.resources.settings_server_reloading
-import dev.jamesrich.sofaking.resources.settings_server_unreachable
-import dev.jamesrich.sofaking.resources.settings_server_url
-import dev.jamesrich.sofaking.resources.settings_server_url_invalid
-import dev.jamesrich.sofaking.resources.settings_server_use_page
-import dev.jamesrich.sofaking.resources.settings_startup
-import dev.jamesrich.sofaking.resources.settings_startup_channel
-import dev.jamesrich.sofaking.resources.settings_startup_channel_none
-import dev.jamesrich.sofaking.resources.settings_startup_choose
-import dev.jamesrich.sofaking.resources.settings_startup_guide
-import dev.jamesrich.sofaking.resources.settings_startup_help
-import dev.jamesrich.sofaking.resources.settings_startup_library
-import dev.jamesrich.sofaking.resources.settings_startup_resume
-import dev.jamesrich.sofaking.resources.settings_subtitle_box
-import dev.jamesrich.sofaking.resources.settings_subtitle_box_help
-import dev.jamesrich.sofaking.resources.settings_subtitle_look_help
-import dev.jamesrich.sofaking.resources.settings_subtitle_raise
-import dev.jamesrich.sofaking.resources.settings_subtitle_raise_high
-import dev.jamesrich.sofaking.resources.settings_subtitle_raise_low
-import dev.jamesrich.sofaking.resources.settings_subtitle_raise_none
-import dev.jamesrich.sofaking.resources.settings_subtitle_size
-import dev.jamesrich.sofaking.resources.settings_subtitle_size_large
-import dev.jamesrich.sofaking.resources.settings_subtitle_size_medium
-import dev.jamesrich.sofaking.resources.settings_subtitle_size_small
-import dev.jamesrich.sofaking.resources.settings_time_12
-import dev.jamesrich.sofaking.resources.settings_time_24
-import dev.jamesrich.sofaking.resources.settings_time_auto
-import dev.jamesrich.sofaking.resources.settings_time_format
 import dev.jamesrich.sofaking.resources.settings_title
 import dev.jamesrich.sofaking.resources.settings_tmdb_notice
 import dev.jamesrich.sofaking.resources.settings_update_address
@@ -198,22 +82,11 @@ import dev.jamesrich.sofaking.resources.settings_version
 import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
-import dev.jamesrich.sofaking.ui.TvTextField
-import dev.jamesrich.sofaking.ui.captionEngineName
-import dev.jamesrich.sofaking.ui.hoursAndMinutes
-import dev.jamesrich.sofaking.ui.label
-import dev.jamesrich.sofaking.ui.localDay
-import dev.jamesrich.sofaking.ui.pageServerUrl
-import dev.jamesrich.sofaking.ui.player.CaptionPolicy
-import dev.jamesrich.sofaking.ui.player.captionTimingText
-import dev.jamesrich.sofaking.ui.rememberSystemCaptionSettings
 import dev.jamesrich.sofaking.ui.rememberUpdateInstaller
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
-import dev.jamesrich.sofaking.ui.supportsCaptionSync
 import dev.jamesrich.sofaking.ui.supportsPlaybackPreferences
 import dev.jamesrich.sofaking.ui.theme.SofaButton
-import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.updateDownloadUrl
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -221,8 +94,6 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.minutes
 
 /** The switches and choices Settings applies at once; each lands in the store as it is changed. */
 class SettingsActions(
@@ -295,712 +166,141 @@ fun SettingsScreen(
     /** The servers on the network, collected (and so browsed for) only while the server fields are open. */
     discoveredServers: Flow<List<DiscoveredServer>> = noServers,
 ) {
-    var captionAdvance by remember(settings.captionAdvanceMs) { mutableIntStateOf(settings.captionAdvanceMs) }
-    var smoothCaptions by remember(settings.smoothCaptions) { mutableStateOf(settings.smoothCaptions) }
-    var captionStyle by remember(settings.captionStyle) { mutableStateOf(settings.captionStyle) }
-    val serverUrl = rememberStoredFieldState(settings.serverUrl.ifEmpty { pageServerUrl.orEmpty() })
-    val apiToken = rememberStoredFieldState(settings.apiToken)
-    var captionsOn by remember(settings.captionsEnabled) { mutableStateOf(settings.captionsEnabled) }
-    var autoOpen by remember(settings.autoOpenDelay) { mutableStateOf(settings.autoOpenDelay) }
-    var previewSound by remember(settings.previewSound) { mutableStateOf(settings.previewSound) }
-    var startup by remember(settings.startup) { mutableStateOf(settings.startup) }
-    var clockFormat by remember(settings.clockFormat) { mutableStateOf(settings.clockFormat) }
-    var guideDensity by remember(settings.guideDensity) { mutableStateOf(settings.guideDensity) }
-    var matchFrameRate by remember(settings.playback.matchFrameRate) {
-        mutableStateOf(settings.playback.matchFrameRate)
-    }
-    var decoder by remember(settings.playback.decoder) { mutableStateOf(settings.playback.decoder) }
-    var buffer by remember(settings.playback.buffer) { mutableStateOf(settings.playback.buffer) }
-    var skipCommercials by remember(settings.skipCommercials) { mutableStateOf(settings.skipCommercials) }
-    var autoSkipIntros by remember(settings.autoSkipIntros) { mutableStateOf(settings.autoSkipIntros) }
-    var hideSpoilers by remember(settings.hideSpoilers) { mutableStateOf(settings.hideSpoilers) }
-    var subtitleLook by remember(settings.subtitleLook) { mutableStateOf(settings.subtitleLook) }
-    fun lookSubtitles(look: SubtitleLook) {
-        subtitleLook = look
-        actions.onSubtitleLookChanged(look)
-    }
-    var liveBreaks by remember(settings.liveBreaks) { mutableStateOf(settings.liveBreaks) }
-    val pairingCode = rememberTextFieldState()
-    val serverFocus = remember { FocusRequester() }
-    val tokenFocus = remember { FocusRequester() }
-    val codeFocus = remember { FocusRequester() }
-    // Save only takes an address the server's API paths can be appended to and a token a header can carry;
-    // the fields say what is missing. It stays off until either differs from what is stored.
-    val validUrl = ServerAddress.normalizeUrl(serverUrl.text.toString())
-    val validToken = ServerAddress.normalizeToken(apiToken.text.toString())
-    val canSave = canSaveServer(settings, validUrl, validToken)
-    val save = { if (canSave && validUrl != null && validToken != null) onSave(validUrl, validToken) }
-    val validCode = ServerAddress.normalizeCode(pairingCode.text.toString())
-    val canPair = canPairServer(validUrl, validCode, pairing.busy)
-    val pair = { if (canPair && validUrl != null && validCode != null) pairing.onPair(validUrl, validCode) }
-
-    // The server block opens on its fields only on a device with no server, or while a pairing attempt is being
-    // shown; otherwise it reads as one line with Change, and focus lands on Back (or, where no Back button is drawn,
-    // the first setting) rather than inside a field.
-    var changingServer by remember { mutableStateOf(settings.serverUrl.isEmpty() || pairing.failure != null) }
-    LaunchedEffect(pairing.failure) { if (pairing.failure != null) changingServer = true }
-    val serverOpen = changingServer
+    var startup by rememberShown(settings.startup)
+    var subtitleLook by rememberShown(settings.subtitleLook)
+    val server = rememberServerFields(settings, pairing)
+    val serverOpen = server.changing
     val unconfigured = remember { settings.serverUrl.isEmpty() }
     val found by remember(serverOpen) {
         if (serverOpen) discoveredServers else noServers
     }.collectAsStateWithLifecycle(emptyList())
-    val backFocus = remember { FocusRequester() }
-    val contentFocus = remember { FocusRequester() }
-    val firstFocus = if (showsBackButton()) backFocus else contentFocus
-    val channelsFocus = remember { FocusRequester() }
-    val startupFocus = remember { FocusRequester() }
+    val focus = remember { SettingsFocus() }
 
     BackHandler { onBack() }
-    LaunchedEffect(Unit) {
-        val returnTo = when (returnedFrom) {
-            CHANNELS_FOCUS_KEY -> channelsFocus
-            STARTUP_FOCUS_KEY -> startupFocus
-            else -> null
-        }
-        if (returnTo != null && requestFocusWhenAttached(returnTo)) return@LaunchedEffect
-        requestFocusWhenAttached(if (settings.serverUrl.isEmpty()) serverFocus else firstFocus)
-    }
-    LaunchedEffect(changingServer) {
-        if (changingServer && settings.serverUrl.isNotEmpty()) {
-            requestFocusWhenAttached(serverFocus)
-        }
-    }
+    ArrivalFocus(returnedFrom, focus, if (settings.serverUrl.isEmpty()) server.serverFocus else focus.first())
 
-    // The server block, first on a device with none and after Playback on one that has it.
     val serverSection: LazyListScope.() -> Unit = {
-        item { SectionHeader(stringResource(Res.string.settings_section_server)) }
-        if (!serverOpen) {
-            item {
-                val status = if (serverUnreachable) {
-                    Res.string.settings_server_unreachable
-                } else {
-                    Res.string.settings_server_connected
-                }
-                SettingRow(label = stringResource(status, settings.serverUrl)) {
-                    SofaButton(onClick = {
-                        changingServer = true
-                    }) { Text(stringResource(Res.string.settings_server_change)) }
-                    // A web page that cannot reach a server elsewhere most likely sits behind the proxy that serves it.
-                    val page = pageServerUrl?.takeIf {
-                        serverUnreachable && it != ServerAddress.normalizeUrl(settings.serverUrl)
-                    }
-                    if (page != null) {
-                        SofaButton(onClick = {
-                            serverUrl.setTextAndPlaceCursorAtEnd(page)
-                            changingServer = true
-                        }) { Text(stringResource(Res.string.settings_server_use_page)) }
-                    }
-                    // Stays enabled while it runs, so the D-pad focus never drops.
-                    SofaButton(onClick = { if (!reloading) actions.onReload() }) {
-                        Text(
-                            stringResource(
-                                if (reloading) {
-                                    Res.string.settings_server_reloading
-                                } else {
-                                    Res.string.settings_server_reload
-                                },
-                            ),
-                        )
-                    }
-                }
-            }
-        } else {
-            // Picking a server found on the network fills the address; the pairing code is next.
-            if (found.isNotEmpty()) {
-                item {
-                    Column(Modifier.width(FIELD_WIDTH).focusGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        HelpText(stringResource(Res.string.settings_discovered_servers))
-                        found.forEach { server ->
-                            SofaButton(onClick = {
-                                serverUrl.setTextAndPlaceCursorAtEnd(server.url)
-                                codeFocus.requestFocus()
-                            }) {
-                                Text(
-                                    stringResource(
-                                        Res.string.settings_discovered_server,
-                                        server.name,
-                                        server.url.substringAfter("://"),
-                                    ),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            item {
-                SettingField(
-                    label = stringResource(Res.string.settings_server_url),
-                    state = serverUrl,
-                    // An empty field is not yet wrong; it says so once something is typed.
-                    problem = stringResource(Res.string.settings_server_url_invalid).takeIf {
-                        serverUrl.text.isNotBlank() && validUrl == null
-                    },
-                    focusRequester = serverFocus,
-                    imeAction = ImeAction.Next,
-                    onAction = { codeFocus.requestFocus(FocusDirection.Enter) },
-                )
-            }
-            // The pairing code is the designed path; the token below it is the fallback.
-            item {
-                // The help sits above the field, where the on-screen keyboard does not cover it.
-                Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HelpText(stringResource(Res.string.settings_pairing_help))
-                    SettingField(
-                        label = stringResource(Res.string.settings_pairing_code),
-                        state = pairingCode,
-                        problem = stringResource(Res.string.settings_pairing_code_invalid).takeIf {
-                            pairingCode.text.isNotEmpty() && validCode == null
-                        },
-                        focusRequester = codeFocus,
-                        imeAction = ImeAction.Done,
-                        onAction = pair,
-                    )
-                    SofaButton(onClick = pair, enabled = canPair) {
-                        Text(
-                            stringResource(if (pairing.busy) Res.string.settings_pairing else Res.string.settings_pair),
-                        )
-                    }
-                    pairing.failure?.let { failure ->
-                        Text(
-                            stringResource(
-                                when (failure) {
-                                    PairingFailure.INVALID_CODE -> Res.string.settings_pairing_failed_code
-                                    PairingFailure.OLDER_SERVER -> Res.string.settings_pairing_failed_server
-                                    PairingFailure.UNREACHABLE -> Res.string.settings_pairing_failed_unreachable
-                                },
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
-            }
-            item {
-                Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingField(
-                        label = stringResource(Res.string.settings_api_token),
-                        state = apiToken,
-                        problem = stringResource(Res.string.settings_api_token_invalid).takeIf { validToken == null },
-                        focusRequester = tokenFocus,
-                        imeAction = ImeAction.Done,
-                        onAction = save,
-                        maskUnfocused = ::maskToken,
-                    )
-                    HelpText(stringResource(Res.string.settings_api_token_help))
-                    Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        SofaButton(onClick = save, enabled = canSave) { Text(stringResource(Res.string.settings_save)) }
-                        if (settings.serverUrl.isNotEmpty()) {
-                            SofaButton(onClick = {
-                                changingServer = false
-                                pairing.onDismiss()
-                                serverUrl.setTextAndPlaceCursorAtEnd(settings.serverUrl)
-                                apiToken.setTextAndPlaceCursorAtEnd(settings.apiToken)
-                                pairingCode.clearText()
-                            }) {
-                                Text(stringResource(Res.string.settings_server_cancel))
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        serverSection(
+            server,
+            serverOpen,
+            settings,
+            pairing,
+            found,
+            serverUnreachable,
+            reloading,
+            actions.onReload,
+            onSave,
+        )
     }
-
     // Focus scrolls only to show what it lands on, so the first setting taking focus keeps the title on screen.
     ScrollOnlyWhenHidden(SETTINGS_FOCUS_EDGE) {
         LazyColumn(
             modifier = modifier
                 .fillMaxSize()
                 .screenPadding()
-                .focusRequester(contentFocus)
+                .focusRequester(focus.content)
                 .focusRestorer()
                 .focusGroup(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item { ScreenTitle(stringResource(Res.string.settings_title), onBack, backFocus) }
+            item { ScreenTitle(stringResource(Res.string.settings_title), onBack, focus.back) }
             // A device with no server starts here; a configured one keeps the server near
             // the end, as it seldom changes.
             if (unconfigured) serverSection()
-            item { SectionHeader(stringResource(Res.string.settings_section_general)) }
-            item {
-                ChoiceRow(
-                    label = stringResource(Res.string.settings_startup),
-                    help = stringResource(Res.string.settings_startup_help),
-                    width = WIDE_CHOICE_WIDTH,
-                    // The library is offered on a server that has one, and kept while it is the choice.
-                    choices = StartupTarget.entries.filter {
-                        it != StartupTarget.LIBRARY || libraryOffered || startup == it
-                    },
-                    selected = startup,
-                    choiceLabel = {
-                        stringResource(
-                            when (it) {
-                                StartupTarget.RESUME -> Res.string.settings_startup_resume
-                                StartupTarget.GUIDE -> Res.string.settings_startup_guide
-                                StartupTarget.LIBRARY -> Res.string.settings_startup_library
-                                StartupTarget.CHANNEL -> Res.string.settings_startup_channel
-                            },
-                        )
-                    },
-                    onSelect = {
-                        startup = it
-                        actions.onStartupChanged(it, settings.startupChannel)
-                        // A channel has to be chosen for this to mean anything, so the picker opens at once.
-                        if (it == StartupTarget.CHANNEL && settings.startupChannel == null) {
-                            actions.onChooseStartupChannel()
-                        }
-                    },
-                )
-            }
-            if (startup == StartupTarget.CHANNEL) {
-                item {
-                    val chosen = channels.firstOrNull { it.guideId == settings.startupChannel }
-                    SettingRow(label = chosen?.label() ?: stringResource(Res.string.settings_startup_channel_none)) {
-                        SofaButton(
-                            onClick = actions.onChooseStartupChannel,
-                            modifier = Modifier.focusRequester(startupFocus),
-                        ) {
-                            Text(stringResource(Res.string.settings_startup_choose))
-                        }
-                    }
-                }
-            }
-            item {
-                ChoiceRow(
-                    label = stringResource(Res.string.settings_time_format),
-                    choices = ClockFormat.entries,
-                    selected = clockFormat,
-                    choiceLabel = {
-                        stringResource(
-                            when (it) {
-                                ClockFormat.AUTO -> Res.string.settings_time_auto
-                                ClockFormat.TWELVE_HOUR -> Res.string.settings_time_12
-                                ClockFormat.TWENTY_FOUR_HOUR -> Res.string.settings_time_24
-                            },
-                        )
-                    },
-                    onSelect = {
-                        clockFormat = it
-                        actions.onClockFormatChanged(it)
-                    },
-                )
-            }
-            item { SectionHeader(stringResource(Res.string.settings_section_guide)) }
-            item {
-                ChoiceRow(
-                    label = stringResource(Res.string.settings_auto_open),
-                    help = stringResource(Res.string.settings_auto_open_help),
-                    choices = AutoOpenDelay.entries,
-                    selected = autoOpen,
-                    choiceLabel = {
-                        stringResource(
-                            when (it) {
-                                AutoOpenDelay.OFF -> Res.string.settings_auto_open_off
-                                AutoOpenDelay.AFTER_10_SECONDS -> Res.string.settings_auto_open_10
-                                AutoOpenDelay.AFTER_30_SECONDS -> Res.string.settings_auto_open_30
-                            },
-                        )
-                    },
-                    onSelect = {
-                        autoOpen = it
-                        actions.onAutoOpenDelayChanged(it)
-                    },
-                )
-            }
-            item {
-                ToggleRow(
-                    label = stringResource(Res.string.settings_preview_sound),
-                    checked = previewSound,
-                    onCheckedChange = {
-                        previewSound = it
-                        actions.onPreviewSoundChanged(it)
-                    },
-                )
-            }
-            item {
-                ChoiceRow(
-                    label = stringResource(Res.string.settings_live_breaks),
-                    help = listOfNotNull(
-                        stringResource(Res.string.settings_live_breaks_help),
-                        settings.adsDodged.on(localDay()).milliseconds.takeIf { it >= 1.minutes }
-                            ?.let { stringResource(Res.string.settings_ads_dodged, it.hoursAndMinutes()) },
-                    ).joinToString(" "),
-                    choices = LiveBreaks.entries,
-                    selected = liveBreaks,
-                    choiceLabel = {
-                        stringResource(
-                            when (it) {
-                                LiveBreaks.PLAY -> Res.string.settings_live_breaks_play
-                                LiveBreaks.SCREEN_MUTED -> Res.string.settings_live_breaks_screen_muted
-                                LiveBreaks.SCREEN -> Res.string.settings_live_breaks_screen
-                            },
-                        )
-                    },
-                    onSelect = {
-                        liveBreaks = it
-                        actions.onLiveBreaksChanged(it)
-                    },
-                )
-            }
-            item {
-                ChoiceRow(
-                    label = stringResource(Res.string.settings_guide_rows),
-                    choices = GuideDensity.entries,
-                    selected = guideDensity,
-                    choiceLabel = {
-                        stringResource(
-                            when (it) {
-                                GuideDensity.COMFORTABLE -> Res.string.settings_rows_comfortable
-                                GuideDensity.COMPACT -> Res.string.settings_rows_compact
-                            },
-                        )
-                    },
-                    onSelect = {
-                        guideDensity = it
-                        actions.onGuideDensityChanged(it)
-                    },
-                )
-            }
-            item {
-                Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(Res.string.settings_channels), style = MaterialTheme.typography.titleSmall)
-                    SofaButton(
-                        onClick = actions.onManageChannels,
-                        enabled = channels.isNotEmpty(),
-                        modifier = Modifier.focusRequester(channelsFocus),
-                    ) {
-                        Text(stringResource(Res.string.settings_channels_open))
-                    }
-                }
-            }
-            if (recordingsOffered) {
-                item { SectionHeader(stringResource(Res.string.recordings_title)) }
-                item {
-                    ToggleRow(
-                        label = stringResource(Res.string.recordings_skip_commercials),
-                        help = stringResource(Res.string.recordings_skip_commercials_help),
-                        checked = skipCommercials,
-                        onCheckedChange = {
-                            skipCommercials = it
-                            actions.onSkipCommercialsChanged(it)
-                        },
-                    )
-                }
-            }
+            generalSection(settings, actions, startup, { startup = it }, channels, libraryOffered, focus.startup)
+            guideSection(settings, actions, channels, focus.channels)
+            if (recordingsOffered) recordingsSection(settings, actions)
             if (libraryOffered) {
-                item { SectionHeader(stringResource(Res.string.settings_section_library)) }
-                item {
-                    ToggleRow(
-                        label = stringResource(Res.string.settings_auto_skip_intros),
-                        help = stringResource(Res.string.settings_auto_skip_intros_help),
-                        checked = autoSkipIntros,
-                        onCheckedChange = {
-                            autoSkipIntros = it
-                            actions.onAutoSkipIntrosChanged(it)
-                        },
-                    )
-                }
-                item {
-                    ToggleRow(
-                        label = stringResource(Res.string.settings_hide_spoilers),
-                        help = stringResource(Res.string.settings_hide_spoilers_help),
-                        checked = hideSpoilers,
-                        onCheckedChange = {
-                            hideSpoilers = it
-                            actions.onHideSpoilersChanged(it)
-                        },
-                    )
-                }
-                item {
-                    ChoiceRow(
-                        label = stringResource(Res.string.settings_subtitle_size),
-                        choices = SubtitleSize.entries,
-                        selected = subtitleLook.size,
-                        choiceLabel = {
-                            stringResource(
-                                when (it) {
-                                    SubtitleSize.SMALL -> Res.string.settings_subtitle_size_small
-                                    SubtitleSize.MEDIUM -> Res.string.settings_subtitle_size_medium
-                                    SubtitleSize.LARGE -> Res.string.settings_subtitle_size_large
-                                },
-                            )
-                        },
-                        onSelect = { lookSubtitles(subtitleLook.copy(size = it)) },
-                        help = stringResource(Res.string.settings_subtitle_look_help),
-                    )
-                }
-                item {
-                    ChoiceRow(
-                        label = stringResource(Res.string.settings_subtitle_raise),
-                        choices = SubtitleRaise.entries,
-                        selected = subtitleLook.raise,
-                        choiceLabel = {
-                            stringResource(
-                                when (it) {
-                                    SubtitleRaise.NONE -> Res.string.settings_subtitle_raise_none
-                                    SubtitleRaise.LOW -> Res.string.settings_subtitle_raise_low
-                                    SubtitleRaise.HIGH -> Res.string.settings_subtitle_raise_high
-                                },
-                            )
-                        },
-                        onSelect = { lookSubtitles(subtitleLook.copy(raise = it)) },
-                    )
-                }
-                item {
-                    ToggleRow(
-                        label = stringResource(Res.string.settings_subtitle_box),
-                        help = stringResource(Res.string.settings_subtitle_box_help),
-                        checked = subtitleLook.box,
-                        onCheckedChange = { lookSubtitles(subtitleLook.copy(box = it)) },
-                    )
+                librarySection(settings, actions, subtitleLook) { look ->
+                    subtitleLook = look
+                    actions.onSubtitleLookChanged(look)
                 }
             }
-            item { SectionHeader(stringResource(Res.string.settings_section_captions)) }
-            item {
-                ToggleRow(
-                    label = stringResource(Res.string.captions_setting),
-                    checked = captionsOn,
-                    onCheckedChange = {
-                        captionsOn = it
-                        actions.onCaptionsChange(it)
-                    },
-                )
-            }
-            if (supportsCaptionSync) {
-                item {
-                    ToggleRow(
-                        label = stringResource(Res.string.caption_smooth),
-                        help = stringResource(Res.string.caption_smooth_help),
-                        checked = smoothCaptions,
-                        onCheckedChange = {
-                            smoothCaptions = it
-                            actions.onSmoothCaptionsChanged(it)
-                        },
-                    )
-                }
-            }
-            item {
-                ChoiceRow(
-                    label = stringResource(Res.string.caption_style),
-                    choices = CaptionStyle.entries,
-                    selected = captionStyle,
-                    choiceLabel = {
-                        stringResource(
-                            when (it) {
-                                CaptionStyle.SYSTEM -> Res.string.caption_style_system
-                                CaptionStyle.LARGE_HIGH_CONTRAST -> Res.string.caption_style_large
-                            },
-                        )
-                    },
-                    onSelect = {
-                        captionStyle = it
-                        actions.onCaptionStyleChanged(it)
-                    },
-                )
-            }
-            if (supportsCaptionSync) {
-                item {
-                    val lessLabel = stringResource(Res.string.settings_caption_timing_less)
-                    val moreLabel = stringResource(Res.string.settings_caption_timing_more)
-                    // A button that disables at its end of the range hands focus to the other, not to another row.
-                    val lessFocus = remember { FocusRequester() }
-                    val moreFocus = remember { FocusRequester() }
-                    SettingRow(label = stringResource(Res.string.caption_timing)) {
-                        SofaButton(
-                            onClick = {
-                                captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = -1)
-                                actions.onCaptionAdvanceChange(captionAdvance)
-                                if (captionAdvance <= AppSettings.CAPTION_ADVANCE_RANGE_MS.first) {
-                                    moreFocus.requestFocus()
-                                }
-                            },
-                            enabled = captionAdvance > AppSettings.CAPTION_ADVANCE_RANGE_MS.first,
-                            modifier = Modifier.focusRequester(lessFocus).semantics { contentDescription = lessLabel },
-                        ) { Icon(SofaIcons.Remove, null) }
-                        Text(captionTimingText(captionAdvance), style = MaterialTheme.typography.bodyLarge)
-                        SofaButton(
-                            onClick = {
-                                captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = 1)
-                                actions.onCaptionAdvanceChange(captionAdvance)
-                                if (captionAdvance >= AppSettings.CAPTION_ADVANCE_RANGE_MS.last) {
-                                    lessFocus.requestFocus()
-                                }
-                            },
-                            enabled = captionAdvance < AppSettings.CAPTION_ADVANCE_RANGE_MS.last,
-                            modifier = Modifier.focusRequester(moreFocus).semantics { contentDescription = moreLabel },
-                        ) { Icon(Icons.Filled.Add, null) }
-                    }
-                }
-                item { HelpText(stringResource(Res.string.caption_timing_help)) }
-            }
-            item {
-                // The platform draws the captions and keeps its own style page; the row opens it where there is one.
-                val openSystemCaptions = rememberSystemCaptionSettings()
-                Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (openSystemCaptions != null) {
-                        SofaButton(onClick = openSystemCaptions) {
-                            Text(stringResource(Res.string.settings_caption_system))
-                        }
-                    }
-                    HelpText(stringResource(Res.string.settings_caption_engine, captionEngineName()))
-                }
-            }
-            if (supportsPlaybackPreferences) {
-                item { SectionHeader(stringResource(Res.string.settings_section_playback)) }
-                item {
-                    ToggleRow(
-                        label = stringResource(Res.string.settings_match_frame_rate),
-                        help = stringResource(Res.string.settings_match_frame_rate_help),
-                        checked = matchFrameRate,
-                        onCheckedChange = {
-                            matchFrameRate = it
-                            actions.onMatchFrameRateChanged(it)
-                        },
-                    )
-                }
-                item {
-                    ChoiceRow(
-                        label = stringResource(Res.string.settings_decoder),
-                        help = stringResource(Res.string.settings_decoder_help),
-                        choices = DecoderPreference.entries,
-                        selected = decoder,
-                        choiceLabel = {
-                            stringResource(
-                                when (it) {
-                                    DecoderPreference.AUTO -> Res.string.settings_decoder_auto
-                                    DecoderPreference.SOFTWARE -> Res.string.settings_decoder_software
-                                },
-                            )
-                        },
-                        onSelect = {
-                            decoder = it
-                            actions.onDecoderChanged(it)
-                        },
-                    )
-                }
-                item {
-                    ChoiceRow(
-                        label = stringResource(Res.string.settings_buffer),
-                        help = stringResource(Res.string.settings_buffer_help),
-                        choices = BufferPreference.entries,
-                        selected = buffer,
-                        choiceLabel = {
-                            stringResource(
-                                when (it) {
-                                    BufferPreference.FAST_START -> Res.string.settings_buffer_fast
-                                    BufferPreference.STANDARD -> Res.string.settings_buffer_standard
-                                    BufferPreference.SMOOTH -> Res.string.settings_buffer_smooth
-                                },
-                            )
-                        },
-                        onSelect = {
-                            buffer = it
-                            actions.onBufferChanged(it)
-                        },
-                    )
-                }
-            }
+            captionsSection(settings, actions)
+            if (supportsPlaybackPreferences) playbackSection(settings, actions)
             if (!unconfigured) serverSection()
             item { SectionHeader(stringResource(Res.string.settings_section_lock)) }
             item { LockSection(locked = settings.settingsLocked, onPinChange = actions.onSettingsPinChanged) }
             // About: the app, its version and what is loaded, then where the build stands
             // against the published snapshot.
             item { SectionHeader(stringResource(Res.string.settings_section_about)) }
-            item {
-                val suffix = versionSuffix()
-                val version = BuildInfo.VERSION + suffix.orEmpty()
-                // The suffix file is read before the check, so a snapshot compares as one.
-                LaunchedEffect(suffix) { if (suffix != null) actions.onCheckForUpdate(version, false) }
-                // A TV scrolls only as far as the focused button, so the TMDB notice sits above the update check's
-                // buttons, which end the page, and focus anywhere in About brings the whole block into view.
-                val about = remember { BringIntoViewRequester() }
-                val scope = rememberCoroutineScope()
-                Column(
-                    Modifier
-                        .width(FIELD_WIDTH)
-                        .bringIntoViewRequester(about)
-                        .onFocusChanged { if (it.hasFocus) scope.launch { about.bringIntoView() } },
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        listOf(
-                            stringResource(Res.string.app_name),
-                            stringResource(Res.string.settings_version, version),
-                            pluralStringResource(Res.plurals.settings_channels_loaded, channelCount, channelCount),
-                        ).joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    // TMDB's terms ask apps that show its data to say so.
-                    Text(
-                        stringResource(Res.string.settings_tmdb_notice),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    UpdateRow(update = update, onCheckAgain = {
-                        actions.onCheckForUpdate(version, true)
-                    }, keepInView = about)
-                }
-            }
+            item { AboutBlock(channelCount, update, actions.onCheckForUpdate) }
         }
+    }
+}
+
+/** Where focus goes on Settings: Back, the list itself, and the buttons of the pages behind it. */
+private class SettingsFocus {
+    val back = FocusRequester()
+    val content = FocusRequester()
+    val channels = FocusRequester()
+    val startup = FocusRequester()
+
+    /** Back, or where no Back button is drawn, the first setting. */
+    @Composable
+    fun first(): FocusRequester = if (showsBackButton()) back else content
+}
+
+/** Focus on arrival: the button of the page the viewer came back from, else [initial]. */
+@Composable
+private fun ArrivalFocus(returnedFrom: String?, focus: SettingsFocus, initial: FocusRequester) {
+    LaunchedEffect(Unit) {
+        val returnTo = when (returnedFrom) {
+            CHANNELS_FOCUS_KEY -> focus.channels
+            STARTUP_FOCUS_KEY -> focus.startup
+            else -> null
+        }
+        if (returnTo != null && requestFocusWhenAttached(returnTo)) return@LaunchedEffect
+        requestFocusWhenAttached(initial)
+    }
+}
+
+/**
+ * About: the app, its version and the channels loaded, the TMDB notice and the update check, which runs once the
+ * version is known.
+ */
+@Composable
+private fun AboutBlock(
+    channelCount: Int,
+    update: UpdateState?,
+    onCheckForUpdate: (version: String, again: Boolean) -> Unit,
+) {
+    val suffix = versionSuffix()
+    val version = BuildInfo.VERSION + suffix.orEmpty()
+    val currentOnCheckForUpdate by rememberUpdatedState(onCheckForUpdate)
+    // The suffix file is read before the check, so a snapshot compares as one.
+    LaunchedEffect(suffix) { if (suffix != null) currentOnCheckForUpdate(version, false) }
+    // A TV scrolls only as far as the focused button, so the TMDB notice sits above the update check's
+    // buttons, which end the page, and focus anywhere in About brings the whole block into view.
+    val about = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    Column(
+        Modifier
+            .width(FIELD_WIDTH)
+            .bringIntoViewRequester(about)
+            .onFocusChanged { if (it.hasFocus) scope.launch { about.bringIntoView() } },
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            listOf(
+                stringResource(Res.string.app_name),
+                stringResource(Res.string.settings_version, version),
+                pluralStringResource(Res.plurals.settings_channels_loaded, channelCount, channelCount),
+            ).joinToString(" · "),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // TMDB's terms ask apps that show its data to say so.
+        Text(
+            stringResource(Res.string.settings_tmdb_notice),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        UpdateRow(update = update, onCheckAgain = { onCheckForUpdate(version, true) }, keepInView = about)
     }
 }
 
 private val noServers: Flow<List<DiscoveredServer>> = flowOf(emptyList())
-
-/**
- * Save & reload is on only for a valid address and token that differ from what is stored, since saving the
- * same server reloads for nothing.
- */
-internal fun canSaveServer(stored: AppSettings, url: String?, token: String?): Boolean =
-    url != null && token != null && (url != stored.serverUrl || token != stored.apiToken)
-
-/** Pair is on for a valid address and a six-digit code while no claim is running. */
-internal fun canPairServer(url: String?, code: String?, busy: Boolean): Boolean = url != null && code != null && !busy
-
-/**
- * The one state of a field's text, starting at the saved [stored] value; only a change to that value replaces what
- * is typed. The screen reads and resets the field through it.
- */
-@Composable
-private fun rememberStoredFieldState(stored: String): TextFieldState {
-    val state = rememberTextFieldState(stored)
-    LaunchedEffect(stored) {
-        if (state.text.toString() != stored) state.setTextAndPlaceCursorAtEnd(stored)
-    }
-    return state
-}
-
-@Composable
-private fun SettingField(
-    label: String,
-    state: TextFieldState,
-    problem: String?,
-    focusRequester: FocusRequester,
-    imeAction: ImeAction,
-    onAction: () -> Unit,
-    maskUnfocused: ((String) -> String)? = null,
-) {
-    Column(Modifier.width(FIELD_WIDTH)) {
-        Text(label, style = MaterialTheme.typography.titleSmall)
-        TvTextField(
-            state = state,
-            focusRequester = focusRequester,
-            imeAction = imeAction,
-            onAction = onAction,
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            maskUnfocused = maskUnfocused,
-        )
-        if (problem != null) {
-            Text(
-                problem,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
-    }
-}
 
 /** The snapshot suffix the build wrote beside the resources, empty for a release; null until it has been read. */
 @OptIn(ExperimentalResourceApi::class)

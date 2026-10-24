@@ -21,6 +21,19 @@ class BreakWatchTest {
     }
 
     @Test
+    fun `a break keeps its countdown when a reading loses its end`() {
+        val time = TestTimeSource()
+        val watch = BreakWatch(time)
+        watch.shown(AdBreakNow(remainingMs = 20_000))
+        time += 5.seconds
+        assertEquals(AdBreakNow(remainingMs = 15_000), watch.shown(AdBreakNow(remainingMs = null)))
+        time += 5.seconds
+        assertEquals(AdBreakNow(remainingMs = 10_000), watch.shown(AdBreakNow(remainingMs = null)))
+        time += 10.seconds
+        assertEquals(AdBreakNow(remainingMs = null), watch.shown(AdBreakNow(remainingMs = null)))
+    }
+
+    @Test
     fun `a break with no known end is held for a gap only`() {
         val time = TestTimeSource()
         val watch = BreakWatch(time)

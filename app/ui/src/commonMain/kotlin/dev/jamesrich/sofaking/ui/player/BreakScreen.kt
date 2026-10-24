@@ -63,7 +63,6 @@ import dev.jamesrich.sofaking.resources.break_quip_recline
 import dev.jamesrich.sofaking.resources.break_quip_snacks
 import dev.jamesrich.sofaking.resources.break_quip_stretch
 import dev.jamesrich.sofaking.resources.break_quip_throne
-import dev.jamesrich.sofaking.resources.break_quip_unknown
 import dev.jamesrich.sofaking.resources.break_screen_back_in
 import dev.jamesrich.sofaking.resources.break_screen_title
 import dev.jamesrich.sofaking.ui.formatPlayTime
@@ -383,8 +382,7 @@ private class BreakMotion(start: Bounce) {
 private fun breakLine(corner: Int?, leftMs: Long?, quip: Int): String = when {
     corner == 1 -> stringResource(Res.string.break_corner_first)
     corner != null -> stringResource(Res.string.break_corner_again, corner)
-    leftMs == null -> stringResource(Res.string.break_quip_unknown)
-    leftMs <= ALMOST_BACK_MS -> stringResource(Res.string.break_quip_almost)
+    leftMs != null && leftMs <= ALMOST_BACK_MS -> stringResource(Res.string.break_quip_almost)
     else -> stringResource(BREAK_QUIPS[quip])
 }
 

@@ -96,10 +96,10 @@ struct BreakScreen: View {
         return "Back in \(seconds / 60):\(String(format: "%02d", seconds % 60))"
     }
 
-    /// The line under the countdown: the break's own, or one for a break of unknown length or one nearly over.
+    /// The line under the countdown: the break's own, or one for a break nearly over.
     private var line: String {
-        guard let remainingMs else { return "Nobody told us how long. Rude." }
-        return remainingMs <= 10_000 ? "Places, everyone. Feet up." : quip
+        guard let remainingMs, remainingMs <= 10_000 else { return quip }
+        return "Places, everyone. Feet up."
     }
 
     /// Whole minutes as "2 h 5 min", "45 min" or "1 h", as the Compose app writes them.

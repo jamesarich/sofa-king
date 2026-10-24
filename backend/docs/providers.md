@@ -4,7 +4,7 @@ A native provider is a client for one free streaming service built into the serv
 
 The clients are unofficial. They call the same public endpoints each service's own web or TV client calls, with no account and no credentials, and they stop working whenever the service changes them. Using them may be against a service's terms of service. The clients send ad-insertion identifiers that are random per install, not a device's identifiers.
 
-The server supports 17 streaming services, the free news feeds of a dozen broadcasters (`direct`) and HDHomeRun tuners. Each one is listed below with its endpoints and its known fragility.
+The server supports 17 streaming services, the free feeds of about twenty broadcasters (`direct`) and HDHomeRun tuners. Each one is listed below with its endpoints and its known fragility.
 
 ## Configuration
 
@@ -45,7 +45,7 @@ The portal's Sources page writes this file: every service is a switch, with its 
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
 | `probe` | `true` | Probes resolve the channel and qualify the resolved URL like any source. A lineup policy ignores it ([probing](lineup-policy.md#probing)) |
 
-`headers`, `defaultProtocol`, `allowEmpty` and `renewableQuery` apply to playlists only. Every native source is HLS, except `hdhomerun`, whose sources are MPEG-TS. `direct` has no guide of its own; map its channels onto a configured XMLTV guide, as the [direct](#direct-broadcasters-own-news-feeds) section shows.
+`headers`, `defaultProtocol`, `allowEmpty` and `renewableQuery` apply to playlists only. Every native source is HLS, except `hdhomerun`, whose sources are MPEG-TS. `direct` has no guide of its own; map its channels onto a configured XMLTV guide, as the [direct](#direct-broadcasters-own-feeds) section shows.
 
 A native provider with a guide of its own appears in `/api/v1/admin/guides` under the provider ID, refreshed hourly. Its channel IDs are the service's own, and a lineup entry created from a candidate maps onto that guide automatically. The guide holds every channel in its index, but programs only for channels the lineup maps. A service whose guide is fetched per channel (Whale, Hallmark, Adult Swim, PBS, Plex, STIRR, Pluto TV) is asked only about mapped channels.
 
@@ -181,9 +181,9 @@ An HDHomeRun on the LAN, read the way Plex and the HDHomeRun app read it. `optio
 
 Fragility: the tuner has as many concurrent streams as it has tuners; past that, a play fails and Plex sees a busy tuner. An unscanned device has an empty lineup, which fails the import as provider evidence. The guide stops with `DeviceAuth`, which changes every few hours, so each fetch reads `discover.json` first.
 
-### direct (broadcasters' own news feeds)
+### direct (broadcasters' own feeds)
 
-A fixed table of free live feeds that broadcasters publish on their own sites and apps without an account: the HLS URL each site's player loads, on the broadcaster's own CDN. Nothing is fetched to list them. Each channel is numbered from 9101 in table order, grouped `News` or `Weather`, and tagged with its country. A resolve is the table entry, sent with a browser `User-Agent`, and never expires. The feeds carry no logos: a channel's logo comes from the guide it is mapped onto.
+A fixed table of free live feeds that broadcasters publish on their own sites and apps without an account: the HLS URL each site's player loads, on the broadcaster's own CDN. Nothing is fetched to list them. Each channel is numbered from 9101 in table order, grouped by what it carries (`News`, `Weather`, `Entertainment` or `Documentary`), and tagged with its country. Every feed answers from a US address; the country tag is the broadcaster's, not a geofence. A resolve is the table entry, sent with a browser `User-Agent`, and never expires. The feeds carry no logos: a channel's logo comes from the guide it is mapped onto.
 
 | Channel | Country | Feed |
 | --- | --- | --- |
@@ -198,6 +198,17 @@ A fixed table of free live feeds that broadcasters publish on their own sites an
 | NHK World-Japan | Japan | masterpl.hls.nhkworld.jp |
 | ABC News (Australia) | Australia | abc-news-dmd-streams-1.akamaized.net |
 | i24NEWS English | Israel | encoders.immergo.tv |
+| DW Deutsch | Germany | dwamdstream102.akamaized.net |
+| Das Erste, ARD alpha | Germany | ARD's own CDNs, daserste-live.ard-mcdn.de and mcdn.br.de |
+| France 24 French | France | live.france24.com (a media playlist) |
+| La 1, Canal 24 Horas | Spain | rtvelivestream.rtve.es |
+| 3CatInfo | Spain | directes-tv-int.3catdirectes.cat, the Catalan broadcaster's international host |
+| Euronews, Africanews | France | cdn-euronews.akamaized.net |
+| TRT World | Turkey | tv-trtworld.medya.trt.com.tr |
+| Al Jazeera Arabic, Al Jazeera Mubasher | Qatar | getaj.net |
+| CNA | Singapore | Mediacorp's CloudFront distribution |
+| Arirang TV | South Korea | amdlive-ch01-ctnd-com.akamaized.net |
+| CGTN | China | news.cgtn.com |
 
 There is no service guide. The `epg_ripper_US2` guide on epgshare01.online lists most of the US channels, under `CBS.News.National.Stream.us2`, `Bloomberg.HD.us2`, `Cheddar.us2`, `Newsmax.TV.HD.us2`, `NHK.World.TV.us2` and `i24.News.English.us2`; a lineup policy maps a station onto whichever configured guide carries it, and `PATCH /api/v1/admin/lineup/{id}` with `{"guide": {"guideId", "channelId"}}` maps one by hand.
 

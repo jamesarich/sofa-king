@@ -16,14 +16,14 @@ auth=(-H "Authorization: Bearer $SOFA_ADMIN_TOKEN")
 
 ## 1. Configure the sources
 
-Copy `deploy/sources.example.json` to `sources.json` in the data directory, or to the file `SOFA_SOURCES` names. It lists the [native providers](providers.md) of all 17 free streaming services and the broadcasters' news feeds (`direct`), and needs two edits:
+Copy `deploy/sources.example.json` to `sources.json` in the data directory, or to the file `SOFA_SOURCES` names. It lists the [native providers](providers.md) of all 17 free streaming services and the broadcasters' own feeds (`direct`), and needs two edits:
 
 - `pbs`: set `options.zip` to your ZIP code, so the server finds your member station.
 - `localnow`: add `"options": { "dma": "DMA_CODE", "market": "MARKET" }` for your local news; without them it serves the national lineup.
 
 Remove the `example-m3u` entry unless you have an M3U playlist of your own. Drop any service you don't want; each one is independent.
 
-Native providers bring their own guides, so the `guides` list can stay empty. The exception is `direct`, whose channels have a guide only from an XMLTV in `guides`, as [direct](providers.md#direct-broadcasters-own-news-feeds) describes.
+Native providers bring their own guides, so the `guides` list can stay empty. The exception is `direct`, whose channels have a guide only from an XMLTV in `guides`, as [direct](providers.md#direct-broadcasters-own-feeds) describes.
 
 Start or restart the server, then check that every provider imported:
 

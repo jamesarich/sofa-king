@@ -67,7 +67,10 @@ object Wire {
         const val EXTRA = "extra"
     }
 
-    /** What kind of extra an [ItemKind.EXTRA] item is, from its folder or its name; a client shows one it does not know as an extra. */
+    /**
+     * What kind of extra an [ItemKind.EXTRA] item is, from its folder or its name; a client shows one it does not know
+     * as an extra.
+     */
     object ExtraKind {
         const val TRAILER = "trailer"
         const val FEATURETTE = "featurette"

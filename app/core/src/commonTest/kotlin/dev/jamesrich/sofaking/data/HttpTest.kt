@@ -9,6 +9,8 @@ import kotlin.test.assertFails
 import kotlin.test.assertTrue
 
 class HttpTest {
+    // A browser's failed fetch surfaces as a plain Error, so the engine here throws one.
+    @Suppress("TooGenericExceptionThrown")
     @Test
     fun `a failed browser fetch is an IOException and an Error elsewhere stays one`() = runTest {
         val client = httpClient(MockEngine { throw Error("Fail to fetch") })

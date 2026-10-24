@@ -222,7 +222,8 @@ class AdClock(
         for ((index, segment) in parsed.segments.withIndex()) {
             if (segment.cueIn) open = false
             val at = timeline.starts[segment.sequence]
-            if (!open || segment.ad || segment.sequence < first || at == null || at >= end) {
+            val outsideCue = segment.sequence < first || at == null || at >= end
+            if (!open || segment.ad || outsideCue) {
                 segments += segment
                 continue
             }

@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.deleteOrphanLibraryIntros
 import dev.jamesrich.sofaking.backend.store.libraries
@@ -12,7 +13,6 @@ import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.saveLibraryCredits
 import dev.jamesrich.sofaking.backend.store.saveLibraryFingerprint
 import dev.jamesrich.sofaking.backend.store.saveLibraryIntros
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -151,14 +151,12 @@ class IntroDetector(
         while (isActive) {
             trigger.receive()
             val wanted = pending.toList().also { pending.removeAll(it.toSet()) }
-            try {
+            runCatchingCancellable {
                 val libraries = store.libraries().filter {
                     it.kind == LibraryKind.SHOWS && (ALL in wanted || it.id in wanted)
                 }
                 for (library in libraries) run(library)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.warn("intro detection failed class={} message=\"{}\"", e.javaClass.simpleName, redactedMessage(e))
             }
         }

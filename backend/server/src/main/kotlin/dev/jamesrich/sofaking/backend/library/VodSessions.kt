@@ -403,12 +403,7 @@ class VodSessions(
             )
             // A conversion that fails to start leaves its folder, and maybe its FFmpeg, to dispose.
             if (mode != Wire.VodMode.DIRECT) {
-                try {
-                    launch(state)
-                } catch (e: Throwable) {
-                    retired += state
-                    throw e
-                }
+                runCatching { launch(state) }.onFailure { retired += state }.getOrThrow()
             }
             sessions[state.id] = state
             state.wire()

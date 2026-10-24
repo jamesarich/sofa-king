@@ -8,19 +8,6 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.Instant
 
-/** A channel's row of [AdChannels]. */
-data class AdChannelRecord(
-    val channelId: String,
-    val providerId: String,
-    val watchedMs: Long,
-    val lastWatchedAt: Instant?,
-    val breaks: Int,
-    val learned: Int,
-    val markedAt: Instant?,
-    val listenedMs: Long,
-    val lastListenedAt: Instant?,
-)
-
 /** Every channel the sessions or the listener have played. */
 suspend fun BackendStore.adChannels(): List<AdChannelRecord> = read { AdChannels.selectAll().map { it.adChannel() } }
 

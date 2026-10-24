@@ -81,18 +81,18 @@ import kotlin.math.abs
 /**
  * The whole app, the same on every platform: the theme, the window's layout profile and input, then the screen the
  * user is on. [pairing] is a server to pair with from a `sofaking://pair` link the platform received; the app claims
- * it once and calls [onPairingHandled], so a restored activity does not claim it again. [playItem] is a library item
+ * it once and calls [onPairingHandle], so a restored activity does not claim it again. [playItem] is a library item
  * to play from a `sofaking://vod` link, such as the Android TV home screen's Watch Next row, handed back the same way
- * through [onPlayItemHandled]. [windowFullScreen] is the host window's full screen where the app can switch it (a
+ * through [onPlayItemHandle]. [windowFullScreen] is the host window's full screen where the app can switch it (a
  * desktop window, a browser page).
  */
 @Composable
 fun App(
     modifier: Modifier = Modifier,
     pairing: PairingRequest? = null,
-    onPairingHandled: () -> Unit = {},
+    onPairingHandle: () -> Unit = {},
     playItem: String? = null,
-    onPlayItemHandled: () -> Unit = {},
+    onPlayItemHandle: () -> Unit = {},
     windowFullScreen: WindowFullScreen? = null,
 ) {
     setSingletonImageLoaderFactory(::sofaKingImageLoader)
@@ -109,9 +109,9 @@ fun App(
             ) {
                 SofaKingApp(
                     pairing = pairing,
-                    onPairingHandled = onPairingHandled,
+                    onPairingHandle = onPairingHandle,
                     playItem = playItem,
-                    onPlayItemHandled = onPlayItemHandled,
+                    onPlayItemHandle = onPlayItemHandle,
                 )
             }
         }
@@ -126,13 +126,13 @@ fun App(
 @Composable
 private fun SofaKingApp(
     pairing: PairingRequest? = null,
-    onPairingHandled: () -> Unit = {},
+    onPairingHandle: () -> Unit = {},
     playItem: String? = null,
-    onPlayItemHandled: () -> Unit = {},
+    onPlayItemHandle: () -> Unit = {},
+    vm: LineupViewModel = viewModel { appGraph.lineupViewModel() },
+    libraryVm: LibraryViewModel = viewModel { appGraph.libraryViewModel() },
+    recordingsVm: RecordingsViewModel = viewModel { appGraph.recordingsViewModel() },
 ) {
-    val vm = viewModel { appGraph.lineupViewModel() }
-    val libraryVm = viewModel { appGraph.libraryViewModel() }
-    val recordingsVm = viewModel { appGraph.recordingsViewModel() }
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
@@ -144,17 +144,22 @@ private fun SofaKingApp(
     val nav = shell.nav
     val top = nav.top
     val offered = tabsOffered(capabilities, nav.tab, libraryHome, recordingsState)
+    val currentOnPairingHandle by rememberUpdatedState(onPairingHandle)
+    val currentOnPlayItemHandle by rememberUpdatedState(onPlayItemHandle)
     // A tab the server turns out not to offer, or no longer offers, gives way to Live.
     LaunchedEffect(nav.tab, offered) {
-        if ((nav.tab == Tab.LIBRARY && !offered.library) || (nav.tab == Tab.RECORDINGS && !offered.recordings)) {
-            shell.nav = shell.nav.open(Tab.LIVE)
+        val withdrawn = when (nav.tab) {
+            Tab.LIBRARY -> !offered.library
+            Tab.RECORDINGS -> !offered.recordings
+            else -> false
         }
+        if (withdrawn) shell.nav = shell.nav.open(Tab.LIVE)
     }
     // A scanned QR code pairs at once. Pairing runs in the ViewModel; its outcome comes back as state, and the shell
     // acts on it once: a new server starts over on its guide, a refused code lands in Settings with the reason.
     LaunchedEffect(pairing) {
         if (pairing == null) return@LaunchedEffect
-        onPairingHandled()
+        currentOnPairingHandle()
         vm.pair(pairing.serverUrl, pairing.code)
     }
     LaunchedEffect(pairingState.outcome) {
@@ -167,7 +172,7 @@ private fun SofaKingApp(
     // A Watch Next entry plays its item at once, in place of the cold start's own page.
     LaunchedEffect(playItem) {
         if (playItem == null) return@LaunchedEffect
-        onPlayItemHandled()
+        currentOnPlayItemHandle()
         shell.playItem(playItem)
     }
     // The home screen's Watch Next row follows the Continue watching shelf.
@@ -355,7 +360,7 @@ private fun SofaKingApp(
                 tabFocus = tabFocus,
                 settingsFocus = settingsFocus,
                 headerReturn = shell.headerReturn,
-                onHeaderFocusRequested = { shell.headerReturn = null },
+                onHeaderFocusRequest = { shell.headerReturn = null },
                 refreshing = if (shell.nav.tab == Tab.LIVE) loading && state is LineupState.Ready else false,
                 notice = shell.notice,
                 onSettings = openSettings,

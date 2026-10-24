@@ -64,11 +64,10 @@ class OutputTest {
     )
 
     /**
-     * The fixture's HLS station (5, News, guided) and TS station (6) adopted into the
+     * [feeds], a fixture's (its HLS station is 5, News, guided, and its TS station 6), adopted into the
      * lineup, served with the output token.
      */
     private suspend fun ApplicationTestBuilder.serve(
-        fixture: Fixture,
         dir: java.nio.file.Path,
         feeds: List<FeedConfig>,
         maxSessions: Int = 4,
@@ -107,7 +106,7 @@ class OutputTest {
         testApplication {
             val dir = Files.createTempDirectory("sofa-output-lists-")
             Fixture().use { fixture ->
-                val served = serve(fixture, dir, listOf(fixture.feed, fixture.tsFeed))
+                val served = serve(dir, listOf(fixture.feed, fixture.tsFeed))
                 try {
                     val hls = served.channels.single { it.displayNumber == "5" }
                     val ts = served.channels.single { it.displayNumber == "6" }
@@ -227,7 +226,7 @@ class OutputTest {
             val dir = Files.createTempDirectory("sofa-output-metadata-")
             Fixture().use { fixture ->
                 fixture.guideMetadata = true
-                val served = serve(fixture, dir, listOf(fixture.feed))
+                val served = serve(dir, listOf(fixture.feed))
                 try {
                     val hls = served.channels.single()
                     val xml = client.get("/output/guide.xml?token=$output&days=2").bodyAsText()
@@ -275,7 +274,7 @@ class OutputTest {
         testApplication {
             val dir = Files.createTempDirectory("sofa-output-hls-")
             Fixture().use { fixture ->
-                val served = serve(fixture, dir, listOf(fixture.feed))
+                val served = serve(dir, listOf(fixture.feed))
                 try {
                     val raw = createClient { followRedirects = false }
                     val hls = served.channels.single()
@@ -321,7 +320,7 @@ class OutputTest {
     @Test fun `at capacity an idle player session yields to the next zap`() = testApplication {
         val dir = Files.createTempDirectory("sofa-output-capacity-")
         Fixture().use { fixture ->
-            val served = serve(fixture, dir, listOf(fixture.feed, fixture.tsFeed), maxSessions = 1)
+            val served = serve(dir, listOf(fixture.feed, fixture.tsFeed), maxSessions = 1)
             try {
                 val raw = createClient { followRedirects = false }
                 val hls = served.channels.single { it.displayNumber == "5" }
@@ -350,7 +349,7 @@ class OutputTest {
     @Test fun `at capacity the stalest idle player session goes, not the one still fetching`() = testApplication {
         val dir = Files.createTempDirectory("sofa-output-stalest-")
         Fixture().use { fixture ->
-            val served = serve(fixture, dir, listOf(fixture.feed, fixture.altFeed, fixture.tsFeed), maxSessions = 2)
+            val served = serve(dir, listOf(fixture.feed, fixture.altFeed, fixture.tsFeed), maxSessions = 2)
             try {
                 val raw = createClient { followRedirects = false }
                 val (first, second) = served.channels.filter { it.displayNumber == "5" }
@@ -385,7 +384,7 @@ class OutputTest {
         testApplication {
             val dir = Files.createTempDirectory("sofa-output-mismatch-")
             Fixture().use { fixture ->
-                val served = serve(fixture, dir, listOf(fixture.proxyFeed))
+                val served = serve(dir, listOf(fixture.proxyFeed))
                 try {
                     val raw = createClient { followRedirects = false }
                     val channel = served.channels.single()

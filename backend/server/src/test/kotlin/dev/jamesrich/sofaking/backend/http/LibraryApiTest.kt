@@ -4,11 +4,13 @@ import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
+import dev.jamesrich.sofaking.backend.library.INTRO_JOB
 import dev.jamesrich.sofaking.backend.library.IntroRecord
 import dev.jamesrich.sofaking.backend.library.IntroSpan
 import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.ScrubRecord
 import dev.jamesrich.sofaking.backend.library.fileKey
+import dev.jamesrich.sofaking.backend.pollUntil
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.saveLibraryFingerprint
@@ -141,7 +143,13 @@ class LibraryApiTest {
             assertKeepsWireFixture("v1/library-page.json", pageBody)
             assertKeepsWireFixture("v1/library-item-detail.json", seasonBody)
 
-            // An episode's page carries the intro and credits intro detection found in it.
+            // An episode's page carries the intro and credits intro detection found in it. The scan queued a pass of
+            // its own, which reads these files that hold no audio and saves that it found nothing, so the test waits
+            // for that pass before it writes what one would have found.
+            pollUntil(10_000) {
+                val pass = runtime.jobs.snapshot().single { it.id == INTRO_JOB }
+                pass.lastStartedAt != null && !pass.running
+            }
             val pilotRecord = store.libraryItems(library.id).single { it.id == pilot.id }
             store.saveLibraryFingerprint(
                 IntroRecord(

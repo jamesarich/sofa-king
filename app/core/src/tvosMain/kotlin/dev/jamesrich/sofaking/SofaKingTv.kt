@@ -275,9 +275,8 @@ class SofaKingTv {
     suspend fun playRecording(recording: DvrRecording, fromStart: Boolean): PlaybackStream =
         opening { recordings.play(recording, appleTvProfile, fromStart) }
 
-    /** The player is at [positionMs] in [recordingId]; [durationMs] is 0 while the length is unknown. */
-    fun recordingProgress(recordingId: String, positionMs: Long, durationMs: Long) =
-        recordings.progress(recordingId, positionMs, durationMs.takeIf { it > 0 })
+    /** The player is at [positionMs] in [recordingId]. */
+    fun recordingProgress(recordingId: String, positionMs: Long) = recordings.progress(recordingId, positionMs)
 
     /** Playback of [recordingId] stopped at [positionMs]; saved now, watched near the end. */
     fun recordingStopped(recordingId: String, positionMs: Long, durationMs: Long) =

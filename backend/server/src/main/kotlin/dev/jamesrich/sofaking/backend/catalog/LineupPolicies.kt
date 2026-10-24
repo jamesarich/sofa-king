@@ -7,6 +7,7 @@ import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
+import java.util.regex.PatternSyntaxException
 
 private val policyJson = Json {
     ignoreUnknownKeys = false
@@ -76,7 +77,7 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
         }
         try {
             Regex(value)
-        } catch (e: Exception) {
+        } catch (e: PatternSyntaxException) {
             errors +=
                 "$where: invalid pattern ${e.message?.lineSequence()?.firstOrNull()}"
         }

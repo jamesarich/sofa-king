@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.PlayableFile
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.Recordings
 import dev.jamesrich.sofaking.backend.store.addRecording
@@ -32,7 +33,6 @@ import dev.jamesrich.sofaking.contract.ScheduleRecording
 import dev.jamesrich.sofaking.contract.UpdateRecording
 import dev.jamesrich.sofaking.contract.UpdateRecordingRule
 import dev.jamesrich.sofaking.contract.Wire
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -130,50 +130,40 @@ class Dvr(
                             trigger.onReceive { it }
                             onTimeout(SCHEDULE_EVERY.toMillis()) { "interval" }
                         }
-                    try {
+                    runCatchingCancellable {
                         refreshSchedule(cause)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
+                    }.onFailure { e ->
                         log.warn("recording schedule failed class={}", e.javaClass.simpleName)
                     }
-                    try {
+                    runCatchingCancellable {
                         cull(cause)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
+                    }.onFailure { e ->
                         log.warn("recording cleanup failed class={}", e.javaClass.simpleName)
                     }
                 }
             },
             scope.launch(CoroutineName("dvr-commercials")) {
                 // A scan a restart interrupted runs again.
-                try {
+                runCatchingCancellable {
                     store.recordings().filter {
                         it.commercials == Wire.CommercialScan.SCANNING
                     }.forEach { scans.trySend(it.id) }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
+                }.onFailure { e ->
                     log.warn("interrupted commercial scans not resumed class={}", e.javaClass.simpleName)
                 }
                 for (id in scans) {
-                    try {
+                    runCatchingCancellable {
                         scan(id)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
+                    }.onFailure { e ->
                         log.warn("commercial scan failed id={} class={}", id, e.javaClass.simpleName)
                     }
                 }
             },
             scope.launch(CoroutineName("dvr-tick")) {
                 while (isActive) {
-                    try {
+                    runCatchingCancellable {
                         tick()
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
+                    }.onFailure { e ->
                         log.warn("recording tick failed class={}", e.javaClass.simpleName)
                     }
                     delay(TICK.toMillis())
@@ -237,11 +227,7 @@ class Dvr(
 
     /** Deletes the rule and its scheduled recordings; what it recorded stays. */
     suspend fun deleteRule(id: String) {
-        if (!store.deleteRecordingRule(
-                id,
-                listOf(Wire.RecordingState.SCHEDULED, CANCELED),
-            )
-        ) {
+        if (!store.deleteRecordingRule(id, listOf(Wire.RecordingState.SCHEDULED, CANCELED))) {
             throw ApiFailure(404, "RULE_NOT_FOUND", "Unknown recording rule")
         }
     }
@@ -387,10 +373,7 @@ class Dvr(
             plan.drop.forEach { store.deleteRecording(it.id) }
             var added = 0
             for ((rule, airing) in plan.add) {
-                if (store.addRecording(
-                        stored(rule.id, airing, rule.startPadding, rule.endPadding),
-                    )
-                ) {
+                if (store.addRecording(stored(rule.id, airing, rule.startPadding, rule.endPadding))) {
                     added++
                 }
             }
@@ -578,11 +561,9 @@ class Dvr(
         val detector = commercials ?: return
         val recording =
             store.recording(id)?.takeIf { it.state == Wire.RecordingState.COMPLETED && it.path != null } ?: return
-        val outcome = try {
+        val outcome = runCatchingCancellable {
             Wire.CommercialScan.DONE to detector.detect(root.resolve(recording.path!!))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+        }.getOrElse { e ->
             log.warn(
                 "commercial scan failed id={} title=\"{}\" class={} message=\"{}\"",
                 id,

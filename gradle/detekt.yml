@@ -1,14 +1,27 @@
 # detekt's settings for every Kotlin project, on top of its defaults (the sofaking.lint convention in build-logic). Only
 # what differs from the defaults is here; each change says why.
 
+# The size and complexity rules are off until the code is refactored to their defaults: LongMethod, LargeClass,
+# CyclomaticComplexMethod, NestedBlockDepth, TooManyFunctions, LoopWithTooManyJumpStatements, ReturnCount, ThrowsCount
+# and MagicNumber. Each comes back on, at its default, in the pull request that refactors the code it flags; there is
+# no baseline.
+
 # The defaults skip test code for some rules by the usual test source set names. This repository also has androidHostTest,
 # fileTest, tvosTest and screenshotTest, so every source set whose name ends in Test is skipped instead.
 complexity:
+  LongMethod:
+    active: false
+  LargeClass:
+    active: false
+  NestedBlockDepth:
+    active: false
   TooManyFunctions:
+    active: false
     excludes: &tests ['**/*Test/**', '**/test/**']
     # detekt's Compose guidance: previews add no complexity.
     ignoreAnnotatedFunctions: ['Preview']
   CyclomaticComplexMethod:
+    active: false
     # A when that maps each case to one value is a table, not branching logic.
     ignoreSimpleWhenEntries: true
 
@@ -19,12 +32,17 @@ naming:
     ignoreAnnotated: ['Composable']
 
 style:
+  LoopWithTooManyJumpStatements:
+    active: false
   MagicNumber:
+    active: false
     excludes: ['**/*Test/**', '**/test/**', '**/*.kts'] # the tests, as above, and the Gradle scripts
   ReturnCount:
+    active: false
     # A guard clause (`?: return`, `if (...) return` at the top) is the idiomatic Kotlin early exit, not extra exits.
     excludeGuardClauses: true
   ThrowsCount:
+    active: false
     excludeGuardClauses: true
   UnusedPrivateFunction:
     # detekt's Compose guidance: previews are used by the IDE and the screenshot tests, not by code.

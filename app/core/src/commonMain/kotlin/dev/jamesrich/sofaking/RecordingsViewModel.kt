@@ -68,12 +68,9 @@ class RecordingsViewModel(
     }
 
     /** The player is at [positionMs] in [recordingId]: remembered for a reopen, and saved every [saveInterval]. */
-    fun progress(recordingId: String, positionMs: Long, durationMs: Long?) {
+    fun progress(recordingId: String, positionMs: Long) {
         sessions.reportPosition(positionMs)
-        if (positions.due(
-                recordingId,
-            )
-        ) {
+        if (positions.due(recordingId)) {
             save(recordingId, UpdateRecordingDto(positionMs = positionMs.coerceAtLeast(0)), refresh = false)
         }
     }

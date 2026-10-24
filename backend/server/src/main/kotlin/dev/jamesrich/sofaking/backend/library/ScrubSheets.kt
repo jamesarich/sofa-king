@@ -4,13 +4,13 @@ import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.deleteOrphanLibraryScrubs
 import dev.jamesrich.sofaking.backend.store.libraries
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.libraryScrubs
 import dev.jamesrich.sofaking.backend.store.saveLibraryScrub
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -132,13 +132,11 @@ class ScrubSheets(
         while (isActive) {
             trigger.receive()
             val wanted = pending.toList().also { pending.removeAll(it.toSet()) }
-            try {
+            runCatchingCancellable {
                 val libraries = store.libraries().filter { ALL in wanted || it.id in wanted }
                 for (library in libraries) run(library)
                 if (libraries.isEmpty()) deleteOrphans()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.warn("scrub thumbnails failed class={} message=\"{}\"", e.javaClass.simpleName, redactedMessage(e))
             }
         }
@@ -210,11 +208,7 @@ class ScrubSheets(
             work.deleteRecursively()
             Files.createDirectories(work)
         }
-        val size = try {
-            maker.make(file, work)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+        val size = runCatchingCancellable { maker.make(file, work) }.getOrElse { e ->
             log.warn("scrub sheets failed class={} message=\"{}\"", e.javaClass.simpleName, redactedMessage(e))
             null
         }

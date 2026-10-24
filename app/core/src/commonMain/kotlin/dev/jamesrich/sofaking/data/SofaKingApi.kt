@@ -310,14 +310,9 @@ class SofaKingApi(
      * Engines throw their own transport errors (Darwin's NSError, a browser's TypeError);
      * every one becomes an [IOException].
      */
-    private suspend inline fun <T> call(block: () -> T): T = try {
-        block()
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: IOException) {
-        throw e
-    } catch (e: Exception) {
-        throw IOException(e.message ?: e.toString(), e)
+    private suspend inline fun <T> call(block: () -> T): T = runCatchingCancellable(block).getOrElse {
+        throw it as? IOException
+            ?: IOException(it.message ?: it.toString(), it)
     }
 
     private companion object {

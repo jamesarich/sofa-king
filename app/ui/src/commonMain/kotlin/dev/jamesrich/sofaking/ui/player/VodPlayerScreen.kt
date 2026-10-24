@@ -29,7 +29,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -72,6 +74,7 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.Subtitles
+import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.captions_off
 import dev.jamesrich.sofaking.resources.captions_on
@@ -126,7 +129,6 @@ import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import dev.jamesrich.sofaking.ui.uptimeMs
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
@@ -138,7 +140,7 @@ import kotlin.time.Clock
  * app's one session (through `LibraryViewModel.play` or the recordings' own call) and the screen plays whatever item
  * stream the session holds, including one it reopens after ON_START or a dropped lease or restarts for a seek past
  * what the server has written. [onPosition] gets the position in the item about once a second while it plays, and
- * [onStopped] where it stopped when the viewer leaves or it ends. Leaving stops the player and releases the session.
+ * [onStop] where it stopped when the viewer leaves or it ends. Leaving stops the player and releases the session.
  * When it ends, [upNext] names what plays after it, which the Up next card counts down to and [onPlayNext] opens;
  * after [autoplays] says the card has played enough by itself, it asks "Still watching?" instead. The [sleep] timer
  * leaves the player when it runs out, or as the item ends in place of Up next.
@@ -152,17 +154,18 @@ fun VodPlayerScreen(
     itemId: String,
     open: suspend () -> PlaybackStream,
     onPosition: (positionMs: Long, durationMs: Long?) -> Unit,
-    onStopped: (positionMs: Long, durationMs: Long?) -> Unit,
+    onStop: (positionMs: Long, durationMs: Long?) -> Unit,
     onExit: () -> Unit,
+    modifier: Modifier = Modifier,
     /** Playback reached the end; leaving is the default. */
-    onEnded: () -> Unit = onExit,
+    onEnd: () -> Unit = onExit,
     /** Jump over a [VodMarkerKind.BREAK] when playback runs into it. */
     autoSkipBreaks: Boolean = false,
     /** Skip an intro after a countdown on Skip intro, rather than waiting for a press. */
     autoSkipIntros: Boolean = false,
     /** How the item's text subtitles look. */
     subtitleLook: SubtitleLook = SubtitleLook(),
-    /** What plays after this item, asked for when it ends; null ends as [onEnded] says. */
+    /** What plays after this item, asked for when it ends; null ends as [onEnd] says. */
     upNext: suspend () -> VodUpNext? = { null },
     onPlayNext: () -> Unit = {},
     /** The audio and subtitle tracks to pick from; none hides the picker. */
@@ -198,7 +201,7 @@ fun VodPlayerScreen(
     var audioTrack by remember { mutableStateOf(tracks.initialAudio) }
     var subtitleTrack by remember { mutableStateOf(tracks.initialSubtitle) }
     // How much later than the file says the text subtitles show (earlier when negative); each item starts at 0.
-    var subtitleOffsetMs by remember { mutableStateOf(0L) }
+    var subtitleOffsetMs by remember { mutableLongStateOf(0L) }
     var subtitles by remember { mutableStateOf<Subtitles?>(null) }
     var subtitlesFailed by remember { mutableStateOf(false) }
     var nextSecondsLeft by remember { mutableIntStateOf(UP_NEXT_SECONDS) }
@@ -218,9 +221,10 @@ fun VodPlayerScreen(
     val volume = LocalPlayerVolume.current
     val scope = rememberCoroutineScope()
     val lifecycle = appLifecycleOwner.lifecycle
+    val currentOpen by rememberUpdatedState(open)
     val currentOnPosition by rememberUpdatedState(onPosition)
-    val currentOnStopped by rememberUpdatedState(onStopped)
-    val currentOnEnded by rememberUpdatedState(onEnded)
+    val currentOnStop by rememberUpdatedState(onStop)
+    val currentOnEnd by rememberUpdatedState(onEnd)
     val currentOnExit by rememberUpdatedState(onExit)
     val currentUpNext by rememberUpdatedState(upNext)
     val currentOnPlayNext by rememberUpdatedState(onPlayNext)
@@ -238,7 +242,7 @@ fun VodPlayerScreen(
 
     var mediaSession by remember { mutableStateOf<MediaSessionHandle?>(null) }
     // Each item starts at normal speed; the Speed button steps it on, and leaving puts the shared player back.
-    var speed by remember { mutableStateOf(1f) }
+    var speed by remember { mutableFloatStateOf(1f) }
     val focus = remember { FocusRequester() }
 
     /** Moves to [targetMs] in the item: inside the stream the player holds, or a conversion restarted there. */
@@ -250,11 +254,9 @@ fun VodPlayerScreen(
             is VodSeekPlan.Restart -> {
                 player.stop()
                 scope.launch {
-                    try {
+                    runCatchingCancellable {
                         state.waitForConverter { sessions.restartAt(plan.itemMs) }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
+                    }.onFailure { e ->
                         log.w { "vod: restart failed: ${e.message}" }
                         state.failure = failureCode(e)
                     }
@@ -280,11 +282,9 @@ fun VodPlayerScreen(
     // Opens the item, again on a retry. The stream it publishes is loaded by the effect below.
     LaunchedEffect(openRequest) {
         state.failure = null
-        try {
-            state.waitForConverter { open() }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+        runCatchingCancellable {
+            state.waitForConverter { currentOpen() }
+        }.onFailure { e ->
             log.w { "vod: open failed: ${e.message}" }
             state.failure = failureCode(e)
         }
@@ -327,7 +327,7 @@ fun VodPlayerScreen(
     // Its own effect, so the player's next state change (the app stopping it, say) cannot cancel the lookup.
     LaunchedEffect(state.ended) {
         if (!state.ended) return@LaunchedEffect
-        currentOnStopped(state.durationMs ?: state.positionMs, state.durationMs)
+        currentOnStop(state.durationMs ?: state.positionMs, state.durationMs)
         if (sleep.atEndOfItem) {
             sleep.cancel()
             currentOnExit()
@@ -336,14 +336,12 @@ fun VodPlayerScreen(
         val next = currentUpNext()
         stillWatching = next != null && autoplays.askStillWatching(lastInput.atMs)
         state.next = next
-        if (next == null) currentOnEnded()
+        if (next == null) currentOnEnd()
     }
     LaunchedEffect(Unit) {
-        upcoming = try {
+        upcoming = runCatchingCancellable {
             currentUpNext()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+        }.getOrElse { e ->
             log.w { "vod: up next failed: ${e.message}" }
             null
         }
@@ -452,11 +450,9 @@ fun VodPlayerScreen(
         state.failure,
         state.autoSkipSeconds != null,
     ) {
-        if (!state.overlayVisible || paused || state.scrubTarget != null || state.failure != null ||
-            state.autoSkipSeconds != null
-        ) {
-            return@LaunchedEffect
-        }
+        // A scrub, a failure or an intro countdown keeps the bar up.
+        val barHeld = state.scrubTarget != null || state.failure != null || state.autoSkipSeconds != null
+        if (!state.overlayVisible || paused || barHeld) return@LaunchedEffect
         delay(BAR_IDLE_MS)
         state.overlayVisible = false
     }
@@ -466,17 +462,15 @@ fun VodPlayerScreen(
     LifecycleEventEffect(Lifecycle.Event.ON_STOP, appLifecycleOwner) {
         if (state.ended || stream == null) return@LifecycleEventEffect
         backgrounded = true
-        currentOnStopped(state.positionMs, state.durationMs)
+        currentOnStop(state.positionMs, state.durationMs)
     }
     LifecycleEventEffect(Lifecycle.Event.ON_START, appLifecycleOwner) {
         if (!backgrounded) return@LifecycleEventEffect
         backgrounded = false
         scope.launch {
-            try {
+            runCatchingCancellable {
                 if (state.waitForConverter { sessions.reopen() } == null) openRequest++
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.w { "vod: reopen failed: ${e.message}" }
                 state.failure = failureCode(e)
             }
@@ -485,7 +479,7 @@ fun VodPlayerScreen(
     DisposableEffect(Unit) {
         onDispose {
             player.setSpeed(1f)
-            if (!state.ended) currentOnStopped(state.positionMs, state.durationMs)
+            if (!state.ended) currentOnStop(state.positionMs, state.durationMs)
             // Stopped only on this page's stream, or on nothing yet while no other item holds the session.
             val other = sessions.current.value?.itemId?.let { it != itemId } == true
             if (if (loadedUrl == null) !other else player.currentStreamUrl == loadedUrl) player.stop()
@@ -528,11 +522,9 @@ fun VodPlayerScreen(
         val picture = subtitleTrack?.takeIf(tracks::isPicture)
         player.stop()
         scope.launch {
-            try {
+            runCatchingCancellable {
                 state.waitForConverter { tracks.select(audio, picture, state.positionMs) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.w { "vod: track switch failed: ${e.message}" }
                 state.failure = failureCode(e)
             }
@@ -654,7 +646,7 @@ fun VodPlayerScreen(
     var barHeight by remember { mutableStateOf(0.dp) }
 
     Box(
-        Modifier
+        modifier
             .fillMaxSize()
             .background(SofaScrim)
             .focusRequester(focus)
@@ -907,7 +899,7 @@ fun VodPlayerScreen(
                             seekItem(state.positionMs + VodScrub.FORWARD_STEP_MS)
                             state.showInfo()
                         })
-                        PlayerButtonRow(items, entry = rowEntry, onFocused = {
+                        PlayerButtonRow(items, entry = rowEntry, onFocus = {
                             state.buttonsFocused = it
                         }, showLabel = false)
                         VolumeControl(onAdjust = state::showInfo, onDone = {
@@ -917,7 +909,7 @@ fun VodPlayerScreen(
                         FullScreenControl()
                     }
                 } else if (items.isNotEmpty()) {
-                    PlayerButtonRow(items, entry = rowEntry, onFocused = {
+                    PlayerButtonRow(items, entry = rowEntry, onFocus = {
                         state.buttonsFocused = it
                     }, showLabel = true)
                     if (!state.buttonsFocused) {
@@ -1037,15 +1029,12 @@ private fun VodSeekSlider(
     onSeek: (Long) -> Unit,
 ) {
     val state = remember(lengthMs) {
-        SliderState(
-            value = positionMs().coerceIn(0, lengthMs).toFloat(),
-            trackRange =
-            0f..lengthMs.toFloat(),
-        )
+        SliderState(value = positionMs().coerceIn(0, lengthMs).toFloat(), trackRange = 0f..lengthMs.toFloat())
     }
+    val currentPositionMs by rememberUpdatedState(positionMs)
     var dragging by remember { mutableStateOf(false) }
     LaunchedEffect(state) {
-        snapshotFlow { positionMs() }.collect { if (!dragging) state.value = it.coerceIn(0, lengthMs).toFloat() }
+        snapshotFlow { currentPositionMs() }.collect { if (!dragging) state.value = it.coerceIn(0, lengthMs).toFloat() }
     }
     val played = MaterialTheme.colorScheme.primary
     val marker = MaterialTheme.colorScheme.tertiary

@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.PlaybackProfile
+import dev.jamesrich.sofaking.data.runCatchingCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -156,19 +157,26 @@ internal class VlcLivePlayer(
 
     init {
         execute {
+            // libVLC is a system install on desktops; without it every tune fails with a clear code. A missing library
+            // is a LinkageError, and vlcj throws its own exceptions for one that loads but does not start.
             try {
-                val factory = openVlc()
-                this.factory = factory
-                val vlc = factory.mediaPlayers().newEmbeddedMediaPlayer()
-                vlc.videoSurface().set(factory.videoSurfaces().newVideoSurface(Formats(), Frames(), true))
-                vlc.events().addMediaPlayerEventListener(Events())
-                player = vlc
-            } catch (e: Throwable) {
-                // libVLC is a system install on desktops; without it every tune fails with a clear code.
-                log.w(e) { "libVLC not found; playback is unavailable" }
+                runCatchingCancellable(::open).onFailure(::unavailable)
+            } catch (e: LinkageError) {
+                unavailable(e)
             }
         }
     }
+
+    private fun open() {
+        val factory = openVlc()
+        this.factory = factory
+        val vlc = factory.mediaPlayers().newEmbeddedMediaPlayer()
+        vlc.videoSurface().set(factory.videoSurfaces().newVideoSurface(Formats(), Frames(), true))
+        vlc.events().addMediaPlayerEventListener(Events())
+        player = vlc
+    }
+
+    private fun unavailable(failure: Throwable) = log.w(failure) { "libVLC not found; playback is unavailable" }
 
     override val bufferedMs: Long get() = 0L
 

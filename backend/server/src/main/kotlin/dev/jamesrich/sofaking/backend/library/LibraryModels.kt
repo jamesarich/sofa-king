@@ -32,7 +32,10 @@ object ItemKind {
     const val EXTRA = "extra"
 }
 
-/** What kind of extra a file is, from its folder or its name; [wire] is its [Wire.ExtraKind] value, in the order a page lists them. */
+/**
+ * What kind of extra a file is, from its folder or its name; [wire] is its [Wire.ExtraKind] value, in the order a page
+ * lists them.
+ */
 enum class ExtraKind(val wire: String, val label: String) {
     TRAILER(Wire.ExtraKind.TRAILER, "Trailer"),
     FEATURETTE(Wire.ExtraKind.FEATURETTE, "Featurette"),

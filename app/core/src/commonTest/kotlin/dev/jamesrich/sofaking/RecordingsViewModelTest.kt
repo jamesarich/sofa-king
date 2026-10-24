@@ -235,9 +235,9 @@ class RecordingsViewModelTest {
             server.requests.toString(),
         )
 
-        model.progress("r1", 130_000, 1_800_000)
+        model.progress("r1", 130_000)
         advanceTimeBy(11.seconds)
-        model.progress("r1", 141_000, 1_800_000)
+        model.progress("r1", 141_000)
         runCurrent()
         assertEquals("""PATCH /api/v1/recordings/r1 {"positionMs":141000}""", server.requests.last())
 

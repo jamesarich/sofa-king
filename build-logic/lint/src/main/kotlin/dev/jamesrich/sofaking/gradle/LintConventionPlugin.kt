@@ -14,8 +14,8 @@ import org.jetbrains.kotlin.gradle.plugin.KotlinBasePlugin
  *
  * - Spotless formats the Kotlin sources and Gradle scripts with ktlint, set up by the repository's `.editorconfig`:
  *   `spotlessCheck` fails on a file ktlint would change, and `spotlessApply` changes it.
- * - detekt analyzes each Kotlin project with its default rules plus `gradle/detekt.yml`, and the Compose rules where the
- *   Compose compiler is applied: `detekt` fails on any finding.
+ * - detekt analyzes each Kotlin project with its default rules plus `gradle/detekt.yml`, and the Compose rules with
+ *   `gradle/detekt-compose.yml` where the Compose compiler is applied: `detekt` fails on any finding.
  *
  * Both versions come from the version catalog; the Compose rules are built against one detekt version.
  */
@@ -52,6 +52,9 @@ class LintConventionPlugin : Plugin<Project> {
             }
             pluginManager.withPlugin("org.jetbrains.kotlin.plugin.compose") {
                 dependencies.add("detektPlugins", libs.findLibrary("compose-rules-detekt").get())
+                extensions.configure(DetektExtension::class.java) { detekt ->
+                    detekt.config.from(isolated.rootProject.projectDirectory.file("../gradle/detekt-compose.yml"))
+                }
             }
         }
     }

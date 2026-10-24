@@ -7,7 +7,12 @@ import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
 import java.time.Clock
 
-class Stack(val feeds: FeedService, val guides: GuideService, val lineup: LineupService, val catalog: CatalogService)
+class LineupStack(
+    val feeds: FeedService,
+    val guides: GuideService,
+    val lineup: LineupService,
+    val catalog: CatalogService,
+)
 
 /** Guides, lineup and catalog over [feeds]; every provider's channels are adopted so the app sees them. */
 suspend fun lineupStack(
@@ -17,7 +22,7 @@ suspend fun lineupStack(
     http: HttpClient,
     guides: List<GuideConfig> = emptyList(),
     adopt: Boolean = true,
-): Stack {
+): LineupStack {
     lateinit var lineup: LineupService
     val guideService =
         GuideService(guides, store, http, clock, UpstreamPolicy(allowLoopback = true)) { lineup.wanted() }
@@ -28,7 +33,7 @@ suspend fun lineupStack(
     for (guide in guides) guideService.refresh(guide)
     if (adopt) for (config in feeds.configs) lineup.adopt(AdoptProvider(config.id))
     for (guide in guides) guideService.refresh(guide)
-    return Stack(feeds, guideService, lineup, catalog)
+    return LineupStack(feeds, guideService, lineup, catalog)
 }
 
 /** Adopts every provider into the lineup and imports the guides for the mapped channels. */

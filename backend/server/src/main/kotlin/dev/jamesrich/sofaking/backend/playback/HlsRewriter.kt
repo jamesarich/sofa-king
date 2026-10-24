@@ -7,10 +7,7 @@ import java.net.URI
 object HlsRewriter {
     private val uriAttribute = Regex("(?<![A-Z-])URI=\"([^\"]+)\"")
     suspend fun rewrite(text: String, base: URI, path: suspend (String) -> String): String {
-        if (!text.trimStart().startsWith(
-                "#EXTM3U",
-            )
-        ) {
+        if (!text.trimStart().startsWith("#EXTM3U")) {
             throw ApiFailure(502, "INVALID_MANIFEST", "Invalid HLS manifest", true)
         }
         val output = StringBuilder()

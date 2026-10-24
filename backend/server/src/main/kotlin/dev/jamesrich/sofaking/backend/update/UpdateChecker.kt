@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -13,7 +14,6 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.isSuccess
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +32,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Clock
@@ -139,7 +140,7 @@ class UpdateChecker(
         val target = image ?: return state()
         mutex.withLock {
             jobs.record(JOB) {
-                try {
+                runCatchingCancellable {
                     val build = fetch(target)
                     published.set(build)
                     error.set(null)
@@ -157,9 +158,7 @@ class UpdateChecker(
                             null -> "published ${build.revision ?: build.digest ?: "unknown"}"
                         },
                     )
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
+                }.getOrElse { e ->
                     // Ktor's timeout messages carry the request URL; the note, the flash and the stored state never do.
                     val why = "${e.javaClass.simpleName}: ${redactedMessage(e).take(120)}".trimEnd(':', ' ')
                     error.set(why)
@@ -220,10 +219,17 @@ class UpdateChecker(
         if (!Files.isRegularFile(file)) return null
         return try {
             json.decodeFromString<UpdaterReport>(Files.readString(file))
-        } catch (e: Exception) {
-            log.debug("update-status.json is not readable class={}", e.javaClass.simpleName)
-            null
+        } catch (e: IOException) {
+            unreadable(e)
+        } catch (e: IllegalArgumentException) {
+            // Not JSON, or not the updater's: a SerializationException is one.
+            unreadable(e)
         }
+    }
+
+    private fun unreadable(failure: Exception): UpdaterReport? {
+        log.debug("update-status.json is not readable class={}", failure.javaClass.simpleName)
+        return null
     }
 
     private fun requestedAt(): Instant? {
@@ -318,11 +324,12 @@ class UpdateChecker(
                 require('@' !in image) { "the update image must be named by tag, not digest" }
                 val slash = image.indexOf('/')
                 val first = if (slash < 0) "" else image.substring(0, slash)
-                val (host, rest) = if (slash >= 0 && ('.' in first || ':' in first || first == "localhost")) {
+                // A first part that looks like a host names the registry; otherwise it is a Docker Hub namespace.
+                val registry = '.' in first || ':' in first || first == "localhost"
+                val (host, rest) = if (slash >= 0 && registry) {
                     first to image.substring(slash + 1)
                 } else {
-                    "registry-1.docker.io" to
-                        image
+                    "registry-1.docker.io" to image
                 }
                 val colon = rest.lastIndexOf(':')
                 val name = if (colon < 0) rest else rest.substring(0, colon)

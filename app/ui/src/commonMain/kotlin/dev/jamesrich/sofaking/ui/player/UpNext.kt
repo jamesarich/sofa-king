@@ -40,9 +40,6 @@ import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import org.jetbrains.compose.resources.stringResource
 
-/** What plays after the item on screen, offered when it ends: its title, the line under it and its picture. */
-data class VodUpNext(val title: String, val subtitle: String? = null, val artworkUrl: String? = null)
-
 /**
  * The Up next card in the corner once an item ends, counting [secondsLeft] down to playing [next]. OK and play/pause
  * play it now and Back leaves, through the screen's keys; a pointer gets the two buttons. Asking [stillWatching], it

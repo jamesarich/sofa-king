@@ -85,7 +85,7 @@ class SettingsButtonFocusTest {
     @Test
     fun `setting a PIN focuses Remove the PIN`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
         var locked by mutableStateOf(false)
-        show { LockSection(locked = locked, onPinChanged = { locked = it != null }) }
+        show { LockSection(locked = locked, onPinChange = { locked = it != null }) }
         onNodeWithText("Set a PIN").requestFocus()
         waitForIdle()
         pressOk()
@@ -117,10 +117,10 @@ class SettingsButtonFocusTest {
                     favoritesOrder = order,
                     hidden = emptySet(),
                     zapSkipsHidden = false,
-                    onFavoritesOrderChanged = { order = it },
-                    onChannelHiddenChanged = { _, _ -> },
-                    onChannelsHiddenChanged = { _, _ -> },
-                    onZapSkipsHiddenChanged = {},
+                    onFavoritesOrderChange = { order = it },
+                    onChannelHiddenChange = { _, _ -> },
+                    onChannelsHiddenChange = { _, _ -> },
+                    onZapSkipsHiddenChange = {},
                     onBack = {},
                 )
             }

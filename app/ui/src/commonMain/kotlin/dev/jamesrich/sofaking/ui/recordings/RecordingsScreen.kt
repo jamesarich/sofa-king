@@ -200,7 +200,7 @@ private fun RecordingList(
                     time,
                     onPlay,
                     onDelete,
-                    if (recording.id == firstId) {
+                    firstButtonModifier = if (recording.id == firstId) {
                         Modifier.focusRequester(firstFocus)
                     } else {
                         Modifier
@@ -340,13 +340,14 @@ private fun RecordingRow(
     time: TimeFormatter,
     onPlay: (DvrRecording, Boolean) -> Unit,
     onDelete: suspend (DvrRecording) -> Boolean,
-    firstButton: Modifier,
+    modifier: Modifier = Modifier,
+    firstButtonModifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
     var confirming by remember(recording.id) { mutableStateOf(false) }
     var busy by remember(recording.id) { mutableStateOf(false) }
     var failed by remember(recording.id) { mutableStateOf(false) }
-    Column(Modifier.widthIn(max = 960.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier.widthIn(max = 960.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             recording.title,
             style = MaterialTheme.typography.titleMedium,
@@ -377,9 +378,9 @@ private fun RecordingRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val deleteModifier = if (recording.playable) Modifier else firstButton
+            val deleteModifier = if (recording.playable) Modifier else firstButtonModifier
             if (recording.playable) {
-                SofaButton(onClick = { onPlay(recording, false) }, modifier = firstButton) {
+                SofaButton(onClick = { onPlay(recording, false) }, modifier = firstButtonModifier) {
                     Text(
                         stringResource(
                             if (recording.inProgress) Res.string.recordings_resume else Res.string.recordings_play,

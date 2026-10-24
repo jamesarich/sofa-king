@@ -29,6 +29,15 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
 
     private class Session(val token: String, val channels: String, val stitcher: String, val params: String)
 
+    /** The session saved as JSON, or null when any part of it is missing. */
+    private fun storedSession(value: JsonElement?): Session? {
+        val token = value.str("token") ?: return null
+        val channels = value.str("channels") ?: return null
+        val stitcher = value.str("stitcher") ?: return null
+        val params = value.str("params") ?: return null
+        return Session(token, channels, stitcher, params)
+    }
+
     override suspend fun channels(): List<ProviderChannel> = listed().map { it.channel }
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
@@ -132,14 +141,7 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun session(): Session {
         context.state(SESSION)?.let { stored ->
-            val value = runCatching { lenientJson.parseToJsonElement(stored) }.getOrNull()
-            val token = value.str("token")
-            val channels = value.str("channels")
-            val stitcher = value.str("stitcher")
-            val params = value.str("params")
-            if (token != null && channels != null && stitcher != null && params != null) {
-                return Session(token, channels, stitcher, params)
-            }
+            storedSession(runCatching { lenientJson.parseToJsonElement(stored) }.getOrNull())?.let { return it }
         }
         val now = context.clock.instant()
         val clientId = URLEncoder.encode(context.deviceId(), Charsets.UTF_8)

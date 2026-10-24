@@ -9,6 +9,7 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import org.slf4j.LoggerFactory
+import java.io.IOException
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicReference
 
@@ -67,12 +68,14 @@ class PolicyFile(initial: LoadedPolicy, private val providerIds: Set<String>, pr
             if (next.size > POLICY_LIMIT) throw ApiFailure(413, "REQUEST_TOO_LARGE", "The policy exceeds 4 MiB")
             val policy = try {
                 parsePolicy(next)
-            } catch (e: Exception) {
+            } catch (e: IllegalArgumentException) {
+                // A SerializationException is one: JSON that does not parse, or does not fit the schema.
                 throw ApiFailure(
                     400,
                     "INVALID_POLICY",
                     "The policy is not valid JSON for this schema: " +
                         "${e.message?.lineSequence()?.firstOrNull().orEmpty()}",
+                    cause = e,
                 )
             }
             val errors = validatePolicy(policy, providerIds)
@@ -83,16 +86,22 @@ class PolicyFile(initial: LoadedPolicy, private val providerIds: Set<String>, pr
     }
 
     private fun reload() {
-        try {
-            loaded.set(loadPolicy(path, providerIds))
-            log.info("lineup policy reloaded from disk revision={}", loaded.get().revision)
-            onReloaded()
-        } catch (e: Exception) {
-            log.warn(
-                "lineup policy on disk is invalid; keeping revision {}: {}",
-                loaded.get().revision,
-                e.message?.lineSequence()?.firstOrNull(),
-            )
+        val policy = try {
+            loadPolicy(path, providerIds)
+        } catch (e: IOException) {
+            return keep(e)
+        } catch (e: IllegalArgumentException) {
+            // Too large, not JSON for the schema, or failing validation.
+            return keep(e)
         }
+        loaded.set(policy)
+        log.info("lineup policy reloaded from disk revision={}", policy.revision)
+        onReloaded()
     }
+
+    private fun keep(failure: Exception) = log.warn(
+        "lineup policy on disk is invalid; keeping revision {}: {}",
+        loaded.get().revision,
+        failure.message?.lineSequence()?.firstOrNull(),
+    )
 }

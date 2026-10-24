@@ -17,13 +17,7 @@ fun main(): Unit = runBlocking<Unit> {
     val config = ServerConfig.load(System.getenv(), log::info)
     val clock = Clock.systemUTC()
     val store = openStore(config.dataDirectory, clock)
-    val runtime =
-        try {
-            LiveRuntime.create(store, config, clock)
-        } catch (failure: Throwable) {
-            store.close()
-            throw failure
-        }
+    val runtime = runCatching { LiveRuntime.create(store, config, clock) }.onFailure { store.close() }.getOrThrow()
     val ports = listOf(config.port) + if (config.hdhr.enabled) config.hdhr.extraPorts else emptyList()
     val plexStatus = runtime.plex?.let { sync -> PlexStatusSource { sync.status() } }
     val mdns = if (config.mdns) MdnsAdvertiser(config.hdhr.friendlyName, config.port, config.version) else null

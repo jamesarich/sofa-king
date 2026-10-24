@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.providers
 import dev.jamesrich.sofaking.backend.catalog.FeedParser
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import java.io.ByteArrayInputStream
 import java.net.URLEncoder
 import java.time.Duration
@@ -97,13 +98,9 @@ class HdHomeRunClient(private val context: ProviderContext) : ProviderClient {
             "$guideApi?DeviceAuth=${URLEncoder.encode(auth, Charsets.UTF_8)}",
             GUIDE_HEADERS,
         ).require("HDHomeRun guide")
-        return try {
+        return runCatchingCancellable {
             ByteArrayInputStream(fetched.body).use { FeedParser.guide(it, guideApi) { true } }
-        } catch (e: ProviderFailure) {
-            throw e
-        } catch (e: Exception) {
-            throw ProviderFailure("HDHomeRun guide is not XMLTV", cause = e)
-        }
+        }.getOrElse { throw it as? ProviderFailure ?: ProviderFailure("HDHomeRun guide is not XMLTV", cause = it) }
     }
 
     companion object {

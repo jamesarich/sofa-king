@@ -294,7 +294,10 @@ class LibraryCatalog internal constructor(
         )
     }
 
-    /** Others of [view]'s library, a movie, show or video, that share its genres: the most shared first, then the best rated. */
+    /**
+     * Others of [view]'s library, a movie, show or video, that share its genres: the most shared first, then the best
+     * rated.
+     */
     private fun related(snapshot: Snapshot, view: View): List<View> {
         if (view.record.parentId != null) return emptyList()
         val genres = view.item.genres.mapTo(HashSet()) { it.lowercase() }

@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.backend.playback
 
-import kotlinx.coroutines.CancellationException
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
@@ -65,11 +65,9 @@ internal class AudioFollower(
         try {
             while (true) {
                 val (url, segment) = withTimeoutOrNull(IDLE_MS) { queue.receive() } ?: break
-                try {
+                runCatchingCancellable {
                     read(url, segment)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
+                }.onFailure { e ->
                     log.debug("segment audio failed: {}", e.toString())
                 }
             }

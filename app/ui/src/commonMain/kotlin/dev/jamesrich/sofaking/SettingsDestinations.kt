@@ -29,8 +29,8 @@ internal fun SettingsDestination(
         SettingsLockScreen(
             pinHash = s.settingsPin,
             apiToken = s.apiToken,
-            onUnlocked = { shell.settingsUnlocked = true },
-            onPinRemoved = {
+            onUnlock = { shell.settingsUnlocked = true },
+            onPinRemove = {
                 vm.setSettingsPin(null)
                 shell.settingsUnlocked = true
             },
@@ -59,8 +59,8 @@ internal fun SettingsDestination(
                 reloading = loading,
                 serverUnreachable = state is LineupState.Failed,
                 actions = SettingsActions(
-                    onCaptionsChanged = vm::setCaptionsEnabled,
-                    onCaptionAdvanceChanged = vm::setCaptionAdvanceMs,
+                    onCaptionsChange = vm::setCaptionsEnabled,
+                    onCaptionAdvanceChange = vm::setCaptionAdvanceMs,
                     onSmoothCaptionsChanged = vm::setSmoothCaptions,
                     onCaptionStyleChanged = vm::setCaptionStyle,
                     onAutoOpenDelayChanged = vm::setAutoOpenDelay,
@@ -106,10 +106,10 @@ internal fun SettingsDestination(
             favoritesOrder = s.favoritesOrder,
             hidden = s.hiddenChannels,
             zapSkipsHidden = s.zapSkipsHidden,
-            onFavoritesOrderChanged = vm::setFavoritesOrder,
-            onChannelHiddenChanged = vm::setChannelHidden,
-            onChannelsHiddenChanged = vm::setChannelsHidden,
-            onZapSkipsHiddenChanged = vm::setZapSkipsHidden,
+            onFavoritesOrderChange = vm::setFavoritesOrder,
+            onChannelHiddenChange = vm::setChannelHidden,
+            onChannelsHiddenChange = vm::setChannelsHidden,
+            onZapSkipsHiddenChange = vm::setZapSkipsHidden,
             onBack = shell::back,
         )
 

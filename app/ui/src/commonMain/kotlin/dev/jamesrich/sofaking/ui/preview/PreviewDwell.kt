@@ -69,7 +69,7 @@ internal class PreviewDwell(
         val rested = nowMs - restedSinceMs
         if (rested < UNMUTE_AFTER_MS) return UNMUTE_AFTER_MS - rested
         val after = fullScreenAfterMs
-        if (after != null && !pointerDriven && id != suppressedChannelId && rested < after) return after - rested
-        return null
+        if (after == null || pointerDriven || id == suppressedChannelId) return null
+        return if (rested < after) after - rested else null
     }
 }

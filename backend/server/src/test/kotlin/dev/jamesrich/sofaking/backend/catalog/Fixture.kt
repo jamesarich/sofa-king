@@ -325,7 +325,7 @@ class Fixture : AutoCloseable {
                 "Content-Type",
                 if (path.endsWith("m3u8")) "application/vnd.apple.mpegurl" else "application/octet-stream",
             )
-            if (gzipEncoded && (path == "/key" || path == "/media.m3u8" || path == "/audio.m3u8")) {
+            if (gzipEncoded && path in GZIPPED_PATHS) {
                 val compressed = java.io.ByteArrayOutputStream().also { out ->
                     java.util.zip.GZIPOutputStream(out).use { it.write(text.toByteArray()) }
                 }.toByteArray()
@@ -393,6 +393,9 @@ class Fixture : AutoCloseable {
         append("</tv>")
     }
     companion object {
+        /** What the fixture serves gzip-encoded while [gzipEncoded] is set. */
+        private val GZIPPED_PATHS = setOf("/key", "/media.m3u8", "/audio.m3u8")
+
         private val SHOW = listOf("News at One", "Afternoon Show", "Matinee", "Evening Report")
 
         fun resource(name: String): ByteArray = Fixture::class.java.classLoader.getResourceAsStream(name)!!.use {

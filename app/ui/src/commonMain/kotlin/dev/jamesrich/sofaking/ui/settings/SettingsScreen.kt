@@ -225,8 +225,8 @@ import kotlin.time.Duration.Companion.minutes
 
 /** The switches and choices Settings applies at once; each lands in the store as it is changed. */
 class SettingsActions(
-    val onCaptionsChanged: (Boolean) -> Unit = {},
-    val onCaptionAdvanceChanged: (Int) -> Unit = {},
+    val onCaptionsChange: (Boolean) -> Unit = {},
+    val onCaptionAdvanceChange: (Int) -> Unit = {},
     val onSmoothCaptionsChanged: (Boolean) -> Unit = {},
     val onCaptionStyleChanged: (CaptionStyle) -> Unit = {},
     val onAutoOpenDelayChanged: (AutoOpenDelay) -> Unit = {},
@@ -761,7 +761,7 @@ fun SettingsScreen(
                     checked = captionsOn,
                     onCheckedChange = {
                         captionsOn = it
-                        actions.onCaptionsChanged(it)
+                        actions.onCaptionsChange(it)
                     },
                 )
             }
@@ -808,7 +808,7 @@ fun SettingsScreen(
                         SofaButton(
                             onClick = {
                                 captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = -1)
-                                actions.onCaptionAdvanceChanged(captionAdvance)
+                                actions.onCaptionAdvanceChange(captionAdvance)
                                 if (captionAdvance <= AppSettings.CAPTION_ADVANCE_RANGE_MS.first) {
                                     moreFocus.requestFocus()
                                 }
@@ -820,7 +820,7 @@ fun SettingsScreen(
                         SofaButton(
                             onClick = {
                                 captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = 1)
-                                actions.onCaptionAdvanceChanged(captionAdvance)
+                                actions.onCaptionAdvanceChange(captionAdvance)
                                 if (captionAdvance >= AppSettings.CAPTION_ADVANCE_RANGE_MS.last) {
                                     lessFocus.requestFocus()
                                 }
@@ -901,7 +901,7 @@ fun SettingsScreen(
             }
             if (!unconfigured) serverSection()
             item { SectionHeader(stringResource(Res.string.settings_section_lock)) }
-            item { LockSection(locked = settings.settingsLocked, onPinChanged = actions.onSettingsPinChanged) }
+            item { LockSection(locked = settings.settingsLocked, onPinChange = actions.onSettingsPinChanged) }
             // About: the app, its version and what is loaded, then where the build stands
             // against the published snapshot.
             item { SectionHeader(stringResource(Res.string.settings_section_about)) }

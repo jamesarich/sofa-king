@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.playback.AudioFollower
 import dev.jamesrich.sofaking.backend.playback.SegmentAudio
 import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.SpliceReader
+import dev.jamesrich.sofaking.backend.playback.playlistUri
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
@@ -332,7 +333,7 @@ class AdListener(
                 }
                     ?.let { Regex("""URI="([^"]+)"""").find(it)?.groupValues?.get(1) }
             }
-            return base.resolve(rendition ?: variant.second).toString()
+            return base.resolve(playlistUri(rendition ?: variant.second)).toString()
         }
 
         /**

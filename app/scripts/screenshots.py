@@ -218,9 +218,16 @@ def android(args, out):
             """The app from a cold start, paired and set up with [extra] settings."""
             settings = {'backend_url': emulated(base), 'api_token': TOKEN, **SETTINGS, **extra}
             # A fresh files folder, so nothing the last start saved carries over; clearing the app would take back its
-            # permissions.
-            adb('exec-in', f'run-as {PACKAGE} sh -c "rm -rf files && mkdir -p files/datastore && cat > files/datastore/settings.preferences_pb"',
-                data=preferences_pb(settings))
+            # permissions. Read back, since a write just after the install can land short and leave the app unpaired.
+            written = preferences_pb(settings)
+            for _ in range(10):
+                adb('exec-in', f'run-as {PACKAGE} sh -c "rm -rf files && mkdir -p files/datastore && cat > files/datastore/settings.preferences_pb"',
+                    data=written)
+                if adb('exec-out', 'run-as', PACKAGE, 'cat', 'files/datastore/settings.preferences_pb') == written:
+                    break
+                time.sleep(2)
+            else:
+                raise SystemExit('The app\'s settings did not stay written')
             adb('shell', 'am', 'start', '-W', '-n', f'{PACKAGE}/.MainActivity', timeout=120)
             shoot = lambda name: (out / f'{args.name}-{name}.png').write_bytes(adb('exec-out', 'screencap', '-p'))
 

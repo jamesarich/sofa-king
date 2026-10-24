@@ -35,7 +35,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.io.readByteArray
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
-import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.time.Clock
@@ -74,6 +73,7 @@ class LogoCache(
     private val permits = Semaphore(parallelism)
     private val trigger = Channel<Unit>(Channel.CONFLATED)
     private val wantedIndex = AtomicReference<Pair<List<String>, Map<String, String>>?>(null)
+    private val downloader = LogoDownloader(http, policy, maxBytes)
 
     suspend fun initialize() {
         withContext(Dispatchers.IO) { Files.createDirectories(directory) }
@@ -92,21 +92,12 @@ class LogoCache(
         val now = clock.instant()
         val record = records[key]
         if (record?.cached == true) {
-            if (due(record, now)) requestSweep()
+            if (record.fetchedAt.olderThan(refreshAfter, now)) requestSweep()
             return record
         }
         val source = wantedByKey()[key] ?: return null
-        if (record != null && !retryDue(record, now)) return null
+        if (record != null && !record.failedAt.olderThan(retryAfter, now)) return null
         return fetch(key, source, now)
-    }
-
-    /** The bytes of a cached record, or null when the file is gone. */
-    suspend fun read(record: LogoRecord): ByteArray? = withContext(Dispatchers.IO) {
-        try {
-            Files.readAllBytes(directory.resolve(record.key))
-        } catch (_: NoSuchFileException) {
-            null
-        }
     }
 
     /** The cached record's file, for the route to stream, or null when it is gone. */
@@ -125,7 +116,9 @@ class LogoCache(
         coroutineScope {
             for ((key, source) in wanted) {
                 val record = records[key]
-                if (record == null || (due(record, now) && retryDue(record, now))) {
+                val due = record == null ||
+                    (record.fetchedAt.olderThan(refreshAfter, now) && record.failedAt.olderThan(retryAfter, now))
+                if (due) {
                     fetched++
                     launch { fetch(key, source, now) }
                 }
@@ -154,12 +147,6 @@ class LogoCache(
         }
     }
 
-    private fun due(record: LogoRecord, now: Instant): Boolean =
-        record.fetchedAt == null || record.fetchedAt.plus(refreshAfter) <= now
-
-    private fun retryDue(record: LogoRecord, now: Instant): Boolean =
-        record.failedAt == null || record.failedAt.plus(retryAfter) <= now
-
     private fun wantedByKey(): Map<String, String> {
         val urls = wanted().distinct()
         wantedIndex.get()?.let { (last, index) -> if (last == urls) return index }
@@ -179,9 +166,10 @@ class LogoCache(
                 val previous = records[key]
                 val at = clock.instant()
                 val record = runCatchingCancellable {
-                    val image = download(source)
+                    val image = downloader.download(source)
                     val bytes = withContext(Dispatchers.Default) { fitLogo(image.bytes, image.contentType) }
-                    write(key, bytes)
+                    // A logo lost to a crash is fetched again, so the write is atomic but not synced.
+                    withContext(Dispatchers.IO) { atomicWrite(directory.resolve(key), bytes, sync = false) }
                     LogoRecord(
                         key,
                         source,
@@ -210,38 +198,6 @@ class LogoCache(
                 record.takeIf { it.cached }
             }
         }
-
-    private class Image(val bytes: ByteArray, val contentType: String)
-
-    private suspend fun download(source: String): Image {
-        // Entries stored before references were normalized can still carry spaces or other unencoded characters.
-        val target = normalizeLogoUrl(source) ?: throw IllegalArgumentException("Logo URL is not an HTTP(S) address")
-        return http.withUpstreamResponse(
-            target,
-            target,
-            emptyMap(),
-            requestTimeoutMillis = 15_000,
-            policy = policy,
-        ) { response ->
-            require(response.status == HttpStatusCode.OK) { "Logo fetch answered ${response.status.value}" }
-            val declared = response.headers[HttpHeaders.ContentType]?.substringBefore(';')?.trim()?.lowercase()
-            require(declared in IMAGE_TYPES) { "Not an image content type" }
-            response.headers[HttpHeaders.ContentLength]?.toLongOrNull()?.let {
-                require(it <= maxBytes) { "Logo exceeds size limit" }
-            }
-            val bytes = response.bodyAsChannel().readBuffer(maxBytes.toLong() + 1).readByteArray()
-            require(bytes.size <= maxBytes) { "Logo exceeds size limit" }
-            // The body decides the stored type: a PNG labeled JPEG is a PNG; markup is an SVG only when declared one.
-            val type =
-                rasterType(bytes) ?: (if (declared == SVG && looksLikeMarkup(bytes)) SVG else null)
-                    ?: throw IllegalArgumentException("Body is not an image")
-            Image(bytes, type)
-        }
-    }
-
-    // A logo lost to a crash is fetched again, so the write is atomic but not synced.
-    private suspend fun write(key: String, bytes: ByteArray) =
-        withContext(Dispatchers.IO) { atomicWrite(directory.resolve(key), bytes, sync = false) }
 
     private suspend fun evict(key: String) {
         records.remove(key)
@@ -296,5 +252,48 @@ class LogoCache(
 
         private fun sha256(bytes: ByteArray): String =
             HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes))
+    }
+}
+
+/** Whether this time is unset or at least [age] before [now]: a fetch or a retry is due. */
+private fun Instant?.olderThan(age: Duration, now: Instant): Boolean = this == null || plus(age) <= now
+
+private class Image(val bytes: ByteArray, val contentType: String)
+
+/**
+ * Fetches a logo through [policy] with no provider headers: the answer must be an image content type whose body looks
+ * like one, at most [maxBytes].
+ */
+private class LogoDownloader(
+    private val http: HttpClient,
+    private val policy: UpstreamPolicy,
+    private val maxBytes: Int,
+) {
+
+    suspend fun download(source: String): Image {
+        // Entries stored before references were normalized can still carry spaces or other unencoded characters.
+        val target = normalizeLogoUrl(source) ?: throw IllegalArgumentException("Logo URL is not an HTTP(S) address")
+        return http.withUpstreamResponse(
+            target,
+            target,
+            emptyMap(),
+            requestTimeoutMillis = 15_000,
+            policy = policy,
+        ) { response ->
+            require(response.status == HttpStatusCode.OK) { "Logo fetch answered ${response.status.value}" }
+            val declared = response.headers[HttpHeaders.ContentType]?.substringBefore(';')?.trim()?.lowercase()
+            require(declared in LogoCache.IMAGE_TYPES) { "Not an image content type" }
+            response.headers[HttpHeaders.ContentLength]?.toLongOrNull()?.let {
+                require(it <= maxBytes) { "Logo exceeds size limit" }
+            }
+            val bytes = response.bodyAsChannel().readBuffer(maxBytes.toLong() + 1).readByteArray()
+            require(bytes.size <= maxBytes) { "Logo exceeds size limit" }
+            // The body decides the stored type: a PNG labeled JPEG is a PNG; markup is an SVG only when declared one.
+            val type =
+                LogoCache.rasterType(bytes)
+                    ?: (if (declared == LogoCache.SVG && LogoCache.looksLikeMarkup(bytes)) LogoCache.SVG else null)
+                    ?: throw IllegalArgumentException("Body is not an image")
+            Image(bytes, type)
+        }
     }
 }

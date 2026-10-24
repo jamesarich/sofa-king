@@ -28,11 +28,12 @@ internal fun sniffProtocol(head: ByteArray, size: Int = head.size): String? {
     var start = 0
     if (size >= UTF8_BOM.size && head.copyOfRange(0, UTF8_BOM.size).contentEquals(UTF8_BOM)) start = UTF8_BOM.size
     while (start < size && head[start].toInt().toChar().isWhitespace()) start++
-    if (size - start >= HLS_TAG.length && String(head, start, HLS_TAG.length, Charsets.US_ASCII) == HLS_TAG) {
-        return "hls"
+    val hls = size - start >= HLS_TAG.length && String(head, start, HLS_TAG.length, Charsets.US_ASCII) == HLS_TAG
+    return when {
+        hls -> "hls"
+        tsSyncOffset(head, to = size) != null -> "mpegts"
+        else -> null
     }
-    if (tsSyncOffset(head, to = size) != null) return "mpegts"
-    return null
 }
 
 /** Offset of the first sync byte confirmed by [packets] aligned successors, or null. */

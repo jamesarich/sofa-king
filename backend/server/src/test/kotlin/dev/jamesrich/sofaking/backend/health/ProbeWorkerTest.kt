@@ -163,36 +163,36 @@ class ProbeWorkerTest {
                         )
                     assertEquals(
                         FailureClass.AUTH,
-                        worker.classify("Error opening input: Server returned 401 Unauthorized (authorization failed)"),
+                        classifyFailure("Error opening input: Server returned 401 Unauthorized (authorization failed)"),
                     )
                     assertEquals(
                         FailureClass.AUTH,
-                        worker.classify("Error opening input: Server returned 403 Forbidden (access denied)"),
+                        classifyFailure("Error opening input: Server returned 403 Forbidden (access denied)"),
                     )
                     assertEquals(
                         FailureClass.RATE_LIMIT,
-                        worker.classify("Error opening input: Server returned 429 Too Many Requests"),
+                        classifyFailure("Error opening input: Server returned 429 Too Many Requests"),
                     )
                     assertEquals(
                         FailureClass.PROVIDER,
-                        worker.classify("Error opening input: Server returned 5XX Server Error reply"),
+                        classifyFailure("Error opening input: Server returned 5XX Server Error reply"),
                     )
-                    assertEquals(FailureClass.PROVIDER, worker.classify("HTTP error 503 Service Unavailable"))
+                    assertEquals(FailureClass.PROVIDER, classifyFailure("HTTP error 503 Service Unavailable"))
                     assertEquals(
                         FailureClass.OFFERING,
-                        worker.classify("Error opening input: Server returned 404 Not Found"),
+                        classifyFailure("Error opening input: Server returned 404 Not Found"),
                     )
                     assertEquals(
                         FailureClass.OFFERING,
-                        worker.classify(
+                        classifyFailure(
                             "Error opening input: Server returned 4XX Client Error, but not one of 40{0,1,3,4}",
                         ),
                     )
-                    assertEquals(FailureClass.LOCAL, worker.classify("Unknown decoder"))
-                    assertEquals(FailureClass.OFFERING, worker.classify("Invalid data found when processing input"))
+                    assertEquals(FailureClass.LOCAL, classifyFailure("Unknown decoder"))
+                    assertEquals(FailureClass.OFFERING, classifyFailure("Invalid data found when processing input"))
                     assertEquals(
                         FailureClass.OFFERING,
-                        worker.classify("Stream ends prematurely at 206424, should be 18446744073709551615"),
+                        classifyFailure("Stream ends prematurely at 206424, should be 18446744073709551615"),
                     )
                 }
             }

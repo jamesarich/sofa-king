@@ -168,11 +168,11 @@ class ProbeWorker(
             }.mapNotNull { offering ->
                 val state = states[offering.id] ?: return@mapNotNull null
                 val probeable =
-                    !state.manuallyDisabled && state.status != HealthStatus.ARCHIVED && due(state, now) &&
+                    !state.manuallyDisabled && state.status != HealthStatus.ARCHIVED && state.probeDue(now) &&
                         attempts[offering.id]?.let { now < it.plusSeconds(300) } != true
                 if (probeable) offering to state else null
             }.sortedWith(
-                compareBy({ plan?.get(it.first.id) ?: 0 }, { priority(it.second.status) }, {
+                compareBy({ plan?.get(it.first.id) ?: 0 }, { it.second.status.probePriority() }, {
                     attempts[it.first.id]
                         ?: Instant.MIN
                 }),
@@ -180,12 +180,6 @@ class ProbeWorker(
             .take(config.parallelism * CLAIMS_PER_WORKER)
             .map { it.first }
             .toList()
-    }
-
-    private fun priority(status: HealthStatus): Int = when (status) {
-        HealthStatus.HEALTHY -> 2
-        HealthStatus.UNVERIFIED -> 1
-        else -> 0
     }
 
     private suspend fun probe(offering: Offering) {
@@ -242,21 +236,6 @@ class ProbeWorker(
         }
     }
 
-    internal fun classify(error: String): FailureClass = when {
-        AUTH_ERROR.containsMatchIn(error) -> FailureClass.AUTH
-        RATE_LIMIT_ERROR.containsMatchIn(error) -> FailureClass.RATE_LIMIT
-        PROVIDER_ERROR.containsMatchIn(error) -> FailureClass.PROVIDER
-        LOCAL_ERROR.containsMatchIn(error) -> FailureClass.LOCAL
-        else -> FailureClass.OFFERING
-    }
-
-    private fun due(state: HealthState, now: Instant): Boolean {
-        if (state.nextCheckAt != null) return now >= state.nextCheckAt
-        val last = state.lastObservationAt ?: return true
-        return now >=
-            last.plus(if (state.status == HealthStatus.HEALTHY) HEALTHY_EVERY else UNHEALTHY_EVERY)
-    }
-
     /**
      * Decode tier: reconnects across upstream EOF so a hiccuping source still delivers its 30 seconds. A [recheck] of
      * a healthy source copies the video packets instead of decoding them: it proves the stream still delivers at a
@@ -294,7 +273,7 @@ class ProbeWorker(
                     if (exit == 0 && enoughFrames && micros >= TimeUnit.SECONDS.toMicros(config.decodeSeconds - 1L)) {
                         null
                     } else {
-                        classify(
+                        classifyFailure(
                             Files.newInputStream(errors).use {
                                 it.readNBytes(ERROR_BYTES).toString(Charsets.UTF_8)
                             },
@@ -310,7 +289,31 @@ class ProbeWorker(
         }
 }
 
-/** FFmpeg error lines, by the failure they show. */
+/** Which offerings a step probes first, after the plan's order: the unhealthy, then the unverified, then the healthy. */
+private fun HealthStatus.probePriority(): Int = when (this) {
+    HealthStatus.HEALTHY -> 2
+    HealthStatus.UNVERIFIED -> 1
+    else -> 0
+}
+
+/** What FFmpeg's [error] output says failed. */
+internal fun classifyFailure(error: String): FailureClass = when {
+    AUTH_ERROR.containsMatchIn(error) -> FailureClass.AUTH
+    RATE_LIMIT_ERROR.containsMatchIn(error) -> FailureClass.RATE_LIMIT
+    PROVIDER_ERROR.containsMatchIn(error) -> FailureClass.PROVIDER
+    LOCAL_ERROR.containsMatchIn(error) -> FailureClass.LOCAL
+    else -> FailureClass.OFFERING
+}
+
+/** Whether this offering is due a probe at [now]: at its scheduled check, else when its last observation is old. */
+private fun HealthState.probeDue(now: Instant): Boolean {
+    if (nextCheckAt != null) return now >= nextCheckAt
+    val last = lastObservationAt ?: return true
+    return now >=
+        last.plus(if (status == HealthStatus.HEALTHY) HEALTHY_EVERY else UNHEALTHY_EVERY)
+}
+
+/** How long the observations behind an offering's health are kept. */
 private val OBSERVATION_RETENTION: Duration = Duration.ofDays(7)
 
 /** A worker with nothing due waits the shorter time, doubling it up to the longer while nothing comes due. */
@@ -326,6 +329,7 @@ private val UNHEALTHY_EVERY: Duration = Duration.ofMinutes(5)
 /** How much of FFmpeg's error output a failed decode is classified by. */
 private const val ERROR_BYTES = 8_192
 
+/** FFmpeg error lines, by the failure they show. */
 private val AUTH_ERROR = Regex("(?i)(HTTP error |server returned )(401|403)\\b")
 private val RATE_LIMIT_ERROR = Regex("(?i)(HTTP error |server returned )429\\b")
 private val PROVIDER_ERROR =

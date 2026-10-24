@@ -142,7 +142,8 @@ class UpstreamRequestTest {
                         HttpStatusCode.Found,
                         headersOf(
                             HttpHeaders.Location,
-                            "https://github.com/matthuisman/i.mjh.nz/raw/refs/heads/master/SamsungTVPlus/.channels.json.gz",
+                            "https://github.com/matthuisman/i.mjh.nz/raw/refs/heads/master/" +
+                                "SamsungTVPlus/.channels.json.gz",
                         ),
                     )
                 } else {
@@ -160,7 +161,8 @@ class UpstreamRequestTest {
         assertEquals(
             listOf(
                 "https://i.mjh.test/x",
-                "https://raw.githubusercontent.com/matthuisman/i.mjh.nz/refs/heads/master/SamsungTVPlus/.channels.json.gz",
+                "https://raw.githubusercontent.com/matthuisman/i.mjh.nz/refs/heads/master/" +
+                    "SamsungTVPlus/.channels.json.gz",
             ),
             asked,
         )

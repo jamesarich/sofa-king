@@ -321,8 +321,8 @@ class AdListener(
         }
 
         /**
-         * How many channels to listen to: [slots], at most [WHILE_WATCHING] while anyone is [watching], none with learned
-         * breaks [LearnedBreaks.OFF].
+         * How many channels to listen to: [slots], at most [WHILE_WATCHING] while anyone is [watching], none with
+         * learned breaks [LearnedBreaks.OFF].
          */
         fun wanted(mode: LearnedBreaks, watching: Set<String>, slots: Int): Int = when {
             mode == LearnedBreaks.OFF -> 0

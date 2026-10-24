@@ -4,13 +4,14 @@ Compose:
   CompositionLocalAllowlist:
     # The app's own CompositionLocals, each an ambient value that nearly every screen reads and nothing passes by hand:
     # the window's layout profile, last input, full screen and picture-in-picture; the clock, zone and clock format that
-    # previews and screenshot tests pin; the app's lifecycle; the guide's density; and the player volume. A new one has
-    # to be added here, which is the rule's point.
+    # previews and screenshot tests pin, and the uptime clock the player's scrub rests by; the app's lifecycle; the
+    # guide's density; and the player volume. A new one has to be added here, which is the rule's point.
     allowedCompositionLocals:
       - LocalLayoutProfile
       - LocalLastInput
       - LocalAppLifecycleOwner
       - LocalClock
+      - LocalUptimeMs
       - LocalWindowFullScreen
       - LocalInPictureInPicture
       - LocalClockFormat

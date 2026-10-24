@@ -426,7 +426,9 @@ private fun FileLine(detail: MediaItemDetail) {
     )
 }
 
-/** A titled row of cards: OK on one calls [onOpen], the remote's Play key [onPlay]; [focusItem] takes [focusRequester]. */
+/**
+ * A titled row of cards: OK on one calls [onOpen], the remote's Play key [onPlay]; [focusItem] takes [focusRequester].
+ */
 @Composable
 private fun ItemRow(
     title: String,

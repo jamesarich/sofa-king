@@ -59,6 +59,25 @@ class UpstreamRequestTest {
         }
     }
 
+    @Test fun `a region address goes to every host of a stream`() = runBlocking<Unit> {
+        HttpClient(
+            MockEngine { request ->
+                assertEquals("203.0.113.7", request.headers["X-Forwarded-For"])
+                assertNull(request.headers[HttpHeaders.Authorization])
+                respond("key")
+            },
+        ) { followRedirects = false }.use { http ->
+            assertEquals(
+                "key",
+                http.withUpstreamResponse(
+                    "https://keys.cdn.test/key",
+                    "https://stitcher.provider.test/live.m3u8",
+                    mapOf("X-Forwarded-For" to "203.0.113.7", "Authorization" to "Bearer secret"),
+                ) { it.bodyAsText() },
+            )
+        }
+    }
+
     @Test fun `downgrades and redirect loops are rejected`() = runBlocking<Unit> {
         for (location in listOf("http://provider.test/live", "https://provider.test/live")) {
             HttpClient(

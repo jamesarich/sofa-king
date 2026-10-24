@@ -219,7 +219,7 @@ The extra ports must differ from `SOFA_PORT`. They are opened only when `SOFA_HD
 
 ## Provider headers
 
-Credentials are sent only to the configured request origin. Cross-origin CDN requests receive only `User-Agent`, `Accept`, `Accept-Language`, `Origin` and `Referer`. Authorization, cookies and custom headers are removed. Redirects are limited to five. HTTPS redirects cannot downgrade to HTTP, and sources configured with HTTPS also reject HTTP media resources.
+Credentials are sent only to the configured request origin. Cross-origin CDN requests receive only `User-Agent`, `Accept`, `Accept-Language`, `Origin`, `Referer` and a provider's [region address](providers.md) (`X-Forwarded-For`). Authorization, cookies and custom headers are removed. Redirects are limited to five. HTTPS redirects cannot downgrade to HTTP, and sources configured with HTTPS also reject HTTP media resources.
 
 Providers that need secret headers on a different CDN origin are unsupported.
 

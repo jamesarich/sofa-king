@@ -174,7 +174,12 @@ internal fun rawGitHub(uri: URI): URI {
 /** `/{owner}/{repo}/raw/{ref}/{path}`. */
 private val GITHUB_RAW_PATH = Regex("/([^/]*)/([^/]*)/raw/([^/]*/.*)")
 
-private val portableHeaders = setOf("user-agent", "accept", "accept-language", "origin", "referer")
+/**
+ * Headers every host of a stream gets, not only the source's own: none is a credential, and a CDN may answer by them.
+ * `X-Forwarded-For` is a region's address (see `RegionOptions`): a stream's keys and segments come from other hosts,
+ * which answer by the caller's region too.
+ */
+private val portableHeaders = setOf("user-agent", "accept", "accept-language", "origin", "referer", "x-forwarded-for")
 
 internal fun sameOrigin(left: URI, right: URI): Boolean {
     fun port(uri: URI) = if (uri.port != -1) {

@@ -226,4 +226,14 @@ class LibraryChoicesTest {
             fileFacts(MediaItemDetail(item(id = "s", kind = ItemKind.SHOW))),
         )
     }
+
+    @Test
+    fun `each letter jumps to its first run and a letter seen again keeps that place`() {
+        val runs = listOf("A" to 3, "B" to 2, "#" to 1, "A" to 4, "C" to 1)
+        assertEquals(
+            listOf(LetterJump("A", 0), LetterJump("B", 3), LetterJump("#", 5), LetterJump("C", 10)),
+            letterJumps(runs),
+        )
+        assertEquals(emptyList(), letterJumps(emptyList()))
+    }
 }

@@ -114,14 +114,14 @@ internal class AppDriver(
 
     /** Saves the screen and the semantics tree to [out], then fails with [reason]. */
     fun failWith(reason: String, cause: Throwable? = null): Nothing {
-        runCatching {
+        val _ = runCatching {
             ImageIO.write(
                 ui.onAllNodes(isRoot()).onLast().captureToImage().toAwtImage(),
                 "png",
                 File(out, "failure.png"),
             )
         }
-        runCatching {
+        val _ = runCatching {
             File(
                 out,
                 "failure-semantics.txt",

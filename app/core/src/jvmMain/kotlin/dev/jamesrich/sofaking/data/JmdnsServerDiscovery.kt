@@ -32,7 +32,7 @@ class JmdnsServerDiscovery : ServerDiscovery {
         }
         awaitClose {
             browsers.forEach {
-                runCatching {
+                val _ = runCatching {
                     it.removeServiceListener(type, listener)
                     it.close()
                 }

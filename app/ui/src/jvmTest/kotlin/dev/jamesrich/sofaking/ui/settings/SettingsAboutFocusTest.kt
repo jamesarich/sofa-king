@@ -71,12 +71,12 @@ class SettingsAboutFocusTest {
     /** Scrolls to the end, then back until the notice and Check again are both below the visible list. */
     private fun ComposeUiTest.hideAboutBelowTheList() {
         val list = onNode(hasScrollAction())
-        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 100_000f) }
+        list.performSemanticsAction(SemanticsActions.ScrollBy) { val _ = it(0f, 100_000f) }
         waitForIdle()
         val bottom = list.getUnclippedBoundsInRoot().bottom
         val notice = onNodeWithText(tmdbNotice, substring = true).getUnclippedBoundsInRoot()
         val shift = with(density) { (bottom - notice.top).toPx() } + 1f
-        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, -shift) }
+        list.performSemanticsAction(SemanticsActions.ScrollBy) { val _ = it(0f, -shift) }
         waitForIdle()
         assertTrue(!shown(tmdbNotice) && !shown(checkAgain), "the setup leaves About below the visible list")
     }

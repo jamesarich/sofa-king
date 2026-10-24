@@ -227,13 +227,8 @@ data class LetterJump(val letter: String, val offset: Int)
  * whose items come in more than one run is placed at its first.
  */
 fun letterJumps(runs: List<Pair<String, Int>>): List<LetterJump> {
-    var offset = 0
-    val jumps = LinkedHashMap<String, LetterJump>()
-    for ((letter, count) in runs) {
-        jumps.getOrPut(letter) { LetterJump(letter, offset) }
-        offset += count
-    }
-    return jumps.values.toList()
+    val offsets = runs.runningFold(0) { offset, (_, count) -> offset + count }
+    return runs.zip(offsets) { (letter, _), offset -> LetterJump(letter, offset) }.distinctBy { it.letter }
 }
 
 /**

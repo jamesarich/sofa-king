@@ -41,7 +41,7 @@ class NsdServerDiscovery(context: Context) : ServerDiscovery {
         }
         nsd.discoverServices(Wire.Discovery.SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
         awaitClose {
-            runCatching { nsd.stopServiceDiscovery(listener) }
+            val _ = runCatching { nsd.stopServiceDiscovery(listener) }
             resolver.close()
         }
     }
@@ -70,18 +70,18 @@ class NsdServerDiscovery(context: Context) : ServerDiscovery {
                 override fun onServiceInfoCallbackUnregistered() = Unit
             }
             callbacks[name] = callback
-            runCatching {
+            val _ = runCatching {
                 nsd.registerServiceInfoCallback(service, executor, callback)
             }.onFailure { callbacks.remove(name) }
         }
 
         override fun lost(service: NsdServiceInfo) = executor.execute {
-            callbacks.remove(service.serviceName)?.let { runCatching { nsd.unregisterServiceInfoCallback(it) } }
+            callbacks.remove(service.serviceName)?.let { val _ = runCatching { nsd.unregisterServiceInfoCallback(it) } }
             servers.lost(service.serviceName)
         }
 
         override fun close() = executor.execute {
-            callbacks.values.forEach { runCatching { nsd.unregisterServiceInfoCallback(it) } }
+            callbacks.values.forEach { val _ = runCatching { nsd.unregisterServiceInfoCallback(it) } }
             callbacks.clear()
             executor.shutdown()
         }
@@ -124,7 +124,7 @@ class NsdServerDiscovery(context: Context) : ServerDiscovery {
                 }
                 override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) = done()
             }
-            runCatching { nsd.resolveService(service, listener) }.onFailure { done() }
+            val _ = runCatching { nsd.resolveService(service, listener) }.onFailure { done() }
         }
 
         private fun done() {

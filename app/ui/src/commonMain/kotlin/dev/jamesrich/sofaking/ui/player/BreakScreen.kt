@@ -149,11 +149,11 @@ internal fun hueRotation(degrees: Float): ColorMatrix {
 
 private const val HALF_TURN_DEGREES = 180f
 
-/** This color turned [degrees] around the hue wheel by [hueRotation], as the logo's parts are when it wears that hue. */
+/** This color turned [degrees] around the hue wheel by [hueRotation], as the logo's parts are in that hue. */
 internal fun Color.hueRotated(degrees: Float): Color {
-    val m = hueRotation(degrees).values
+    val matrix = hueRotation(degrees)
     val rgb = floatArrayOf(red, green, blue)
-    fun channel(row: Int) = (0..2).sumOf { (m[row * 5 + it] * rgb[it]).toDouble() }.toFloat().coerceIn(0f, 1f)
+    fun channel(row: Int) = rgb.indices.sumOf { (matrix[row, it] * rgb[it]).toDouble() }.toFloat().coerceIn(0f, 1f)
     return Color(channel(0), channel(1), channel(2), alpha)
 }
 
@@ -209,14 +209,14 @@ private object BreakTally {
 
 /**
  * The break screen: the crown-on-sofa mark drifting around and bouncing off the edges the way an old DVD player's
- * screensaver did, a new color on every edge and the brand colors back on a corner, with a little pop and a line to mark
- * the occasion. The screen starts black, and each hit paints it the sofa's color from before the hit, a little see-through
- * so the picture faintly shows under it. [remainingMs], when known, counts down in the middle of the screen, over a line
- * picked for the break, [upNext] (the channel's next program) and the ads dodged today, [dodgedBeforeMs] before this
- * break plus the time it has been up. Only the mark moves; the words stay put in the middle, and the changing color
- * behind them keeps them from burning in. When it goes, [onCover] gets the milliseconds it was on screen, counted in
- * drawn frames, so time in the background is left out. It draws only; the player decides whether the sound plays under
- * it.
+ * screensaver did, a new color on every edge and the brand colors back on a corner, with a little pop and a line to
+ * mark the occasion. The screen starts black, and each hit paints it the sofa's color from before the hit, a little
+ * see-through so the picture faintly shows under it. [remainingMs], when known, counts down in the middle of the
+ * screen, over a line picked for the break, [upNext] (the channel's next program) and the ads dodged today,
+ * [dodgedBeforeMs] before this break plus the time it has been up. Only the mark moves; the words stay put in the
+ * middle, and the changing color behind them keeps them from burning in. When it goes, [onCover] gets the milliseconds
+ * it was on screen, counted in drawn frames, so time in the background is left out. It draws only; the player decides
+ * whether the sound plays under it.
  */
 @Composable
 internal fun BreakScreen(
@@ -291,8 +291,8 @@ private fun BouncingMark(motion: BreakMotion, size: Dp) {
 }
 
 /**
- * The screen behind the mark: black before its first hit, then the sofa's lavender (its body and arms in the logo) in [tint], the hue it wore into its last hit,
- * either way a little see-through.
+ * The screen behind the mark: black before its first hit, then the sofa's lavender (its body and arms in the logo) in
+ * [tint], the hue it wore into its last hit, either way a little see-through.
  */
 internal fun breakBackdrop(tint: Int?): Color =
     (if (tint == null) SofaScrim else SofaLavender.hueRotated(BOUNCE_HUES[tint])).copy(alpha = BACKDROP_ALPHA)

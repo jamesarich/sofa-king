@@ -199,106 +199,27 @@ internal fun BoxScope.InfoBarPanel(
     focus: FocusRequester,
     entry: FocusRequester,
 ) {
-    /**
-     * A button's action, after which the bar stays up for another while; [toPicture] hands focus back to the picture.
-     */
-    fun control(toPicture: Boolean = pointerDriven, action: () -> Unit): () -> Unit = {
-        action()
-        state.keepInfo()
-        if (toPicture) focus.requestFocus()
-    }
-
-    val failed = state.failure != null
+    val bar = BarActions(state, focus, pointerDriven)
+    val buttons = LiveBarButtons(
+        state,
+        controls,
+        bar,
+        paused,
+        hasAudioChoice,
+        zoom,
+        sleep,
+        programEnd,
+        record,
+        favorite,
+        onToggleFavorite,
+        onGuide,
+    )
     val items = liveButtons(
         pointerDriven,
         canRecord = record != null,
         canFavorite = favorite != null,
-        hasPrevious =
-        state.previousIndex != null,
-    ).map { button ->
-        when (button) {
-            LiveButton.CHANNELS -> PlayerButtonItem(
-                Icons.AutoMirrored.Filled.List,
-                stringResource(Res.string.player_control_channels),
-                state::openMiniGuide,
-            )
-
-            LiveButton.PREVIOUS -> PlayerButtonItem(
-                SofaIcons.SwapHoriz,
-                stringResource(Res.string.player_control_previous),
-                control(toPicture = true) {
-                    state.recallLastChannel()
-                },
-            )
-
-            LiveButton.PLAY_PAUSE -> if (failed) {
-                PlayerButtonItem(
-                    Icons.Filled.Refresh,
-                    stringResource(Res.string.player_control_retry),
-                    control {
-                        controls.retry()
-                    },
-                )
-            } else {
-                PlayerButtonItem(
-                    if (paused) Icons.Filled.PlayArrow else SofaIcons.Pause,
-                    stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause),
-                    control { controls.playPause() },
-                )
-            }
-
-            // Captions hand the D-pad back to the picture, so Left and Right set the timing while the toast shows.
-            LiveButton.CAPTIONS -> PlayerButtonItem(
-                if (state.captionsOn) SofaIcons.ClosedCaption else SofaIcons.ClosedCaptionOff,
-                stringResource(Res.string.player_control_captions),
-                control(toPicture = true) { controls.toggleCaptions() },
-                state = stringResource(if (state.captionsOn) Res.string.captions_on else Res.string.captions_off),
-            )
-
-            LiveButton.STREAM_INFO -> PlayerButtonItem(
-                if (hasAudioChoice) SofaIcons.Audiotrack else Icons.Filled.Info,
-                stringResource(Res.string.player_control_stream),
-                state::openStreamCard,
-            )
-
-            LiveButton.ZOOM -> zoomButtonItem(zoom, control { controls.zoom() })
-
-            LiveButton.SLEEP -> sleepButtonItem(sleep) {
-                sleep.step(Clock.System.now().toEpochMilliseconds(), programEndMs = programEnd?.toEpochMilliseconds())
-                state.keepInfo()
-            }
-
-            LiveButton.RECORD -> PlayerButtonItem(
-                if (record?.recording == true) SofaIcons.Recordings else SofaIcons.Record,
-                stringResource(
-                    if (record?.recording == true) {
-                        Res.string.guide_details_cancel_recording
-                    } else {
-                        Res.string.guide_details_record
-                    },
-                ),
-                control { record?.onClick?.invoke() },
-            )
-
-            LiveButton.FAVORITE -> PlayerButtonItem(
-                if (favorite == true) Icons.Filled.Star else Icons.Outlined.Star,
-                stringResource(
-                    if (favorite == true) {
-                        Res.string.guide_details_remove_favorite
-                    } else {
-                        Res.string.guide_details_add_favorite
-                    },
-                ),
-                control(action = onToggleFavorite),
-            )
-
-            LiveButton.GUIDE -> PlayerButtonItem(
-                SofaIcons.GridView,
-                stringResource(Res.string.player_control_guide),
-                onGuide,
-            )
-        }
-    }
+        hasPrevious = state.previousIndex != null,
+    ).map { buttons.item(it) }
 
     InfoBar(state.overlayVisible && !state.miniGuideOpen && !state.streamCardOpen) {
         val scopeLabel = scope?.let { stringResource(Res.string.zap_scope, it.label, state.index + 1, ringSize) }
@@ -312,41 +233,171 @@ internal fun BoxScope.InfoBarPanel(
             showKeyLegend = state.legendOnThisBar && !pointerDriven,
         )
         if (pointerDriven) {
-            FlowRow(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                itemVerticalAlignment = Alignment.CenterVertically,
-            ) {
-                ControlIcon(
-                    Icons.Filled.KeyboardArrowDown,
-                    stringResource(Res.string.player_control_channel_down),
-                    control {
-                        state.zapStep(PlayerAction.CHANNEL_DOWN.zapStep()!!)
-                    },
-                )
-                PlayPauseControl(
-                    paused,
-                    failed,
-                    control {
-                        controls.playPause()
-                    },
-                    control { controls.retry() },
-                    primary = true,
-                )
-                ControlIcon(
-                    Icons.Filled.KeyboardArrowUp,
-                    stringResource(Res.string.player_control_channel_up),
-                    control {
-                        state.zapStep(PlayerAction.CHANNEL_UP.zapStep()!!)
-                    },
-                )
+            PointerControls(state, controls, bar, paused) {
                 PlayerButtonRow(items, entry, onFocus = { state.buttonsFocused = it }, showLabel = false)
-                VolumeControl(onAdjust = state::keepInfo, onDone = control {})
-                FullScreenControl()
             }
         } else {
             PlayerButtonRow(items, entry, onFocus = { state.buttonsFocused = it }, showLabel = true)
         }
+    }
+}
+
+/** Wraps the bar's button actions, so the bar stays up for another while after each. */
+private class BarActions(
+    private val state: PlayerState,
+    private val focus: FocusRequester,
+    private val pointerDriven: Boolean,
+) {
+    /** [action], then the bar stays up; [toPicture] hands focus back to the picture. */
+    fun control(toPicture: Boolean = pointerDriven, action: () -> Unit): () -> Unit = {
+        action()
+        state.keepInfo()
+        if (toPicture) focus.requestFocus()
+    }
+}
+
+/** The info bar's buttons, each drawn from what the player shows now. */
+private class LiveBarButtons(
+    private val state: PlayerState,
+    private val controls: PlayerControls,
+    private val bar: BarActions,
+    private val paused: Boolean,
+    private val hasAudioChoice: Boolean,
+    private val zoom: VideoZoom,
+    private val sleep: SleepTimer,
+    private val programEnd: Instant?,
+    private val record: LiveRecord?,
+    private val favorite: Boolean?,
+    private val onToggleFavorite: () -> Unit,
+    private val onGuide: () -> Unit,
+) {
+    @Composable
+    fun item(button: LiveButton): PlayerButtonItem = when (button) {
+        LiveButton.CHANNELS -> PlayerButtonItem(
+            Icons.AutoMirrored.Filled.List,
+            stringResource(Res.string.player_control_channels),
+            state::openMiniGuide,
+        )
+
+        LiveButton.PREVIOUS -> PlayerButtonItem(
+            SofaIcons.SwapHoriz,
+            stringResource(Res.string.player_control_previous),
+            bar.control(toPicture = true) { state.recallLastChannel() },
+        )
+
+        LiveButton.PLAY_PAUSE -> playPause()
+
+        LiveButton.CAPTIONS -> captions()
+
+        LiveButton.STREAM_INFO -> PlayerButtonItem(
+            if (hasAudioChoice) SofaIcons.Audiotrack else Icons.Filled.Info,
+            stringResource(Res.string.player_control_stream),
+            state::openStreamCard,
+        )
+
+        LiveButton.ZOOM -> zoomButtonItem(zoom, bar.control { controls.zoom() })
+
+        LiveButton.SLEEP -> sleepButtonItem(sleep) {
+            sleep.step(Clock.System.now().toEpochMilliseconds(), programEndMs = programEnd?.toEpochMilliseconds())
+            state.keepInfo()
+        }
+
+        LiveButton.RECORD -> record()
+
+        LiveButton.FAVORITE -> favorite()
+
+        LiveButton.GUIDE -> PlayerButtonItem(
+            SofaIcons.GridView,
+            stringResource(Res.string.player_control_guide),
+            onGuide,
+        )
+    }
+
+    /** Retry once the stream has failed; play or pause until then. */
+    @Composable
+    private fun playPause(): PlayerButtonItem = if (state.failure != null) {
+        PlayerButtonItem(
+            Icons.Filled.Refresh,
+            stringResource(Res.string.player_control_retry),
+            bar.control { controls.retry() },
+        )
+    } else {
+        PlayerButtonItem(
+            if (paused) Icons.Filled.PlayArrow else SofaIcons.Pause,
+            stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause),
+            bar.control { controls.playPause() },
+        )
+    }
+
+    /** Captions hand the D-pad back to the picture, so Left and Right set the timing while the toast shows. */
+    @Composable
+    private fun captions(): PlayerButtonItem = PlayerButtonItem(
+        if (state.captionsOn) SofaIcons.ClosedCaption else SofaIcons.ClosedCaptionOff,
+        stringResource(Res.string.player_control_captions),
+        bar.control(toPicture = true) { controls.toggleCaptions() },
+        state = stringResource(if (state.captionsOn) Res.string.captions_on else Res.string.captions_off),
+    )
+
+    @Composable
+    private fun record(): PlayerButtonItem {
+        val recording = record?.recording == true
+        return PlayerButtonItem(
+            if (recording) SofaIcons.Recordings else SofaIcons.Record,
+            stringResource(
+                if (recording) Res.string.guide_details_cancel_recording else Res.string.guide_details_record,
+            ),
+            bar.control { record?.onClick?.invoke() },
+        )
+    }
+
+    @Composable
+    private fun favorite(): PlayerButtonItem {
+        val on = favorite == true
+        return PlayerButtonItem(
+            if (on) Icons.Filled.Star else Icons.Outlined.Star,
+            stringResource(if (on) Res.string.guide_details_remove_favorite else Res.string.guide_details_add_favorite),
+            bar.control(action = onToggleFavorite),
+        )
+    }
+}
+
+/**
+ * The bar's controls for a finger or a mouse: channel down, play or pause, channel up, then the [buttons], the
+ * volume and full screen.
+ */
+@Composable
+private fun PointerControls(
+    state: PlayerState,
+    controls: PlayerControls,
+    bar: BarActions,
+    paused: Boolean,
+    buttons: @Composable () -> Unit,
+) {
+    FlowRow(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        ControlIcon(
+            Icons.Filled.KeyboardArrowDown,
+            stringResource(Res.string.player_control_channel_down),
+            bar.control { state.zapStep(PlayerAction.CHANNEL_DOWN.zapStep()!!) },
+        )
+        PlayPauseControl(
+            paused,
+            state.failure != null,
+            bar.control { controls.playPause() },
+            bar.control { controls.retry() },
+            primary = true,
+        )
+        ControlIcon(
+            Icons.Filled.KeyboardArrowUp,
+            stringResource(Res.string.player_control_channel_up),
+            bar.control { state.zapStep(PlayerAction.CHANNEL_UP.zapStep()!!) },
+        )
+        buttons()
+        VolumeControl(onAdjust = state::keepInfo, onDone = bar.control {})
+        FullScreenControl()
     }
 }

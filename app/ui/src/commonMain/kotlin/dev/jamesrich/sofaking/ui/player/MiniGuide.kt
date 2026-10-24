@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
@@ -100,7 +103,6 @@ internal fun BoxScope.MiniGuide(
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = focusRow.coerceAtLeast(0))
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { requestFocusWhenAttached(focusRequester) }
-    val timeFormat = rememberTimeFormatter()
 
     Box(
         Modifier
@@ -114,36 +116,7 @@ internal fun BoxScope.MiniGuide(
                 WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
             ).padding(top = panelEdgeMargin()),
         ) {
-            // One focus group, so the owner sees the top row as focused whichever chip holds it.
-            Row(
-                Modifier.fillMaxWidth().focusGroup().onFocusChanged { onChipsFocus(it.hasFocus) },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(
-                    stringResource(Res.string.mini_guide_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                LazyRow(
-                    modifier = Modifier.weight(1f).focusGroup(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(filters.size, key = { filters[it].name }) { position ->
-                        val option = filters[position]
-                        SofaChip(
-                            selected = filter == option,
-                            onClick = { filter = option },
-                            label = when (option) {
-                                MiniGuideFilter.RECENT -> stringResource(Res.string.mini_guide_recent)
-                                MiniGuideFilter.FAVORITES -> stringResource(Res.string.filter_favorites)
-                                MiniGuideFilter.SCOPE -> scope?.label.orEmpty()
-                                MiniGuideFilter.ALL -> stringResource(Res.string.filter_all)
-                            },
-                        )
-                    }
-                }
-            }
+            MiniGuideChips(filters, filter, { filter = it }, scope, onChipsFocus)
             Spacer(Modifier.height(8.dp))
             if (rows.isEmpty()) {
                 Text(
@@ -153,28 +126,85 @@ internal fun BoxScope.MiniGuide(
                     modifier = Modifier.padding(16.dp),
                 )
             }
-            CompositionLocalProvider(LocalBringIntoViewSpec provides FocusedRowOnTop) {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxWidth().weight(1f).focusRestorer(),
-                ) {
-                    items(rows.size, key = { rows[it].key }) { position ->
-                        val row = rows[position]
-                        val (program, next) = lineup.nowAndNext(row.channel, now)
-                        MiniGuideRowItem(
-                            row = row,
-                            program = program,
-                            nextLine = next?.let {
-                                stringResource(Res.string.mini_guide_next, it.title, timeFormat.format(it.start))
-                            },
-                            guideLoading = lineup.guideLoading,
-                            now = now,
-                            current = row.channel.guideId == currentGuideId,
-                            onClick = { onTune(row.channel) },
-                            modifier = if (position == focusRow) Modifier.focusRequester(focusRequester) else Modifier,
-                        )
-                    }
-                }
+            MiniGuideList(lineup, rows, listState, focusRow, focusRequester, currentGuideId, now, onTune)
+        }
+    }
+}
+
+/** The title and the filter chips: Recent, Favorites, the guide filter the player was opened from, and All. */
+@Composable
+private fun MiniGuideChips(
+    filters: List<MiniGuideFilter>,
+    filter: MiniGuideFilter,
+    onFilter: (MiniGuideFilter) -> Unit,
+    scope: ZapScope?,
+    onChipsFocus: (Boolean) -> Unit,
+) {
+    // One focus group, so the owner sees the top row as focused whichever chip holds it.
+    Row(
+        Modifier.fillMaxWidth().focusGroup().onFocusChanged { onChipsFocus(it.hasFocus) },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            stringResource(Res.string.mini_guide_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        LazyRow(
+            modifier = Modifier.weight(1f).focusGroup(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(filters.size, key = { filters[it].name }) { position ->
+                val option = filters[position]
+                SofaChip(
+                    selected = filter == option,
+                    onClick = { onFilter(option) },
+                    label = when (option) {
+                        MiniGuideFilter.RECENT -> stringResource(Res.string.mini_guide_recent)
+                        MiniGuideFilter.FAVORITES -> stringResource(Res.string.filter_favorites)
+                        MiniGuideFilter.SCOPE -> scope?.label.orEmpty()
+                        MiniGuideFilter.ALL -> stringResource(Res.string.filter_all)
+                    },
+                )
+            }
+        }
+    }
+}
+
+/** The channel rows, each with what is on now and next; [focusRow] answers to [focusRequester]. */
+@Composable
+private fun ColumnScope.MiniGuideList(
+    lineup: Lineup,
+    rows: List<MiniGuideRow>,
+    listState: LazyListState,
+    focusRow: Int,
+    focusRequester: FocusRequester,
+    currentGuideId: String?,
+    now: Instant,
+    onTune: (Channel) -> Unit,
+) {
+    val timeFormat = rememberTimeFormatter()
+    CompositionLocalProvider(LocalBringIntoViewSpec provides FocusedRowOnTop) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxWidth().weight(1f).focusRestorer(),
+        ) {
+            items(rows.size, key = { rows[it].key }) { position ->
+                val row = rows[position]
+                val (program, next) = lineup.nowAndNext(row.channel, now)
+                MiniGuideRowItem(
+                    row = row,
+                    program = program,
+                    nextLine = next?.let {
+                        stringResource(Res.string.mini_guide_next, it.title, timeFormat.format(it.start))
+                    },
+                    guideLoading = lineup.guideLoading,
+                    now = now,
+                    current = row.channel.guideId == currentGuideId,
+                    onClick = { onTune(row.channel) },
+                    modifier = if (position == focusRow) Modifier.focusRequester(focusRequester) else Modifier,
+                )
             }
         }
     }
@@ -207,7 +237,6 @@ private fun MiniGuideRowItem(
     // The focused row is primary with on-primary text, the same focus the guide grid uses.
     val colors = MaterialTheme.colorScheme
     val primary = if (focused) colors.onPrimary else colors.onSurface
-    val secondary = if (focused) colors.onPrimary else colors.onSurfaceVariant
     Row(
         modifier
             .fillMaxWidth()
@@ -231,41 +260,58 @@ private fun MiniGuideRowItem(
             modifier = Modifier.width(96.dp),
         )
         ChannelLogo(channel, 64.dp, 40.dp, Modifier.padding(end = 16.dp))
-        Column(Modifier.weight(1f)) {
-            if (row.pinnedLast) {
-                Text(
-                    stringResource(Res.string.mini_guide_last_channel),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (focused) colors.onPrimary else colors.primary,
-                )
-            }
+        MiniGuideRowText(row, program, nextLine, guideLoading, now, focused)
+    }
+}
+
+/** A row's name and listing: the last-channel tag, the name, what is on with its progress, and what is next. */
+@Composable
+private fun RowScope.MiniGuideRowText(
+    row: MiniGuideRow,
+    program: Program?,
+    nextLine: String?,
+    guideLoading: Boolean,
+    now: Instant,
+    focused: Boolean,
+) {
+    val channel = row.channel
+    val colors = MaterialTheme.colorScheme
+    val primary = if (focused) colors.onPrimary else colors.onSurface
+    val secondary = if (focused) colors.onPrimary else colors.onSurfaceVariant
+    Column(Modifier.weight(1f)) {
+        if (row.pinnedLast) {
             Text(
-                channel.name,
-                style = MaterialTheme.typography.titleMedium,
-                color = primary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                stringResource(Res.string.mini_guide_last_channel),
+                style = MaterialTheme.typography.labelLarge,
+                color = if (focused) colors.onPrimary else colors.primary,
             )
+        }
+        Text(
+            channel.name,
+            style = MaterialTheme.typography.titleMedium,
+            color = primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            program?.title ?: channel.noListingText(guideLoading),
+            style = MaterialTheme.typography.bodyMedium,
+            color = secondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (program != null) {
+            Spacer(Modifier.height(4.dp))
+            ProgressBar(programProgress(program.start, program.stop, now), color = primary)
+        }
+        if (nextLine != null) {
             Text(
-                program?.title ?: channel.noListingText(guideLoading),
-                style = MaterialTheme.typography.bodyMedium,
+                nextLine,
+                style = MaterialTheme.typography.bodySmall,
                 color = secondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (program != null) {
-                Spacer(Modifier.height(4.dp))
-                ProgressBar(programProgress(program.start, program.stop, now), color = primary)
-            }
-            if (nextLine != null) {
-                Text(
-                    nextLine,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = secondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
     }
 }

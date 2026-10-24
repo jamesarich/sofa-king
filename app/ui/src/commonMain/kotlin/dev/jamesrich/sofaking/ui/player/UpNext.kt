@@ -105,30 +105,36 @@ internal fun BoxScope.UpNextCard(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        if (pointerDriven) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SofaButton(onClick = onPlay) {
-                    Text(
-                        stringResource(
-                            if (stillWatching) Res.string.vod_still_watching_keep else Res.string.vod_up_next_play,
-                        ),
-                    )
-                }
-                SofaButton(onClick = onCancel) {
-                    Text(
-                        stringResource(
-                            if (stillWatching) Res.string.vod_still_watching_stop else Res.string.vod_up_next_cancel,
-                        ),
-                    )
-                }
+        UpNextActions(pointerDriven, stillWatching, onPlay, onCancel)
+    }
+}
+
+/** Play now and Cancel for a pointer; for the remote, a line naming the keys. Asking [stillWatching], keep or stop. */
+@Composable
+private fun UpNextActions(pointerDriven: Boolean, stillWatching: Boolean, onPlay: () -> Unit, onCancel: () -> Unit) {
+    if (pointerDriven) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SofaButton(onClick = onPlay) {
+                Text(
+                    stringResource(
+                        if (stillWatching) Res.string.vod_still_watching_keep else Res.string.vod_up_next_play,
+                    ),
+                )
             }
-        } else {
-            Text(
-                stringResource(if (stillWatching) Res.string.vod_still_watching_keys else Res.string.vod_up_next_keys),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            SofaButton(onClick = onCancel) {
+                Text(
+                    stringResource(
+                        if (stillWatching) Res.string.vod_still_watching_stop else Res.string.vod_up_next_cancel,
+                    ),
+                )
+            }
         }
+    } else {
+        Text(
+            stringResource(if (stillWatching) Res.string.vod_still_watching_keys else Res.string.vod_up_next_keys),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -27,6 +28,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -112,56 +114,86 @@ fun ChannelManagerScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item { ScreenTitle(stringResource(Res.string.channels_title), onBack, backFocus) }
-            item { SectionHeader(stringResource(Res.string.channels_section_favorites)) }
-            item {
-                HelpText(
-                    stringResource(
-                        if (ordered.isEmpty()) {
-                            Res.string.channels_favorites_none
-                        } else {
-                            Res.string.channels_favorites_help
-                        },
-                    ),
-                )
-            }
-            items(ordered, key = { "fav:${it.guideId}" }) { channel ->
-                val index = orderIds.indexOf(channel.guideId)
-                FavoriteOrderRow(
-                    channel = channel,
-                    canMoveUp = index > 0,
-                    canMoveDown = index < ordered.lastIndex,
-                    onMove = { step -> onFavoritesOrderChange(movedFavorite(orderIds, channel.guideId, step)) },
-                )
-            }
-            item { SectionHeader(stringResource(Res.string.channels_section_hidden)) }
-            item { HelpText(stringResource(Res.string.channels_hidden_help)) }
-            item {
+            favoritesSection(ordered, orderIds, onFavoritesOrderChange)
+            hiddenSection(
+                groups,
+                expanded,
+                hidden,
+                zapSkipsHidden,
+                onZapSkipsHiddenChange,
+                onChannelsHiddenChange,
+                onChannelHiddenChange,
+            )
+        }
+    }
+}
+
+/** The favorites in the order the Favorites filter shows them, each with a row that moves it. */
+private fun LazyListScope.favoritesSection(
+    ordered: List<Channel>,
+    orderIds: List<String>,
+    onFavoritesOrderChange: (List<String>) -> Unit,
+) {
+    item { SectionHeader(stringResource(Res.string.channels_section_favorites)) }
+    item {
+        HelpText(
+            stringResource(
+                if (ordered.isEmpty()) {
+                    Res.string.channels_favorites_none
+                } else {
+                    Res.string.channels_favorites_help
+                },
+            ),
+        )
+    }
+    items(ordered, key = { "fav:${it.guideId}" }) { channel ->
+        val index = orderIds.indexOf(channel.guideId)
+        FavoriteOrderRow(
+            channel = channel,
+            canMoveUp = index > 0,
+            canMoveDown = index < ordered.lastIndex,
+            onMove = { step -> onFavoritesOrderChange(movedFavorite(orderIds, channel.guideId, step)) },
+        )
+    }
+}
+
+/** Zap skipping, then the lineup's groups, each a switch for all its channels, opened to a switch per channel. */
+private fun LazyListScope.hiddenSection(
+    groups: List<ChannelGroup>,
+    expanded: SnapshotStateList<String>,
+    hidden: Set<String>,
+    zapSkipsHidden: Boolean,
+    onZapSkipsHiddenChange: (Boolean) -> Unit,
+    onChannelsHiddenChange: (guideIds: Collection<String>, hidden: Boolean) -> Unit,
+    onChannelHiddenChange: (guideId: String, hidden: Boolean) -> Unit,
+) {
+    item { SectionHeader(stringResource(Res.string.channels_section_hidden)) }
+    item { HelpText(stringResource(Res.string.channels_hidden_help)) }
+    item {
+        ToggleRow(
+            label = stringResource(Res.string.channels_zap_skips),
+            checked = zapSkipsHidden,
+            onCheckedChange = onZapSkipsHiddenChange,
+        )
+    }
+    for (group in groups) {
+        val open = group.name in expanded
+        item(key = "group:${group.name}") {
+            GroupRow(
+                group = group,
+                expanded = open,
+                onShownChange = { shown -> onChannelsHiddenChange(group.channels.map { it.guideId }, !shown) },
+                onExpandedChange = { if (it) expanded.add(group.name) else expanded.remove(group.name) },
+            )
+        }
+        if (open) {
+            items(group.channels, key = { "ch:${group.name}:${it.guideId}" }) { channel ->
                 ToggleRow(
-                    label = stringResource(Res.string.channels_zap_skips),
-                    checked = zapSkipsHidden,
-                    onCheckedChange = onZapSkipsHiddenChange,
+                    label = channel.label(),
+                    checked = channel.guideId !in hidden,
+                    onCheckedChange = { shown -> onChannelHiddenChange(channel.guideId, !shown) },
+                    modifier = Modifier.padding(start = 32.dp),
                 )
-            }
-            for (group in groups) {
-                val open = group.name in expanded
-                item(key = "group:${group.name}") {
-                    GroupRow(
-                        group = group,
-                        expanded = open,
-                        onShownChange = { shown -> onChannelsHiddenChange(group.channels.map { it.guideId }, !shown) },
-                        onExpandedChange = { if (it) expanded.add(group.name) else expanded.remove(group.name) },
-                    )
-                }
-                if (open) {
-                    items(group.channels, key = { "ch:${group.name}:${it.guideId}" }) { channel ->
-                        ToggleRow(
-                            label = channel.label(),
-                            checked = channel.guideId !in hidden,
-                            onCheckedChange = { shown -> onChannelHiddenChange(channel.guideId, !shown) },
-                            modifier = Modifier.padding(start = 32.dp),
-                        )
-                    }
-                }
             }
         }
     }

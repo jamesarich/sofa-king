@@ -115,7 +115,6 @@ internal fun ProgramSheet(
     val airingsFocus = remember { FocusRequester() }
     val firstAiring = remember { FocusRequester() }
     var showAirings by remember(details) { mutableStateOf(false) }
-    var airingsShown by remember(details) { mutableStateOf(false) }
     val back: () -> Unit = { if (showAirings) showAirings = false else onDismiss() }
     val recordable = details.program?.takeIf { recording != null && programTiming(it, now) != ProgramTiming.Ended }
     val buttons: @Composable () -> Unit = {
@@ -141,65 +140,14 @@ internal fun ProgramSheet(
     }
     // Watch takes focus on every layout, so the remote or a keyboard can act on the panel or sheet at once.
     LaunchedEffect(details) { requestFocusWhenAttached(watchFocus) }
-    // The list's first airing takes focus as it opens, and More airings again as it closes.
-    LaunchedEffect(showAirings) {
-        if (showAirings) {
-            airingsShown = true
-            requestFocusWhenAttached(firstAiring)
-        } else if (airingsShown) {
-            requestFocusWhenAttached(airingsFocus)
-        }
-    }
+    AiringsFocus(details, showAirings, firstAiring, airingsFocus)
     if (LocalLayoutProfile.current.tv) {
         BackHandler(onBack = back)
-        Box(
-            Modifier
-                .fillMaxSize()
-                // Compose turns the remote's Back into a focus exit before BackHandler sees it, and the panel cancels
-                // exits, so Back is taken here. It closes on key-up, so no part of the
-                // press reaches the guide under it.
-                .onPreviewKeyEvent { event ->
-                    if (!event.key.closesDetails()) return@onPreviewKeyEvent false
-                    if (event.type == KeyEventType.KeyUp) back()
-                    true
-                }
-                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f))
-                // The scrim takes a tap or click, so touch on a TV closes it as Back does; no
-                // focus cue, it is not a control.
-                .clickable(
-                    interactionSource = remember {
-                        MutableInteractionSource()
-                    },
-                    indication = null,
-                    onClick = onDismiss,
-                ),
-        ) {
-            Surface(
-                // Darker than the buttons' raised plum, so an unfocused button still reads as a button.
-                color = MaterialTheme.colorScheme.surface,
-                shape = MaterialTheme.shapes.large,
-                modifier = Modifier.align(Alignment.CenterEnd)
-                    .screenPadding(WindowInsetsSides.End + WindowInsetsSides.Bottom)
-                    .padding(top = panelEdgeMargin())
-                    .fillMaxHeight()
-                    .width(PANEL_WIDTH)
-                    // Focus stays in the panel: a D-pad move past its buttons must not land on the grid under it.
-                    .focusProperties { onExit = { cancelFocusChange() } }
-                    .clickable(
-                        interactionSource = remember {
-                            MutableInteractionSource()
-                        },
-                        indication = null,
-                        onClick = {},
-                    ),
-            ) {
-                if (showAirings) {
-                    airingsList(
-                        Modifier.fillMaxSize().padding(24.dp),
-                    )
-                } else {
-                    PanelContent(details, now, guideLoading, buttons)
-                }
+        DetailsPanel(onBack = back, onDismiss = onDismiss) {
+            if (showAirings) {
+                airingsList(Modifier.fillMaxSize().padding(24.dp))
+            } else {
+                PanelContent(details, now, guideLoading, buttons)
             }
         }
     } else {
@@ -216,6 +164,77 @@ internal fun ProgramSheet(
                     SheetContent(details, now, guideLoading, buttons)
                 }
             }
+        }
+    }
+}
+
+/** The list's first airing takes focus as it opens, and More airings again as it closes. */
+@Composable
+private fun AiringsFocus(
+    details: ProgramDetails,
+    showAirings: Boolean,
+    firstAiring: FocusRequester,
+    airingsFocus: FocusRequester,
+) {
+    var airingsShown by remember(details) { mutableStateOf(false) }
+    LaunchedEffect(showAirings) {
+        if (showAirings) {
+            airingsShown = true
+            requestFocusWhenAttached(firstAiring)
+        } else if (airingsShown) {
+            requestFocusWhenAttached(airingsFocus)
+        }
+    }
+}
+
+/**
+ * The TV's side panel over a scrim: Back closes it through [onBack], a tap on the scrim through [onDismiss], and focus
+ * stays inside it.
+ */
+@Composable
+private fun DetailsPanel(onBack: () -> Unit, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            // Compose turns the remote's Back into a focus exit before BackHandler sees it, and the panel cancels
+            // exits, so Back is taken here. It closes on key-up, so no part of the
+            // press reaches the guide under it.
+            .onPreviewKeyEvent { event ->
+                if (!event.key.closesDetails()) return@onPreviewKeyEvent false
+                if (event.type == KeyEventType.KeyUp) onBack()
+                true
+            }
+            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f))
+            // The scrim takes a tap or click, so touch on a TV closes it as Back does; no
+            // focus cue, it is not a control.
+            .clickable(
+                interactionSource = remember {
+                    MutableInteractionSource()
+                },
+                indication = null,
+                onClick = onDismiss,
+            ),
+    ) {
+        Surface(
+            // Darker than the buttons' raised plum, so an unfocused button still reads as a button.
+            color = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier.align(Alignment.CenterEnd)
+                .screenPadding(WindowInsetsSides.End + WindowInsetsSides.Bottom)
+                .padding(top = panelEdgeMargin())
+                .fillMaxHeight()
+                .width(PANEL_WIDTH)
+                // Focus stays in the panel: a D-pad move past its buttons must not land on the grid under it.
+                .focusProperties { onExit = { cancelFocusChange() } }
+                .clickable(
+                    interactionSource = remember {
+                        MutableInteractionSource()
+                    },
+                    indication = null,
+                    onClick = {},
+                ),
+        ) {
+            content()
         }
     }
 }

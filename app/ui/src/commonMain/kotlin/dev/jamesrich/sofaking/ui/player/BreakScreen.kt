@@ -157,7 +157,6 @@ internal fun Color.hueRotated(degrees: Float): Color {
     return Color(channel(0), channel(1), channel(2), alpha)
 }
 
-
 /** The share of red, green and blue in lightness, which a hue rotation keeps (the Filter Effects spec's weights). */
 private val LUMA = floatArrayOf(0.213f, 0.715f, 0.072f)
 
@@ -234,6 +233,7 @@ internal fun BreakScreen(
         val logoSize = (minOf(maxWidth, maxHeight) * LOGO_SHARE).coerceIn(MIN_LOGO, MAX_LOGO)
         val area = with(density) { IntSize(maxWidth.roundToPx(), maxHeight.roundToPx()) }
         val unit = with(density) { logoSize.roundToPx() }
+        val lineWidth = maxWidth * LINE_SHARE
         val motion = remember {
             BreakMotion(Bounce(area.width * START_X, area.height * START_Y, right = true, down = true))
         }
@@ -260,7 +260,7 @@ internal fun BreakScreen(
                 upNext,
                 dodgedMinutes,
                 ink,
-                lineWidth = maxWidth * LINE_SHARE,
+                lineWidth = lineWidth,
                 modifier = Modifier.align(Alignment.Center),
             )
         }

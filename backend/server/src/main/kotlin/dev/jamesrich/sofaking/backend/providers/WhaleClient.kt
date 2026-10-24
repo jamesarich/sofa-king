@@ -10,7 +10,8 @@ import java.util.UUID
 /**
  * Whale TV+ (rlaxx) as its web client uses it: a ~24-hour access token from the public web key, the category
  * channel list, a 7-day EPG in batches of channel ids, and Ottera or Amagi ad-stitched HLS whose URL template
- * takes a device id, a session id and a cache buster.
+ * takes a device id, a session id and a cache buster. The `region` option picks another country's lineup, which the
+ * service answers by its `countryCode` alone.
  */
 class WhaleClient(private val context: ProviderContext) : ProviderClient {
     override val service: String get() = "whale"
@@ -20,6 +21,8 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
     private val authUrl = "$apiBase/v1/auth/access"
     private val channelsUrl = "$apiBase/device/browser/v1/category/channels"
     private val epgUrl = "$apiBase/device/browser/v1/epg"
+    private val region = RegionOptions(context.options).region
+    private val country = region.uppercase()
 
     private class Listed(val channel: ProviderChannel, val template: String)
 
@@ -33,7 +36,7 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
         val programs = ArrayList<GuideProgram>()
         for (batch in ids.chunked(EPG_BATCH)) {
             val url = "$epgUrl?channelIds=${batch.joinToString(",")}&startTime=${now.toEpochMilli()}&" +
-                "endTime=${now.plus(EPG_HORIZON).toEpochMilli()}&langCode=en&countryCode=US"
+                "endTime=${now.plus(EPG_HORIZON).toEpochMilli()}&langCode=en&countryCode=$country"
             val data = authorized { token -> context.http.get(url, HEADERS + ("token" to token)) }.json()["data"].array
             for (row in data) {
                 val channelId = row.str("chlId") ?: continue
@@ -69,8 +72,8 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
             mapOf(
                 "did" to context.deviceId(), "session_id" to UUID.randomUUID().toString(),
                 "cachebuster" to now.toEpochMilli().toString(),
-                "dnt" to "0", "lmt" to "0", "content_language" to "en", "device_language" to "en", "country_2" to "US",
-                "livestream" to "1",
+                "dnt" to "0", "lmt" to "0", "content_language" to "en", "device_language" to "en",
+                "country_2" to country, "livestream" to "1",
             ),
         )
         return ResolvedStream(url, STREAM_HEADERS, now.plus(URL_LIFETIME))
@@ -82,7 +85,7 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
     private suspend fun fetchChannels(): List<Listed> {
         val payload = authorized { token ->
             context.http.get(
-                "$channelsUrl?langCode=en&countryCode=US",
+                "$channelsUrl?langCode=en&countryCode=$country",
                 HEADERS + ("token" to token),
             )
         }.json()
@@ -108,7 +111,7 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
                             "$LOGO_BASE/${it}_white.png"
                         },
                         group,
-                        listOf("us"),
+                        listOf(region),
                     ),
                     template,
                 )

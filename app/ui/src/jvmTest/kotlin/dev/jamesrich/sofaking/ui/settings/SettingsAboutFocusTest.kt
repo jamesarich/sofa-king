@@ -15,6 +15,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
@@ -25,6 +26,7 @@ import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.Density
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.PublishedBuild
+import dev.jamesrich.sofaking.data.ReleaseNote
 import dev.jamesrich.sofaking.data.UpdateState
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlin.test.Test
@@ -121,4 +123,25 @@ class SettingsAboutFocusTest {
         waitForIdle()
         onNodeWithText(checkAgain).assertIsFocused()
     }
+
+    @Test
+    fun `focus on Check again shows What's new above it with at most six lines`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            val changes = (1..6).map { ReleaseNote(401, fix = true, text = "Fix $it") } +
+                (1..2).map { ReleaseNote(402, fix = false, text = "Feature $it") }
+            showSettings(update = { UpdateState.Available(latest.copy(run = 402), changes) })
+            hideAboutBelowTheList()
+            onNodeWithText(checkAgain).requestFocus()
+            waitForIdle()
+            assertTrue(shown(checkAgain), "Check again shows once it has focus")
+            assertTrue(shown("What's new"), "What's new sits above the buttons, in view with them")
+            assertTrue(shown("Feature 1"), "new features come before the fixes")
+            assertTrue(shown("Fix 4"))
+            assertEquals(
+                0,
+                onAllNodesWithText("Fix 5").fetchSemanticsNodes().size,
+                "the lines past six are counted, not shown",
+            )
+            assertTrue(shown("And 2 more changes"))
+        }
 }

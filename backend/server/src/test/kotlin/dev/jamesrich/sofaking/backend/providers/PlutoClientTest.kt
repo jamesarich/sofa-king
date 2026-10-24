@@ -189,4 +189,62 @@ class PlutoClientTest {
                 dir.toFile().deleteRecursively()
             }
         }
+
+    @Test fun `a regional provider sends its forwarded address on every request and tags channels with its region`() =
+        runBlocking<Unit> {
+            val dir = Files.createTempDirectory("sofa-pluto-")
+            try {
+                ProviderFixture().use { fixture ->
+                    ProviderFixture.httpClient().use { http ->
+                        openStore(dir).use { store ->
+                            fixture.pluto()
+                            val regional = options(fixture) + mapOf("region" to "GB", "forwardedFor" to "203.0.113.7")
+                            val client =
+                                PlutoClient(ProviderFixture.context("pluto-gb", regional, http, store, MutableClock()))
+                            assertTrue(client.channels().all { it.tags == listOf("gb") })
+                            for (path in listOf(
+                                "/boot",
+                                "/channels/v2/guide/channels",
+                                "/channels/v2/guide/categories",
+                            )) {
+                                assertEquals("203.0.113.7", fixture.lastHeaders[path]!!["x-forwarded-for"], path)
+                            }
+                            assertEquals(
+                                "203.0.113.7",
+                                client.resolve(trending).headers["X-Forwarded-For"],
+                                "the relay sends it on every stream request too",
+                            )
+                        }
+                    }
+                }
+            } finally {
+                dir.toFile().deleteRecursively()
+            }
+        }
+
+    @Test fun `a forwarded address that is not an IP address fails the provider, not the server`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-pluto-")
+        try {
+            ProviderFixture().use { fixture ->
+                ProviderFixture.httpClient().use { http ->
+                    openStore(dir).use { store ->
+                        fixture.pluto()
+                        val client = PlutoClient(
+                            ProviderFixture.context(
+                                "pluto-gb",
+                                options(fixture) + ("forwardedFor" to "example.com"),
+                                http,
+                                store,
+                                MutableClock(),
+                            ),
+                        )
+                        assertFailsWith<ProviderFailure> { client.channels() }.let { assertFalse(it.transient) }
+                        assertEquals(0, fixture.hits("/boot"))
+                    }
+                }
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
 }

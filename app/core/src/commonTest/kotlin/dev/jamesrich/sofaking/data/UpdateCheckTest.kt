@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.data
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -81,5 +82,66 @@ class UpdateCheckTest {
         assertIs<UpdateState.UpToDate>(UpdateChecker.compare("0.4.0-dev.141+abc", latest))
         assertIs<UpdateState.Unknown>(UpdateChecker.compare("0.4.0", latest))
         assertIs<UpdateState.Unknown>(UpdateChecker.compare("0.4.0-dev.1+a", latest.copy(run = null)))
+    }
+
+    private val notes = """Built from abc by https://run. Unsigned desktop packages; the APK uses a debug key.
+
+## 0.4.0-dev.140+abc1234
+
+### New
+
+- library: Extras and More like this on an item's page (#259)
+- Scrub thumbnails over the seek bar
+
+### Fixes
+
+- app,server: A source that fails to resolve moves to the next source (#262)
+
+## 0.4.0-dev.138+def5678
+
+### New
+
+- guide: Today's programs at a glance (#250)
+"""
+
+    @Test
+    fun `the notes read per build without the scope or the pull request`() {
+        assertEquals(
+            listOf(
+                ReleaseNote(140, false, "Extras and More like this on an item's page"),
+                ReleaseNote(140, false, "Scrub thumbnails over the seek bar"),
+                ReleaseNote(140, true, "A source that fails to resolve moves to the next source"),
+                ReleaseNote(138, false, "Today's programs at a glance"),
+            ),
+            UpdateChecker.releaseNotes(notes),
+        )
+    }
+
+    @Test
+    fun `notes outside a numbered build or a known group are skipped`() {
+        assertEquals(emptyList(), UpdateChecker.releaseNotes(null))
+        assertEquals(emptyList(), UpdateChecker.releaseNotes("### New\n\n- feat: before any build\n"))
+        assertEquals(emptyList(), UpdateChecker.releaseNotes("## Snapshot\n\n### New\n\n- not a numbered build\n"))
+        assertEquals(emptyList(), UpdateChecker.releaseNotes("## 0.4.0-dev.9+a\n\n### Other\n\n- an unknown group\n"))
+        assertEquals(
+            listOf(ReleaseNote(9, true, "Carriage returns are trimmed")),
+            UpdateChecker.releaseNotes("## 0.4.0-dev.9+a\r\n### Fixes\r\n- Carriage returns are trimmed\r\n"),
+        )
+    }
+
+    @Test
+    fun `an update carries the notes of the builds newer than the running one`() = runTest {
+        val body = release.replace("\"extra\":1", "\"extra\":1,\"body\":" + Json.encodeToString(notes))
+        val latest = UpdateChecker(
+            FakeHttp(this) {
+                respond(body, HttpStatusCode.OK)
+            }.client,
+            "${FAKE_BASE}release",
+        ).latest()!!
+        assertEquals(4, latest.notes.size)
+        val behindOne = assertIs<UpdateState.Available>(UpdateChecker.compare("0.4.0-dev.139+abc", latest))
+        assertEquals(listOf(140), behindOne.changes.map { it.run }.distinct())
+        val behindMore = assertIs<UpdateState.Available>(UpdateChecker.compare("0.4.0-dev.100+abc", latest))
+        assertEquals(4, behindMore.changes.size)
     }
 }

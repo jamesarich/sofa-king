@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Run the server's installed distribution against fixture channels, for tests that drive an app on a device or
 simulator: eight channels from one FFmpeg clip (the first as HLS, the rest as endless MPEG-TS), six hours of guide, and
-the lineup adopted. With --shows it also serves a TV shows library of four short episodes that share a theme, whose
-intros the server finds, for Skip intro; tv-monkey.py asks instead for a short show of two 20-second episodes, which
+the lineup adopted. With --shows it also serves a TV shows library of four six-minute episodes that share a theme and
+end credits, whose intros, credits and scrub thumbnails the server finds and makes, with subtitles and spoiler-laden
+summaries; with --movies, a Movies library of 84 titles from A to Z with genres and a trailer, for the letter jump,
+More like this and Extras; tv-monkey.py asks instead for a short show of two 20-second episodes, which
 its Maestro flows play to the end. Run directly, it serves until stopped and writes the server's address and token
 to <out>/server.env, for `xcodebuild test` and the like; tv-monkey.py imports it.
 
@@ -15,6 +17,7 @@ import http.server
 import json
 import os
 from pathlib import Path
+import shutil
 import signal
 import socket
 import subprocess
@@ -35,10 +38,16 @@ CLIP_SECONDS = 10
 PIECE = 188 * 64
 # How many segments a live HLS playlist lists.
 LIVE_WINDOW = 5
-# The fixture show's episodes: a cold open, then the theme they share, then the rest, in seconds. The server reads the
-# first 30% of an episode for its intro, so the theme ends well inside that.
+# The fixture show's episodes: a cold open, then the theme they share, then the rest and the credits they share, in
+# seconds. The server reads the first 30% of an episode for its intro and its last tenth for its credits, and makes scrub
+# thumbnails for five minutes or more.
 EPISODES = 4
-COLD_OPEN, THEME, EPISODE = 10, 45, 240
+COLD_OPEN, THEME, CREDITS, EPISODE = 10, 45, 30, 360
+# The fixture movies: enough titles for the library's row of first letters (80 or more), three genres between them.
+MOVIE_WORDS = ['Amber', 'Bright', 'Copper', 'Distant', 'Echo', 'Falling', 'Golden', 'Hidden', 'Iron', 'Jade', 'Kind',
+               'Lunar', 'Midnight', 'Northern', 'Open', 'Paper', 'Quiet', 'Red', 'Silver', 'Tidal', 'Upper', 'Velvet',
+               'Winter', 'Xenon', 'Yellow', 'Zero']
+GENRES = ['Drama', 'Comedy', 'Science Fiction']
 # The short show's two episodes, long enough for a test to pause and seek in and short enough to reach Up next.
 EPISODE_SECONDS = 20
 
@@ -160,29 +169,66 @@ def tune(a, b, seconds):
 
 def show(library):
     """[EPISODES] episodes of one show, each a cold open and a body of its own around the same theme, which the server
-    finds as their intro: about COLD_OPEN to COLD_OPEN + THEME seconds in."""
+    finds as their intro (about COLD_OPEN to COLD_OPEN + THEME seconds in), ending in the same credits. Each has English
+    subtitles beside it, a cue every five seconds, and an .nfo whose summary gives the episode away."""
     muxers = subprocess.run(['ffmpeg', '-hide_banner', '-muxers'], capture_output=True, text=True, check=True).stdout
     if ' chromaprint ' not in muxers:
         raise SystemExit('--shows needs an FFmpeg built with Chromaprint (--enable-chromaprint), which finds the intros')
-    season = library / 'Fixture Show' / 'Season 01'
+    folder = library / 'Fixture Show'
+    season = folder / 'Season 01'
     season.mkdir(parents=True)
-    body = EPISODE - COLD_OPEN - THEME
+    (folder / 'tvshow.nfo').write_text('<tvshow><title>Fixture Show</title><plot>A show made for tests.</plot>'
+                                       '<genre>Comedy</genre></tvshow>')
+    body = EPISODE - COLD_OPEN - THEME - CREDITS
+    clock = lambda at: f'{at // 3600:02d}:{at // 60 % 60:02d}:{at % 60:02d},000'
     for n in range(1, EPISODES + 1):
+        name = f'Fixture Show - S01E{n:02d} - Episode {n}'
         picture = ['-f', 'lavfi', '-i', f'testsrc=size=320x180:rate=10:d={EPISODE}']
-        sound = tune(13 + 2 * n, 1 + 3 * n, COLD_OPEN) + tune(7, 3, THEME) + tune(11 + 2 * n, 5 + n, body)
+        sound = tune(13 + 2 * n, 1 + 3 * n, COLD_OPEN) + tune(7, 3, THEME) + tune(11 + 2 * n, 5 + n, body) + tune(5, 9, CREDITS)
         subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', *picture, *sound, '-filter_complex',
-                        '[1:a][2:a][3:a]concat=n=3:v=0:a=1[a]', '-map', '0:v', '-map', '[a]', '-c:v', 'libx264',
-                        '-preset', 'ultrafast', '-c:a', 'aac', str(season / f'Fixture Show - S01E{n:02d} - Episode {n}.mkv')],
-                       check=True, timeout=120)
+                        '[1:a][2:a][3:a][4:a]concat=n=4:v=0:a=1[a]', '-map', '0:v', '-map', '[a]', '-c:v', 'libx264',
+                        '-preset', 'ultrafast', '-c:a', 'aac', str(season / f'{name}.mkv')], check=True, timeout=180)
+        cues = [f'{k + 1}\n{clock(at)} --> {clock(at + 4)}\nLine {k + 1} of episode {n}\n' for k, at in enumerate(range(0, EPISODE, 5))]
+        (season / f'{name}.en.srt').write_text('\n'.join(cues))
+        (season / f'{name}.nfo').write_text(f'<episodedetails><title>Episode {n}</title><season>1</season><episode>{n}</episode>'
+                                            f'<plot>Spoiler: in episode {n} the butler did it.</plot></episodedetails>')
 
 
 def intros(base, library):
-    """The fixture show's episodes, once each has its intro."""
+    """The fixture show's episodes, once each has its intro, its credits and its scrub thumbnails."""
     shows = request(base, f'/api/v1/libraries/{library}/items')['items']
     seasons = shows and request(base, f"/api/v1/library/items/{shows[0]['id']}")['children']
     episodes = seasons and request(base, f"/api/v1/library/items/{seasons[0]['id']}")['children']
     found = [request(base, f"/api/v1/library/items/{episode['id']}") for episode in episodes or []]
-    return len(found) == EPISODES and all(item['segments'] for item in found) and found
+    done = lambda item: {s['kind'] for s in item['segments']} == {'intro', 'credits'} and item.get('scrub')
+    return len(found) == EPISODES and all(done(item) for item in found) and found
+
+
+def movies(library):
+    """A Movies library of one short clip under 84 titles, three to a first letter and some with a leading article or
+    a digit, each in its own folder with an .nfo of two genres; the first has a trailer in Trailers and a featurette."""
+    clip = library / 'clip.mp4'
+    library.mkdir(parents=True)
+    subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=10',
+                    '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo', '-t', '4', '-c:v', 'libx264', '-preset', 'ultrafast',
+                    '-c:a', 'aac', '-movflags', '+faststart', str(clip)], check=True, timeout=60)
+    titles = [f'{word} {part}' for word in MOVIE_WORDS for part in ('Road', 'House', 'Sky')]
+    titles[1], titles[4] = 'The ' + titles[1], 'A ' + titles[4]
+    titles += ['2 Hearts', '7 Doors', '10 Rivers', '99 Lanterns', '1984 Again', '3 Bridges']
+    for i, title in enumerate(titles):
+        name = f'{title} ({1960 + i})'
+        folder = library / name
+        folder.mkdir()
+        shutil.copyfile(clip, folder / f'{name}.mp4')
+        genres = ''.join(f'<genre>{GENRES[(i + k) % len(GENRES)]}</genre>' for k in range(2))
+        (folder / f'{name}.nfo').write_text(f'<movie><title>{title}</title><year>{1960 + i}</year>{genres}'
+                                            f'<plot>Fixture movie {i + 1}.</plot><rating>{5 + i % 5}.5</rating></movie>')
+        if i == 0:
+            (folder / 'Trailers').mkdir()
+            shutil.copyfile(clip, folder / 'Trailers' / f'{title} trailer.mp4')
+            shutil.copyfile(clip, folder / f'{name}-featurette.mp4')
+    clip.unlink()
+    return len(titles)
 
 
 def short_show(library):
@@ -206,14 +252,16 @@ def show_episodes(base):
 
 
 @contextlib.contextmanager
-def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=False, quiet=False, **settings):
+def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=False, movies_library=False, quiet=False,
+          **settings):
     """Starts the fixture channels and the server, with its log in <out>/server.log and any further `SOFA_` [settings],
-    and yields the server's base URL once the lineup is adopted, with [shows] the fixture show's intros found, and with
-    [short] the short show scanned; stops both on the way out. [build] writes the channels' files, playlist and guide
-    into the folder it is given and serves them from the address it is given, the [channels] the lineup then holds, and
-    the server's media folder, which it fills for [libraries]; the fixture channels by default, silent when [quiet].
-    Each of [libraries], a (name, kind, folder) triple, is added from that folder once the lineup is in, and scanned
-    before this yields. The show's theme keeps its sound, which finds the intros."""
+    and yields the server's base URL once the lineup is adopted, with [shows] the fixture show's intros found, with
+    [short] the short show scanned, and with [movies_library] the fixture movies scanned; stops both on the way out.
+    [build] writes the channels' files, playlist and guide into the folder it is given and serves them from the address
+    it is given, the [channels] the lineup then holds, and the server's media folder, which it fills for [libraries]; the
+    fixture channels by default, silent when [quiet]. Each of [libraries], a (name, kind, folder) triple, is added from
+    that folder once the lineup is in, and scanned before this yields. The show's theme keeps its sound, which finds the
+    intros."""
     if not SERVER.exists():
         raise SystemExit('Build :server:installDist in backend/ first')
     with tempfile.TemporaryDirectory(prefix='sofa-fixture-') as temporary:
@@ -227,9 +275,10 @@ def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=F
         library.mkdir()
         (build or functools.partial(fixtures, quiet=quiet))(media, upstream, library)
         if shows:
-            show(library)
+            show(library / 'shows')
         if short:
             short_show(library / 'short')
+        titles = movies(library / 'movies') if movies_library else 0
         sources = directory / 'sources.json'
         sources.write_text(json.dumps({'providers': [
             {'id': 'fixture', 'playlistUrl': upstream + '/feed.m3u', 'guideUrl': upstream + '/guide.xml', 'probe': False}]}))
@@ -252,8 +301,11 @@ def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=F
                 added = request(base, '/api/v1/admin/libraries', 'POST', {'name': name, 'kind': kind, 'path': str(library / folder)})
                 request(base, f'/api/v1/admin/libraries/{added["id"]}/scan', 'POST', timeout=300)
             if shows:
-                created = request(base, '/api/v1/admin/libraries', 'POST', {'name': 'TV Shows', 'kind': 'shows', 'path': str(library)})
-                wait_for('the fixture show\'s intros', lambda: intros(base, created['id']), 120)
+                created = request(base, '/api/v1/admin/libraries', 'POST', {'name': 'TV Shows', 'kind': 'shows', 'path': str(library / 'shows')})
+                wait_for('the fixture show\'s intros, credits and scrub thumbnails', lambda: intros(base, created['id']), 300)
+            if movies_library:
+                created = request(base, '/api/v1/admin/libraries', 'POST', {'name': 'Movies', 'kind': 'movies', 'path': str(library / 'movies')})
+                wait_for('the fixture movies', lambda: len(request(base, f'/api/v1/libraries/{created["id"]}/items?limit=500')['items']) == titles, 120)
             if short:
                 created = request(base, '/api/v1/admin/libraries', 'POST', {'name': 'Short show', 'kind': 'shows', 'path': str(library / 'short')})
                 wait_for('the short show', lambda: request(base, f'/api/v1/libraries/{created["id"]}/items')['items'], 60)
@@ -275,6 +327,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--out', required=True)
     parser.add_argument('--shows', action='store_true', help='also serve a TV shows library whose episodes have an intro')
+    parser.add_argument('--movies', action='store_true', help='also serve a Movies library of 84 titles with genres and a trailer')
     parser.add_argument('--quiet', action='store_true', help="silence the channels' tone")
     args = parser.parse_args()
     out = Path(args.out)
@@ -282,7 +335,7 @@ def main():
     ready = out / 'server.env'
     ready.unlink(missing_ok=True)
     signal.signal(signal.SIGTERM, stop)
-    with serve(out, shows=args.shows, quiet=args.quiet) as base:
+    with serve(out, shows=args.shows, movies_library=args.movies, quiet=args.quiet) as base:
         ready.write_text(f'SOFAKING_SERVER={base}\nSOFAKING_TOKEN={TOKEN}\n')
         print(f'Serving {base}', flush=True)
         try:

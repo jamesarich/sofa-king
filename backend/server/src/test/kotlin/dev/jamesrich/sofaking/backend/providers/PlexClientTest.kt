@@ -280,4 +280,34 @@ class PlexClientTest {
             dir.toFile().deleteRecursively()
         }
     }
+
+    @Test fun `a regional provider sends its forwarded address on every request and tags channels with its region`() =
+        runBlocking<Unit> {
+            val dir = Files.createTempDirectory("sofa-plex-")
+            try {
+                ProviderFixture().use { fixture ->
+                    ProviderFixture.httpClient().use { http ->
+                        openStore(dir).use { store ->
+                            fixture.plex()
+                            val regional = options(fixture) + mapOf("region" to "ca", "forwardedFor" to "2001:db8::7")
+                            val client =
+                                PlexClient(ProviderFixture.context("plex-ca", regional, http, store, MutableClock()))
+                            assertTrue(client.channels().all { it.tags == listOf("ca") })
+                            for (path in listOf("/auth", "/epg/lineups/plex/channels", "/epg/")) {
+                                assertEquals("2001:db8::7", fixture.lastHeaders[path]!!["x-forwarded-for"], path)
+                            }
+                            val resolved = client.resolve(cw)
+                            assertEquals("2001:db8::7", fixture.lastHeaders["/epg$cwPart"]!!["x-forwarded-for"])
+                            assertEquals(
+                                "2001:db8::7",
+                                resolved.headers["X-Forwarded-For"],
+                                "the relay sends it on every stream request too",
+                            )
+                        }
+                    }
+                }
+            } finally {
+                dir.toFile().deleteRecursively()
+            }
+        }
 }

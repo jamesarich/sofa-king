@@ -78,10 +78,13 @@ private fun JsonObject.resolve(root: JsonObject): JsonObject {
 
 /** A schema's short name: the referenced component's, or `array of X`, or its type. */
 private fun schemaName(schema: JsonObject?): String? {
-    schema ?: return null
-    schema.text("\$ref")?.let { return it.substringAfterLast('/') }
-    if (schema.text("type") == "array") return "array of " + (schemaName(schema["items"] as? JsonObject) ?: "items")
-    return schema.text("type")
+    val ref = schema?.text("\$ref")
+    return when {
+        schema == null -> null
+        ref != null -> ref.substringAfterLast('/')
+        schema.text("type") == "array" -> "array of " + (schemaName(schema["items"] as? JsonObject) ?: "items")
+        else -> schema.text("type")
+    }
 }
 
 internal fun parseApiReference(json: String): ApiReference {

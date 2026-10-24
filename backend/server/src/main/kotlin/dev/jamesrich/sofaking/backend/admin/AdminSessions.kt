@@ -77,9 +77,9 @@ class AdminSessions(
         if (id.isNullOrEmpty() || secret == null) return null
         load()
         val session = sessions[hash(id)] ?: return null
-        if (session.expiresAt.isAfter(clock.instant())) return session
-        remove(session.key)
-        return null
+        val live = session.expiresAt.isAfter(clock.instant())
+        if (!live) remove(session.key)
+        return session.takeIf { live }
     }
 
     /** Ends the session whose cookie holds [id]. */

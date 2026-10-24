@@ -1,18 +1,35 @@
-# The server packages not yet refactored to these rules (see gradle/detekt.yml), main and test sources alike. Each
-# package leaves its lists in the pull request that refactors it, and this file goes with the last one.
+# The server's admin pages, whose rendering is not yet refactored to these rules (see gradle/detekt.yml), by file. The
+# pull request that refactors them deletes this file.
 complexity:
   LongMethod:
-    excludes: ['**/admin/**']
-  LargeClass:
-    excludes: ['**/admin/**']
+    excludes:
+      - '**/admin/AdminAds.kt'
+      - '**/admin/AdminApi.kt'
+      - '**/admin/AdminLibrary.kt'
+      - '**/admin/AdminPages.kt'
+      - '**/admin/AdminPolicyEdits.kt'
+      - '**/admin/AdminRecordings.kt'
+      - '**/admin/AdminSettings.kt'
+      - '**/admin/AdminSetup.kt'
+      - '**/admin/AdminSystem.kt'
+      - '**/admin/AdminTheme.kt'
+      - '**/admin/AdminViewers.kt'
   TooManyFunctions:
     # The tests stay excluded as gradle/detekt.yml has them, since these excludes replace those.
-    excludes: ['**/*Test/**', '**/test/**', '**/admin/**']
+    excludes:
+      - '**/*Test/**'
+      - '**/test/**'
+      - '**/admin/AdminPages.kt'
+      - '**/admin/AdminPolicyEdits.kt'
+      - '**/admin/AdminSettings.kt'
+      - '**/admin/AdminSetup.kt'
+      - '**/admin/AdminTheme.kt'
   CyclomaticComplexMethod:
-    excludes: ['**/admin/**']
-
-style:
-  ReturnCount:
-    excludes: ['**/admin/**']
-  ThrowsCount:
-    excludes: ['**/admin/**']
+    excludes:
+      - '**/admin/AdminLibrary.kt'
+      - '**/admin/AdminPages.kt'
+      - '**/admin/AdminPolicyEdits.kt'
+      - '**/admin/AdminRecordings.kt'
+      - '**/admin/AdminSettings.kt'
+      - '**/admin/AdminSystem.kt'
+      - '**/admin/AdminTheme.kt'

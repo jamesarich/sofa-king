@@ -13,6 +13,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.header
 import io.ktor.client.request.prepareRequest
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -116,13 +117,16 @@ class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPol
         } catch (_: Exception) {
             throw ProviderFailure("Invalid provider URL", transient = false)
         }
-        return followRedirects(start, reject = { problem ->
-            when (problem) {
-                RedirectProblem.TOO_MANY -> throw ProviderFailure("Too many provider redirects")
-                RedirectProblem.INVALID -> throw ProviderFailure("Invalid provider redirect", transient = false)
-                RedirectProblem.INSECURE -> throw ProviderFailure("Insecure provider redirect", transient = false)
-            }
-        }) { hop -> send(method, start, hop, headers, body, contentType, limit, follow) }
+        return followRedirects(start, reject = { throw redirectFailure(it) }) { hop ->
+            send(method, start, hop, headers, body, contentType, limit, follow)
+        }
+    }
+
+    /** Too many redirects may pass; an invalid or insecure one will not. */
+    private fun redirectFailure(problem: RedirectProblem) = when (problem) {
+        RedirectProblem.TOO_MANY -> ProviderFailure("Too many provider redirects")
+        RedirectProblem.INVALID -> ProviderFailure("Invalid provider redirect", transient = false)
+        RedirectProblem.INSECURE -> ProviderFailure("Insecure provider redirect", transient = false)
     }
 
     private suspend fun send(
@@ -154,38 +158,37 @@ class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPol
                     contentType(ContentType.parse(contentType ?: "application/json"))
                     setBody(body)
                 }
-            }.execute { response ->
-                val status = response.status.value
-                val location = response.headers[HttpHeaders.Location]
-                val cookies = response.headers.getAll(HttpHeaders.SetCookie).orEmpty().map {
-                    it.substringBefore(';').trim()
-                }.filter {
-                    '=' in
-                        it
-                }
-                if (status in REDIRECT_STATUSES && location != null && follow) {
-                    response.bodyAsChannel().cancel(null)
-                    Hop.Redirect(location)
-                } else {
-                    val bytes = response.bodyAsChannel().readBuffer(limit.toLong() + 1).readByteArray()
-                    if (bytes.size > limit) throw ProviderFailure("Provider response exceeds ${limit / KIB} KiB")
-                    Hop.Done(
-                        Fetched(
-                            status,
-                            gunzipped(bytes, limit),
-                            response.headers[HttpHeaders.ContentType],
-                            hop.toString(),
-                            location,
-                            cookies,
-                        ),
-                    )
-                }
-            }
+            }.execute { response -> read(response, hop, limit, follow) }
         }.getOrElse { e ->
             // Exception messages can carry the URL and so a token; keep the class, drop the text.
             throw e as? ProviderFailure
                 ?: ProviderFailure("Provider request failed (${e.javaClass.simpleName})", cause = e)
         }
+    }
+
+    /** The redirect [response] names when [follow] is set, else its body, at most [limit] bytes. */
+    private suspend fun read(response: HttpResponse, hop: URI, limit: Int, follow: Boolean): Hop<Fetched> {
+        val status = response.status.value
+        val location = response.headers[HttpHeaders.Location]
+        if (status in REDIRECT_STATUSES && location != null && follow) {
+            response.bodyAsChannel().cancel(null)
+            return Hop.Redirect(location)
+        }
+        val cookies = response.headers.getAll(HttpHeaders.SetCookie).orEmpty()
+            .map { it.substringBefore(';').trim() }
+            .filter { '=' in it }
+        val bytes = response.bodyAsChannel().readBuffer(limit.toLong() + 1).readByteArray()
+        if (bytes.size > limit) throw ProviderFailure("Provider response exceeds ${limit / KIB} KiB")
+        return Hop.Done(
+            Fetched(
+                status,
+                gunzipped(bytes, limit),
+                response.headers[HttpHeaders.ContentType],
+                hop.toString(),
+                location,
+                cookies,
+            ),
+        )
     }
 
     companion object {
@@ -247,34 +250,30 @@ internal fun jsonArrayAfter(text: String, key: String): JsonArray? {
         var start = at + pattern.length
         while (start < text.length && text[start].isWhitespace()) start++
         if (start >= text.length || text[start] != '[') continue
-        var depth = 0
-        var quoted = false
-        var escaped = false
-        var end = -1
-        for (index in start until text.length) {
-            val char = text[index]
-            when {
-                escaped -> escaped = false
-
-                quoted && char == '\\' -> escaped = true
-
-                char == '"' -> quoted = !quoted
-
-                quoted -> Unit
-
-                char == '[' -> depth++
-
-                char == ']' -> if (--depth == 0) {
-                    end = index + 1
-                    break
-                }
-            }
-        }
-        if (end < 0) return null
+        val end = arrayEnd(text, start) ?: return null
         runCatching {
             lenientJson.parseToJsonElement(text.substring(start, end)) as? JsonArray
         }.getOrNull()?.let { return it }
     }
+}
+
+/** Just past the `]` closing the array that opens at [start] in [text], by bracket depth; null if it never closes. */
+private fun arrayEnd(text: String, start: Int): Int? {
+    var depth = 0
+    var quoted = false
+    var escaped = false
+    for (index in start until text.length) {
+        val char = text[index]
+        when {
+            escaped -> escaped = false
+            quoted && char == '\\' -> escaped = true
+            char == '"' -> quoted = !quoted
+            quoted -> Unit
+            char == '[' -> depth++
+            char == ']' -> if (--depth == 0) return index + 1
+        }
+    }
+    return null
 }
 
 private val NEXT_DATA = Regex("""<script id="__NEXT_DATA__"[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)

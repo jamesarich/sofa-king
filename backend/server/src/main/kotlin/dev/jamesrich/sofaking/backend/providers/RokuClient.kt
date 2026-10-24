@@ -24,22 +24,8 @@ class RokuClient(private val context: ProviderContext) : ProviderClient {
     override suspend fun channels(): List<ProviderChannel> = listed()
 
     override suspend fun resolve(channelId: String): ResolvedStream {
-        if (listed().none { it.id == channelId }) {
-            context.invalidate(CHANNELS)
-            if (listed().none {
-                    it.id == channelId
-                }
-            ) {
-                throw ProviderFailure("Channel is no longer listed", transient = false)
-            }
-        }
-        val playId = context.cached("play:$channelId", PLAY_ID_LIFETIME) {
-            val proxy = "$webBase/api/v2/homescreen/content/" +
-                "${URLEncoder.encode(contentBase + channelId, Charsets.UTF_8)}"
-            val content = session { context.http.get(proxy, apiHeaders(it)) }.require("Roku content").json()
-            content["viewOptions"][0].str("playId")
-                ?: throw ProviderFailure("Roku content has no playId", transient = false)
-        }
+        context.findListed(CHANNELS) { listed().firstOrNull { it.id == channelId } }
+        val playId = context.cached("play:$channelId", PLAY_ID_LIFETIME) { playId(channelId) }
         val body = buildJsonObject {
             put("rokuId", channelId)
             put("playId", playId)
@@ -60,6 +46,13 @@ class RokuClient(private val context: ProviderContext) : ProviderClient {
         if (answer["drm"] != null) throw ProviderFailure("Roku channel needs DRM", transient = false)
         val url = answer.str("url") ?: throw ProviderFailure("Roku playback answered no URL")
         return ResolvedStream(url, STREAM_HEADERS, context.clock.instant().plus(URL_LIFETIME))
+    }
+
+    private suspend fun playId(channelId: String): String {
+        val proxy = "$webBase/api/v2/homescreen/content/${URLEncoder.encode(contentBase + channelId, Charsets.UTF_8)}"
+        val content = session { context.http.get(proxy, apiHeaders(it)) }.require("Roku content").json()
+        return content["viewOptions"][0].str("playId")
+            ?: throw ProviderFailure("Roku content has no playId", transient = false)
     }
 
     private suspend fun listed(): List<ProviderChannel> = context.cached(CHANNELS, CACHED_FOR) {

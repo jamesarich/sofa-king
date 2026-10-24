@@ -37,12 +37,7 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
-        val template = listed().firstOrNull { it.channel.id == channelId }?.template
-            ?: run {
-                context.invalidate(SCHEDULE)
-                listed().firstOrNull { it.channel.id == channelId }?.template
-            }
-            ?: throw ProviderFailure("Channel is no longer listed", transient = false)
+        val template = context.findListed(SCHEDULE) { listed().firstOrNull { it.channel.id == channelId }?.template }
         val now = context.clock.instant()
         val url = Macros.fill(
             template,
@@ -64,32 +59,40 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
         for (category in payload["categories"].array) {
             val group = category.str("categoryName")
             for (channel in category["channels"].array) {
-                val id = channel.str("channelId") ?: continue
-                val name = channel.str("channelName") ?: continue
-                val template = channel.str("mediaStaticUrl") ?: continue
-                if (result.containsKey(id)) continue
-                val programs = channel["programs"].array.mapNotNull { program ->
-                    val start = program.str("startDateTime")?.let(::instantOrNull) ?: return@mapNotNull null
-                    val end = program.str("endDateTime")?.let(::instantOrNull) ?: return@mapNotNull null
-                    val title = program.str("programTitle") ?: return@mapNotNull null
-                    if (end <= start) null else GuideProgram(id, start, end, title, program.str("description"))
-                }
-                result[id] = Listed(
-                    ProviderChannel(
-                        id,
-                        name,
-                        channel.str("channelNumber"),
-                        httpOrNull(channel.str("channelLogoUrl")),
-                        group ?: channel.str("channelGenreName"),
-                        listOf("us"),
-                    ),
-                    template,
-                    programs,
-                )
+                val id = channel.str("channelId")
+                if (id == null || result.containsKey(id)) continue
+                listing(id, channel, group)?.let { result[id] = it }
             }
         }
         if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
         return result.values.toList()
+    }
+
+    /** Channel [id] with its programs, in [group] or else its own genre; null when a field is missing. */
+    private fun listing(id: String, channel: JsonElement, group: String?): Listed? {
+        val name = channel.str("channelName") ?: return null
+        val template = channel.str("mediaStaticUrl") ?: return null
+        val programs = channel["programs"].array.mapNotNull {
+            guideProgram(
+                id,
+                it.str("startDateTime")?.let(::instantOrNull),
+                it.str("endDateTime")?.let(::instantOrNull),
+                it.str("programTitle"),
+                it.str("description"),
+            )
+        }
+        return Listed(
+            ProviderChannel(
+                id,
+                name,
+                channel.str("channelNumber"),
+                httpOrNull(channel.str("channelLogoUrl")),
+                group ?: channel.str("channelGenreName"),
+                listOf("us"),
+            ),
+            template,
+            programs,
+        )
     }
 
     companion object {
@@ -130,6 +133,10 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
             } catch (e: IllegalArgumentException) {
                 throw ProviderFailure("LG schedulelist is neither JSON nor base64", cause = e)
             }
+            return lenientJson.parseToJsonElement(inflate(compressed))
+        }
+
+        private fun inflate(compressed: ByteArray): String {
             val inflater = Inflater()
             try {
                 inflater.setInput(compressed)
@@ -141,7 +148,7 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
                     out.write(buffer, 0, count)
                     if (out.size() > ProviderHttp.DEFAULT_LIMIT) throw ProviderFailure("LG schedulelist is too large")
                 }
-                return lenientJson.parseToJsonElement(out.toString(Charsets.UTF_8.name()))
+                return out.toString(Charsets.UTF_8.name())
             } catch (e: java.util.zip.DataFormatException) {
                 throw ProviderFailure("LG schedulelist did not inflate", cause = e)
             } finally {

@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.providers
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
+import kotlinx.serialization.json.JsonElement
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -45,41 +46,39 @@ class PbsClient(private val context: ProviderContext) : ProviderClient {
             for (date in listOf(today, today.plusDays(1))) {
                 val url = "$playerBase/api/livestream-schedule/${station.id}/?date=$date&timezone=${station.zone.id}"
                 val payload = context.http.get(url, HEADERS).require("PBS schedule").json()
-                for (collection in payload["collections"].array) {
-                    for (block in collection["content"].array) {
-                        for (channel in block["channels"].array) {
-                            val listed = channel.str("feed_cid")?.let(wantedFeeds::get) ?: continue
-                            for (item in channel["listings"].array) {
-                                val start =
-                                    item.str("start_time")?.let { runCatching { Instant.parse(it) }.getOrNull() }
-                                        ?: continue
-                                val seconds = item["duration"].long ?: continue
-                                val show = item.str("show_title") ?: continue
-                                if (seconds <= 0) continue
-                                programs += GuideProgram(
-                                    listed.channel.id,
-                                    start,
-                                    start.plusSeconds(seconds),
-                                    show,
-                                    item.str("episode_description") ?: item.str("show_description"),
-                                    subTitle = item.str("episode_title"),
-                                )
-                            }
-                        }
-                    }
+                val scheduled = payload["collections"].array.flatMap { it["content"].array }
+                    .flatMap { it["channels"].array }
+                for (channel in scheduled) {
+                    val listed = channel.str("feed_cid")?.let(wantedFeeds::get) ?: continue
+                    channel["listings"].array.mapNotNullTo(programs) { program(listed.channel.id, it) }
                 }
             }
         }
         return ParsedGuide(index, programs.distinctBy { "${it.channelId}|${it.startsAt}|${it.title}" })
     }
 
+    /** A schedule listing on channel [id]; null when a field is missing. */
+    private fun program(id: String, item: JsonElement): GuideProgram? {
+        val start = item.str("start_time")?.let(::instantOrNull) ?: return null
+        val seconds = item["duration"].long?.takeIf { it > 0 } ?: return null
+        val show = item.str("show_title") ?: return null
+        return GuideProgram(
+            id,
+            start,
+            start.plusSeconds(seconds),
+            show,
+            item.str("episode_description") ?: item.str("show_description"),
+            subTitle = item.str("episode_title"),
+        )
+    }
+
     override suspend fun resolve(channelId: String): ResolvedStream {
-        val listed = listed().firstOrNull { it.channel.id == channelId }
-            ?: run {
-                context.invalidate(STATIONS)
-                listed().firstOrNull { it.channel.id == channelId }
+        val listed = context.findListed(STATIONS, "Feed is no longer listed") {
+            listed().firstOrNull {
+                it.channel.id ==
+                    channelId
             }
-            ?: throw ProviderFailure("Feed is no longer listed", transient = false)
+        }
         return ResolvedStream(listed.feed.url, STREAM_HEADERS, context.clock.instant().plus(Duration.ofHours(1)))
     }
 

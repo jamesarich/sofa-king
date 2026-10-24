@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.catalog.FeedParser
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
+import kotlinx.serialization.json.JsonElement
 import java.io.ByteArrayInputStream
 import java.net.URLEncoder
 import java.time.Duration
@@ -62,12 +63,12 @@ class HdHomeRunClient(private val context: ProviderContext) : ProviderClient {
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
-        val url = listed().firstOrNull { it.channel.id == channelId }?.url
-            ?: run {
-                context.invalidate(LINEUP)
-                listed().firstOrNull { it.channel.id == channelId }?.url
-            }
-            ?: throw ProviderFailure("Channel is no longer in the tuner lineup", transient = false)
+        val url = context.findListed(LINEUP, "Channel is no longer in the tuner lineup") {
+            listed().firstOrNull {
+                it.channel.id ==
+                    channelId
+            }?.url
+        }
         val stream = if (transcode == null) url else url + (if ('?' in url) "&" else "?") + "transcode=$transcode"
         return ResolvedStream(stream)
     }
@@ -76,17 +77,19 @@ class HdHomeRunClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun fetchLineup(): List<Listed> {
         val rows = context.http.get("$base/lineup.json").require("HDHomeRun lineup").json().array
-        val result = LinkedHashMap<String, Listed>()
-        for (row in rows) {
-            val number = row.str("GuideNumber") ?: continue
-            val name = row.str("GuideName") ?: number
-            val url = httpOrNull(row.str("URL")) ?: continue
-            val tags = row.str("Tags")?.lowercase()?.split(',')?.map { it.trim() }.orEmpty()
-            if (row["DRM"].long == 1L || "drm" in tags || result.containsKey(number)) continue
-            result[number] = Listed(ProviderChannel(number, name, number, null, "Local", listOf("ota")), url)
-        }
+        val result = rows.mapNotNull(::listing).distinctBy { it.channel.id }
         if (result.isEmpty()) throw ProviderFailure("Tuner lineup is empty: scan for channels on the device")
-        return result.values.toList()
+        return result
+    }
+
+    /** A clear channel of the lineup, by its guide number; null for a DRM one or when a field is missing. */
+    private fun listing(row: JsonElement): Listed? {
+        val number = row.str("GuideNumber") ?: return null
+        val url = httpOrNull(row.str("URL")) ?: return null
+        val tags = row.str("Tags")?.lowercase()?.split(',')?.map { it.trim() }.orEmpty()
+        if (row["DRM"].long == 1L || "drm" in tags) return null
+        val name = row.str("GuideName") ?: number
+        return Listed(ProviderChannel(number, name, number, null, "Local", listOf("ota")), url)
     }
 
     private suspend fun fetchGuide(): ParsedGuide {

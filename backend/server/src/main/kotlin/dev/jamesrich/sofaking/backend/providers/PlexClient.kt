@@ -5,11 +5,56 @@ import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.JsonElement
 import java.net.URI
 import java.net.URLEncoder
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+
+private class Listed(val channel: ProviderChannel, val partKey: String)
+
+/** A clear channel in its genre from [groups]; null for a DRM one or when a field is missing. */
+private fun listing(channel: JsonElement, groups: Map<String, String>, tags: List<String>): Listed? {
+    val media = channel["Media"][0]
+    if (media["drm"].truthy) return null
+    val id = channel.str("gridKey") ?: return null
+    val name = channel.str("title") ?: return null
+    val key = media["Part"][0].str("key") ?: return null
+    return Listed(ProviderChannel(id, name, null, httpOrNull(channel.str("thumb")), groups[id], tags), key)
+}
+
+/**
+ * A grid item's airings on channel [id], one per media entry. An episode is titled by its series, with its own title
+ * as the subtitle; none when the item has no title.
+ */
+private fun airings(id: String, item: JsonElement): List<GuideProgram> {
+    val series = item.str("grandparentTitle")
+    val title = series ?: item.str("title") ?: return emptyList()
+    val episodeNumbers = if (item.str("type") == "episode") {
+        seasonEpisode(item["parentIndex"].long, item["index"].long)
+    } else {
+        emptyList()
+    }
+    val categories = listOfNotNull(if (item.str("type") == "movie") "Movie" else null) +
+        item["Genre"].array.mapNotNull { it.str("tag") }
+    return item["Media"].array.mapNotNull { media ->
+        val start = media["beginsAt"].long ?: return@mapNotNull null
+        val end = media["endsAt"].long?.takeIf { it > start } ?: return@mapNotNull null
+        GuideProgram(
+            id, Instant.ofEpochSecond(start), Instant.ofEpochSecond(end), title, item.str("summary"),
+            subTitle = if (series != null) item.str("title") else null,
+            episodeNumbers = episodeNumbers,
+            icon = httpOrNull(item.str("thumb") ?: item.str("grandparentThumb")),
+            categories = categories,
+            rating = usRating(item.str("contentRating")),
+            isNew = media["premiere"].truthy,
+            date = item.str("originallyAvailableAt") ?: item.str("year"),
+        )
+    }
+}
+
+private fun encode(value: String) = URLEncoder.encode(value, Charsets.UTF_8)
 
 /**
  * Plex's free live channels as watch.plex.tv uses them: an anonymous plex.tv token, the `plex` lineup on
@@ -25,8 +70,6 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
     private val gridSpacingMillis = context.options["gridSpacingMillis"]?.toLongOrNull() ?: GRID_SPACING_MILLIS
     private val rateLimitWaitMillis = context.options["rateLimitWaitMillis"]?.toLongOrNull() ?: RATE_LIMIT_WAIT_MILLIS
     private val regional = RegionOptions(context.options)
-
-    private class Listed(val channel: ProviderChannel, val partKey: String)
 
     override suspend fun channels(): List<ProviderChannel> = listed().map { it.channel }
 
@@ -47,48 +90,14 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
                         headers(token) + ("X-Plex-Provider-Version" to "7.2"),
                     )
                 }.json()
-                for (item in payload["MediaContainer"]["Metadata"].array) {
-                    val series = item.str("grandparentTitle")
-                    val title = series ?: item.str("title") ?: continue
-                    val episode = item.str("type") == "episode"
-                    val movie = item.str("type") == "movie"
-                    for (media in item["Media"].array) {
-                        val start = media["beginsAt"].long ?: continue
-                        val end = media["endsAt"].long ?: continue
-                        if (end <= start) continue
-                        programs += GuideProgram(
-                            id, Instant.ofEpochSecond(start), Instant.ofEpochSecond(end), title, item.str("summary"),
-                            subTitle = if (series != null) item.str("title") else null,
-                            episodeNumbers = if (episode) {
-                                seasonEpisode(
-                                    item["parentIndex"].long,
-                                    item["index"].long,
-                                )
-                            } else {
-                                emptyList()
-                            },
-                            icon = httpOrNull(item.str("thumb") ?: item.str("grandparentThumb")),
-                            categories =
-                            listOfNotNull(if (movie) "Movie" else null) +
-                                item["Genre"].array.mapNotNull { it.str("tag") },
-                            rating = usRating(item.str("contentRating")),
-                            isNew = media["premiere"].truthy,
-                            date = item.str("originallyAvailableAt") ?: item.str("year"),
-                        )
-                    }
-                }
+                payload["MediaContainer"]["Metadata"].array.flatMapTo(programs) { airings(id, it) }
             }
         }
         return ParsedGuide(index, programs.distinctBy { Triple(it.channelId, it.startsAt, it.title) })
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
-        val key = listed().firstOrNull { it.channel.id == channelId }?.partKey
-            ?: run {
-                context.invalidate(CHANNELS)
-                listed().firstOrNull { it.channel.id == channelId }?.partKey
-            }
-            ?: throw ProviderFailure("Channel is no longer listed", transient = false)
+        val key = context.findListed(CHANNELS) { listed().firstOrNull { it.channel.id == channelId }?.partKey }
         var url = ""
         val answer = signedIn { token ->
             url = "$apiBase$key?includeAllStreams=1&X-Plex-Product=${encode(PRODUCT)}&X-Plex-Token=${encode(token)}"
@@ -119,19 +128,11 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
         }.json()
         // A failed fetch keeps the last genres, since a lost group moves a station's number.
         val groups = context.lastGood(GROUPS, runCatchingCancellable { genres() })
-        val result = LinkedHashMap<String, Listed>()
-        for (channel in payload["MediaContainer"]["Channel"].array) {
-            val media = channel["Media"][0]
-            if (media["drm"].truthy) continue
-            val id = channel.str("gridKey") ?: continue
-            val name = channel.str("title") ?: continue
-            val key = media["Part"][0].str("key") ?: continue
-            if (result.containsKey(id)) continue
-            val thumb = httpOrNull(channel.str("thumb"))
-            result[id] = Listed(ProviderChannel(id, name, null, thumb, groups[id], regional.tags), key)
-        }
+        val result = payload["MediaContainer"]["Channel"].array
+            .mapNotNull { listing(it, groups, regional.tags) }
+            .distinctBy { it.channel.id }
         if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
-        return result.values.toList()
+        return result
     }
 
     /** Grid key to the first themed genre that lists it; the catch-all genres only name what nothing else does. */
@@ -151,9 +152,8 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
                     headers(token),
                 )
             }.json()
-            for (channel in listing["MediaContainer"]["Channel"].array) {
-                val id = channel.str("gridKey") ?: continue
-                result.putIfAbsent(id, title)
+            listing["MediaContainer"]["Channel"].array.mapNotNull { it.str("gridKey") }.forEach {
+                result.putIfAbsent(it, title)
             }
         }
         return result
@@ -208,8 +208,6 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
 
     /** What a stream request sends: the web client's headers, and with `forwardedFor` the region's address. */
     private fun streamHeaders() = STREAM_HEADERS + regional.headers
-
-    private fun encode(value: String) = URLEncoder.encode(value, Charsets.UTF_8)
 
     companion object {
         private const val API_BASE = "https://epg.provider.plex.tv"

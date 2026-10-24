@@ -31,40 +31,26 @@ class StirrClient(private val context: ProviderContext) : ProviderClient {
         val now = context.clock.instant()
         val programs = ArrayList<GuideProgram>()
         for (row in rows) {
-            val id = row["channel_id"].long?.toString() ?: continue
-            val channel = channels[id] ?: continue
+            val id = row["channel_id"].long?.toString()
+            val channel = id?.let(channels::get)
             val items = row["programs"].array
-            if (items.isEmpty()) continue
+            if (id == null || channel == null || items.isEmpty()) continue
             index += GuideChannel(id, channel.name, channel.logo)
-            if (id !in wanted) continue
-            for (item in items) {
-                val start = item["start_time"].long ?: continue
-                val end = item["end_time"].long ?: continue
-                val title = item.str("title") ?: continue
-                if (end <= start || Instant.ofEpochSecond(end) < now) continue
-                programs +=
-                    GuideProgram(
-                        id,
-                        Instant.ofEpochSecond(start),
-                        Instant.ofEpochSecond(end),
-                        title,
-                        item.str("description"),
-                    )
-            }
+            if (id in wanted) items.mapNotNullTo(programs) { program(id, it, now) }
         }
         return ParsedGuide(index, programs)
     }
 
+    /** A program on channel [id] that has not ended by [now]; null when a field is missing. */
+    private fun program(id: String, item: JsonElement, now: Instant): GuideProgram? {
+        val start = item["start_time"].long?.let(Instant::ofEpochSecond) ?: return null
+        val end = item["end_time"].long?.let(Instant::ofEpochSecond)?.takeIf { it > start && it >= now } ?: return null
+        val title = item.str("title") ?: return null
+        return GuideProgram(id, start, end, title, item.str("description"))
+    }
+
     override suspend fun resolve(channelId: String): ResolvedStream {
-        if (listed().none { it.id == channelId }) {
-            context.invalidate(CHANNELS)
-            if (listed().none {
-                    it.id == channelId
-                }
-            ) {
-                throw ProviderFailure("Channel is no longer listed", transient = false)
-            }
-        }
+        context.findListed(CHANNELS) { listed().firstOrNull { it.id == channelId } }
         val answer = context.http.post(
             "$apiBase/v2/videos/$channelId/playable",
             HEADERS,
@@ -93,20 +79,19 @@ class StirrClient(private val context: ProviderContext) : ProviderClient {
         ).require("STIRR channel list").json()
         val rows = ArrayList<JsonObject>()
         collect(payload["videos"], rows)
-        val result = LinkedHashMap<String, ProviderChannel>()
-        for (row in rows) {
-            val id = row.str("videoid") ?: continue
-            val name = row.str("title")?.replace(SPACES, " ") ?: continue
-            if (row.str("drm_protected")?.lowercase() == "yes" || row.str("active") == "no" || result.containsKey(id)) {
-                continue
-            }
-            val logo = httpOrNull(row.str("logo")) ?: httpOrNull(row["square_thumbs"].str("300x300"))
-            val number = row["channel_number"].long?.takeIf { it > 0 }?.toString()
-            result[id] =
-                ProviderChannel(id, name, number, logo, row["categories"][0].str("category_name"), listOf("us"))
-        }
+        val result = rows.mapNotNull(::channel).distinctBy { it.id }
         if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
-        return result.values.sortedBy { it.number?.toLongOrNull() ?: Long.MAX_VALUE }
+        return result.sortedBy { it.number?.toLongOrNull() ?: Long.MAX_VALUE }
+    }
+
+    /** A listed channel; null for a DRM-protected or inactive one, or when a field is missing. */
+    private fun channel(row: JsonObject): ProviderChannel? {
+        val id = row.str("videoid") ?: return null
+        val name = row.str("title")?.replace(SPACES, " ") ?: return null
+        if (row.str("drm_protected")?.lowercase() == "yes" || row.str("active") == "no") return null
+        val logo = httpOrNull(row.str("logo")) ?: httpOrNull(row["square_thumbs"].str("300x300"))
+        val number = row["channel_number"].long?.takeIf { it > 0 }?.toString()
+        return ProviderChannel(id, name, number, logo, row["categories"][0].str("category_name"), listOf("us"))
     }
 
     /** The list nests its rows in arrays of arrays by category; a row is any object with a `videoid` and a `title`. */

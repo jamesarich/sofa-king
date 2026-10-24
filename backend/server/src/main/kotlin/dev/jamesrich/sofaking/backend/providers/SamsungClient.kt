@@ -17,15 +17,7 @@ class SamsungClient(private val context: ProviderContext) : ProviderClient {
     override suspend fun channels(): List<ProviderChannel> = listed()
 
     override suspend fun resolve(channelId: String): ResolvedStream {
-        if (listed().none { it.id == channelId }) {
-            context.invalidate(CHANNELS)
-            if (listed().none {
-                    it.id == channelId
-                }
-            ) {
-                throw ProviderFailure("Channel is no longer listed", transient = false)
-            }
-        }
+        context.findListed(CHANNELS) { listed().firstOrNull { it.id == channelId } }
         val hop = context.http.get("$streamBase$channelId", HEADERS, follow = false)
         val target = when {
             hop.status in 300..399 && hop.location != null -> hop.location

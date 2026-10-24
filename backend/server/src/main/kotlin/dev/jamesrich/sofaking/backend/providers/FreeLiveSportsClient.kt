@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.providers
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
+import kotlinx.serialization.json.JsonElement
 import java.time.Duration
 import java.time.Instant
 
@@ -34,12 +35,7 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
-        val template = listed().firstOrNull { it.channel.id == channelId }?.template
-            ?: run {
-                context.invalidate(CATALOG)
-                listed().firstOrNull { it.channel.id == channelId }?.template
-            }
-            ?: throw ProviderFailure("Channel is no longer listed", transient = false)
+        val template = context.findListed(CATALOG) { listed().firstOrNull { it.channel.id == channelId }?.template }
         val now = context.clock.instant()
         val url = Macros.fill(
             template,
@@ -57,34 +53,39 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
     private suspend fun fetchCatalog(): List<Listed> {
         val payload = context.http.get(catalogUrl, HEADERS).require("FreeLiveSports catalog").json()
         val rows = (payload as? kotlinx.serialization.json.JsonArray)?.toList() ?: payload["channels"].array
-        val result = LinkedHashMap<String, Listed>()
-        for (row in rows.sortedBy { it["channelNumber"].long ?: Long.MAX_VALUE }) {
-            val id = row.str("_id") ?: row.str("id") ?: continue
-            val name = row.str("name") ?: continue
-            val template = row.str("url") ?: continue
-            if (result.containsKey(id)) continue
-            val programs = row["epg"]["entries"].array.mapNotNull { entry ->
-                val start = entry.str("start")?.let(::instantOrNull) ?: return@mapNotNull null
-                val end = entry.str("stop")?.let(::instantOrNull) ?: return@mapNotNull null
-                val title = entry.str("title") ?: return@mapNotNull null
-                if (end <= start) null else GuideProgram(id, start, end, title, entry.str("description"))
-            }
-            result[id] =
-                Listed(
-                    ProviderChannel(
-                        id,
-                        name,
-                        row["channelNumber"].long?.toString(),
-                        httpOrNull(row.str("thumbnail")),
-                        "Sports",
-                        listOf("us"),
-                    ),
-                    template,
-                    programs,
-                )
-        }
+        val result = rows.sortedBy { it["channelNumber"].long ?: Long.MAX_VALUE }
+            .mapNotNull(::listing)
+            .distinctBy { it.channel.id }
         if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
-        return result.values.toList()
+        return result
+    }
+
+    /** A channel with its embedded schedule; null when a field is missing. */
+    private fun listing(row: JsonElement): Listed? {
+        val id = row.str("_id") ?: row.str("id") ?: return null
+        val name = row.str("name") ?: return null
+        val template = row.str("url") ?: return null
+        val programs = row["epg"]["entries"].array.mapNotNull {
+            guideProgram(
+                id,
+                it.str("start")?.let(::instantOrNull),
+                it.str("stop")?.let(::instantOrNull),
+                it.str("title"),
+                it.str("description"),
+            )
+        }
+        return Listed(
+            ProviderChannel(
+                id,
+                name,
+                row["channelNumber"].long?.toString(),
+                httpOrNull(row.str("thumbnail")),
+                "Sports",
+                listOf("us"),
+            ),
+            template,
+            programs,
+        )
     }
 
     companion object {

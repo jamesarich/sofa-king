@@ -46,12 +46,7 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
-        val listed = snapshot().channels.firstOrNull { it.channel.id == channelId }
-            ?: run {
-                context.invalidate(SNAPSHOT)
-                snapshot().channels.firstOrNull { it.channel.id == channelId }
-            }
-            ?: throw ProviderFailure("Channel is no longer listed", transient = false)
+        val listed = context.findListed(SNAPSHOT) { snapshot().channels.firstOrNull { it.channel.id == channelId } }
         val page = URLEncoder.encode("https://localnow.com/channels/${listed.slug ?: ""}", Charsets.UTF_8)
         val query = "page_url=$page&device_devicetype=desktop_web&app_version=0.0.0&app_bundle=web.localnow&" +
             "ccpa_us_privacy=1YNY"
@@ -80,38 +75,40 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
         val channels = LinkedHashMap<String, Listed>()
         val programs = ArrayList<GuideProgram>()
         for (channel in payload["channels"].array) {
-            val id = channel.str("video_id") ?: channel.str("_id") ?: continue
-            val name = channel.str("name") ?: continue
-            if (!channel["subscription_access"]["unlocked"].truthy || channels.containsKey(id)) continue
-            channels[id] = Listed(
-                ProviderChannel(
+            val listed = listing(channel)
+            if (listed == null || channels.containsKey(listed.channel.id)) continue
+            val id = listed.channel.id
+            channels[id] = listed
+            channel["program"].array.mapNotNullTo(programs) {
+                guideProgram(
                     id,
-                    name,
-                    channel.str("channel_number"),
-                    httpOrNull(channel.str("logo")),
-                    channel["genres"][0].string,
-                    listOf("us"),
-                ),
-                channel.str("slug"),
-            )
-            for (program in channel["program"].array) {
-                val start = program["starts_at"].long ?: continue
-                val end = program["ends_at"].long ?: continue
-                val title = program.str("program_title") ?: continue
-                if (end > start) {
-                    programs +=
-                        GuideProgram(
-                            id,
-                            Instant.ofEpochSecond(start),
-                            Instant.ofEpochSecond(end),
-                            title,
-                            program.str("program_description"),
-                        )
-                }
+                    it["starts_at"].long?.let(Instant::ofEpochSecond),
+                    it["ends_at"].long?.let(Instant::ofEpochSecond),
+                    it.str("program_title"),
+                    it.str("program_description"),
+                )
             }
         }
         if (channels.isEmpty()) throw ProviderFailure("Channel list is empty")
         return Snapshot(channels.values.toList(), programs)
+    }
+
+    /** An unlocked channel; null for a locked one or when a field is missing. */
+    private fun listing(channel: JsonElement): Listed? {
+        val id = channel.str("video_id") ?: channel.str("_id") ?: return null
+        val name = channel.str("name") ?: return null
+        if (!channel["subscription_access"]["unlocked"].truthy) return null
+        return Listed(
+            ProviderChannel(
+                id,
+                name,
+                channel.str("channel_number"),
+                httpOrNull(channel.str("logo")),
+                channel["genres"][0].string,
+                listOf("us"),
+            ),
+            channel.str("slug"),
+        )
     }
 
     /** Runs [request] with the page's runtime config; a 401 or 403 reads the page again and tries once more. */

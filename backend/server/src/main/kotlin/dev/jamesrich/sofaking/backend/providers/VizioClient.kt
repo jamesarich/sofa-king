@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.providers
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
+import kotlinx.serialization.json.JsonElement
 import java.time.Duration
 import java.time.Instant
 import java.time.format.DateTimeFormatter
@@ -33,33 +34,28 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
         val url = "$apiBase/airings/?start=${TIMESTAMP.format(now)}&end=${TIMESTAMP.format(now.plus(EPG_HORIZON))}&" +
             "startChannel=${channels.first().channel.id}&channelCount=${channels.size}"
         val airings = context.http.get(url, HEADERS).require("Vizio airings").json()["airings"].array
-        val programs = ArrayList<GuideProgram>()
-        for (airing in airings) {
-            val channelId = airing.str("stationId")?.let(byStation::get) ?: continue
-            val start = airing.str("timeStart")?.let(::instant) ?: continue
-            val end = airing.str("timeEnd")?.let(::instant) ?: continue
-            val title = airing.str("title") ?: continue
-            if (end <= start) continue
-            programs += GuideProgram(
-                channelId,
-                start,
-                end,
-                title,
-                airing.str("description"),
-                subTitle = airing.str("subTitle")?.takeIf { it != title },
-                episodeNumbers = seasonEpisode(airing["seasonNumber"].long, airing["episodeNumber"].long),
-            )
-        }
-        return ParsedGuide(index, programs)
+        return ParsedGuide(index, airings.mapNotNull { airing(it, byStation) })
+    }
+
+    /** An airing on a wanted channel, found by its station in [byStation]; null when a field is missing. */
+    private fun airing(airing: JsonElement, byStation: Map<String, String>): GuideProgram? {
+        val channelId = airing.str("stationId")?.let(byStation::get) ?: return null
+        val title = airing.str("title") ?: return null
+        val start = airing.str("timeStart")?.let(::instant) ?: return null
+        val end = airing.str("timeEnd")?.let(::instant)?.takeIf { it > start } ?: return null
+        return GuideProgram(
+            channelId,
+            start,
+            end,
+            title,
+            airing.str("description"),
+            subTitle = airing.str("subTitle")?.takeIf { it != title },
+            episodeNumbers = seasonEpisode(airing["seasonNumber"].long, airing["episodeNumber"].long),
+        )
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
-        val template = listed().firstOrNull { it.channel.id == channelId }?.template
-            ?: run {
-                context.invalidate(CHANNELS)
-                listed().firstOrNull { it.channel.id == channelId }?.template
-            }
-            ?: throw ProviderFailure("Channel is no longer listed", transient = false)
+        val template = context.findListed(CHANNELS) { listed().firstOrNull { it.channel.id == channelId }?.template }
         val url = Macros.fill(template, MACROS + ("ADID" to context.deviceId()))
         return ResolvedStream(url, HEADERS, context.clock.instant().plus(URL_LIFETIME))
     }
@@ -68,36 +64,37 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun fetchChannels(): List<Listed> {
         val payload = context.http.get("$apiBase/channels", HEADERS).require("Vizio channels").json()
-        val result = LinkedHashMap<String, Listed>()
-        for (channel in payload["channels"].array) {
-            val id = channel.str("channelId") ?: continue
-            val name = channel.str("channelName") ?: continue
-            if (channel.str("tokenUrl") != null) continue
-            val template = channel["channelUrls"][0].string ?: channel.str("channelUrl") ?: continue
-            if (!template.startsWith("https://") && !template.startsWith("http://")) continue
-            if (result.containsKey(id)) continue
-            val logo =
-                httpOrNull(channel.str("channelIcon")) ?: httpOrNull(channel.str("portraitIcon"))
-                    ?: httpOrNull(channel.str("bwIcon"))
-            // FEATURED slots keep their id while the program in them rotates; the tag tells
-            // curation apart from a station.
-            val tags = listOf("us") + if (id.uppercase().startsWith("FEATURED")) listOf("featured") else emptyList()
-            result[id] =
-                Listed(
-                    ProviderChannel(
-                        id,
-                        name,
-                        channel["channelNumber"].long?.toString(),
-                        logo,
-                        channel.str("category")?.lowercase()?.replaceFirstChar(Char::uppercase),
-                        tags,
-                    ),
-                    template,
-                    channel.str("airingsKey"),
-                )
-        }
+        val result = payload["channels"].array.mapNotNull(::listing).distinctBy { it.channel.id }
         if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
-        return result.values.toList()
+        return result
+    }
+
+    /** A listed channel with a plain stream template; null for a tokenized one or when a field is missing. */
+    private fun listing(channel: JsonElement): Listed? {
+        val id = channel.str("channelId") ?: return null
+        val name = channel.str("channelName") ?: return null
+        if (channel.str("tokenUrl") != null) return null
+        val template = (channel["channelUrls"][0].string ?: channel.str("channelUrl"))
+            ?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
+            ?: return null
+        val logo =
+            httpOrNull(channel.str("channelIcon")) ?: httpOrNull(channel.str("portraitIcon"))
+                ?: httpOrNull(channel.str("bwIcon"))
+        // FEATURED slots keep their id while the program in them rotates; the tag tells
+        // curation apart from a station.
+        val tags = listOf("us") + if (id.uppercase().startsWith("FEATURED")) listOf("featured") else emptyList()
+        return Listed(
+            ProviderChannel(
+                id,
+                name,
+                channel["channelNumber"].long?.toString(),
+                logo,
+                channel.str("category")?.lowercase()?.replaceFirstChar(Char::uppercase),
+                tags,
+            ),
+            template,
+            channel.str("airingsKey"),
+        )
     }
 
     private fun instant(value: String): Instant? = try {

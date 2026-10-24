@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
+import kotlinx.serialization.json.JsonElement
 import java.time.Duration
 import java.time.Instant
 
@@ -29,34 +30,29 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
                 "$siteBase/api/schedule/marathons/${channel.marathonId}",
                 HEADERS,
             ).require("Adult Swim schedule").json()["data"].array
-            for (row in rows) {
-                val start =
-                    row.str("startTime")?.let(::instantOrNull) ?: row["time"].long?.let(Instant::ofEpochMilli)
-                        ?: continue
-                val seconds = row["duration"].double ?: continue
-                if (seconds <= 0) continue
-                val episode = row.str("name") ?: row.str("episodeName")
-                val series = row.str("seriesName")
-                val title = series ?: episode ?: channel.channel.name
-                programs += GuideProgram(
-                    channel.channel.id,
-                    start,
-                    start.plusMillis((seconds * MS_PER_SECOND).toLong()),
-                    title,
-                    subTitle = if (series != null) episode else null,
-                )
-            }
+            rows.mapNotNullTo(programs) { program(channel.channel, it) }
         }
         return ParsedGuide(index, programs)
     }
 
+    /** A marathon schedule row on [channel], titled by its series; null when it has no start or length. */
+    private fun program(channel: ProviderChannel, row: JsonElement): GuideProgram? {
+        val start = row.str("startTime")?.let(::instantOrNull) ?: row["time"].long?.let(Instant::ofEpochMilli)
+            ?: return null
+        val seconds = row["duration"].double?.takeIf { it > 0 } ?: return null
+        val episode = row.str("name") ?: row.str("episodeName")
+        val series = row.str("seriesName")
+        return GuideProgram(
+            channel.id,
+            start,
+            start.plusMillis((seconds * MS_PER_SECOND).toLong()),
+            series ?: episode ?: channel.name,
+            subTitle = if (series != null) episode else null,
+        )
+    }
+
     override suspend fun resolve(channelId: String): ResolvedStream {
-        val listed = listed().firstOrNull { it.channel.id == channelId }
-            ?: run {
-                context.invalidate(STREAMS)
-                listed().firstOrNull { it.channel.id == channelId }
-            }
-            ?: throw ProviderFailure("Channel is no longer listed", transient = false)
+        val listed = context.findListed(STREAMS) { listed().firstOrNull { it.channel.id == channelId } }
         val url = context.cached("asset:${listed.videoId}", ASSET_FOR) { asset(listed.videoId) }
         return ResolvedStream(
             url,

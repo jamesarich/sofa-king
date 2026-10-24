@@ -79,22 +79,16 @@ class ProviderContext(
     )
 
     /** The value [fetch] produced within [ttl], else a fresh one; concurrent callers share one fetch. */
-    suspend fun <T : Any> cached(key: String, ttl: Duration, fetch: suspend () -> T): T {
-        caches[key]?.let { (at, value) ->
-            if (Duration.between(at, clock.instant()) < ttl) {
-                @Suppress("UNCHECKED_CAST")
-                return value as T
-            }
+    suspend fun <T : Any> cached(key: String, ttl: Duration, fetch: suspend () -> T): T =
+        fresh(key, ttl) ?: cacheLocks.computeIfAbsent(key) { Mutex() }.withLock {
+            fresh(key, ttl) ?: fetch().also { caches[key] = clock.instant() to it }
         }
-        return cacheLocks.computeIfAbsent(key) { Mutex() }.withLock {
-            caches[key]?.let { (at, value) ->
-                if (Duration.between(at, clock.instant()) < ttl) {
-                    @Suppress("UNCHECKED_CAST")
-                    return value as T
-                }
-            }
-            fetch().also { caches[key] = clock.instant() to it }
-        }
+
+    /** The value cached under [key], while it is younger than [ttl]. */
+    private fun <T : Any> fresh(key: String, ttl: Duration): T? {
+        val (at, value) = caches[key] ?: return null
+        @Suppress("UNCHECKED_CAST")
+        return if (Duration.between(at, clock.instant()) < ttl) value as T else null
     }
 
     fun invalidate(key: String) {
@@ -134,24 +128,23 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
         val channels = LinkedHashMap<String, Channel>()
         val offerings = ArrayList<Offering>()
         var duplicates = 0
-        for (item in listed) {
-            if (item.id.isBlank() || item.name.isBlank()) continue
+        for (item in listed.filter { it.id.isNotBlank() && it.name.isNotBlank() }) {
             val id = stableId("channel:${config.id}:${item.id}")
             if (channels.containsKey(id)) {
                 duplicates++
-                continue
+            } else {
+                val url = NativeServices.offeringUrl(client.service, item.id)
+                channels[id] = Channel(
+                    id,
+                    item.number?.takeIf { it.isNotBlank() } ?: id.take(FALLBACK_NUMBER_LENGTH),
+                    item.name.trim(),
+                    httpOrNull(item.logo),
+                    listOfNotNull(item.group?.takeIf { it.isNotBlank() }) + item.tags,
+                    item.id,
+                )
+                offerings +=
+                    Offering(stableId("offering:${config.id}:${item.id}:$url"), id, config.id, url, client.protocol)
             }
-            val url = NativeServices.offeringUrl(client.service, item.id)
-            channels[id] = Channel(
-                id,
-                item.number?.takeIf { it.isNotBlank() } ?: id.take(FALLBACK_NUMBER_LENGTH),
-                item.name.trim(),
-                httpOrNull(item.logo),
-                listOfNotNull(item.group?.takeIf { it.isNotBlank() }) + item.tags,
-                item.id,
-            )
-            offerings +=
-                Offering(stableId("offering:${config.id}:${item.id}:$url"), id, config.id, url, client.protocol)
         }
         require(channels.size <= CHANNEL_LIMIT) { "Provider exceeds import limits" }
         return ParsedPlaylist(
@@ -166,33 +159,34 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
     }
 
     /** The playable URL behind a native offering, from the cache while it has at least a minute left. */
-    suspend fun resolve(offering: Offering): ResolvedStream {
-        val now = clock.instant()
-        resolutions[offering.id]?.takeIf { it.until > now }?.let { return it.stream }
-        return locks.computeIfAbsent(offering.id) { Mutex() }.withLock {
-            resolutions[offering.id]?.takeIf { it.until > clock.instant() }?.let { return it.stream }
-            val client =
-                clients[offering.providerId]
-                    ?: throw ProviderFailure("No client for provider ${offering.providerId}", transient = false)
-            val stream = try {
-                client.resolve(NativeServices.channelId(offering.url))
-            } catch (e: ProviderFailure) {
-                log.warn(
-                    "resolve provider={} offering={} failed transient={} reason=\"{}\"",
-                    offering.providerId,
-                    offering.id,
-                    e.transient,
-                    e.message,
-                )
-                throw e
-            }
-            require(stream.url.startsWith("https://") || stream.url.startsWith("http://")) {
-                "Resolved URL is not HTTP"
-            }
-            val until = minOf(stream.expiresAt?.minus(EXPIRY_MARGIN) ?: Instant.MAX, clock.instant().plus(MAX_CACHE))
-            resolutions[offering.id] = Resolution(stream, until)
-            stream
+    suspend fun resolve(offering: Offering): ResolvedStream = resolved(offering.id)
+        ?: locks.computeIfAbsent(offering.id) { Mutex() }.withLock { resolved(offering.id) ?: resolveNow(offering) }
+
+    /** The cached resolution of offering [id] while it is still good. */
+    private fun resolved(id: String): ResolvedStream? = resolutions[id]?.takeIf { it.until > clock.instant() }?.stream
+
+    private suspend fun resolveNow(offering: Offering): ResolvedStream {
+        val client =
+            clients[offering.providerId]
+                ?: throw ProviderFailure("No client for provider ${offering.providerId}", transient = false)
+        val stream = try {
+            client.resolve(NativeServices.channelId(offering.url))
+        } catch (e: ProviderFailure) {
+            log.warn(
+                "resolve provider={} offering={} failed transient={} reason=\"{}\"",
+                offering.providerId,
+                offering.id,
+                e.transient,
+                e.message,
+            )
+            throw e
         }
+        require(stream.url.startsWith("https://") || stream.url.startsWith("http://")) {
+            "Resolved URL is not HTTP"
+        }
+        val until = minOf(stream.expiresAt?.minus(EXPIRY_MARGIN) ?: Instant.MAX, clock.instant().plus(MAX_CACHE))
+        resolutions[offering.id] = Resolution(stream, until)
+        return stream
     }
 
     companion object {

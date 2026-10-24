@@ -35,15 +35,7 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
-        if (snapshot().channels.none { it.id == channelId }) {
-            context.invalidate(SNAPSHOT)
-            if (snapshot().channels.none {
-                    it.id == channelId
-                }
-            ) {
-                throw ProviderFailure("Channel is no longer listed", transient = false)
-            }
-        }
+        context.findListed(SNAPSHOT) { snapshot().channels.firstOrNull { it.id == channelId } }
         val row = rows(listOf(channelId)).firstOrNull { it.str("content_id") == channelId }
             ?: throw ProviderFailure("Tubi no longer answers for the channel", transient = false)
         val manifest = playable(row) ?: throw ProviderFailure("Tubi channel needs a login or DRM", transient = false)
@@ -70,23 +62,17 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
         val channels = ArrayList<ProviderChannel>()
         val programs = ArrayList<GuideProgram>()
         for (row in rows(order.toList())) {
-            val id = row.str("content_id") ?: continue
-            val name = row.str("title") ?: continue
-            if (playable(row) == null || channels.any { it.id == id }) continue
-            channels +=
-                ProviderChannel(
-                    id,
-                    name,
-                    null,
-                    httpOrNull(row["images"]["thumbnail"][0].string),
-                    groups[id],
-                    listOf("us"),
+            val channel = channel(row, groups)
+            if (channel == null || channels.any { it.id == channel.id }) continue
+            channels += channel
+            row["programs"].array.mapNotNullTo(programs) {
+                guideProgram(
+                    channel.id,
+                    it.str("start_time")?.let(::instantOrNull),
+                    it.str("end_time")?.let(::instantOrNull),
+                    it.str("title"),
+                    it.str("description"),
                 )
-            for (program in row["programs"].array) {
-                val start = program.str("start_time")?.let(::instantOrNull) ?: continue
-                val end = program.str("end_time")?.let(::instantOrNull) ?: continue
-                val title = program.str("title") ?: continue
-                if (end > start) programs += GuideProgram(id, start, end, title, program.str("description"))
             }
         }
         if (channels.isEmpty()) throw ProviderFailure("Channel list is empty")
@@ -98,6 +84,21 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
             "$epgUrl?content_id=${batch.joinToString(",")}",
             HEADERS,
         ).require("Tubi programming").json()["rows"].array
+    }
+
+    /** A playable channel in its group from [groups]; null when it is not playable or a field is missing. */
+    private fun channel(row: JsonElement, groups: Map<String, String>): ProviderChannel? {
+        val id = row.str("content_id") ?: return null
+        val name = row.str("title") ?: return null
+        if (playable(row) == null) return null
+        return ProviderChannel(
+            id,
+            name,
+            null,
+            httpOrNull(row["images"]["thumbnail"][0].string),
+            groups[id],
+            listOf("us"),
+        )
     }
 
     /** The clear HLS manifest, or null when the channel needs a login or a license server. */

@@ -12,6 +12,21 @@ import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
+private class Session(val token: String, val channels: String, val stitcher: String, val params: String)
+
+/** The session saved as JSON, or null when any part of it is missing. */
+private fun storedSession(value: JsonElement?): Session? {
+    val token = value.str("token") ?: return null
+    val channels = value.str("channels") ?: return null
+    val stitcher = value.str("stitcher") ?: return null
+    val params = value.str("params") ?: return null
+    return Session(token, channels, stitcher, params)
+}
+
+/** A part of the session the boot answer must hold. */
+private fun booted(value: String?, what: String): String =
+    value ?: throw ProviderFailure("Pluto boot answered no $what")
+
 /**
  * Pluto TV as pluto.tv uses it: `boot/v4/start` with the install's device id as client id answers a session JWT,
  * the stitcher host and its query parameters; the channels service lists channels and categories and serves the
@@ -26,17 +41,6 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
     private val regional = RegionOptions(context.options)
 
     private class Listed(val channel: ProviderChannel, val path: String)
-
-    private class Session(val token: String, val channels: String, val stitcher: String, val params: String)
-
-    /** The session saved as JSON, or null when any part of it is missing. */
-    private fun storedSession(value: JsonElement?): Session? {
-        val token = value.str("token") ?: return null
-        val channels = value.str("channels") ?: return null
-        val stitcher = value.str("stitcher") ?: return null
-        val params = value.str("params") ?: return null
-        return Session(token, channels, stitcher, params)
-    }
 
     override suspend fun channels(): List<ProviderChannel> = listed().map { it.channel }
 
@@ -55,12 +59,7 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
             }.json()["data"].array
             for (row in data) {
                 val id = row.str("channelId") ?: continue
-                for (item in row["timelines"].array) {
-                    val from = item.str("start")?.let(::instantOrNull) ?: continue
-                    val until = item.str("stop")?.let(::instantOrNull) ?: continue
-                    val title = item.str("title") ?: continue
-                    if (until > from) programs += program(id, from, until, title, item["episode"])
-                }
+                row["timelines"].array.mapNotNullTo(programs) { program(id, it) }
             }
         }
         return ParsedGuide(index, programs)
@@ -68,9 +67,13 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
 
     /**
      * A timeline entry and its `episode`: the episode name, season and number, genres, rating and
-     * poster; a `film` series is a movie.
+     * poster; a `film` series is a movie. Null when a field is missing.
      */
-    private fun program(id: String, from: Instant, until: Instant, title: String, episode: JsonElement?): GuideProgram {
+    private fun program(id: String, item: JsonElement): GuideProgram? {
+        val from = item.str("start")?.let(::instantOrNull) ?: return null
+        val until = item.str("stop")?.let(::instantOrNull)?.takeIf { it > from } ?: return null
+        val title = item.str("title") ?: return null
+        val episode = item["episode"]
         val movie = episode["series"].str("type") == "film"
         return GuideProgram(
             id, from, until, title, episode.str("description"),
@@ -83,12 +86,7 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
-        val path = listed().firstOrNull { it.channel.id == channelId }?.path
-            ?: run {
-                context.invalidate(CHANNELS)
-                listed().firstOrNull { it.channel.id == channelId }?.path
-            }
-            ?: throw ProviderFailure("Channel is no longer listed", transient = false)
+        val path = context.findListed(CHANNELS) { listed().firstOrNull { it.channel.id == channelId }?.path }
         val session = session()
         val url = "${session.stitcher}/v2$path?${session.params}&jwt=${session.token}&masterJWTPassthrough=true&" +
             "includeExtendedEvents=true"
@@ -116,19 +114,20 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
                     }.toMap()
             },
         )
-        val result = LinkedHashMap<String, Listed>()
-        for (channel in payload["data"].array) {
-            val id = channel.str("id") ?: continue
-            val name = channel.str("name") ?: continue
-            val path = channel["stitched"].str("path") ?: continue
-            if (channel["entitlements"].array.isNotEmpty() || result.containsKey(id)) continue
-            val logo = channel["images"].array.firstOrNull { it.str("type") == "colorLogoPNG" }.str("url")
-            val group = channel["categoryIDs"].array.firstNotNullOfOrNull { categories[it.string] }
-            result[id] =
-                Listed(ProviderChannel(id, name, channel.str("number"), httpOrNull(logo), group, regional.tags), path)
-        }
+        val result = payload["data"].array.mapNotNull { listing(it, categories) }.distinctBy { it.channel.id }
         if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
-        return result.values.toList()
+        return result
+    }
+
+    /** A free channel, in its first category named in [categories]; null when a field is missing. */
+    private fun listing(channel: JsonElement, categories: Map<String, String>): Listed? {
+        val id = channel.str("id") ?: return null
+        val name = channel.str("name") ?: return null
+        val path = channel["stitched"].str("path") ?: return null
+        if (channel["entitlements"].array.isNotEmpty()) return null
+        val logo = channel["images"].array.firstOrNull { it.str("type") == "colorLogoPNG" }.str("url")
+        val group = channel["categoryIDs"].array.firstNotNullOfOrNull { categories[it.string] }
+        return Listed(ProviderChannel(id, name, channel.str("number"), httpOrNull(logo), group, regional.tags), path)
     }
 
     /** Runs [request] in the stored session; a 401 or 403 boots a new one and tries once more. */
@@ -156,10 +155,10 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
             streamHeaders() + ("Accept" to "application/json"),
         ).require("Pluto boot").json()
         val session = Session(
-            boot.str("sessionToken") ?: throw ProviderFailure("Pluto boot answered no session"),
+            booted(boot.str("sessionToken"), "session"),
             boot["servers"].str("channels") ?: CHANNELS_BASE,
-            boot["servers"].str("stitcher") ?: throw ProviderFailure("Pluto boot answered no stitcher"),
-            boot.str("stitcherParams") ?: throw ProviderFailure("Pluto boot answered no stitcher parameters"),
+            booted(boot["servers"].str("stitcher"), "stitcher"),
+            booted(boot.str("stitcherParams"), "stitcher parameters"),
         )
         val stored =
             buildJsonObject {

@@ -129,6 +129,7 @@ jobs:
           path: |
             app/*/build/reports/
             app/*/build/test-results/
+            app/androidApp/build/intermediates/debug/testDebugScreenshotTestDefaultTestSuite/results/
             app/ui/build/fuzz/
             app/ui/build/journeys/
             app/build/web-fuzz/

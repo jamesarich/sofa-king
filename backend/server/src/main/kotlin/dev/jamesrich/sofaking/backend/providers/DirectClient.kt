@@ -71,6 +71,21 @@ class DirectClient(private val context: ProviderContext) : ProviderClient {
             Feed("nhk-world-japan", "NHK World-Japan", "News", "jp", "https://masterpl.hls.nhkworld.jp/hls/w/live/smarttv.m3u8"),
             Feed("abc-news-australia", "ABC News (Australia)", "News", "au", "https://abc-news-dmd-streams-1.akamaized.net/out/v1/701126012d044971b3fa89406a440133/index.m3u8"),
             Feed("i24news-english", "i24NEWS English", "News", "il", "https://i24newsenglish-cdn.encoders.immergo.tv/master.m3u8"),
+            Feed("dw-deutsch", "DW Deutsch", "News", "de", "https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8"),
+            Feed("das-erste", "Das Erste", "Entertainment", "de", "https://daserste-live.ard-mcdn.de/daserste/live/hls/de/master.m3u8"),
+            Feed("ard-alpha", "ARD alpha", "Documentary", "de", "https://mcdn.br.de/br/fs/ard_alpha/hls/de/master.m3u8"),
+            Feed("france-24-french", "France 24 French", "News", "fr", "https://live.france24.com/hls/live/2037179-b/F24_FR_HI_HLS/master_5000.m3u8"),
+            Feed("rtve-la-1", "La 1", "Entertainment", "es", "https://rtvelivestream.rtve.es/rtvesec/la1/la1_main.m3u8"),
+            Feed("rtve-24h", "Canal 24 Horas", "News", "es", "https://rtvelivestream.rtve.es/rtvesec/24h/24h_main.m3u8"),
+            Feed("3cat-info", "3CatInfo", "News", "es", "https://directes-tv-int.3catdirectes.cat/live-origin/canal324-hls/master.m3u8"),
+            Feed("euronews", "Euronews", "News", "fr", "https://cdn-euronews.akamaized.net/live/eds/euronews-en/25002/index.m3u8"),
+            Feed("africanews", "Africanews", "News", "fr", "https://cdn-euronews.akamaized.net/live/eds/africanews-en/25049/index.m3u8"),
+            Feed("trt-world", "TRT World", "News", "tr", "https://tv-trtworld.medya.trt.com.tr/master.m3u8"),
+            Feed("al-jazeera-arabic", "Al Jazeera Arabic", "News", "qa", "https://live-hls-web-aja.getaj.net/AJA/index.m3u8"),
+            Feed("al-jazeera-mubasher", "Al Jazeera Mubasher", "News", "qa", "https://live-hls-web-ajm.getaj.net/AJM/index.m3u8"),
+            Feed("cna", "CNA", "News", "sg", "https://d2e1asnsl7br7b.cloudfront.net/7782e205e72f43aeb4a48ec97f66ebbe/index.m3u8"),
+            Feed("arirang", "Arirang TV", "Entertainment", "kr", "https://amdlive-ch01-ctnd-com.akamaized.net/arirang_1ch/smil:arirang_1ch.smil/playlist.m3u8"),
+            Feed("cgtn", "CGTN", "News", "cn", "https://news.cgtn.com/resource/live/english/cgtn-news.m3u8"),
         )
     }
 }

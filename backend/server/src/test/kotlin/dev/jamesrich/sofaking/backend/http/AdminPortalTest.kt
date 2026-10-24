@@ -1840,7 +1840,7 @@ class AdminPortalTest {
             val values = mapOf(
                 "SOFA_LOG_LEVEL" to "info", "SOFA_XMLTV_DAYS" to "3", "SOFA_PLEX_SYNC_MINUTES" to "60",
                 "SOFA_HDHR_TUNERS" to "2", "SOFA_MAX_SESSIONS" to "4", "SOFA_RECORDINGS_FREE_GIB" to "10",
-                "SOFA_RECORDINGS_KEEP_DAYS" to "0", "SOFA_LEARNED_BREAKS" to "shadow", "SOFA_AD_LISTENERS" to "0",
+                "SOFA_RECORDINGS_KEEP_DAYS" to "0", "SOFA_LEARNED_BREAKS" to "shadow", "SOFA_AD_LISTENERS" to "6",
             )
             fun fields(vararg changes: Pair<String, String>) =
                 (values + changes).map { it.key to it.value }.toTypedArray()

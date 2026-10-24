@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.playback
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.catalog.CatalogService
 import dev.jamesrich.sofaking.backend.catalog.FeedConfig
 import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.FeedSnapshot
@@ -10,6 +11,7 @@ import dev.jamesrich.sofaking.backend.catalog.Offering
 import dev.jamesrich.sofaking.backend.catalog.lineupStack
 import dev.jamesrich.sofaking.backend.health.FailureClass
 import dev.jamesrich.sofaking.backend.health.Observation
+import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.recordObservation
 import dev.jamesrich.sofaking.backend.store.saveSnapshot
@@ -72,7 +74,7 @@ class SessionManagerTest {
                             }.code,
                         )
                         val mediaJob = Job()
-                        sessions.acquire(opened.id, 1, opened.descriptor.url.substringAfterLast('/'), mediaJob)
+                        sessions.media.acquire(opened.id, 1, opened.descriptor.url.substringAfterLast('/'), mediaJob)
                         sessions.release(opened.id)
                         assertTrue(mediaJob.isCancelled)
                         sessions.release(opened.id)
@@ -106,18 +108,18 @@ class SessionManagerTest {
                         val sessions = SessionManager(catalog, store, clock)
                         assertEquals(
                             listOf(channel),
-                            sessions.listenable(listOf("missing", channel), 1) {
+                            sessions.sources.listenable(listOf("missing", channel), 1) {
                                 true
                             }.keys.toList(),
                             "an unknown channel passes",
                         )
                         assertTrue(
-                            sessions.listenable(listOf(channel), 1) {
+                            sessions.sources.listenable(listOf(channel), 1) {
                                 false
                             }.isEmpty(),
                             "a refused source passes",
                         )
-                        assertTrue(sessions.listenable(listOf(channel), 0) { true }.isEmpty())
+                        assertTrue(sessions.sources.listenable(listOf(channel), 0) { true }.isEmpty())
                         sessions.close()
                     }
                 }
@@ -127,69 +129,58 @@ class SessionManagerTest {
         }
     }
 
-    @Test fun `at capacity the oldest preview is evicted and previews hold shorter leases than watches`() =
-        runBlocking<Unit> {
-            val dir = Files.createTempDirectory("sofa-evict-")
-            try {
-                Fixture().use { fixture ->
-                    HttpClient(CIO).use { http ->
-                        openStore(dir).use { store ->
-                            val clock = MutableClock()
-                            val feeds =
-                                FeedService(
-                                    listOf(fixture.feed),
-                                    store,
-                                    http,
-                                    clock,
-                                    UpstreamPolicy(allowLoopback = true),
-                                )
-                            feeds.refresh(fixture.feed)
-                            val catalog = lineupStack(feeds, store, clock, http).catalog
-                            val channel = catalog.catalog().channels.single().id
-                            val sessions = SessionManager(catalog, store, clock, 2)
-                            val first = sessions.open(OpenPlayback(channel, "preview", "first"))
-                            assertEquals(clock.now.plusSeconds(45).toString(), first.expiresAt)
-                            val watching = sessions.open(OpenPlayback(channel, "watch", "watching"))
-                            assertEquals(clock.now.plusSeconds(90).toString(), watching.expiresAt)
-                            val firstMedia = Job()
-                            sessions.acquire(first.id, 1, first.descriptor.url.substringAfterLast('/'), firstMedia)
-                            assertEquals(
-                                Wire.ErrorCode.CHANNEL_NOT_FOUND,
-                                assertFailsWith<ApiFailure> {
-                                    sessions.open(OpenPlayback("missing", "watch", "missing"))
-                                }.code,
-                            )
-                            assertEquals(
-                                Wire.ErrorCode.CHANNEL_NOT_FOUND,
-                                assertFailsWith<ApiFailure> {
-                                    sessions.openExternal("missing")
-                                }.code,
-                            )
-                            assertFalse(firstMedia.isCancelled, "a channel that cannot play evicts nobody")
-                            val third = sessions.open(OpenPlayback(channel, "preview", "third"))
-                            assertTrue(firstMedia.isCancelled)
-                            assertEquals("SESSION_EXPIRED", assertFailsWith<ApiFailure> { sessions.get(first.id) }.code)
-                            assertEquals(watching.id, sessions.get(watching.id).id)
-                            assertEquals(third.id, sessions.get(third.id).id)
-                            val promoted = sessions.update(third.id, UpdatePlayback("watch"))
-                            assertEquals(clock.now.plusSeconds(90).toString(), promoted.expiresAt)
-                            assertEquals(
-                                "CAPACITY_EXHAUSTED",
-                                assertFailsWith<ApiFailure> {
-                                    sessions.open(OpenPlayback(channel, "preview", "fourth"))
-                                }.code,
-                            )
-                            clock.now = clock.now.plusSeconds(46)
-                            sessions.expire()
-                            assertEquals(watching.id, sessions.get(watching.id).id)
-                            sessions.close()
-                        }
-                    }
-                }
-            } finally {
-                dir.toFile().deleteRecursively()
-            }
-        }
+    @Test fun `previews hold shorter leases than watches`() = withChannel("sofa-leases-") {
+            catalog,
+            store,
+            clock,
+            channel,
+        ->
+        val sessions = SessionManager(catalog, store, clock, 2)
+        assertEquals(
+            clock.now.plusSeconds(45).toString(),
+            sessions.open(OpenPlayback(channel, "preview", "p")).expiresAt,
+        )
+        val watching = sessions.open(OpenPlayback(channel, "watch", "w"))
+        assertEquals(clock.now.plusSeconds(90).toString(), watching.expiresAt)
+        sessions.close()
+    }
+
+    @Test fun `at capacity the oldest preview is evicted`() = withChannel("sofa-evict-") {
+            catalog,
+            store,
+            clock,
+            channel,
+        ->
+        val sessions = SessionManager(catalog, store, clock, 2)
+        val first = sessions.open(OpenPlayback(channel, "preview", "first"))
+        val watching = sessions.open(OpenPlayback(channel, "watch", "watching"))
+        val firstMedia = Job()
+        sessions.media.acquire(first.id, 1, first.descriptor.url.substringAfterLast('/'), firstMedia)
+        assertEquals(
+            Wire.ErrorCode.CHANNEL_NOT_FOUND,
+            assertFailsWith<ApiFailure> { sessions.open(OpenPlayback("missing", "watch", "missing")) }.code,
+        )
+        assertEquals(
+            Wire.ErrorCode.CHANNEL_NOT_FOUND,
+            assertFailsWith<ApiFailure> { sessions.external.open("missing") }.code,
+        )
+        assertFalse(firstMedia.isCancelled, "a channel that cannot play evicts nobody")
+        val third = sessions.open(OpenPlayback(channel, "preview", "third"))
+        assertTrue(firstMedia.isCancelled)
+        assertEquals("SESSION_EXPIRED", assertFailsWith<ApiFailure> { sessions.get(first.id) }.code)
+        assertEquals(watching.id, sessions.get(watching.id).id)
+        assertEquals(third.id, sessions.get(third.id).id)
+        val promoted = sessions.update(third.id, UpdatePlayback("watch"))
+        assertEquals(clock.now.plusSeconds(90).toString(), promoted.expiresAt)
+        assertEquals(
+            "CAPACITY_EXHAUSTED",
+            assertFailsWith<ApiFailure> { sessions.open(OpenPlayback(channel, "preview", "fourth")) }.code,
+        )
+        clock.now = clock.now.plusSeconds(46)
+        sessions.expire()
+        assertEquals(watching.id, sessions.get(watching.id).id)
+        sessions.close()
+    }
 
     @Test fun `manual disable immediately blocks media and cancels its upstream request`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-disable-play-")
@@ -208,7 +199,7 @@ class SessionManagerTest {
                         )
                         val token = session.descriptor.url.substringAfterLast('/')
                         val job = Job()
-                        sessions.acquire(session.id, 1, token, job)
+                        sessions.media.acquire(session.id, 1, token, job)
                         store.setManuallyDisabled(feeds.published.offerings.single().id, true)
                         sessions.healthChanged(feeds.published.offerings.single().id)
                         assertTrue(job.isCancelled)
@@ -219,7 +210,7 @@ class SessionManagerTest {
                             }.code,
                         )
                         assertTrue(job.isCancelled)
-                        assertFailsWith<ApiFailure> { sessions.acquire(session.id, 1, token, Job()) }
+                        assertFailsWith<ApiFailure> { sessions.media.acquire(session.id, 1, token, Job()) }
                         sessions.close()
                     }
                 }
@@ -265,7 +256,7 @@ class SessionManagerTest {
                         val token = sessions.open(
                             OpenPlayback(channel, "preview", key),
                         ).descriptor.url.substringAfterLast('/')
-                        return sessions.acquire(
+                        return sessions.media.acquire(
                             sessions.open(OpenPlayback(channel, "preview", key)).id,
                             1,
                             token,
@@ -314,20 +305,20 @@ class SessionManagerTest {
                     val first = Job()
                     assertEquals(
                         "first",
-                        sessions.acquire(
+                        sessions.media.acquire(
                             opened.id,
                             1,
                             opened.descriptor.url.substringAfterLast('/'),
                             first,
                         ).offering.id,
                     )
-                    assertTrue(sessions.sourceFailed(opened.id, 1, first))
+                    assertTrue(sessions.media.sourceFailed(opened.id, 1, first))
                     val moved = sessions.get(opened.id)
                     assertEquals(2, moved.descriptor.epoch)
                     val second = Job()
                     assertEquals(
                         "second",
-                        sessions.acquire(
+                        sessions.media.acquire(
                             opened.id,
                             2,
                             moved.descriptor.url.substringAfterLast('/'),
@@ -335,10 +326,10 @@ class SessionManagerTest {
                         ).offering.id,
                     )
                     assertTrue(
-                        sessions.sourceFailed(opened.id, 1, first),
+                        sessions.media.sourceFailed(opened.id, 1, first),
                         "a request from an older epoch just re-reads",
                     )
-                    assertFalse(sessions.sourceFailed(opened.id, 2, second), "no source is left")
+                    assertFalse(sessions.media.sourceFailed(opened.id, 2, second), "no source is left")
                     sessions.close()
                 }
             }
@@ -371,16 +362,16 @@ class SessionManagerTest {
                         val tsToken = ts.descriptor.url.substringAfterLast('/')
                         val first = Job()
                         val second = Job()
-                        assertTrue(sessions.acquire(ts.id, 1, tsToken, first).shared)
-                        sessions.acquire(ts.id, 1, tsToken, second)
+                        assertTrue(sessions.media.acquire(ts.id, 1, tsToken, first).shared)
+                        sessions.media.acquire(ts.id, 1, tsToken, second)
                         assertTrue(first.isCancelled)
                         assertFalse(second.isCancelled)
                         val hls = sessions.open(OpenPlayback(ids.getValue("HLS"), "watch", "hls"))
                         val hlsToken = hls.descriptor.url.substringAfterLast('/')
                         val playlist = Job()
                         val segment = Job()
-                        assertFalse(sessions.acquire(hls.id, 1, hlsToken, playlist).shared)
-                        sessions.acquire(hls.id, 1, hlsToken, segment)
+                        assertFalse(sessions.media.acquire(hls.id, 1, hlsToken, playlist).shared)
+                        sessions.media.acquire(hls.id, 1, hlsToken, segment)
                         assertFalse(playlist.isCancelled)
                         assertFalse(segment.isCancelled)
                         sessions.close()
@@ -449,6 +440,30 @@ class SessionManagerTest {
                                 ).open(OpenPlayback(channel.id, idempotencyKey = "blocked"))
                             }.code,
                         )
+                    }
+                }
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    /** Runs [block] over the fixture feed's one channel, adopted into the lineup, in a fresh store. */
+    private fun withChannel(
+        prefix: String,
+        block: suspend (CatalogService, BackendStore, MutableClock, String) -> Unit,
+    ) = runBlocking<Unit> {
+        val dir = Files.createTempDirectory(prefix)
+        try {
+            Fixture().use { fixture ->
+                HttpClient(CIO).use { http ->
+                    openStore(dir).use { store ->
+                        val clock = MutableClock()
+                        val feeds =
+                            FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true))
+                        feeds.refresh(fixture.feed)
+                        val catalog = lineupStack(feeds, store, clock, http).catalog
+                        block(catalog, store, clock, catalog.catalog().channels.single().id)
                     }
                 }
             }

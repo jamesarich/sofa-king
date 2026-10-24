@@ -109,7 +109,7 @@ class AdListener(
             service(offering) !in NEVER &&
                 cooldown[offering.providerId]?.isAfter(now) != true && offering.protocol == "hls"
         }
-        for ((channel, offering) in sessions.listenable(
+        for ((channel, offering) in sessions.sources.listenable(
             pick(
                 store.adChannels(),
                 channels(),

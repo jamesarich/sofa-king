@@ -39,7 +39,7 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
             val query = tokenQuery(config.token)
             val channels = runtime.catalog.catalog().channels
             val entries = runtime.lineup.entries().associateBy { it.id }
-            val preferred = runtime.sessions.preferredOfferings(channels.map { it.id })
+            val preferred = runtime.sessions.sources.preferredOfferings(channels.map { it.id })
             call.response.header(HttpHeaders.CacheControl, "no-store")
             call.respondTextWriter(ContentType.parse("audio/x-mpegurl").withCharset(Charsets.UTF_8)) {
                 write("#EXTM3U url-tvg=\"$base/output/guide.xml$query\" x-tvg-url=\"$base/output/guide.xml$query\"\n")
@@ -128,12 +128,12 @@ internal suspend fun serveExternal(
 ) {
     val sessions = runtime.sessions
     if (shareHls) {
-        sessions.externalFor(channelId)?.let {
+        sessions.external.joinable(channelId)?.let {
             hls(it)
             return
         }
     }
-    val opened = sessions.openExternal(channelId, call.request.origin.remoteAddress)
+    val opened = sessions.external.open(channelId, call.request.origin.remoteAddress)
     var release = true
     try {
         var current = opened

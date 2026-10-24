@@ -6,11 +6,8 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.CatalogService
 import dev.jamesrich.sofaking.backend.catalog.Offering
 import dev.jamesrich.sofaking.backend.catalog.eligible
-import dev.jamesrich.sofaking.backend.health.HealthState
-import dev.jamesrich.sofaking.backend.health.HealthStatus
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.store.BackendStore
-import dev.jamesrich.sofaking.backend.store.allHealth
 import dev.jamesrich.sofaking.backend.store.health
 import dev.jamesrich.sofaking.contract.AdBreakState
 import dev.jamesrich.sofaking.contract.OpenPlayback
@@ -20,9 +17,7 @@ import dev.jamesrich.sofaking.contract.UpdatePlayback
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -31,7 +26,6 @@ import java.util.concurrent.atomic.AtomicLong
 
 private val RESOURCE_SUFFIXES = setOf("m3u8", "ts", "m4s", "mp4", "aac", "vtt", "webvtt", "key", "bin")
 private val INTENTS = setOf(Wire.Intent.PREVIEW, Wire.Intent.WATCH)
-private val learnedLog = LoggerFactory.getLogger(AdClock::class.java)
 
 /** [external] sessions belong to players that never renew: the lease runs from their last media request. */
 internal class LiveSession(
@@ -68,6 +62,7 @@ internal class LiveSession(
     val resources = ResourceMap()
     val requests = mutableSetOf<Job>()
     val playlists = SteadyPlaylists()
+
     fun resource(url: String, suffix: String? = null): String {
         resources.tokenFor(url)?.let { return it }
         return resourceToken(url, suffix).also {
@@ -101,6 +96,13 @@ internal class LiveSession(
     fun cancel(except: Job? = null) {
         requests.filter { it != except }.forEach { it.cancel() }
         requests.retainAll { it == except }
+    }
+
+    /** Stops the session's requests but [except] and moves it to a new epoch, whose resources map afresh. */
+    fun restart(except: Job? = null) {
+        cancel(except)
+        epoch++
+        resources.clear()
     }
 }
 
@@ -152,14 +154,33 @@ data class MediaResource(
     val playlists: SteadyPlaylists = SteadyPlaylists(),
 )
 
+/**
+ * The playback sessions: the app's, opened and renewed through the API, and through [external] those of players that
+ * send no API calls. [media] serves their requests and [sources] picks what they play.
+ */
 class SessionManager(
     private val catalog: CatalogService,
     private val store: BackendStore,
     private val clock: Clock,
     capacity: Int = 4,
 ) {
+    private val table = SessionTable(clock, capacity)
+
+    /** Which of a channel's sources a session plays. */
+    val sources = SourceChoice(catalog, store)
+
+    /** The media requests of the sessions. */
+    val media = SessionMedia(table, catalog, store, clock, sources)
+
+    /** The sessions of players that send no API calls. */
+    val external = ExternalSessions(table, clock, sources)
+
     /** How many sessions may be open at once; the runtime settings change it without a restart. */
-    @Volatile var capacity: Int = capacity
+    var capacity: Int
+        get() = table.capacity
+        set(value) {
+            table.capacity = value
+        }
 
     /**
      * What the app's sessions do with the breaks they learn (see [AdClock]); the runtime
@@ -174,14 +195,18 @@ class SessionManager(
      * Gets what each app session that played found on its channel, as it ends: the
      * channel, its provider and the census.
      */
-    @Volatile var onCensus: (String, String, AdCensus) -> Unit = { _, _, _ -> }
-    private val mutex = Mutex()
-    private val sessions = linkedMapOf<String, LiveSession>()
+    var onCensus: (String, String, AdCensus) -> Unit
+        get() = table.onCensus
+        set(value) {
+            table.onCensus = value
+        }
+
+    private val sessions get() = table.sessions
     private val keys = linkedMapOf<String, Pair<OpenPlayback, String>>()
 
     /** [client] is the address of the player opening the session, shown to the operator. */
-    suspend fun open(request: OpenPlayback, client: String? = null): PlaybackSession = mutex.withLock {
-        reap()
+    suspend fun open(request: OpenPlayback, client: String? = null): PlaybackSession = table.mutex.withLock {
+        table.reap()
         if (request.intent !in INTENTS || request.idempotencyKey.length !in 1..MAX_KEY_LENGTH) {
             throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Invalid playback intent or idempotency key")
         }
@@ -201,14 +226,17 @@ class SessionManager(
                 )
         }
         // Chosen first, so a channel that cannot play never costs another viewer their slot.
-        val offering = select(request.channelId)
-        makeRoom()
+        val offering = sources.select(request.channelId)
+        table.makeRoom()
         val now = clock.instant()
         val id = UUID.randomUUID().toString()
         val ads =
-            AdClock(learning = {
-                learnedBreaks
-            }, library = library, channelId = request.channelId, providerId = offering.providerId) { found ->
+            AdClock(
+                learning = { learnedBreaks },
+                library = library,
+                channelId = request.channelId,
+                providerId = offering.providerId,
+            ) { found ->
                 learnedLog.info(
                     "ADDETECT rule={} state={} marked={} lengthMs={} entry={} channel={} provider={} session={}",
                     found.rule, if (found.ended) "ended" else "started", found.marked, found.lengthMs,
@@ -231,59 +259,13 @@ class SessionManager(
         session.descriptor()
     }
 
-    /**
-     * A watch session for a player that sends no API calls; it lives while media requests keep arriving. [shareable]
-     * false keeps [externalFor] from handing it to another player.
-     */
-    suspend fun openExternal(channelId: String, client: String? = null, shareable: Boolean = true): PlaybackSession =
-        mutex.withLock {
-            reap()
-            val offering = select(channelId)
-            makeRoom()
-            val id = UUID.randomUUID().toString()
-            val now = clock.instant()
-            val session =
-                LiveSession(
-                    id,
-                    OpenPlayback(channelId, Wire.Intent.WATCH, "external:$id"),
-                    offering,
-                    now.plus(EXTERNAL_IDLE),
-                    external = true,
-                    shareable = shareable,
-                    startedAt = now,
-                    client = client,
-                )
-            sessions[id] = session
-            session.descriptor()
-        }
-
-    /**
-     * An external HLS session already playing [channelId]; a second player shares it. A TS root replaces its
-     * reader, so it is never shared.
-     */
-    suspend fun externalFor(channelId: String): PlaybackSession? = mutex.withLock {
-        reap()
-        sessions.values.firstOrNull {
-            it.shareable && it.request.channelId == channelId && it.offering.protocol == "hls"
-        }
-            ?.also { it.expires = clock.instant().plus(EXTERNAL_IDLE) }?.descriptor()
-    }
-
-    /** Registers a request that reads the source outside the relay, so the session lives as long as [job] does. */
-    suspend fun attach(id: String, job: Job) = mutex.withLock {
-        active(id).requests += job
-        Unit
-    }
-    suspend fun offeringOf(id: String): Offering = mutex.withLock { active(id).offering }
-
-    /** The counter of bytes sent to the session's player, for a stream served outside the relay. */
-    suspend fun bytesOf(id: String): AtomicLong = mutex.withLock { active(id).bytes }
-    suspend fun count(): Int = mutex.withLock {
-        reap()
+    suspend fun count(): Int = table.mutex.withLock {
+        table.reap()
         sessions.size
     }
-    suspend fun snapshot(): List<ActiveSession> = mutex.withLock {
-        reap()
+
+    suspend fun snapshot(): List<ActiveSession> = table.mutex.withLock {
+        table.reap()
         sessions.values.map {
             ActiveSession(
                 it.id, it.request.channelId, it.intent, it.external, it.busy, it.offering.providerId,
@@ -292,56 +274,24 @@ class SessionManager(
         }
     }
 
-    /** The source each channel would play now, for players that need the protocol before opening. */
-    suspend fun preferredOfferings(channelIds: Collection<String>): Map<String, Offering> {
-        val states = store.allHealth()
-        return channelIds.mapNotNull { id ->
-            catalog.offeringsFor(id)?.let { candidates -> choose(candidates, states) }?.let {
-                id to
-                    it
-            }
-        }.toMap()
-    }
-
-    /**
-     * Previews are the surfing state and idle player sessions are leftovers of a zap; either yields its slot before
-     * the request is refused. A playing HLS player is idle between segments too, so the stalest one (least recent
-     * media request, the earliest expiry) goes, never the one still fetching.
-     */
-    private fun makeRoom() {
-        if (sessions.size < capacity) return
-        val victim = sessions.values.firstOrNull { it.intent == Wire.Intent.PREVIEW }
-            ?: sessions.values.filter { it.external && !it.busy }.minByOrNull { it.expires }
-            ?: throw ApiFailure(
-                HttpStatusCode.TooManyRequests,
-                Wire.ErrorCode.CAPACITY_EXHAUSTED,
-                "Playback capacity exhausted",
-                true,
-            )
-        victim.cancel()
-        sessions.remove(victim.id)
-        ended(victim)
-    }
-    suspend fun get(id: String): PlaybackSession = mutex.withLock {
-        val session = active(id)
+    /** The session's descriptor, on a source it moves to when its own is gone, ineligible or has a new URL. */
+    suspend fun get(id: String): PlaybackSession = table.mutex.withLock {
+        val session = table.active(id)
         val health = store.health(session.offering.id)
         val refreshed = catalog.offering(session.offering.id)
         if (refreshed == null || health == null || !eligible(health)) {
-            session.cancel()
-            session.epoch++
-            session.resources.clear()
-            session.offering = select(session.request.channelId, session.failed)
+            session.restart()
+            session.offering = sources.select(session.request.channelId, session.failed)
         }
         if (refreshed != null && session.offering.id == refreshed.id && session.offering.url != refreshed.url) {
-            session.cancel()
+            session.restart()
             session.offering = refreshed
-            session.epoch++
-            session.resources.clear()
         }
         session.descriptor()
     }
-    suspend fun update(id: String, update: UpdatePlayback): PlaybackSession = mutex.withLock {
-        val session = active(id)
+
+    suspend fun update(id: String, update: UpdatePlayback): PlaybackSession = table.mutex.withLock {
+        val session = table.active(id)
         if (update.intent != null && update.intent !in INTENTS) {
             throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Invalid playback intent")
         }
@@ -350,201 +300,28 @@ class SessionManager(
         session.descriptor()
     }
 
-    /** Leases outlast the app's 15-second renewal several times over; abandoned previews free their slot sooner. */
-    private fun lease(intent: String): Duration = if (intent == Wire.Intent.WATCH) WATCH_LEASE else PREVIEW_LEASE
-
     /** Where the session's player is among the ads, given [aheadMs] of media it has loaded past the picture. */
     suspend fun adBreak(id: String, aheadMs: Long): AdBreakState =
-        mutex.withLock { active(id) }.ads?.at(aheadMs) ?: AdBreakState()
+        table.mutex.withLock { table.active(id) }.ads?.at(aheadMs) ?: AdBreakState()
 
     /** Ends the session; true when it was open. */
-    suspend fun release(id: String): Boolean = mutex.withLock {
-        sessions.remove(id)?.also {
-            it.cancel()
-            ended(it)
-        } != null
-    }
+    suspend fun release(id: String): Boolean = table.mutex.withLock { sessions[id]?.also(table::end) != null }
 
-    /**
-     * What a media request the session let go of answers: what the player's next request would, if the session is gone.
-     */
-    suspend fun letGo(id: String): ApiFailure = mutex.withLock {
-        if (id in sessions) {
-            ApiFailure(HttpStatusCode.Gone, Wire.ErrorCode.STREAM_CHANGED, "Fetch the current session descriptor", true)
-        } else {
-            ApiFailure(HttpStatusCode.Gone, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
-        }
-    }
-    suspend fun healthChanged(offeringId: String) = mutex.withLock {
+    suspend fun healthChanged(offeringId: String) = table.mutex.withLock {
         if (store.health(offeringId)?.let(::eligible) != true) {
-            sessions.values.filter { it.offering.id == offeringId }.forEach {
-                it.cancel()
-                it.epoch++
-                it.resources.clear()
-            }
+            sessions.values.filter { it.offering.id == offeringId }.forEach { it.restart() }
         }
     }
 
-    /**
-     * The session's source failed to resolve, so the session moves on to the channel's next eligible source and
-     * true comes back: the relay answers 410 and the player re-reads the descriptor. False when no other source is
-     * left. A source's health only changes with the prober, so without this one failing provider would refuse the
-     * channel until the next probe even with healthy sources behind it.
-     */
-    suspend fun sourceFailed(id: String, epoch: Int, job: Job): Boolean = mutex.withLock {
-        val session = active(id)
-        if (session.epoch != epoch) return@withLock true
-        session.failed += session.offering.id
-        val candidates =
-            catalog.offeringsFor(session.request.channelId)?.filter { it.id !in session.failed }
-                ?: return@withLock false
-        val next = choose(candidates, store.allHealth()) ?: return@withLock false
-        session.cancel(except = job)
-        session.offering = next
-        session.epoch++
-        session.resources.clear()
-        true
-    }
+    suspend fun expire() = table.mutex.withLock { table.reap() }
 
-    /**
-     * The first fetch found [protocol] instead of the descriptor's; the source keeps it,
-     * across restarts, for later sessions.
-     */
-    suspend fun protocolObserved(id: String, epoch: Int, protocol: String, job: Job) {
-        val offeringId = mutex.withLock {
-            val session = active(id)
-            if (session.epoch != epoch) return
-            session.cancel(except = job)
-            session.offering = session.offering.copy(protocol = protocol)
-            session.epoch++
-            session.resources.clear()
-            session.offering.id
-        }
-        catalog.feeds.recordProtocol(offeringId, protocol)
-    }
-    suspend fun expire() = mutex.withLock { reap() }
-    suspend fun close() = mutex.withLock {
-        sessions.values.forEach {
-            it.cancel()
-            ended(it)
-        }
-        sessions.clear()
-    }
-    suspend fun acquire(id: String, epoch: Int, token: String, job: Job, client: String? = null): MediaResource =
-        mutex.withLock {
-            val session = active(id)
-            if (client != null) session.client = client
-            if (epoch != session.epoch) {
-                throw ApiFailure(
-                    HttpStatusCode.Gone,
-                    Wire.ErrorCode.STREAM_CHANGED,
-                    "Fetch the current session descriptor",
-                    true,
-                )
-            }
-            if (catalog.offering(session.offering.id) == null ||
-                store.health(session.offering.id)?.let(::eligible) != true
-            ) {
-                session.cancel()
-                throw ApiFailure(
-                    HttpStatusCode.ServiceUnavailable,
-                    "SOURCE_UNAVAILABLE",
-                    "Source is no longer eligible",
-                    true,
-                )
-            }
-            val url =
-                session.resources[token]
-                    ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown media resource")
-            val shared = session.offering.protocol == "mpegts" && url == session.offering.url
-            // A player reconnecting to a live stream replaces its previous request rather than adding to it.
-            if (shared) session.cancel()
-            if (session.requests.size >= MAX_REQUESTS) {
-                throw ApiFailure(
-                    HttpStatusCode.TooManyRequests,
-                    Wire.ErrorCode.CAPACITY_EXHAUSTED,
-                    "Too many media requests",
-                    true,
-                )
-            }
-            session.requests += job
-            if (session.external) session.expires = clock.instant().plus(EXTERNAL_IDLE)
-            MediaResource(session.offering, url, shared, session.bytes, session.ads, session.playlists)
-        }
-    suspend fun finished(id: String, job: Job) = mutex.withLock {
-        sessions[id]?.let { session ->
-            session.requests.remove(job)
-            if (session.external) session.expires = clock.instant().plus(EXTERNAL_IDLE)
-        }
-        Unit
-    }
-    suspend fun resourcePath(id: String, epoch: Int, url: String): String = mutex.withLock {
-        val session = active(id)
-        if (session.epoch != epoch) {
-            throw ApiFailure(HttpStatusCode.Gone, Wire.ErrorCode.STREAM_CHANGED, "Fetch current descriptor", true)
-        }
-        "/media/sessions/$id/$epoch/${session.resource(url)}"
-    }
+    suspend fun close() = table.mutex.withLock { sessions.values.toList().forEach(table::end) }
 
     /** The channels sessions are playing now. */
-    suspend fun watching(): Set<String> = mutex.withLock { sessions.values.mapTo(HashSet()) { it.request.channelId } }
-
-    /** The first [count] of [channels], in order, whose chosen source [usable] accepts, each with that source. */
-    suspend fun listenable(channels: List<String>, count: Int, usable: (Offering) -> Boolean): Map<String, Offering> {
-        val states = store.allHealth()
-        val found = LinkedHashMap<String, Offering>()
-        for (channel in channels) {
-            if (found.size >= count) break
-            val offering = catalog.offeringsFor(channel)?.let { choose(it, states) } ?: continue
-            if (usable(offering)) found[channel] = offering
-        }
-        return found
+    suspend fun watching(): Set<String> = table.mutex.withLock {
+        sessions.values.mapTo(HashSet()) { it.request.channelId }
     }
 
-    /** Lineup order within each health rank: a healthy second choice beats an unverified first choice. */
-    private suspend fun select(channelId: String, except: Set<String> = emptySet()): Offering {
-        val candidates =
-            catalog.offeringsFor(channelId)
-                ?: throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")
-        return choose(candidates.filter { it.id !in except }, store.allHealth())
-            ?: throw ApiFailure(HttpStatusCode.ServiceUnavailable, "SOURCE_UNAVAILABLE", "No eligible source", true)
-    }
-    private fun choose(candidates: List<Offering>, states: Map<String, HealthState>): Offering? =
-        candidates.sortedBy { selectionRank(states[it.id]?.status) }.firstOrNull {
-            states[it.id]?.let(::eligible) == true
-        }
-    private fun active(id: String): LiveSession {
-        reap()
-        return sessions[id]
-            ?: throw ApiFailure(HttpStatusCode.Gone, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
-    }
-
-    /** A player's in-flight request holds its external session; the idle lease only starts once that request ends. */
-    private fun reap() {
-        val now = clock.instant()
-        val expired = sessions.values.filter { it.expires <= now && !(it.external && it.busy) }
-        expired.forEach {
-            it.cancel()
-            sessions.remove(it.id)
-            ended(it)
-        }
-    }
-
-    /** Logs what an app session found on its channel as `ADCENSUS`, and hands it to [onCensus]. */
-    private fun ended(session: LiveSession) {
-        val census = session.ads?.census()?.takeIf { it.playedMs > 0 } ?: return
-        learnedLog.info(
-            "ADCENSUS channel={} provider={} playedMs={} marked={} breaks={} learned={} session={}",
-            session.request.channelId,
-            session.offering.providerId,
-            census.playedMs,
-            census.marked,
-            census.breaks,
-            census.learned,
-            session.id,
-        )
-        onCensus(session.request.channelId, session.offering.providerId, census)
-    }
     companion object {
         /** How long a player may go without a media request before its session is released. */
         val EXTERNAL_IDLE: Duration = Duration.ofSeconds(60)
@@ -556,15 +333,7 @@ class SessionManager(
         private const val MAX_KEY_LENGTH = 128
         private const val REMEMBERED_KEYS = 4096
 
-        /** How many media requests one session may have in flight. */
-        private const val MAX_REQUESTS = 12
+        /** Leases outlast the app's 15-second renewal several times over; abandoned previews free their slot sooner. */
+        private fun lease(intent: String): Duration = if (intent == Wire.Intent.WATCH) WATCH_LEASE else PREVIEW_LEASE
     }
-}
-
-/** Healthy first, then unverified, then suspect; anything else is never selected. */
-internal fun selectionRank(status: HealthStatus?): Int = when (status) {
-    HealthStatus.HEALTHY -> 0
-    HealthStatus.UNVERIFIED -> 1
-    HealthStatus.SUSPECT -> 2
-    else -> Int.MAX_VALUE
 }

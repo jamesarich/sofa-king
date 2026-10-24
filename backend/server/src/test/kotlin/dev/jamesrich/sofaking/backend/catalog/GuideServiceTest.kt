@@ -18,6 +18,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.nio.file.Files
+import java.nio.file.Path
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -25,81 +26,50 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class GuideServiceTest {
-    @Test fun `guides import independently keep only mapped channels and survive restart`() = runBlocking<Unit> {
-        val dir = Files.createTempDirectory("sofa-guides-")
-        try {
-            Fixture().use { fixture ->
-                HttpClient(CIO).use { http ->
-                    val clock = MutableClock()
-                    var channelId = ""
-                    openStore(dir).use { store ->
-                        val feeds =
-                            FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true))
-                        feeds.refresh(fixture.feed)
-                        val stack =
-                            lineupStack(
-                                feeds,
-                                store,
-                                clock,
-                                http,
-                                guides = listOf(fixture.brokenGuide, fixture.gzipGuide),
-                            )
-                        val statuses = stack.guides.statuses.associateBy { it.id }
-                        assertEquals("IMPORT_FAILED", statuses.getValue("broken").errorCode)
-                        assertNull(statuses.getValue("gz").errorCode)
-                        assertEquals(2, statuses.getValue("gz").channels, "the channel index lists every channel")
-                        assertEquals(
-                            1,
-                            statuses.getValue("gz").programs,
-                            "only the mapped channel's programs are retained",
-                        )
-                        channelId = stack.catalog.catalog().channels.single().id
-                        val entry = stack.lineup.entry(channelId)!!
-                        assertEquals(
-                            GuideMapping("gz", "station"),
-                            entry.guide,
-                            "the implicit provider guide comes after explicit guides",
-                        )
-                        assertEquals("available", stack.catalog.catalog().channels.single().guideStatus)
-                        assertEquals(
-                            listOf(GuideChannelInfo("gz", "station", "Station HD", "${fixture.base}/station.png")),
-                            stack.guides.searchChannels("gz", "HD", 10),
-                        )
-                        assertEquals(listOf("gz"), stack.guides.guidesListing("other"))
-                    }
-                    openStore(dir).use { store ->
-                        val feeds =
-                            FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true))
-                        feeds.initialize()
-                        lateinit var lineup: LineupService
-                        val guides =
-                            GuideService(
-                                listOf(fixture.gzipGuide),
-                                store,
-                                http,
-                                clock,
-                                UpstreamPolicy(allowLoopback = true),
-                            ) {
-                                lineup.wanted()
-                            }
-                        guides.initialize()
-                        lineup = LineupService(store, clock, feeds, guides)
-                        lineup.initialize()
-                        val catalog = CatalogService(feeds, guides, lineup, store, clock)
-                        assertEquals(1, guides.statuses.single().programs)
-                        assertEquals(
-                            Instant.parse("2026-10-10T14:00:00Z"),
-                            guides.coverage.getValue("gz").getValue("station"),
-                        )
-                        val window = catalog.guide(
-                            GuideQuery(listOf(channelId), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z"),
-                        ).channels.single()
-                        assertEquals("Morning", window.programs.single().title)
-                    }
+    @Test fun `guides import independently and keep only the mapped channel's programs`() = guideTest("sofa-guides-") {
+        withImported { stack ->
+            val statuses = stack.guides.statuses.associateBy { it.id }
+            assertEquals("IMPORT_FAILED", statuses.getValue("broken").errorCode)
+            assertNull(statuses.getValue("gz").errorCode)
+            assertEquals(2, statuses.getValue("gz").channels, "the channel index lists every channel")
+            assertEquals(1, statuses.getValue("gz").programs, "only the mapped channel's programs are retained")
+        }
+    }
+
+    @Test fun `the implicit provider guide maps after explicit guides`() = guideTest("sofa-guides-implicit-") {
+        withImported { stack ->
+            val channel = stack.catalog.catalog().channels.single()
+            assertEquals(GuideMapping("gz", "station"), stack.lineup.entry(channel.id)!!.guide)
+            assertEquals("available", channel.guideStatus)
+            assertEquals(
+                listOf(GuideChannelInfo("gz", "station", "Station HD", "${fixture.base}/station.png")),
+                stack.guides.searchChannels("gz", "HD", 10),
+            )
+            assertEquals(listOf("gz"), stack.guides.guidesListing("other"))
+        }
+    }
+
+    @Test fun `imported guides survive a restart`() = guideTest("sofa-guides-restart-") {
+        var channelId = ""
+        withImported { stack -> channelId = stack.catalog.catalog().channels.single().id }
+        openStore(dir).use { store ->
+            val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true))
+            feeds.initialize()
+            lateinit var lineup: LineupService
+            val guides =
+                GuideService(listOf(fixture.gzipGuide), store, http, clock, UpstreamPolicy(allowLoopback = true)) {
+                    lineup.wanted()
                 }
-            }
-        } finally {
-            dir.toFile().deleteRecursively()
+            guides.initialize()
+            lineup = LineupService(store, clock, feeds, guides)
+            lineup.initialize()
+            val catalog = CatalogService(feeds, guides, lineup, store, clock)
+            assertEquals(1, guides.statuses.single().programs)
+            assertEquals(Instant.parse("2026-10-10T14:00:00Z"), guides.coverage.getValue("gz").getValue("station"))
+            val window = catalog.guide(
+                GuideQuery(listOf(channelId), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z"),
+            ).channels.single()
+            assertEquals("Morning", window.programs.single().title)
         }
     }
 
@@ -244,5 +214,29 @@ class GuideServiceTest {
         } finally {
             dir.toFile().deleteRecursively()
         }
+    }
+
+    private class GuideScope(val dir: Path, val fixture: Fixture, val http: HttpClient, val clock: MutableClock)
+
+    /** Runs [block] with a fresh store directory, the fixture server and a client that follows [redirects] or not. */
+    private fun guideTest(prefix: String, redirects: Boolean = true, block: suspend GuideScope.() -> Unit) =
+        runBlocking<Unit> {
+            val dir = Files.createTempDirectory(prefix)
+            try {
+                Fixture().use { fixture ->
+                    HttpClient(CIO) { followRedirects = redirects }.use { http ->
+                        GuideScope(dir, fixture, http, MutableClock()).block()
+                    }
+                }
+            } finally {
+                dir.toFile().deleteRecursively()
+            }
+        }
+
+    /** The fixture feed adopted with the broken and gzip guides imported, in the store in the scope's directory. */
+    private suspend fun GuideScope.withImported(block: suspend (LineupStack) -> Unit) = openStore(dir).use { store ->
+        val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true))
+        feeds.refresh(fixture.feed)
+        block(lineupStack(feeds, store, clock, http, guides = listOf(fixture.brokenGuide, fixture.gzipGuide)))
     }
 }

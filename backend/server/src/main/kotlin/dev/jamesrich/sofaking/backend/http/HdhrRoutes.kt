@@ -195,8 +195,8 @@ fun Route.hdhrRoutes(
             serveExternal(call, runtime, entry.id, shareHls = false) { session ->
                 // FFmpeg reads the source through the loopback relay, not the session, so this
                 // request is what holds the session.
-                runtime.sessions.attach(session.id, coroutineContext.job)
-                val offering = runtime.sessions.offeringOf(session.id)
+                runtime.sessions.media.attach(session.id, coroutineContext.job)
+                val offering = runtime.sessions.media.offeringOf(session.id)
                 val stream = try {
                     runtime.feeds.playable(offering)
                 } catch (e: ProviderFailure) {
@@ -209,7 +209,7 @@ fun Route.hdhrRoutes(
                     )
                 }
                 runtime.feeds.upstream.check(URI(stream.url))
-                val bytes = runtime.sessions.bytesOf(session.id)
+                val bytes = runtime.sessions.media.bytesOf(session.id)
                 runtime.remux.stream(call, stream) { bytes.addAndGet(it.toLong()) }
                 false
             }

@@ -285,79 +285,51 @@ class LoopbackRelayTest {
 
     @Test
     fun `the remux, recorder and probe reach the upstream only through the loopback relay, with provider headers`() =
-        runBlocking<Unit> {
-            val dir = Files.createTempDirectory("sofa-loopback-reads-")
-            try {
-                MediaFixture().use { media ->
-                    Upstream("127.0.0.1", media, emptyMap()).use { upstream ->
-                        stack(dir, upstream, allowLoopback = true).use { stack ->
-                            HttpClient(CIO).use { http ->
-                                val live = http.remux(stack, "1")
-                                assertEquals(188 * 20, live.size)
-                                for (packet in 0 until 20) {
-                                    assertEquals(
-                                        0x47.toByte(),
-                                        live[packet * 188],
-                                        "sync byte of packet $packet",
-                                    )
-                                }
-                                stack.settled()
-                            }
-                            // MPEG-TS over HTTP goes through the relay too: the recorder reads it with
-                            // FFmpeg when no fan-out is given.
-                            val file = dir.resolve("recording.ts")
-                            val take = stack.recorder().record(stack.number("3"), file, Instant.now().plusSeconds(3))
-                            assertTrue(take.bytes > 0, "recorded ${take.bytes} bytes, last failure ${take.lastFailure}")
-                            assertEquals(0x47.toByte(), Files.newInputStream(file).use { it.read() }.toByte())
-                            val worker = stack.probe()
-                            val headers = upstream.feed.headers
-                            assertNull(
-                                worker.decode(stack.offering("${upstream.base}/vod.m3u8"), headers),
-                                "the HLS source qualifies",
-                            )
-                            assertNull(
-                                worker.decode(stack.offering("${upstream.base}/stream.ts"), headers),
-                                "the MPEG-TS source qualifies",
-                            )
-                            stack.settled()
-
-                            val media = upstream.seen.filter { it.path != "/feed.m3u" }
-                            assertTrue(media.any { SEGMENT_PATH.matches(it.path) }, "segments were read: $media")
-                            // FFmpeg sends Icy-MetaData and its own Lavf agent; the relay sends neither, and
-                            // the provider's headers instead.
-                            for (request in media) {
-                                assertEquals(USER_AGENT, request.userAgent, request.toString())
-                                assertEquals(PROVIDER_SECRET, request.providerKey, request.toString())
-                                assertNull(request.icy, request.toString())
-                            }
-                            val arguments = Files.readString(stack.arguments)
-                            val inputs = Regex("(?m)^-i\n(.*)$").findAll(arguments).map { it.groupValues[1] }.toList()
-                            assertTrue(inputs.size >= 4, arguments)
-                            for (input in inputs) {
-                                assertTrue(
-                                    input.matches(
-                                        Regex(
-                                            "http://127\\.0\\.0\\.1:\\d+/relay/[0-9a-f-]{36}/[0-9a-f-]{36}\\.(m3u8|ts)",
-                                        ),
-                                    ),
-                                    input,
-                                )
-                            }
-                            assertTrue(
-                                ":${upstream.port}/" !in arguments,
-                                "FFmpeg was never given the upstream's address",
-                            )
-                            assertTrue(
-                                PROVIDER_SECRET !in arguments && USER_AGENT !in arguments,
-                                "FFmpeg was never given the provider's headers",
-                            )
-                        }
-                    }
-                }
-            } finally {
-                dir.toFile().deleteRecursively()
-            }
+        loopbackTest("sofa-loopback-reads-") {
+            val live = http.remux(stack, "1")
+            assertEquals(188 * 20, live.size)
+            for (packet in 0 until 20) assertEquals(0x47.toByte(), live[packet * 188], "sync byte of packet $packet")
+            stack.settled()
+            // MPEG-TS over HTTP goes through the relay too: the recorder reads it with FFmpeg when no fan-out is given.
+            val file = dir.resolve("recording.ts")
+            val take = stack.recorder().record(stack.number("3"), file, Instant.now().plusSeconds(3))
+            assertTrue(take.bytes > 0, "recorded ${take.bytes} bytes, last failure ${take.lastFailure}")
+            assertEquals(0x47.toByte(), Files.newInputStream(file).use { it.read() }.toByte())
+            val worker = stack.probe()
+            val headers = upstream.feed.headers
+            assertNull(worker.decode(stack.offering("${upstream.base}/vod.m3u8"), headers), "the HLS source qualifies")
+            assertNull(
+                worker.decode(stack.offering("${upstream.base}/stream.ts"), headers),
+                "the MPEG-TS source qualifies",
+            )
+            stack.settled()
+            assertReadOnlyThroughRelay(inputs = 4)
         }
+
+    /**
+     * The upstream saw segments read with the provider's headers and none of FFmpeg's, and FFmpeg read at least
+     * [inputs] inputs, each from the loopback relay, never given the upstream's address or the provider's headers.
+     */
+    private fun LoopbackScope.assertReadOnlyThroughRelay(inputs: Int) {
+        val requests = upstream.seen.filter { it.path != "/feed.m3u" }
+        assertTrue(requests.any { SEGMENT_PATH.matches(it.path) }, "segments were read: $requests")
+        // FFmpeg sends Icy-MetaData and its own Lavf agent; the relay sends neither, and the provider's headers
+        // instead.
+        for (request in requests) {
+            assertEquals(USER_AGENT, request.userAgent, request.toString())
+            assertEquals(PROVIDER_SECRET, request.providerKey, request.toString())
+            assertNull(request.icy, request.toString())
+        }
+        val arguments = Files.readString(stack.arguments)
+        val given = Regex("(?m)^-i\n(.*)$").findAll(arguments).map { it.groupValues[1] }.toList()
+        assertTrue(given.size >= inputs, arguments)
+        for (input in given) assertTrue(input.matches(RELAY_INPUT), input)
+        assertTrue(":${upstream.port}/" !in arguments, "FFmpeg was never given the upstream's address")
+        assertTrue(
+            PROVIDER_SECRET !in arguments && USER_AGENT !in arguments,
+            "FFmpeg was never given the provider's headers",
+        )
+    }
 
     @Test fun `a redirect, a variant, a segment or a key at a refused address fails instead of being fetched`() =
         runBlocking<Unit> {
@@ -480,93 +452,79 @@ class LoopbackRelayTest {
     }
 
     @Test fun `the loopback relay answers only a live lease's credential and is no route of the public server`() =
-        runBlocking<Unit> {
-            val dir = Files.createTempDirectory("sofa-loopback-guard-")
-            try {
-                MediaFixture().use { media ->
-                    Upstream("127.0.0.1", media, emptyMap()).use { upstream ->
-                        stack(dir, upstream, allowLoopback = true).use { stack ->
-                            HttpClient(CIO).use { http ->
-                                val stream = ResolvedStream("${upstream.base}/vod.m3u8", upstream.feed.headers)
-                                val url = stack.runtime.loopback.reading(stream, "hls") { source ->
-                                    assertEquals(
-                                        HttpStatusCode.Unauthorized,
-                                        http.get(source.url).status,
-                                        "no credential",
-                                    )
-                                    assertEquals(
-                                        HttpStatusCode.Unauthorized,
-                                        http.get(source.url) {
-                                            header(RELAY_CREDENTIAL_HEADER, source.credential.reversed())
-                                        }.status,
-                                        "a wrong credential",
-                                    )
-                                    val other = stack.runtime.loopback.reading(stream, "hls") { it.credential }
-                                    assertEquals(
-                                        HttpStatusCode.Unauthorized,
-                                        http.get(source.url) {
-                                            header(RELAY_CREDENTIAL_HEADER, other)
-                                        }.status,
-                                        "another lease's credential",
-                                    )
-                                    val playlist = http.get(source.url) {
-                                        header(RELAY_CREDENTIAL_HEADER, source.credential)
-                                    }
-                                    assertEquals(HttpStatusCode.OK, playlist.status)
-                                    val lease = URI(source.url).path.substringBeforeLast('/')
-                                    val references = playlist.bodyAsText().lines().filter {
-                                        it.isNotBlank() && !it.startsWith("#")
-                                    }
-                                    assertEquals(media.segments, references.size)
-                                    for (reference in references) assertTrue(reference.startsWith("$lease/"), reference)
-                                    val segment = http.get(
-                                        "http://127.0.0.1:${URI(source.url).port}${references.first()}",
-                                    ) {
-                                        header(RELAY_CREDENTIAL_HEADER, source.credential)
-                                    }
-                                    assertEquals(0x47.toByte(), segment.readRawBytes().first())
-                                    // The listener is on loopback alone.
-                                    // A host firewall in stealth mode drops the attempt instead of
-                                    // refusing it, so it times out instead.
-                                    outsideAddress()?.let { address ->
-                                        assertFailsWith<java.io.IOException> {
-                                            Socket().use {
-                                                it.connect(
-                                                    java.net.InetSocketAddress(address, URI(source.url).port),
-                                                    2_000,
-                                                )
-                                            }
-                                        }
-                                    }
-                                    source.url to source.credential
-                                }
-                                assertEquals(
-                                    HttpStatusCode.Unauthorized,
-                                    http.get(url.first) {
-                                        header(RELAY_CREDENTIAL_HEADER, url.second)
-                                    }.status,
-                                    "an ended lease",
-                                )
-                                assertEquals(
-                                    HttpStatusCode.NotFound,
-                                    http.get(stack.server.base + URI(url.first).path) {
-                                        header(RELAY_CREDENTIAL_HEADER, url.second)
-                                    }.status,
-                                )
-                            }
-                            assertEquals(0, stack.runtime.loopback.active())
-                        }
+        loopbackTest("sofa-loopback-guard-") {
+            val stream = ResolvedStream("${upstream.base}/vod.m3u8", upstream.feed.headers)
+            val (url, credential) = stack.runtime.loopback.reading(stream, "hls") { source ->
+                assertEquals(HttpStatusCode.Unauthorized, status(source.url, null), "no credential")
+                assertEquals(
+                    HttpStatusCode.Unauthorized,
+                    status(source.url, source.credential.reversed()),
+                    "a wrong credential",
+                )
+                val other = stack.runtime.loopback.reading(stream, "hls") { it.credential }
+                assertEquals(HttpStatusCode.Unauthorized, status(source.url, other), "another lease's credential")
+                assertLeaseServesMedia(source.url, source.credential)
+                // The listener is on loopback alone. A host firewall in stealth mode drops the attempt instead of
+                // refusing it, so it times out instead.
+                outsideAddress()?.let { address ->
+                    assertFailsWith<java.io.IOException> {
+                        Socket().use { it.connect(InetSocketAddress(address, URI(source.url).port), 2_000) }
                     }
                 }
-            } finally {
-                dir.toFile().deleteRecursively()
+                source.url to source.credential
             }
+            assertEquals(HttpStatusCode.Unauthorized, status(url, credential), "an ended lease")
+            assertEquals(HttpStatusCode.NotFound, status(stack.server.base + URI(url).path, credential))
+            assertEquals(0, stack.runtime.loopback.active())
         }
+
+    /** The status of a GET of [url] that sends [credential], or no credential. */
+    private suspend fun LoopbackScope.status(url: String, credential: String?): HttpStatusCode =
+        http.get(url) { credential?.let { header(RELAY_CREDENTIAL_HEADER, it) } }.status
+
+    /** The lease at [url] serves its playlist, every segment of it under the lease, and the segments' media. */
+    private suspend fun LoopbackScope.assertLeaseServesMedia(url: String, credential: String) {
+        val playlist = http.get(url) { header(RELAY_CREDENTIAL_HEADER, credential) }
+        assertEquals(HttpStatusCode.OK, playlist.status)
+        val lease = URI(url).path.substringBeforeLast('/')
+        val references = playlist.bodyAsText().lines().filter { it.isNotBlank() && !it.startsWith("#") }
+        assertEquals(media.segments, references.size)
+        for (reference in references) assertTrue(reference.startsWith("$lease/"), reference)
+        val segment = http.get("http://127.0.0.1:${URI(url).port}${references.first()}") {
+            header(RELAY_CREDENTIAL_HEADER, credential)
+        }
+        assertEquals(0x47.toByte(), segment.readRawBytes().first())
+    }
+
+    private class LoopbackScope(
+        val dir: Path,
+        val media: MediaFixture,
+        val upstream: Upstream,
+        val stack: Stack,
+        val http: HttpClient,
+    )
+
+    /** Runs [block] over a stack whose upstream on loopback serves the media fixture, in a fresh directory. */
+    private fun loopbackTest(prefix: String, block: suspend LoopbackScope.() -> Unit) = runBlocking<Unit> {
+        val dir = Files.createTempDirectory(prefix)
+        try {
+            MediaFixture().use { media ->
+                Upstream("127.0.0.1", media, emptyMap()).use { upstream ->
+                    stack(dir, upstream, allowLoopback = true).use { stack ->
+                        HttpClient(CIO).use { http -> LoopbackScope(dir, media, upstream, stack, http).block() }
+                    }
+                }
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
 
     private companion object {
         const val USER_AGENT = "SofaTest/1"
         const val PROVIDER_SECRET = "provider-key-not-for-ffmpeg"
         const val MPEGURL = "application/vnd.apple.mpegurl"
+        val RELAY_INPUT = Regex("http://127\\.0\\.0\\.1:\\d+/relay/[0-9a-f-]{36}/[0-9a-f-]{36}\\.(m3u8|ts)")
         val SHAPED = Regex("/(redirect|variant|segments|key)-(\\w+)\\.m3u8")
         val SEGMENT_LINE = Regex("(?m)^seg\\d+\\.ts$")
         val SEGMENT_PATH = Regex("/seg\\d+\\.ts")

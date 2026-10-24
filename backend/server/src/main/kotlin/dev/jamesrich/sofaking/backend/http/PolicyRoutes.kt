@@ -49,7 +49,7 @@ fun Route.policyRoutes(policy: PolicyService?) {
                     "PRECONDITION_REQUIRED",
                     "Send If-Match with the policy revision from GET /api/v1/admin/policy",
                 )
-        val result = service.replace(revision, call.receive<ByteArray>())
+        val result = service.edits.replace(revision, call.receive<ByteArray>())
         call.response.header(HttpHeaders.ETag, "\"${result.document.revision}\"")
         call.respond(result)
     }

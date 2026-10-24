@@ -1,0 +1,21 @@
+# The rules the server's code is not yet refactored to (see gradle/detekt.yml). Each line goes in the pull request that
+# refactors the code it covers, and this file with the last one.
+complexity:
+  LongMethod:
+    active: false
+  LargeClass:
+    active: false
+  NestedBlockDepth:
+    active: false
+  TooManyFunctions:
+    active: false
+  CyclomaticComplexMethod:
+    active: false
+
+style:
+  LoopWithTooManyJumpStatements:
+    active: false
+  ReturnCount:
+    active: false
+  ThrowsCount:
+    active: false

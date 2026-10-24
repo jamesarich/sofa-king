@@ -40,7 +40,9 @@ private fun settingErrors(policy: LineupPolicy): List<String> = buildList {
     if (numbering.groupSize !in GROUP_SIZES) add("numbering.groupSize must be between ${GROUP_SIZES.span}")
     for ((group, start) in numbering.groups.entries.sortedBy { it.key }) {
         if (!fits(group, GROUP_LIMIT)) add("numbering.groups: group \"$group\" must be 1 to $GROUP_LIMIT characters")
-        if (start !in CHANNEL_NUMBERS) add("numbering.groups[\"$group\"]: start must be between ${CHANNEL_NUMBERS.span}")
+        if (start !in CHANNEL_NUMBERS) {
+            add("numbering.groups[\"$group\"]: start must be between ${CHANNEL_NUMBERS.span}")
+        }
     }
     val health = policy.health
     if (health.disableAfterHours !in DISABLE_AFTER_HOURS) {

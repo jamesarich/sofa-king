@@ -11,17 +11,29 @@ import java.nio.file.Path
  */
 internal object PgsFixture {
     fun write(file: Path, cues: List<LongRange>, width: Int, height: Int, boxWidth: Int = 120, boxHeight: Int = 30) {
+        val box = Box(width, height, boxWidth, boxHeight)
         val out = ByteArrayOutputStream()
+        cues.forEachIndexed { index, cue ->
+            out.write(box.shown(cue.first, composition = index * 2))
+            out.write(box.hidden(cue.last, composition = index * 2 + 1))
+        }
+        Files.createDirectories(file.parent)
+        Files.write(file, out.toByteArray())
+    }
+
+    /** The segments of a white box of [boxWidth] by [boxHeight] near the bottom of a [width] by [height] picture. */
+    private class Box(val width: Int, val height: Int, val boxWidth: Int, val boxHeight: Int) {
         val x = (width - boxWidth) / 2
         val y = height - boxHeight - 10
-        var composition = 0
-        for (cue in cues) {
-            out.write(
-                segment(cue.first, 0x16) {
+
+        /** The box shown at [ms]: its composition, window, palette and picture, then the end of the display set. */
+        fun shown(ms: Long, composition: Int): ByteArray = ByteArrayOutputStream().apply {
+            write(
+                segment(ms, 0x16) {
                     short(width)
                     short(height)
                     byte(0x10)
-                    short(composition++)
+                    short(composition)
                     byte(0x80)
                     byte(0)
                     byte(0)
@@ -33,18 +45,9 @@ internal object PgsFixture {
                     short(y)
                 },
             )
-            out.write(
-                segment(cue.first, 0x17) {
-                    byte(1)
-                    byte(0)
-                    short(x)
-                    short(y)
-                    short(boxWidth)
-                    short(boxHeight)
-                },
-            )
-            out.write(
-                segment(cue.first, 0x14) {
+            write(window(ms))
+            write(
+                segment(ms, 0x14) {
                     byte(0)
                     byte(0)
                     byte(1)
@@ -54,49 +57,53 @@ internal object PgsFixture {
                     byte(255)
                 },
             )
-            // Every line is one run of palette entry 1, then the end-of-line code.
-            val line = byteArrayOf(0, (0xC0 or (boxWidth shr 8)).toByte(), boxWidth.toByte(), 1, 0, 0)
-            val rle = ByteArray(line.size * boxHeight) { line[it % line.size] }
-            out.write(
-                segment(cue.first, 0x15) {
-                    short(0)
-                    byte(0)
-                    byte(0xC0)
-                    val length = rle.size + 4
-                    byte(length shr 16)
-                    short(length and 0xFFFF)
-                    short(boxWidth)
-                    short(boxHeight)
-                    write(rle)
-                },
-            )
-            out.write(segment(cue.first, 0x80) {})
-            out.write(
-                segment(cue.last, 0x16) {
+            write(picture(ms))
+            write(segment(ms, 0x80) {})
+        }.toByteArray()
+
+        /** The box taken down at [ms]: an empty composition over its window. */
+        fun hidden(ms: Long, composition: Int): ByteArray = ByteArrayOutputStream().apply {
+            write(
+                segment(ms, 0x16) {
                     short(width)
                     short(height)
                     byte(0x10)
-                    short(composition++)
+                    short(composition)
                     byte(0)
                     byte(0)
                     byte(0)
                     byte(0)
                 },
             )
-            out.write(
-                segment(cue.last, 0x17) {
-                    byte(1)
-                    byte(0)
-                    short(x)
-                    short(y)
-                    short(boxWidth)
-                    short(boxHeight)
-                },
-            )
-            out.write(segment(cue.last, 0x80) {})
+            write(window(ms))
+            write(segment(ms, 0x80) {})
+        }.toByteArray()
+
+        private fun window(ms: Long) = segment(ms, 0x17) {
+            byte(1)
+            byte(0)
+            short(x)
+            short(y)
+            short(boxWidth)
+            short(boxHeight)
         }
-        Files.createDirectories(file.parent)
-        Files.write(file, out.toByteArray())
+
+        private fun picture(ms: Long): ByteArray {
+            // Every line is one run of palette entry 1, then the end-of-line code.
+            val line = byteArrayOf(0, (0xC0 or (boxWidth shr 8)).toByte(), boxWidth.toByte(), 1, 0, 0)
+            val rle = ByteArray(line.size * boxHeight) { line[it % line.size] }
+            return segment(ms, 0x15) {
+                short(0)
+                byte(0)
+                byte(0xC0)
+                val length = rle.size + 4
+                byte(length shr 16)
+                short(length and 0xFFFF)
+                short(boxWidth)
+                short(boxHeight)
+                write(rle)
+            }
+        }
     }
 
     private fun segment(ms: Long, type: Int, body: DataOutputStream.() -> Unit): ByteArray {

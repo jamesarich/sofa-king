@@ -37,7 +37,7 @@ internal fun Route.libraryAdminRoutes(libraries: LibraryService?) {
                 service.roots.map {
                     it.root.toString()
                 },
-                service.folderChoices().map { it.toString() },
+                service.folders.choices().map { it.toString() },
             ),
         )
     }

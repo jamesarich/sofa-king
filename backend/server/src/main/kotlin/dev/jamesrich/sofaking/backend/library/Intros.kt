@@ -176,72 +176,85 @@ class IntroDetector(
     private suspend fun detect(library: LibraryRecord): IntroResult {
         val items = store.libraryItems(library.id).filter { it.missingSince == null }
         val byId = items.associateBy { it.id }
-        val root = Path.of(library.path).normalize()
         val shows = items.filter { it.kind == ItemKind.EPISODE && it.path != null }.groupBy { showOf(it, byId) }
+        val pass = Pass(Path.of(library.path).normalize())
+        for (episodes in shows.values) pass.show(episodes)
+        // Episodes of a library removed while this pass ran.
+        store.deleteOrphanLibraryIntros()
+        return IntroResult(pass.read, pass.failed, shows.size, pass.intros, pass.credits)
+    }
+
+    /** One pass over the library at [root]: what it reads, what fails, and what it finds. */
+    private inner class Pass(private val root: Path) {
         var read = 0
         var failed = 0
         var intros = 0
         var credits = 0
-        for ((_, episodes) in shows) {
+
+        /** Reads what [episodes] of one show still need, and matches them again when any of them changed. */
+        suspend fun show(episodes: List<LibraryItemRecord>) {
             // One show's fingerprints in memory at a time.
             val known = HashMap(store.libraryIntros(episodes.map { it.id }))
             var changed = false
             for (episode in episodes) {
-                val key = fileKey(episode)
-                val old = known[episode.id]?.takeIf { it.fileKey == key }
-                val tail = episode.durationMs?.let(::tailOf)
-                // Read already, end and all; an episode whose length the scan does not know has no end to read.
-                if (old != null && (old.tailStartMs != null || tail == null)) continue
-                val file = root.resolve(episode.path!!).normalize()
-                if (!file.startsWith(root) ||
-                    !withContext(Dispatchers.IO) { Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }
-                ) {
-                    continue
-                }
-                var record = old ?: run {
-                    val seconds =
-                        (episode.durationMs?.let { minOf(READ_MS, (it * READ_SHARE).toLong()) } ?: READ_MS) / 1_000
-                    val points = fingerprinter.fingerprint(file, 0, seconds.coerceAtLeast(1))
-                    if (points == null) failed++ else read++
-                    IntroRecord(episode.id, key, points, null, clock.instant().toString())
-                }
-                if (tail != null) {
-                    // A file whose start has no audio has none at its end either.
-                    val points = record.fingerprint?.let {
-                        fingerprinter.fingerprint(
-                            file,
-                            tail.first / 1_000,
-                            (tail.last - tail.first) / 1_000,
-                        )
-                    }
-                    if (old != null && points != null) read++
-                    record = record.copy(tail = points, tailStartMs = tail.first, credits = null)
-                }
+                val record = fingerprinted(episode, known[episode.id]) ?: continue
                 store.saveLibraryFingerprint(record)
                 known[episode.id] = record
                 changed = true
             }
             if (changed) {
-                val foundIntros = match(episodes, known, { it.fingerprint }, IntroMatch.MAX_INTRO_MS)
-                // Credits found in each episode's end, from the start of its file.
-                val durations = episodes.associate { it.id to it.durationMs }
-                val foundCredits = match(episodes, known, {
-                    it.tail
-                }, IntroMatch.MAX_CREDITS_MS).mapValues { (id, span) ->
-                    span?.let { credits(it, known.getValue(id).tailStartMs!!, durations[id]) }
-                }
-                store.saveLibraryIntros(foundIntros)
-                store.saveLibraryCredits(foundCredits)
-                intros += foundIntros.values.count { it != null }
-                credits += foundCredits.values.count { it != null }
+                matched(episodes, known)
             } else {
                 intros += episodes.count { known[it.id]?.intro != null }
                 credits += episodes.count { known[it.id]?.credits != null }
             }
         }
-        // Episodes of a library removed while this pass ran.
-        store.deleteOrphanLibraryIntros()
-        return IntroResult(read, failed, shows.size, intros, credits)
+
+        /** [episode]'s fingerprints as read now, or null when [saved] still holds or there is no file to read. */
+        private suspend fun fingerprinted(episode: LibraryItemRecord, saved: IntroRecord?): IntroRecord? {
+            val key = fileKey(episode)
+            val old = saved?.takeIf { it.fileKey == key }
+            val tail = episode.durationMs?.let(::tailOf)
+            val file = root.resolve(episode.path!!).normalize()
+            // Read already, end and all; an episode whose length the scan does not know has no end to read.
+            val unread = old == null || (old.tailStartMs == null && tail != null)
+            if (!unread || !file.startsWith(root) || !isFile(file)) return null
+            val record = old ?: opening(episode, file, key)
+            return tail?.let { ending(record, file, it, counts = old != null) } ?: record
+        }
+
+        private suspend fun isFile(file: Path): Boolean =
+            withContext(Dispatchers.IO) { Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }
+
+        private suspend fun opening(episode: LibraryItemRecord, file: Path, key: String): IntroRecord {
+            val seconds = (episode.durationMs?.let { minOf(READ_MS, (it * READ_SHARE).toLong()) } ?: READ_MS) / 1_000
+            val points = fingerprinter.fingerprint(file, 0, seconds.coerceAtLeast(1))
+            if (points == null) failed++ else read++
+            return IntroRecord(episode.id, key, points, null, clock.instant().toString())
+        }
+
+        /** [record] with the end of its file read; a read counts when the opening was read on an earlier pass. */
+        private suspend fun ending(record: IntroRecord, file: Path, tail: LongRange, counts: Boolean): IntroRecord {
+            // A file whose start has no audio has none at its end either.
+            val points = record.fingerprint?.let {
+                fingerprinter.fingerprint(file, tail.first / 1_000, (tail.last - tail.first) / 1_000)
+            }
+            if (counts && points != null) read++
+            return record.copy(tail = points, tailStartMs = tail.first, credits = null)
+        }
+
+        private suspend fun matched(episodes: List<LibraryItemRecord>, known: Map<String, IntroRecord>) {
+            val foundIntros = match(episodes, known, { it.fingerprint }, IntroMatch.MAX_INTRO_MS)
+            // Credits found in each episode's end, from the start of its file.
+            val durations = episodes.associate { it.id to it.durationMs }
+            val foundCredits = match(episodes, known, { it.tail }, IntroMatch.MAX_CREDITS_MS).mapValues { (id, span) ->
+                span?.let { credits(it, known.getValue(id).tailStartMs!!, durations[id]) }
+            }
+            store.saveLibraryIntros(foundIntros)
+            store.saveLibraryCredits(foundCredits)
+            intros += foundIntros.values.count { it != null }
+            credits += foundCredits.values.count { it != null }
+        }
     }
 
     /**

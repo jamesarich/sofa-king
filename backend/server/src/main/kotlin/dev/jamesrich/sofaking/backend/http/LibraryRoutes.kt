@@ -109,7 +109,7 @@ fun Route.vodRoutes(vod: VodSessions) {
         val index =
             call.parameters["index"]?.toIntOrNull()
                 ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "No such subtitle stream")
-        val file = vod.subtitles(call.parameters["id"]!!, index)
+        val file = vod.subtitles.vtt(call.parameters["id"]!!, index)
         call.response.header(HttpHeaders.CacheControl, "private, max-age=3600")
         call.respond(LocalPathContent(file, ContentType.parse("text/vtt; charset=utf-8")))
     }
@@ -121,7 +121,7 @@ fun Route.vodRoutes(vod: VodSessions) {
                 call.parameters["epoch"]?.toIntOrNull()
                     ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown media")
             val media =
-                vod.media(call.parameters["id"]!!, epoch, call.parameters["secret"]!!, call.parameters["name"]!!)
+                vod.files.media(call.parameters["id"]!!, epoch, call.parameters["secret"]!!, call.parameters["name"]!!)
                     ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown media")
             call.response.header(
                 HttpHeaders.CacheControl,

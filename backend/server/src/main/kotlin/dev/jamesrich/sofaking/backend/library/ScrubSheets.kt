@@ -156,45 +156,45 @@ class ScrubSheets(
             val known = store.libraryScrubs(items.map { it.id })
             val root = Path.of(library.path).normalize()
             for (item in items) {
-                val key = fileKey(item)
-                val had = known[item.id]
-                // A deleted folder is made again, as a changed file is.
-                if (had?.fileKey == key && (
-                        had.sheets == 0 || withContext(Dispatchers.IO) {
-                            Files.isDirectory(directory.resolve(item.id))
-                        }
-                        )
-                ) {
-                    continue
-                }
-                val file = root.resolve(item.path!!).normalize()
-                if (!file.startsWith(root) ||
-                    !withContext(Dispatchers.IO) { Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }
-                ) {
-                    continue
-                }
-                val size = make(item.id, file)
-                if (size == null) failed++ else made++
-                val frames = ((item.durationMs!! + SCRUB_INTERVAL_MS - 1) / SCRUB_INTERVAL_MS).toInt()
-                store.saveLibraryScrub(
-                    ScrubRecord(
-                        item.id,
-                        key,
-                        SCRUB_INTERVAL_MS,
-                        size?.tileWidth ?: 0,
-                        size?.tileHeight ?: 0,
-                        SCRUB_COLUMNS,
-                        SCRUB_ROWS,
-                        size?.sheets ?: 0,
-                        minOf(frames, (size?.sheets ?: 0) * SCRUB_COLUMNS * SCRUB_ROWS),
-                        clock.instant().toString(),
-                    ),
-                )
+                val file = unmade(item, known[item.id], root) ?: continue
+                if (sheets(item, file)) made++ else failed++
             }
             deleteOrphans()
             JobOutcome(true, "${library.name}: $made files" + if (failed > 0) ", $failed without video" else "")
         }
         return made to failed
+    }
+
+    /** [item]'s file under [root] when the sheets [had] are not of the file as it is now; else null. */
+    private suspend fun unmade(item: LibraryItemRecord, had: ScrubRecord?, root: Path): Path? {
+        // A deleted folder is made again, as a changed file is.
+        val current = had?.fileKey == fileKey(item) &&
+            (had.sheets == 0 || withContext(Dispatchers.IO) { Files.isDirectory(directory.resolve(item.id)) })
+        val file = root.resolve(item.path!!).normalize()
+        val readable = !current && file.startsWith(root) &&
+            withContext(Dispatchers.IO) { Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }
+        return file.takeIf { readable }
+    }
+
+    /** Makes [item]'s sheets from [file] and records them; false when the file has no video to take frames from. */
+    private suspend fun sheets(item: LibraryItemRecord, file: Path): Boolean {
+        val size = make(item.id, file)
+        val frames = ((item.durationMs!! + SCRUB_INTERVAL_MS - 1) / SCRUB_INTERVAL_MS).toInt()
+        store.saveLibraryScrub(
+            ScrubRecord(
+                item.id,
+                fileKey(item),
+                SCRUB_INTERVAL_MS,
+                size?.tileWidth ?: 0,
+                size?.tileHeight ?: 0,
+                SCRUB_COLUMNS,
+                SCRUB_ROWS,
+                size?.sheets ?: 0,
+                minOf(frames, (size?.sheets ?: 0) * SCRUB_COLUMNS * SCRUB_ROWS),
+                clock.instant().toString(),
+            ),
+        )
+        return size != null
     }
 
     /**

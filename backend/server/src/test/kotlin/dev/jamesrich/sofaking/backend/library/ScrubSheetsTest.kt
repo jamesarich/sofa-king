@@ -70,14 +70,23 @@ class ScrubSheetsTest {
         }
     }
 
-    @Test fun `long files get sheets once, a replaced file again, and a removed library's sheets go`() = runBlocking {
-        val maker = FakeMaker(fails = setOf("Broken (2003).mkv"))
+    /** Alpha, Short (under five minutes) and Broken, which the maker cannot read, scanned into one movies library. */
+    private suspend fun scanned(maker: FakeMaker): Pair<Setup, LibraryRecord> {
         val s = setup(maker, durations = mapOf("Short (2002).mkv" to 120_000))
         movie(s.root, "Alpha (2001)")
         movie(s.root, "Short (2002)")
         movie(s.root, "Broken (2003)")
         val library = s.service.create("Movies", LibraryKind.MOVIES, s.root.resolve("movies").toString())
         s.service.scan(library.id)
+        return s to library
+    }
+
+    private suspend fun Setup.idOf(library: LibraryRecord, folder: String): String =
+        store.libraryItems(library.id).single { it.path!!.substringBefore('/') == folder }.id
+
+    @Test fun `long files get sheets, and a file without video is noted`() = runBlocking {
+        val maker = FakeMaker(fails = setOf("Broken (2003).mkv"))
+        val (s, library) = scanned(maker)
 
         assertEquals(1 to 1, s.scrub.run(library))
         assertEquals(
@@ -85,52 +94,58 @@ class ScrubSheetsTest {
             maker.reads.sorted(),
             "a file under five minutes gets none",
         )
-        val items = s.store.libraryItems(library.id).associateBy { it.path!!.substringBefore('/') }
-        val alpha = items.getValue("Alpha (2001)")
-        val made = assertNotNull(s.store.libraryScrub(alpha.id))
+        val alpha = s.idOf(library, "Alpha (2001)")
+        val broken = s.idOf(library, "Broken (2003)")
+        val made = assertNotNull(s.store.libraryScrub(alpha))
         assertEquals(listOf(2, 60, 240, 136), listOf(made.sheets, made.frames, made.tileWidth, made.tileHeight))
-        assertNotNull(s.scrub.sheet(alpha.id, 1))
-        assertNull(s.scrub.sheet(alpha.id, 2))
+        assertNotNull(s.scrub.sheet(alpha, 1))
+        assertNull(s.scrub.sheet(alpha, 2))
         assertNull(s.scrub.sheet("../data", 0))
-        assertEquals(
-            0,
-            assertNotNull(s.store.libraryScrub(items.getValue("Broken (2003)").id)).sheets,
-            "a failure is noted",
-        )
+        assertEquals(0, assertNotNull(s.store.libraryScrub(broken)).sheets, "a failure is noted")
         assertEquals("Movies: 1 files, 1 without video", s.jobs.snapshot().single { it.id == SCRUB_JOB }.lastNote)
 
         // The episode's page offers them.
-        val offered = assertNotNull(s.service.catalog.item(alpha.id).scrub)
+        val offered = assertNotNull(s.service.catalog.item(alpha).scrub)
         assertEquals(
-            listOf("/artwork/${alpha.id}/scrub/0", "/artwork/${alpha.id}/scrub/1"),
-            offered.sheets.map {
-                it.substringBefore('?')
-            },
+            listOf("/artwork/$alpha/scrub/0", "/artwork/$alpha/scrub/1"),
+            offered.sheets.map { it.substringBefore('?') },
         )
-        assertNull(s.service.catalog.item(items.getValue("Broken (2003)").id).scrub)
+        assertNull(s.service.catalog.item(broken).scrub)
+    }
+
+    @Test fun `sheets are made once, and again only when deleted by hand`() = runBlocking {
+        val maker = FakeMaker(fails = setOf("Broken (2003).mkv"))
+        val (s, library) = scanned(maker)
+        s.scrub.run(library)
 
         // Nothing changed: no file is read again, the failed one included.
         maker.reads.clear()
         assertEquals(0 to 0, s.scrub.run(library))
         assertEquals(emptyList(), maker.reads)
 
-        // Sheets deleted by hand are made again.
-        s.dir.resolve("data/scrub/${alpha.id}").toFile().deleteRecursively()
+        s.dir.resolve("data/scrub/${s.idOf(library, "Alpha (2001)")}").toFile().deleteRecursively()
         assertEquals(1 to 0, s.scrub.run(library))
         assertEquals(listOf("Alpha (2001).mkv"), maker.reads)
-        maker.reads.clear()
+    }
 
-        // A replaced file is read again, and until it is its old sheets are not offered.
+    @Test fun `a replaced file gets sheets again, and a removed library's sheets go`() = runBlocking {
+        val maker = FakeMaker()
+        val (s, library) = scanned(maker)
+        s.scrub.run(library)
+        maker.reads.clear()
+        val alpha = s.idOf(library, "Alpha (2001)")
+
+        // Until it is read again, its old sheets are not offered.
         movie(s.root, "Alpha (2001)", body = "replaced")
         Files.setLastModifiedTime(
             s.root.resolve("movies/Alpha (2001)/Alpha (2001).mkv"),
             java.nio.file.attribute.FileTime.fromMillis(1_000),
         )
         s.service.scan(library.id)
-        assertNull(s.service.catalog.item(alpha.id).scrub)
+        assertNull(s.service.catalog.item(alpha).scrub)
         assertEquals(1 to 0, s.scrub.run(library))
         assertEquals(listOf("Alpha (2001).mkv"), maker.reads)
-        assertNotNull(s.service.catalog.item(alpha.id).scrub)
+        assertNotNull(s.service.catalog.item(alpha).scrub)
 
         // A removed library's sheets go with the next pass.
         s.service.delete(library.id)
@@ -143,8 +158,8 @@ class ScrubSheetsTest {
                 "2026-10-10T13:00:00Z",
             ),
         )
-        assertNull(s.store.libraryScrub(alpha.id))
-        assertFalse(Files.exists(s.dir.resolve("data/scrub/${alpha.id}")))
+        assertNull(s.store.libraryScrub(alpha))
+        assertFalse(Files.exists(s.dir.resolve("data/scrub/$alpha")))
     }
 
     @Test fun `FFmpeg tiles one key frame every ten seconds onto a sheet`() = runBlocking<Unit> {

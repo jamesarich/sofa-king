@@ -59,140 +59,153 @@ class LibraryMetadata internal constructor(
     val enabled: Boolean get() = tmdb != null
 
     suspend fun refresh(library: LibraryRecord, items: List<LibraryItemRecord>): MetadataResult? {
-        val client = tmdb ?: return null
-        if (library.kind == LibraryKind.VIDEOS) return null
+        val client = tmdb
+        if (client == null || library.kind == LibraryKind.VIDEOS) return null
         val present = items.filter { it.missingSince == null }
-        val children = present.groupBy { it.parentId }
-        val known = store.libraryMetadata(present.map { it.id })
-        val now = clock.instant()
-        var fetched = 0
-        var matched = 0
-        var unmatched = 0
-        var failed = 0
-        var unreachable = 0
-        val tops = present.filter { it.kind == ItemKind.MOVIE || it.kind == ItemKind.SHOW }
-        for (item in tops) {
+        val run = Run(client, present.groupBy { it.parentId }, store.libraryMetadata(present.map { it.id }))
+        for (item in present.filter { it.kind == ItemKind.MOVIE || it.kind == ItemKind.SHOW }) {
+            if (!run.lookUp(item)) break
+        }
+        return run.result()
+    }
+
+    /** One refresh of a library whose items are under their parents in [children] and were looked up as [known]. */
+    private inner class Run(
+        private val client: TmdbClient,
+        private val children: Map<String?, List<LibraryItemRecord>>,
+        private val known: Map<String, MetadataRecord>,
+    ) {
+        private val now = clock.instant()
+        private var fetched = 0
+        private var matched = 0
+        private var unmatched = 0
+        private var failed = 0
+        private var unreachable = 0
+        private var stopped: String? = null
+
+        fun result() = MetadataResult(fetched, matched, unmatched, failed, stopped)
+
+        /** Looks up the movie or show [item] unless its row is fresh; false once the run has to stop. */
+        suspend fun lookUp(item: LibraryItemRecord): Boolean {
             val hint = item.details?.tmdbId
-            val row = known[item.id]
-            val episodes = if (item.kind == ItemKind.SHOW) {
-                descendants(item.id, children).filter { it.kind == ItemKind.EPISODE }
-            } else {
-                emptyList()
-            }
-            val fresh =
-                row != null && (hint == null || row.tmdbId == hint) &&
+            val row = known[item.id]?.takeIf { row ->
+                (hint == null || row.tmdbId == hint) &&
                     Instant.parse(row.checkedAt).plus(if (row.tmdbId == null) UNMATCHED_FOR else MATCHED_FOR) > now
-            // A show that is fresh still fetches the seasons of episodes it has not looked up yet.
-            val newEpisodes = row?.tmdbId != null && episodes.any { it.episode != null && it.id !in known }
-            if (fresh && !newEpisodes) continue
-            try {
-                val records = ArrayList<MetadataRecord>()
-                if (item.kind == ItemKind.MOVIE) {
-                    val id = hint ?: pickMovie(client.searchMovies(item.title, item.year).also { pause() }, item)
-                    val movie = id?.let { client.movie(it).also { pause() } }
-                    records += MetadataRecord(item.id, movie?.id, now.toString(), movie?.facts(region))
-                    if (movie != null) matched++ else unmatched++
-                } else {
-                    val id = if (fresh) {
-                        row.tmdbId
-                    } else {
-                        hint
-                            ?: pickShow(client.searchShows(item.title, item.year).also { pause() }, item)
-                    }
-                    val show = if (fresh) null else id?.let { client.show(it).also { pause() } }
-                    if (!fresh) records += MetadataRecord(item.id, show?.id, now.toString(), show?.facts(region))
-                    if (id != null) {
-                        matched++
-                        records += seasons(client, id, item, children, known, refetchAll = !fresh, now)
-                    } else {
-                        unmatched++
-                    }
-                }
+            }
+            if (row != null && !hasNewEpisodes(item, row)) return true
+            return try {
+                val records = if (item.kind == ItemKind.MOVIE) movie(item, hint) else show(item, hint, row)
                 fetched++
                 unreachable = 0
                 store.saveLibraryMetadata(records)
+                true
             } catch (e: TmdbFailure) {
-                if (e.code == "TMDB_AUTH" || e.code == "TMDB_RATE_LIMITED") {
-                    return MetadataResult(fetched, matched, unmatched, failed, e.code)
-                }
-                // With the network down every lookup waits out its timeout; a few in a row
-                // end the run until the next scan.
-                if (e.code.startsWith("TMDB_UNREACHABLE") && ++unreachable >= UNREACHABLE_STOP) {
-                    return MetadataResult(fetched, matched, unmatched, failed + 1, "TMDB_UNREACHABLE")
-                }
+                failed(item, e)
+            }
+        }
+
+        /** A show that is fresh still fetches the seasons of episodes it has not looked up yet. */
+        private fun hasNewEpisodes(item: LibraryItemRecord, row: MetadataRecord): Boolean =
+            item.kind == ItemKind.SHOW && row.tmdbId != null &&
+                descendants(item.id).any { it.kind == ItemKind.EPISODE && it.episode != null && it.id !in known }
+
+        private suspend fun movie(item: LibraryItemRecord, hint: Int?): List<MetadataRecord> {
+            val id = hint ?: pickMovie(client.searchMovies(item.title, item.year).also { pause() }, item)
+            val movie = id?.let { client.movie(it).also { pause() } }
+            if (movie != null) matched++ else unmatched++
+            return listOf(MetadataRecord(item.id, movie?.id, now.toString(), movie?.facts(region)))
+        }
+
+        /** The show [item] and its seasons; with a [fresh] row only the seasons it has not looked up yet. */
+        private suspend fun show(item: LibraryItemRecord, hint: Int?, fresh: MetadataRecord?): List<MetadataRecord> {
+            val records = ArrayList<MetadataRecord>()
+            val id = if (fresh != null) {
+                fresh.tmdbId
+            } else {
+                hint ?: pickShow(client.searchShows(item.title, item.year).also { pause() }, item)
+            }
+            if (fresh == null) {
+                val show = id?.let { client.show(it).also { pause() } }
+                records += MetadataRecord(item.id, show?.id, now.toString(), show?.facts(region))
+            }
+            if (id != null) {
+                matched++
+                records += seasons(id, item, refetchAll = fresh == null)
+            } else {
+                unmatched++
+            }
+            return records
+        }
+
+        /** Counts [e], and stops the run on a refused token, a rate limit, or TMDB unreachable a few times in a row. */
+        private fun failed(item: LibraryItemRecord, e: TmdbFailure): Boolean {
+            if (e.code == "TMDB_AUTH" || e.code == "TMDB_RATE_LIMITED") {
+                stopped = e.code
+            } else if (e.code.startsWith("TMDB_UNREACHABLE") && ++unreachable >= UNREACHABLE_STOP) {
+                // With the network down every lookup waits out its timeout; a few in a row end the run until the
+                // next scan.
+                failed++
+                stopped = "TMDB_UNREACHABLE"
+            } else {
                 log.info("tmdb lookup failed item={} code={}", item.id, e.code)
                 failed++
             }
+            return stopped == null
         }
-        return MetadataResult(fetched, matched, unmatched, failed)
-    }
 
-    /** One lookup per season that holds numbered episodes: the season's own facts and each episode's. */
-    private suspend fun seasons(
-        client: TmdbClient,
-        showId: Int,
-        show: LibraryItemRecord,
-        children: Map<String?, List<LibraryItemRecord>>,
-        known: Map<String, MetadataRecord>,
-        refetchAll: Boolean,
-        now: Instant,
-    ): List<MetadataRecord> {
-        val records = ArrayList<MetadataRecord>()
-        val episodes = descendants(show.id, children).filter {
-            it.kind == ItemKind.EPISODE && it.season != null && it.episode != null
-        }
-        val seasonItems = children[show.id].orEmpty().filter { it.kind == ItemKind.SEASON }.associateBy { it.season }
-        for ((number, inSeason) in episodes.groupBy { it.season!! }) {
-            if (!refetchAll && inSeason.all { it.id in known }) continue
-            val season = client.season(showId, number).also { pause() } ?: continue
-            val byNumber = season.episodes.associateBy { it.episodeNumber }
-            seasonItems[number]?.let { item ->
-                records +=
-                    MetadataRecord(
-                        item.id,
-                        showId,
-                        now.toString(),
-                        MetadataFacts(
-                            title = season.name.ifEmpty {
-                                null
-                            },
-                            overview = season.overview?.ifEmpty {
-                                null
-                            },
-                            aired = season.airDate,
-                            poster = season.posterPath,
-                        ),
-                    )
+        /** One lookup per season that holds numbered episodes: the season's own facts and each episode's. */
+        private suspend fun seasons(showId: Int, show: LibraryItemRecord, refetchAll: Boolean): List<MetadataRecord> {
+            val episodes = descendants(show.id).filter {
+                it.kind == ItemKind.EPISODE && it.season != null && it.episode != null
             }
-            for (episode in inSeason) {
-                val found = byNumber[episode.episode]
-                records += MetadataRecord(
-                    episode.id,
-                    found?.let { showId },
-                    now.toString(),
-                    found?.let {
-                        MetadataFacts(
-                            title = it.name.ifEmpty {
-                                null
-                            },
-                            aired = it.airDate,
-                            year = yearOf(it.airDate),
-                            overview = it.overview?.ifEmpty {
-                                null
-                            },
-                            runtimeMinutes = it.runtime,
-                            poster = it.stillPath,
-                            rating = it.voteAverage.rating(),
-                        )
-                    },
+            val seasonItems = children[show.id].orEmpty().filter {
+                it.kind == ItemKind.SEASON
+            }.associateBy { it.season }
+            val records = ArrayList<MetadataRecord>()
+            for ((number, inSeason) in episodes.groupBy { it.season!! }) {
+                val wanted = refetchAll || inSeason.any { it.id !in known }
+                val season = if (wanted) client.season(showId, number).also { pause() } else null
+                if (season != null) records += seasonRecords(showId, season, seasonItems[number], inSeason)
+            }
+            return records
+        }
+
+        /** The facts of [season] for its folder [item], if the show has one, and for each of its [episodes]. */
+        private fun seasonRecords(
+            showId: Int,
+            season: TmdbSeason,
+            item: LibraryItemRecord?,
+            episodes: List<LibraryItemRecord>,
+        ): List<MetadataRecord> {
+            val own = item?.let {
+                val facts = MetadataFacts(
+                    title = season.name.ifEmpty { null },
+                    overview = season.overview?.ifEmpty { null },
+                    aired = season.airDate,
+                    poster = season.posterPath,
                 )
+                MetadataRecord(it.id, showId, now.toString(), facts)
+            }
+            val byNumber = season.episodes.associateBy { it.episodeNumber }
+            return listOfNotNull(own) + episodes.map { episode ->
+                val found = byNumber[episode.episode]
+                MetadataRecord(episode.id, found?.let { showId }, now.toString(), found?.let(::episodeFacts))
             }
         }
-        return records
+
+        private fun descendants(id: String): List<LibraryItemRecord> =
+            children[id].orEmpty().flatMap { listOf(it) + descendants(it.id) }
     }
 
-    private fun descendants(id: String, children: Map<String?, List<LibraryItemRecord>>): List<LibraryItemRecord> =
-        children[id].orEmpty().flatMap { listOf(it) + descendants(it.id, children) }
+    private fun episodeFacts(episode: TmdbEpisode) = MetadataFacts(
+        title = episode.name.ifEmpty { null },
+        aired = episode.airDate,
+        year = yearOf(episode.airDate),
+        overview = episode.overview?.ifEmpty { null },
+        runtimeMinutes = episode.runtime,
+        poster = episode.stillPath,
+        rating = episode.voteAverage.rating(),
+    )
 
     private suspend fun pause() = delay(pause.toMillis())
 }

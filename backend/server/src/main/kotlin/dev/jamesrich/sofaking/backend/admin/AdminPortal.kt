@@ -1036,11 +1036,11 @@ class AdminPortal(
             service.roots.map {
                 it.root.toString()
             },
-            service.folderChoices().map { it.toString() },
+            service.folders.choices().map { it.toString() },
             runtime.jobs.snapshot().any { it.id == LIBRARY_SCAN_JOB && it.running }, errors, proposed, removing,
             service.metadata?.enabled == true,
             tmdbSettable = runtime.setup?.tmdbFromEnvironment == false, tmdbError = tmdbError,
-            suggestions = service.suggestions(),
+            suggestions = service.folders.suggestions(),
         )
     }
 

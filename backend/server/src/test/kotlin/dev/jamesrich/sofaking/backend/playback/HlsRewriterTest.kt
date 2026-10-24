@@ -46,4 +46,32 @@ segment.ts?token=private
             assertFailsWith<ApiFailure> { HlsRewriter.rewrite(text, URI("http://example.test/list.m3u8")) { it } }
         }
     }
+
+    @Test fun `a reference with characters a URI may not carry is relayed percent-encoded`() = runBlocking<Unit> {
+        val urls = mutableListOf<String>()
+        HlsRewriter.rewrite(
+            """#EXTM3U
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subtitles",NAME="English[VTT]",URI="../sub-English[VTT].m3u8?a=1"
+#EXT-X-STREAM-INF:BANDWIDTH=800000,SUBTITLES="subtitles"
+video 360p.m3u8
+""",
+            URI("https://cdn.example.test/live/abc/master.m3u8"),
+        ) { url ->
+            urls += url
+            "/resource/${urls.size}"
+        }
+        assertEquals(
+            listOf(
+                "https://cdn.example.test/live/sub-English%5BVTT%5D.m3u8?a=1",
+                "https://cdn.example.test/live/abc/video%20360p.m3u8",
+            ),
+            urls,
+        )
+    }
+
+    @Test fun `a playlist reference keeps its escapes and the brackets of an IPv6 host`() {
+        assertEquals("seg%20a.ts", playlistUri("seg%20a.ts").toString())
+        assertEquals("http://[::1]:8080/a%5Bb%5D.ts", playlistUri("http://[::1]:8080/a[b].ts").toString())
+        assertEquals("//[::1]/x%5B1%5D?q=%5B2%5D", playlistUri("//[::1]/x[1]?q=[2]").toString())
+    }
 }

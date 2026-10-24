@@ -39,7 +39,7 @@ struct ChannelListView: View {
         }
         .onAppear {
             // Once per process, as the Compose app's launch decision: the last channel (or the chosen one) opens
-            // full screen, unless the start opens Library or Recordings, where nothing plays by itself.
+            // full screen, unless the start opens Library or DVR, where nothing plays by itself.
             guard !model.launchDecided else { return }
             model.launchDecided = true
             guard let settings = model.settings, model.startTab == nil, settings.startup != .guide else { return }

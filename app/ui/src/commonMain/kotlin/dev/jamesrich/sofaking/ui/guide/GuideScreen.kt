@@ -17,8 +17,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -183,11 +185,22 @@ private fun GuideColumn(
             focusRequester = nav.grid,
             laterFocus = channels.laterFocus,
             onGridKey = { event ->
-                state.onGridKey(event.key, event.type, channels.items) { nav.focusRow(it, channels) }
+                state.onGridKey(event.key, event.type, channels.items) { nav.focusRow(it, channels) } ||
+                    upToChips(event, state) { nav.climb(GuideBack.FOCUS_CHIPS, channels, headerFocus = null) }
             },
             onJumpFinish = { landed -> state.jumpHandled(landed) },
         )
     }
+}
+
+/**
+ * Up from the grid's first row climbs to the selected chip, as Back does. Searched geometrically, it could land on a
+ * rail item above and left of the grid rather than the chips. With search open, the search field is the way up.
+ */
+private fun upToChips(event: KeyEvent, state: GuideState, climb: () -> Unit): Boolean {
+    val up = event.key == Key.DirectionUp && !state.searchOpen
+    if (up && event.type == KeyEventType.KeyDown) climb()
+    return up
 }
 
 /** What the grid says when it lists nothing: no search match, no favorites or no recent channels yet. */
@@ -298,14 +311,13 @@ private fun GuideChips(
             onFilterChange(it.key())
         },
         // Down returns to the cell focus left, wherever the chip is. Searched geometrically, it could land on a
-        // rail item below and left of the chips rather than the grid.
+        // rail item below and left of the chips rather than the grid. The row is no focus group of its own, so this
+        // takes the key rather than the row's focus exit.
         modifier = modifier
-            .focusProperties {
-                onExit = {
-                    if (requestedFocusDirection == FocusDirection.Down && !state.searchOpen) {
-                        nav.grid.requestFocus(FocusDirection.Enter)
-                    }
-                }
+            .onPreviewKeyEvent { event ->
+                val down = event.key == Key.DirectionDown && !state.searchOpen
+                if (down && event.type == KeyEventType.KeyDown) nav.grid.requestFocus(FocusDirection.Enter)
+                down
             }
             .onFocusChanged { state.chipsFocused = it.hasFocus },
     )

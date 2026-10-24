@@ -106,12 +106,12 @@ class AppJourneyTest {
     }
 
     @Test
-    fun `an empty Recordings tab keeps focus on its tab`() = journey(tv = true, FakeServer(recordings = false)) {
+    fun `an empty DVR tab keeps focus on its tab`() = journey(tv = true, FakeServer(recordings = false)) {
         guideCell()
         keys("Back", "Back", "Right", "Right")
-        assertFocused("Recordings")
+        assertFocused("DVR")
         keys("OK")
-        assertFocused("Recordings")
+        assertFocused("DVR")
     }
 
     @Test

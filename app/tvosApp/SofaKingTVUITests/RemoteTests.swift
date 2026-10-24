@@ -56,7 +56,7 @@ final class RemoteTests: XCTestCase {
         focus(app.tabBars.buttons["Live"], pressing: .up)
         // Accessibility does not mark the open tab, so each is told by what it shows.
         let moves: [(String, XCUIRemote.Button, XCUIElement)] = [
-            ("Recordings", .right, row("Skip commercials")), ("Settings", .right, control("Pair")), ("Live", .left, row("News Now")),
+            ("DVR", .right, row("Skip commercials")), ("Settings", .right, control("Pair")), ("Live", .left, row("News Now")),
         ]
         for (name, move, content) in moves {
             let tab = app.tabBars.buttons[name]
@@ -69,21 +69,21 @@ final class RemoteTests: XCTestCase {
         }
     }
 
-    /// A start reopens Recordings when the viewer left the app from there, before the server says it records; moving
+    /// A start reopens DVR when the viewer left the app from there, before the server says it records; moving
     /// along the tab bar then keeps the app up. The bar used to gain the tab and select it at once, which left it
     /// selected under another tab's title and stopped the app on the next move with a navigation bar assertion.
     @MainActor
-    func testStartOnRecordings() throws {
+    func testStartOnDvr() throws {
         try launchToList()
-        let recordings = app.tabBars.buttons["Recordings"]
+        let recordings = app.tabBars.buttons["DVR"]
         focus(app.tabBars.buttons["Live"], pressing: .up)
-        XCTAssertTrue(recordings.waitForExistence(timeout: 10), "No Recordings tab\n\(screen)")
+        XCTAssertTrue(recordings.waitForExistence(timeout: 10), "No DVR tab\n\(screen)")
         focus(recordings, pressing: .right, presses: 3)
-        // Settings is not remembered, so the next start reopens Recordings.
+        // Settings is not remembered, so the next start reopens DVR.
         focus(app.tabBars.buttons["Settings"], pressing: .right, presses: 3)
         app.terminate()
         app.launch()
-        eventually("the start to reopen Recordings", timeout: 60) { row("Skip commercials").exists }
+        eventually("the start to reopen DVR", timeout: 60) { row("Skip commercials").exists }
         focus(recordings, pressing: .up)
         let moves: [(XCUIRemote.Button, String)] = [(.right, "Right"), (.left, "Left"), (.left, "Left"), (.right, "Right"), (.right, "Right"), (.left, "Left")]
         var pressed: [String] = []

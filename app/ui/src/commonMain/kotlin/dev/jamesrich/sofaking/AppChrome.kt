@@ -44,10 +44,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
+import dev.jamesrich.sofaking.resources.nav_dvr
 import dev.jamesrich.sofaking.resources.nav_library
 import dev.jamesrich.sofaking.resources.nav_live
 import dev.jamesrich.sofaking.resources.nav_settings
-import dev.jamesrich.sofaking.resources.recordings_title
 import dev.jamesrich.sofaking.resources.refreshing
 import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.LogoMark
@@ -138,7 +138,7 @@ internal class TabsModel(
 )
 
 /**
- * Live, Library, Recordings and Settings around [content]. A TV keeps them in the header, so the guide loses no
+ * Live, Library, DVR and Settings around [content]. A TV keeps them in the header, so the guide loses no
  * width and Up from its chips reaches them as it reaches the header's buttons; [TabPage] draws them there.
  * Elsewhere Material's navigation suite puts them in a short bar on a compact window and a rail on a larger one,
  * and slides it away while [shown] is false, over the full-screen players.
@@ -183,7 +183,7 @@ internal fun TopLevel(
                 TabItem(
                     Tab.RECORDINGS,
                     SofaIcons.Recordings,
-                    Res.string.recordings_title,
+                    Res.string.nav_dvr,
                     selected,
                     tabs.onTab,
                     tabFocus,
@@ -194,7 +194,7 @@ internal fun TopLevel(
                 selected = settingsOpen,
                 onClick = { if (!settingsOpen) onSettings() },
                 icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                label = { Text(stringResource(Res.string.nav_settings)) },
+                label = { NavigationLabel(stringResource(Res.string.nav_settings)) },
                 modifier = Modifier.focusRequester(settingsFocus),
                 navigationSuiteType = type,
             )
@@ -223,9 +223,18 @@ private fun TabItem(
         onClick = { onTab(tab) },
         modifier = if (selected) Modifier.focusRequester(tabFocus) else Modifier,
         icon = { Icon(icon, contentDescription = null) },
-        label = { Text(stringResource(label)) },
+        label = { NavigationLabel(stringResource(label)) },
         navigationSuiteType = type,
     )
+}
+
+/**
+ * A navigation item's label on one line. The theme's TV-sized label nearly fills the rail's 96 dp item, so at a
+ * larger text size a label runs past the item's edge rather than break mid-word.
+ */
+@Composable
+private fun NavigationLabel(text: String) {
+    Text(text, softWrap = false, maxLines = 1)
 }
 
 /**
@@ -251,7 +260,7 @@ private fun HeaderTabs(tabs: TabsModel, tabFocus: FocusRequester) {
         }
         if (tabs.recordingsShown) {
             HeaderTab(
-                stringResource(Res.string.recordings_title),
+                stringResource(Res.string.nav_dvr),
                 tabs.selected == Tab.RECORDINGS,
                 tabFocus,
             ) {

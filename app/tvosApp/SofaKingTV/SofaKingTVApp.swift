@@ -84,7 +84,7 @@ final class AppModel {
         }
     }
 
-    /// The Recordings tab shows when the server records.
+    /// The DVR tab shows when the server records.
     var recordingsShown: Bool { capabilities?.recordings == true }
 
     /// Whether the server has said yet if [tab] belongs in the tab bar; Library also waits for the first list.
@@ -94,7 +94,7 @@ final class AppModel {
     }
 
     /// The tab a cold start opens instead of Live, as the Compose app decides: where the viewer left off when that
-    /// was Library or Recordings, or Library when Open on start says so. Nothing plays by itself there.
+    /// was Library or DVR, or Library when Open on start says so. Nothing plays by itself there.
     var startTab: AppTab? {
         guard let settings, !settings.serverUrl.isEmpty else { return nil }
         if settings.startup == .library { return .library }
@@ -185,7 +185,7 @@ struct ContentView: View {
                 LibraryHomeView().tabItem { Label("Library", systemImage: "film.stack") }.tag(AppTab.library)
             }
             if recordingsInBar {
-                RecordingsView().tabItem { Label("Recordings", systemImage: "record.circle") }.tag(AppTab.recordings)
+                RecordingsView().tabItem { Label("DVR", systemImage: "record.circle") }.tag(AppTab.recordings)
             }
             NavigationStack { SettingsView() }.tabItem { Label("Settings", systemImage: "gear") }.tag(AppTab.settings)
         }

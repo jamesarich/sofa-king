@@ -55,7 +55,7 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | Symptom | Check |
 | --- | --- |
 | No Library tab | The server has no media library, or is too old to serve them. Add one on the admin portal's [Library page](../../backend/docs/admin.md#library); the tab appears within five minutes. |
-| No Recordings tab or Record button | The server is too old to record; update it. Record shows only on programs that have not ended. |
+| No DVR tab or Record button | The server is too old to record; update it. Record shows only on programs that have not ended. |
 | A line under Record says the server did not take it | The program is not in the server's guide, or has ended. The server's [troubleshooting](../../backend/docs/troubleshooting.md#recordings) has the rest. |
 | `CAPACITY_EXHAUSTED` playing a library item or a recording | The server is already converting as many files as `SOFA_MAX_TRANSCODES` allows, and none came free in the 20 seconds the player waited. Stop playback elsewhere and try again. |
 | A jump in a library item takes a moment | The server converts that file as it plays, and a jump past what it has converted restarts the conversion there. |
@@ -95,7 +95,7 @@ Only through a connection the server allows, such as a VPN or an HTTPS reverse p
 
 ### Does it record or play in the background?
 
-It records: on a server that records, the program details offer Record and Record series, and recordings play from the Recordings tab, as [recordings](usage.md#recordings) describes. On an Android phone or tablet, leaving the app while something plays shrinks it into a [picture-in-picture](usage.md#remote-controls) window that keeps playing. Elsewhere it does not play in the background: playback stops when the app leaves the screen, and returning opens the same channel at the live edge, or a library item or recording where it stopped.
+It records: on a server that records, the program details offer Record and Record series, and recordings play from the DVR tab, as [recordings](usage.md#recordings) describes. On an Android phone or tablet, leaving the app while something plays shrinks it into a [picture-in-picture](usage.md#remote-controls) window that keeps playing. Elsewhere it does not play in the background: playback stops when the app leaves the screen, and returning opens the same channel at the live edge, or a library item or recording where it stopped.
 
 ### Why will a snapshot APK not install over my build?
 

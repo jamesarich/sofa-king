@@ -4,18 +4,21 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,6 +82,7 @@ import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.datetime.format.MonthNames
 import kotlinx.datetime.toLocalDateTime
@@ -184,41 +188,57 @@ private fun RecordingList(
                 }
             }
         }
-        val firstId = returnedFrom?.takeIf { id -> groups.any { (_, recordings) -> recordings.any { it.id == id } } }
-            ?: groups.firstOrNull()?.second?.firstOrNull()?.id
-        groups.forEach { (group, recordings) ->
-            item(key = "group-${group.name}") {
-                Text(
-                    stringResource(group.label),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            items(recordings, key = { it.id }) { recording ->
-                RecordingRow(
-                    recording,
-                    time,
-                    onPlay,
-                    onDelete,
-                    firstButtonModifier = if (recording.id == firstId) {
-                        Modifier.focusRequester(firstFocus)
-                    } else {
-                        Modifier
-                    },
-                )
-            }
+        recordingGroups(groups, returnedFrom, time, onPlay, onDelete, firstFocus)
+        seriesRules(state.rules, onRuleChange, onRuleDelete)
+    }
+}
+
+/** Each group's heading and its recordings; the one just played, else the first, answers to [firstFocus]. */
+private fun LazyListScope.recordingGroups(
+    groups: List<Pair<RecordingGroup, List<DvrRecording>>>,
+    returnedFrom: String?,
+    time: TimeFormatter,
+    onPlay: (DvrRecording, Boolean) -> Unit,
+    onDelete: suspend (DvrRecording) -> Boolean,
+    firstFocus: FocusRequester,
+) {
+    val firstId = returnedFrom?.takeIf { id -> groups.any { (_, recordings) -> recordings.any { it.id == id } } }
+        ?: groups.firstOrNull()?.second?.firstOrNull()?.id
+    groups.forEach { (group, recordings) ->
+        item(key = "group-${group.name}") {
+            Text(
+                stringResource(group.label),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
-        if (state.rules.isNotEmpty()) {
-            item(key = "series") {
-                Text(
-                    stringResource(Res.string.recordings_series),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            items(state.rules, key = { "rule-${it.id}" }) { rule -> SeriesRow(rule, onRuleChange, onRuleDelete) }
+        items(recordings, key = { it.id }) { recording ->
+            RecordingRow(
+                recording,
+                time,
+                onPlay,
+                onDelete,
+                firstButtonModifier = if (recording.id == firstId) Modifier.focusRequester(firstFocus) else Modifier,
+            )
         }
     }
+}
+
+/** The Series heading and one row per series rule, when there are any. */
+private fun LazyListScope.seriesRules(
+    rules: List<SeriesRule>,
+    onRuleChange: suspend (SeriesRule, Boolean, Int) -> Boolean,
+    onRuleDelete: suspend (SeriesRule) -> Boolean,
+) {
+    if (rules.isEmpty()) return
+    item(key = "series") {
+        Text(
+            stringResource(Res.string.recordings_series),
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+    items(rules, key = { "rule-${it.id}" }) { rule -> SeriesRow(rule, onRuleChange, onRuleDelete) }
 }
 
 /** One series rule: its title and what it takes and keeps, with buttons that change them and one that stops it. */
@@ -228,12 +248,58 @@ private fun SeriesRow(
     onChange: suspend (SeriesRule, Boolean, Int) -> Boolean,
     onDelete: suspend (SeriesRule) -> Boolean,
 ) {
-    val scope = rememberCoroutineScope()
-    var confirming by remember(rule.id) { mutableStateOf(false) }
-    var busy by remember(rule.id) { mutableStateOf(false) }
-    var failed by remember(rule.id) { mutableStateOf(false) }
+    val actions = rememberRowActions(rule.id)
+    Column(Modifier.widthIn(max = 960.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(rule.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            seriesSummary(rule),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        RowButtons(actions) {
+            SofaButton(onClick = { actions.run { onChange(rule, !rule.newOnly, rule.keep) } }) {
+                val take = if (rule.newOnly) {
+                    Res.string.recordings_series_take_all
+                } else {
+                    Res.string.recordings_series_take_new
+                }
+                Text(stringResource(take))
+            }
+            SofaButton(onClick = { actions.run { onChange(rule, rule.newOnly, nextKeep(rule.keep)) } }) {
+                val count = if (rule.keep == 0) {
+                    stringResource(Res.string.recordings_series_keep_all_short)
+                } else {
+                    rule.keep.toString()
+                }
+                Text(stringResource(Res.string.recordings_series_keep_button, count))
+            }
+            SofaButton(onClick = { actions.confirmThen { onDelete(rule) } }) {
+                val stop = if (actions.confirming) {
+                    Res.string.recordings_series_confirm_stop
+                } else {
+                    Res.string.recordings_series_stop
+                }
+                Text(stringResource(stop))
+            }
+        }
+        if (actions.failed) ChangeFailed()
+    }
+}
 
-    // Buttons stay enabled while the server answers, as the recording rows do, so the D-pad focus never drops.
+/**
+ * A row's changes on the server: [failed] once one did not take, and [confirming] between the first and second press
+ * of a button that asks before it acts. Buttons stay enabled while the server answers, so the D-pad focus never drops;
+ * a press while a change is running does nothing.
+ */
+@Stable
+private class RowActions(private val scope: CoroutineScope) {
+    var confirming by mutableStateOf(false)
+    var failed by mutableStateOf(false)
+        private set
+    private var busy = false
+
     fun run(action: suspend () -> Boolean) {
         if (busy) return
         busy = true
@@ -246,69 +312,50 @@ private fun SeriesRow(
             }
         }
     }
-    Column(Modifier.widthIn(max = 960.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(rule.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(
-            seriesSummary(rule),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Row(
-            modifier = Modifier.padding(top = 4.dp).focusGroup().onFocusChanged {
-                if (!it.hasFocus) confirming = false
-            },
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SofaButton(onClick = { run { onChange(rule, !rule.newOnly, rule.keep) } }) {
-                Text(
-                    stringResource(
-                        if (rule.newOnly) {
-                            Res.string.recordings_series_take_all
-                        } else {
-                            Res.string.recordings_series_take_new
-                        },
-                    ),
-                )
-            }
-            SofaButton(onClick = { run { onChange(rule, rule.newOnly, nextKeep(rule.keep)) } }) {
-                val count = if (rule.keep == 0) {
-                    stringResource(Res.string.recordings_series_keep_all_short)
-                } else {
-                    rule.keep.toString()
-                }
-                Text(stringResource(Res.string.recordings_series_keep_button, count))
-            }
-            SofaButton(onClick = {
-                if (!confirming) {
-                    confirming = true
-                    failed = false
-                } else {
-                    confirming = false
-                    run { onDelete(rule) }
-                }
-            }) {
-                Text(
-                    stringResource(
-                        if (confirming) {
-                            Res.string.recordings_series_confirm_stop
-                        } else {
-                            Res.string.recordings_series_stop
-                        },
-                    ),
-                )
-            }
-        }
-        if (failed) {
-            Text(
-                stringResource(Res.string.recordings_change_failed),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
+
+    /** The first press asks, and the second runs [action]. */
+    fun confirmThen(action: suspend () -> Boolean) {
+        if (busy) return
+        if (confirming) {
+            confirming = false
+            run(action)
+        } else {
+            confirming = true
+            failed = false
         }
     }
+}
+
+@Composable
+private fun rememberRowActions(key: String): RowActions {
+    val scope = rememberCoroutineScope()
+    return remember(key) { RowActions(scope) }
+}
+
+/**
+ * A row's buttons in one focus group, so Left and Right stay on them and Up and Down move between rows; focus
+ * leaving them drops a pending confirmation.
+ */
+@Composable
+private fun RowButtons(actions: RowActions, content: @Composable RowScope.() -> Unit) {
+    Row(
+        modifier = Modifier.padding(top = 4.dp).focusGroup().onFocusChanged {
+            if (!it.hasFocus) actions.confirming = false
+        },
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
+}
+
+/** The line under a row whose last change did not take. */
+@Composable
+private fun ChangeFailed() {
+    Text(
+        stringResource(Res.string.recordings_change_failed),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+    )
 }
 
 /** What a rule takes and keeps, such as "New episodes only · Keeps 5 · Any channel". */
@@ -343,10 +390,7 @@ private fun RecordingRow(
     modifier: Modifier = Modifier,
     firstButtonModifier: Modifier = Modifier,
 ) {
-    val scope = rememberCoroutineScope()
-    var confirming by remember(recording.id) { mutableStateOf(false) }
-    var busy by remember(recording.id) { mutableStateOf(false) }
-    var failed by remember(recording.id) { mutableStateOf(false) }
+    val actions = rememberRowActions(recording.id)
     Column(modifier.widthIn(max = 960.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             recording.title,
@@ -370,14 +414,7 @@ private fun RecordingRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        // One focus group per row, so Left and Right stay on its buttons and Up and Down move between rows.
-        Row(
-            modifier = Modifier.padding(top = 4.dp).focusGroup().onFocusChanged {
-                if (!it.hasFocus) confirming = false
-            },
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        RowButtons(actions) {
             val deleteModifier = if (recording.playable) Modifier else firstButtonModifier
             if (recording.playable) {
                 SofaButton(onClick = { onPlay(recording, false) }, modifier = firstButtonModifier) {
@@ -393,42 +430,12 @@ private fun RecordingRow(
                     }) { Text(stringResource(Res.string.recordings_from_start)) }
                 }
             }
-            // Kept enabled while the server answers: a disabled button would drop the D-pad focus.
-            SofaButton(
-                modifier = deleteModifier,
-                onClick = {
-                    when {
-                        busy -> {}
-
-                        !confirming -> {
-                            confirming = true
-                            failed = false
-                        }
-
-                        else -> {
-                            confirming = false
-                            busy = true
-                            scope.launch {
-                                try {
-                                    failed = !onDelete(recording)
-                                } finally {
-                                    busy = false
-                                }
-                            }
-                        }
-                    }
-                },
-            ) {
-                Text(stringResource(if (confirming) confirmLabel(recording.state) else deleteLabel(recording.state)))
+            SofaButton(modifier = deleteModifier, onClick = { actions.confirmThen { onDelete(recording) } }) {
+                val state = recording.state
+                Text(stringResource(if (actions.confirming) confirmLabel(state) else deleteLabel(state)))
             }
         }
-        if (failed) {
-            Text(
-                stringResource(Res.string.recordings_change_failed),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
+        if (actions.failed) ChangeFailed()
     }
 }
 

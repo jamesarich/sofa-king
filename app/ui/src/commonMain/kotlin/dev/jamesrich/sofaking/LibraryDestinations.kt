@@ -9,10 +9,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.IntroSpan
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
+import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.ScrubTiles
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.defaultAudio
@@ -188,45 +190,29 @@ internal fun VodDestination(
 ) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val detail by remember(route.itemId) { libraryVm.detail(route.itemId) }.collectAsStateWithLifecycle()
-    val item = (detail as? ItemDetailState.Ready)?.detail?.item
+    val ready = (detail as? ItemDetailState.Ready)?.detail
     when {
         // Keyed by the item, so the next episode starts a fresh screen rather than inheriting this one's end.
-        item != null -> key(item.id) {
+        ready != null -> key(ready.item.id) {
+            val item = ready.item
             var next by remember { mutableStateOf<MediaItem?>(null) }
-            val ready = (detail as? ItemDetailState.Ready)?.detail
             // The tracks the viewer picked in this show start its episodes, read once as the item opens.
             val choice = remember { item.showId?.let { settings?.trackChoices?.get(it) } }
-            val startAudio = remember { ready?.let { initialAudio(it, choice) } }
-            val startSubtitle = remember { ready?.let { initialSubtitle(it, choice) } }
+            val startAudio = remember { initialAudio(ready, choice) }
+            val startSubtitle = remember { initialSubtitle(ready, choice) }
             // The tracks the stream carries, so a retry opens the item with them again: an audio track other
             // than the default, and a picture subtitle drawn in from the first stream.
-            var audio by remember {
-                mutableStateOf(startAudio?.index?.takeIf { it != ready?.let(::defaultAudio)?.index })
-            }
+            var audio by remember { mutableStateOf(startAudio?.index?.takeIf { it != defaultAudio(ready)?.index }) }
             var pictureSubtitle by remember { mutableStateOf(startSubtitle?.takeIf(::isPictureSubtitle)?.index) }
-            val tracks = remember(detail) {
-                (detail as? ItemDetailState.Ready)?.detail?.let { d ->
-                    VodTracks(
-                        audio = d.audio.mapIndexed { i, t -> VodTrack(t.index, trackLabel(t, i + 1)) },
-                        subtitles = d.subtitles.mapIndexed { i, t ->
-                            VodTrack(t.index, trackLabel(t, i + 1), isPictureSubtitle(t))
-                        },
-                        initialAudio = startAudio?.index ?: defaultAudio(d)?.index,
-                        initialSubtitle = startSubtitle?.index,
-                        onPicked = { audioIndex, subtitleIndex ->
-                            item.showId?.let { vm.setTrackChoice(it, trackChoice(d, audioIndex, subtitleIndex)) }
-                        },
-                        select = { audioIndex, subtitleIndex, position ->
-                            audio = audioIndex
-                            pictureSubtitle = subtitleIndex
-                            libraryVm.switchTracks(item, player.playbackProfile, position, audioIndex, subtitleIndex)
-                        },
-                        loadSubtitles = { index -> libraryVm.subtitles(item.id, index) },
-                    )
-                } ?: VodTracks()
+            val tracks = remember(ready) {
+                val initial = startAudio?.index ?: defaultAudio(ready)?.index
+                vodTracks(ready, initial, startSubtitle?.index, vm, libraryVm, player) { audioIndex, subtitleIndex ->
+                    audio = audioIndex
+                    pictureSubtitle = subtitleIndex
+                }
             }
             VodPlayerScreen(
-                title = item.vodTitle(ready?.intro, ready?.credits, ready?.scrub),
+                title = item.vodTitle(ready.intro, ready.credits, ready.scrub),
                 player = player,
                 sessions = vm.sessions,
                 itemId = item.id,
@@ -254,6 +240,38 @@ internal fun VodDestination(
 
         else -> MessageScreen(stringResource(Res.string.library_loading), loading = true)
     }
+}
+
+/**
+ * [d]'s audio and subtitle tracks for the player. A pick is kept for the show, and a switch reopens the stream with
+ * the new tracks, telling [onSelect] which ones it carries.
+ */
+private fun vodTracks(
+    d: MediaItemDetail,
+    initialAudio: Int?,
+    initialSubtitle: Int?,
+    vm: LineupViewModel,
+    libraryVm: LibraryViewModel,
+    player: LivePlayer,
+    onSelect: (audio: Int?, subtitle: Int?) -> Unit,
+): VodTracks {
+    val item = d.item
+    return VodTracks(
+        audio = d.audio.mapIndexed { i, t -> VodTrack(t.index, trackLabel(t, i + 1)) },
+        subtitles = d.subtitles.mapIndexed { i, t ->
+            VodTrack(t.index, trackLabel(t, i + 1), isPictureSubtitle(t))
+        },
+        initialAudio = initialAudio,
+        initialSubtitle = initialSubtitle,
+        onPicked = { audioIndex, subtitleIndex ->
+            item.showId?.let { vm.setTrackChoice(it, trackChoice(d, audioIndex, subtitleIndex)) }
+        },
+        select = { audioIndex, subtitleIndex, position ->
+            onSelect(audioIndex, subtitleIndex)
+            libraryVm.switchTracks(item, player.playbackProfile, position, audioIndex, subtitleIndex)
+        },
+        loadSubtitles = { index -> libraryVm.subtitles(item.id, index) },
+    )
 }
 
 /**

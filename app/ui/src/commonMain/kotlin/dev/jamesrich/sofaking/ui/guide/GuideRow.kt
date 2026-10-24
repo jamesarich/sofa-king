@@ -84,65 +84,12 @@ internal fun ChannelRow(
     val cellFocus = remember(ownFocus, initialFocus, initialIndex) {
         ownFocus.mapIndexed { index, own -> if (initialFocus != null && index == initialIndex) initialFocus else own }
     }
-    val currentCells by rememberUpdatedState(cells)
-    val currentCellFocus by rememberUpdatedState(cellFocus)
-    val currentOnJumpFinish by rememberUpdatedState(onJumpFinish)
+    JumpToMinute(jump, cells, cellFocus, onJumpFinish)
 
-    LaunchedEffect(jump) {
-        if (jump == null) return@LaunchedEffect
-        // The guide can fill in while the request waits, replacing the cells and their requesters, so the
-        // cell under the minute is looked up again on every frame.
-        var landed = false
-        for (frame in 0 until FIRST_FOCUS_FRAMES) {
-            withFrameNanos { }
-            val index = GuideTimeline.cellIndexAt(currentCells, jump.minute)
-            if (index >= 0 && currentCellFocus[index].requestFocus(FocusDirection.Enter)) {
-                landed = true
-                break
-            }
-        }
-        currentOnJumpFinish(landed)
-    }
-
-    val profile = LocalLayoutProfile.current
     val density = LocalGuideDensity.current
     val compact = density == GuideDensity.COMPACT
     Row(Modifier.fillMaxWidth().height(rowHeight(density))) {
-        Row(
-            Modifier.width(pinWidth(profile)).fillMaxHeight().padding(end = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ChannelLogo(channel, LOGO_WIDTH, LOGO_HEIGHT, Modifier.padding(end = 12.dp))
-            // The number above the name, so a long name gets the column's width rather than sharing a line.
-            Column(Modifier.weight(1f)) {
-                Text(
-                    channel.number.formatNumber(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
-                if (!profile.compactWidth) {
-                    Text(
-                        channel.name,
-                        style = if (compact) {
-                            MaterialTheme.typography.bodyMedium
-                        } else {
-                            MaterialTheme.typography.bodyLarge
-                        },
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            if (isFavorite) {
-                Icon(
-                    Icons.Filled.Star,
-                    env.favoriteLabel,
-                    Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
+        ChannelPin(channel, isFavorite, compact, env)
         TimelineStrip(scrollState = env.scrollState, nowMinute = nowMinute, modifier = Modifier.weight(1f)) {
             Row(Modifier.fillMaxHeight()) {
                 cells.forEachIndexed { index, cell ->
@@ -157,6 +104,72 @@ internal fun ChannelRow(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Moves focus to the cell under [jump]'s minute, then reports whether it landed. The guide can fill in while the
+ * request waits, replacing the cells and their requesters, so the cell is looked up again on every frame.
+ */
+@Composable
+private fun JumpToMinute(
+    jump: GuideJump?,
+    cells: List<GuideCell>,
+    cellFocus: List<FocusRequester>,
+    onJumpFinish: (landed: Boolean) -> Unit,
+) {
+    val currentCells by rememberUpdatedState(cells)
+    val currentCellFocus by rememberUpdatedState(cellFocus)
+    val currentOnJumpFinish by rememberUpdatedState(onJumpFinish)
+    LaunchedEffect(jump) {
+        if (jump == null) return@LaunchedEffect
+        var landed = false
+        for (frame in 0 until FIRST_FOCUS_FRAMES) {
+            withFrameNanos { }
+            val index = GuideTimeline.cellIndexAt(currentCells, jump.minute)
+            if (index >= 0 && currentCellFocus[index].requestFocus(FocusDirection.Enter)) {
+                landed = true
+                break
+            }
+        }
+        currentOnJumpFinish(landed)
+    }
+}
+
+/** The pinned column: the channel's logo, number and name, and a star when it is a favorite. */
+@Composable
+private fun ChannelPin(channel: Channel, isFavorite: Boolean, compact: Boolean, env: GuideRowEnv) {
+    val profile = LocalLayoutProfile.current
+    Row(
+        Modifier.width(pinWidth(profile)).fillMaxHeight().padding(end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ChannelLogo(channel, LOGO_WIDTH, LOGO_HEIGHT, Modifier.padding(end = 12.dp))
+        // The number above the name, so a long name gets the column's width rather than sharing a line.
+        Column(Modifier.weight(1f)) {
+            Text(
+                channel.number.formatNumber(),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+            if (!profile.compactWidth) {
+                Text(
+                    channel.name,
+                    style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (isFavorite) {
+            Icon(
+                Icons.Filled.Star,
+                env.favoriteLabel,
+                Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }
@@ -192,55 +205,72 @@ private fun GuideCellItem(
                 focused = it.isFocused
                 if (it.hasFocus) env.onCellFocus(channel, cell)
             }
-            .semantics(mergeDescendants = true) {
-                // Built only when the semantics tree is read, so a grid of hundreds of cells
-                // formats nothing for sighted use.
-                contentDescription = cellDescription(env, channel, program, airing)
-                // Favorite stays a direct action for screen readers; sighted use goes through the details.
-                customActions = listOf(
-                    CustomAccessibilityAction(env.toggleFavoriteLabel) {
-                        env.onToggleFavorite(channel)
-                        true
-                    },
-                    CustomAccessibilityAction(env.detailsLabel) {
-                        env.onOpenDetails(channel, cell)
-                        true
-                    },
-                )
-            }
-            // OK plays and a held OK opens the program's details, from the D-pad, a keyboard, touch or a mouse.
-            .combinedClickable(
-                interactionSource = interactions,
-                indication = null,
-                onLongClickLabel = env.detailsLabel,
-                onLongClick = { env.onOpenDetails(channel, cell) },
-                onClick = { env.onPlay(channel) },
-            ),
+            .cellActions(env, channel, cell, airing, interactions),
     ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .stickyStart(env.scrollState, cellStartPx, env.minStickyTextPx)
-                .padding(horizontal = 8.dp, vertical = 2.dp),
-            verticalArrangement = Arrangement.Center,
-        ) {
+        CellText(
+            program?.title ?: env.noListingFor(channel),
+            program?.takeIf { focused }?.let { env.timeFormat.range(it.start, it.stop) },
+            compact,
+            Modifier.fillMaxSize().stickyStart(env.scrollState, cellStartPx, env.minStickyTextPx),
+        )
+    }
+}
+
+/** What a cell says to a screen reader and does on OK, a held OK, a tap or a click. */
+private fun Modifier.cellActions(
+    env: GuideRowEnv,
+    channel: Channel,
+    cell: GuideCell,
+    airing: Boolean,
+    interactions: MutableInteractionSource,
+): Modifier = semantics(mergeDescendants = true) {
+    // Built only when the semantics tree is read, so a grid of hundreds of cells
+    // formats nothing for sighted use.
+    contentDescription = cellDescription(env, channel, cell.program, airing)
+    // Favorite stays a direct action for screen readers; sighted use goes through the details.
+    customActions = listOf(
+        CustomAccessibilityAction(env.toggleFavoriteLabel) {
+            env.onToggleFavorite(channel)
+            true
+        },
+        CustomAccessibilityAction(env.detailsLabel) {
+            env.onOpenDetails(channel, cell)
+            true
+        },
+    )
+}
+    // OK plays and a held OK opens the program's details, from the D-pad, a keyboard, touch or a mouse.
+    .combinedClickable(
+        interactionSource = interactions,
+        indication = null,
+        onLongClickLabel = env.detailsLabel,
+        onLongClick = { env.onOpenDetails(channel, cell) },
+        onClick = { env.onPlay(channel) },
+    )
+
+/** A cell's title, and under it the program's times ([times], null while the cell is not focused). */
+@Composable
+private fun CellText(title: String, times: String?, compact: Boolean, modifier: Modifier = Modifier) {
+    Column(
+        modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            title,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
+        )
+        if (times != null) {
             Text(
-                program?.title ?: env.noListingFor(channel),
+                times,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    lineHeight = if (compact) 16.sp else 22.sp,
+                    lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+                ),
             )
-            if (focused && program != null) {
-                Text(
-                    env.timeFormat.range(program.start, program.stop),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        lineHeight = if (compact) 16.sp else 22.sp,
-                        lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
-                    ),
-                )
-            }
         }
     }
 }

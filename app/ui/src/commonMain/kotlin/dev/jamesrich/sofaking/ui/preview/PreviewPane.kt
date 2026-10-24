@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,6 +41,7 @@ import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.preview_hint
 import dev.jamesrich.sofaking.resources.preview_unavailable
@@ -58,12 +60,12 @@ import dev.jamesrich.sofaking.ui.player.Captions
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.LocalPlayerVolume
 import dev.jamesrich.sofaking.ui.player.PlaybackState
+import dev.jamesrich.sofaking.ui.player.PlayerError
 import dev.jamesrich.sofaking.ui.player.VideoZoom
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
@@ -122,23 +124,7 @@ internal fun PreviewDetails(
                 )
                 return@Column
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    program.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                ProgramBadges(
-                    program = program,
-                    live = live,
-                    fill = MaterialTheme.colorScheme.primary,
-                    onFill = MaterialTheme.colorScheme.onPrimary,
-                    outline = secondary,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
+            TitleWithBadges(program, live)
             // The channel comes last: the focused row already names it, so it is the part to lose when space runs out.
             Text(
                 listOfNotNull(timeFormat.range(program.start, program.stop), program.episodeLine(), channel.label())
@@ -163,6 +149,26 @@ internal fun PreviewDetails(
             )
         }
     }
+}
+
+/** The program's title, with its badges after it. */
+@Composable
+private fun TitleWithBadges(program: Program, live: Boolean) = Row(verticalAlignment = Alignment.CenterVertically) {
+    Text(
+        program.title,
+        style = MaterialTheme.typography.titleMedium,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(1f, fill = false),
+    )
+    ProgramBadges(
+        program = program,
+        live = live,
+        fill = MaterialTheme.colorScheme.primary,
+        onFill = MaterialTheme.colorScheme.onPrimary,
+        outline = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 8.dp),
+    )
 }
 
 /** The program image beside the details: 16:9, as tall as the text column under the chips. */
@@ -204,21 +210,13 @@ internal fun PreviewVideo(
     var showing by remember { mutableStateOf(player.currentChannelId) }
 
     val lifecycle = appLifecycleOwner.lifecycle
-    LaunchedEffect(player) {
-        player.volume = 0f
-        // Back from a paused full screen: rejoin the live edge rather than play from where it paused.
-        if (!player.playWhenReady) {
-            player.playWhenReady = true
-            player.stop()
-            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) player.prepare()
-        }
-    }
-    LaunchedEffect(player) {
-        player.status.collect { if (it.state == PlaybackState.READY) currentOnFailedChange(false) }
-    }
-    LaunchedEffect(player) {
-        player.errors.collect { error ->
-            if (error.streamGone && retune < MAX_STREAM_GONE_RETUNES) retune++ else currentOnFailedChange(true)
+    PreviewPlayerEvents(player, lifecycle) { error ->
+        if (error == null) {
+            currentOnFailedChange(false)
+        } else if (error.streamGone && retune < MAX_STREAM_GONE_RETUNES) {
+            retune++
+        } else {
+            currentOnFailedChange(true)
         }
     }
 
@@ -226,39 +224,8 @@ internal fun PreviewVideo(
     LaunchedEffect(guideId) { retune = 0 }
     LaunchedEffect(guideId, retune, lifecycle) {
         if (guideId == null) return@LaunchedEffect
-        val held = player.currentChannelId == guideId
-        if (held && retune == 0 && player.status.value.state != PlaybackState.IDLE) {
-            // Back from the full screen with its stream still playing: keep it, as a preview again.
-            showing = guideId
-            try {
-                sessions.setIntent(guideId, PlaybackIntent.PREVIEW)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                // The lease keeps renewing either way; a watch-intent preview only holds its slot longer.
-            }
-            return@LaunchedEffect
-        }
-        if (!held && retune == 0) delay(PREVIEW_DEBOUNCE_MS)
-        lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
-            currentOnFailedChange(false)
-            // Stopped before the session changes hands: releasing the old session ends its stream, which would
-            // otherwise surface as a player error. This also resets the renderers, as the full screen does.
-            player.stop()
-        }
-        val stream = try {
-            sessions.tune(guideId, PlaybackIntent.PREVIEW)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            currentOnFailedChange(true)
-            return@LaunchedEffect
-        }
-        lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
-            player.setStream(stream)
-            player.prepare()
-            showing = guideId
-        }
+        val tuner = PreviewTuner(player, sessions, lifecycle, { currentOnFailedChange(it) }) { showing = it }
+        tuner.tune(guideId, retune)
     }
 
     Box(modifier.width(PREVIEW_WIDTH).height(PREVIEW_HEIGHT).background(SofaScrim)) {
@@ -275,26 +242,95 @@ internal fun PreviewVideo(
         ) {
             PreviewCard(channel, failed = false)
         }
-        AnimatedVisibility(
-            rememberSettled(buffering && !failed),
-            modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
-            enter = PopIn,
-            exit = PopOut,
+        TuningBadge(rememberSettled(buffering && !failed))
+    }
+}
+
+/**
+ * Starts the shared [player] muted, and back from a paused full screen rejoins the live edge rather than play from
+ * where it paused. Reports each first frame to [onEvent] as null and each player error as itself.
+ */
+@Composable
+private fun PreviewPlayerEvents(player: LivePlayer, lifecycle: Lifecycle, onEvent: (PlayerError?) -> Unit) {
+    val currentOnEvent by rememberUpdatedState(onEvent)
+    LaunchedEffect(player) {
+        player.volume = 0f
+        if (!player.playWhenReady) {
+            player.playWhenReady = true
+            player.stop()
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) player.prepare()
+        }
+    }
+    LaunchedEffect(player) {
+        player.status.collect { if (it.state == PlaybackState.READY) currentOnEvent(null) }
+    }
+    LaunchedEffect(player) {
+        player.errors.collect { currentOnEvent(it) }
+    }
+}
+
+/**
+ * Opens a channel's preview session on the shared [player], reporting a failure through [onFailedChange] and the
+ * channel whose picture the player then holds through [onShowing].
+ */
+private class PreviewTuner(
+    private val player: LivePlayer,
+    private val sessions: PlaybackSessions,
+    private val lifecycle: Lifecycle,
+    private val onFailedChange: (Boolean) -> Unit,
+    private val onShowing: (String) -> Unit,
+) {
+    /** Tunes [guideId], [retune] times reopened after a 410; a first tune waits out the debounce. */
+    suspend fun tune(guideId: String, retune: Int) {
+        val held = player.currentChannelId == guideId
+        if (held && retune == 0 && player.status.value.state != PlaybackState.IDLE) {
+            // Back from the full screen with its stream still playing: keep it, as a preview again.
+            onShowing(guideId)
+            // The lease keeps renewing either way; a watch-intent preview only holds its slot longer.
+            runCatchingCancellable { sessions.setIntent(guideId, PlaybackIntent.PREVIEW) }
+            return
+        }
+        if (!held && retune == 0) delay(PREVIEW_DEBOUNCE_MS)
+        lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
+            onFailedChange(false)
+            // Stopped before the session changes hands: releasing the old session ends its stream, which would
+            // otherwise surface as a player error. This also resets the renderers, as the full screen does.
+            player.stop()
+        }
+        val stream = runCatchingCancellable { sessions.tune(guideId, PlaybackIntent.PREVIEW) }.getOrElse {
+            onFailedChange(true)
+            return
+        }
+        lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
+            player.setStream(stream)
+            player.prepare()
+            onShowing(guideId)
+        }
+    }
+}
+
+/** The Tuning badge in the preview's corner while the stream buffers. */
+@Composable
+private fun BoxScope.TuningBadge(visible: Boolean) {
+    AnimatedVisibility(
+        visible,
+        modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
+        enter = PopIn,
+        exit = PopOut,
+    ) {
+        Row(
+            Modifier
+                .background(SofaOverlayScrim, RoundedCornerShape(8.dp))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Row(
-                Modifier
-                    .background(SofaOverlayScrim, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                SofaLoader(size = 16.dp)
-                Text(
-                    stringResource(Res.string.tuning),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-            }
+            SofaLoader(size = 16.dp)
+            Text(
+                stringResource(Res.string.tuning),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
         }
     }
 }

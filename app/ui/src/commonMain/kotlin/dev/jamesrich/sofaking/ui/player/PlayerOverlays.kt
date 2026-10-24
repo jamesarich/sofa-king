@@ -66,6 +66,7 @@ import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.ScrubTiles
 import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.resources.Res
@@ -390,7 +391,6 @@ internal fun InfoOverlay(
     showKeyLegend: Boolean = false,
 ) {
     val (current, next) = lineup.nowAndNext(channel, now)
-    val timeFormat = rememberTimeFormatter()
     Column(
         modifier
             .widthIn(max = 720.dp)
@@ -399,57 +399,7 @@ internal fun InfoOverlay(
             .padding(24.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
     ) {
-        // The scope and captions badge wrap under a long name, and a name wider than the bar ends in an ellipsis.
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            itemVerticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (channel.logo != null) ChannelLogo(channel, 64.dp, 40.dp, Modifier.padding(end = 12.dp))
-                Text(
-                    channel.label(),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (scope != null) {
-                Text(
-                    scope,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
-            }
-            if (captionsOn && captionAdvanceMs != null && captionAdvanceMs != 0) {
-                val advance = CaptionPolicy.advanceLabel(captionAdvanceMs)
-                val late = CaptionPolicy.timingDirection(captionAdvanceMs) == CaptionTiming.LATER
-                val advanceDescription =
-                    stringResource(
-                        if (late) {
-                            Res.string.captions_indicator_timing_late_description
-                        } else {
-                            Res.string.captions_indicator_timing_description
-                        },
-                        advance,
-                    )
-                Text(
-                    stringResource(
-                        if (late) Res.string.captions_indicator_timing_late else Res.string.captions_indicator_timing,
-                        advance,
-                    ),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    maxLines = 1,
-                    modifier = Modifier
-                        .background(MaterialTheme.colorScheme.primary, OverlayShape)
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                        .semantics { contentDescription = advanceDescription },
-                )
-            }
-        }
+        InfoHeader(channel, scope, captionsOn, captionAdvanceMs)
         if (current == null) {
             Text(
                 channel.noListingText(lineup.guideLoading),
@@ -457,59 +407,7 @@ internal fun InfoOverlay(
                 color = MaterialTheme.colorScheme.onSurface,
             )
         } else {
-            Row {
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            current.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                        ProgramBadges(
-                            program = current,
-                            live = false,
-                            fill = MaterialTheme.colorScheme.primary,
-                            onFill = MaterialTheme.colorScheme.onPrimary,
-                            outline = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 8.dp),
-                        )
-                    }
-                    Text(
-                        listOfNotNull(
-                            timeFormat.range(current.start, current.stop),
-                            current.episodeLine(),
-                        ).joinToString(DETAIL_SEPARATOR),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    current.description?.let {
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-                current.icon?.let {
-                    AsyncImage(
-                        model = it,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.padding(
-                            start = 16.dp,
-                        ).size(width = 160.dp, height = 90.dp).clip(OverlayShape),
-                    )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            ProgressBar(programProgress(current.start, current.stop, now))
+            NowPlaying(current, now)
         }
         next?.let {
             Text(
@@ -522,6 +420,131 @@ internal fun InfoOverlay(
             Spacer(Modifier.height(8.dp))
             KeyLegend()
         }
+    }
+}
+
+/**
+ * The channel's logo and name, the scope the player was opened from, and the caption timing badge. They wrap under a
+ * long name, and a name wider than the bar ends in an ellipsis.
+ */
+@Composable
+private fun InfoHeader(channel: Channel, scope: String?, captionsOn: Boolean, captionAdvanceMs: Int?) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (channel.logo != null) ChannelLogo(channel, 64.dp, 40.dp, Modifier.padding(end = 12.dp))
+            Text(
+                channel.label(),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (scope != null) {
+            Text(
+                scope,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+        if (captionsOn && captionAdvanceMs != null && captionAdvanceMs != 0) {
+            CaptionTimingBadge(captionAdvanceMs)
+        }
+    }
+}
+
+/** How far the captions are moved, on a badge: earlier or later by the channel's lead. */
+@Composable
+private fun CaptionTimingBadge(captionAdvanceMs: Int) {
+    val advance = CaptionPolicy.advanceLabel(captionAdvanceMs)
+    val late = CaptionPolicy.timingDirection(captionAdvanceMs) == CaptionTiming.LATER
+    val advanceDescription =
+        stringResource(
+            if (late) {
+                Res.string.captions_indicator_timing_late_description
+            } else {
+                Res.string.captions_indicator_timing_description
+            },
+            advance,
+        )
+    Text(
+        stringResource(
+            if (late) Res.string.captions_indicator_timing_late else Res.string.captions_indicator_timing,
+            advance,
+        ),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onPrimary,
+        maxLines = 1,
+        modifier = Modifier
+            .background(MaterialTheme.colorScheme.primary, OverlayShape)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .semantics { contentDescription = advanceDescription },
+    )
+}
+
+/** What is on: title and badges, times and episode, description, the program's picture and its progress. */
+@Composable
+private fun NowPlaying(current: Program, now: Instant) {
+    val timeFormat = rememberTimeFormatter()
+    Column {
+        Row {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        current.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    ProgramBadges(
+                        program = current,
+                        live = false,
+                        fill = MaterialTheme.colorScheme.primary,
+                        onFill = MaterialTheme.colorScheme.onPrimary,
+                        outline = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+                Text(
+                    listOfNotNull(
+                        timeFormat.range(current.start, current.stop),
+                        current.episodeLine(),
+                    ).joinToString(DETAIL_SEPARATOR),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                current.description?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            current.icon?.let {
+                AsyncImage(
+                    model = it,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.padding(
+                        start = 16.dp,
+                    ).size(width = 160.dp, height = 90.dp).clip(OverlayShape),
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        ProgressBar(programProgress(current.start, current.stop, now))
     }
 }
 
@@ -652,7 +675,6 @@ internal fun BoxScope.StreamCard(
     bufferedMs: Long,
     onSelectTrack: (String) -> Unit,
 ) {
-    val unknown = stringResource(Res.string.stream_card_unknown)
     // Focus starts on the playing track's row, so OK and Up/Down act on the tracks at once; with
     // none, the card itself holds it.
     val focusRequester = remember { FocusRequester() }
@@ -689,6 +711,17 @@ internal fun BoxScope.StreamCard(
                 )
             }
         }
+        StreamStats(info, stream, bufferedMs)
+        Spacer(Modifier.height(4.dp))
+        KeyLegend()
+    }
+}
+
+/** What the engine knows about the video and audio, how much is buffered, and the server's source and session. */
+@Composable
+private fun StreamStats(info: StreamInfo, stream: PlaybackStream?, bufferedMs: Long) {
+    val unknown = stringResource(Res.string.stream_card_unknown)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val video = listOfNotNull(
             info.videoCodec,
             if (info.width != null && info.height != null) {
@@ -713,8 +746,6 @@ internal fun BoxScope.StreamCard(
             stream?.providerId?.takeIf { it.isNotEmpty() } ?: unknown,
         )
         StatLine(stringResource(Res.string.stream_card_session), stream?.sessionId?.take(n = 8) ?: unknown)
-        Spacer(Modifier.height(4.dp))
-        KeyLegend()
     }
 }
 

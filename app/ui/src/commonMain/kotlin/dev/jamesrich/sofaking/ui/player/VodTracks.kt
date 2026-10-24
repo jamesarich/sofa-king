@@ -184,25 +184,33 @@ internal fun BoxScope.TracksCard(
             }
         }
         if (offsetMs != null) {
+            SubtitleTiming(offsetMs, onOffset)
+        }
+    }
+}
+
+/** The subtitle timing: Earlier and Later step [offsetMs] through [onOffset], with the offset between them. */
+@Composable
+private fun SubtitleTiming(offsetMs: Long, onOffset: (Long) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(Res.string.vod_tracks_timing),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            SofaButton(onClick = {
+                onOffset(stepSubtitleOffset(offsetMs, -1))
+            }) { Text(stringResource(Res.string.vod_tracks_earlier)) }
             Text(
-                stringResource(Res.string.vod_tracks_timing),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                subtitleOffsetText(offsetMs),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                SofaButton(onClick = {
-                    onOffset(stepSubtitleOffset(offsetMs, -1))
-                }) { Text(stringResource(Res.string.vod_tracks_earlier)) }
-                Text(
-                    subtitleOffsetText(offsetMs),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                )
-                SofaButton(onClick = {
-                    onOffset(stepSubtitleOffset(offsetMs, 1))
-                }) { Text(stringResource(Res.string.vod_tracks_later)) }
-            }
+            SofaButton(onClick = {
+                onOffset(stepSubtitleOffset(offsetMs, 1))
+            }) { Text(stringResource(Res.string.vod_tracks_later)) }
         }
     }
 }

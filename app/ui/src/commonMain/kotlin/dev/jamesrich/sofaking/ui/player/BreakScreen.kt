@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -40,6 +41,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -66,6 +68,7 @@ import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.hoursAndMinutes
 import dev.jamesrich.sofaking.ui.theme.SofaMauve
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
@@ -223,72 +226,28 @@ internal fun BreakScreen(
         val speedPxPerSecond = with(density) { BOUNCE_SPEED.toPx() }
         val cornerSlop = with(density) { CORNER_SLOP.toPx() }
         val area = with(density) { IntSize(maxWidth.roundToPx(), maxHeight.roundToPx()) }
-        var unit by remember { mutableStateOf(IntSize.Zero) }
-        var bounce by remember {
-            mutableStateOf(Bounce(area.width * START_X, area.height * START_Y, right = true, down = true))
+        val motion = remember {
+            BreakMotion(Bounce(area.width * START_X, area.height * START_Y, right = true, down = true))
         }
-        var tint by remember { mutableIntStateOf(0) }
-        val pop = remember { Animatable(1f) }
         val quip = remember { BreakTally.quips.next() }
-        // The corner just hit, counted from the app's start, while its line shows.
-        var corner by remember { mutableStateOf<Int?>(null) }
-        LaunchedEffect(corner) {
-            if (corner == null) return@LaunchedEffect
-            delay(CORNER_LINE_MS)
-            corner = null
+        LaunchedEffect(motion.corner) { motion.endCornerLine() }
+        val dodgedMinutes = rememberDodgedMinutes(motion, dodgedBeforeMs, onCover)
+        LaunchedEffect(area, motion.unit) {
+            if (motion.unit != IntSize.Zero) motion.drift(area, speedPxPerSecond, cornerSlop)
         }
-        var coveredNanos by remember { mutableLongStateOf(0L) }
-        val dodgedBefore = remember { dodgedBeforeMs }
-        val dodgedMinutes by remember {
-            derivedStateOf { (dodgedBefore.milliseconds + coveredNanos.nanoseconds).inWholeMinutes }
-        }
-        val currentOnCover by rememberUpdatedState(onCover)
-        DisposableEffect(Unit) { onDispose { currentOnCover(coveredNanos.nanoseconds.inWholeMilliseconds) } }
-        LaunchedEffect(area, unit) {
-            if (unit == IntSize.Zero) return@LaunchedEffect
-            val roomX = (area.width - unit.width).toFloat()
-            val roomY = (area.height - unit.height).toFloat()
-            bounce =
-                bounce.copy(
-                    x = bounce.x.coerceIn(0f, roomX.coerceAtLeast(0f)),
-                    y = bounce.y.coerceIn(0f, roomY.coerceAtLeast(0f)),
-                )
-            var last = 0L
-            while (true) {
-                val hit = withFrameNanos { now ->
-                    val gap = if (last == 0L) 0L else now - last
-                    last = now
-                    // A long gap (the app in the background) moves the mark no more than one frame's worth, and does
-                    // not count as covered.
-                    if (gap < MAX_COVERED_GAP_NANOS) coveredNanos += gap
-                    val seconds = gap.nanoseconds.toDouble(DurationUnit.SECONDS).toFloat()
-                        .coerceAtMost(MAX_FRAME_SECONDS)
-                    val (next, hit) = bounce.step(speedPxPerSecond * seconds, roomX, roomY, cornerSlop)
-                    bounce = next
-                    hit
-                }
-                if (hit != BounceHit.NONE) tint = bounce.tint
-                if (hit == BounceHit.CORNER) {
-                    launch {
-                        pop.snapTo(CORNER_POP)
-                        pop.animateTo(1f, tween(CORNER_POP_MS))
-                    }
-                    corner = ++BreakTally.corners
-                }
-            }
-        }
+        val tint = motion.tint
         val filter = remember(tint) { if (tint == 0) null else ColorFilter.colorMatrix(hueRotation(BOUNCE_HUES[tint])) }
-        val lineWidth = Modifier.widthIn(max = logoSize * 2.5f)
         Column(
             modifier = Modifier
-                .offset { IntOffset(bounce.x.roundToInt(), bounce.y.roundToInt()) }
-                .onSizeChanged { unit = it }
+                .offset { IntOffset(motion.bounce.x.roundToInt(), motion.bounce.y.roundToInt()) }
+                .onSizeChanged { motion.unit = it }
                 .graphicsLayer {
                     // The pop grows out of the corner just hit, which the mark is now heading
                     // away from, so it stays on screen.
+                    val bounce = motion.bounce
                     transformOrigin = TransformOrigin(if (bounce.right) 0f else 1f, if (bounce.down) 0f else 1f)
-                    scaleX = pop.value
-                    scaleY = pop.value
+                    scaleX = motion.pop.value
+                    scaleY = motion.pop.value
                 },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -300,47 +259,141 @@ internal fun BreakScreen(
                 modifier = Modifier.size(logoSize),
             )
             val left = remainingMs?.invoke()
-            Text(
+            BreakLines(
                 if (left != null) stringResource(Res.string.break_screen_back_in, formatPlayTime(left)) else label,
-                style = MaterialTheme.typography.titleMedium,
-                color = SofaMauve,
-                modifier = Modifier.padding(top = 4.dp),
+                breakLine(motion.corner, left, quip),
+                upNext,
+                dodgedMinutes,
+                lineWidth = logoSize * 2.5f,
             )
-            val cornerNumber = corner
+        }
+    }
+}
+
+/**
+ * The minutes of ads dodged today: [dodgedBeforeMs] before this break plus the time [motion] has been drawn, which
+ * [onCover] gets when the break screen goes.
+ */
+@Composable
+private fun rememberDodgedMinutes(motion: BreakMotion, dodgedBeforeMs: Long, onCover: (Long) -> Unit): Long {
+    val dodgedBefore = remember { dodgedBeforeMs }
+    val dodgedMinutes by remember {
+        derivedStateOf { (dodgedBefore.milliseconds + motion.coveredNanos.nanoseconds).inWholeMinutes }
+    }
+    val currentOnCover by rememberUpdatedState(onCover)
+    DisposableEffect(Unit) { onDispose { currentOnCover(motion.coveredNanos.nanoseconds.inWholeMilliseconds) } }
+    return dodgedMinutes
+}
+
+/**
+ * The mark's drift: where it is and which way it heads ([bounce]), its size once laid out ([unit]), its [tint], its
+ * [pop] on a corner, the [corner] just hit while its line shows, and how long it has been drawn ([coveredNanos]).
+ */
+@Stable
+private class BreakMotion(start: Bounce) {
+    var bounce by mutableStateOf(start)
+    var unit by mutableStateOf(IntSize.Zero)
+    var tint by mutableIntStateOf(0)
+        private set
+    val pop = Animatable(1f)
+    var corner by mutableStateOf<Int?>(null)
+        private set
+    var coveredNanos by mutableLongStateOf(0L)
+        private set
+
+    /** Takes the corner's line down once it has shown a while. */
+    suspend fun endCornerLine() {
+        if (corner == null) return
+        delay(CORNER_LINE_MS)
+        corner = null
+    }
+
+    /** Moves the mark around [area] at [speedPxPerSecond], one step a frame, until canceled. */
+    suspend fun drift(area: IntSize, speedPxPerSecond: Float, cornerSlop: Float): Unit = coroutineScope {
+        val roomX = (area.width - unit.width).toFloat()
+        val roomY = (area.height - unit.height).toFloat()
+        bounce =
+            bounce.copy(
+                x = bounce.x.coerceIn(0f, roomX.coerceAtLeast(0f)),
+                y = bounce.y.coerceIn(0f, roomY.coerceAtLeast(0f)),
+            )
+        var last = 0L
+        while (true) {
+            val hit = withFrameNanos { now ->
+                val gap = if (last == 0L) 0L else now - last
+                last = now
+                // A long gap (the app in the background) moves the mark no more than one frame's worth, and does
+                // not count as covered.
+                if (gap < MAX_COVERED_GAP_NANOS) coveredNanos += gap
+                val seconds = gap.nanoseconds.toDouble(DurationUnit.SECONDS).toFloat()
+                    .coerceAtMost(MAX_FRAME_SECONDS)
+                val (next, hit) = bounce.step(speedPxPerSecond * seconds, roomX, roomY, cornerSlop)
+                bounce = next
+                hit
+            }
+            if (hit != BounceHit.NONE) tint = bounce.tint
+            if (hit == BounceHit.CORNER) {
+                launch {
+                    pop.snapTo(CORNER_POP)
+                    pop.animateTo(1f, tween(CORNER_POP_MS))
+                }
+                corner = ++BreakTally.corners
+            }
+        }
+    }
+}
+
+/** The line under the countdown: a corner's cheer while it shows, else almost back, else the break's [quip]. */
+@Composable
+private fun breakLine(corner: Int?, leftMs: Long?, quip: Int): String = when {
+    corner == 1 -> stringResource(Res.string.break_corner_first)
+    corner != null -> stringResource(Res.string.break_corner_again, corner)
+    leftMs == null -> stringResource(Res.string.break_quip_unknown)
+    leftMs <= ALMOST_BACK_MS -> stringResource(Res.string.break_quip_almost)
+    else -> stringResource(BREAK_QUIPS[quip])
+}
+
+/**
+ * The countdown, the [line] under it, then fainter, what is on next and the ads dodged today, each at most [lineWidth]
+ * wide.
+ */
+@Composable
+private fun BreakLines(countdown: String, line: String, upNext: String?, dodgedMinutes: Long, lineWidth: Dp) {
+    val width = Modifier.widthIn(max = lineWidth)
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            countdown,
+            style = MaterialTheme.typography.titleMedium,
+            color = SofaMauve,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Text(
+            line,
+            style = MaterialTheme.typography.bodyLarge,
+            color = SofaMauve,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            modifier = width,
+        )
+        val faint = SofaMauve.copy(alpha = 0.7f)
+        if (upNext != null) {
             Text(
-                when {
-                    cornerNumber == 1 -> stringResource(Res.string.break_corner_first)
-                    cornerNumber != null -> stringResource(Res.string.break_corner_again, cornerNumber)
-                    left == null -> stringResource(Res.string.break_quip_unknown)
-                    left <= ALMOST_BACK_MS -> stringResource(Res.string.break_quip_almost)
-                    else -> stringResource(BREAK_QUIPS[quip])
-                },
-                style = MaterialTheme.typography.bodyLarge,
-                color = SofaMauve,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                modifier = lineWidth,
+                upNext,
+                style = MaterialTheme.typography.bodySmall,
+                color = faint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = width,
             )
-            val faint = SofaMauve.copy(alpha = 0.7f)
-            if (upNext != null) {
-                Text(
-                    upNext,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = faint,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = lineWidth,
-                )
-            }
-            if (dodgedMinutes > 0) {
-                Text(
-                    stringResource(Res.string.break_ads_dodged, dodgedMinutes.minutes.hoursAndMinutes()),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = faint,
-                    maxLines = 1,
-                    modifier = lineWidth,
-                )
-            }
+        }
+        if (dodgedMinutes > 0) {
+            Text(
+                stringResource(Res.string.break_ads_dodged, dodgedMinutes.minutes.hoursAndMinutes()),
+                style = MaterialTheme.typography.bodySmall,
+                color = faint,
+                maxLines = 1,
+                modifier = width,
+            )
         }
     }
 }

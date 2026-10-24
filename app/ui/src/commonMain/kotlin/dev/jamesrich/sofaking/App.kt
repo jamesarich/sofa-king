@@ -325,14 +325,9 @@ private fun SofaKingApp(
     val page by rememberUpdatedState<@Composable (Route) -> Unit> { route ->
         val arrival = if (route == shell.nav.top) shell.nav.arrival else Arrival()
         when (route) {
-            Route.Settings, Route.Channels, Route.StartupChannel -> SettingsDestination(
-                route,
-                arrival,
-                shell,
-                vm,
-                libraryVm,
-                offered,
-            )
+            Route.Settings -> SettingsDestination(arrival, shell, vm, libraryVm, offered)
+
+            Route.Channels, Route.StartupChannel -> ChannelsDestination(route, shell, vm)
 
             is Route.Player -> PlayerDestination(route, shell, vm, player)
 

@@ -16,6 +16,7 @@ import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
 import dev.jamesrich.sofaking.contract.Channel
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.readBuffer
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -39,7 +40,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.channels.Channel as Trigger
 
 class ApiFailure(
-    val status: Int,
+    val status: HttpStatusCode,
     val code: String,
     override val message: String,
     val retryable: Boolean = false,
@@ -328,7 +329,7 @@ class FeedService(
     }
 
     suspend fun updateSource(id: String, update: UpdateSource): SourceStatus {
-        val source = offering(id) ?: throw ApiFailure(404, "SOURCE_NOT_FOUND", "Unknown source")
+        val source = offering(id) ?: throw ApiFailure(HttpStatusCode.NotFound, "SOURCE_NOT_FOUND", "Unknown source")
         store.setManuallyDisabled(id, update.manuallyDisabled)
         val state = checkNotNull(store.allHealth()[id])
         return SourceStatus(

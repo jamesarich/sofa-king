@@ -20,6 +20,7 @@ import dev.jamesrich.sofaking.backend.catalog.validateSources
 import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.library.TmdbConfig
 import dev.jamesrich.sofaking.backend.library.TmdbFailure
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -98,23 +99,32 @@ class SetupService(
      */
     suspend fun replaceSources(document: SourceDocument, starterPolicy: Boolean = false): SetupResult = mutex.withLock {
         if (starterPolicy && !canWriteStarterPolicy) {
-            throw ApiFailure(409, "POLICY_EXISTS", "A lineup policy is already configured at $policyPath")
+            throw ApiFailure(
+                HttpStatusCode.Conflict,
+                "POLICY_EXISTS",
+                "A lineup policy is already configured at $policyPath",
+            )
         }
         if (starterPolicy && document.providers.isEmpty()) {
-            throw ApiFailure(409, "NO_SOURCES", "Add providers to build the starter lineup from")
+            throw ApiFailure(HttpStatusCode.Conflict, "NO_SOURCES", "Add providers to build the starter lineup from")
         }
         try {
             validateSources(document, environment)
         } catch (e: kotlinx.serialization.SerializationException) {
             // First, as a SerializationException is an IllegalArgumentException; its message runs to many lines.
             throw ApiFailure(
-                400,
+                HttpStatusCode.BadRequest,
                 "INVALID_SOURCES",
                 e.message?.lineSequence()?.firstOrNull() ?: "The source configuration is not valid",
                 cause = e,
             )
         } catch (e: IllegalArgumentException) {
-            throw ApiFailure(400, "INVALID_SOURCES", e.message ?: "The source configuration is not valid", cause = e)
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_SOURCES",
+                e.message ?: "The source configuration is not valid",
+                cause = e,
+            )
         }
         withContext(Dispatchers.IO) {
             Files.createDirectories(sourcesPath.toAbsolutePath().parent)
@@ -133,13 +143,19 @@ class SetupService(
     suspend fun writeStarterPolicy(): SetupResult = mutex.withLock {
         if (!canWriteStarterPolicy) {
             throw ApiFailure(
-                409,
+                HttpStatusCode.Conflict,
                 "POLICY_EXISTS",
                 "A lineup policy is already configured at $policyPath",
             )
         }
         val providers = document().providers
-        if (providers.isEmpty()) throw ApiFailure(409, "NO_SOURCES", "Add providers to the source file first")
+        if (providers.isEmpty()) {
+            throw ApiFailure(
+                HttpStatusCode.Conflict,
+                "NO_SOURCES",
+                "Add providers to the source file first",
+            )
+        }
         writeStarter(providers)
         requestRestart()
         SetupResult(policyPath.toString(), true)
@@ -154,7 +170,7 @@ class SetupService(
     suspend fun saveTmdbToken(token: String): SetupResult = mutex.withLock {
         if (tmdbFromEnvironment) {
             throw ApiFailure(
-                409,
+                HttpStatusCode.Conflict,
                 "TMDB_FROM_ENVIRONMENT",
                 "SOFA_TMDB_TOKEN is set in the environment; change it there",
             )
@@ -162,7 +178,7 @@ class SetupService(
         val trimmed = token.trim()
         if (trimmed.length < 32 || trimmed.any { it <= ' ' || it == '\u007f' }) {
             throw ApiFailure(
-                400,
+                HttpStatusCode.BadRequest,
                 "INVALID_REQUEST",
                 "A TMDB API read access token or API key has at least 32 characters and no spaces",
             )
@@ -171,14 +187,24 @@ class SetupService(
             checkTmdb(TmdbConfig(trimmed, tmdbLanguage))
         } catch (e: TmdbFailure) {
             if (e.code == "TMDB_AUTH") {
-                throw ApiFailure(400, "TMDB_REJECTED", "TMDB did not accept the token", cause = e)
+                throw ApiFailure(HttpStatusCode.BadRequest, "TMDB_REJECTED", "TMDB did not accept the token", cause = e)
             }
-            throw ApiFailure(502, "TMDB_UNREACHABLE", "TMDB could not be asked (${e.code}); try again", cause = e)
+            throw ApiFailure(
+                HttpStatusCode.BadGateway,
+                "TMDB_UNREACHABLE",
+                "TMDB could not be asked (${e.code}); try again",
+                cause = e,
+            )
         }
         try {
             withContext(Dispatchers.IO) { SecretsFile(secretsPath).store(SecretsFile.TMDB_TOKEN, trimmed) }
         } catch (e: IllegalArgumentException) {
-            throw ApiFailure(500, "SECRETS_UNWRITABLE", e.message ?: "$secretsPath cannot be written", cause = e)
+            throw ApiFailure(
+                HttpStatusCode.InternalServerError,
+                "SECRETS_UNWRITABLE",
+                e.message ?: "$secretsPath cannot be written",
+                cause = e,
+            )
         }
         log.info("setup: saved the TMDB token in {}", secretsPath)
         requestRestart()

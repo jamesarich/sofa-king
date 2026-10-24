@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.io.atomicWrite
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -45,7 +46,7 @@ class PolicyFile(initial: LoadedPolicy, private val providerIds: Set<String>, pr
     suspend fun edit(ifMatch: String?, edit: (JsonObject) -> JsonObject): LoadedPolicy = write(ifMatch) { current ->
         val tree =
             Json.parseToJsonElement(current.toString(Charsets.UTF_8)) as? JsonObject
-                ?: throw ApiFailure(409, "POLICY_CHANGED", "The policy file is not a JSON object")
+                ?: throw ApiFailure(HttpStatusCode.Conflict, "POLICY_CHANGED", "The policy file is not a JSON object")
         policyBytes(edit(tree))
     }
 
@@ -56,22 +57,30 @@ class PolicyFile(initial: LoadedPolicy, private val providerIds: Set<String>, pr
             if (policyRevision(onDisk) != held.revision) {
                 reload()
                 throw ApiFailure(
-                    409,
+                    HttpStatusCode.Conflict,
                     "POLICY_CHANGED",
                     "The policy file changed on disk; it was reloaded, read it again and retry",
                 )
             }
             if (ifMatch != null && ifMatch != held.revision) {
-                throw ApiFailure(409, "POLICY_CHANGED", "The policy revision is ${held.revision}, not $ifMatch")
+                throw ApiFailure(
+                    HttpStatusCode.Conflict,
+                    "POLICY_CHANGED",
+                    "The policy revision is ${held.revision}, not $ifMatch",
+                )
             }
             val next = produce(onDisk)
-            if (next.size > POLICY_LIMIT) throw ApiFailure(413, "REQUEST_TOO_LARGE", "The policy exceeds 4 MiB")
+            if (next.size >
+                POLICY_LIMIT
+            ) {
+                throw ApiFailure(HttpStatusCode.PayloadTooLarge, "REQUEST_TOO_LARGE", "The policy exceeds 4 MiB")
+            }
             val policy = try {
                 parsePolicy(next)
             } catch (e: IllegalArgumentException) {
                 // A SerializationException is one: JSON that does not parse, or does not fit the schema.
                 throw ApiFailure(
-                    400,
+                    HttpStatusCode.BadRequest,
                     "INVALID_POLICY",
                     "The policy is not valid JSON for this schema: " +
                         "${e.message?.lineSequence()?.firstOrNull().orEmpty()}",
@@ -79,7 +88,13 @@ class PolicyFile(initial: LoadedPolicy, private val providerIds: Set<String>, pr
                 )
             }
             val errors = validatePolicy(policy, providerIds)
-            if (errors.isNotEmpty()) throw ApiFailure(400, "INVALID_POLICY", errors.joinToString("; "))
+            if (errors.isNotEmpty()) {
+                throw ApiFailure(
+                    HttpStatusCode.BadRequest,
+                    "INVALID_POLICY",
+                    errors.joinToString("; "),
+                )
+            }
             atomicWrite(path, next)
             LoadedPolicy(path, policy, policyRevision(next)).also { loaded.set(it) }
         }

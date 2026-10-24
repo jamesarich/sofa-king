@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.PolicyService
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receive
 import io.ktor.server.response.header
@@ -25,8 +26,12 @@ internal fun ApplicationCall.ifMatch(): String? =
  * log and one station's candidates.
  */
 fun Route.policyRoutes(policy: PolicyService?) {
-    fun loaded(): PolicyService =
-        policy ?: throw ApiFailure(404, "POLICY_NOT_CONFIGURED", "No lineup policy is configured; set SOFA_POLICY")
+    fun loaded(): PolicyService = policy
+        ?: throw ApiFailure(
+            HttpStatusCode.NotFound,
+            "POLICY_NOT_CONFIGURED",
+            "No lineup policy is configured; set SOFA_POLICY",
+        )
     get("/policy") {
         val document = loaded().document()
         call.response.header(HttpHeaders.ETag, "\"${document.revision}\"")
@@ -37,7 +42,7 @@ fun Route.policyRoutes(policy: PolicyService?) {
         val revision =
             call.ifMatch()
                 ?: throw ApiFailure(
-                    428,
+                    HttpStatusCode.PreconditionRequired,
                     "PRECONDITION_REQUIRED",
                     "Send If-Match with the policy revision from GET /api/v1/admin/policy",
                 )

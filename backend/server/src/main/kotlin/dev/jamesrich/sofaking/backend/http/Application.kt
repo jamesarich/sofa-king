@@ -211,7 +211,7 @@ fun Application.backendModule(
                 is CancellationException -> throw cause
 
                 is ApiFailure -> call.respond(
-                    HttpStatusCode.fromValue(cause.status),
+                    cause.status,
                     ApiError(cause.code, cause.message, cause.retryable),
                 )
 
@@ -356,7 +356,7 @@ fun Application.backendModule(
                 val ahead =
                     call.request.queryParameters["aheadMs"]?.let {
                         it.toLongOrNull()
-                            ?: throw ApiFailure(400, "INVALID_REQUEST", "Invalid aheadMs")
+                            ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Invalid aheadMs")
                     }
                         ?: 0L
                 call.respond(runtime.sessions.adBreak(call.parameters["id"]!!, ahead))
@@ -368,7 +368,7 @@ fun Application.backendModule(
             get("/media/sessions/{id}/{epoch}/{token}") {
                 val epoch =
                     call.parameters["epoch"]?.toIntOrNull()
-                        ?: throw ApiFailure(400, "INVALID_REQUEST", "Invalid stream epoch")
+                        ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Invalid stream epoch")
                 runtime.relay.serve(call, call.parameters["id"]!!, epoch, call.parameters["token"]!!)
             }
             outputRoutes(runtime, clock, outputs, apiToken)

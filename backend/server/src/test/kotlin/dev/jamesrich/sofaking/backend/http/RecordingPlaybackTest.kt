@@ -151,10 +151,10 @@ class RecordingPlaybackTest {
             assertEquals(3_600_000, live.durationMs, "the length the recording will have")
             assertEquals("live", live.recordingId)
             val failure = assertFailsWith<ApiFailure> { vod.open(OpenVodPlayback(profile = tv, recordingId = "empty")) }
-            assertEquals(409, failure.status)
+            assertEquals(HttpStatusCode.Conflict, failure.status)
             assertEquals("RECORDING_NOT_READY", failure.code)
             assertEquals(
-                404,
+                HttpStatusCode.NotFound,
                 assertFailsWith<ApiFailure> {
                     vod.open(OpenVodPlayback(profile = tv, recordingId = "nope"))
                 }.status,

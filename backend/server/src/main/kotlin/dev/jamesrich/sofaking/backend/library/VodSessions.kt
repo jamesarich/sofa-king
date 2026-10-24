@@ -10,6 +10,7 @@ import dev.jamesrich.sofaking.contract.PlaybackDescriptor
 import dev.jamesrich.sofaking.contract.UpdateVodPlayback
 import dev.jamesrich.sofaking.contract.VodSession
 import dev.jamesrich.sofaking.contract.Wire
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
@@ -213,14 +214,18 @@ class VodSessions(
     }
 
     suspend fun open(request: OpenVodPlayback): VodSession {
-        if (request.startMs < 0) throw ApiFailure(400, "INVALID_REQUEST", "startMs is not negative")
+        if (request.startMs <
+            0
+        ) {
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "startMs is not negative")
+        }
         request.recordingId?.let { return openRecording(it, request) }
         val (item, file) = itemFile(request.itemId)
         val burn = request.subtitleIndex?.let { index ->
             subtitleSource(item, file, index).also {
                 if (!it.picture) {
                     throw ApiFailure(
-                        400,
+                        HttpStatusCode.BadRequest,
                         "INVALID_REQUEST",
                         "Subtitle stream $index is text; the player draws it",
                     )
@@ -248,7 +253,13 @@ class VodSessions(
     suspend fun subtitles(itemId: String, index: Int): Path {
         val (item, video) = itemFile(itemId)
         val source = subtitleSource(item, video, index)
-        if (source.picture) throw ApiFailure(415, "SUBTITLE_NOT_TEXT", "Subtitle stream $index is pictures, not text")
+        if (source.picture) {
+            throw ApiFailure(
+                HttpStatusCode.UnsupportedMediaType,
+                "SUBTITLE_NOT_TEXT",
+                "Subtitle stream $index is pictures, not text",
+            )
+        }
         val file = source.file ?: video
         val map = if (source.file == null) "0:$index" else "0:s:0"
         val dir = directory.resolve(SUBTITLES)
@@ -271,7 +282,11 @@ class VodSessions(
                                 runs(command, SUBTITLE_TIMEOUT_MINUTES)
                             }
                         ) {
-                            throw ApiFailure(502, "SUBTITLE_FAILED", "The subtitles could not be read from the file")
+                            throw ApiFailure(
+                                HttpStatusCode.BadGateway,
+                                "SUBTITLE_FAILED",
+                                "The subtitles could not be read from the file",
+                            )
                         }
                         Files.move(
                             partial,
@@ -302,13 +317,13 @@ class VodSessions(
     /** The library item [itemId] and its file, which must be a movie, episode or video inside its library's folder. */
     private suspend fun itemFile(itemId: String): Pair<View, Path> {
         val snapshot = catalog.snapshot()
-        val view = snapshot.views[itemId] ?: throw ApiFailure(404, "ITEM_NOT_FOUND", "No such item")
+        val view = snapshot.views[itemId] ?: throw ApiFailure(HttpStatusCode.NotFound, "ITEM_NOT_FOUND", "No such item")
         if (view.record.path == null || view.record.kind == ItemKind.SHOW || view.record.kind == ItemKind.SEASON) {
-            throw ApiFailure(400, "INVALID_REQUEST", "Only a movie, episode or video plays")
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Only a movie, episode or video plays")
         }
         val file = snapshot.fileOf(view)
         if (file == null || withContext(Dispatchers.IO) { !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }) {
-            throw ApiFailure(404, "ITEM_MISSING", "The file is not there; is its disk mounted?")
+            throw ApiFailure(HttpStatusCode.NotFound, "ITEM_MISSING", "The file is not there; is its disk mounted?")
         }
         return view to file
     }
@@ -323,27 +338,35 @@ class VodSessions(
         } else {
             item.record.media?.subtitles?.firstOrNull { it.index == index }?.let { return SubtitleSource(it, null) }
         }
-        throw ApiFailure(404, "RESOURCE_NOT_FOUND", "No subtitle stream $index")
+        throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "No subtitle stream $index")
     }
 
     /** Plays a recording; one still recording is never played directly, as its stream has to follow the file. */
     private suspend fun openRecording(id: String, request: OpenVodPlayback): VodSession {
         if (request.subtitleIndex != null) {
-            throw ApiFailure(400, "INVALID_REQUEST", "A recording has no subtitle tracks to draw")
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "A recording has no subtitle tracks to draw")
         }
         val playable =
             recordings?.invoke(id)
-                ?: throw ApiFailure(404, "RECORDING_NOT_FOUND", "No such recording, or nothing recorded yet")
+                ?: throw ApiFailure(
+                    HttpStatusCode.NotFound,
+                    "RECORDING_NOT_FOUND",
+                    "No such recording, or nothing recorded yet",
+                )
         val size =
             withContext(Dispatchers.IO) {
                 if (Files.isRegularFile(playable.file, LinkOption.NOFOLLOW_LINKS)) Files.size(playable.file) else -1L
             }
         if (size < 0) {
-            throw ApiFailure(404, "RECORDING_MISSING", "The recording's file is not there; is its disk mounted?")
+            throw ApiFailure(
+                HttpStatusCode.NotFound,
+                "RECORDING_MISSING",
+                "The recording's file is not there; is its disk mounted?",
+            )
         }
         if (size == 0L) {
             throw ApiFailure(
-                409,
+                HttpStatusCode.Conflict,
                 "RECORDING_NOT_READY",
                 "Nothing has been recorded yet; try again in a few seconds",
                 true,
@@ -365,7 +388,7 @@ class VodSessions(
     ): VodSession {
         val audio = request.audioIndex?.let { index ->
             media?.audio?.firstOrNull { it.index == index }
-                ?: throw ApiFailure(400, "INVALID_REQUEST", "No audio stream $index")
+                ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "No audio stream $index")
         }
         // Drawing subtitles into the picture means encoding it.
         val mode = if (burn != null) {
@@ -384,7 +407,7 @@ class VodSessions(
                 } >= maxConverting
             ) {
                 throw ApiFailure(
-                    503,
+                    HttpStatusCode.ServiceUnavailable,
                     Wire.ErrorCode.CAPACITY_EXHAUSTED,
                     "Too many files are being converted; try again when one stops",
                     true,
@@ -423,7 +446,11 @@ class VodSessions(
     /** Renews [id]'s lease; with a start, restarts a converted stream there under a new epoch. */
     suspend fun update(id: String, update: UpdateVodPlayback): VodSession {
         val start = update.startMs
-        if (start != null && start < 0) throw ApiFailure(400, "INVALID_REQUEST", "startMs is not negative")
+        if (start != null &&
+            start < 0
+        ) {
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "startMs is not negative")
+        }
         // A recording may have finished and moved since the stream started, so a restart finds its file again.
         val recordingId = locked { live(id).recordingId }
         val playable = if (start != null && recordingId != null) recordings?.invoke(recordingId) else null
@@ -532,7 +559,8 @@ class VodSessions(
 
     private fun live(id: String): VodState {
         reap()
-        return sessions[id] ?: throw ApiFailure(410, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
+        return sessions[id]
+            ?: throw ApiFailure(HttpStatusCode.Gone, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
     }
 
     private fun reap() {
@@ -563,7 +591,12 @@ class VodSessions(
             ProcessBuilder(command).redirectErrorStream(true).redirectOutput(dir.resolve("ffmpeg.log").toFile()).start()
         } catch (e: IOException) {
             log.warn("vod ffmpeg did not start class={}", e.javaClass.simpleName)
-            throw ApiFailure(503, "TRANSCODER_UNAVAILABLE", "FFmpeg could not start", true)
+            throw ApiFailure(
+                HttpStatusCode.ServiceUnavailable,
+                "TRANSCODER_UNAVAILABLE",
+                "FFmpeg could not start",
+                true,
+            )
         }
         log.info(
             "vod session started session={} mode={} startMs={}",

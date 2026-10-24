@@ -236,7 +236,7 @@ class AdminPortal(
                 val key = form["key"]?.trim().orEmpty().take(64)
                 val fingerprint = form["fingerprint"]?.trim().orEmpty().take(64)
                 if (key.isEmpty() || fingerprint.isEmpty()) {
-                    throw ApiFailure(400, "INVALID_REQUEST", "key and fingerprint are required")
+                    throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "key and fingerprint are required")
                 }
                 runtime.store.ignoreAttention(key, fingerprint, clock.instant())
                 session.flash.set(Flash("Ignored until it changes."))
@@ -249,7 +249,8 @@ class AdminPortal(
             }
             rateLimit(ADMIN_LOGIN_LIMIT) {
                 post("/login") {
-                    val expected = secret ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Resource not found")
+                    val expected =
+                        secret ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Resource not found")
                     val presented = call.formOrEmpty()["token"]
                     if (!sameSecret(presented, expected)) {
                         call.authFailed()
@@ -300,7 +301,11 @@ class AdminPortal(
             action("/lineup/{id}/visibility") { session, form ->
                 val enabled =
                     form["enabled"]?.toBooleanStrictOrNull()
-                        ?: throw ApiFailure(400, "INVALID_REQUEST", "enabled must be true or false")
+                        ?: throw ApiFailure(
+                            HttpStatusCode.BadRequest,
+                            "INVALID_REQUEST",
+                            "enabled must be true or false",
+                        )
                 changeEntry(call, session, form, call.parameters["id"]!!, if (enabled) "Showing" else "Hid") {
                     UpdateLineupEntry(enabled = enabled)
                 }
@@ -324,7 +329,11 @@ class AdminPortal(
                 val filter = LineupFilter.from(form)
                 val disabled =
                     form["disabled"]?.toBooleanStrictOrNull()
-                        ?: throw ApiFailure(400, "INVALID_REQUEST", "disabled must be true or false")
+                        ?: throw ApiFailure(
+                            HttpStatusCode.BadRequest,
+                            "INVALID_REQUEST",
+                            "disabled must be true or false",
+                        )
                 val back = "/admin/lineup/$id" + filter.query().let { if (it.isEmpty()) "" else "?$it" }
                 val view =
                     stationView(id, filter)
@@ -581,10 +590,14 @@ class AdminPortal(
                             form["start"].orEmpty(),
                         ).atZone(java.time.ZoneId.systemDefault()).toInstant()
                     } catch (_: java.time.format.DateTimeParseException) {
-                        throw ApiFailure(400, "INVALID_REQUEST", "Pick a start date and time")
+                        throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Pick a start date and time")
                     }
                     val minutes = formInt(form, "minutes", "Minutes")
-                    if (minutes !in 1..720) throw ApiFailure(400, "INVALID_REQUEST", "Minutes must be 1 to 720")
+                    if (minutes !in
+                        1..720
+                    ) {
+                        throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Minutes must be 1 to 720")
+                    }
                     val recording = dvr.schedule(
                         ScheduleRecording(
                             form["channelId"].orEmpty(),
@@ -685,7 +698,15 @@ class AdminPortal(
                 val proposed = listOf("name", "kind", "path").associateWith { form[it].orEmpty() }
                 val kind = LibraryKind.of(proposed.getValue("kind"))
                 try {
-                    if (kind == null) throw ApiFailure(400, "INVALID_REQUEST", "Choose what the library holds")
+                    if (kind ==
+                        null
+                    ) {
+                        throw ApiFailure(
+                            HttpStatusCode.BadRequest,
+                            "INVALID_REQUEST",
+                            "Choose what the library holds",
+                        )
+                    }
                     val library = service.create(proposed.getValue("name"), kind, proposed.getValue("path"))
                     session.flash.set(Flash("Added ${library.name}; its first scan is running.", Tone.OK, library.id))
                     seeOther(call, "/admin/library#library-${library.id}")
@@ -713,7 +734,7 @@ class AdminPortal(
                 } catch (e: ApiFailure) {
                     call.html(
                         libraryPage(chrome(call, session), libraryView(tmdbError = e.message)),
-                        HttpStatusCode.fromValue(e.status),
+                        e.status,
                     )
                 }
             }
@@ -802,7 +823,9 @@ class AdminPortal(
             get("/system/events") { call.html(eventsPage(chrome(), eventsView(call.request.queryParameters))) }
             get("/system/about") { call.html(aboutPage(chrome(), aboutView())) }
             action("/system/update/check") { session, _ ->
-                val updates = runtime.updates ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Resource not found")
+                val updates =
+                    runtime.updates
+                        ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Resource not found")
                 val state = updates.check()
                 session.flash.set(
                     when {
@@ -815,7 +838,9 @@ class AdminPortal(
                 seeOther(call, "/admin/system/about#update")
             }
             action("/system/update/request") { session, form ->
-                val updates = runtime.updates ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Resource not found")
+                val updates =
+                    runtime.updates
+                        ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Resource not found")
                 val state = updates.state()
                 when {
                     state.updater == null -> session.flash.set(
@@ -981,7 +1006,7 @@ class AdminPortal(
     private suspend fun RoutingContext.chrome(flash: Flash? = null): Chrome = chrome(call, call.session(), flash)
 
     private fun libraries(): LibraryService =
-        runtime.libraries ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Resource not found")
+        runtime.libraries ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Resource not found")
 
     private suspend fun libraryView(
         errors: List<String> = emptyList(),
@@ -1134,7 +1159,11 @@ class AdminPortal(
         val failure = try {
             val entry =
                 runtime.lineup.entry(id)
-                    ?: throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "That station is no longer in the lineup")
+                    ?: throw ApiFailure(
+                        HttpStatusCode.NotFound,
+                        "LINEUP_ENTRY_NOT_FOUND",
+                        "That station is no longer in the lineup",
+                    )
             name = entry.name
             val update = request(entry)
             val policy = runtime.policy
@@ -1143,7 +1172,11 @@ class AdminPortal(
                     runtime.lineup.update(id, update)
                 } else {
                     policy.updateStation(id, update, null)
-                        ?: throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "The station left the lineup")
+                        ?: throw ApiFailure(
+                            HttpStatusCode.NotFound,
+                            "LINEUP_ENTRY_NOT_FOUND",
+                            "The station left the lineup",
+                        )
                 }
             }
             null
@@ -1158,7 +1191,7 @@ class AdminPortal(
             seeOther(call, if (form["from"] == "station") "/admin/lineup/$id$query" else "/admin/lineup$query")
             return
         }
-        val status = HttpStatusCode.fromValue(failure.status)
+        val status = failure.status
         val station = if (fromStation) stationView(id, filter, failure.message) else null
         if (station != null) {
             call.html(stationPage(chrome(call, session), station), status)
@@ -1180,11 +1213,17 @@ class AdminPortal(
         verb: String,
         write: suspend (dev.jamesrich.sofaking.backend.catalog.PolicyService, String, String, String?) -> Unit,
     ) {
-        val policy = runtime.policy ?: throw ApiFailure(404, "POLICY_NOT_CONFIGURED", "No lineup policy is configured")
+        val policy =
+            runtime.policy
+                ?: throw ApiFailure(HttpStatusCode.NotFound, "POLICY_NOT_CONFIGURED", "No lineup policy is configured")
         val from = form["from"]?.trim().orEmpty()
         val to = form["to"]?.trim().orEmpty()
         val failure = try {
-            if (from.isEmpty() || to.isEmpty()) throw ApiFailure(400, "INVALID_REQUEST", "Both keys are required")
+            if (from.isEmpty() ||
+                to.isEmpty()
+            ) {
+                throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Both keys are required")
+            }
             write(policy, from, to, null)
             null
         } catch (e: ApiFailure) {
@@ -1200,7 +1239,7 @@ class AdminPortal(
                     mergesView(),
                     failure.message,
                 ),
-                HttpStatusCode.fromValue(failure.status),
+                failure.status,
             )
         }
     }
@@ -1243,7 +1282,11 @@ class AdminPortal(
             val edit = parse(parsePolicy(bytes))
             val tree =
                 Json.parseToJsonElement(bytes.decodeToString()) as? JsonObject
-                    ?: throw ApiFailure(409, "POLICY_CHANGED", "The policy file is not a JSON object")
+                    ?: throw ApiFailure(
+                        HttpStatusCode.Conflict,
+                        "POLICY_CHANGED",
+                        "The policy file is not a JSON object",
+                    )
             edit to policyBytes(edit.change(tree))
         } catch (e: ApiFailure) {
             refuse(listOf(e.message))
@@ -1296,7 +1339,7 @@ class AdminPortal(
         val result = try {
             policy.replace(current, next).apply
         } catch (e: ApiFailure) {
-            if (e.status == 409) {
+            if (e.status == HttpStatusCode.Conflict) {
                 refuse(
                     listOf(
                         "The policy changed while saving; nothing was saved. Reload the page and repeat the edit.",
@@ -1912,7 +1955,7 @@ class AdminPortal(
             val policy = result.policyPath?.let { " and the starter lineup to $it" }.orEmpty()
             call.html(restartingPage(theme(call), "Saved $what to ${result.path}$policy."))
         } catch (e: ApiFailure) {
-            refuse(e.message, HttpStatusCode.fromValue(e.status))
+            refuse(e.message, e.status)
         }
     }
 
@@ -2011,8 +2054,8 @@ class AdminPortal(
         )
     }
 
-    private fun ApplicationCall.session(): AdminSession =
-        attributes.getOrNull(SESSION) ?: throw ApiFailure(401, "AUTH_REQUIRED", "Sign in required")
+    private fun ApplicationCall.session(): AdminSession = attributes.getOrNull(SESSION)
+        ?: throw ApiFailure(HttpStatusCode.Unauthorized, "AUTH_REQUIRED", "Sign in required")
 }
 
 private val SUGGESTION = Regex("(.+): possible alias of (.+)")

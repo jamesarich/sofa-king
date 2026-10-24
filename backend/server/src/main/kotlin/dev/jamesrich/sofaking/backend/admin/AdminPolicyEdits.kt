@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.api.LineupPolicy
 import dev.jamesrich.sofaking.backend.api.PolicyStation
 import dev.jamesrich.sofaking.backend.api.PolicyUnmappedCategory
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.Parameters
 import kotlinx.html.A
 import kotlinx.html.ButtonType
@@ -64,7 +65,7 @@ import kotlinx.serialization.json.put
  */
 internal class PolicyEdit(val describe: String, val section: String, val change: (JsonObject) -> JsonObject)
 
-private fun bad(message: String): Nothing = throw ApiFailure(400, "INVALID_REQUEST", message)
+private fun bad(message: String): Nothing = throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", message)
 
 private fun Parameters.text(name: String, what: String = name): String =
     this[name]?.trim()?.takeIf { it.isNotEmpty() } ?: bad("$what is required")

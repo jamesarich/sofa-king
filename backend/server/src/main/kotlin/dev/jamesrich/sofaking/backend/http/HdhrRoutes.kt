@@ -184,7 +184,7 @@ fun Route.hdhrRoutes(
         val number = call.parameters["number"]!!
         val entry =
             runtime.lineup.entries().firstOrNull { it.enabled && it.number == number }
-                ?: throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel number")
+                ?: throw ApiFailure(HttpStatusCode.NotFound, "CHANNEL_NOT_FOUND", "Unknown channel number")
         val tuners = tuners[device(call)]
         if (tuners.incrementAndGet() > runtime.settings.current.hdhrTuners) {
             tuners.decrementAndGet()
@@ -200,7 +200,13 @@ fun Route.hdhrRoutes(
                 val stream = try {
                     runtime.feeds.playable(offering)
                 } catch (e: ProviderFailure) {
-                    throw ApiFailure(503, "SOURCE_UNAVAILABLE", "Source could not be resolved", true, e)
+                    throw ApiFailure(
+                        HttpStatusCode.ServiceUnavailable,
+                        "SOURCE_UNAVAILABLE",
+                        "Source could not be resolved",
+                        true,
+                        e,
+                    )
                 }
                 runtime.feeds.upstream.check(URI(stream.url))
                 val bytes = runtime.sessions.bytesOf(session.id)
@@ -209,7 +215,13 @@ fun Route.hdhrRoutes(
             }
         } catch (e: ApiFailure) {
             // Plex understands a tuner that is busy; a session slot or a source that is gone looks the same to it.
-            if (e.status == 429 || e.status == 503) tunersBusy(call) else throw e
+            if (e.status == HttpStatusCode.TooManyRequests ||
+                e.status == HttpStatusCode.ServiceUnavailable
+            ) {
+                tunersBusy(call)
+            } else {
+                throw e
+            }
         } finally {
             tuners.decrementAndGet()
         }

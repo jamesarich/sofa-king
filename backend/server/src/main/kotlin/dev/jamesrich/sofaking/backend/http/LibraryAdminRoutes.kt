@@ -20,7 +20,11 @@ import io.ktor.server.routing.post
 /** The media libraries under the admin route: list, add, rename, remove and scan. */
 internal fun Route.libraryAdminRoutes(libraries: LibraryService?) {
     fun loaded(): LibraryService = libraries
-        ?: throw ApiFailure(404, "LIBRARIES_NOT_AVAILABLE", "Media libraries are not available on this server")
+        ?: throw ApiFailure(
+            HttpStatusCode.NotFound,
+            "LIBRARIES_NOT_AVAILABLE",
+            "Media libraries are not available on this server",
+        )
     get("/libraries") {
         val service = loaded()
         val counts = service.counts()
@@ -40,7 +44,8 @@ internal fun Route.libraryAdminRoutes(libraries: LibraryService?) {
     post("/libraries") {
         val request = call.body<CreateLibrary>()
         val kind =
-            LibraryKind.of(request.kind) ?: throw ApiFailure(400, "INVALID_REQUEST", "kind is movies, shows or videos")
+            LibraryKind.of(request.kind)
+                ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "kind is movies, shows or videos")
         call.respond(HttpStatusCode.Created, loaded().create(request.name, kind, request.path).info(emptyMap()))
     }
     get("/libraries/{id}") {

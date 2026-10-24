@@ -87,7 +87,11 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
         get("/guides") { call.respond(runtime.guides.statuses()) }
         get("/guides/{id}/channels") {
             val id = call.parameters["id"]!!
-            if (runtime.guides.config(id) == null) throw ApiFailure(404, "GUIDE_NOT_FOUND", "Unknown guide")
+            if (runtime.guides.config(id) ==
+                null
+            ) {
+                throw ApiFailure(HttpStatusCode.NotFound, "GUIDE_NOT_FOUND", "Unknown guide")
+            }
             val limit = (call.request.queryParameters["limit"]?.toIntOrNull() ?: 100).coerceIn(1, 1000)
             call.respond(runtime.guides.searchChannels(id, call.request.queryParameters["q"], limit))
         }
@@ -122,7 +126,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
         get("/lineup/{id}") {
             val entry =
                 runtime.lineup.entry(call.parameters["id"]!!)
-                    ?: throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+                    ?: throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
             call.respond(entryInfo(entry))
         }
         patch("/lineup/{id}") {
@@ -134,7 +138,11 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
                 call.respond(
                     entryInfo(
                         policy.updateStation(id, request, call.ifMatch())
-                            ?: throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "The station left the lineup"),
+                            ?: throw ApiFailure(
+                                HttpStatusCode.NotFound,
+                                "LINEUP_ENTRY_NOT_FOUND",
+                                "The station left the lineup",
+                            ),
                     ),
                 )
             }
@@ -155,7 +163,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
 
 /** What a route the lineup policy replaces answers while a policy is configured. */
 internal fun policyManaged() = ApiFailure(
-    410,
+    HttpStatusCode.Gone,
     "POLICY_MANAGED",
     "The lineup is built from the lineup policy; change it through /api/v1/admin/policy",
 )

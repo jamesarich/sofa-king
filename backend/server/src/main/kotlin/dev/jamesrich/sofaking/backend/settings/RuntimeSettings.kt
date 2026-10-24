@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.logging.LogSettings
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.runtimeSettings
 import dev.jamesrich.sofaking.backend.store.saveRuntimeSettings
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Clock
@@ -77,7 +78,7 @@ data class RuntimeValues(
                 val raw = overrides[name] ?: return current
                 return raw.trim().toIntOrNull()?.takeIf { it in range }
                     ?: throw ApiFailure(
-                        400,
+                        HttpStatusCode.BadRequest,
                         "INVALID_REQUEST",
                         "$name must be between ${range.first} and ${range.last}",
                     )
@@ -85,7 +86,7 @@ data class RuntimeValues(
             val level = overrides[LOG_LEVEL]?.trim()?.lowercase() ?: environment.logLevel
             if (LOG_LEVEL in overrides && level !in LogSettings.LEVELS) {
                 throw ApiFailure(
-                    400,
+                    HttpStatusCode.BadRequest,
                     "INVALID_REQUEST",
                     "$LOG_LEVEL must be one of ${LogSettings.LEVELS.joinToString()}",
                 )
@@ -93,7 +94,7 @@ data class RuntimeValues(
             val learned = overrides[LEARNED_BREAKS]?.trim()?.lowercase() ?: environment.learnedBreaks
             if (LearnedBreaks.of(learned) == null) {
                 throw ApiFailure(
-                    400,
+                    HttpStatusCode.BadRequest,
                     "INVALID_REQUEST",
                     "$LEARNED_BREAKS must be one of ${LearnedBreaks.entries.joinToString { it.setting }}",
                 )
@@ -104,7 +105,7 @@ data class RuntimeValues(
             // saved value is held to the rule.
             if ((HDHR_TUNERS in overrides || MAX_SESSIONS in overrides) && tuners > sessions) {
                 throw ApiFailure(
-                    400,
+                    HttpStatusCode.BadRequest,
                     "INVALID_REQUEST",
                     "$HDHR_TUNERS must be between 1 and $MAX_SESSIONS ($sessions)",
                 )

@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.admin
 import dev.jamesrich.sofaking.contract.Recording
 import dev.jamesrich.sofaking.contract.RecordingRule
 import dev.jamesrich.sofaking.contract.Wire
+import io.ktor.http.HttpStatusCode
 import kotlinx.html.A
 import kotlinx.html.ButtonType
 import kotlinx.html.FORM
@@ -387,7 +388,7 @@ internal fun formInt(form: io.ktor.http.Parameters, name: String, label: String,
     if (text.isNullOrEmpty() && default != null) return default
     return text?.toIntOrNull()
         ?: throw dev.jamesrich.sofaking.backend.catalog.ApiFailure(
-            400,
+            HttpStatusCode.BadRequest,
             "INVALID_REQUEST",
             "$label must be a whole number",
         )

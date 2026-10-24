@@ -11,6 +11,7 @@ import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.contract.GuideWindow
 import dev.jamesrich.sofaking.contract.Program
 import dev.jamesrich.sofaking.contract.Wire
+import io.ktor.http.HttpStatusCode
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -102,26 +103,30 @@ class CatalogService(
         if (query.channelIds.size !in 1..Wire.GUIDE_MAX_CHANNELS ||
             query.channelIds.distinct().size != query.channelIds.size
         ) {
-            throw ApiFailure(400, "INVALID_QUERY", "Request 1 to 200 distinct channel IDs")
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_QUERY", "Request 1 to 200 distinct channel IDs")
         }
         val from = try {
             Instant.parse(query.from)
         } catch (_: Exception) {
-            throw ApiFailure(400, "INVALID_QUERY", "Invalid from timestamp")
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_QUERY", "Invalid from timestamp")
         }
         val to = try {
             Instant.parse(query.to)
         } catch (_: Exception) {
-            throw ApiFailure(400, "INVALID_QUERY", "Invalid to timestamp")
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_QUERY", "Invalid to timestamp")
         }
         if (to <= from || Duration.between(from, to) > Duration.ofHours(Wire.GUIDE_MAX_HOURS.toLong())) {
-            throw ApiFailure(400, "INVALID_QUERY", "Guide window must be positive and at most 24 hours")
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_QUERY",
+                "Guide window must be positive and at most 24 hours",
+            )
         }
         // A client's catalog can name an entry removed or disabled since; it gets a removed row, not a failed query.
         val requested = query.channelIds.map { id -> id to lineup.entry(id)?.takeIf { it.enabled } }
         val revision = hash("${guides.revision()}:${lineup.revision()}")
         if (query.revision != null && query.revision != revision) {
-            throw ApiFailure(409, Wire.ErrorCode.RESYNC_REQUIRED, "Guide revision changed", true)
+            throw ApiFailure(HttpStatusCode.Conflict, Wire.ErrorCode.RESYNC_REQUIRED, "Guide revision changed", true)
         }
         val entries = requested.mapNotNull { it.second }
         val mapped = entries.mapNotNull { entry -> entry.guide?.let { entry to it } }

@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.openStore
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -242,13 +243,13 @@ class LibraryServiceTest {
         val s = setup()
         val outside = Files.createTempDirectory("sofa-outside-")
         assertEquals(
-            400,
+            HttpStatusCode.BadRequest,
             assertFailsWith<ApiFailure> {
                 s.service.create("Out", LibraryKind.MOVIES, outside.toString())
             }.status,
         )
         assertEquals(
-            400,
+            HttpStatusCode.BadRequest,
             assertFailsWith<ApiFailure> {
                 s.service.create("Up", LibraryKind.MOVIES, s.root.resolve("../").toString())
             }.status,
@@ -256,14 +257,14 @@ class LibraryServiceTest {
         val movies = Files.createDirectories(s.root.resolve("movies"))
         Files.createSymbolicLink(s.root.resolve("escape"), outside)
         assertEquals(
-            400,
+            HttpStatusCode.BadRequest,
             assertFailsWith<ApiFailure> {
                 s.service.create("Link", LibraryKind.MOVIES, s.root.resolve("escape").toString())
             }.status,
         )
         s.service.create("Movies", LibraryKind.MOVIES, movies.toString())
         assertEquals(
-            409,
+            HttpStatusCode.Conflict,
             assertFailsWith<ApiFailure> {
                 s.service.create("Again", LibraryKind.MOVIES, movies.toString())
             }.status,

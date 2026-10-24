@@ -143,7 +143,7 @@ class LoopbackRelay(
                 when {
                     cause is CancellationException -> throw cause
 
-                    cause is ApiFailure -> call.respond(HttpStatusCode.fromValue(cause.status))
+                    cause is ApiFailure -> call.respond(cause.status)
 
                     // A 4xx other than 401, 403 and 429, so a probe counts a source that points at a
                     // refused address against the source.
@@ -177,11 +177,11 @@ class LoopbackRelay(
                     relayResource(http, policy, call, url, lease.stream, path = lease::path, refused = { status ->
                         throw ApiFailure(
                             if (status in
-                                400..599
+                                UPSTREAM_ERRORS
                             ) {
-                                status
+                                HttpStatusCode.fromValue(status)
                             } else {
-                                502
+                                HttpStatusCode.BadGateway
                             },
                             "UPSTREAM_STATUS",
                             "Upstream answered $status",
@@ -210,3 +210,6 @@ class LoopbackRelay(
         val random = SecureRandom()
     }
 }
+
+/** The upstream's own error statuses, passed on as they are; anything else is a bad gateway. */
+private val UPSTREAM_ERRORS = 400..599

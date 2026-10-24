@@ -25,6 +25,7 @@ import dev.jamesrich.sofaking.backend.store.policyChanges
 import dev.jamesrich.sofaking.backend.store.recordPolicyChanges
 import dev.jamesrich.sofaking.backend.store.saveStationAvailability
 import dev.jamesrich.sofaking.backend.store.stationAvailability
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -397,19 +398,27 @@ class PolicyService(
     /** The station key a lineup entry stands for: the station with its ID, else the key its name gives. */
     private suspend fun keyOf(entryId: String): String {
         run().stations.firstOrNull { it.id == entryId }?.let { return it.key }
-        val entry = lineup.entry(entryId) ?: throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+        val entry =
+            lineup.entry(entryId)
+                ?: throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
         return stationKeys(policy.names).key(entry.name)
     }
 
     /** Writes [request] as the override of the entry's station, then applies. */
     suspend fun updateStation(entryId: String, request: UpdateLineupEntry, ifMatch: String?): LineupEntryRecord? {
         if (request.position != null) {
-            throw ApiFailure(400, "INVALID_REQUEST", "position does not apply to a lineup built from the policy")
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                "position does not apply to a lineup built from the policy",
+            )
         }
         val key = keyOf(entryId)
         val pins = request.offerings?.let { ids ->
             ids.map { id ->
-                val offering = feeds.offering(id) ?: throw ApiFailure(404, "SOURCE_NOT_FOUND", "Unknown source $id")
+                val offering =
+                    feeds.offering(id)
+                        ?: throw ApiFailure(HttpStatusCode.NotFound, "SOURCE_NOT_FOUND", "Unknown source $id")
                 val channel = feeds.channel(offering.channelId)
                 SourcePin(offering.providerId, channel?.legacyGuideId, channel?.name)
             }.distinctBy(::pinIdentity)
@@ -458,7 +467,7 @@ class PolicyService(
      */
     suspend fun neverMerge(a: String, b: String, ifMatch: String?): PolicyApplyResult {
         if (a.isBlank() || b.isBlank() || a == b) {
-            throw ApiFailure(400, "INVALID_REQUEST", "names.never takes two different keys")
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "names.never takes two different keys")
         }
         file.edit(ifMatch) { tree ->
             editNames(tree) { names ->
@@ -482,7 +491,11 @@ class PolicyService(
      * that holds only a number goes, as with a learned alias; any other moves to [to], keeping [to]'s number.
      */
     suspend fun addAlias(from: String, to: String, ifMatch: String?): PolicyApplyResult {
-        if (from.isBlank() || to.isBlank()) throw ApiFailure(400, "INVALID_REQUEST", "An alias takes two keys")
+        if (from.isBlank() ||
+            to.isBlank()
+        ) {
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "An alias takes two keys")
+        }
         file.edit(ifMatch) { tree ->
             val stations = (tree["stations"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
             val merged = stations.remove(from) as? JsonObject
@@ -490,7 +503,7 @@ class PolicyService(
                 val kept = stations[to] as? JsonObject
                 if (kept != null && !numberOnlyOverride(kept)) {
                     throw ApiFailure(
-                        409,
+                        HttpStatusCode.Conflict,
                         "STATION_CONFLICT",
                         "\"$from\" and \"$to\" both have station settings; combine them under \"$to\" first",
                     )

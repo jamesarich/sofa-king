@@ -71,13 +71,12 @@ struct BreakScreen: View {
                             .font(.callout)
                             .lineLimit(2)
                             .multilineTextAlignment(.center)
-                        if let upNext {
-                            Text(upNext).font(.caption).lineLimit(1).opacity(0.7)
-                        }
+                        // Both faint lines keep their place while empty, so the ads dodged showing up a minute in
+                        // does not move the words above it.
+                        Text(upNext ?? " ").font(.caption).lineLimit(1).opacity(0.7)
                         let dodgedMinutes = (dodgedBeforeMs + Int64(max(context.date.timeIntervalSince(coveredSince), 0) * 1000)) / 60_000
-                        if dodgedMinutes > 0 {
-                            Text("Ads dodged today: \(BreakScreen.hoursAndMinutes(dodgedMinutes))").font(.caption).lineLimit(1).opacity(0.7)
-                        }
+                        Text(dodgedMinutes > 0 ? "Ads dodged today: \(BreakScreen.hoursAndMinutes(dodgedMinutes))" : " ")
+                            .font(.caption).lineLimit(1).opacity(0.7)
                     }
                     .foregroundStyle(ink)
                     .animation(.easeInOut(duration: 0.4), value: bounce.backdropHue)

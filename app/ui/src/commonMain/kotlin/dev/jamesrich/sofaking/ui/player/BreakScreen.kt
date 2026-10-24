@@ -424,25 +424,27 @@ private fun BreakLines(
             modifier = width,
         )
         val faint = ink.copy(alpha = 0.7f)
-        if (upNext != null) {
-            Text(
-                upNext,
-                style = MaterialTheme.typography.bodySmall,
-                color = faint,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = width,
-            )
-        }
-        if (dodgedMinutes > 0) {
-            Text(
-                stringResource(Res.string.break_ads_dodged, dodgedMinutes.minutes.hoursAndMinutes()),
-                style = MaterialTheme.typography.bodySmall,
-                color = faint,
-                maxLines = 1,
-                modifier = width,
-            )
-        }
+        // Both faint lines keep their place while empty, so the ads dodged showing up a minute in does not move the
+        // words above it.
+        Text(
+            upNext ?: " ",
+            style = MaterialTheme.typography.bodySmall,
+            color = faint,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = width,
+        )
+        Text(
+            if (dodgedMinutes > 0) {
+                stringResource(Res.string.break_ads_dodged, dodgedMinutes.minutes.hoursAndMinutes())
+            } else {
+                " "
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = faint,
+            maxLines = 1,
+            modifier = width,
+        )
     }
 }
 

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.catalog
 
+import dev.jamesrich.sofaking.backend.KIB
 import dev.jamesrich.sofaking.contract.Channel
 import java.io.ByteArrayInputStream
 import java.io.FilterInputStream
@@ -66,7 +67,7 @@ private class ControlCharacterStrippingInputStream(input: InputStream) : FilterI
         while (true) {
             val count = read(one, 0, 1)
             if (count < 0) return -1
-            if (count == 1) return one[0].toInt() and 0xff
+            if (count == 1) return one[0].toInt() and BYTE_MASK
         }
     }
 
@@ -97,10 +98,10 @@ private class ControlCharacterStrippingInputStream(input: InputStream) : FilterI
 
     /** The parser reads the prolog a byte at a time, so the decision needs its own read-ahead. */
     private fun sniff(): ByteArray {
-        val bytes = ByteArray(4)
+        val bytes = ByteArray(SNIFF_BYTES)
         var read = 0
-        while (read < 4) {
-            val count = super.read(bytes, read, 4 - read)
+        while (read < SNIFF_BYTES) {
+            val count = super.read(bytes, read, SNIFF_BYTES - read)
             if (count < 0) break
             read += count
         }
@@ -115,7 +116,8 @@ private class ControlCharacterStrippingInputStream(input: InputStream) : FilterI
         return first
     }
 
-    private fun forbidden(byte: Int) = byte < 0x20 && byte != 0x09 && byte != 0x0a && byte != 0x0d
+    /** The C0 controls XML 1.0 forbids: all below a space but tab, line feed and carriage return. */
+    private fun forbidden(byte: Int) = byte < ' '.code && byte != '\t'.code && byte != '\n'.code && byte != '\r'.code
 }
 
 /** Fails once more than [limit] decompressed bytes have been read, so a hostile guide cannot run unbounded. */
@@ -236,7 +238,9 @@ object FeedParser {
             }
             channels.putIfAbsent(id, channel)
             offerings += Offering(offeringId, id, provider, line, protocol)
-            require(channels.size <= 10_000 && offerings.size <= 20_000) { "Playlist exceeds import limits" }
+            require(channels.size <= PLAYLIST_CHANNEL_LIMIT && offerings.size <= PLAYLIST_OFFERING_LIMIT) {
+                "Playlist exceeds import limits"
+            }
         }
         return ParsedPlaylist(channels.values.toList(), offerings, skipped, notes)
     }
@@ -412,7 +416,7 @@ object FeedParser {
                     if (numbers.size < GuideProgram.EPISODE_NUMBER_LIMIT && text.isNotEmpty() &&
                         text.length <= GuideProgram.EPISODE_VALUE_LIMIT
                     ) {
-                        numbers += EpisodeNumber(system.take(64), text)
+                        numbers += EpisodeNumber(system.take(GuideProgram.EPISODE_VALUE_LIMIT), text)
                     }
                 }
 
@@ -449,7 +453,8 @@ object FeedParser {
 
                 "previously-shown" -> {
                     if (previouslyShown == null) {
-                        previouslyShown = PreviouslyShown(reader.getAttributeValue(null, "start")?.take(64))
+                        previouslyShown =
+                            PreviouslyShown(reader.getAttributeValue(null, "start")?.take(SHORT_TEXT_LIMIT))
                     }
                     depth++
                 }
@@ -477,7 +482,7 @@ object FeedParser {
             }
             if (event != XMLStreamConstants.START_ELEMENT) continue
             if (depth == 0 && reader.localName == "value" && value == null) {
-                value = reader.elementText.trim().take(64).ifEmpty { null }
+                value = reader.elementText.trim().take(SHORT_TEXT_LIMIT).ifEmpty { null }
             } else {
                 depth++
             }
@@ -497,13 +502,17 @@ object FeedParser {
         }
         if (read > 0) stream.unread(head, 0, read)
         return if (read == 2 && head[0] == 0x1f.toByte() && head[1] == 0x8b.toByte()) {
-            GZIPInputStream(stream, 65_536)
+            GZIPInputStream(stream, GZIP_BUFFER)
         } else {
             stream
         }
     }
 
     private const val GUIDE_BYTE_LIMIT = 1L shl 30
+    private const val GZIP_BUFFER = 64 * KIB
+
+    /** How much of a short attribute or element, a time or a rating's value, is read; the program's limits follow. */
+    private const val SHORT_TEXT_LIMIT = 64
     private const val GUIDE_CHANNEL_LIMIT = 100_000
     private const val GUIDE_PROGRAM_LIMIT = 1_000_000
 
@@ -520,3 +529,11 @@ object FeedParser {
         null
     }
 }
+
+private const val BYTE_MASK = 0xFF
+
+/** How much of a body is read ahead to tell its encoding: enough for any byte order mark. */
+private const val SNIFF_BYTES = 4
+
+private const val PLAYLIST_CHANNEL_LIMIT = 10_000
+private const val PLAYLIST_OFFERING_LIMIT = 20_000

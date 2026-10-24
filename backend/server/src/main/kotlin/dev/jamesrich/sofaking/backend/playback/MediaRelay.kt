@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.playback
 
+import dev.jamesrich.sofaking.backend.MIB
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.Offering
@@ -53,7 +54,7 @@ class MediaRelay(
     private val audio: SegmentAudio? = null,
 ) {
     /** Upstream requests in flight across the server, players' and FFmpeg's through [LoopbackRelay] alike. */
-    internal val permits = Semaphore(32)
+    internal val permits = Semaphore(UPSTREAM_REQUESTS)
 
     private companion object {
         val DIRECTIVE_VALUE = Regex("[A-Za-z0-9_,]{1,32}")
@@ -140,7 +141,7 @@ class MediaRelay(
                     unbounded = true,
                     policy = feeds.upstream,
                 ) { response ->
-                    if (response.status.value != 200) throw UpstreamStatusException(response.status.value)
+                    if (response.status != HttpStatusCode.OK) throw UpstreamStatusException(response.status.value)
                     consume(response.bodyAsChannel())
                 }
             }
@@ -224,6 +225,9 @@ class MediaRelay(
 /** How much of a segment read for cues passes through at a time. */
 private const val SEGMENT_READ = 64 * 1024
 
+/** The most an HLS manifest may hold, as sent and once inflated. */
+private const val MANIFEST_LIMIT = 2 * MIB
+
 /** The most of a segment kept for [TappedSegment.bytes]; a longer one is not kept. */
 private const val SEGMENT_KEEP_LIMIT = 32 * 1024 * 1024
 
@@ -291,13 +295,12 @@ internal suspend fun relayResource(
                     )
         call.response.header(HttpHeaders.CacheControl, "no-store")
         if (manifest) {
-            val raw = head + body.readBuffer(2_097_153L - head.size).readByteArray()
-            if (raw.size >
-                2_097_152
-            ) {
+            // One byte past the limit tells a manifest at the limit from one too large.
+            val raw = head + body.readBuffer(MANIFEST_LIMIT + 1L - head.size).readByteArray()
+            if (raw.size > MANIFEST_LIMIT) {
                 throw ApiFailure(HttpStatusCode.BadGateway, "INVALID_MANIFEST", "Manifest too large")
             }
-            val bytes = if (isGzip(raw)) inflateHead(raw, 2_097_152) else raw
+            val bytes = if (isGzip(raw)) inflateHead(raw, MANIFEST_LIMIT) else raw
             val source = URI(response.request.url.toString())
             val rewritten = HlsRewriter.rewrite(manifest(bytes.toString(Charsets.UTF_8), source), source, path)
             sent(rewritten.length.toLong())

@@ -371,7 +371,7 @@ internal fun FlowContent.confirmDialog(chrome: Chrome, confirm: Confirm?) {
                     if (items.isEmpty()) return
                     h3 { +"${plural(items.size, "channel")} $title" }
                     ul("small") {
-                        for (item in items.take(6)) {
+                        for (item in items.take(MOVED_SHOWN)) {
                             li {
                                 +item.name
                                 if (item.before != null || item.after != null) {
@@ -379,7 +379,7 @@ internal fun FlowContent.confirmDialog(chrome: Chrome, confirm: Confirm?) {
                                 }
                             }
                         }
-                        if (items.size > 6) li("muted") { +"and ${thousands(items.size - 6)} more" }
+                        if (items.size > MOVED_SHOWN) li("muted") { +"and ${thousands(items.size - MOVED_SHOWN)} more" }
                     }
                 }
                 list("turn off", impact.turnedOff)
@@ -1042,3 +1042,6 @@ internal fun MAIN.providerEntries(chrome: Chrome, view: ProvidersView, errors: E
     }
     confirmDialog(chrome, confirm)
 }
+
+/** How many moved channels a preview names before it counts the rest. */
+private const val MOVED_SHOWN = 6

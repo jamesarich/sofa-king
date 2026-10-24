@@ -77,8 +77,11 @@ fun matchingPrograms(a: List<GuideProgram>, b: List<GuideProgram>): Int {
 fun sameSchedule(a: List<GuideProgram>, b: List<GuideProgram>): Boolean {
     if (a.isEmpty() || b.isEmpty()) return false
     val matched = matchingPrograms(a, b)
-    return matched >= 3 && matched * 5 >= 3 * min(a.size, b.size)
+    return matched >= SAME_SCHEDULE_PROGRAMS && matched >= SAME_SCHEDULE_SHARE * min(a.size, b.size)
 }
+
+private const val SAME_SCHEDULE_PROGRAMS = 3
+private const val SAME_SCHEDULE_SHARE = 0.6
 
 /** An override that holds nothing but a number, which a learned alias may drop with its station. */
 internal fun numberOnly(override: StationOverride?): Boolean =

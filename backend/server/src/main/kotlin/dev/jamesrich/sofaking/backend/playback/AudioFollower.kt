@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.playback
 
+import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
@@ -52,7 +53,7 @@ internal class AudioFollower(
 
         fun timeOf(sample: Long): Long {
             val (first, startMs) = segments.lastOrNull { it.first <= sample } ?: segments.first()
-            return startMs + (sample - first) * 1_000 / AUDIO_RATE
+            return startMs + (sample - first) * MS_PER_SECOND / AUDIO_RATE
         }
     }
 

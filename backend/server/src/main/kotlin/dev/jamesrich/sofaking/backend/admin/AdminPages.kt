@@ -1,5 +1,8 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.GIB
+import dev.jamesrich.sofaking.backend.KIB
+import dev.jamesrich.sofaking.backend.MIB
 import dev.jamesrich.sofaking.backend.api.ActiveSession
 import dev.jamesrich.sofaking.backend.api.GuideMapping
 import dev.jamesrich.sofaking.backend.api.GuideStatus
@@ -426,7 +429,16 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
             div("meter") {
                 span {
                     attributes["data-fill"] =
-                        (if (view.stations == 0) 0 else view.enabled * 100 / view.stations / 5 * 5).toString()
+                        (
+                            if (view.stations ==
+                                0
+                            ) {
+                                0
+                            } else {
+                                view.enabled * PERCENT / view.stations / METER_STEP * METER_STEP
+                            }
+                            )
+                            .toString()
                 }
             }
         }
@@ -740,21 +752,26 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
 /** A running time as "12 min" or "2 h 5 min"; [startedAt] is an instant. */
 internal fun since(startedAt: String, now: Instant): String {
     val from = runCatching { Instant.parse(startedAt) }.getOrNull() ?: return ""
-    val s = Duration.between(from, now).seconds.coerceAtLeast(0)
-    return when {
-        s >= 3600 -> "${s / 3600} h ${s % 3600 / 60} min"
-        s >= 60 -> "${s / 60} min"
-        else -> "$s s"
-    }
+    return hoursAndMinutes(Duration.between(from, now).coerceAtLeast(Duration.ZERO))
+}
+
+/** A length of time as "3 h 12 min", "7 min" or "40 s". */
+internal fun hoursAndMinutes(duration: Duration): String = when {
+    duration.toHours() > 0 -> "${duration.toHours()} h ${duration.toMinutesPart()} min"
+    duration.toMinutes() > 0 -> "${duration.toMinutes()} min"
+    else -> "${duration.seconds} s"
 }
 
 /** A byte count as "1.2 GB", "340 MB", "12 KB" or "0 B". */
 internal fun bytesText(bytes: Long): String = when {
-    bytes >= 1_073_741_824 -> "%.1f GB".format(java.util.Locale.US, bytes / 1_073_741_824.0)
-    bytes >= 1_048_576 -> "${bytes / 1_048_576} MB"
-    bytes >= 1024 -> "${bytes / 1024} KB"
+    bytes >= GIB -> "%.1f GB".format(java.util.Locale.US, bytes.toDouble() / GIB)
+    bytes >= MIB -> "${bytes / MIB} MB"
+    bytes >= KIB -> "${bytes / KIB} KB"
     else -> "$bytes B"
 }
+
+/** What a share is multiplied by to read as a percentage. */
+internal const val PERCENT = 100
 
 private fun stateChip(row: StationRow): Pair<String, Tone> {
     if (row.entry.enabled) return "On" to Tone.OK
@@ -2058,3 +2075,6 @@ private fun DIV.tunerAccess(access: HdhrAccessStatus, chrome: Chrome) {
             )
     }
 }
+
+/** The meter on the lineup card fills in steps of this many percent. */
+private const val METER_STEP = 5

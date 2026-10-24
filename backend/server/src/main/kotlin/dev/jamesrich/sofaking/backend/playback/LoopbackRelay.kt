@@ -50,7 +50,7 @@ class LoopbackRelay(
     private val http: HttpClient,
     private val policy: UpstreamPolicy,
     /** Shared with [MediaRelay], so FFmpeg's upstream requests count toward the same cap as players'. */
-    private val permits: Semaphore = Semaphore(32),
+    private val permits: Semaphore = Semaphore(UPSTREAM_REQUESTS),
 ) {
     private val log = LoggerFactory.getLogger(LoopbackRelay::class.java)
     private val leases = ConcurrentHashMap<String, Lease>()
@@ -201,7 +201,7 @@ class LoopbackRelay(
         server?.let { running ->
             server = null
             // The hook can be stopping it at the same moment; a second stop has nothing left to do.
-            runCatching { running.stop(0, 1000) }
+            runCatching { running.stop(0, STOP_TIMEOUT_MS) }
         }
         leases.clear()
     }
@@ -213,3 +213,9 @@ class LoopbackRelay(
 
 /** The upstream's own error statuses, passed on as they are; anything else is a bad gateway. */
 private val UPSTREAM_ERRORS = 400..599
+
+/** How many upstream requests the relays make at once, FFmpeg's and players' together. */
+internal const val UPSTREAM_REQUESTS = 32
+
+/** How long a stopping relay waits for its open responses. */
+private const val STOP_TIMEOUT_MS = 1_000L

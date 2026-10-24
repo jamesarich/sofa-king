@@ -170,6 +170,9 @@ class CatalogService(
     }
 }
 
+/** The counts from 0 an `xmltv_ns` episode number may hold. */
+private val XMLTV_NS_NUMBERS = 0..99_999
+
 private val onscreenSeasonEpisode = Regex("[Ss](\\d{1,4})\\s*[Ee](\\d{1,5})")
 
 /** One-based season and episode numbers; either may be unknown. */
@@ -182,8 +185,7 @@ data class SeasonEpisode(val season: Int?, val episode: Int?)
 fun seasonEpisode(numbers: List<EpisodeNumber>): SeasonEpisode? {
     numbers.firstOrNull { it.system == "xmltv_ns" }?.value?.split('.')?.let { parts ->
         fun part(index: Int) = parts.getOrNull(index)?.substringBefore('/')?.trim()?.toIntOrNull()?.takeIf {
-            it in
-                0..99_999
+            it in XMLTV_NS_NUMBERS
         }?.plus(1)
         val numbered = SeasonEpisode(part(0), part(1))
         if (numbered.season != null || numbered.episode != null) return numbered
@@ -202,7 +204,7 @@ fun episodeLabel(numbers: List<EpisodeNumber>): String? {
     seasonEpisode(numbers)?.let { (season, episode) ->
         return listOfNotNull(season?.let { "S$it" }, episode?.let { "E$it" }).joinToString(" ")
     }
-    return numbers.firstOrNull { it.system == "onscreen" }?.value?.take(32)
+    return numbers.firstOrNull { it.system == "onscreen" }?.value?.take(NUMBER_LIMIT)
 }
 
 fun eligible(state: HealthState): Boolean = !state.manuallyDisabled &&

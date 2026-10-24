@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.playback
 
+import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.contract.AdRun
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -357,7 +358,7 @@ internal object AdBreaks {
 
     private fun seconds(value: String?): Long? = value?.trim()?.toDoubleOrNull()?.takeIf {
         it >= 0
-    }?.let { (it * 1000).roundToLong() }
+    }?.let { (it * MS_PER_SECOND).roundToLong() }
 
     private fun instantMs(value: String): Long? = try {
         Instant.parse(value.trim()).toEpochMilli()

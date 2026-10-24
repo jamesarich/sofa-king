@@ -12,7 +12,7 @@ import java.util.HexFormat
  */
 fun normalizeLogoUrl(raw: String?, base: String? = null): String? {
     val trimmed = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-    if (trimmed.length > 2048) return null
+    if (trimmed.length > URL_LIMIT) return null
     val resolved = try {
         val reference = URI(percentEncode(trimmed))
         when {
@@ -28,8 +28,13 @@ fun normalizeLogoUrl(raw: String?, base: String? = null): String? {
     if (resolved.scheme?.lowercase() !in setOf("http", "https") || resolved.host == null || resolved.userInfo != null) {
         return null
     }
-    return resolved.toString().takeIf { it.length <= 2048 }
+    return resolved.toString().takeIf { it.length <= URL_LIMIT }
 }
+
+private const val URL_LIMIT = 2048
+
+/** A percent escape: `%` and two hex digits. */
+private const val ESCAPE_LENGTH = 3
 
 private const val UNENCODED = "-._~:/?#[]@!$&'()*+,;="
 
@@ -41,12 +46,12 @@ internal fun percentEncode(value: String): String {
         val c = value[index]
         when {
             c == '%' && index + 2 < value.length && isHex(value[index + 1]) && isHex(value[index + 2]) -> {
-                out.append(value, index, index + 3)
-                index += 3
+                out.append(value, index, index + ESCAPE_LENGTH)
+                index += ESCAPE_LENGTH
                 continue
             }
 
-            c.code in 0x21..0x7E && (c.isLetterOrDigit() || c in UNENCODED) -> out.append(c)
+            c in '!'..'~' && (c.isLetterOrDigit() || c in UNENCODED) -> out.append(c)
 
             else -> {
                 val point = value.codePointAt(index)

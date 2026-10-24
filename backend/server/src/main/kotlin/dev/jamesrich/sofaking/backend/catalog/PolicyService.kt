@@ -57,6 +57,9 @@ import kotlinx.coroutines.channels.Channel as Trigger
 
 private val overrideJson = Json { ignoreUnknownKeys = true }
 
+/** The most logged changes one read returns. */
+private const val CHANGES_LIMIT = 1000
+
 /**
  * Builds the lineup from the policy file: runs the [StationBuilder] over the current feeds, guides, health and the
  * remembered availability, writes the lineup when it differs, and writes pass-two numbers back into the policy.
@@ -215,7 +218,7 @@ class PolicyService(
     }
 
     /** The newest [limit] logged changes, newest first. */
-    suspend fun changes(limit: Int): List<PolicyChangeEntry> = store.policyChanges(limit.coerceIn(1, 1000))
+    suspend fun changes(limit: Int): List<PolicyChangeEntry> = store.policyChanges(limit.coerceIn(1, CHANGES_LIMIT))
 
     /** Enabled channels the devices serve: one per number. */
     private fun enabledChannels(result: BuildResult): Int =

@@ -180,7 +180,7 @@ class SessionManager(
     /** [client] is the address of the player opening the session, shown to the operator. */
     suspend fun open(request: OpenPlayback, client: String? = null): PlaybackSession = mutex.withLock {
         reap()
-        if (request.intent !in INTENTS || request.idempotencyKey.length !in 1..128) {
+        if (request.intent !in INTENTS || request.idempotencyKey.length !in 1..MAX_KEY_LENGTH) {
             throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Invalid playback intent or idempotency key")
         }
         keys[request.idempotencyKey]?.let { (original, id) ->
@@ -225,7 +225,7 @@ class SessionManager(
             )
         sessions[session.id] = session
         keys[request.idempotencyKey] = request to session.id
-        while (keys.size > 4096) keys.remove(keys.keys.first())
+        while (keys.size > REMEMBERED_KEYS) keys.remove(keys.keys.first())
         session.descriptor()
     }
 
@@ -349,11 +349,7 @@ class SessionManager(
     }
 
     /** Leases outlast the app's 15-second renewal several times over; abandoned previews free their slot sooner. */
-    private fun lease(intent: String): Duration = if (intent == Wire.Intent.WATCH) {
-        Duration.ofSeconds(90)
-    } else {
-        Duration.ofSeconds(45)
-    }
+    private fun lease(intent: String): Duration = if (intent == Wire.Intent.WATCH) WATCH_LEASE else PREVIEW_LEASE
 
     /** Where the session's player is among the ads, given [aheadMs] of media it has loaded past the picture. */
     suspend fun adBreak(id: String, aheadMs: Long): AdBreakState =
@@ -461,7 +457,7 @@ class SessionManager(
             val shared = session.offering.protocol == "mpegts" && url == session.offering.url
             // A player reconnecting to a live stream replaces its previous request rather than adding to it.
             if (shared) session.cancel()
-            if (session.requests.size >= 12) {
+            if (session.requests.size >= MAX_REQUESTS) {
                 throw ApiFailure(
                     HttpStatusCode.TooManyRequests,
                     Wire.ErrorCode.CAPACITY_EXHAUSTED,
@@ -550,6 +546,16 @@ class SessionManager(
     companion object {
         /** How long a player may go without a media request before its session is released. */
         val EXTERNAL_IDLE: Duration = Duration.ofSeconds(60)
+
+        private val WATCH_LEASE: Duration = Duration.ofSeconds(90)
+        private val PREVIEW_LEASE: Duration = Duration.ofSeconds(45)
+
+        /** The longest idempotency key a player may send, and how many recent ones are kept. */
+        private const val MAX_KEY_LENGTH = 128
+        private const val REMEMBERED_KEYS = 4096
+
+        /** How many media requests one session may have in flight. */
+        private const val MAX_REQUESTS = 12
     }
 }
 
@@ -558,5 +564,5 @@ internal fun selectionRank(status: HealthStatus?): Int = when (status) {
     HealthStatus.HEALTHY -> 0
     HealthStatus.UNVERIFIED -> 1
     HealthStatus.SUSPECT -> 2
-    else -> 3
+    else -> Int.MAX_VALUE
 }

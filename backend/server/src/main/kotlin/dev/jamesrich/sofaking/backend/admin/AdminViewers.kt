@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.api.Viewer
 import dev.jamesrich.sofaking.backend.pairing.IssuedCode
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.encodeURLParameter
 import kotlinx.html.A
 import kotlinx.html.ButtonType
@@ -46,7 +47,7 @@ internal fun pairingLink(serverUrl: String, code: String): String =
     "sofaking://pair?server=${serverUrl.encodeURLParameter()}&code=${code.encodeURLParameter()}"
 
 /** The code as the viewer reads it from the screen: `123 456`. */
-internal fun spacedCode(code: String): String = code.chunked(3).joinToString(" ")
+internal fun spacedCode(code: String): String = code.chunked(Wire.PAIRING_CODE_LENGTH / 2).joinToString(" ")
 
 internal fun viewersPage(chrome: Chrome, view: ViewersView): String = layout("Devices", chrome, "/admin/viewers") {
     val now = chrome.now

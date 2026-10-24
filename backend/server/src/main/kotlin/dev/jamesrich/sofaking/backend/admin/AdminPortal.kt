@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
+import dev.jamesrich.sofaking.backend.MIB
 import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.api.LineupPolicy
@@ -114,6 +115,14 @@ fun interface PlexStatusSource {
 private const val COOKIE = "sofa_admin"
 private const val THEME_COOKIE = "sofa_theme"
 private const val PAGE_SIZE = 100
+
+/** The change log entries the settings page shows at first, and the most it shows. */
+private const val CHANGES_SHOWN = 50
+internal const val CHANGES_LIMIT = 1000
+
+/** A manual recording's length, up to 12 hours. */
+private val MANUAL_MINUTES = 1..720
+private const val ATTENTION_KEY_LIMIT = 64
 private val SESSION = AttributeKey<AdminSession>("AdminSession")
 private const val HTMX_PATH = "/admin/static/htmx.min.js"
 private const val ICON_PATH = "/admin/static/icon.svg"
@@ -243,7 +252,7 @@ class AdminPortal(
                 seeOther(call, "/admin#attention")
             }
             action("/attention/show") { session, form ->
-                runtime.store.showAttention(form["key"]?.trim().orEmpty().take(64))
+                runtime.store.showAttention(form["key"]?.trim().orEmpty().take(ATTENTION_KEY_LIMIT))
                 session.flash.set(Flash("Shown again."))
                 seeOther(call, "/admin#attention")
             }
@@ -593,10 +602,12 @@ class AdminPortal(
                         throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Pick a start date and time")
                     }
                     val minutes = formInt(form, "minutes", "Minutes")
-                    if (minutes !in
-                        1..720
-                    ) {
-                        throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Minutes must be 1 to 720")
+                    if (minutes !in MANUAL_MINUTES) {
+                        throw ApiFailure(
+                            HttpStatusCode.BadRequest,
+                            "INVALID_REQUEST",
+                            "Minutes must be 1 to ${MANUAL_MINUTES.last}",
+                        )
                     }
                     val recording = dvr.schedule(
                         ScheduleRecording(
@@ -804,7 +815,8 @@ class AdminPortal(
                 seeOther(call, "/admin/plex#access")
             }
             get("/settings") {
-                val limit = call.request.queryParameters["changes"]?.toIntOrNull()?.coerceIn(1, 1000) ?: 50
+                val limit =
+                    call.request.queryParameters["changes"]?.toIntOrNull()?.coerceIn(1, CHANGES_LIMIT) ?: CHANGES_SHOWN
                 val advanced =
                     call.request.queryParameters["advanced"] == "1" || call.request.queryParameters.contains("changes")
                 call.html(settingsPage(chrome(), settingsView(limit, openAdvanced = advanced)))
@@ -869,7 +881,10 @@ class AdminPortal(
             }
             action("/settings/reveal-api-token") { session, _ ->
                 call.html(
-                    settingsPage(chrome(call, session), settingsView(50, revealApiToken = true, openAdvanced = true)),
+                    settingsPage(
+                        chrome(call, session),
+                        settingsView(CHANGES_SHOWN, revealApiToken = true, openAdvanced = true),
+                    ),
                 )
             }
             action("/settings/runtime/check") { _, form ->
@@ -902,7 +917,7 @@ class AdminPortal(
                     )
                     seeOther(call, "/admin/settings#runtime")
                 } catch (e: ApiFailure) {
-                    val view = settingsView(50)
+                    val view = settingsView(CHANGES_SHOWN)
                     call.html(
                         settingsPage(
                             chrome(call, session, Flash("Not saved: ${e.message}", Tone.BAD)),
@@ -935,7 +950,7 @@ class AdminPortal(
                     call.html(
                         settingsPage(
                             chrome(call, session, Flash("No lineup policy is configured.", Tone.BAD)),
-                            settingsView(50, openAdvanced = true),
+                            settingsView(CHANGES_SHOWN, openAdvanced = true),
                         ),
                         HttpStatusCode.Conflict,
                     )
@@ -1093,7 +1108,7 @@ class AdminPortal(
             ffmpeg.get() ?: ffmpegVersion(config?.ffmpeg ?: "ffmpeg").also(ffmpeg::set),
             config?.dataDirectory?.toAbsolutePath()?.toString(), runtime.settings.current.logLevel,
             config?.logging?.format ?: "text",
-            (runtimeInfo.totalMemory() - runtimeInfo.freeMemory()) / 1_048_576, runtimeInfo.maxMemory() / 1_048_576,
+            (runtimeInfo.totalMemory() - runtimeInfo.freeMemory()) / MIB, runtimeInfo.maxMemory() / MIB,
         )
     }
 
@@ -2165,8 +2180,8 @@ internal data class LineupFilter(
 
     companion object {
         fun from(parameters: Parameters) = LineupFilter(
-            parameters["q"]?.trim().orEmpty().take(200),
-            parameters["group"].orEmpty().take(200),
+            parameters["q"]?.trim().orEmpty().take(QUERY_LIMIT),
+            parameters["group"].orEmpty().take(QUERY_LIMIT),
             parameters["state"]?.takeIf { it in STATES }.orEmpty(),
             parameters["required"] == "true",
             parameters["page"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1,
@@ -2177,6 +2192,7 @@ internal data class LineupFilter(
             parameters["dir"]?.takeIf { it == "desc" }.orEmpty(),
         )
 
+        private const val QUERY_LIMIT = 200
         private val STATES = setOf("enabled", "hidden", "unverified")
         private val GUIDE_STATES = setOf("available", "missing")
         internal val SORTS = setOf("number", "name", "group", "sources", "guide", "state")

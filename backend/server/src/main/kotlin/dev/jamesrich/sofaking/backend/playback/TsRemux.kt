@@ -109,7 +109,7 @@ class TsRemux(private val ffmpeg: String, private val relay: LoopbackRelay) {
     private fun tail(errors: Path): String = redactedMessage(
         runCatching {
             Files.readAllLines(errors)
-        }.getOrDefault(emptyList()).takeLast(3).joinToString(" | "),
+        }.getOrDefault(emptyList()).takeLast(ERROR_LINES).joinToString(" | "),
     )
 }
 
@@ -125,3 +125,6 @@ internal fun remuxCommand(ffmpeg: String, source: FfmpegSource): List<String> {
         )
     return command
 }
+
+/** How many of FFmpeg's last error lines a failure reports. */
+private const val ERROR_LINES = 3

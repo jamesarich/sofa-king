@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.backend.playback
 
+import dev.jamesrich.sofaking.backend.PTS_MASK
+import dev.jamesrich.sofaking.backend.TICKS_PER_MS
 /**
  * One SCTE-35 splice point a segment announces: the stream leaving the network for a break ([out]) or coming back,
  * at [ptsTicks] on the 90 kHz clock (null for "now", the segment that carries it), with the break's planned length
@@ -289,10 +291,8 @@ private const val SECTION_LIMIT = 4096
 private const val STREAM_SCTE35 = 0x86
 private const val STREAM_H264 = 0x1B
 private const val STREAM_H265 = 0x24
-private const val PTS_MASK = (1L shl 33) - 1
 private const val PTS_HIGH_MASK = 0x07L
 private const val PTS_PART_BITS = 15
-private const val TICKS_PER_MS = 90
 
 // Flags, by bit, from the high bit down, and the masks for a field's last bits.
 private const val BIT_7 = 0x80

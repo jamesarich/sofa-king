@@ -57,22 +57,30 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
     val errors = ArrayList<String>()
     if (policy.version != 1) errors += "version must be 1"
     if (policy.names.version !in NAME_VERSIONS) errors += "names.version must be one of ${NAME_VERSIONS.sorted()}"
-    if (policy.maxSourcesPerStation !in 1..64) errors += "maxSourcesPerStation must be between 1 and 64"
-    if (policy.numbering.floor !in 1..999_999) errors += "numbering.floor must be between 1 and 999999"
-    if (policy.numbering.groupSize !in 1..100_000) errors += "numbering.groupSize must be between 1 and 100000"
-    for ((group, start) in policy.numbering.groups.entries.sortedBy { it.key }) {
-        if (group.isBlank() || group.length > 128) {
-            errors += "numbering.groups: group \"$group\" must be 1 to 128 characters"
-        }
-        if (start !in 1..999_999) errors += "numbering.groups[\"$group\"]: start must be between 1 and 999999"
+    if (policy.maxSourcesPerStation !in 1..SOURCES_PER_STATION_LIMIT) {
+        errors += "maxSourcesPerStation must be between 1 and $SOURCES_PER_STATION_LIMIT"
     }
-    if (policy.health.disableAfterHours !in 1..720) errors += "health.disableAfterHours must be between 1 and 720"
+    if (policy.numbering.floor !in CHANNEL_NUMBERS) errors += "numbering.floor must be between ${CHANNEL_NUMBERS.span}"
+    if (policy.numbering.groupSize !in GROUP_SIZES) errors += "numbering.groupSize must be between ${GROUP_SIZES.span}"
+    for ((group, start) in policy.numbering.groups.entries.sortedBy { it.key }) {
+        if (!fits(group, GROUP_LIMIT)) {
+            errors += "numbering.groups: group \"$group\" must be 1 to $GROUP_LIMIT characters"
+        }
+        if (start !in CHANNEL_NUMBERS) {
+            errors += "numbering.groups[\"$group\"]: start must be between ${CHANNEL_NUMBERS.span}"
+        }
+    }
+    if (policy.health.disableAfterHours !in DISABLE_AFTER_HOURS) {
+        errors += "health.disableAfterHours must be between ${DISABLE_AFTER_HOURS.span}"
+    }
     if (policy.health.enableOn !in setOf("healthy", "eligible")) errors += "health.enableOn must be healthy or eligible"
-    if (policy.health.keepMissingDays !in 0..3650) errors += "health.keepMissingDays must be between 0 and 3650"
+    if (policy.health.keepMissingDays !in KEEP_MISSING_DAYS) {
+        errors += "health.keepMissingDays must be between ${KEEP_MISSING_DAYS.span}"
+    }
 
     fun pattern(value: String, where: String) {
-        if (value.isBlank() || value.length > 256) {
-            errors += "$where: patterns must be 1 to 256 characters"
+        if (!fits(value, NAME_LIMIT)) {
+            errors += "$where: patterns must be 1 to $NAME_LIMIT characters"
             return
         }
         try {
@@ -92,18 +100,18 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
         if (entry.id !in providerIds) errors += "$where: unknown provider ${entry.id}"
         filter(entry.include, "$where.include")
         filter(entry.exclude, "$where.exclude")
-        entry.group?.let { if (it.isBlank() || it.length > 128) errors += "$where: group must be 1 to 128 characters" }
+        entry.group?.let { if (!fits(it, GROUP_LIMIT)) errors += "$where: group must be 1 to $GROUP_LIMIT characters" }
     }
     policy.groups.patterns.forEachIndexed { index, item ->
         val where = "groups.patterns[$index]"
         if (item.name == null && item.rawGroup == null) errors += "$where: needs name or rawGroup"
         item.name?.let { pattern(it, "$where.name") }
         item.rawGroup?.let { pattern(it, "$where.rawGroup") }
-        if (item.group.isBlank() || item.group.length > 128) errors += "$where: group must be 1 to 128 characters"
+        if (!fits(item.group, GROUP_LIMIT)) errors += "$where: group must be 1 to $GROUP_LIMIT characters"
     }
     for ((raw, group) in policy.groups.map.entries.sortedBy { it.key }) {
         if (raw != raw.trim().lowercase()) errors += "groups.map: key \"$raw\" must be lowercase and trimmed"
-        if (group.isBlank() || group.length > 128) errors += "groups.map[\"$raw\"]: group must be 1 to 128 characters"
+        if (!fits(group, GROUP_LIMIT)) errors += "groups.map[\"$raw\"]: group must be 1 to $GROUP_LIMIT characters"
     }
     for (raw in policy.groups.weak) {
         if (raw != raw.trim().lowercase()) {
@@ -151,10 +159,10 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
             errors +=
                 "$where: key is a learned alias of \"${effective.getValue(key)}\"; use the post-alias key"
         }
-        if (key.isBlank() || key.length > 256) errors += "$where: key must be 1 to 256 characters"
+        if (!fits(key, NAME_LIMIT)) errors += "$where: key must be 1 to $NAME_LIMIT characters"
         station.number?.let { number ->
-            if (number.isBlank() || number.length > 32 || number.any { it.isWhitespace() }) {
-                errors += "$where: number must be 1 to 32 characters without spaces"
+            if (!fits(number, NUMBER_LIMIT) || number.any { it.isWhitespace() }) {
+                errors += "$where: number must be 1 to $NUMBER_LIMIT characters without spaces"
             }
             numbers.getOrPut(canonicalNumber(number)) { mutableListOf() } += key
         }
@@ -163,10 +171,10 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
             if (parsed == null || parsed != id.lowercase()) errors += "$where: id must be a UUID"
             ids.getOrPut(id.lowercase()) { mutableListOf() } += key
         }
-        station.name?.let { if (it.isBlank() || it.length > 256) errors += "$where: name must be 1 to 256 characters" }
+        station.name?.let { if (!fits(it, NAME_LIMIT)) errors += "$where: name must be 1 to $NAME_LIMIT characters" }
         station.group?.let {
-            if (it.isBlank() || it.length > 128) {
-                errors += "$where: group must be 1 to 128 characters"
+            if (!fits(it, GROUP_LIMIT)) {
+                errors += "$where: group must be 1 to $GROUP_LIMIT characters"
             }
         }
         station.logo?.let { if (normalizeLogoUrl(it) == null) errors += "$where: logo must be an HTTP(S) URL" }
@@ -217,3 +225,12 @@ internal fun pinIdentity(pin: SourcePin): String = if (pin.tvgId != null) {
 
 /** The ID a station without an `id` override carries. */
 fun stationId(key: String): String = stableId("station:$key")
+
+private val GROUP_SIZES = 1..100_000
+
+/** Up to 30 days; a source unhealthy longer than that is disabled. */
+private val DISABLE_AFTER_HOURS = 1..720
+private val KEEP_MISSING_DAYS = 0..3650
+
+/** "first and last", as validation messages name a range. */
+private val IntRange.span: String get() = "$first and $last"

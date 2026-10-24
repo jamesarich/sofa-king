@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.catalog
 
+import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.api.GuideChannelInfo
 import dev.jamesrich.sofaking.backend.api.GuideStatus
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
@@ -232,7 +233,7 @@ class GuideService(
                 refresh(config)
                 select<Unit> {
                     trigger.onReceive {}
-                    onTimeout(config.refreshSeconds * 1000) {}
+                    onTimeout(config.refreshSeconds * MS_PER_SECOND) {}
                 }
             }
         }
@@ -241,6 +242,7 @@ class GuideService(
 
 private val urlInMessage = Regex("""https?://[^\s"'\]\[<>]+""")
 private val whitespace = Regex("\\s+")
+private const val MESSAGE_LIMIT = 300
 
 /** The exception's message with every URL (and so any query token) replaced by `<url>`, on one line, bounded. */
 internal fun redactedMessage(e: Throwable): String =
@@ -251,4 +253,4 @@ internal fun redactedMessage(e: Throwable): String =
  * fetchers' lines carry tokens in URLs.
  */
 internal fun redactedMessage(message: String): String =
-    urlInMessage.replace(message, "<url>").replace(whitespace, " ").trim().take(300)
+    urlInMessage.replace(message, "<url>").replace(whitespace, " ").trim().take(MESSAGE_LIMIT)

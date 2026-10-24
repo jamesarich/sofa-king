@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.SecretOrigin
 import dev.jamesrich.sofaking.backend.SecretsFile
 import dev.jamesrich.sofaking.backend.ServerConfig
@@ -55,6 +56,7 @@ import kotlinx.html.thead
 import kotlinx.html.time
 import kotlinx.html.title
 import kotlinx.html.tr
+import java.time.Duration
 
 /**
  * One effective setting: the variable that sets it, its value as the server uses it, and whether that is the default.
@@ -178,7 +180,7 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
             "Server",
             listOf(
                 s("SOFA_HOST", config.host, "127.0.0.1"),
-                s("SOFA_PORT", config.port, 8080),
+                s("SOFA_PORT", config.port, ServerConfig.DEFAULT_PORT),
                 s("SOFA_MDNS", config.mdns, !ServerConfig.isLoopback(config.host)),
                 s("SOFA_DATA_DIR", config.dataDirectory, java.nio.file.Path.of("data")),
                 s("SOFA_RECORDINGS_DIR", config.recordingsDirectory, config.dataDirectory.resolve("recordings")),
@@ -186,9 +188,13 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
                 s("SOFA_POLICY", config.policyFile, null, found("SOFA_POLICY")),
                 s("SOFA_FFMPEG", config.ffmpeg, "ffmpeg"),
                 s("SOFA_COMSKIP", config.comskip ?: "none", "comskip"),
-                s("SOFA_PROBE_PARALLELISM", config.probeParallelism, 6),
+                s("SOFA_PROBE_PARALLELISM", config.probeParallelism, ServerConfig.DEFAULT_PROBE_PARALLELISM),
                 s("SOFA_RESTREAM_ORIGINS", config.restreamOrigins.sorted().joinToString(), ""),
-                s("SOFA_OBSERVATION_RETENTION_DAYS", config.observationRetentionDays, 7),
+                s(
+                    "SOFA_OBSERVATION_RETENTION_DAYS",
+                    config.observationRetentionDays,
+                    ServerConfig.DEFAULT_RETENTION_DAYS,
+                ),
                 s("SOFA_ALLOW_LOOPBACK_UPSTREAMS", config.allowLoopbackUpstreams, false),
                 s("SOFA_LOG_FORMAT", config.logging.format, "text"),
                 s("SOFA_CORS_ORIGINS", config.corsOrigins.joinToString(), ""),
@@ -230,7 +236,7 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
                 s("SOFA_HDHR_NAME", hdhr.friendlyName, "Sofa King"),
                 s("SOFA_HDHR_ALLOW", hdhr.allow.joinToString(), ""),
                 s("SOFA_HDHR_EXTRA_PORTS", hdhr.extraPorts.joinToString(), "", "${plural(hdhr.devices, "device")}"),
-                s("SOFA_HDHR_DEVICE_SIZE", hdhr.deviceSize, 250),
+                s("SOFA_HDHR_DEVICE_SIZE", hdhr.deviceSize, HdhrConfig.DEFAULT_DEVICE_SIZE),
                 s("SOFA_HDHR_PUBLIC_PORTS", hdhr.publicPorts.joinToString(), ""),
             ),
         ),
@@ -281,10 +287,13 @@ internal fun guideSummary(config: GuideConfig): SourceSummary {
     )
 }
 
-private fun every(seconds: Long): String = when {
-    seconds % 3600 == 0L -> "every ${seconds / 3600} h"
-    seconds % 60 == 0L -> "every ${seconds / 60} min"
-    else -> "every $seconds s"
+private fun every(seconds: Long): String {
+    val period = Duration.ofSeconds(seconds)
+    return when {
+        period.toSecondsPart() == 0 && period.toMinutesPart() == 0 -> "every ${period.toHours()} h"
+        period.toSecondsPart() == 0 -> "every ${period.toMinutes()} min"
+        else -> "every $seconds s"
+    }
 }
 
 /**
@@ -641,7 +650,7 @@ private fun FlowContent.policyPanel(chrome: Chrome, policy: PolicySummary?, now:
             dd {
                 span("mono") {
                     attributes["title"] = policy.revision
-                    +policy.revision.take(12)
+                    +policy.revision.take(SHORT_REVISION)
                 }
             }
             val p = policy.policy
@@ -687,8 +696,9 @@ private fun FlowContent.policyPanel(chrome: Chrome, policy: PolicySummary?, now:
 
 private fun FlowContent.changeLogPanel(view: SettingsView, now: java.time.Instant) =
     panel("Change log", id = "changes", aside = {
-        if (view.changeLimit < 1000) {
-            a("/admin/settings?changes=${minOf(1000, view.changeLimit * 4)}&advanced=1#changes") { +"Show more" }
+        if (view.changeLimit < CHANGES_LIMIT) {
+            val more = minOf(CHANGES_LIMIT, view.changeLimit * CHANGES_GROWTH)
+            a("/admin/settings?changes=$more&advanced=1#changes") { +"Show more" }
         }
     }) {
         if (view.changes.isEmpty()) {
@@ -734,3 +744,9 @@ private fun FlowContent.changeLogPanel(view: SettingsView, now: java.time.Instan
             }
         }
     }
+
+/** How many characters of a policy revision the page shows; the rest is in its title. */
+private const val SHORT_REVISION = 12
+
+/** How many times more change log entries each "Show more" asks for. */
+private const val CHANGES_GROWTH = 4

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.catalog
 
+import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.api.ProviderStatus
 import dev.jamesrich.sofaking.backend.api.SourceStatus
 import dev.jamesrich.sofaking.backend.api.UpdateSource
@@ -305,7 +306,7 @@ class FeedService(
                 refresh(config)
                 select<Unit> {
                     trigger.onReceive {}
-                    onTimeout(config.refreshInterval * 1000) {}
+                    onTimeout(config.refreshInterval * MS_PER_SECOND) {}
                 }
             }
         }
@@ -345,7 +346,7 @@ class FeedService(
 
     private suspend fun fetch(url: String, headers: Map<String, String>, limit: Int): String =
         http.withUpstreamResponse(url, url, headers, policy = upstream) { response ->
-            require(response.status.value == 200) { "Feed fetch failed" }
+            require(response.status == HttpStatusCode.OK) { "Feed fetch failed" }
             val bytes = response.bodyAsChannel().readBuffer(limit.toLong() + 1).readByteArray()
             require(bytes.size <= limit) { "Feed exceeds size limit" }
             bytes.toString(Charsets.UTF_8)

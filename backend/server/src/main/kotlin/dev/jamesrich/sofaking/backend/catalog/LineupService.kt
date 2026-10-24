@@ -214,21 +214,25 @@ class LineupService(
 
     internal fun validated(entry: LineupEntryRecord): LineupEntryRecord {
         fun invalid(message: String): Nothing = throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", message)
-        if (entry.number.isBlank() || entry.number.length > 32 || entry.number.any { it.isWhitespace() }) {
-            invalid("Number must be 1 to 32 characters without spaces")
+        if (!fits(entry.number, NUMBER_LIMIT) || entry.number.any { it.isWhitespace() }) {
+            invalid("Number must be 1 to $NUMBER_LIMIT characters without spaces")
         }
-        if (entry.name.isBlank() || entry.name.length > 256) invalid("Name must be 1 to 256 characters")
-        if (entry.group != null && (entry.group.isBlank() || entry.group.length > 128)) {
-            invalid("Group must be 1 to 128 characters")
+        if (!fits(entry.name, NAME_LIMIT)) invalid("Name must be 1 to $NAME_LIMIT characters")
+        if (entry.group != null &&
+            !fits(entry.group, GROUP_LIMIT)
+        ) {
+            invalid("Group must be 1 to $GROUP_LIMIT characters")
         }
         val logo = entry.logo?.let { normalizeLogoUrl(it) ?: invalid("Logo must be an HTTP(S) URL") }
         entry.guide?.let { mapping ->
             if (guides.config(mapping.guideId) == null) invalid("Unknown guide ${mapping.guideId}")
-            if (mapping.channelId.isBlank() || mapping.channelId.length > 256) {
-                invalid("Guide channel ID must be 1 to 256 characters")
+            if (!fits(mapping.channelId, NAME_LIMIT)) {
+                invalid("Guide channel ID must be 1 to $NAME_LIMIT characters")
             }
         }
-        if (entry.offeringIds.size > 64) invalid("At most 64 sources per entry")
+        if (entry.offeringIds.size > SOURCES_PER_STATION_LIMIT) {
+            invalid("At most $SOURCES_PER_STATION_LIMIT sources per entry")
+        }
         return entry.copy(
             name = entry.name.trim(),
             number = entry.number.trim(),

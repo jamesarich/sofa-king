@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.playback
 
+import dev.jamesrich.sofaking.backend.NS_PER_MS
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.upstream.TS_PACKET
 import dev.jamesrich.sofaking.backend.upstream.TS_SYNC
@@ -50,6 +51,12 @@ internal val TS_NULL_PACKET: ByteArray = ByteArray(TS_PACKET) { 0xFF.toByte() }.
 
 /** How much of the upstream body one read takes. */
 private const val READ_SIZE = 32 * 1024
+
+/** The first wait before a reconnect; each failed one doubles it. */
+private const val FIRST_BACKOFF_MS = 500L
+
+/** How far into an upstream body a TS sync byte must turn up. */
+private const val SYNC_SEARCH_LIMIT = 64 * 1024
 
 /**
  * One upstream MPEG-TS connection fanned out to every session playing the same source.
@@ -202,7 +209,7 @@ internal class TsFanout(
             if (!started.isCompleted) throw e
             log.info("relay upstream failed offering={} class={}", key, e.javaClass.simpleName)
         }
-        var backoff = 500L
+        var backoff = FIRST_BACKOFF_MS
         while (readersPresent()) {
             val remaining = lastDataAt + config.graceMillis - now()
             if (remaining <= 0) {
@@ -229,7 +236,7 @@ internal class TsFanout(
                     (e as? UpstreamStatusException)?.status,
                 )
             }
-            if (chunks != before) backoff = 500
+            if (chunks != before) backoff = FIRST_BACKOFF_MS
         }
     }
 
@@ -261,7 +268,7 @@ internal class TsFanout(
                     val sync = tsSyncOffset(work, 3, to = size)
                     if (sync == null) {
                         junk += read
-                        if (junk > 64 * 1024) throw IllegalStateException("No MPEG-TS sync in upstream body")
+                        if (junk > SYNC_SEARCH_LIMIT) throw IllegalStateException("No MPEG-TS sync in upstream body")
                         val keep = minOf(size, 3 * TS_PACKET)
                         work.copyInto(work, 0, size - keep, size)
                         carried = keep
@@ -294,7 +301,7 @@ internal class TsFanout(
 internal class SharedStreams(
     private val scope: CoroutineScope,
     private val config: FanoutConfig = FanoutConfig(),
-    private val now: () -> Long = { System.nanoTime() / 1_000_000 },
+    private val now: () -> Long = { System.nanoTime() / NS_PER_MS },
 ) {
     private val mutex = Mutex()
     private val streams = HashMap<String, TsFanout>()

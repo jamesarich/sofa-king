@@ -77,11 +77,11 @@ internal val THEMES = listOf("light", "dark")
 
 /** A running time as "3 d 4 h", "5 h 12 min" or "7 min". */
 internal fun uptime(from: Instant, now: Instant): String {
-    val s = Duration.between(from, now).seconds.coerceAtLeast(0)
+    val running = Duration.between(from, now).coerceAtLeast(Duration.ZERO)
     return when {
-        s >= 86_400 -> "${s / 86_400} d ${s % 86_400 / 3600} h"
-        s >= 3600 -> "${s / 3600} h ${s % 3600 / 60} min"
-        else -> "${s / 60} min"
+        running.toDays() > 0 -> "${running.toDays()} d ${running.toHoursPart()} h"
+        running.toHours() > 0 -> "${running.toHours()} h ${running.toMinutesPart()} min"
+        else -> "${running.toMinutes()} min"
     }
 }
 

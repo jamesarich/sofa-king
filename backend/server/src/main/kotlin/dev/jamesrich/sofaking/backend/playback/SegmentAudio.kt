@@ -86,6 +86,10 @@ internal const val LOUDNESS_WINDOW_MS = 100L
 /** The level of a window of digital silence, which has no logarithm of its own. */
 internal const val SILENT_DB = -120f
 
+/** Decibels of amplitude per factor of ten, and the amplitude of a full-scale 16-bit sample. */
+private const val DB_PER_DECADE = 20
+private const val FULL_SCALE = 32_768.0
+
 /**
  * The RMS level in dBFS of each whole [LOUDNESS_WINDOW_MS] of [pcm], signed 16-bit little-endian mono at [sampleRate].
  */
@@ -98,6 +102,6 @@ internal fun loudness(pcm: ByteArray, sampleRate: Int = AUDIO_RATE): FloatArray 
             sum += value.toDouble() * value
         }
         val rms = sqrt(sum / window)
-        if (rms < 1.0) SILENT_DB else maxOf(SILENT_DB, (20 * log10(rms / 32_768.0)).toFloat())
+        if (rms < 1.0) SILENT_DB else maxOf(SILENT_DB, (DB_PER_DECADE * log10(rms / FULL_SCALE)).toFloat())
     }
 }

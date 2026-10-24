@@ -34,7 +34,9 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 private const val NOW = "2026-10-10T10:17:42Z"
@@ -205,6 +207,29 @@ class LineupViewModelTest {
         viewModel.refresh()
         runCurrent()
         assertEquals(loaded, viewModel.state.value.lineup)
+    }
+
+    @Test
+    fun `a failed first load tries again after 5 s and then backs off to a minute`() = viewModelTest {
+        val server = FakeServer(this)
+        server.failCatalog = true
+        val viewModel = start(server)
+        viewModel.state.first { it is LineupState.Failed }
+        assertEquals(1, server.catalogRequests)
+
+        // After each failure: 5 s, then 10, 20 and 40, and at most a minute.
+        for ((wait, requests) in listOf(5 to 2, 10 to 3, 20 to 4, 40 to 5, 60 to 6, 60 to 7)) {
+            advanceTimeBy(wait.seconds - 1.milliseconds)
+            assertEquals(requests - 1, server.catalogRequests, "a retry before $wait s")
+            advanceTimeBy(1.milliseconds)
+            runCurrent()
+            assertEquals(requests, server.catalogRequests, "no retry $wait s after the failure")
+        }
+
+        // The server answering again ends the failure page at the next try.
+        server.failCatalog = false
+        viewModel.state.first { it is LineupState.Ready && !it.lineup.guideLoading }
+        assertEquals(8, server.catalogRequests)
     }
 
     @Test

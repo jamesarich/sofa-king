@@ -381,7 +381,8 @@ data class ServerConfig(
             ) {
                 "SOFA_HDHR_EXTRA_PORTS must list up to $EXTRA_PORTS_LIMIT distinct ports other than SOFA_PORT"
             }
-            val deviceSize = number(environment, "SOFA_HDHR_DEVICE_SIZE", HdhrConfig.DEFAULT_DEVICE_SIZE, DEVICE_SIZE_RANGE)
+            val deviceSize =
+                number(environment, "SOFA_HDHR_DEVICE_SIZE", HdhrConfig.DEFAULT_DEVICE_SIZE, DEVICE_SIZE_RANGE)
             val publicPorts = environment["SOFA_HDHR_PUBLIC_PORTS"].orEmpty().split(',').map {
                 it.trim()
             }.filter { it.isNotEmpty() }.map {
@@ -436,7 +437,12 @@ data class ServerConfig(
                 }
                     ?: Path.of(directory).resolve("media"),
                 tmdb = tmdbConfig(environment),
-                maxTranscodes = number(environment, "SOFA_MAX_TRANSCODES", DEFAULT_MAX_TRANSCODES, MAX_TRANSCODES_RANGE),
+                maxTranscodes = number(
+                    environment,
+                    "SOFA_MAX_TRANSCODES",
+                    DEFAULT_MAX_TRANSCODES,
+                    MAX_TRANSCODES_RANGE,
+                ),
                 videoEncoder = VideoEncoder(
                     HardwareAccel.parse(environment["SOFA_HWACCEL"]),
                     environment["SOFA_HWACCEL_DEVICE"]?.trim()?.ifEmpty { null } ?: VideoEncoder.DEFAULT_DEVICE,
@@ -491,7 +497,8 @@ data class ServerConfig(
                     it <= ' ' || it == '\u007f'
                 },
             ) { "SOFA_PLEX_TOKEN must contain at least $PLEX_TOKEN_MIN_LENGTH printable characters without spaces" }
-            val minutes = number(environment, "SOFA_PLEX_SYNC_MINUTES", DEFAULT_PLEX_SYNC_MINUTES, PLEX_SYNC_MINUTES_RANGE)
+            val minutes =
+                number(environment, "SOFA_PLEX_SYNC_MINUTES", DEFAULT_PLEX_SYNC_MINUTES, PLEX_SYNC_MINUTES_RANGE)
             val base = environment["SOFA_PLEX_TUNER_BASE"]?.let { origin(it, "SOFA_PLEX_TUNER_BASE", withPort = false) }
             return PlexConfig(origin(url, "SOFA_PLEX_URL", withPort = true), token, minutes, base)
         }

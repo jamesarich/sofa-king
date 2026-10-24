@@ -68,8 +68,8 @@ data class RuntimeValues(
         /** What the environment set, the values the server starts with until a saved setting replaces one. */
         fun of(config: ServerConfig) = RuntimeValues(
             config.logging.level, config.outputs.guideDays,
-            config.plex?.syncMinutes ?: ServerConfig.DEFAULT_PLEX_SYNC_MINUTES, config.hdhr.tuners, config.maxSessions, config.recordingsFreeGib,
-            config.recordingsKeepDays, config.learnedBreaks.setting, config.adListeners,
+            config.plex?.syncMinutes ?: ServerConfig.DEFAULT_PLEX_SYNC_MINUTES, config.hdhr.tuners, config.maxSessions,
+            config.recordingsFreeGib, config.recordingsKeepDays, config.learnedBreaks.setting, config.adListeners,
         )
 
         /**

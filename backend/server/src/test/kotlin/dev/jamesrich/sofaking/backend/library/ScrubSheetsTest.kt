@@ -11,6 +11,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
 import javax.imageio.ImageIO
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -166,6 +167,30 @@ class ScrubSheetsTest {
 
         val text = dir.resolve("not-a-video.mkv").also { Files.writeString(it, "x") }
         assertNull(FfmpegSheetMaker("ffmpeg").make(text, Files.createDirectories(dir.resolve("none"))))
+        dir.toFile().deleteRecursively()
+    }
+
+    @Test fun `each tile is the key frame at its mark, not half an interval later`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-scrub-marks-")
+        val clip = dir.resolve("ramp.mkv")
+        // Half a minute whose gray brightens 7 luma steps a second from black, with a key frame every 2 seconds.
+        val exit = ProcessBuilder(
+            "ffmpeg", "-nostdin", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "nullsrc=size=320x180:rate=10:duration=30,geq=lum='16+T*7':cb=128:cr=128",
+            "-c:v", "libx264", "-preset", "ultrafast", "-g", "20", "-pix_fmt", "yuv420p", clip.toString(),
+        ).inheritIO().start().waitFor()
+        assertEquals(0, exit, "ffmpeg makes the test clip")
+        val into = Files.createDirectories(dir.resolve("out"))
+
+        val size = assertNotNull(FfmpegSheetMaker("ffmpeg").make(clip, into))
+        val sheet = ImageIO.read(into.resolve("0.jpg").toFile())
+        val grays = (0 until 3).map { tile ->
+            sheet.getRGB(tile * size.tileWidth + size.tileWidth / 2, size.tileHeight / 2) and 0xff
+        }
+        // Luma 16 + 70 a tile, shown full range: about 0, 81 and 163; the frames 5 seconds on would be about 40 more.
+        grays.forEachIndexed { tile, gray ->
+            assertTrue(abs(gray - tile * 81) <= 15, "tile $tile shows ${tile * 10} s, read gray $gray")
+        }
         dir.toFile().deleteRecursively()
     }
 }

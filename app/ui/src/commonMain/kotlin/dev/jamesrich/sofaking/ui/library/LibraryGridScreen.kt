@@ -36,6 +36,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -114,6 +115,9 @@ internal fun LibraryGridScreen(
         jumpTo = letter.offset
         actions.onLoadThrough(letter.offset)
     }
+    // The row of letters, when the grid has one: Up from the grid's top row lands in it from every column.
+    val letters = remember { FocusRequester() }
+    val letterRow = letters.takeIf { grid != null && showsLetters(grid) }
     val currentGrid by rememberUpdatedState(grid)
     LaunchedEffect(state) {
         snapshotFlow { state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }.collect { last ->
@@ -136,7 +140,7 @@ internal fun LibraryGridScreen(
         modifier = Modifier.fillMaxSize(),
     ) {
         item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
-            GridHeader(library, grid, actions, onLetter)
+            GridHeader(library, grid, actions, onLetter, letterRow)
         }
         val items = grid?.items.orEmpty()
         itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
@@ -145,7 +149,14 @@ internal fun LibraryGridScreen(
                 item.id == focusId -> Modifier.focusRequester(focus)
                 else -> Modifier
             }
-            LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, actions.menu, modifier)
+            // The header is the grid's row 0, so its top row of cards is row 1; the letters take Up from it while
+            // the header is on screen.
+            val up = Modifier.focusProperties {
+                val visible = state.layoutInfo.visibleItemsInfo
+                val row = visible.firstOrNull { it.index == index + 1 }?.row
+                if (letterRow != null && row == 1 && visible.any { it.index == 0 }) up = letterRow
+            }
+            LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, actions.menu, up.then(modifier))
         }
         val g = grid
         val unsettled = g != null && (g.loading || g.error != null)
@@ -184,6 +195,7 @@ private fun GridHeader(
     grid: LibraryGrid?,
     actions: LibraryGridActions,
     onLetter: (LetterJump) -> Unit,
+    letterRow: FocusRequester?,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -219,27 +231,33 @@ private fun GridHeader(
             val genre = grid?.genre
             val selectedGenre = remember { FocusRequester() }
             val genreShown = genre != null && genres.any { it.equals(genre, ignoreCase = true) }
+            // Down from a genre goes to the letters, which the search would pass over from the row's left end.
+            val toLetters = Modifier.focusProperties { if (letterRow != null) down = letterRow }
             LazyRow(Modifier.focusRestorer(selectedGenre), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
                     val focus = if (!genreShown) Modifier.focusRequester(selectedGenre) else Modifier
                     SofaChip(selected = genre == null, onClick = {
                         actions.onGenre(null)
-                    }, label = stringResource(Res.string.library_genre_all), modifier = focus)
+                    }, label = stringResource(Res.string.library_genre_all), modifier = toLetters.then(focus))
                 }
                 items(genres, key = { it }) { option ->
                     val selected = option.equals(genre, ignoreCase = true)
                     val focus = if (selected) Modifier.focusRequester(selectedGenre) else Modifier
                     SofaChip(selected = selected, onClick = {
                         actions.onGenre(option)
-                    }, label = option, modifier = focus)
+                    }, label = option, modifier = toLetters.then(focus))
                 }
             }
         }
-        if (grid != null && showsLetters(grid)) {
-            // A row like the chips above, so Up from any column of the grid lands in it, on its first letter.
+        if (letterRow != null) {
+            // The letters come back to the one last focused, else the first. Only focus scrolls the row, so whichever
+            // it is is on screen.
             val firstLetter = remember { FocusRequester() }
-            LazyRow(Modifier.focusRestorer(firstLetter), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                itemsIndexed(grid.letters, key = { _, it -> it.letter }) { i, letter ->
+            LazyRow(
+                Modifier.focusRequester(letterRow).focusRestorer(firstLetter),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                itemsIndexed(grid?.letters.orEmpty(), key = { _, it -> it.letter }) { i, letter ->
                     val description = stringResource(Res.string.library_letter_jump, letter.letter)
                     val focus = if (i == 0) Modifier.focusRequester(firstLetter) else Modifier
                     SofaChip(

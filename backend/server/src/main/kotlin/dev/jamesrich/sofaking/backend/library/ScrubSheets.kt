@@ -73,15 +73,16 @@ fun interface SheetMaker {
 }
 
 /**
- * Sheets through the server's FFmpeg, decoding only key frames: the frame nearest each [SCRUB_INTERVAL_MS], scaled to
- * [SCRUB_TILE_WIDTH] wide and tiled [SCRUB_COLUMNS] by [SCRUB_ROWS]; the last sheet holds what is left.
+ * Sheets through the server's FFmpeg, decoding only key frames: the last one at or before each [SCRUB_INTERVAL_MS]
+ * (FFmpeg's nearest rounding keeps the last frame before the next mark's midpoint, about half an interval late),
+ * scaled to [SCRUB_TILE_WIDTH] wide and tiled [SCRUB_COLUMNS] by [SCRUB_ROWS]; the last sheet holds what is left.
  */
 class FfmpegSheetMaker(private val ffmpeg: String, private val timeout: Duration = 30.minutes) : SheetMaker {
     override suspend fun make(file: Path, into: Path): SheetSize? = withContext(Dispatchers.IO) {
         val exit = ProcessBuilder(
             ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-skip_frame", "nokey", "-i", file.toString(),
             "-map", "0:v:0", "-an", "-sn",
-            "-vf", "fps=1000/$SCRUB_INTERVAL_MS,scale=$SCRUB_TILE_WIDTH:-2,tile=${SCRUB_COLUMNS}x$SCRUB_ROWS",
+            "-vf", "fps=1000/$SCRUB_INTERVAL_MS:round=up,scale=$SCRUB_TILE_WIDTH:-2,tile=${SCRUB_COLUMNS}x$SCRUB_ROWS",
             "-q:v", "5", "-start_number", "0", "-y", into.resolve("%d.jpg").toString(),
         ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(timeout)
             ?: throw IllegalStateException("ffmpeg ran past $timeout")

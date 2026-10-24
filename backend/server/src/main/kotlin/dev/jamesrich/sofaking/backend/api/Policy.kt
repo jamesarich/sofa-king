@@ -31,13 +31,15 @@ import kotlinx.serialization.Serializable
 
 /**
  * One provider entry. A candidate takes the first entry whose [id] is its provider and whose filters pass it.
- * No [include] admits everything. [enabled] is the default for stations this entry leads.
+ * No [include] admits everything. [enabled] is the default for stations this entry leads, and [group], when set, is
+ * their group, so a provider that only fills in for other services never regroups a station it does not lead.
  */
 @Serializable data class PolicyProvider(
     val id: String,
     val include: CandidateFilter? = null,
     val exclude: CandidateFilter? = null,
     val enabled: Boolean = true,
+    val group: String? = null,
 )
 
 /**

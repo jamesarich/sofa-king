@@ -48,9 +48,10 @@ class AdListenerTest {
     }
 
     @Test
-    fun `nothing is listened to while anyone watches or with learned breaks off`() {
+    fun `fewer listen while anyone watches and none with learned breaks off`() {
         assertEquals(6, AdListener.wanted(LearnedBreaks.SHADOW, emptySet(), 6))
-        assertEquals(0, AdListener.wanted(LearnedBreaks.ON, setOf("news"), 6))
+        assertEquals(AdListener.WHILE_WATCHING, AdListener.wanted(LearnedBreaks.ON, setOf("news"), 6))
+        assertEquals(1, AdListener.wanted(LearnedBreaks.SHADOW, setOf("news"), 1))
         assertEquals(0, AdListener.wanted(LearnedBreaks.OFF, emptySet(), 6))
     }
 

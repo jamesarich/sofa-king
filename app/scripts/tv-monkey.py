@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Press random remote keys on the app in a running Android TV emulator, against the server's installed distribution
-serving fixture channels; fail on a crash, an ANR, or a playback session left open after the app goes to the
-background. StrictMode's findings in the debug build are counted and kept, not failed on.
+serving fixture channels and a fixture show; fail on a crash, an ANR, or a playback session left open after the app
+goes to the background. StrictMode's findings in the debug build are counted and kept, not failed on. With --flows,
+the Maestro flows there run first, on the freshly paired app, and any that fails fails the run.
 
-Needs adb with one booted emulator, the debug APK, and what fixture_server.py needs: FFmpeg and the server's distribution
-(`./gradlew :server:installDist` in backend/). Writes the logs, the key script and a screenshot to --out.
+Needs adb with one booted emulator, the debug APK, what fixture_server.py needs: FFmpeg and the server's distribution
+(`./gradlew :server:installDist` in backend/), and Maestro on the PATH for --flows. Writes the logs, the key script and
+a screenshot to --out.
 """
 import argparse
 import os
@@ -15,7 +17,7 @@ import subprocess
 import sys
 import time
 
-from fixture_server import request, serve, wait_for
+from fixture_server import request, serve, show_episodes, wait_for
 
 PACKAGE = 'dev.jamesrich.sofaking'
 # Back on the Live tab leaves the app, as it should; the keys go in short scripts, and the app comes back between them.
@@ -34,6 +36,28 @@ KEYS = [
 
 def adb(*args, **kwargs):
     return subprocess.run(['adb', *args], check=True, capture_output=True, text=True, **kwargs).stdout
+
+
+def open_link(link):
+    adb('shell', 'am', 'start', '-W', '-a', 'android.intent.action.VIEW', '-d', f"'{link}'", PACKAGE, timeout=120)
+
+
+def run_flows(flows, out, play):
+    """Each Maestro flow in [flows], in name order; one named for a library flow first plays the first episode through
+    [play]. The names of those that failed."""
+    failed = []
+    for flow in sorted(Path(flows).glob('*.yaml')):
+        if flow.stem.startswith('library_'):
+            play()
+        result = subprocess.run(['maestro', 'test', '--format', 'junit', '--output', str(out / f'maestro-{flow.stem}.xml'),
+                                 '--debug-output', str(out / 'maestro' / flow.stem), str(flow)],
+                                capture_output=True, text=True, timeout=600)
+        (out / f'maestro-{flow.stem}.txt').write_text(result.stdout + result.stderr)
+        print(f'Flow {flow.stem}: {"passed" if result.returncode == 0 else "failed"}', flush=True)
+        if result.returncode != 0:
+            failed.append(flow.stem)
+            subprocess.run(['adb', 'exec-out', 'screencap', '-p'], stdout=(out / f'maestro-{flow.stem}.png').open('wb'), timeout=30)
+    return failed
 
 
 def key_scripts(directory, count, seed):
@@ -66,14 +90,17 @@ def main():
     parser.add_argument('--out', required=True)
     parser.add_argument('--keys', type=int, default=int(os.environ.get('SOFAKING_MONKEY_KEYS') or 1500))
     parser.add_argument('--seed', type=int, default=int(os.environ.get('SOFAKING_MONKEY_SEED') or time.time()))
+    parser.add_argument('--flows', help='a folder of Maestro flows to run before the keys')
     args = parser.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     print(f'Seed {args.seed}, {args.keys} keys', flush=True)
 
-    with serve(out) as base:
+    with serve(out, short=True) as base:
         logcat = None
+        flows_failed = []
         try:
+            episode_ids = show_episodes(base)
             code = request(base, '/api/v1/admin/pairing-codes', 'POST')['code']
             port = base.rsplit(':', 1)[1]
 
@@ -82,10 +109,12 @@ def main():
             logcat = subprocess.Popen(['adb', 'logcat', '-v', 'threadtime'], stdout=(out / 'logcat.txt').open('w'),
                                       stderr=subprocess.STDOUT)
             link = f'sofaking://pair?server=http://10.0.2.2:{port}&code={code}'
-            adb('shell', 'am', 'start', '-W', '-a', 'android.intent.action.VIEW', '-d', f"'{link}'", PACKAGE, timeout=120)
+            open_link(link)
             wait_for('the app to pair', lambda: request(base, '/api/v1/admin/viewers'), 60)
             # The guide loads and its preview opens a session once the lineup is in.
             wait_for('the guide preview', lambda: request(base, '/api/v1/admin/sessions'), 60)
+            if args.flows:
+                flows_failed = run_flows(args.flows, out, lambda: open_link(f'sofaking://vod/{episode_ids[0]}'))
 
             scripts = key_scripts(out / 'remote-keys', args.keys, args.seed)
             adb('push', str(out / 'remote-keys'), '/data/local/tmp/')
@@ -136,6 +165,8 @@ def main():
         failures.append('the app was not running after the keys')
     if sessions_left:
         failures.append(f'{len(sessions_left)} playback session(s) still open with the app in the background')
+    if flows_failed:
+        failures.append('Maestro flows failed: ' + ', '.join(flows_failed))
     strict = [line for line in log.splitlines() if ' StrictMode' in line and 'policy violation' in line]
     (out / 'strictmode.txt').write_text('\n'.join(strict) + '\n')
     # Tunes that failed in the player, and readers the relay dropped: a stream that never plays fails nothing, so count them.
@@ -144,6 +175,7 @@ def main():
 
     summary = [f'## TV monkey: seed {args.seed}, {args.keys} keys', '',
                f'- Result: {"; ".join(failures) if failures else "no crash, ANR or session left open"}',
+               *([f'- Maestro flows: {"failed: " + ", ".join(flows_failed) if flows_failed else "all passed"}'] if args.flows else []),
                f'- The app was brought back {relaunches} times after a key left it',
                f'- StrictMode violations logged: {len(strict)} (strictmode.txt in the artifact)',
                f'- Player errors: {playback_errors}; readers the relay dropped as slow: {dropped}']

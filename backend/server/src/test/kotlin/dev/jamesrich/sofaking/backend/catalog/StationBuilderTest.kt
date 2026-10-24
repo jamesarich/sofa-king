@@ -875,6 +875,32 @@ class StationBuilderTest {
         assertEquals("Game Shows", result.station("quiznight").group)
     }
 
+    @Test fun `an entry's group groups the stations it leads and no other`() {
+        val regional = votingPolicy.copy(
+            providers = votingPolicy.providers + PolicyProvider("samsung-gb", group = "UK"),
+        )
+        val result = build(
+            regional,
+            listOf(
+                candidate("samsung-gb", "g1", "Pointless", "1", group = "Entertainment"),
+                candidate("samsung-gb", "g2", "Wicked Tuna", "2", group = "Reality"),
+                candidate("whale", "w1", "Wicked Tuna", "3", group = "Unmapped Bucket"),
+            ),
+        )
+        assertEquals("UK", result.station("pointless").group)
+        assertEquals(
+            "Lifestyle",
+            result.station("wickedtuna").group,
+            "whale leads, so the regional entry's group does not apply; its genre still votes",
+        )
+        assertTrue(
+            validatePolicy(
+                regional.copy(providers = listOf(PolicyProvider("whale", group = " "))),
+                setOf("whale"),
+            ).contains("providers[0]: group must be 1 to 128 characters"),
+        )
+    }
+
     @Test fun `every source's unmapped category is reported, not only the leading one's`() {
         val result = build(
             votingPolicy,

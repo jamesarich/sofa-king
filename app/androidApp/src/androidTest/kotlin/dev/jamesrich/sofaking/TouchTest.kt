@@ -93,7 +93,11 @@ class TouchTest {
                 context.packageName,
             )!!.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
-        eventually("the player back full screen") { !inPictureInPicture() && device.hasObject(By.res(PLAYER)) }
+        // Back sent before the window has input focus again goes to the system, not the player.
+        eventually("the player back full screen") {
+            !inPictureInPicture() && device.hasObject(By.res(PLAYER)) &&
+                appFocused()
+        }
         check(server.watching().size == 1) {
             "Back from picture-in-picture, the app holds ${server.watching().size} sessions"
         }
@@ -195,6 +199,9 @@ class TouchTest {
         scenario.onActivity { pinned = it.isInPictureInPictureMode }
         return pinned
     }
+
+    private fun appFocused(): Boolean =
+        device.executeShellCommand("dumpsys window").lineSequence().any { "mCurrentFocus" in it && "$PACKAGE/" in it }
 
     private fun eventually(what: String, condition: () -> Boolean) {
         val deadline = System.currentTimeMillis() + TIMEOUT_MS

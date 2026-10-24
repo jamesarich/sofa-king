@@ -48,9 +48,9 @@ private val log = LoggerFactory.getLogger(AdListener::class.java)
  * census covers channels nobody opened. Up to [slots] channels at once, each for [LISTEN] before its slot picks again
  * (see [pick]): channels watched lately that markers never covered come first, since that is where learned breaks pay
  * off, then channels watched lately with markers, whose breaks teach the library the ads the viewers see, then
- * channels never heard, then the least recently heard. Listeners share the household's connection and the
- * providers' per-device limits with the viewers, so they only play while nobody watches anything and stop as soon as
- * someone starts; [slots] is 0, off, unless `SOFA_AD_LISTENERS` sets it.
+ * channels never heard, then the least recently heard. A channel someone is watching is left to the session, and a
+ * listener on it ends its turn when the viewer arrives. While anyone watches, at most [WHILE_WATCHING] listen, since
+ * they share the household's connection with the viewers; [slots] is 0, off, unless `SOFA_AD_LISTENERS` sets it.
  *
  * A listener reads the lowest variant's media playlist (or its audio rendition) as a player would, through its own
  * [AdClock] in shadow, and hands its segments' audio to an [AudioFollower]: marked breaks are learned, and matches and
@@ -102,8 +102,9 @@ class AdListener(
         playing.entries.removeIf { !it.value.isActive }
         val watching = sessions.watching()
         val wanted = wanted(mode(), watching, slots())
+        playing.filterKeys { it in watching }.values.forEach { it.cancel() }
         playing.entries.drop(wanted).forEach { it.value.cancel() }
-        val free = wanted - playing.count { it.value.isActive }
+        val free = wanted - playing.count { it.value.isActive && it.key !in watching }
         if (free <= 0) return
         // A channel that cannot be listened to gives its turn to the next in line, so a run
         // of them never stalls the rest.
@@ -153,8 +154,8 @@ class AdListener(
             val media = mediaPlaylist(stream) ?: return
             var last = Long.MIN_VALUE
             while (clock.instant().isBefore(until)) {
-                // Someone started watching: the turn ends now rather than at the next look.
-                if (sessions.watching().isNotEmpty()) return
+                // Someone started watching this channel: the turn ends now rather than at the next look.
+                if (channel in sessions.watching()) return
                 val (text, base) = fetchText(stream, media) ?: return
                 if (text.contains("#EXT-X-KEY:METHOD=AES") || text.contains("#EXT-X-MAP:")) {
                     log.info(
@@ -273,6 +274,9 @@ class AdListener(
 
         /** Built-in services whose channels are never listened to. */
         val NEVER = setOf("pluto")
+
+        /** The most channels listened to while anyone watches. */
+        const val WHILE_WATCHING = 2
         private const val RECONCILE_MS = 30_000L
         private const val START_DELAY_MS = 300_000L
         private const val START_SEGMENTS = 3
@@ -307,11 +311,14 @@ class AdListener(
         }
 
         /**
-         * How many channels to listen to: none while anyone is [watching], since listening shares the household's
-         * connection and the providers' per-device limits with the viewers, or with learned breaks [LearnedBreaks.OFF].
+         * How many channels to listen to: [slots], at most [WHILE_WATCHING] while anyone is [watching], none with learned
+         * breaks [LearnedBreaks.OFF].
          */
-        fun wanted(mode: LearnedBreaks, watching: Set<String>, slots: Int): Int =
-            if (mode == LearnedBreaks.OFF || watching.isNotEmpty()) 0 else slots
+        fun wanted(mode: LearnedBreaks, watching: Set<String>, slots: Int): Int = when {
+            mode == LearnedBreaks.OFF -> 0
+            watching.isNotEmpty() -> minOf(slots, WHILE_WATCHING)
+            else -> slots
+        }
 
         /**
          * [lineup]'s channels in the order to listen to them, none of [busy]: watched within [RECENT] and never seen

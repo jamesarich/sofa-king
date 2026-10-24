@@ -1,0 +1,28 @@
+# The notes of the rolling `snapshot` release, rendered by git-cliff from the squash-merge titles on `main`, which are
+# Conventional Commits. `publish-snapshot.yml` runs it over the commits since the previous snapshot. Only `feat`, `fix`
+# and `perf` reach the notes; tests, CI, docs and Renovate's `build(deps)` updates do not.
+
+[changelog]
+body = """
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}
+- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | upper_first }}
+{%- endfor %}
+{% endfor %}
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+filter_commits = true
+sort_commits = "newest"
+commit_preprocessors = [
+  { pattern = '\(#(\d+)\)', replace = "([#${1}](https://github.com/jamesarich/sofa-king/pull/${1}))" },
+]
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->New" },
+  { message = "^(fix|perf)", group = "<!-- 1 -->Fixes" },
+  { message = ".*", skip = true },
+]

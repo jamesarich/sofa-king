@@ -91,6 +91,7 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
         if (entry.id !in providerIds) errors += "$where: unknown provider ${entry.id}"
         filter(entry.include, "$where.include")
         filter(entry.exclude, "$where.exclude")
+        entry.group?.let { if (it.isBlank() || it.length > 128) errors += "$where: group must be 1 to 128 characters" }
     }
     policy.groups.patterns.forEachIndexed { index, item ->
         val where = "groups.patterns[$index]"

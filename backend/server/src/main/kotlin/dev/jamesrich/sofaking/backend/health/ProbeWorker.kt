@@ -232,6 +232,11 @@ class ProbeWorker(
                         before == HealthStatus.HEALTHY,
                     )
             }
+        record(offering, failure, before)
+    }
+
+    /** Records the probe's [failure] (null when it qualified) as evidence, and tells the callbacks. */
+    private suspend fun record(offering: Offering, failure: FailureClass?, before: HealthStatus?) {
         val at = clock.instant()
         val recorded = mutex.withLock {
             evidence(offering, failure, at).also { outcomes.merge(it?.name ?: "QUALIFIED", 1, Int::plus) }

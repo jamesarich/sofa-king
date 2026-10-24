@@ -16,11 +16,14 @@ android {
             providers.gradleProperty("sofaking.versionSuffix").getOrElse("")
         // The touch tests in src/androidTest, against the fixture server (docs/development.md).
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Each test starts from a fresh install's data: a random walk can change settings the next test relies on.
+        testInstrumentationRunnerArguments["clearPackageData"] = "true"
     }
 
     // AGP's Compose Preview tasks fail to register without this and the unit tests androidComponents enables below.
     // Android Studio's sync registers every task, so dropping either one breaks the sync.
     testOptions {
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
         unitTests {
             isIncludeAndroidResources = true
         }
@@ -67,4 +70,5 @@ dependencies {
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.uiautomator)
+    androidTestUtil(libs.androidx.test.orchestrator)
 }

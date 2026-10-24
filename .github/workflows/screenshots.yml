@@ -13,6 +13,7 @@ on:
       - "app/scripts/showcase.py"
       - "app/scripts/fixture_server.py"
       - ".github/workflows/screenshots.yml"
+      - ".github/actions/apt-install/**"
 
 concurrency:
   group: screenshots-${{ github.ref }}
@@ -39,7 +40,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+        uses: ./.github/actions/apt-install
+        with:
+          packages: ffmpeg
       - id: version
         name: Read the showcase's version
         working-directory: app/scripts
@@ -75,10 +78,11 @@ jobs:
       # FFmpeg cuts the showcase and the server relays through it; the desktop app plays through VLC, and Java takes keys
       # only from a window a window manager has focused. Playwright drives the runner's own Chrome.
       - name: Install the tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg vlc xvfb openbox xdotool imagemagick
-          pip install playwright
+        uses: ./.github/actions/apt-install
+        with:
+          packages: ffmpeg vlc xvfb openbox xdotool imagemagick
+      - name: Install Playwright
+        run: pip install playwright
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/sofa-king-showcase
@@ -135,7 +139,9 @@ jobs:
           cache-read-only: true
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+        uses: ./.github/actions/apt-install
+        with:
+          packages: ffmpeg
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/sofa-king-showcase

@@ -49,6 +49,16 @@
     <string name="library_left">%1$s left</string>
     <string name="library_rating">★ %1$s</string>
     <string name="library_cast">Cast</string>
+    <string name="library_extras">Extras</string>
+    <string name="library_related">More like this</string>
+    <string name="library_extra_trailer">Trailer</string>
+    <string name="library_extra_featurette">Featurette</string>
+    <string name="library_extra_behind_the_scenes">Behind the scenes</string>
+    <string name="library_extra_deleted_scene">Deleted scene</string>
+    <string name="library_extra_interview">Interview</string>
+    <string name="library_extra_scene">Scene</string>
+    <string name="library_extra_short">Short</string>
+    <string name="library_extra_other">Extra</string>
     <string name="library_directors">Directed by %1$s</string>
     <string name="library_subtitles">Subtitles: %1$s</string>
     <string name="library_spoiler_hidden">Unwatched episode. Hide spoilers keeps its summary back.</string>

@@ -83,6 +83,7 @@ import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.KeepScreenOn
 import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
 import dev.jamesrich.sofaking.ui.LocalLastInput
+import dev.jamesrich.sofaking.ui.LocalUptimeMs
 import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
@@ -154,6 +155,7 @@ fun VodPlayerScreen(
     val paused = !status.playWhenReady
     val buffering = status.state == PlaybackState.BUFFERING
     val state = remember { VodPlayerState() }
+    val scrubClock = LocalUptimeMs.current
     var openRequest by remember { mutableIntStateOf(0) }
     // The stream position to seek to once the item at a new URL is ready: a file played as it is starts at 0.
     var pendingSeek by remember { mutableStateOf<Long?>(null) }
@@ -333,7 +335,7 @@ fun VodPlayerScreen(
                 currentOnExit()
                 break
             }
-            state.settledScrub(uptimeMs())?.let(::seekItem)
+            state.settledScrub(scrubClock())?.let(::seekItem)
             val current = sessions.current.value?.takeIf { it.itemId == itemId } ?: continue
             if (!player.isSeekable || pendingSeek != null) continue
             val previous = state.positionMs
@@ -607,6 +609,7 @@ fun VodPlayerScreen(
                 state.onKeyEvent(
                     event.key, event.type, controls, paused,
                     hasButtons = buttons.isNotEmpty(), tracksPickable = tracks.pickable, repeatCount = event.repeatCountOrNull,
+                    nowMs = scrubClock(),
                 )
             }
             // A double click switches a window the app can make full screen; on a phone or tablet a double tap on the

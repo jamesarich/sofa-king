@@ -2,7 +2,8 @@ import SwiftUI
 import SofaKingCore
 
 /// An item's page: its backdrop, details and buttons to play, resume, start over and mark watched. A show adds its
-/// seasons, opening on the one with the next episode, and that season's episodes, which play when selected.
+/// seasons, opening on the one with the next episode, and that season's episodes, which play when selected. Under
+/// them are the item's Extras, which play when selected, and More like this, which opens the other item's page.
 struct ItemDetailView: View {
     @Environment(AppModel.self) private var model
     let itemId: String
@@ -67,6 +68,31 @@ struct ItemDetailView: View {
                     }
                 } else if item.kind == .season {
                     episodes(detail.children)
+                }
+                if !detail.extras.isEmpty {
+                    Section {
+                        CardRow {
+                            ForEach(detail.extras) { extra in
+                                Button { model.vod = VodRequest(item: extra, fromStart: false) } label: { LibraryCard(item: extra, wide: true) }
+                                    .buttonStyle(.card)
+                            }
+                        }
+                    } header: {
+                        Text("Extras").font(.title3)
+                    }
+                }
+                if !detail.related.isEmpty {
+                    Section {
+                        CardRow {
+                            ForEach(detail.related) { other in
+                                NavigationLink(value: other) { LibraryCard(item: other, wide: other.kind == .video) }
+                                    .buttonStyle(.card)
+                                    .playsOnPlayPause(other)
+                            }
+                        }
+                    } header: {
+                        Text("More like this").font(.title3)
+                    }
                 }
             }
             .padding(.top, 40)

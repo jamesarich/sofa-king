@@ -132,7 +132,7 @@ class LibraryService(
         if (!Files.isDirectory(root)) return emptyList()
         val below = if (depth == 0) emptyList() else try {
             Files.list(root).use { stream ->
-                stream.filter { Files.isDirectory(it, java.nio.file.LinkOption.NOFOLLOW_LINKS) && !skippedFolder(it.fileName.toString()) }.sorted().toList()
+                stream.filter { Files.isDirectory(it, java.nio.file.LinkOption.NOFOLLOW_LINKS) && !skippedFolder(it.fileName.toString()) && extraFolderKind(it.fileName.toString()) == null }.sorted().toList()
             }.flatMap { folders(it, depth - 1) }
         } catch (_: java.io.IOException) { emptyList() }
         return listOf(root.normalize()) + below

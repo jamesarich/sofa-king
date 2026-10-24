@@ -125,14 +125,22 @@ final class TouchTests: XCTestCase {
     }
 
     /// Launches the app muted with `arguments` (the debug host's launch arguments) and waits for the guide, or for the
-    /// player when the app reopens the last channel it played.
+    /// player when the app reopens the last channel it played. A runner busy enough to hold the server's first answers
+    /// past the app's 20 s timeout leaves the failure page, whose own retry waits a minute, so the test presses Try again.
     @MainActor
     private func launch(_ arguments: [String]) {
         app = XCUIApplication()
         app.launchArguments = arguments + ["-muted", "YES"]
         app.launch()
         XCUIDevice.shared.orientation = .landscapeLeft
-        eventually("the guide or the player to load", timeout: 60) { labeled("All ").exists || labeled("Now playing").exists }
+        let retry = app.buttons.matching(NSPredicate(format: "label == %@", "Try again")).firstMatch
+        eventually("the guide or the player to load", timeout: 120) {
+            if labeled("All ").exists || labeled("Now playing").exists { return true }
+            if retry.exists {
+                if retry.isHittable { retry.tap() } else { app.swipeUp() }
+            }
+            return false
+        }
     }
 
     /// Opens `channel` full screen from the guide with one tap on the program it airs now. The channel's name beside

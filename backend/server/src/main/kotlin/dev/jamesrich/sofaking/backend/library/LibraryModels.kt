@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.contract.Wire
 import kotlinx.serialization.Serializable
 
 /** How a library's files are named, and so what the scan makes of them. */
@@ -23,6 +24,20 @@ object ItemKind {
     const val SEASON = "season"
     const val EPISODE = "episode"
     const val VIDEO = "video"
+    /** A trailer, featurette or other extra of the movie or show it belongs to, listed only on that item's page. */
+    const val EXTRA = "extra"
+}
+
+/** What kind of extra a file is, from its folder or its name; [wire] is its [Wire.ExtraKind] value, in the order a page lists them. */
+enum class ExtraKind(val wire: String, val label: String) {
+    TRAILER(Wire.ExtraKind.TRAILER, "Trailer"),
+    FEATURETTE(Wire.ExtraKind.FEATURETTE, "Featurette"),
+    BEHIND_THE_SCENES(Wire.ExtraKind.BEHIND_THE_SCENES, "Behind the scenes"),
+    DELETED_SCENE(Wire.ExtraKind.DELETED_SCENE, "Deleted scene"),
+    INTERVIEW(Wire.ExtraKind.INTERVIEW, "Interview"),
+    SCENE(Wire.ExtraKind.SCENE, "Scene"),
+    SHORT(Wire.ExtraKind.SHORT, "Short"),
+    OTHER(Wire.ExtraKind.OTHER, "Extra"),
 }
 
 /** A library as stored, with the outcome of its last scan. */
@@ -45,6 +60,8 @@ data class ItemDetails(
     val tmdbId: Int? = null,
     /** Whether a `.nfo` supplied these facts, so they win over TMDB's. */
     val nfo: Boolean = false,
+    /** An extra's [ExtraKind] wire value. */
+    val extra: String? = null,
 )
 
 /**

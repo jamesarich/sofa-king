@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.key.Key
@@ -23,6 +24,7 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.ScrubTiles
 import dev.jamesrich.sofaking.data.SofaKingApi
+import dev.jamesrich.sofaking.ui.LocalUptimeMs
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -99,20 +101,23 @@ class VodIntroSkipTest {
         val sessions = sessions()
         val before = player.currentStreamUrl
         setContent {
-            SofaKingTheme {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    VodPlayerScreen(
-                        title = VodTitle("Chapter 1", markers = markers, scrub = scrub),
-                        player = player,
-                        sessions = sessions,
-                        itemId = "e1",
-                        open = { sessions.play("e1", player.playbackProfile) },
-                        onPosition = { _, _ -> },
-                        onStopped = { _, _ -> },
-                        onExit = {},
-                        upNext = { upNext },
-                        onPlayNext = onPlayNext,
-                    )
+            // A scrub rests by the test's clock, so the time the machine takes to draw a frame does not settle it.
+            CompositionLocalProvider(LocalUptimeMs provides { mainClock.currentTime }) {
+                SofaKingTheme {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        VodPlayerScreen(
+                            title = VodTitle("Chapter 1", markers = markers, scrub = scrub),
+                            player = player,
+                            sessions = sessions,
+                            itemId = "e1",
+                            open = { sessions.play("e1", player.playbackProfile) },
+                            onPosition = { _, _ -> },
+                            onStopped = { _, _ -> },
+                            onExit = {},
+                            upNext = { upNext },
+                            onPlayNext = onPlayNext,
+                        )
+                    }
                 }
             }
         }
@@ -205,17 +210,17 @@ class VodIntroSkipTest {
         mainClock.advanceTimeBy(1_000)
         assertEquals(0, onAllNodesWithTag(SCRUB_THUMBNAIL_TAG).fetchSemanticsNodes().size)
 
-        // Held still, so the scrub does not settle while the test looks.
+        // Held still, and looked at within the scrub's rest (SCRUB_SETTLE_MS), so it does not settle meanwhile.
         mainClock.autoAdvance = false
 
         // With the bar down the thumbnail stands over the badge.
         onRoot().performKeyInput { pressKey(Key.DirectionRight) }
-        mainClock.advanceTimeBy(400)
+        mainClock.advanceTimeBy(200)
         assertEquals(1, onAllNodesWithTag(SCRUB_THUMBNAIL_TAG).fetchSemanticsNodes().size)
 
         // Brought up, the bar carries it over the scrub's place, left of the middle at 610 of 1,500 seconds.
         onRoot().performKeyInput { pressKey(Key.DirectionDown) }
-        mainClock.advanceTimeBy(400)
+        mainClock.advanceTimeBy(200)
         val shown = onAllNodesWithTag(SCRUB_THUMBNAIL_TAG).fetchSemanticsNodes()
         assertEquals(1, shown.size)
         assertTrue(shown.single().boundsInRoot.center.x in 400f..900f, "centered at ${shown.single().boundsInRoot.center.x}")

@@ -84,7 +84,7 @@ A learned alias for a pair in `names.never` is ignored and removed at the next w
 
 ### Provider entries
 
-Each entry is `{"id": "...", "include": FILTER, "exclude": FILTER, "enabled": true}`. A channel takes the first entry whose `id` is its provider and whose filters pass it; no `include` admits everything. A filter has `groups` and `names` (exact, case-insensitive) and `groupPatterns` and `namePatterns` (case-insensitive regexes); any match passes. `enabled` is the default for stations that entry leads. A provider may appear more than once with different filters:
+Each entry is `{"id": "...", "include": FILTER, "exclude": FILTER, "enabled": true, "group": "..."}`. A channel takes the first entry whose `id` is its provider and whose filters pass it; no `include` admits everything. A filter has `groups` and `names` (exact, case-insensitive) and `groupPatterns` and `namePatterns` (case-insensitive regexes); any match passes. `enabled` is the default for stations that entry leads, and `group`, when set, is their group (see [Groups](#groups)); a station another entry leads keeps its own, so an entry at the end of the order that only fills in for other services never regroups their stations. A provider may appear more than once with different filters:
 
 ```json
 "providers": [
@@ -122,9 +122,10 @@ A station's group is the first of:
 
 1. Its override's `group`.
 2. The `group` of the first pattern whose `name` matches the station's name.
-3. The vote of its sources. Each source's raw category maps through `groups.map`, trying `provider:raw group` before `raw group`, and then through the first pattern whose `rawGroup` matches it. Each provider counts once per group, and the group with the most providers wins; a tie goes to the group voted for first, in leading order. Categories in `groups.weak` vote only when no other category does, so a broad bucket such as `TV`, `Featured` or `Movies and Series` decides a station only when nothing more specific names it. With `groups.builtIn`, a category the policy leaves out is looked up in the shipped group map, and its weak list applies too; the policy's own entries always win. A category nothing maps casts no vote.
-4. `groups.default`.
-5. The leading channel's raw category.
+3. The `group` of the provider entry that leads the station.
+4. The vote of its sources. Each source's raw category maps through `groups.map`, trying `provider:raw group` before `raw group`, and then through the first pattern whose `rawGroup` matches it. Each provider counts once per group, and the group with the most providers wins; a tie goes to the group voted for first, in leading order. Categories in `groups.weak` vote only when no other category does, so a broad bucket such as `TV`, `Featured` or `Movies and Series` decides a station only when nothing more specific names it. With `groups.builtIn`, a category the policy leaves out is looked up in the shipped group map, and its weak list applies too; the policy's own entries always win. A category nothing maps casts no vote.
+5. `groups.default`.
+6. The leading channel's raw category.
 
 ```json
 "groups": {

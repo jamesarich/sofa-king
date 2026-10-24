@@ -286,8 +286,8 @@ object StationBuilder {
             findings += "$key: candidates missing since $missingSince"
         }
 
-        // A station's group: its override, else a name pattern, else its sources' vote, else the default, else the
-        // leading channel's raw group.
+        // A station's group: its override, else a name pattern, else its leading entry's group, else its sources'
+        // vote, else the default, else the leading channel's raw group.
         val weak = policy.groups.weak.mapTo(HashSet()) { it.trim().lowercase() }
         val builtIn = if (policy.groups.builtIn) DefaultGroups.load() else null
         val namePatterns = policy.groups.patterns.mapNotNull { p -> p.name?.let { Regex(it, RegexOption.IGNORE_CASE) to p.group } }
@@ -315,7 +315,8 @@ object StationBuilder {
         }
         val groupByKey = HashMap<String, String?>()
         fun groupFor(draft: Draft): String? = groupByKey.getOrPut(draft.key) {
-            draft.override?.group ?: nameGroup(draft) ?: votedGroup(draft) ?: policy.groups.default ?: draft.leading?.let(::rawOf)
+            draft.override?.group ?: nameGroup(draft) ?: draft.leading?.entry?.let { policy.providers[it].group }
+                ?: votedGroup(draft) ?: policy.groups.default ?: draft.leading?.let(::rawOf)
         }
 
         // Pass one reserves every number the file holds, including a station that has just left, and the numbers missing

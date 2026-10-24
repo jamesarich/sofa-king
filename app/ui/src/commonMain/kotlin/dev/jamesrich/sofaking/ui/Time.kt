@@ -66,10 +66,13 @@ internal class TimeFormatter(val zone: TimeZone, val twentyFourHour: Boolean = f
 /** The clock format the screens write times in; the app provides the setting, and the default follows the platform. */
 internal val LocalClockFormat = staticCompositionLocalOf { ClockFormat.AUTO }
 
-/** The zone times show in: the device's, or a fixed one in previews and screenshot tests. */
+/**
+ * The zone times show in: the device's, which the app provides from [rememberSystemTimeZone] so it follows a change,
+ * or a fixed one in previews and screenshot tests.
+ */
 internal val LocalTimeZone = staticCompositionLocalOf { TimeZone.currentSystemDefault() }
 
-/** The [LocalTimeZone]'s formatter in the [LocalClockFormat]; read once per composition, as the zone was before. */
+/** The [LocalTimeZone]'s formatter in the [LocalClockFormat], made again when either changes. */
 @Composable
 internal fun rememberTimeFormatter(): TimeFormatter {
     val zone = LocalTimeZone.current

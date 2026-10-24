@@ -11,7 +11,10 @@ import kotlin.time.Duration.Companion.minutes
 internal enum class CardStyle { POSTER, WIDE }
 
 /** Search results split as the search draws them: movies and shows as posters, episodes and videos as wide cards. */
-internal class SearchSections(val posters: List<MediaItem>, val wide: List<MediaItem>)
+internal class SearchSections(val posters: List<MediaItem>, val wide: List<MediaItem>) {
+    /** Whether the search found anything. */
+    val found: Boolean get() = posters.isNotEmpty() || wide.isNotEmpty()
+}
 
 internal fun searchSections(results: List<MediaItem>): SearchSections {
     val (wide, posters) = results.partition { it.kind == ItemKind.EPISODE || it.kind == ItemKind.VIDEO }

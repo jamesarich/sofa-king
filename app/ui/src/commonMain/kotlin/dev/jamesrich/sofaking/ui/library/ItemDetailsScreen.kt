@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.library
 
+import androidx.compose.foundation.lazy.LazyListScope
 import dev.jamesrich.sofaking.ui.WIDESCREEN
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -139,15 +140,7 @@ private fun Details(
     val item = detail.item
     val insets = screenInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Vertical).asPaddingValues()
     val seasons = detail.children.filter { it.kind == ItemKind.SEASON }
-    val episodes: List<MediaItem> = when {
-        item.kind == ItemKind.SEASON -> detail.children.filter { it.kind.playable }
-
-        seasons.isNotEmpty() -> ((season as? ItemDetailState.Ready)?.detail?.children).orEmpty().filter {
-            it.kind.playable
-        }
-
-        else -> detail.children.filter { it.kind.playable }
-    }
+    val episodes = episodesOf(detail, seasons, season)
     val sides = insets.horizontalOnly()
     val primaryFocus = remember { FocusRequester() }
     val episodeFocus = remember { FocusRequester() }
@@ -196,47 +189,60 @@ private fun Details(
                         actions.onPlay(episode, false)
                     }, modifier = Modifier.padding(sides).then(modifier))
                 }
-                if (detail.extras.isNotEmpty()) {
-                    item(key = "extras") {
-                        ItemRow(
-                            stringResource(Res.string.library_extras),
-                            detail.extras,
-                            CardStyle.WIDE,
-                            sides,
-                            onOpen = { actions.onPlay(it, false) },
-                            onPlay = { actions.onPlay(it, false) },
-                            focusItem = returnToExtra,
-                            focusRequester = episodeFocus,
-                        )
-                    }
-                }
-                if (detail.related.isNotEmpty()) {
-                    item(key = "related") {
-                        val style = if (detail.related.all {
-                                it.kind == ItemKind.VIDEO
-                            }
-                        ) {
-                            CardStyle.WIDE
-                        } else {
-                            CardStyle.POSTER
-                        }
-                        ItemRow(
-                            stringResource(
-                                Res.string.library_related,
-                            ),
-                            detail.related,
-                            style,
-                            sides,
-                            onOpen = actions.onOpenItem,
-                            onPlay = {
-                                actions.onPlay(it, false)
-                            },
-                            focusItem = returnToRelated,
-                            focusRequester = episodeFocus,
-                        )
-                    }
-                }
+                extrasAndRelated(detail, actions, sides, returnedFrom, episodeFocus)
             }
+        }
+    }
+}
+
+/**
+ * The episodes the page lists: a season's own, or those of the [season] picked in a show; any other item's playable
+ * children.
+ */
+private fun episodesOf(detail: MediaItemDetail, seasons: List<MediaItem>, season: ItemDetailState?): List<MediaItem> {
+    val children = when {
+        detail.item.kind == ItemKind.SEASON -> detail.children
+        seasons.isNotEmpty() -> (season as? ItemDetailState.Ready)?.detail?.children.orEmpty()
+        else -> detail.children
+    }
+    return children.filter { it.kind.playable }
+}
+
+/** The item's extras, then the titles like it; the card the viewer [returnedFrom] takes [focus]. */
+private fun LazyListScope.extrasAndRelated(
+    detail: MediaItemDetail,
+    actions: ItemDetailsActions,
+    sides: PaddingValues,
+    returnedFrom: String?,
+    focus: FocusRequester,
+) {
+    if (detail.extras.isNotEmpty()) {
+        item(key = "extras") {
+            ItemRow(
+                stringResource(Res.string.library_extras),
+                detail.extras,
+                CardStyle.WIDE,
+                sides,
+                onOpen = { actions.onPlay(it, false) },
+                onPlay = { actions.onPlay(it, false) },
+                focusItem = returnedFrom?.takeIf { id -> detail.extras.any { it.id == id } },
+                focusRequester = focus,
+            )
+        }
+    }
+    if (detail.related.isNotEmpty()) {
+        item(key = "related") {
+            val style = if (detail.related.all { it.kind == ItemKind.VIDEO }) CardStyle.WIDE else CardStyle.POSTER
+            ItemRow(
+                stringResource(Res.string.library_related),
+                detail.related,
+                style,
+                sides,
+                onOpen = actions.onOpenItem,
+                onPlay = { actions.onPlay(it, false) },
+                focusItem = returnedFrom?.takeIf { id -> detail.related.any { it.id == id } },
+                focusRequester = focus,
+            )
         }
     }
 }
@@ -563,54 +569,65 @@ private fun EpisodeRow(
             horizontalArrangement = Arrangement.spacedBy(20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                Modifier.width(
-                    EPISODE_THUMB_WIDTH,
-                ).aspectRatio(WIDESCREEN).background(MaterialTheme.colorScheme.surfaceVariant, CardShape),
-            ) {
-                Artwork(
-                    episode.stillOrBackdrop(),
-                    label = episode.episode?.let {
-                        "E$it"
-                    } ?: episode.title,
-                    hidden = spoilersHidden,
-                )
-                val progress = episode.progress
-                if (progress?.watched == true) WatchedTick(Modifier.align(Alignment.TopEnd).padding(6.dp))
-                if (progress != null && progress.inProgress) {
-                    progress.fraction?.let { ProgressStrip(it, Modifier.align(Alignment.BottomCenter)) }
-                }
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            EpisodeThumb(episode, spoilersHidden)
+            EpisodeText(episode, spoilersHidden, Modifier.weight(1f))
+        }
+    }
+}
+
+/** The episode's still, with its watched tick and progress. */
+@Composable
+private fun EpisodeThumb(episode: MediaItem, spoilersHidden: Boolean) {
+    Box(
+        Modifier.width(EPISODE_THUMB_WIDTH).aspectRatio(WIDESCREEN)
+            .background(MaterialTheme.colorScheme.surfaceVariant, CardShape),
+    ) {
+        Artwork(
+            episode.stillOrBackdrop(),
+            label = episode.episode?.let {
+                "E$it"
+            } ?: episode.title,
+            hidden = spoilersHidden,
+        )
+        val progress = episode.progress
+        if (progress?.watched == true) WatchedTick(Modifier.align(Alignment.TopEnd).padding(6.dp))
+        if (progress != null && progress.inProgress) {
+            progress.fraction?.let { ProgressStrip(it, Modifier.align(Alignment.BottomCenter)) }
+        }
+    }
+}
+
+/** The episode's number and title, length and air date, and overview unless it is a spoiler. */
+@Composable
+private fun EpisodeText(episode: MediaItem, spoilersHidden: Boolean, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            listOfNotNull(episode.episode?.let { "$it." }, episode.title).joinToString(" "),
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        val line = listOfNotNull(
+            runtime(episode.durationMs)?.hoursAndMinutes(),
+            episode.aired,
+        ).joinToString(DETAIL_SEPARATOR)
+        if (line.isNotEmpty()) {
+            Text(
+                line,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        episode.overview?.let { overview ->
+            if (spoilersHidden) {
+                SpoilerHidden()
+            } else {
                 Text(
-                    listOfNotNull(episode.episode?.let { "$it." }, episode.title).joinToString(" "),
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
+                    overview,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                val line = listOfNotNull(
-                    runtime(episode.durationMs)?.hoursAndMinutes(),
-                    episode.aired,
-                ).joinToString(DETAIL_SEPARATOR)
-                if (line.isNotEmpty()) {
-                    Text(
-                        line,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                episode.overview?.let { overview ->
-                    if (spoilersHidden) {
-                        SpoilerHidden()
-                    } else {
-                        Text(
-                            overview,
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
             }
         }
     }

@@ -1,5 +1,8 @@
 package dev.jamesrich.sofaking.ui.library
 
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.runtime.Stable
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -63,29 +66,21 @@ internal fun LibrarySearchScreen(
 ) {
     val insets = screenInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).asPaddingValues()
     val query = rememberTextFieldState()
-    val field = remember { FocusRequester() }
-    val firstResult = remember { FocusRequester() }
-    val returnFocus = remember { FocusRequester() }
-    var results by remember { mutableStateOf<List<MediaItem>?>(null) }
-    var searching by remember { mutableStateOf(false) }
-    // A spoken query moves focus to the first result once it is in; a typed one leaves it in the field.
-    var focusResults by remember { mutableStateOf(false) }
-    // Back from a result's page: the result to focus once the search has run again.
-    var focusReturn by remember { mutableStateOf<String?>(null) }
+    val focus = remember { SearchFocus() }
+    val search = remember { SearchProgress() }
     var arrived by rememberSaveable { mutableStateOf(false) }
-    val currentSearch by rememberUpdatedState(actions.search)
 
     val startVoice = rememberVoiceSearch(stringResource(Res.string.library_search_voice_prompt)) { spoken ->
         if (spoken != null) {
             query.setTextAndPlaceCursorAtEnd(spoken)
-            focusResults = true
+            search.focusResults = true
         } else {
-            focusResults = false
-            field.requestFocus()
+            search.focusResults = false
+            focus.field.requestFocus()
         }
     }
     LaunchedEffect(returnedFrom) {
-        if (returnedFrom != null && arrived && query.text.isNotBlank()) focusReturn = returnedFrom
+        if (returnedFrom != null && arrived && query.text.isNotBlank()) search.focusReturn = returnedFrom
     }
     LaunchedEffect(Unit) {
         when {
@@ -93,123 +88,166 @@ internal fun LibrarySearchScreen(
 
             !arrived && initialQuery != null -> {
                 query.setTextAndPlaceCursorAtEnd(initialQuery)
-                focusResults = true
+                search.focusResults = true
             }
 
             !arrived && voice && startVoice() -> Unit
 
-            else -> requestFocusWhenAttached(field)
+            else -> requestFocusWhenAttached(focus.field)
         }
         arrived = true
     }
-    LaunchedEffect(Unit) {
-        snapshotFlow { query.text.toString().trim() }.collectLatest { text ->
-            if (text.isEmpty()) {
-                results = null
-                return@collectLatest
-            }
-            delay(SEARCH_DEBOUNCE_MS)
-            // A newer query cancels this one mid-request; the loader must still come down.
-            searching = true
-            try {
-                results = currentSearch(text)
-            } finally {
-                searching = false
-            }
-        }
-    }
-    val sections = remember(results) { searchSections(results.orEmpty()) }
-    LaunchedEffect(sections, searching, focusReturn) {
-        val target = focusReturn
-        if (target != null) {
-            if (searching || results == null) return@LaunchedEffect
-            // Cleared only once the request is done: clearing it restarts this effect, which would cancel the request.
-            requestFocusWhenAttached(
-                if (results.orEmpty().any { it.id == target }) {
-                    returnFocus
-                } else if (sections.posters.isNotEmpty() ||
-                    sections.wide.isNotEmpty()
-                ) {
-                    firstResult
-                } else {
-                    field
-                },
-            )
-            focusReturn = null
-            return@LaunchedEffect
-        }
-        if (!focusResults || searching || results == null) return@LaunchedEffect
-        focusResults = false
-        // Nothing matched what was said: the field takes focus so the query can be changed.
-        requestFocusWhenAttached(
-            if (sections.posters.isNotEmpty() || sections.wide.isNotEmpty()) {
-                firstResult
-            } else {
-                field
-            },
-        )
-    }
+    RunSearch(query, actions.search, search)
+    val sections = remember(search.results) { searchSections(search.results.orEmpty()) }
+    FocusAfterSearch(search, sections, focus)
 
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 8.dp, bottom = insets.calculateBottomPadding() + 16.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
-        item(key = "field") {
-            Column(
-                Modifier.fillMaxWidth().padding(insets.horizontalOnly()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                TvTextField(
-                    state = query,
-                    focusRequester = field,
-                    imeAction = ImeAction.Search,
-                    onAction = {
-                        if (sections.posters.isNotEmpty() || sections.wide.isNotEmpty()) {
-                            firstResult.requestFocus()
-                        }
-                    },
-                    modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth(),
-                    hint = stringResource(Res.string.library_search_hint),
-                )
-                when {
-                    searching -> SofaLoader(size = 32.dp)
+        item(key = "field") { SearchField(query, focus, sections, search, insets) }
+        resultRows(sections, focus, insets, actions, returnedFrom)
+    }
+}
 
-                    results?.isEmpty() == true -> Text(
-                        stringResource(Res.string.library_search_none),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                }
+/** The posters row, then the episodes and videos row; the first row shown holds the first result. */
+private fun LazyListScope.resultRows(
+    sections: SearchSections,
+    focus: SearchFocus,
+    insets: PaddingValues,
+    actions: LibrarySearchActions,
+    returnedFrom: String?,
+) {
+    if (sections.posters.isNotEmpty()) {
+        item(key = "posters") {
+            ResultRow(
+                stringResource(Res.string.library_search_titles),
+                sections.posters,
+                CardStyle.POSTER,
+                insets,
+                actions,
+                focus.firstResult,
+                returnedFrom,
+                focus.returnTo,
+            )
+        }
+    }
+    if (sections.wide.isNotEmpty()) {
+        item(key = "wide") {
+            val first = if (sections.posters.isEmpty()) focus.firstResult else null
+            ResultRow(
+                stringResource(Res.string.library_search_episodes),
+                sections.wide,
+                CardStyle.WIDE,
+                insets,
+                actions,
+                first,
+                returnedFrom,
+                focus.returnTo,
+            )
+        }
+    }
+}
+
+/** Where focus goes around a search: the field, the first result, and the result the viewer came back from. */
+private class SearchFocus {
+    val field = FocusRequester()
+    val firstResult = FocusRequester()
+    val returnTo = FocusRequester()
+}
+
+/**
+ * The search's [results] (null before a query), whether one is [searching], and where focus goes once it is in: to the
+ * first result after a spoken query ([focusResults]), or back to the result the viewer left ([focusReturn]).
+ */
+@Stable
+private class SearchProgress {
+    var results by mutableStateOf<List<MediaItem>?>(null)
+    var searching by mutableStateOf(false)
+    var focusResults by mutableStateOf(false)
+    var focusReturn by mutableStateOf<String?>(null)
+}
+
+/** Runs [search] for the query a moment after the viewer stops typing; a newer query cancels the one running. */
+@Composable
+private fun RunSearch(query: TextFieldState, search: suspend (String) -> List<MediaItem>, into: SearchProgress) {
+    val currentSearch by rememberUpdatedState(search)
+    LaunchedEffect(Unit) {
+        snapshotFlow { query.text.toString().trim() }.collectLatest { text ->
+            if (text.isEmpty()) {
+                into.results = null
+                return@collectLatest
+            }
+            delay(SEARCH_DEBOUNCE_MS)
+            // A newer query cancels this one mid-request; the loader must still come down.
+            into.searching = true
+            try {
+                into.results = currentSearch(text)
+            } finally {
+                into.searching = false
             }
         }
-        if (sections.posters.isNotEmpty()) {
-            item(key = "posters") {
-                ResultRow(
-                    stringResource(Res.string.library_search_titles),
-                    sections.posters,
-                    CardStyle.POSTER,
-                    insets,
-                    actions,
-                    firstResult,
-                    returnedFrom,
-                    returnFocus,
-                )
+    }
+}
+
+/**
+ * Once a search is in, focus goes back to the result the viewer left, or after a spoken query to the first result;
+ * when nothing matched, the field takes it, so the query can be changed.
+ */
+@Composable
+private fun FocusAfterSearch(search: SearchProgress, sections: SearchSections, focus: SearchFocus) {
+    LaunchedEffect(sections, search.searching, search.focusReturn) {
+        if (search.searching || search.results == null) return@LaunchedEffect
+        val target = search.focusReturn
+        val onResults = if (sections.found) focus.firstResult else focus.field
+        when {
+            target != null -> {
+                val returned = search.results.orEmpty().any { it.id == target }
+                requestFocusWhenAttached(if (returned) focus.returnTo else onResults)
+                // Cleared only once the request is done: clearing it restarts this effect, which would cancel the
+                // request.
+                search.focusReturn = null
+            }
+
+            search.focusResults -> {
+                search.focusResults = false
+                requestFocusWhenAttached(onResults)
             }
         }
-        if (sections.wide.isNotEmpty()) {
-            item(key = "wide") {
-                val first = if (sections.posters.isEmpty()) firstResult else null
-                ResultRow(
-                    stringResource(Res.string.library_search_episodes),
-                    sections.wide,
-                    CardStyle.WIDE,
-                    insets,
-                    actions,
-                    first,
-                    returnedFrom,
-                    returnFocus,
-                )
-            }
+    }
+}
+
+/** The query field, with a spinner while a search runs or a word when it found nothing. */
+@Composable
+private fun SearchField(
+    query: TextFieldState,
+    focus: SearchFocus,
+    sections: SearchSections,
+    search: SearchProgress,
+    insets: PaddingValues,
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(insets.horizontalOnly()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        TvTextField(
+            state = query,
+            focusRequester = focus.field,
+            imeAction = ImeAction.Search,
+            onAction = {
+                if (sections.found) focus.firstResult.requestFocus()
+            },
+            modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth(),
+            hint = stringResource(Res.string.library_search_hint),
+        )
+        when {
+            search.searching -> SofaLoader(size = 32.dp)
+
+            search.results?.isEmpty() == true -> Text(
+                stringResource(Res.string.library_search_none),
+                style = MaterialTheme.typography.titleMedium,
+            )
         }
     }
 }

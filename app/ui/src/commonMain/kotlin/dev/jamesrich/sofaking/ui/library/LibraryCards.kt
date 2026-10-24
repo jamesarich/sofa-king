@@ -225,29 +225,31 @@ private fun ItemCard(
                 ItemMarks(item)
             }
         }
-        if (menu != null) {
-            val first = remember { FocusRequester() }
-            DropdownMenu(expanded = open, onDismissRequest = {
-                open = false
-            }, modifier = Modifier.arrowKeysMoveFocus()) {
-                val entries = cardMenuEntries(item, playFromStart = menu.onPlayFromStart != null)
-                entries.forEachIndexed { index, entry ->
-                    DropdownMenuItem(
-                        text = { Text(stringResource(entry.label)) },
-                        onClick = {
-                            open = false
-                            when (entry) {
-                                CardMenuEntry.PLAY_FROM_START -> menu.onPlayFromStart?.invoke(item)
-                                CardMenuEntry.MARK_WATCHED -> menu.onSetWatched(item, true)
-                                CardMenuEntry.MARK_UNWATCHED -> menu.onSetWatched(item, false)
-                            }
-                        },
-                        modifier = if (index == 0) Modifier.focusRequester(first) else Modifier,
-                    )
-                }
-                LaunchedEffect(Unit) { requestFocusWhenAttached(first) }
-            }
+        if (menu != null) CardMenuDropdown(item, menu, open, onClose = { open = false })
+    }
+}
+
+/** [menu]'s entries for [item] while [expanded], the first focused; picking one or dismissing it calls [onClose]. */
+@Composable
+private fun CardMenuDropdown(item: MediaItem, menu: CardMenu, expanded: Boolean, onClose: () -> Unit) {
+    val first = remember { FocusRequester() }
+    DropdownMenu(expanded = expanded, onDismissRequest = onClose, modifier = Modifier.arrowKeysMoveFocus()) {
+        val entries = cardMenuEntries(item, playFromStart = menu.onPlayFromStart != null)
+        entries.forEachIndexed { index, entry ->
+            DropdownMenuItem(
+                text = { Text(stringResource(entry.label)) },
+                onClick = {
+                    onClose()
+                    when (entry) {
+                        CardMenuEntry.PLAY_FROM_START -> menu.onPlayFromStart?.invoke(item)
+                        CardMenuEntry.MARK_WATCHED -> menu.onSetWatched(item, true)
+                        CardMenuEntry.MARK_UNWATCHED -> menu.onSetWatched(item, false)
+                    }
+                },
+                modifier = if (index == 0) Modifier.focusRequester(first) else Modifier,
+            )
         }
+        LaunchedEffect(Unit) { requestFocusWhenAttached(first) }
     }
 }
 

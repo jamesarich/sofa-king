@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.library
 
+import androidx.compose.runtime.Stable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -89,43 +91,16 @@ internal fun LibraryGridScreen(
     val direction = LocalLayoutDirection.current
     val focus = remember { FocusRequester() }
     val focusId = returnedFrom ?: grid?.items?.firstOrNull()?.id
-    val hasItems = grid?.items?.isNotEmpty() == true
-    // Focus goes to the grid on arrival and back on the card whose page the viewer left; a new sort or filter
-    // leaves it on the chip that changed it.
-    var focused by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(hasItems, returnedFrom) {
-        if (hasItems && (!focused || returnedFrom != null)) {
-            focused = true
-            requestFocusWhenAttached(focus)
-        }
-    }
-    // A letter's first item: the grid scrolls to it once its page is in, and it takes focus.
-    var jumpTo by remember { mutableStateOf<Int?>(null) }
-    val jumpFocus = remember { FocusRequester() }
-    val itemCount = grid?.items?.size ?: 0
-    LaunchedEffect(jumpTo, itemCount) {
-        val target = jumpTo ?: return@LaunchedEffect
-        if (target >= itemCount) return@LaunchedEffect
-        // The grid's first item is the header row, so the item's index is one ahead.
-        state.scrollToItem(target + 1)
-        requestFocusWhenAttached(jumpFocus)
-        jumpTo = null
-    }
+    FocusOnArrival(grid?.items?.isNotEmpty() == true, returnedFrom, focus)
+    val jump = rememberGridJump(state, grid?.items?.size ?: 0)
     val onLetter: (LetterJump) -> Unit = { letter ->
-        jumpTo = letter.offset
+        jump.target = letter.offset
         actions.onLoadThrough(letter.offset)
     }
     // The row of letters, when the grid has one: Up from the grid's top row lands in it from every column.
     val letters = remember { FocusRequester() }
     val letterRow = letters.takeIf { grid != null && showsLetters(grid) }
-    val currentGrid by rememberUpdatedState(grid)
-    LaunchedEffect(state) {
-        snapshotFlow { state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }.collect { last ->
-            val g = currentGrid ?: return@collect
-            // The grid's first item is the header row, so its index is one ahead of the items'.
-            if (shouldLoadMore(last - 1, g.items.size, g.next != null) && !g.loading) actions.onLoadMore()
-        }
-    }
+    LoadMoreNearEnd(state, grid, actions.onLoadMore)
     LazyVerticalGrid(
         columns = GridCells.Adaptive(if (style == CardStyle.WIDE) WIDE_WIDTH else POSTER_WIDTH),
         state = state,
@@ -145,49 +120,67 @@ internal fun LibraryGridScreen(
         val items = grid?.items.orEmpty()
         itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
             val modifier = when {
-                index == jumpTo -> Modifier.focusRequester(jumpFocus)
+                index == jump.target -> Modifier.focusRequester(jump.focus)
                 item.id == focusId -> Modifier.focusRequester(focus)
                 else -> Modifier
             }
-            // The header is the grid's row 0, so its top row of cards is row 1; the letters take Up from it while
-            // the header is on screen.
-            val up = Modifier.focusProperties {
-                val visible = state.layoutInfo.visibleItemsInfo
-                val row = visible.firstOrNull { it.index == index + 1 }?.row
-                if (letterRow != null && row == 1 && visible.any { it.index == 0 }) up = letterRow
-            }
+            val up = if (letterRow == null) Modifier else Modifier.upToLetters(state, index, letterRow)
             LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, actions.menu, up.then(modifier))
         }
         val g = grid
         val unsettled = g != null && (g.loading || g.error != null)
         if (g != null && (unsettled || items.isEmpty())) {
-            item(key = "footer", span = { GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                    when {
-                        g.loading -> SofaLoader(size = 40.dp)
-
-                        g.error != null -> Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Text(
-                                g.error.orEmpty(),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            SofaButton(onClick = actions.onLoadMore) { Text(stringResource(Res.string.retry)) }
-                        }
-
-                        else -> Text(
-                            stringResource(Res.string.library_empty),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                    }
-                }
-            }
+            item(key = "footer", span = { GridItemSpan(maxLineSpan) }) { GridFooter(g, actions.onLoadMore) }
         }
     }
 }
+
+/**
+ * Focus goes to [focus] when the grid first has items and again when the viewer comes back from a card's page
+ * ([returnedFrom]); a new sort or filter leaves it on the chip that changed it.
+ */
+@Composable
+private fun FocusOnArrival(hasItems: Boolean, returnedFrom: String?, focus: FocusRequester) {
+    var focused by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(hasItems, returnedFrom) {
+        if (hasItems && (!focused || returnedFrom != null)) {
+            focused = true
+            requestFocusWhenAttached(focus)
+        }
+    }
+}
+
+/** A letter's first item, the [target]: the grid scrolls to it once its page is in, and it takes [focus]. */
+@Stable
+private class GridJump {
+    var target by mutableStateOf<Int?>(null)
+    val focus = FocusRequester()
+}
+
+@Composable
+private fun rememberGridJump(state: LazyGridState, itemCount: Int): GridJump {
+    val jump = remember { GridJump() }
+    LaunchedEffect(jump.target, itemCount) {
+        val target = jump.target ?: return@LaunchedEffect
+        if (target >= itemCount) return@LaunchedEffect
+        // The grid's first item is the header row, so the item's index is one ahead.
+        state.scrollToItem(target + 1)
+        requestFocusWhenAttached(jump.focus)
+        jump.target = null
+    }
+    return jump
+}
+
+/**
+ * Up from the card at [index] goes to [letterRow] from the grid's top row of cards while the header is on screen. The
+ * header is the grid's row 0, so that top row is row 1.
+ */
+private fun Modifier.upToLetters(state: LazyGridState, index: Int, letterRow: FocusRequester): Modifier =
+    focusProperties {
+        val visible = state.layoutInfo.visibleItemsInfo
+        val row = visible.firstOrNull { it.index == index + 1 }?.row
+        if (row == 1 && visible.any { it.index == 0 }) up = letterRow
+    }
 
 @Composable
 private fun GridHeader(
@@ -208,8 +201,19 @@ private fun GridHeader(
                 )
             }
         }
+        SortChips(grid, actions)
+        GenreChips(grid, actions, letterRow)
+        if (letterRow != null) LetterChips(grid, letterRow, onLetter)
+    }
+}
+
+/**
+ * The sorts, then the Unwatched filter. Each chip row comes back to the chip last focused in it, else its selected
+ * one.
+ */
+@Composable
+private fun SortChips(grid: LibraryGrid?, actions: LibraryGridActions) {
         val sort = grid?.sort ?: LibrarySort.TITLE
-        // Each chip row comes back to the chip last focused in it, else its selected one.
         val selectedSort = remember { FocusRequester() }
         LazyRow(Modifier.focusRestorer(selectedSort), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(LibrarySort.entries.size) { i ->
@@ -226,6 +230,11 @@ private fun GridHeader(
                 }, label = stringResource(Res.string.library_filter_unwatched))
             }
         }
+}
+
+/** The library's genres after All, when it has any; Down from one goes to the letters. */
+@Composable
+private fun GenreChips(grid: LibraryGrid?, actions: LibraryGridActions, letterRow: FocusRequester?) {
         val genres = grid?.genres.orEmpty()
         if (genres.isNotEmpty()) {
             val genre = grid?.genre
@@ -249,9 +258,14 @@ private fun GridHeader(
                 }
             }
         }
-        if (letterRow != null) {
-            // The letters come back to the one last focused, else the first. Only focus scrolls the row, so whichever
-            // it is is on screen.
+}
+
+/**
+ * The first letters, each loading the grid through its first item. The row comes back to the letter last focused,
+ * else the first; only focus scrolls the row, so whichever it is is on screen.
+ */
+@Composable
+private fun LetterChips(grid: LibraryGrid?, letterRow: FocusRequester, onLetter: (LetterJump) -> Unit) {
             val firstLetter = remember { FocusRequester() }
             LazyRow(
                 Modifier.focusRequester(letterRow).focusRestorer(firstLetter),
@@ -268,6 +282,45 @@ private fun GridHeader(
                     )
                 }
             }
+}
+
+/** The grid's last row: a spinner while a page loads, the failure with Retry, or a word that the library is empty. */
+@Composable
+private fun GridFooter(grid: LibraryGrid, onRetry: () -> Unit) {
+    Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+        when {
+            grid.loading -> SofaLoader(size = 40.dp)
+
+            grid.error != null -> Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    grid.error.orEmpty(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SofaButton(onClick = onRetry) { Text(stringResource(Res.string.retry)) }
+            }
+
+            else -> Text(
+                stringResource(Res.string.library_empty),
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
+    }
+}
+
+/** Asks for the next page once the grid scrolls near the end of what [grid] holds and none is loading. */
+@Composable
+private fun LoadMoreNearEnd(state: LazyGridState, grid: LibraryGrid?, onLoadMore: () -> Unit) {
+    val currentGrid by rememberUpdatedState(grid)
+    val currentOnLoadMore by rememberUpdatedState(onLoadMore)
+    LaunchedEffect(state) {
+        snapshotFlow { state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }.collect { last ->
+            val g = currentGrid ?: return@collect
+            // The grid's first item is the header row, so its index is one ahead of the items'.
+            if (shouldLoadMore(last - 1, g.items.size, g.next != null) && !g.loading) currentOnLoadMore()
         }
     }
 }

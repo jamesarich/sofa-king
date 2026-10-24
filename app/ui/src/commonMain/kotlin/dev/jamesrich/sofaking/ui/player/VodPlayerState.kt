@@ -332,26 +332,9 @@ internal class VodPlayerState {
         nowMs: Long,
     ) {
         when (action) {
-            VodAction.BACK, VodAction.FORWARD -> if (failure == null) {
-                // With the bar down a scrub builds under a badge instead, so the picture stays clear.
-                if (overlayVisible) showInfo()
-                val direction = if (action == VodAction.BACK) -1 else 1
-                scrubTarget = scrub.press(direction, positionMs, durationMs, repeatCount ?: 0, nowMs)
-            }
+            VodAction.BACK, VodAction.FORWARD -> if (failure == null) scrubStep(action, repeatCount, nowMs)
 
-            VodAction.PLAY_PAUSE -> when {
-                failure != null -> controls.retry()
-
-                scrubTarget != null -> {
-                    scrubTarget = null
-                    scrub.commit()?.let(controls::seek)
-                    showInfo()
-                }
-
-                key in QUIET_PLAY_KEYS -> mediaPlayPause(controls, paused)
-
-                else -> playPause(controls)
-            }
+            VodAction.PLAY_PAUSE -> playPauseKey(key, controls, paused)
 
             VodAction.PLAY -> if (paused) mediaPlayPause(controls, paused)
 
@@ -376,6 +359,31 @@ internal class VodPlayerState {
             VodAction.ZOOM -> controls.zoom()
 
             VodAction.STOP -> controls.exit()
+        }
+    }
+
+    /** Back or Forward moves the scrub a step, further the longer the key is held. */
+    private fun scrubStep(action: VodAction, repeatCount: Int?, nowMs: Long) {
+        // With the bar down a scrub builds under a badge instead, so the picture stays clear.
+        if (overlayVisible) showInfo()
+        val direction = if (action == VodAction.BACK) -1 else 1
+        scrubTarget = scrub.press(direction, positionMs, durationMs, repeatCount ?: 0, nowMs)
+    }
+
+    /** Play/pause retries a failed stream, commits a scrub, or plays or pauses. */
+    private fun playPauseKey(key: Key, controls: VodControls, paused: Boolean) {
+        when {
+            failure != null -> controls.retry()
+
+            scrubTarget != null -> {
+                scrubTarget = null
+                scrub.commit()?.let(controls::seek)
+                showInfo()
+            }
+
+            key in QUIET_PLAY_KEYS -> mediaPlayPause(controls, paused)
+
+            else -> playPause(controls)
         }
     }
 

@@ -1,7 +1,5 @@
 package dev.jamesrich.sofaking.ui.player
 
-import kotlin.time.DurationUnit
-import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
@@ -150,6 +148,8 @@ import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.DurationUnit
 import kotlin.time.Instant
 
 internal val OverlayShape = RoundedCornerShape(8.dp)

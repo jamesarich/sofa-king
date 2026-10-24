@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui.player
 
-import kotlin.time.Duration.Companion.seconds
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
@@ -135,6 +134,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The full screen for something the viewer moves through: a library item or a recording. [open] opens it on the

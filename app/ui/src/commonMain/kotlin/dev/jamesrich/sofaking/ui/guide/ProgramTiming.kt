@@ -1,9 +1,9 @@
 package dev.jamesrich.sofaking.ui.guide
 
-import kotlin.time.Duration.Companion.seconds
 import dev.jamesrich.sofaking.data.Program
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /** How a program stands against the clock, for the detail sheet's "time remaining" line. */

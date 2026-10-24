@@ -1,9 +1,5 @@
 package dev.jamesrich.sofaking.ui.player
 
-import kotlin.time.Duration.Companion.seconds
-import dev.jamesrich.sofaking.ui.secondsUp
-import kotlin.time.Duration.Companion.microseconds
-import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -82,6 +78,7 @@ import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.repeatCountOrNull
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import dev.jamesrich.sofaking.ui.secondsUp
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.Job
@@ -91,6 +88,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.microseconds
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 private const val CAPTION_TOAST_MS = 2_000L
 

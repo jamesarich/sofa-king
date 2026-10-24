@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui.player
 
-import kotlin.time.Duration.Companion.microseconds
 import android.content.Context
 import androidx.annotation.OptIn
 import androidx.compose.runtime.Composable
@@ -41,6 +40,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.microseconds
 
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {

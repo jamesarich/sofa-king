@@ -63,6 +63,7 @@ import dev.jamesrich.sofaking.data.StartupTarget
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.SubtitleRaise
 import dev.jamesrich.sofaking.data.SubtitleSize
+import dev.jamesrich.sofaking.data.UpdateInstaller
 import dev.jamesrich.sofaking.data.UpdateState
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
@@ -207,7 +208,6 @@ import dev.jamesrich.sofaking.ui.player.CaptionPolicy
 import dev.jamesrich.sofaking.ui.player.captionTimingText
 import dev.jamesrich.sofaking.ui.rememberSystemCaptionSettings
 import dev.jamesrich.sofaking.ui.rememberUpdateInstaller
-import dev.jamesrich.sofaking.data.UpdateInstaller
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.supportsCaptionSync

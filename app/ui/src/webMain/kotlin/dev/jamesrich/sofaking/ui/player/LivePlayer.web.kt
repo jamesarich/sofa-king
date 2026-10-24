@@ -1,7 +1,5 @@
 package dev.jamesrich.sofaking.ui.player
 
-import kotlin.time.DurationUnit
-import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -63,6 +61,8 @@ import org.w3c.dom.TextTrackMode
 import org.w3c.dom.events.Event
 import org.w3c.dom.get
 import org.w3c.dom.url.URL
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.DurationUnit
 
 private val log = Logger.withTag("SofaKing")
 

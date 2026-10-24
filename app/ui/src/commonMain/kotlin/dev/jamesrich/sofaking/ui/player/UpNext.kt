@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui.player
 
-import dev.jamesrich.sofaking.ui.WIDESCREEN
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +35,7 @@ import dev.jamesrich.sofaking.resources.vod_up_next_in
 import dev.jamesrich.sofaking.resources.vod_up_next_keys
 import dev.jamesrich.sofaking.resources.vod_up_next_play
 import dev.jamesrich.sofaking.ui.Artwork
+import dev.jamesrich.sofaking.ui.WIDESCREEN
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim

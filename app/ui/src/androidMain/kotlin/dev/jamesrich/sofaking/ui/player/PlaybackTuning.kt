@@ -1,10 +1,10 @@
 package dev.jamesrich.sofaking.ui.player
 
-import kotlin.time.Duration.Companion.milliseconds
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import dev.jamesrich.sofaking.data.BufferPreference
 import kotlin.concurrent.Volatile
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * The buffer and decoder choices as the playback thread reads them: the codec selector and the load control are

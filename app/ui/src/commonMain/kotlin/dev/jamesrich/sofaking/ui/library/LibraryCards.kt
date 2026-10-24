@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui.library
 
-import dev.jamesrich.sofaking.ui.WIDESCREEN
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -68,6 +67,7 @@ import dev.jamesrich.sofaking.resources.library_mark_watched
 import dev.jamesrich.sofaking.resources.library_play_from_start
 import dev.jamesrich.sofaking.resources.library_watched
 import dev.jamesrich.sofaking.ui.Artwork
+import dev.jamesrich.sofaking.ui.WIDESCREEN
 import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.isOk
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached

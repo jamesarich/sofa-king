@@ -421,6 +421,7 @@ internal class PlayerState(
      */
     private fun backKey(key: Key, type: KeyEventType): Boolean? = when {
         key != Key.Back -> null
+
         type == KeyEventType.KeyDown && (miniGuideOpen || streamCardOpen) -> {
             miniGuideOpen = false
             streamCardOpen = false
@@ -444,8 +445,10 @@ internal class PlayerState(
         hasAudioTracks: Boolean,
     ): Boolean = when {
         !streamCardOpen -> onCenter(type, isLongPress, repeatCount, controls)
+
         // The focused track row takes OK; with nothing to pick, OK closes the card on its key-up.
         streamCardOk(hasAudioTracks) == StreamCardKey.CARD -> false
+
         else -> {
             if (type == KeyEventType.KeyUp) streamCardOpen = false
             true

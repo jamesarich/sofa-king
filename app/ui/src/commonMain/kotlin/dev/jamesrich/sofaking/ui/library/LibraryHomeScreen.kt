@@ -194,7 +194,6 @@ private fun LibraryChips(
             )
         }
     }
-
 }
 
 @Composable

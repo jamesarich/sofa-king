@@ -360,6 +360,7 @@ internal class GuideState(
      */
     private fun backKey(key: Key, type: KeyEventType, backAction: GuideBack, controls: GuideControls): Boolean? = when {
         key != Key.Back || details != null -> null
+
         type == KeyEventType.KeyDown && backAction != GuideBack.EXIT -> {
             backHeld = true
             true
@@ -389,7 +390,9 @@ internal class GuideState(
 
             // The rest of an OK held to open the details goes nowhere, so Watch, focused under it, does not play.
             type == KeyEventType.KeyDown && heldOk.onKeyDown() -> true
+
             type == KeyEventType.KeyUp && heldOk.onKeyUp() -> true
+
             // OK with digits typed commits them on key-up, as the player does; the cell does not play on this press.
             numbers.hasDigits && !searchOpen -> {
                 if (type == KeyEventType.KeyUp) numbers.commit()

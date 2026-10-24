@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui.library
 
-import androidx.compose.runtime.Stable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,8 +15,8 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -28,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -213,51 +213,51 @@ private fun GridHeader(
  */
 @Composable
 private fun SortChips(grid: LibraryGrid?, actions: LibraryGridActions) {
-        val sort = grid?.sort ?: LibrarySort.TITLE
-        val selectedSort = remember { FocusRequester() }
-        LazyRow(Modifier.focusRestorer(selectedSort), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(LibrarySort.entries.size) { i ->
-                val option = LibrarySort.entries[i]
-                val focus = if (option == sort) Modifier.focusRequester(selectedSort) else Modifier
-                SofaChip(selected = option == sort, onClick = {
-                    actions.onSort(option)
-                }, label = stringResource(option.label()), modifier = focus)
-            }
-            item {
-                val unwatched = grid?.unwatched == true
-                SofaChip(selected = unwatched, onClick = {
-                    actions.onUnwatched(!unwatched)
-                }, label = stringResource(Res.string.library_filter_unwatched))
-            }
+    val sort = grid?.sort ?: LibrarySort.TITLE
+    val selectedSort = remember { FocusRequester() }
+    LazyRow(Modifier.focusRestorer(selectedSort), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(LibrarySort.entries.size) { i ->
+            val option = LibrarySort.entries[i]
+            val focus = if (option == sort) Modifier.focusRequester(selectedSort) else Modifier
+            SofaChip(selected = option == sort, onClick = {
+                actions.onSort(option)
+            }, label = stringResource(option.label()), modifier = focus)
         }
+        item {
+            val unwatched = grid?.unwatched == true
+            SofaChip(selected = unwatched, onClick = {
+                actions.onUnwatched(!unwatched)
+            }, label = stringResource(Res.string.library_filter_unwatched))
+        }
+    }
 }
 
 /** The library's genres after All, when it has any; Down from one goes to the letters. */
 @Composable
 private fun GenreChips(grid: LibraryGrid?, actions: LibraryGridActions, letterRow: FocusRequester?) {
-        val genres = grid?.genres.orEmpty()
-        if (genres.isNotEmpty()) {
-            val genre = grid?.genre
-            val selectedGenre = remember { FocusRequester() }
-            val genreShown = genre != null && genres.any { it.equals(genre, ignoreCase = true) }
-            // Down from a genre goes to the letters, which the search would pass over from the row's left end.
-            val toLetters = Modifier.focusProperties { if (letterRow != null) down = letterRow }
-            LazyRow(Modifier.focusRestorer(selectedGenre), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                item {
-                    val focus = if (!genreShown) Modifier.focusRequester(selectedGenre) else Modifier
-                    SofaChip(selected = genre == null, onClick = {
-                        actions.onGenre(null)
-                    }, label = stringResource(Res.string.library_genre_all), modifier = toLetters.then(focus))
-                }
-                items(genres, key = { it }) { option ->
-                    val selected = option.equals(genre, ignoreCase = true)
-                    val focus = if (selected) Modifier.focusRequester(selectedGenre) else Modifier
-                    SofaChip(selected = selected, onClick = {
-                        actions.onGenre(option)
-                    }, label = option, modifier = toLetters.then(focus))
-                }
+    val genres = grid?.genres.orEmpty()
+    if (genres.isNotEmpty()) {
+        val genre = grid?.genre
+        val selectedGenre = remember { FocusRequester() }
+        val genreShown = genre != null && genres.any { it.equals(genre, ignoreCase = true) }
+        // Down from a genre goes to the letters, which the search would pass over from the row's left end.
+        val toLetters = Modifier.focusProperties { if (letterRow != null) down = letterRow }
+        LazyRow(Modifier.focusRestorer(selectedGenre), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            item {
+                val focus = if (!genreShown) Modifier.focusRequester(selectedGenre) else Modifier
+                SofaChip(selected = genre == null, onClick = {
+                    actions.onGenre(null)
+                }, label = stringResource(Res.string.library_genre_all), modifier = toLetters.then(focus))
+            }
+            items(genres, key = { it }) { option ->
+                val selected = option.equals(genre, ignoreCase = true)
+                val focus = if (selected) Modifier.focusRequester(selectedGenre) else Modifier
+                SofaChip(selected = selected, onClick = {
+                    actions.onGenre(option)
+                }, label = option, modifier = toLetters.then(focus))
             }
         }
+    }
 }
 
 /**
@@ -266,22 +266,22 @@ private fun GenreChips(grid: LibraryGrid?, actions: LibraryGridActions, letterRo
  */
 @Composable
 private fun LetterChips(grid: LibraryGrid?, letterRow: FocusRequester, onLetter: (LetterJump) -> Unit) {
-            val firstLetter = remember { FocusRequester() }
-            LazyRow(
-                Modifier.focusRequester(letterRow).focusRestorer(firstLetter),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                itemsIndexed(grid?.letters.orEmpty(), key = { _, jump -> jump.letter }) { i, letter ->
-                    val description = stringResource(Res.string.library_letter_jump, letter.letter)
-                    val focus = if (i == 0) Modifier.focusRequester(firstLetter) else Modifier
-                    SofaChip(
-                        selected = false,
-                        onClick = { onLetter(letter) },
-                        label = letter.letter,
-                        modifier = focus.semantics { contentDescription = description },
-                    )
-                }
-            }
+    val firstLetter = remember { FocusRequester() }
+    LazyRow(
+        Modifier.focusRequester(letterRow).focusRestorer(firstLetter),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        itemsIndexed(grid?.letters.orEmpty(), key = { _, jump -> jump.letter }) { i, letter ->
+            val description = stringResource(Res.string.library_letter_jump, letter.letter)
+            val focus = if (i == 0) Modifier.focusRequester(firstLetter) else Modifier
+            SofaChip(
+                selected = false,
+                onClick = { onLetter(letter) },
+                label = letter.letter,
+                modifier = focus.semantics { contentDescription = description },
+            )
+        }
+    }
 }
 
 /** The grid's last row: a spinner while a page loads, the failure with Retry, or a word that the library is empty. */

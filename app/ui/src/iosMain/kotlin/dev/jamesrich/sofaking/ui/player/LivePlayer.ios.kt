@@ -1,7 +1,5 @@
 package dev.jamesrich.sofaking.ui.player
 
-import kotlin.time.DurationUnit
-import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -101,6 +99,8 @@ import platform.UIKit.UIColor
 import platform.UIKit.UIImage
 import platform.UIKit.UIView
 import platform.darwin.NSObjectProtocol
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.DurationUnit
 
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {

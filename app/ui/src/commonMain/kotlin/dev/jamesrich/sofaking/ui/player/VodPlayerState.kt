@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui.player
 
-import dev.jamesrich.sofaking.ui.secondsUp
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -11,6 +10,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.SofaKingException
+import dev.jamesrich.sofaking.ui.secondsUp
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.delay
 
@@ -283,7 +283,9 @@ internal class VodPlayerState {
         val taken = when {
             // The card's rows take the D-pad and OK; Back closes it through the BackHandler.
             tracksOpen -> false
+
             next != null -> upNextKey(key, type, controls)
+
             else -> buttonRowKey(key, type, controls)
         }
         val action = key.vodAction()

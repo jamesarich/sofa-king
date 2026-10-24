@@ -83,6 +83,10 @@ class WireFixturesTest {
         val item = client.decodeFromString<LibraryItem>(fixture("v1/library-item.json"))
         assertEquals(2, item.episodeEnd)
         assertEquals(600000, item.playState?.positionMs)
+    }
+
+    @Test
+    fun `the program facts fixture decodes with a client's settings`() {
         val facts = client.decodeFromString<ProgramFacts>(fixture("v1/program-facts.json"))
         assertEquals(Wire.ItemKind.SHOW, facts.kind)
         assertEquals(406, facts.episodes)

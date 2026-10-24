@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui.library
 
-import dev.jamesrich.sofaking.ui.theme.SofaChip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,13 +14,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,9 +28,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,16 +42,29 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.LibraryGrid
-import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.LetterJump
+import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaLibrary
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.library_empty
+import dev.jamesrich.sofaking.resources.library_filter_unwatched
+import dev.jamesrich.sofaking.resources.library_genre_all
+import dev.jamesrich.sofaking.resources.library_items_count
+import dev.jamesrich.sofaking.resources.library_letter_jump
+import dev.jamesrich.sofaking.resources.library_sort_added
+import dev.jamesrich.sofaking.resources.library_sort_rating
+import dev.jamesrich.sofaking.resources.library_sort_title
+import dev.jamesrich.sofaking.resources.library_sort_watched
+import dev.jamesrich.sofaking.resources.library_sort_year
+import dev.jamesrich.sofaking.resources.loading
+import dev.jamesrich.sofaking.resources.retry
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.theme.SofaButton
+import dev.jamesrich.sofaking.ui.theme.SofaChip
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -79,7 +91,12 @@ internal class LibraryGridActions(
  * focus; otherwise the first card does.
  */
 @Composable
-internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actions: LibraryGridActions, returnedFrom: String? = null) {
+internal fun LibraryGridScreen(
+    library: MediaLibrary?,
+    grid: LibraryGrid?,
+    actions: LibraryGridActions,
+    returnedFrom: String? = null,
+) {
     val insets = screenInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).asPaddingValues()
     val style = if (library?.kind == LibraryKind.VIDEOS) CardStyle.WIDE else CardStyle.POSTER
     val state = rememberLazyGridState()
@@ -151,11 +168,23 @@ internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actio
                 Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                     when {
                         g.loading -> SofaLoader(size = 40.dp)
-                        g.error != null -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(g.error.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                        g.error != null -> Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(
+                                g.error.orEmpty(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                             SofaButton(onClick = actions.onLoadMore) { Text(stringResource(Res.string.retry)) }
                         }
-                        else -> Text(stringResource(Res.string.library_empty), style = MaterialTheme.typography.titleMedium)
+
+                        else -> Text(
+                            stringResource(Res.string.library_empty),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
                     }
                 }
             }
@@ -164,7 +193,12 @@ internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actio
 }
 
 @Composable
-private fun GridHeader(library: MediaLibrary?, grid: LibraryGrid?, actions: LibraryGridActions, onLetter: (LetterJump) -> Unit) {
+private fun GridHeader(
+    library: MediaLibrary?,
+    grid: LibraryGrid?,
+    actions: LibraryGridActions,
+    onLetter: (LetterJump) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(library?.name.orEmpty(), style = MaterialTheme.typography.headlineMedium, maxLines = 1)
@@ -183,11 +217,15 @@ private fun GridHeader(library: MediaLibrary?, grid: LibraryGrid?, actions: Libr
             items(LibrarySort.entries.size) { i ->
                 val option = LibrarySort.entries[i]
                 val focus = if (option == sort) Modifier.focusRequester(selectedSort) else Modifier
-                SofaChip(selected = option == sort, onClick = { actions.onSort(option) }, label = stringResource(option.label()), modifier = focus)
+                SofaChip(selected = option == sort, onClick = {
+                    actions.onSort(option)
+                }, label = stringResource(option.label()), modifier = focus)
             }
             item {
                 val unwatched = grid?.unwatched == true
-                SofaChip(selected = unwatched, onClick = { actions.onUnwatched(!unwatched) }, label = stringResource(Res.string.library_filter_unwatched))
+                SofaChip(selected = unwatched, onClick = {
+                    actions.onUnwatched(!unwatched)
+                }, label = stringResource(Res.string.library_filter_unwatched))
             }
         }
         val genres = grid?.genres.orEmpty()
@@ -198,12 +236,16 @@ private fun GridHeader(library: MediaLibrary?, grid: LibraryGrid?, actions: Libr
             LazyRow(Modifier.focusRestorer(selectedGenre), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
                     val focus = if (!genreShown) Modifier.focusRequester(selectedGenre) else Modifier
-                    SofaChip(selected = genre == null, onClick = { actions.onGenre(null) }, label = stringResource(Res.string.library_genre_all), modifier = focus)
+                    SofaChip(selected = genre == null, onClick = {
+                        actions.onGenre(null)
+                    }, label = stringResource(Res.string.library_genre_all), modifier = focus)
                 }
                 items(genres, key = { it }) { option ->
                     val selected = option.equals(genre, ignoreCase = true)
                     val focus = if (selected) Modifier.focusRequester(selectedGenre) else Modifier
-                    SofaChip(selected = selected, onClick = { actions.onGenre(option) }, label = option, modifier = focus)
+                    SofaChip(selected = selected, onClick = {
+                        actions.onGenre(option)
+                    }, label = option, modifier = focus)
                 }
             }
         }

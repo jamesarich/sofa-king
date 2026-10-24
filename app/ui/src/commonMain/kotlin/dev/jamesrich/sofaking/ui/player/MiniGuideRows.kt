@@ -3,10 +3,16 @@ package dev.jamesrich.sofaking.ui.player
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.orderedFavorites
 
-/** The channel list's filter chips: the channels watched lately, the starred ones, the guide filter the player was opened from, or every channel. */
+/**
+ * The channel list's filter chips: the channels watched lately, the starred ones, the guide filter the player was
+ * opened from, or every channel.
+ */
 internal enum class MiniGuideFilter { RECENT, FAVORITES, SCOPE, ALL }
 
-/** The chips the panel shows: Recent only once something was watched, Scope only when the player was opened from a guide filter. */
+/**
+ * The chips the panel shows: Recent only once something was watched, Scope only when the player
+ * was opened from a guide filter.
+ */
 internal fun miniGuideFilters(hasRecent: Boolean, scoped: Boolean): List<MiniGuideFilter> = buildList {
     if (hasRecent) add(MiniGuideFilter.RECENT)
     add(MiniGuideFilter.FAVORITES)
@@ -15,7 +21,8 @@ internal fun miniGuideFilters(hasRecent: Boolean, scoped: Boolean): List<MiniGui
 }
 
 /** The chip selected when the panel opens: the guide filter the channel came from, else every channel. */
-internal fun miniGuideDefaultFilter(scoped: Boolean): MiniGuideFilter = if (scoped) MiniGuideFilter.SCOPE else MiniGuideFilter.ALL
+internal fun miniGuideDefaultFilter(scoped: Boolean): MiniGuideFilter =
+    if (scoped) MiniGuideFilter.SCOPE else MiniGuideFilter.ALL
 
 /** One mini-guide row; [pinnedLast] marks the last-watched channel shown above the full list. */
 internal data class MiniGuideRow(val channel: Channel, val pinnedLast: Boolean) {

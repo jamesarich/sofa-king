@@ -4,15 +4,36 @@ import dev.jamesrich.sofaking.backend.api.GuideMapping
 import dev.jamesrich.sofaking.backend.api.PolicyStation
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import io.ktor.http.parametersOf
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 
 class LineupFilterTest {
-    private fun row(number: String, name: String, group: String? = null, enabled: Boolean = true, required: Boolean = false, disabledReason: String? = null, key: String? = null, guideStatus: String = "empty") =
-        StationRow(
-            LineupEntryRecord("id-$number", number, name, group, enabled = enabled, guide = GuideMapping("g", number)),
-            key?.let { PolicyStation("id-$number", it, number, name, group, enabled = enabled, required = required, disabledReason = disabledReason) },
-            guideStatus,
-        )
+    private fun row(
+        number: String,
+        name: String,
+        group: String? = null,
+        enabled: Boolean = true,
+        required: Boolean = false,
+        disabledReason: String? = null,
+        key: String? = null,
+        guideStatus: String = "empty",
+    ) = StationRow(
+        LineupEntryRecord("id-$number", number, name, group, enabled = enabled, guide = GuideMapping("g", number)),
+        key?.let {
+            PolicyStation(
+                "id-$number",
+                it,
+                number,
+                name,
+                group,
+                enabled = enabled,
+                required = required,
+                disabledReason = disabledReason,
+            )
+        },
+        guideStatus,
+    )
 
     private val rows = listOf(
         row("5", "News Channel", "News", key = "news-channel", guideStatus = "available"),
@@ -24,10 +45,27 @@ class LineupFilterTest {
     private fun numbers(filter: LineupFilter) = rows.filter(filter::admits).map { it.entry.number }
 
     @Test fun `parameters are trimmed, clamped and limited to the known values`() {
-        val filter = LineupFilter.from(parametersOf("q" to listOf("  news "), "group" to listOf("News"), "state" to listOf("hidden"), "required" to listOf("true"), "page" to listOf("3"), "guide" to listOf("missing")))
+        val filter = LineupFilter.from(
+            parametersOf(
+                "q" to listOf("  news "),
+                "group" to listOf("News"),
+                "state" to listOf("hidden"),
+                "required" to listOf("true"),
+                "page" to listOf("3"),
+                "guide" to listOf("missing"),
+            ),
+        )
         assertEquals(LineupFilter("news", "News", "hidden", true, 3, "missing"), filter)
         assertEquals(LineupFilter(), LineupFilter.from(parametersOf()))
-        val odd = LineupFilter.from(parametersOf("q" to listOf("x".repeat(300)), "state" to listOf("bogus"), "guide" to listOf("all"), "page" to listOf("-4"), "required" to listOf("yes")))
+        val odd = LineupFilter.from(
+            parametersOf(
+                "q" to listOf("x".repeat(300)),
+                "state" to listOf("bogus"),
+                "guide" to listOf("all"),
+                "page" to listOf("-4"),
+                "required" to listOf("yes"),
+            ),
+        )
         assertEquals(200, odd.q.length)
         assertEquals("", odd.state, "an unknown state is dropped")
         assertEquals("", odd.guide, "an unknown guide filter is dropped")

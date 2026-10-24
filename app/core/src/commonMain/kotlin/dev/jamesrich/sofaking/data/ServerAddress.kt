@@ -36,7 +36,9 @@ object ServerAddress {
         if (url.protocol != URLProtocol.HTTP && url.protocol != URLProtocol.HTTPS) return null
         if (!hostPattern.matches(url.host)) return null
         if (url.user != null || url.password != null) return null
-        if (url.encodedQuery.isNotEmpty() || url.encodedFragment.isNotEmpty() || '?' in trimmed || '#' in trimmed) return null
+        if (url.encodedQuery.isNotEmpty() || url.encodedFragment.isNotEmpty() || '?' in trimmed || '#' in trimmed) {
+            return null
+        }
         if (url.specifiedPort !in 0..65535) return null
         return trimmed
     }
@@ -51,6 +53,7 @@ object ServerAddress {
     fun normalizeToken(raw: String): String? = raw.trim().takeIf { token -> token.all { it in '!'..'~' } }
 
     /** [raw] as the six digits of a pairing code, spaces and dashes dropped, or null when it is not one. */
-    fun normalizeCode(raw: String): String? =
-        raw.filterNot { it == ' ' || it == '-' }.takeIf { code -> code.length == Wire.PAIRING_CODE_LENGTH && code.all { it in '0'..'9' } }
+    fun normalizeCode(raw: String): String? = raw.filterNot { it == ' ' || it == '-' }.takeIf { code ->
+        code.length == Wire.PAIRING_CODE_LENGTH && code.all { it in '0'..'9' }
+    }
 }

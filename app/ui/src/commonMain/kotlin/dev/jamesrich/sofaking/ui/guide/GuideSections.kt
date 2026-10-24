@@ -39,7 +39,22 @@ import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.guide_cell_airing
+import dev.jamesrich.sofaking.resources.guide_cell_later
+import dev.jamesrich.sofaking.resources.guide_cell_none
+import dev.jamesrich.sofaking.resources.guide_details
+import dev.jamesrich.sofaking.resources.guide_favorite
+import dev.jamesrich.sofaking.resources.guide_later
+import dev.jamesrich.sofaking.resources.guide_later_day
+import dev.jamesrich.sofaking.resources.guide_out_of_date
+import dev.jamesrich.sofaking.resources.guide_range
+import dev.jamesrich.sofaking.resources.guide_today
+import dev.jamesrich.sofaking.resources.guide_toggle_favorite
+import dev.jamesrich.sofaking.resources.guide_tomorrow
+import dev.jamesrich.sofaking.resources.listing_loading
+import dev.jamesrich.sofaking.resources.no_guide
+import dev.jamesrich.sofaking.resources.no_listing
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.player.LivePlayer
@@ -78,7 +93,8 @@ internal fun rememberGuideRowEnv(
     val detailsLabel = stringResource(Res.string.guide_details)
     val laterLabel = stringResource(if (dayOffset == 0) Res.string.guide_later else Res.string.guide_later_day)
     return remember(
-        cellAiring, cellLater, cellNone, timeFormat, noListing, listingLoading, guideLoading, noGuide, guideOutOfDate, favoriteLabel,
+        cellAiring, cellLater, cellNone, timeFormat, noListing, listingLoading, guideLoading, noGuide, guideOutOfDate,
+        favoriteLabel,
         toggleFavoriteLabel, detailsLabel, laterLabel,
         minutePx, minStickyTextPx, scrollState, onCellFocused, onPlay, onToggleFavorite, onOpenDetails, onJumpTo,
     ) {
@@ -120,7 +136,10 @@ internal fun GuideTimeHeader(
     timeFormat: TimeFormatter,
 ) {
     Row(Modifier.fillMaxWidth().height(HEADER_HEIGHT)) {
-        Box(Modifier.width(pinWidth(LocalLayoutProfile.current)).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+        Box(
+            Modifier.width(pinWidth(LocalLayoutProfile.current)).fillMaxHeight(),
+            contentAlignment = Alignment.CenterStart,
+        ) {
             VisibleRange(
                 scrollState = scrollState,
                 viewport = viewport,
@@ -147,7 +166,9 @@ internal fun GuideTimeHeader(
             Row(Modifier.fillMaxHeight()) {
                 slotLabels.forEach { label ->
                     Box(
-                        Modifier.width(MINUTE_WIDTH * GuideTimeline.SLOT_MINUTES.toFloat()).fillMaxHeight().padding(start = 8.dp),
+                        Modifier.width(
+                            MINUTE_WIDTH * GuideTimeline.SLOT_MINUTES.toFloat(),
+                        ).fillMaxHeight().padding(start = 8.dp),
                         contentAlignment = Alignment.CenterStart,
                     ) {
                         Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
@@ -191,7 +212,10 @@ internal fun ColumnScope.GuideGrid(
         CompositionLocalProvider(LocalBringIntoViewSpec provides NoBringIntoView) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.weight(1f).focusRequester(focusRequester).focusRestorer().onFocusChanged { state.gridFocused = it.hasFocus }.onPreviewKeyEvent(onGridKey),
+                modifier = Modifier.weight(1f).focusRequester(focusRequester).focusRestorer().onFocusChanged {
+                    state.gridFocused =
+                        it.hasFocus
+                }.onPreviewKeyEvent(onGridKey),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 itemsIndexed(items, key = { _, item -> item.key }) { index, item ->
@@ -208,6 +232,7 @@ internal fun ColumnScope.GuideGrid(
                             jump = state.jump?.takeIf { it.guideId == item.channel.guideId },
                             onJumpHandled = onJumpHandled,
                         )
+
                         is GuideListItem.Later -> LaterRow(
                             item = item,
                             env = env,

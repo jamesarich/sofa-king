@@ -17,4 +17,4 @@ dependencyResolutionManagement {
 apply(from = "../gradle/repositories.settings.gradle.kts")
 
 rootProject.name = "build-logic"
-include(":kotlin", ":android")
+include(":kotlin", ":android", ":lint")

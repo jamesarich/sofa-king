@@ -22,15 +22,33 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
-        return ParsedGuide(channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }, channels.filter { it.channel.id in wanted }.flatMap { it.programs })
+        return ParsedGuide(
+            channels.map {
+                GuideChannel(it.channel.id, it.channel.name, it.channel.logo)
+            },
+            channels.filter {
+                it.channel.id in
+                    wanted
+            }.flatMap { it.programs },
+        )
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
         val template = listed().firstOrNull { it.channel.id == channelId }?.template
-            ?: run { context.invalidate(CATALOG); listed().firstOrNull { it.channel.id == channelId }?.template }
+            ?: run {
+                context.invalidate(CATALOG)
+                listed().firstOrNull { it.channel.id == channelId }?.template
+            }
             ?: throw ProviderFailure("Channel is no longer listed", transient = false)
         val now = context.clock.instant()
-        val url = Macros.fill(template, MACROS + mapOf("DEVICE_ID" to context.deviceId(), "CB" to now.epochSecond.toString(), "UA" to BROWSER_USER_AGENT))
+        val url = Macros.fill(
+            template,
+            MACROS + mapOf(
+                "DEVICE_ID" to context.deviceId(),
+                "CB" to now.epochSecond.toString(),
+                "UA" to BROWSER_USER_AGENT,
+            ),
+        )
         return ResolvedStream(url, HEADERS, now.plus(URL_LIFETIME))
     }
 
@@ -51,18 +69,39 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
                 val title = entry.str("title") ?: return@mapNotNull null
                 if (end <= start) null else GuideProgram(id, start, end, title, entry.str("description"))
             }
-            result[id] = Listed(ProviderChannel(id, name, row["channelNumber"].long?.toString(), httpOrNull(row.str("thumbnail")), "Sports", listOf("us")), template, programs)
+            result[id] =
+                Listed(
+                    ProviderChannel(
+                        id,
+                        name,
+                        row["channelNumber"].long?.toString(),
+                        httpOrNull(row.str("thumbnail")),
+                        "Sports",
+                        listOf("us"),
+                    ),
+                    template,
+                    programs,
+                )
         }
         if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
         return result.values.toList()
     }
 
-
     companion object {
-        private const val CATALOG_URL = "https://epg.unreel.me/v2/sites/freelivesports/live-channels/public/081f73704b56aaceb6b459804761ec54?__site=freelivesports&__source=web"
+        private const val CATALOG_URL = "https://epg.unreel.me/v2/sites/freelivesports/live-channels/public/" +
+            "081f73704b56aaceb6b459804761ec54?__site=freelivesports&__source=web"
         private const val CATALOG = "catalog"
         private val URL_LIFETIME = Duration.ofHours(1)
-        private val HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Referer" to "https://www.freelivesports.tv/", "Origin" to "https://www.freelivesports.tv")
-        private val MACROS = mapOf("DEVICE_MODEL" to "web", "REF" to "https://www.freelivesports.tv/", "LAT" to "0", "GDPR" to "0")
+        private val HEADERS = mapOf(
+            "User-Agent" to BROWSER_USER_AGENT,
+            "Referer" to "https://www.freelivesports.tv/",
+            "Origin" to "https://www.freelivesports.tv",
+        )
+        private val MACROS = mapOf(
+            "DEVICE_MODEL" to "web",
+            "REF" to "https://www.freelivesports.tv/",
+            "LAT" to "0",
+            "GDPR" to "0",
+        )
     }
 }

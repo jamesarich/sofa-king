@@ -1,7 +1,7 @@
-import java.time.Duration
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+import java.time.Duration
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -36,7 +36,8 @@ val generateBuildInfo = tasks.register("generateBuildInfo") {
             |    const val VERSION: String = "$version"
             |    const val VERSION_SUFFIX_FILE: String = "files/version-suffix.txt"
             |}
-            |""".trimMargin(),
+            |
+            """.trimMargin(),
         )
     }
 }
@@ -170,7 +171,12 @@ val syncCommonComposeResources = tasks.register<Sync>("syncCommonComposeResource
 
 compose.resources {
     packageOfResClass = "dev.jamesrich.sofaking.resources"
-    customDirectory(sourceSetName = "commonMain", directoryProvider = syncCommonComposeResources.map { commonComposeResources.get() })
+    customDirectory(
+        sourceSetName = "commonMain",
+        directoryProvider = syncCommonComposeResources.map {
+            commonComposeResources.get()
+        },
+    )
 }
 
 composeCompiler {
@@ -189,7 +195,12 @@ compose.dependencyCompatibility {
 // number is 0, so the app bundle is built as 1.x, and a later CFBundleShortVersionString, which macOS reads instead,
 // shows the catalog version; its build version ends in the build number.
 val buildNumber = providers.gradleProperty("sofaking.versionCode").get()
-fun withBuild(version: String) = if (versionSuffix.isEmpty()) version else version.substringBeforeLast('.') + ".$buildNumber"
+fun withBuild(version: String) = if (versionSuffix.isEmpty()) {
+    version
+} else {
+    version.substringBeforeLast('.') +
+        ".$buildNumber"
+}
 val macVersion = appVersion.let { if (it.startsWith("0.")) "1.${it.removePrefix("0.")}" else it }
 
 compose.desktop {

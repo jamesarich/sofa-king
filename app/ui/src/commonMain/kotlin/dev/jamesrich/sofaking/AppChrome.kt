@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking
 
-import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
@@ -40,7 +39,14 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.app_name
+import dev.jamesrich.sofaking.resources.nav_library
+import dev.jamesrich.sofaking.resources.nav_live
+import dev.jamesrich.sofaking.resources.nav_settings
+import dev.jamesrich.sofaking.resources.recordings_title
+import dev.jamesrich.sofaking.resources.refreshing
+import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
@@ -48,6 +54,7 @@ import dev.jamesrich.sofaking.ui.SofaLoaderLabel
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.stringResource
 
@@ -117,9 +124,13 @@ internal fun TabPage(
 /** Frames a tab page gets to focus something of its own before its tab takes focus. */
 private const val IDLE_FOCUS_FRAMES = 3
 
-
 /** Which destination is open, whether Library and Recordings are offered, and what picking one does. */
-internal class TabsModel(val selected: Tab, val libraryShown: Boolean, val recordingsShown: Boolean, val onTab: (Tab) -> Unit)
+internal class TabsModel(
+    val selected: Tab,
+    val libraryShown: Boolean,
+    val recordingsShown: Boolean,
+    val onTab: (Tab) -> Unit,
+)
 
 /**
  * Live, Library, Recordings and Settings around [content]. A TV keeps them in the header, so the guide loses no
@@ -143,14 +154,21 @@ internal fun TopLevel(
         return
     }
     val type = NavigationSuiteScaffoldDefaults.navigationSuiteType(currentWindowAdaptiveInfoV2())
-    val state = rememberNavigationSuiteScaffoldState(if (shown) NavigationSuiteScaffoldValue.Visible else NavigationSuiteScaffoldValue.Hidden)
+    val state =
+        rememberNavigationSuiteScaffoldState(
+            if (shown) NavigationSuiteScaffoldValue.Visible else NavigationSuiteScaffoldValue.Hidden,
+        )
     LaunchedEffect(shown) { if (shown) state.show() else state.hide() }
     NavigationSuiteScaffold(
         navigationItems = {
             NavigationSuiteItem(
                 selected = !settingsOpen && tabs.selected == Tab.LIVE,
                 onClick = { tabs.onTab(Tab.LIVE) },
-                modifier = if (!settingsOpen && tabs.selected == Tab.LIVE) Modifier.focusRequester(tabFocus) else Modifier,
+                modifier = if (!settingsOpen && tabs.selected == Tab.LIVE) {
+                    Modifier.focusRequester(tabFocus)
+                } else {
+                    Modifier
+                },
                 icon = { Icon(SofaIcons.LiveTv, contentDescription = null) },
                 label = { Text(stringResource(Res.string.nav_live)) },
                 navigationSuiteType = type,
@@ -159,7 +177,11 @@ internal fun TopLevel(
                 NavigationSuiteItem(
                     selected = !settingsOpen && tabs.selected == Tab.LIBRARY,
                     onClick = { tabs.onTab(Tab.LIBRARY) },
-                    modifier = if (!settingsOpen && tabs.selected == Tab.LIBRARY) Modifier.focusRequester(tabFocus) else Modifier,
+                    modifier = if (!settingsOpen && tabs.selected == Tab.LIBRARY) {
+                        Modifier.focusRequester(tabFocus)
+                    } else {
+                        Modifier
+                    },
                     icon = { Icon(SofaIcons.VideoLibrary, contentDescription = null) },
                     label = { Text(stringResource(Res.string.nav_library)) },
                     navigationSuiteType = type,
@@ -169,7 +191,11 @@ internal fun TopLevel(
                 NavigationSuiteItem(
                     selected = !settingsOpen && tabs.selected == Tab.RECORDINGS,
                     onClick = { tabs.onTab(Tab.RECORDINGS) },
-                    modifier = if (!settingsOpen && tabs.selected == Tab.RECORDINGS) Modifier.focusRequester(tabFocus) else Modifier,
+                    modifier = if (!settingsOpen && tabs.selected == Tab.RECORDINGS) {
+                        Modifier.focusRequester(tabFocus)
+                    } else {
+                        Modifier
+                    },
                     icon = { Icon(SofaIcons.Recordings, contentDescription = null) },
                     label = { Text(stringResource(Res.string.recordings_title)) },
                     navigationSuiteType = type,
@@ -203,8 +229,24 @@ private fun HeaderTabs(tabs: TabsModel, tabFocus: FocusRequester) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         HeaderTab(stringResource(Res.string.nav_live), tabs.selected == Tab.LIVE, tabFocus) { tabs.onTab(Tab.LIVE) }
-        if (tabs.libraryShown) HeaderTab(stringResource(Res.string.nav_library), tabs.selected == Tab.LIBRARY, tabFocus) { tabs.onTab(Tab.LIBRARY) }
-        if (tabs.recordingsShown) HeaderTab(stringResource(Res.string.recordings_title), tabs.selected == Tab.RECORDINGS, tabFocus) { tabs.onTab(Tab.RECORDINGS) }
+        if (tabs.libraryShown) {
+            HeaderTab(
+                stringResource(Res.string.nav_library),
+                tabs.selected == Tab.LIBRARY,
+                tabFocus,
+            ) {
+                tabs.onTab(Tab.LIBRARY)
+            }
+        }
+        if (tabs.recordingsShown) {
+            HeaderTab(
+                stringResource(Res.string.recordings_title),
+                tabs.selected == Tab.RECORDINGS,
+                tabFocus,
+            ) {
+                tabs.onTab(Tab.RECORDINGS)
+            }
+        }
     }
 }
 
@@ -214,14 +256,27 @@ private fun HeaderTab(label: String, selected: Boolean, tabFocus: FocusRequester
         onClick = onClick,
         shape = CircleShape,
         color = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
-        contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.semantics { this.selected = selected }.then(if (selected) Modifier.focusRequester(tabFocus) else Modifier).tvFocus(CircleShape),
+        contentColor = if (selected) {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        modifier = Modifier.semantics {
+            this.selected = selected
+        }.then(if (selected) Modifier.focusRequester(tabFocus) else Modifier).tvFocus(CircleShape),
     ) {
-        Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+        )
     }
 }
 
-/** App bar above the guide and the library, with the TV's [tabs], inside the overscan margins; the mark sits within the buttons' height so no grid row is lost. */
+/**
+ * App bar above the guide and the library, with the TV's [tabs], inside the overscan margins; the mark sits within the
+ * buttons' height so no grid row is lost.
+ */
 @Composable
 private fun Header(
     refreshing: Boolean,
@@ -258,7 +313,12 @@ private fun Header(
             // The last text is kept so the notice reads while it fades out.
             var lastNotice by remember { mutableStateOf("") }
             LaunchedEffect(notice) { if (notice != null) lastNotice = notice }
-            AnimatedVisibility(visible = notice != null, enter = PopIn, exit = PopOut, modifier = Modifier.weight(1f, fill = false)) {
+            AnimatedVisibility(
+                visible = notice != null,
+                enter = PopIn,
+                exit = PopOut,
+                modifier = Modifier.weight(1f, fill = false),
+            ) {
                 Text(
                     notice ?: lastNotice,
                     style = MaterialTheme.typography.labelLarge,

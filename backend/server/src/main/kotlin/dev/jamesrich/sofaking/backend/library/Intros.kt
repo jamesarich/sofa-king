@@ -12,15 +12,6 @@ import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.saveLibraryCredits
 import dev.jamesrich.sofaking.backend.store.saveLibraryFingerprint
 import dev.jamesrich.sofaking.backend.store.saveLibraryIntros
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import java.nio.file.Files
-import java.nio.file.LinkOption
-import java.nio.file.Path
-import java.time.Clock
-import java.util.concurrent.ConcurrentHashMap
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -32,6 +23,15 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
+import java.time.Clock
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
 private val log = LoggerFactory.getLogger(IntroDetector::class.java)
 
@@ -77,7 +77,8 @@ internal fun fileKey(record: LibraryItemRecord): String = "${record.size}:${reco
 
 /** What one pass over a library did, for the job's note. */
 data class IntroResult(val read: Int, val failed: Int, val shows: Int, val intros: Int, val credits: Int = 0) {
-    val note: String get() = "$read episodes read" + (if (failed > 0) ", $failed unreadable" else "") + ", $intros intros and $credits credits in $shows shows"
+    val note: String get() = "$read episodes read" + (if (failed > 0) ", $failed unreadable" else "") +
+        ", $intros intros and $credits credits in $shows shows"
 }
 
 /**
@@ -92,24 +93,30 @@ fun interface Fingerprinter {
  * Chromaprint fingerprints through the `chromaprint` muxer of the server's FFmpeg, which writes the raw points to a
  * file in [work]: one little-endian 32-bit word per [IntroMatch.POINT_MS] of audio. Throws when FFmpeg cannot run.
  */
-class FfmpegFingerprinter(private val ffmpeg: String, private val work: Path, private val timeout: Duration = 10.minutes) : Fingerprinter {
-    override suspend fun fingerprint(file: Path, fromSeconds: Long, seconds: Long): IntArray? = withContext(Dispatchers.IO) {
-        Files.createDirectories(work)
-        val out = Files.createTempFile(work, "fingerprint-", ".raw")
-        try {
-            val exit = ProcessBuilder(
-                ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-ss", fromSeconds.toString(), "-t", seconds.toString(), "-i", file.toString(),
-                "-map", "0:a:0", "-ac", "1", "-f", "chromaprint", "-fp_format", "raw", "-y", out.toString(),
-            ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(timeout)
-                ?: throw IllegalStateException("ffmpeg ran past $timeout")
-            // A file without an audio stream, or one FFmpeg cannot decode, fails here.
-            if (exit != 0) return@withContext null
-            val words = ByteBuffer.wrap(Files.readAllBytes(out)).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer()
-            IntArray(words.remaining()).also(words::get).takeIf { it.isNotEmpty() }
-        } finally {
-            withContext(NonCancellable) { Files.deleteIfExists(out) }
+class FfmpegFingerprinter(
+    private val ffmpeg: String,
+    private val work: Path,
+    private val timeout: Duration = 10.minutes,
+) : Fingerprinter {
+    override suspend fun fingerprint(file: Path, fromSeconds: Long, seconds: Long): IntArray? =
+        withContext(Dispatchers.IO) {
+            Files.createDirectories(work)
+            val out = Files.createTempFile(work, "fingerprint-", ".raw")
+            try {
+                val exit = ProcessBuilder(
+                    ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-ss", fromSeconds.toString(), "-t",
+                    seconds.toString(), "-i", file.toString(),
+                    "-map", "0:a:0", "-ac", "1", "-f", "chromaprint", "-fp_format", "raw", "-y", out.toString(),
+                ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(timeout)
+                    ?: throw IllegalStateException("ffmpeg ran past $timeout")
+                // A file without an audio stream, or one FFmpeg cannot decode, fails here.
+                if (exit != 0) return@withContext null
+                val words = ByteBuffer.wrap(Files.readAllBytes(out)).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer()
+                IntArray(words.remaining()).also(words::get).takeIf { it.isNotEmpty() }
+            } finally {
+                withContext(NonCancellable) { Files.deleteIfExists(out) }
+            }
         }
-    }
 }
 
 /**
@@ -145,7 +152,9 @@ class IntroDetector(
             trigger.receive()
             val wanted = pending.toList().also { pending.removeAll(it.toSet()) }
             try {
-                val libraries = store.libraries().filter { it.kind == LibraryKind.SHOWS && (ALL in wanted || it.id in wanted) }
+                val libraries = store.libraries().filter {
+                    it.kind == LibraryKind.SHOWS && (ALL in wanted || it.id in wanted)
+                }
                 for (library in libraries) run(library)
             } catch (e: CancellationException) {
                 throw e
@@ -186,16 +195,27 @@ class IntroDetector(
                 // Read already, end and all; an episode whose length the scan does not know has no end to read.
                 if (old != null && (old.tailStartMs != null || tail == null)) continue
                 val file = root.resolve(episode.path!!).normalize()
-                if (!file.startsWith(root) || !withContext(Dispatchers.IO) { Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }) continue
+                if (!file.startsWith(root) ||
+                    !withContext(Dispatchers.IO) { Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }
+                ) {
+                    continue
+                }
                 var record = old ?: run {
-                    val seconds = (episode.durationMs?.let { minOf(READ_MS, (it * READ_SHARE).toLong()) } ?: READ_MS) / 1_000
+                    val seconds =
+                        (episode.durationMs?.let { minOf(READ_MS, (it * READ_SHARE).toLong()) } ?: READ_MS) / 1_000
                     val points = fingerprinter.fingerprint(file, 0, seconds.coerceAtLeast(1))
                     if (points == null) failed++ else read++
                     IntroRecord(episode.id, key, points, null, clock.instant().toString())
                 }
                 if (tail != null) {
                     // A file whose start has no audio has none at its end either.
-                    val points = record.fingerprint?.let { fingerprinter.fingerprint(file, tail.first / 1_000, (tail.last - tail.first) / 1_000) }
+                    val points = record.fingerprint?.let {
+                        fingerprinter.fingerprint(
+                            file,
+                            tail.first / 1_000,
+                            (tail.last - tail.first) / 1_000,
+                        )
+                    }
                     if (old != null && points != null) read++
                     record = record.copy(tail = points, tailStartMs = tail.first, credits = null)
                 }
@@ -207,7 +227,9 @@ class IntroDetector(
                 val foundIntros = match(episodes, known, { it.fingerprint }, IntroMatch.MAX_INTRO_MS)
                 // Credits found in each episode's end, from the start of its file.
                 val durations = episodes.associate { it.id to it.durationMs }
-                val foundCredits = match(episodes, known, { it.tail }, IntroMatch.MAX_CREDITS_MS).mapValues { (id, span) ->
+                val foundCredits = match(episodes, known, {
+                    it.tail
+                }, IntroMatch.MAX_CREDITS_MS).mapValues { (id, span) ->
                     span?.let { credits(it, known.getValue(id).tailStartMs!!, durations[id]) }
                 }
                 store.saveLibraryIntros(foundIntros)
@@ -224,10 +246,20 @@ class IntroDetector(
         return IntroResult(read, failed, shows.size, intros, credits)
     }
 
-    /** [span] of an episode's end read from [tailStartMs], from the start of its file and taken to its end when close to it. */
+    /**
+     * [span] of an episode's end read from [tailStartMs], from the start of its file and
+     * taken to its end when close to it.
+     */
     private fun credits(span: IntroSpan, tailStartMs: Long, durationMs: Long?): IntroSpan {
         val end = tailStartMs + span.endMs
-        return IntroSpan(tailStartMs + span.startMs, if (durationMs != null && end >= durationMs - CREDITS_END_SLACK_MS) durationMs else end)
+        return IntroSpan(
+            tailStartMs + span.startMs,
+            if (durationMs != null && end >= durationMs - CREDITS_END_SLACK_MS) {
+                durationMs
+            } else {
+                end
+            },
+        )
     }
 
     /**
@@ -236,7 +268,8 @@ class IntroDetector(
      */
     private fun tailOf(durationMs: Long): LongRange? {
         val end = (durationMs + 999) / 1_000 * 1_000
-        val start = (durationMs - minOf((durationMs * tailShare).toLong(), MAX_TAIL_MS)).coerceAtLeast(0) / 1_000 * 1_000
+        val start =
+            (durationMs - minOf((durationMs * tailShare).toLong(), MAX_TAIL_MS)).coerceAtLeast(0) / 1_000 * 1_000
         return (start..end).takeIf { end - start >= IntroMatch.MIN_INTRO_MS }
     }
 
@@ -251,7 +284,11 @@ class IntroDetector(
         maxMs: Long,
     ): Map<String, IntroSpan?> {
         val heard = episodes.filter { known[it.id]?.let(points) != null }
-            .sortedWith(compareBy<LibraryItemRecord>({ it.season ?: 0 }, { it.episode ?: Int.MAX_VALUE }, { it.sortTitle }))
+            .sortedWith(
+                compareBy<LibraryItemRecord>({
+                    it.season ?: 0
+                }, { it.episode ?: Int.MAX_VALUE }, { it.sortTitle }),
+            )
         val shared = HashMap<Pair<Int, Int>, SharedSpan?>()
         return episodes.associate { episode ->
             val index = heard.indexOf(episode)
@@ -263,7 +300,11 @@ class IntroDetector(
                 // Each pair is compared once, from the episode earlier in play order.
                 val pair = minOf(index, peer) to maxOf(index, peer)
                 val match = shared.getOrPut(pair) {
-                    IntroMatch.shared(points(known.getValue(heard[pair.first].id))!!, points(known.getValue(heard[pair.second].id))!!, maxMs = maxMs)
+                    IntroMatch.shared(
+                        points(known.getValue(heard[pair.first].id))!!,
+                        points(known.getValue(heard[pair.second].id))!!,
+                        maxMs = maxMs,
+                    )
                 }
                 if (index == pair.first) match?.first else match?.second
             }

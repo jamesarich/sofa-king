@@ -14,7 +14,8 @@ import kotlin.test.assertFalse
 
 /** The desktop player where libVLC is missing: looking for it never holds the thread that made the player. */
 class VlcLivePlayerTest {
-    private val stream = PlaybackStream("c1", "s1", "http://127.0.0.1:1/stream.ts", "video/mp2t", 1, PlaybackIntent.WATCH)
+    private val stream =
+        PlaybackStream("c1", "s1", "http://127.0.0.1:1/stream.ts", "video/mp2t", 1, PlaybackIntent.WATCH)
 
     @Test
     fun `a player answers at once while libVLC is still being looked for`() {

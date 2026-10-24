@@ -1,6 +1,12 @@
 package dev.jamesrich.sofaking.backend.playback
 
 import dev.jamesrich.sofaking.contract.AdRun
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.net.URI
@@ -9,12 +15,6 @@ import java.time.format.DateTimeParseException
 import java.util.Base64
 import java.util.zip.GZIPInputStream
 import kotlin.math.roundToLong
-import kotlinx.serialization.SerializationException
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
 
 /**
  * The ad segments of a live HLS media playlist, the way the free streaming services mark them: SCTE-35 cue tags
@@ -27,20 +27,32 @@ import kotlinx.serialization.json.booleanOrNull
  * `#EXT-X-CUE-OUT` has left the window is carried on by [AdClock], which sees every refresh.
  */
 internal object AdBreaks {
-    /** One media segment: its media sequence number, length, whether it is an ad, its absolute URL, and whether a `#EXT-X-CUE-IN` comes before it in this window. */
-    data class Segment(val sequence: Long, val durationMs: Long, val ad: Boolean, val url: String = "", val cueIn: Boolean = false)
+    /**
+     * One media segment: its media sequence number, length, whether it is an ad, its absolute URL, and whether a
+     * `#EXT-X-CUE-IN` comes before it in this window.
+     */
+    data class Segment(
+        val sequence: Long,
+        val durationMs: Long,
+        val ad: Boolean,
+        val url: String = "",
+        val cueIn: Boolean = false,
+    )
 
     private val ATTRIBUTE = Regex("""([A-Za-z0-9-]+)=("[^"]*"|[^,]*)""")
 
     /**
-     * Pluto's ad muxer serves stitched creatives under `/v1/mp4/…` and `/mp4/v1/…`, and some creatives come straight from
-     * their store, `/<n>_ad/creative/…`, the same path the muxer wraps; its own bumpers are `…adbumper…` clips.
+     * Pluto's ad muxer serves stitched creatives under `/v1/mp4/…` and `/mp4/v1/…`, and some creatives come straight
+     * from their store, `/<n>_ad/creative/…`, the same path the muxer wraps; its own bumpers are `…adbumper…` clips.
      */
     private val PLUTO_MUXER = Regex("""^/(?:v1/mp4|mp4/v1)/""")
     private val PLUTO_CREATIVE = Regex("""^/\d+_ad/creative/""")
     private val PLUTO_BUMPER = Regex("""ad_?bumper""", RegexOption.IGNORE_CASE)
 
-    /** [text] with a [AdRun.TAG] line for each run of ad segments it holds; a playlist with none, or a multivariant one, comes back as it was. */
+    /**
+     * [text] with a [AdRun.TAG] line for each run of ad segments it holds; a playlist with none, or a
+     * multivariant one, comes back as it was.
+     */
     fun annotate(text: String, base: URI): String = annotate(text, runs(text, base))
 
     /** [text] with a [AdRun.TAG] line for each of [runs]. */
@@ -57,7 +69,10 @@ internal object AdBreaks {
         val runs = ArrayList<AdRun>()
         var index = 0
         while (index < parsed.segments.size) {
-            if (!parsed.segments[index].ad) { index++; continue }
+            if (!parsed.segments[index].ad) {
+                index++
+                continue
+            }
             val first = index
             while (index < parsed.segments.size && parsed.segments[index].ad) index++
             val segments = parsed.segments
@@ -67,8 +82,8 @@ internal object AdBreaks {
     }
 
     /**
-     * A parsed media playlist: its segments, the planned end of a break, in ms after the segment it begins at, by segment
-     * index, and whether a cue is still open after the last segment.
+     * A parsed media playlist: its segments, the planned end of a break, in ms after the segment it begins at, by
+     * segment index, and whether a cue is still open after the last segment.
      */
     class Parsed(val segments: List<Segment>, val plannedEndMs: Map<Int, Long>, val cueOpenAtEnd: Boolean = false)
 
@@ -91,30 +106,52 @@ internal object AdBreaks {
             val line = raw.trim()
             when {
                 line.isEmpty() -> Unit
-                line.startsWith("#EXT-X-MEDIA-SEQUENCE:") -> sequence = line.substringAfter(':').trim().toLongOrNull() ?: 0L
+
+                line.startsWith("#EXT-X-MEDIA-SEQUENCE:") ->
+                    sequence =
+                        line.substringAfter(':').trim().toLongOrNull() ?: 0L
+
                 line.startsWith("#EXT-X-PROGRAM-DATE-TIME:") -> date = instantMs(line.substringAfter(':'))
+
                 line.startsWith("#EXTINF:") -> {
                     durationMs = seconds(line.substringAfter(':').substringBefore(',')) ?: 0L
                     taggedAd = wurl(line.substringAfter(',', ""))
                 }
+
                 line.startsWith("#EXT-X-CUE-OUT-CONT") -> {
-                    // Each ad segment carries one; when the CUE-OUT has left the window, the first is where the break shows.
+                    // Each ad segment carries one; when the CUE-OUT has left the window, the
+                    // first is where the break shows.
                     val (elapsed, planned) = contValues(line.substringAfter(':', ""))
                     if (!cueOpen && planned != null) pendingEnd = (planned - (elapsed ?: 0L)).coerceAtLeast(0)
                     cueOpen = true
                 }
+
                 line.startsWith("#EXT-X-CUE-OUT") -> {
                     pendingEnd = seconds(line.substringAfter(':', "").substringAfter("DURATION=").substringBefore(','))
                     cueOpen = true
                 }
-                line.startsWith("#EXT-X-CUE-IN") -> { cueOpen = false; pendingEnd = null; cueIn = true }
+
+                line.startsWith("#EXT-X-CUE-IN") -> {
+                    cueOpen = false
+                    pendingEnd = null
+                    cueIn = true
+                }
+
                 line.startsWith("#EXT-X-DATERANGE:") -> dateRange(line.substringAfter(':'))?.let(ranges::add)
+
                 line.startsWith("#") -> Unit
+
                 else -> {
                     val at = date
                     amagi(base, line)?.let { amagiAd = it }
-                    val stitchedAd = taggedAd || mediaTailor(base, line) || (amagiAd && amagiHost(base, line)) || ottera(base, line) || daiPod(base, line)
-                    val ad = stitchedAd || cueOpen || pluto(base, line) || roku(base, line) || fuelmedia(base, line) || (at != null && ranges.any { at in it })
+                    val stitchedAd =
+                        taggedAd || mediaTailor(
+                            base,
+                            line,
+                        ) || (amagiAd && amagiHost(base, line)) || ottera(base, line) || daiPod(base, line)
+                    val ad =
+                        stitchedAd || cueOpen || pluto(base, line) || roku(base, line) || fuelmedia(base, line) ||
+                            (at != null && ranges.any { at in it })
                     if (pendingEnd != null) plannedEnd[segments.size] = pendingEnd
                     segments += Segment(sequence + segments.size, durationMs, ad, absolute(base, line), cueIn)
                     stitched += stitchedAd
@@ -127,7 +164,8 @@ internal object AdBreaks {
             }
         }
         // Plex alternates its own part segments with the stream's, so a stitched break reads ad, part, ad: a single
-        // segment between two stitched ads (MediaTailor, Amagi, Ottera, Google or Wurl), with no cue-in before it, belongs to the break.
+        // segment between two stitched ads (MediaTailor, Amagi, Ottera, Google or Wurl), with no cue-in
+        // before it, belongs to the break.
         for (index in 1 until segments.size - 1) {
             val segment = segments[index]
             if (!segment.ad && !segment.cueIn && stitched[index - 1] && stitched[index + 1]) {
@@ -137,49 +175,77 @@ internal object AdBreaks {
         return Parsed(segments, plannedEnd, cueOpen)
     }
 
-    private fun absolute(base: URI, reference: String): String = try { base.resolve(reference).toString() } catch (_: IllegalArgumentException) { reference }
+    private fun absolute(base: URI, reference: String): String = try {
+        base.resolve(reference).toString()
+    } catch (_: IllegalArgumentException) {
+        reference
+    }
 
     /**
-     * MediaTailor serves the ads it stitches through its segment route, `/v1/segment/<hash>/<configuration>/<session>/<n>/<sequence>`
-     * on `*.mediatailor.<region>.amazonaws.com` or a CDN in front of it (Xumo's NBCU channels drop the `/v1`); the show stays on
-     * its origin. Seen on 2026-10-22 as 60 to 120 s runs after a discontinuity.
+     * MediaTailor serves the ads it stitches through its segment route,
+     * `/v1/segment/<hash>/<configuration>/<session>/<n>/<sequence>` on `*.mediatailor.<region>.amazonaws.com` or a CDN
+     * in front of it (Xumo's NBCU channels drop the `/v1`); the show stays on its origin. Seen on 2026-10-22 as 60 to
+     * 120 s runs after a discontinuity.
      */
-    private val MEDIATAILOR_SEGMENT = Regex("""^(?:/v1)?/segment/[0-9a-f]{32,}/[^/]+/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/\d+/\d+$""")
+    private val MEDIATAILOR_SEGMENT =
+        Regex(
+            """^(?:/v1)?/segment/[0-9a-f]{32,}/[^/]+/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/""" +
+                """\d+/\d+$""",
+        )
 
     /** True for a segment MediaTailor stitched in. */
     private fun mediaTailor(base: URI, reference: String): Boolean {
-        val path = try { base.resolve(reference).rawPath } catch (_: IllegalArgumentException) { return false } ?: return false
+        val path =
+            try {
+                base.resolve(reference).rawPath
+            } catch (_: IllegalArgumentException) {
+                return false
+            } ?: return false
         return MEDIATAILOR_SEGMENT.matches(path)
     }
 
     /**
-     * Roku's live channels play from `gcp-live-*.delivery.roku.com` and stitch their breaks from elsewhere: house promos
-     * and some spots from `osm-ads*.delivery.roku.com` (`…/hls/transcode_OVP_SSAI_MANAGER_…`), other spots from
+     * Roku's live channels play from `gcp-live-*.delivery.roku.com` and stitch their breaks from elsewhere: house
+     * promos and some spots from `osm-ads*.delivery.roku.com` (`…/hls/transcode_OVP_SSAI_MANAGER_…`), other spots from
      * `osm-<region>.sr.roku.com/osbt/…`. Seen on 2026-10-23 on eight channels as 30 to 160 s runs, all of them breaks.
      */
     private fun roku(base: URI, reference: String): Boolean {
-        val uri = try { base.resolve(reference) } catch (_: IllegalArgumentException) { return false }
+        val uri = try {
+            base.resolve(reference)
+        } catch (_: IllegalArgumentException) {
+            return false
+        }
         val host = uri.host?.lowercase() ?: return false
         if (!host.endsWith(".roku.com")) return false
         return host.startsWith("osm-ads") || (host.startsWith("osm-") && uri.rawPath?.startsWith("/osbt/") == true)
     }
 
     /**
-     * Ottera stitches its breaks from `stream.ads.ottera.tv` (`/mf2/<rendition>?u=<creative>&…&d=<break seconds>`) between
-     * its channels' own segments on `*.otteravision.com`. Seen on 2026-10-23 on Plex's Bassmaster as a 120 s break.
+     * Ottera stitches its breaks from `stream.ads.ottera.tv` (`/mf2/<rendition>?u=<creative>&…&d=<break
+     * seconds>`) between its channels' own segments on `*.otteravision.com`. Seen on 2026-10-23 on
+     * Plex's Bassmaster as a 120 s break.
      */
     private fun ottera(base: URI, reference: String): Boolean {
-        val host = try { base.resolve(reference).host } catch (_: IllegalArgumentException) { return false } ?: return false
+        val host =
+            try {
+                base.resolve(reference).host
+            } catch (_: IllegalArgumentException) {
+                return false
+            } ?: return false
         return host.lowercase().endsWith(".ads.ottera.tv")
     }
 
     /**
      * Google Ad Manager's dynamic ad insertion serves each break's pod, ads and slate alike, from
-     * `dai.google.com/linear/pods/…` while the show plays from the publisher's CDN. Seen on 2026-10-23 on Plex's 48 Hours
-     * and Samsung's CBS News, inside the playlists' own `#EXT-X-CUE-OUT` and `#EXT-X-CUE-IN`.
+     * `dai.google.com/linear/pods/…` while the show plays from the publisher's CDN. Seen on 2026-10-23 on Plex's 48
+     * Hours and Samsung's CBS News, inside the playlists' own `#EXT-X-CUE-OUT` and `#EXT-X-CUE-IN`.
      */
     private fun daiPod(base: URI, reference: String): Boolean {
-        val uri = try { base.resolve(reference) } catch (_: IllegalArgumentException) { return false }
+        val uri = try {
+            base.resolve(reference)
+        } catch (_: IllegalArgumentException) {
+            return false
+        }
         return uri.host?.lowercase() == "dai.google.com" && uri.rawPath?.startsWith("/linear/pods/") == true
     }
 
@@ -199,13 +265,22 @@ internal object AdBreaks {
      * of a break (`M`, plain, plain, `M`), so a plain segment on the playout is whatever the beacon before it was.
      */
     private fun amagi(base: URI, reference: String): Boolean? {
-        val uri = try { base.resolve(reference) } catch (_: IllegalArgumentException) { return null }
-        if (uri.host?.lowercase()?.endsWith(".amagi.tv") != true || uri.rawPath?.contains("/beacon/") != true) return null
+        val uri = try {
+            base.resolve(reference)
+        } catch (_: IllegalArgumentException) {
+            return null
+        }
+        if (uri.host?.lowercase()?.endsWith(".amagi.tv") != true || uri.rawPath?.contains("/beacon/") != true) {
+            return null
+        }
         return uri.rawQuery.orEmpty().split('&').any { it == "media_type=M" }
     }
 
-    private fun amagiHost(base: URI, reference: String): Boolean =
-        try { base.resolve(reference).host?.lowercase()?.endsWith(".amagi.tv") == true } catch (_: IllegalArgumentException) { false }
+    private fun amagiHost(base: URI, reference: String): Boolean = try {
+        base.resolve(reference).host?.lowercase()?.endsWith(".amagi.tv") == true
+    } catch (_: IllegalArgumentException) {
+        false
+    }
 
     /**
      * The fuelmedia.io origin behind some Stirr stations serves its decorated segments as
@@ -216,14 +291,26 @@ internal object AdBreaks {
     private val FUEL_SEGMENT = Regex("""^/play/seg/[^/]+/([A-Za-z0-9_-]+)(?:\.ts)?$""")
 
     private fun fuelmedia(base: URI, reference: String): Boolean {
-        val uri = try { base.resolve(reference) } catch (_: IllegalArgumentException) { return false }
+        val uri = try {
+            base.resolve(reference)
+        } catch (_: IllegalArgumentException) {
+            return false
+        }
         if (uri.host?.lowercase()?.endsWith(".fuelmedia.io") != true) return false
         val token = FUEL_SEGMENT.find(uri.rawPath ?: return false)?.groupValues?.get(1) ?: return false
         val tag = try {
             val gzip = Base64.getUrlDecoder().decode(token.padEnd((token.length + 3) / 4 * 4, '='))
-            val text = GZIPInputStream(ByteArrayInputStream(gzip)).use { it.readNBytes(FUEL_TOKEN_LIMIT) }.decodeToString()
+            val text = GZIPInputStream(ByteArrayInputStream(gzip)).use {
+                it.readNBytes(FUEL_TOKEN_LIMIT)
+            }.decodeToString()
             ((Json.parseToJsonElement(text) as? JsonArray)?.firstOrNull() as? JsonObject)?.get("SegTag") as? JsonObject
-        } catch (_: IllegalArgumentException) { null } catch (_: IOException) { null } catch (_: SerializationException) { null }
+        } catch (_: IllegalArgumentException) {
+            null
+        } catch (_: IOException) {
+            null
+        } catch (_: SerializationException) {
+            null
+        }
             ?: return false
         return listOf("IsAdBreak", "IsAd", "IsAdFiller").any { (tag[it] as? JsonPrimitive)?.booleanOrNull == true }
     }
@@ -232,7 +319,11 @@ internal object AdBreaks {
 
     /** True for a Pluto segment from its ad muxer or a bumper clip; other hosts never match, whatever their paths. */
     private fun pluto(base: URI, reference: String): Boolean {
-        val uri = try { base.resolve(reference) } catch (_: IllegalArgumentException) { return false }
+        val uri = try {
+            base.resolve(reference)
+        } catch (_: IllegalArgumentException) {
+            return false
+        }
         val host = uri.host?.lowercase() ?: return false
         if (!host.endsWith(".plutotv.net") && !host.endsWith(".pluto.tv")) return false
         val path = uri.rawPath ?: return false
@@ -240,7 +331,10 @@ internal object AdBreaks {
             ("_Pluto_TV_OandO/" in path && PLUTO_BUMPER.containsMatchIn(path))
     }
 
-    /** A `#EXT-X-DATERANGE` marking an SCTE-35 splice out, as the program-date span it covers; open-ended ones are left alone. */
+    /**
+     * A `#EXT-X-DATERANGE` marking an SCTE-35 splice out, as the program-date span it covers;
+     * open-ended ones are left alone.
+     */
     private fun dateRange(attributes: String): LongRange? {
         val values = ATTRIBUTE.findAll(attributes).associate { it.groupValues[1] to it.groupValues[2].trim('"') }
         if (values["SCTE35-OUT"] == null) return null
@@ -253,12 +347,20 @@ internal object AdBreaks {
 
     /** `ElapsedTime=1.9,Duration=150` or the older `1.9/150`, as elapsed and planned milliseconds. */
     private fun contValues(value: String): Pair<Long?, Long?> {
-        if ('/' in value && '=' !in value) return seconds(value.substringBefore('/')) to seconds(value.substringAfter('/'))
+        if ('/' in value && '=' !in value) {
+            return seconds(value.substringBefore('/')) to seconds(value.substringAfter('/'))
+        }
         val values = ATTRIBUTE.findAll(value).associate { it.groupValues[1].uppercase() to it.groupValues[2] }
         return seconds(values["ELAPSEDTIME"]) to seconds(values["DURATION"])
     }
 
-    private fun seconds(value: String?): Long? = value?.trim()?.toDoubleOrNull()?.takeIf { it >= 0 }?.let { (it * 1000).roundToLong() }
+    private fun seconds(value: String?): Long? = value?.trim()?.toDoubleOrNull()?.takeIf {
+        it >= 0
+    }?.let { (it * 1000).roundToLong() }
 
-    private fun instantMs(value: String): Long? = try { Instant.parse(value.trim()).toEpochMilli() } catch (_: DateTimeParseException) { null }
+    private fun instantMs(value: String): Long? = try {
+        Instant.parse(value.trim()).toEpochMilli()
+    } catch (_: DateTimeParseException) {
+        null
+    }
 }

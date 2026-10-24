@@ -10,8 +10,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.Density
@@ -31,6 +31,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 class LibraryGridLettersTest {
     private val library = MediaLibrary("movies", "Movies", LibraryKind.MOVIES, itemCount = 80)
+
     // Ten titles under each of eight letters.
     private val titles = ('A'..'H').flatMap { letter -> (0 until 10).map { "$letter movie $it" } }
     private val letters = ('A'..'H').mapIndexed { i, letter -> LetterJump(letter.toString(), i * 10) }
@@ -47,28 +48,34 @@ class LibraryGridLettersTest {
     )
 
     @Test
-    fun `a letter loads through its first title and focuses it`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
-        var shown by mutableStateOf(grid(loaded = 30))
-        val asked = mutableListOf<Int>()
-        val actions = LibraryGridActions(
-            onSort = {}, onUnwatched = {}, onGenre = {}, onOpenItem = {}, onPlayItem = {}, onLoadMore = {},
-            onLoadThrough = { asked += it },
-        )
-        setContent {
-            SofaKingTheme {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    LibraryGridScreen(library, shown, actions)
+    fun `a letter loads through its first title and focuses it`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            var shown by mutableStateOf(grid(loaded = 30))
+            val asked = mutableListOf<Int>()
+            val actions = LibraryGridActions(
+                onSort = {},
+                onUnwatched = {},
+                onGenre = {},
+                onOpenItem = {},
+                onPlayItem = {},
+                onLoadMore = {},
+                onLoadThrough = { asked += it },
+            )
+            setContent {
+                SofaKingTheme {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        LibraryGridScreen(library, shown, actions)
+                    }
                 }
             }
-        }
-        onNodeWithContentDescription("Jump to G").performClick()
-        waitForIdle()
-        assertEquals(listOf(60), asked)
+            onNodeWithContentDescription("Jump to G").performClick()
+            waitForIdle()
+            assertEquals(listOf(60), asked)
 
-        shown = grid(loaded = 80)
-        waitForIdle()
-        onNode(hasContentDescription("G movie 0", substring = true)).assertIsFocused()
-    }
+            shown = grid(loaded = 80)
+            waitForIdle()
+            onNode(hasContentDescription("G movie 0", substring = true)).assertIsFocused()
+        }
 
     @Test
     fun `the letters show only in title order on a long library`() {

@@ -21,7 +21,11 @@ internal fun searchSections(results: List<MediaItem>): SearchSections {
 /** Continue watching and a row of episodes or videos are wide; anything else shows posters. */
 internal fun cardStyleFor(shelf: MediaShelf): CardStyle = when {
     shelf.id == CONTINUE_SHELF -> CardStyle.WIDE
-    shelf.items.isNotEmpty() && shelf.items.all { it.kind == ItemKind.EPISODE || it.kind == ItemKind.VIDEO } -> CardStyle.WIDE
+
+    shelf.items.isNotEmpty() && shelf.items.all {
+        it.kind == ItemKind.EPISODE || it.kind == ItemKind.VIDEO
+    } -> CardStyle.WIDE
+
     else -> CardStyle.POSTER
 }
 
@@ -40,7 +44,10 @@ internal fun isWatched(item: MediaItem): Boolean = when (item.kind) {
     else -> item.progress?.watched == true
 }
 
-/** A card's menu: Play from beginning for something that plays and is partway in, when [playFromStart], then the watched toggle. */
+/**
+ * A card's menu: Play from beginning for something that plays and is partway in, when
+ * [playFromStart], then the watched toggle.
+ */
 internal fun cardMenuEntries(item: MediaItem, playFromStart: Boolean): List<CardMenuEntry> = listOfNotNull(
     CardMenuEntry.PLAY_FROM_START.takeIf { playFromStart && item.kind.playable && item.progress?.inProgress == true },
     if (isWatched(item)) CardMenuEntry.MARK_UNWATCHED else CardMenuEntry.MARK_WATCHED,

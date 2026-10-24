@@ -90,7 +90,11 @@ class AppShellStateTest {
         shell.openTab(Tab.LIVE)
         shell.playItem("e2")
         assertEquals(Route.Vod("e2"), shell.top)
-        assertEquals(listOf(Route.Library, Route.LibraryGrid("tv"), Route.Vod("e2")), shell.nav.stack(Tab.LIBRARY), "the item playing gives way")
+        assertEquals(
+            listOf(Route.Library, Route.LibraryGrid("tv"), Route.Vod("e2")),
+            shell.nav.stack(Tab.LIBRARY),
+            "the item playing gives way",
+        )
     }
 
     @Test
@@ -119,18 +123,60 @@ class AppShellStateTest {
         val movies = MediaLibrary("m", "Movies", LibraryKind.MOVIES, itemCount = 3)
         val serves = ServerCapabilities(library = true)
         assertTrue(tabsOffered(serves, Tab.LIVE, LibraryHomeState.Loading, RecordingsState.Loading).library)
-        assertTrue(tabsOffered(serves, Tab.LIVE, LibraryHomeState.Ready(MediaHome(emptyList(), listOf(movies))), RecordingsState.Loading).library)
-        assertFalse(tabsOffered(serves, Tab.LIVE, LibraryHomeState.Ready(MediaHome(emptyList(), emptyList())), RecordingsState.Loading).library)
+        assertTrue(
+            tabsOffered(
+                serves,
+                Tab.LIVE,
+                LibraryHomeState.Ready(MediaHome(emptyList(), listOf(movies))),
+                RecordingsState.Loading,
+            ).library,
+        )
+        assertFalse(
+            tabsOffered(
+                serves,
+                Tab.LIVE,
+                LibraryHomeState.Ready(MediaHome(emptyList(), emptyList())),
+                RecordingsState.Loading,
+            ).library,
+        )
         assertFalse(tabsOffered(serves, Tab.LIVE, LibraryHomeState.Unavailable, RecordingsState.Loading).library)
-        assertFalse(tabsOffered(ServerCapabilities(), Tab.LIVE, LibraryHomeState.Loading, RecordingsState.Loading).library)
-        assertTrue(tabsOffered(ServerCapabilities(), Tab.LIBRARY, LibraryHomeState.Loading, RecordingsState.Loading).library, "a start on the tab shows it before the bootstrap answers")
+        assertFalse(
+            tabsOffered(ServerCapabilities(), Tab.LIVE, LibraryHomeState.Loading, RecordingsState.Loading).library,
+        )
+        assertTrue(
+            tabsOffered(ServerCapabilities(), Tab.LIBRARY, LibraryHomeState.Loading, RecordingsState.Loading).library,
+            "a start on the tab shows it before the bootstrap answers",
+        )
     }
 
     @Test
     fun `the Recordings tab shows for a recording server or while open until the server says it does not record`() {
-        assertTrue(tabsOffered(ServerCapabilities(recordings = true), Tab.LIVE, LibraryHomeState.Loading, RecordingsState.Loading).recordings)
-        assertFalse(tabsOffered(ServerCapabilities(), Tab.LIVE, LibraryHomeState.Loading, RecordingsState.Loading).recordings)
-        assertTrue(tabsOffered(ServerCapabilities(), Tab.RECORDINGS, LibraryHomeState.Loading, RecordingsState.Loading).recordings)
-        assertFalse(tabsOffered(ServerCapabilities(), Tab.RECORDINGS, LibraryHomeState.Loading, RecordingsState.Unavailable).recordings)
+        assertTrue(
+            tabsOffered(
+                ServerCapabilities(recordings = true),
+                Tab.LIVE,
+                LibraryHomeState.Loading,
+                RecordingsState.Loading,
+            ).recordings,
+        )
+        assertFalse(
+            tabsOffered(ServerCapabilities(), Tab.LIVE, LibraryHomeState.Loading, RecordingsState.Loading).recordings,
+        )
+        assertTrue(
+            tabsOffered(
+                ServerCapabilities(),
+                Tab.RECORDINGS,
+                LibraryHomeState.Loading,
+                RecordingsState.Loading,
+            ).recordings,
+        )
+        assertFalse(
+            tabsOffered(
+                ServerCapabilities(),
+                Tab.RECORDINGS,
+                LibraryHomeState.Loading,
+                RecordingsState.Unavailable,
+            ).recordings,
+        )
     }
 }

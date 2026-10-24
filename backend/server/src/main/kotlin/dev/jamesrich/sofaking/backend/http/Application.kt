@@ -1,53 +1,98 @@
 package dev.jamesrich.sofaking.backend.http
 
+import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
+import dev.jamesrich.sofaking.backend.OutputConfig
+import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.admin.AdminPortal
 import dev.jamesrich.sofaking.backend.admin.PlexStatusSource
 import dev.jamesrich.sofaking.backend.admin.isPortalPath
 import dev.jamesrich.sofaking.backend.admin.sameSecret
-import dev.jamesrich.sofaking.backend.HdhrConfig
-import dev.jamesrich.sofaking.backend.OutputConfig
-import dev.jamesrich.sofaking.backend.ServerConfig
-import dev.jamesrich.sofaking.backend.api.*
-import dev.jamesrich.sofaking.contract.*
+import dev.jamesrich.sofaking.backend.api.UpdateSource
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.store.IdentityStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
-import io.ktor.http.*
+import dev.jamesrich.sofaking.contract.ApiError
+import dev.jamesrich.sofaking.contract.Bootstrap
+import dev.jamesrich.sofaking.contract.Capabilities
+import dev.jamesrich.sofaking.contract.GuideQuery
+import dev.jamesrich.sofaking.contract.OpenPlayback
+import dev.jamesrich.sofaking.contract.UpdatePlayback
+import dev.jamesrich.sofaking.contract.Wire
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.cookies
+import io.ktor.http.decodeURLPart
+import io.ktor.http.etag
+import io.ktor.http.headers
+import io.ktor.http.origin
+import io.ktor.http.parameters
+import io.ktor.http.path
+import io.ktor.http.set
 import io.ktor.serialization.kotlinx.json.json
-import io.ktor.server.application.*
+import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.application.ApplicationCallPipeline
+import io.ktor.server.application.application
+import io.ktor.server.application.call
+import io.ktor.server.application.host
+import io.ktor.server.application.install
+import io.ktor.server.application.isHandled
+import io.ktor.server.application.log
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.plugins.PayloadTooLargeException
 import io.ktor.server.plugins.bodylimit.RequestBodyLimit
-import io.ktor.server.plugins.ratelimit.RateLimit
-import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.callid.CallId
+import io.ktor.server.plugins.callid.callIdMdc
+import io.ktor.server.plugins.callid.generate
+import io.ktor.server.plugins.calllogging.CallLogging
+import io.ktor.server.plugins.calllogging.processingTimeMillis
 import io.ktor.server.plugins.compression.Compression
 import io.ktor.server.plugins.compression.condition
 import io.ktor.server.plugins.compression.deflate
 import io.ktor.server.plugins.compression.gzip
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.cors.routing.CORS
+import io.ktor.server.plugins.origin
+import io.ktor.server.plugins.ratelimit.RateLimit
+import io.ktor.server.plugins.ratelimit.RateLimitName
 import io.ktor.server.plugins.statuspages.StatusPages
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.request.ApplicationRequest
+import io.ktor.server.request.header
+import io.ktor.server.request.host
+import io.ktor.server.request.httpMethod
+import io.ktor.server.request.path
+import io.ktor.server.response.etag
+import io.ktor.server.response.header
+import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.application
+import io.ktor.server.routing.delete
+import io.ktor.server.routing.get
+import io.ktor.server.routing.header
+import io.ktor.server.routing.host
+import io.ktor.server.routing.intercept
+import io.ktor.server.routing.method
+import io.ktor.server.routing.patch
+import io.ktor.server.routing.path
+import io.ktor.server.routing.post
+import io.ktor.server.routing.put
+import io.ktor.server.routing.query
+import io.ktor.server.routing.route
+import io.ktor.server.routing.routing
 import io.ktor.util.AttributeKey
 import io.ktor.util.cio.ChannelIOException
 import io.ktor.utils.io.ClosedByteChannelException
 import io.ktor.utils.io.ConnectionClosedException
-import io.ktor.server.plugins.origin
-import io.ktor.server.plugins.callid.CallId
-import io.ktor.server.plugins.callid.callIdMdc
-import io.ktor.server.plugins.callid.generate
-import io.ktor.server.plugins.calllogging.CallLogging
-import io.ktor.server.plugins.calllogging.processingTimeMillis
-import java.time.Clock
-import org.slf4j.LoggerFactory
-import org.slf4j.event.Level
-import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
+import org.slf4j.event.Level
+import java.time.Clock
+import kotlin.time.Duration.Companion.minutes
 
 private val wireJson = Json { encodeDefaults = true }
 
@@ -55,7 +100,9 @@ private val wireJson = Json { encodeDefaults = true }
 internal val ADMIN_LOGIN_LIMIT = RateLimitName("admin-login")
 internal const val ADMIN_LOGINS_PER_MINUTE = 10
 
-/** Every request body is capped at [CONTROL_BODY_LIMIT], except the policy writes, which may carry a whole policy file. */
+/**
+ * Every request body is capped at [CONTROL_BODY_LIMIT], except the policy writes, which may carry a whole policy file.
+ */
 internal fun requestBodyLimit(method: HttpMethod, path: String?): Long = when {
     method == HttpMethod.Put && path == "/api/v1/admin/policy" -> POLICY_BODY_LIMIT
     method == HttpMethod.Post && (path == "/admin/providers/edit" || path == "/admin/groups/edit") -> POLICY_BODY_LIMIT
@@ -64,9 +111,14 @@ internal fun requestBodyLimit(method: HttpMethod, path: String?): Long = when {
 
 private val accessLog = LoggerFactory.getLogger("dev.jamesrich.sofaking.backend.http.Access")
 
-/** Whether a request to the routed [path] gets an access log line: not media, logos, artwork, player streams or health checks. */
+/**
+ * Whether a request to the routed [path] gets an access log line: not media, logos, artwork,
+ * player streams or health checks.
+ */
 internal fun accessLogged(path: String?): Boolean = path == null || !(
-    path.startsWith("/media/") || path.startsWith("/logos/") || path.startsWith("/artwork/") || path.startsWith("/output/stream/") || path.startsWith("/auto/") ||
+    path.startsWith("/media/") || path.startsWith("/logos/") || path.startsWith("/artwork/") ||
+        path.startsWith("/output/stream/") ||
+        path.startsWith("/auto/") ||
         path == "/healthz" || path == "/readyz"
     )
 
@@ -86,7 +138,9 @@ fun Application.backendModule(
     val portal = runtime?.let { AdminPortal(it, adminToken ?: apiToken, outputs, hdhr, clock, plexStatus, config) }
     attributes.computeIfAbsent(AuthFailureLogKey) { AuthFailureLog(clock) }
     // The path routing resolves, decoded once per request; the plugins below and the token guard read it from the call.
-    intercept(ApplicationCallPipeline.Setup) { routedPath(call.request.path())?.let { call.attributes.put(RoutedPathKey, it) } }
+    intercept(ApplicationCallPipeline.Setup) {
+        routedPath(call.request.path())?.let { call.attributes.put(RoutedPathKey, it) }
+    }
     install(CallId) {
         generate(length = 16, dictionary = "0123456789abcdef")
         replyToHeader(HttpHeaders.XRequestId)
@@ -102,14 +156,21 @@ fun Application.backendModule(
                 "status=${call.response.status()?.value ?: "-"} durationMs=${call.processingTimeMillis()}"
         }
     }
-    // Bearer tokens, not cookies, authorize the API, so credentials stay off; the portal's cookie never crosses origins.
+    // Bearer tokens, not cookies, authorize the API, so credentials stay off; the portal's
+    // cookie never crosses origins.
     config?.corsOrigins?.takeIf { it.isNotEmpty() }?.let { origins ->
         install(CORS) {
             origins.forEach { allowHost(it.host, schemes = listOf(it.scheme)) }
-            allowMethod(HttpMethod.Put); allowMethod(HttpMethod.Patch); allowMethod(HttpMethod.Delete)
-            allowHeader(HttpHeaders.Authorization); allowHeader(HttpHeaders.ContentType)
-            allowHeader(HttpHeaders.IfNoneMatch); allowHeader(HttpHeaders.IfMatch); allowHeader(HttpHeaders.XRequestId)
-            exposeHeader(HttpHeaders.ETag); exposeHeader(HttpHeaders.XRequestId)
+            allowMethod(HttpMethod.Put)
+            allowMethod(HttpMethod.Patch)
+            allowMethod(HttpMethod.Delete)
+            allowHeader(HttpHeaders.Authorization)
+            allowHeader(HttpHeaders.ContentType)
+            allowHeader(HttpHeaders.IfNoneMatch)
+            allowHeader(HttpHeaders.IfMatch)
+            allowHeader(HttpHeaders.XRequestId)
+            exposeHeader(HttpHeaders.ETag)
+            exposeHeader(HttpHeaders.XRequestId)
             maxAgeInSeconds = 600
         }
     }
@@ -131,19 +192,39 @@ fun Application.backendModule(
         condition { compressible(request.call.routedPath) }
     }
     install(StatusPages) {
-        status(HttpStatusCode.NotFound) { call, status -> call.respond(status, ApiError("RESOURCE_NOT_FOUND", "Resource not found", false)) }
+        status(HttpStatusCode.NotFound) { call, status ->
+            call.respond(status, ApiError("RESOURCE_NOT_FOUND", "Resource not found", false))
+        }
         exception<Throwable> { call, cause ->
             // The body limit fails the read, so its exception can arrive wrapped in a closed-channel one.
-            if (cause !is CancellationException && generateSequence(cause) { it.cause }.take(4).any { it is PayloadTooLargeException }) {
+            if (cause !is CancellationException &&
+                generateSequence(cause) { it.cause }.take(4).any { it is PayloadTooLargeException }
+            ) {
                 val limit = requestBodyLimit(call.request.httpMethod, call.routedPath)
-                call.respond(HttpStatusCode.PayloadTooLarge, ApiError("REQUEST_TOO_LARGE", tooLargeMessage(limit), false))
+                call.respond(
+                    HttpStatusCode.PayloadTooLarge,
+                    ApiError("REQUEST_TOO_LARGE", tooLargeMessage(limit), false),
+                )
                 return@exception
             }
             when (cause) {
                 is CancellationException -> throw cause
-                is ApiFailure -> call.respond(HttpStatusCode.fromValue(cause.status), ApiError(cause.code, cause.message, cause.retryable))
-                is UpstreamRejectedException -> call.respond(HttpStatusCode.BadGateway, ApiError("UPSTREAM_REJECTED", "Upstream address refused", false))
-                is BadRequestException, is kotlinx.serialization.SerializationException -> call.respond(HttpStatusCode.BadRequest, ApiError("INVALID_REQUEST", "Invalid request body", false))
+
+                is ApiFailure -> call.respond(
+                    HttpStatusCode.fromValue(cause.status),
+                    ApiError(cause.code, cause.message, cause.retryable),
+                )
+
+                is UpstreamRejectedException -> call.respond(
+                    HttpStatusCode.BadGateway,
+                    ApiError("UPSTREAM_REJECTED", "Upstream address refused", false),
+                )
+
+                is BadRequestException, is kotlinx.serialization.SerializationException -> call.respond(
+                    HttpStatusCode.BadRequest,
+                    ApiError("INVALID_REQUEST", "Invalid request body", false),
+                )
+
                 // A viewer hanging up mid-response is routine; nobody is left to answer. Other failures are ours.
                 else -> if (clientAbort(cause)) {
                     call.application.log.debug("Client closed the connection ({})", cause.javaClass.simpleName)
@@ -157,7 +238,10 @@ fun Application.backendModule(
     }
     intercept(ApplicationCallPipeline.Call) {
         // A validator, such as the body limit, may have answered already.
-        if (call.isHandled) { finish(); return@intercept }
+        if (call.isHandled) {
+            finish()
+            return@intercept
+        }
         // Decide on the path routing resolves, so no spelling of a guarded route skips its token.
         val path = call.routedPath
         if (path == null) {
@@ -174,14 +258,23 @@ fun Application.backendModule(
             // A pairing claim carries no token yet; the code it presents is checked by its route.
             val isApi = path == "/api" || path.startsWith("/api/")
             if (isApi && expected == null && !call.request.fromThisMachine()) {
-                // Without a token the API is open, so only this machine may use it: no other site's page, no rebound name, no proxy.
-                call.respond(HttpStatusCode.Forbidden, ApiError("LOOPBACK_ONLY", "Without a token the API answers only this machine", false))
+                // Without a token the API is open, so only this machine may use it: no other site's
+                // page, no rebound name, no proxy.
+                call.respond(
+                    HttpStatusCode.Forbidden,
+                    ApiError("LOOPBACK_ONLY", "Without a token the API answers only this machine", false),
+                )
                 finish()
             } else if (isApi && expected != null && path != PAIR_PATH) {
-                val presented = call.request.headers[HttpHeaders.Authorization]?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ").orEmpty()
+                val presented = call.request.headers[HttpHeaders.Authorization]?.takeIf {
+                    it.startsWith("Bearer ")
+                }?.removePrefix("Bearer ").orEmpty()
                 if (!sameSecret(presented, expected)) {
                     call.authFailed()
-                    call.respond(HttpStatusCode.Unauthorized, ApiError(Wire.ErrorCode.AUTH_REQUIRED, "Bearer token required", false))
+                    call.respond(
+                        HttpStatusCode.Unauthorized,
+                        ApiError(Wire.ErrorCode.AUTH_REQUIRED, "Bearer token required", false),
+                    )
                     finish()
                 }
             }
@@ -190,12 +283,33 @@ fun Application.backendModule(
     routing {
         get("/healthz") { call.respondText("ok") }
         get("/readyz") {
-            if (store.ready()) call.respondText("ready")
-            else call.respond(HttpStatusCode.ServiceUnavailable, ApiError("NOT_READY", "Storage unavailable", true))
+            if (store.ready()) {
+                call.respondText("ready")
+            } else {
+                call.respond(HttpStatusCode.ServiceUnavailable, ApiError("NOT_READY", "Storage unavailable", true))
+            }
         }
         get("/api/v1/bootstrap") {
-            if (!store.ready()) call.respond(HttpStatusCode.ServiceUnavailable, ApiError("NOT_READY", "Storage unavailable", true))
-            else call.respond(Bootstrap(serverId = store.serverId(), serverTime = clock.instant().toString(), capabilities = Capabilities(catalog = runtime != null, guide = runtime != null, playback = runtime != null, viewers = runtime != null, library = runtime?.libraries != null, recordings = runtime?.dvr != null)))
+            if (!store.ready()) {
+                call.respond(HttpStatusCode.ServiceUnavailable, ApiError("NOT_READY", "Storage unavailable", true))
+            } else {
+                call.respond(
+                    Bootstrap(
+                        serverId = store.serverId(),
+                        serverTime = clock.instant().toString(),
+                        capabilities = Capabilities(
+                            catalog =
+                            runtime != null,
+                            guide = runtime != null,
+                            playback = runtime != null,
+                            viewers = runtime != null,
+                            library =
+                            runtime?.libraries != null,
+                            recordings = runtime?.dvr != null,
+                        ),
+                    ),
+                )
+            }
         }
         if (runtime != null) {
             get("/api/v1/channels") {
@@ -204,10 +318,17 @@ fun Application.backendModule(
                 val revision = runtime.catalog.catalogRevision()
                 val etag = "\"${hash(revision)}\""
                 call.response.header(HttpHeaders.ETag, etag)
-                if (call.request.headers[HttpHeaders.IfNoneMatch] == etag) call.respond(HttpStatusCode.NotModified)
-                else {
+                if (call.request.headers[HttpHeaders.IfNoneMatch] == etag) {
+                    call.respond(HttpStatusCode.NotModified)
+                } else {
                     val catalog = runtime.catalog.catalog(revision)
-                    call.respond(catalog.copy(channels = catalog.channels.map { channel -> channel.copy(logo = channel.logo?.let { runtime.logos.publicUrl("", it) }) }))
+                    call.respond(
+                        catalog.copy(
+                            channels = catalog.channels.map { channel ->
+                                channel.copy(logo = channel.logo?.let { runtime.logos.publicUrl("", it) })
+                            },
+                        ),
+                    )
                 }
             }
             get("/api/v1/providers") { call.respond(runtime.feeds.providers()) }
@@ -221,34 +342,58 @@ fun Application.backendModule(
             adminRoutes(runtime, clock, config?.revision ?: "unknown", hdhr.enabled)
             viewerRoutes(runtime, clock, apiToken)
             runtime.dvr?.let { recordingRoutes(it) }
-            post("/api/v1/playback-sessions") { call.respond(HttpStatusCode.Created, runtime.sessions.open(call.appBody<OpenPlayback>(), call.request.origin.remoteAddress)) }
+            post("/api/v1/playback-sessions") {
+                call.respond(
+                    HttpStatusCode.Created,
+                    runtime.sessions.open(call.appBody<OpenPlayback>(), call.request.origin.remoteAddress),
+                )
+            }
             get("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.get(call.parameters["id"]!!)) }
-            patch("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.update(call.parameters["id"]!!, call.appBody<UpdatePlayback>())) }
+            patch("/api/v1/playback-sessions/{id}") {
+                call.respond(runtime.sessions.update(call.parameters["id"]!!, call.appBody<UpdatePlayback>()))
+            }
             get("/api/v1/playback-sessions/{id}/ad-break") {
-                val ahead = call.request.queryParameters["aheadMs"]?.let { it.toLongOrNull() ?: throw ApiFailure(400, "INVALID_REQUEST", "Invalid aheadMs") } ?: 0L
+                val ahead =
+                    call.request.queryParameters["aheadMs"]?.let {
+                        it.toLongOrNull()
+                            ?: throw ApiFailure(400, "INVALID_REQUEST", "Invalid aheadMs")
+                    }
+                        ?: 0L
                 call.respond(runtime.sessions.adBreak(call.parameters["id"]!!, ahead))
             }
-            delete("/api/v1/playback-sessions/{id}") { runtime.sessions.release(call.parameters["id"]!!); call.respond(HttpStatusCode.NoContent) }
+            delete("/api/v1/playback-sessions/{id}") {
+                runtime.sessions.release(call.parameters["id"]!!)
+                call.respond(HttpStatusCode.NoContent)
+            }
             get("/media/sessions/{id}/{epoch}/{token}") {
-                val epoch = call.parameters["epoch"]?.toIntOrNull() ?: throw ApiFailure(400, "INVALID_REQUEST", "Invalid stream epoch")
+                val epoch =
+                    call.parameters["epoch"]?.toIntOrNull()
+                        ?: throw ApiFailure(400, "INVALID_REQUEST", "Invalid stream epoch")
                 runtime.relay.serve(call, call.parameters["id"]!!, epoch, call.parameters["token"]!!)
             }
             outputRoutes(runtime, clock, outputs, apiToken)
             logoRoutes(runtime.logos)
-            runtime.libraries?.let { libraryRoutes(it); artworkRoutes(it) }
+            runtime.libraries?.let {
+                libraryRoutes(it)
+                artworkRoutes(it)
+            }
             runtime.vod?.let { vodRoutes(it) }
             if (hdhr.enabled) hdhrRoutes(runtime, hdhr, store)
             portal?.install(this)
         }
     }
 }
+
 /**
  * The path routing matches: empty segments dropped, each segment percent-decoded. Null when a segment is undecodable,
  * decodes to a dot segment, or decodes to something containing '/', which routing would otherwise see as a path split,
  * or a control character, which would forge lines in the access log.
  */
 internal fun routedPath(raw: String): String? {
-    val segments = raw.split('/').filter { it.isNotEmpty() }.map { segment -> runCatching { segment.decodeURLPart() }.getOrNull() ?: return null }
+    val segments = raw.split('/').filter { it.isNotEmpty() }.map { segment ->
+        runCatching { segment.decodeURLPart() }.getOrNull()
+            ?: return null
+    }
     if (segments.any { it == "." || it == ".." || it.contains('/') || it.any(Char::isISOControl) }) return null
     return segments.joinToString("/", prefix = "/")
 }
@@ -261,14 +406,17 @@ internal val RoutedPathKey = AttributeKey<String>("RoutedPath")
  */
 internal fun ApplicationRequest.fromThisMachine(): Boolean {
     // The Host header's name, or the local address when a client sent none; browsers always send one.
-    val host = headers[HttpHeaders.Host]?.let { if (it.startsWith("[")) it.substringBefore(']') else it.substringBefore(':') } ?: local.serverHost
+    val host =
+        headers[HttpHeaders.Host]?.let { if (it.startsWith("[")) it.substringBefore(']') else it.substringBefore(':') }
+            ?: local.serverHost
     if (!isLoopbackName(host)) return false
     if (FORWARDING_HEADERS.any { headers[it] != null }) return false
     val origin = headers[HttpHeaders.Origin] ?: return true
     return runCatching { java.net.URI(origin).host }.getOrNull()?.let(::isLoopbackName) == true
 }
 
-private val FORWARDING_HEADERS = listOf(HttpHeaders.Forwarded, HttpHeaders.XForwardedFor, HttpHeaders.XForwardedHost, "X-Real-IP")
+private val FORWARDING_HEADERS =
+    listOf(HttpHeaders.Forwarded, HttpHeaders.XForwardedFor, HttpHeaders.XForwardedHost, "X-Real-IP")
 private val LOOPBACK_V4 = Regex("127(\\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}")
 
 internal fun isLoopbackName(raw: String): Boolean {
@@ -284,6 +432,7 @@ internal fun compressible(path: String?): Boolean = path != null && (
     path.startsWith("/api/") || path == "/admin" || path.startsWith("/admin/") ||
         path == "/output/playlist.m3u" || path == "/output/guide.xml" || path == "/lineup.json"
     )
+
 /** A write or read that failed because the client's connection is gone, as Ktor, Netty and the JDK each report it. */
 internal fun clientAbort(cause: Throwable): Boolean {
     val causes = generateSequence(cause) { it.cause }.take(4)

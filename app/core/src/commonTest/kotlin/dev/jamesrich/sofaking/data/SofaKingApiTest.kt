@@ -18,7 +18,11 @@ class SofaKingApiTest {
     @Test
     fun `the catalog request carries the bearer token and decodes the channels`() = runTest {
         val http = FakeHttp(this) {
-            json("""{"revision":"r1","channels":[{"id":"c1","displayNumber":"5","name":"Five","playbackEligible":true,"extra":1}]}""", etag = "\"r1\"")
+            json(
+                """{"revision":"r1","channels":[{"id":"c1","displayNumber":"5","name":"Five","playbackEligible":""" +
+                    """true,"extra":1}]}""",
+                etag = "\"r1\"",
+            )
         }
 
         val result = http.api().catalog(etag = null) as CatalogResult.Changed
@@ -62,7 +66,10 @@ class SofaKingApiTest {
 
     @Test
     fun `an API error becomes an exception with its code`() = runTest {
-        val http = FakeHttp(this) { json("""{"code":"AUTH_REQUIRED","message":"Bearer token required","retryable":false}""", status = 401) }
+        val http =
+            FakeHttp(this) {
+                json("""{"code":"AUTH_REQUIRED","message":"Bearer token required","retryable":false}""", status = 401)
+            }
 
         val e = assertFailsWith<SofaKingException> { http.api(token = "wrong").session("s1") }
 
@@ -101,8 +108,16 @@ class SofaKingApiTest {
 
     @Test
     fun `session requests encode the id as one path segment and the body as JSON`() = runTest {
-        val session = """{"id":"s 1/2","channelId":"c1","intent":"watch","expiresAt":"2026-10-10T10:00:00Z","descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/sessions/s1/1/root.m3u8","epoch":1}}"""
-        val http = FakeHttp(this) { request -> if (request.method == "DELETE") respond("", HttpStatusCode.NoContent) else json(session) }
+        val session = """{"id":"s 1/2","channelId":"c1","intent":"watch","expiresAt":"2026-10-10T10:00:00Z",""" +
+            """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/sessions/s1/""" +
+            """1/root.m3u8","epoch":1}}"""
+        val http = FakeHttp(this) { request ->
+            if (request.method == "DELETE") {
+                respond("", HttpStatusCode.NoContent)
+            } else {
+                json(session)
+            }
+        }
 
         val api = http.api()
         api.updateSession("s 1/2", "watch")
@@ -121,9 +136,13 @@ class SofaKingApiTest {
 
     @Test
     fun `media URLs resolve against the server address`() {
-        val descriptor = PlaybackDescriptorDto("hls", "application/vnd.apple.mpegurl", "/media/sessions/s1/1/root.m3u8", 1)
+        val descriptor =
+            PlaybackDescriptorDto("hls", "application/vnd.apple.mpegurl", "/media/sessions/s1/1/root.m3u8", 1)
 
-        assertEquals("http://tv.lan:9193/media/sessions/s1/1/root.m3u8", SofaKingApi("http://tv.lan:9193/", "t", offline).mediaUrl(descriptor))
+        assertEquals(
+            "http://tv.lan:9193/media/sessions/s1/1/root.m3u8",
+            SofaKingApi("http://tv.lan:9193/", "t", offline).mediaUrl(descriptor),
+        )
     }
 
     @Test
@@ -139,13 +158,21 @@ class SofaKingApiTest {
         val api = SofaKingApi("https://tv.example", "t", offline)
 
         assertNull(api.logoUrl("http://h:port/x"))
-        assertFailsWith<IOException> { api.mediaUrl(PlaybackDescriptorDto("hls", "application/vnd.apple.mpegurl", "http://h:port/x", 1)) }
+        assertFailsWith<IOException> {
+            api.mediaUrl(PlaybackDescriptorDto("hls", "application/vnd.apple.mpegurl", "http://h:port/x", 1))
+        }
     }
 
     @Test
     fun `HLS descriptors get the MIME type Media3 recognizes and MPEG-TS passes through`() {
-        assertEquals("application/x-mpegURL", mediaMimeType(PlaybackDescriptorDto("hls", "application/vnd.apple.mpegurl", "/x.m3u8", 1)))
-        assertEquals("application/x-mpegURL", mediaMimeType(PlaybackDescriptorDto("hls", "Application/X-MpegURL", "/x", 1)))
+        assertEquals(
+            "application/x-mpegURL",
+            mediaMimeType(PlaybackDescriptorDto("hls", "application/vnd.apple.mpegurl", "/x.m3u8", 1)),
+        )
+        assertEquals(
+            "application/x-mpegURL",
+            mediaMimeType(PlaybackDescriptorDto("hls", "Application/X-MpegURL", "/x", 1)),
+        )
         assertEquals("video/mp2t", mediaMimeType(PlaybackDescriptorDto("mpegts", "video/mp2t", "/x.ts", 1)))
     }
 
@@ -156,7 +183,10 @@ class SofaKingApiTest {
         val result = http.api(token = "").pair(PairingClaimDto("123456", "c1", "Den", "android-tv"))
 
         val request = http.requests.single()
-        assertEquals("POST /api/v1/pair {\"code\":\"123456\",\"clientId\":\"c1\",\"name\":\"Den\",\"platform\":\"android-tv\"}", request.toString())
+        assertEquals(
+            "POST /api/v1/pair {\"code\":\"123456\",\"clientId\":\"c1\",\"name\":\"Den\",\"platform\":\"android-tv\"}",
+            request.toString(),
+        )
         assertNull(request.headers["Authorization"])
         assertEquals("issued", result.apiToken)
         assertEquals("srv", result.serverId)
@@ -165,14 +195,26 @@ class SofaKingApiTest {
     @Test
     fun `missing preferences read as null and saved ones come back stamped`() = runTest {
         val http = FakeHttp(this) { request ->
-            if (request.method == "GET") apiError(404, "VIEWER_NOT_FOUND")
-            else json("""{"hidden":["h"],"favorites":[],"recent":[],"name":"Den","platform":"desktop","updatedAt":"2026-10-16T00:00:00Z"}""")
+            if (request.method == "GET") {
+                apiError(404, "VIEWER_NOT_FOUND")
+            } else {
+                json(
+                    """{"hidden":["h"],"favorites":[],"recent":[""" +
+                        """],"name":"Den","platform":"desktop","updatedAt":"2026-10-16T00:00:00Z"}""",
+                )
+            }
         }
 
         assertNull(http.api().preferences("c 1"))
         assertEquals("/api/v1/preferences/c%201", http.requests.single().path)
-        val saved = http.api().savePreferences("c1", ViewerPreferencesDto(hidden = listOf("h"), name = "Den", platform = "desktop"))
-        assertEquals("PUT /api/v1/preferences/c1 {\"hidden\":[\"h\"],\"name\":\"Den\",\"platform\":\"desktop\"}", http.requests.last().toString())
+        val saved = http.api().savePreferences(
+            "c1",
+            ViewerPreferencesDto(hidden = listOf("h"), name = "Den", platform = "desktop"),
+        )
+        assertEquals(
+            "PUT /api/v1/preferences/c1 {\"hidden\":[\"h\"],\"name\":\"Den\",\"platform\":\"desktop\"}",
+            http.requests.last().toString(),
+        )
         assertEquals("2026-10-16T00:00:00Z", saved.updatedAt)
     }
 }

@@ -48,7 +48,9 @@ class AppleTvStorageTest {
 
         assertNotNull(defaults.dataForKey("sofaking.preferences"))
         assertFalse(SystemFileSystem.exists(oldFile), "nothing is written under Caches")
-        val reopened = PreferenceDataStoreFactory.create(storage = UserDefaultsStorage(defaults, "sofaking.preferences"))
+        val reopened = PreferenceDataStoreFactory.create(
+            storage = UserDefaultsStorage(defaults, "sofaking.preferences"),
+        )
         assertEquals("http://tv.test", reopened.data.first()[server])
     }
 
@@ -58,7 +60,9 @@ class AppleTvStorageTest {
         storage.settings.edit { it[server] = "http://tv.test" }
         storage.settings.edit { it.clear() }
 
-        val reopened = PreferenceDataStoreFactory.create(storage = UserDefaultsStorage(defaults, "sofaking.preferences"))
+        val reopened = PreferenceDataStoreFactory.create(
+            storage = UserDefaultsStorage(defaults, "sofaking.preferences"),
+        )
         assertTrue(reopened.data.first().asMap().isEmpty())
     }
 
@@ -72,7 +76,9 @@ class AppleTvStorageTest {
         assertEquals("http://old.test", moved[server])
         assertEquals("secret", moved[token])
         assertFalse(SystemFileSystem.exists(oldFile))
-        val reopened = PreferenceDataStoreFactory.create(storage = UserDefaultsStorage(defaults, "sofaking.preferences"))
+        val reopened = PreferenceDataStoreFactory.create(
+            storage = UserDefaultsStorage(defaults, "sofaking.preferences"),
+        )
         assertEquals("http://old.test", reopened.data.first()[server], "the moved settings are in UserDefaults")
     }
 

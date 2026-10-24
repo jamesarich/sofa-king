@@ -1,15 +1,26 @@
 package dev.jamesrich.sofaking.backend.http
 
-import dev.jamesrich.sofaking.backend.api.*
-import dev.jamesrich.sofaking.contract.*
-import dev.jamesrich.sofaking.backend.store.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
-import io.ktor.server.application.*
+import dev.jamesrich.sofaking.backend.store.IdentityStore
+import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.contract.ApiError
+import dev.jamesrich.sofaking.contract.Bootstrap
+import dev.jamesrich.sofaking.contract.Capabilities
+import io.ktor.client.request.get
+import io.ktor.client.request.host
+import io.ktor.client.statement.bodyAsBytes
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.application
+import io.ktor.server.application.host
+import io.ktor.server.application.log
 import io.ktor.server.config.MapApplicationConfig
-import io.ktor.server.routing.*
-import io.ktor.server.testing.*
+import io.ktor.server.routing.application
+import io.ktor.server.routing.get
+import io.ktor.server.routing.host
+import io.ktor.server.routing.routing
+import io.ktor.server.testing.it
+import io.ktor.server.testing.on
+import io.ktor.server.testing.testApplication
 import io.ktor.util.cio.ChannelWriteException
 import io.ktor.utils.io.ClosedByteChannelException
 import io.ktor.utils.io.ClosedWriteChannelException
@@ -19,9 +30,14 @@ import org.slf4j.event.Level
 import org.slf4j.event.SubstituteLoggingEvent
 import org.slf4j.helpers.SubstituteLogger
 import java.nio.file.Files
-import java.time.*
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 import java.util.UUID
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class ApplicationTest {
     @Test fun `bootstrap is typed native and truthful`() = testApplication {
@@ -36,8 +52,12 @@ class ApplicationTest {
             assertEquals("1970-01-01T00:00:00Z", body.serverTime)
             assertEquals(Capabilities(), body.capabilities)
             assertEquals(store.serverId(), body.serverId)
-        } finally { store.close(); dir.toFile().deleteRecursively() }
+        } finally {
+            store.close()
+            dir.toFile().deleteRecursively()
+        }
     }
+
     @Test fun `liveness does not require ready storage`() = testApplication {
         application { backendModule(unreadyStore(), Clock.systemUTC()) }
         assertEquals(HttpStatusCode.OK, client.get("/healthz").status)
@@ -46,12 +66,14 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.ServiceUnavailable, bootstrap.status)
         assertEquals("NOT_READY", Json.decodeFromString<ApiError>(bootstrap.bodyAsText()).code)
     }
+
     @Test fun `unknown API route has structured error`() = testApplication {
         application { backendModule(unreadyStore(), Clock.systemUTC()) }
         val response = client.get("/api/v1/missing")
         assertEquals(HttpStatusCode.NotFound, response.status)
         assertEquals("RESOURCE_NOT_FOUND", Json.decodeFromString<ApiError>(response.bodyAsText()).code)
     }
+
     @Test fun `a client hanging up is a debug line while other failures stay errors`() {
         assertTrue(clientAbort(ClosedByteChannelException()))
         assertTrue(clientAbort(ClosedWriteChannelException()))
@@ -66,8 +88,9 @@ class ApplicationTest {
 
         val events = java.util.concurrent.ConcurrentLinkedQueue<SubstituteLoggingEvent>()
         testApplication {
-            // The test host delivers a body writer's failure to the client channel only, so the hang-up is raised before the
-            // body here; the status page sees the same exception either way. Its own fallback is told not to rethrow.
+            // The test host delivers a body writer's failure to the client channel only, so the hang-up is
+            // raised before the body here; the status page sees the same exception either way. Its own
+            // fallback is told not to rethrow.
             environment {
                 log = SubstituteLogger("test", events, false)
                 config = MapApplicationConfig("ktor.test.throwOnException" to "false")
@@ -82,7 +105,12 @@ class ApplicationTest {
             runCatching { client.get("/abort").bodyAsBytes() }
             val logged = events.map { "${it.level}: ${it.message}" }
             assertTrue(events.none { it.level == Level.ERROR }, "client abort logged as $logged")
-            assertTrue(events.any { it.level == Level.DEBUG && it.message.startsWith("Client closed the connection") }, "client abort logged as $logged")
+            assertTrue(
+                events.any {
+                    it.level == Level.DEBUG && it.message.startsWith("Client closed the connection")
+                },
+                "client abort logged as $logged",
+            )
             events.clear()
             val broken = client.get("/broken")
             assertEquals(HttpStatusCode.InternalServerError, broken.status)

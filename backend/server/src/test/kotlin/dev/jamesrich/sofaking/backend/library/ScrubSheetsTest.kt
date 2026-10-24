@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.libraryScrub
 import dev.jamesrich.sofaking.backend.store.openStore
+import kotlinx.coroutines.runBlocking
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
@@ -16,10 +17,16 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlinx.coroutines.runBlocking
 
 class ScrubSheetsTest {
-    private class Setup(val dir: Path, val root: Path, val store: BackendStore, val service: LibraryService, val scrub: ScrubSheets, val jobs: Jobs)
+    private class Setup(
+        val dir: Path,
+        val root: Path,
+        val store: BackendStore,
+        val service: LibraryService,
+        val scrub: ScrubSheets,
+        val jobs: Jobs,
+    )
 
     /** Movies the scan takes for ten minutes long unless [durations] knows a file's length. */
     private fun setup(maker: SheetMaker, durations: Map<String, Long> = emptyMap()): Setup = runBlocking {
@@ -29,8 +36,21 @@ class ScrubSheetsTest {
         val store = openStore(dir.resolve("data"), clock)
         val jobs = Jobs(clock)
         val scrub = ScrubSheets(store, clock, jobs, maker, dir.resolve("data/scrub"))
-        val scanner = LibraryScanner({ MediaInfo("matroska,webm", durationMs = durations[it.fileName.toString()] ?: 600_000) }, missingGrace = Duration.ofDays(7))
-        Setup(dir, root, store, LibraryService(store, clock, listOf(MediaRoot("Media", root)), scanner, jobs, scrub = scrub), scrub, jobs)
+        val scanner = LibraryScanner({
+            MediaInfo(
+                "matroska,webm",
+                durationMs =
+                durations[it.fileName.toString()] ?: 600_000,
+            )
+        }, missingGrace = Duration.ofDays(7))
+        Setup(
+            dir,
+            root,
+            store,
+            LibraryService(store, clock, listOf(MediaRoot("Media", root)), scanner, jobs, scrub = scrub),
+            scrub,
+            jobs,
+        )
     }
 
     private fun movie(root: Path, name: String, body: String = "x"): Path {
@@ -59,7 +79,11 @@ class ScrubSheetsTest {
         s.service.scan(library.id)
 
         assertEquals(1 to 1, s.scrub.run(library))
-        assertEquals(listOf("Alpha (2001).mkv", "Broken (2003).mkv"), maker.reads.sorted(), "a file under five minutes gets none")
+        assertEquals(
+            listOf("Alpha (2001).mkv", "Broken (2003).mkv"),
+            maker.reads.sorted(),
+            "a file under five minutes gets none",
+        )
         val items = s.store.libraryItems(library.id).associateBy { it.path!!.substringBefore('/') }
         val alpha = items.getValue("Alpha (2001)")
         val made = assertNotNull(s.store.libraryScrub(alpha.id))
@@ -67,12 +91,21 @@ class ScrubSheetsTest {
         assertNotNull(s.scrub.sheet(alpha.id, 1))
         assertNull(s.scrub.sheet(alpha.id, 2))
         assertNull(s.scrub.sheet("../data", 0))
-        assertEquals(0, assertNotNull(s.store.libraryScrub(items.getValue("Broken (2003)").id)).sheets, "a failure is noted")
+        assertEquals(
+            0,
+            assertNotNull(s.store.libraryScrub(items.getValue("Broken (2003)").id)).sheets,
+            "a failure is noted",
+        )
         assertEquals("Movies: 1 files, 1 without video", s.jobs.snapshot().single { it.id == SCRUB_JOB }.lastNote)
 
         // The episode's page offers them.
         val offered = assertNotNull(s.service.catalog.item(alpha.id).scrub)
-        assertEquals(listOf("/artwork/${alpha.id}/scrub/0", "/artwork/${alpha.id}/scrub/1"), offered.sheets.map { it.substringBefore('?') })
+        assertEquals(
+            listOf("/artwork/${alpha.id}/scrub/0", "/artwork/${alpha.id}/scrub/1"),
+            offered.sheets.map {
+                it.substringBefore('?')
+            },
+        )
         assertNull(s.service.catalog.item(items.getValue("Broken (2003)").id).scrub)
 
         // Nothing changed: no file is read again, the failed one included.
@@ -88,7 +121,10 @@ class ScrubSheetsTest {
 
         // A replaced file is read again, and until it is its old sheets are not offered.
         movie(s.root, "Alpha (2001)", body = "replaced")
-        Files.setLastModifiedTime(s.root.resolve("movies/Alpha (2001)/Alpha (2001).mkv"), java.nio.file.attribute.FileTime.fromMillis(1_000))
+        Files.setLastModifiedTime(
+            s.root.resolve("movies/Alpha (2001)/Alpha (2001).mkv"),
+            java.nio.file.attribute.FileTime.fromMillis(1_000),
+        )
         s.service.scan(library.id)
         assertNull(s.service.catalog.item(alpha.id).scrub)
         assertEquals(1 to 0, s.scrub.run(library))
@@ -97,7 +133,15 @@ class ScrubSheetsTest {
 
         // A removed library's sheets go with the next pass.
         s.service.delete(library.id)
-        s.scrub.run(LibraryRecord("other", "Other", LibraryKind.MOVIES, s.root.resolve("movies").toString(), "2026-10-10T13:00:00Z"))
+        s.scrub.run(
+            LibraryRecord(
+                "other",
+                "Other",
+                LibraryKind.MOVIES,
+                s.root.resolve("movies").toString(),
+                "2026-10-10T13:00:00Z",
+            ),
+        )
         assertNull(s.store.libraryScrub(alpha.id))
         assertFalse(Files.exists(s.dir.resolve("data/scrub/${alpha.id}")))
     }
@@ -107,7 +151,8 @@ class ScrubSheetsTest {
         val clip = dir.resolve("clip.mkv")
         // Two and a half minutes of test pattern at a key frame a second, small and quick to make.
         val exit = ProcessBuilder(
-            "ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=5:duration=150",
+            "ffmpeg", "-nostdin", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "testsrc=size=320x180:rate=5:duration=150",
             "-c:v", "libx264", "-preset", "ultrafast", "-g", "5", clip.toString(),
         ).inheritIO().start().waitFor()
         assertEquals(0, exit, "ffmpeg makes the test clip")

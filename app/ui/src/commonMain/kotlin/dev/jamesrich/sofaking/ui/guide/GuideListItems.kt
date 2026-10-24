@@ -23,17 +23,19 @@ internal sealed interface GuideListItem {
 }
 
 /** [visible] as list items, with a Later line after every channel in [upcoming] (keyed by guide id). */
-internal fun guideListItems(visible: List<Channel>, upcoming: Map<String, List<Program>>): List<GuideListItem> = buildList {
-    for (channel in visible) {
-        add(GuideListItem.Row(channel))
-        val later = upcoming[channel.guideId]
-        if (!later.isNullOrEmpty()) add(GuideListItem.Later(channel, later))
+internal fun guideListItems(visible: List<Channel>, upcoming: Map<String, List<Program>>): List<GuideListItem> =
+    buildList {
+        for (channel in visible) {
+            add(GuideListItem.Row(channel))
+            val later = upcoming[channel.guideId]
+            if (!later.isNullOrEmpty()) add(GuideListItem.Later(channel, later))
+        }
     }
-}
 
 /** The index of [channel]'s own row in [items], or -1. */
-internal fun rowIndexOf(items: List<GuideListItem>, channel: Channel): Int =
-    items.indexOfFirst { it is GuideListItem.Row && it.channel.guideId == channel.guideId && it.channel.number == channel.number }
+internal fun rowIndexOf(items: List<GuideListItem>, channel: Channel): Int = items.indexOfFirst {
+    it is GuideListItem.Row && it.channel.guideId == channel.guideId && it.channel.number == channel.number
+}
 
 /** The index of the Later line of [guideId], or -1. */
 internal fun laterIndexOf(items: List<GuideListItem>, guideId: String): Int =

@@ -1,19 +1,8 @@
 package dev.jamesrich.sofaking.ui.player
 
-import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
-import dev.jamesrich.sofaking.ui.formatPlayTime
-import dev.jamesrich.sofaking.ui.theme.SofaIcons
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderState
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.platform.LocalWindowInfo
-import dev.jamesrich.sofaking.data.CaptionStyle
-import org.jetbrains.compose.resources.StringResource
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -22,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,10 +21,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -42,8 +35,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -52,12 +45,14 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -71,13 +66,44 @@ import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withStateAtLeast
 import co.touchlab.kermit.Logger
-import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.contract.Wire
+import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.Subtitles
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.captions_off
+import dev.jamesrich.sofaking.resources.captions_on
+import dev.jamesrich.sofaking.resources.player_control_captions
+import dev.jamesrich.sofaking.resources.player_paused
+import dev.jamesrich.sofaking.resources.player_zoom_notice
+import dev.jamesrich.sofaking.resources.retry
+import dev.jamesrich.sofaking.resources.vod_break_skipped
+import dev.jamesrich.sofaking.resources.vod_control_back
+import dev.jamesrich.sofaking.resources.vod_control_forward
+import dev.jamesrich.sofaking.resources.vod_control_next
+import dev.jamesrich.sofaking.resources.vod_control_skip_break
+import dev.jamesrich.sofaking.resources.vod_control_skip_credits
+import dev.jamesrich.sofaking.resources.vod_control_skip_intro
+import dev.jamesrich.sofaking.resources.vod_control_skip_intro_countdown
+import dev.jamesrich.sofaking.resources.vod_control_start_over
+import dev.jamesrich.sofaking.resources.vod_ends_at
+import dev.jamesrich.sofaking.resources.vod_intro_skipped
+import dev.jamesrich.sofaking.resources.vod_mode_audio
+import dev.jamesrich.sofaking.resources.vod_mode_direct
+import dev.jamesrich.sofaking.resources.vod_mode_remux
+import dev.jamesrich.sofaking.resources.vod_mode_transcode
+import dev.jamesrich.sofaking.resources.vod_no_subtitles
+import dev.jamesrich.sofaking.resources.vod_options_hint
+import dev.jamesrich.sofaking.resources.vod_position_description
+import dev.jamesrich.sofaking.resources.vod_seek_description
+import dev.jamesrich.sofaking.resources.vod_starting
+import dev.jamesrich.sofaking.resources.vod_subtitles_failed
+import dev.jamesrich.sofaking.resources.vod_subtitles_off
+import dev.jamesrich.sofaking.resources.vod_subtitles_on
+import dev.jamesrich.sofaking.resources.vod_tracks_title
+import dev.jamesrich.sofaking.resources.vod_waiting_converter
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.KeepScreenOn
@@ -87,11 +113,15 @@ import dev.jamesrich.sofaking.ui.LocalUptimeMs
 import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
+import dev.jamesrich.sofaking.ui.appLifecycleOwner
+import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.repeatCountOrNull
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
@@ -99,8 +129,9 @@ import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.time.Clock
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import kotlin.time.Clock
 
 /**
  * The full screen for something the viewer moves through: a library item or a recording. [open] opens it on the
@@ -136,7 +167,10 @@ fun VodPlayerScreen(
     onPlayNext: () -> Unit = {},
     /** The audio and subtitle tracks to pick from; none hides the picker. */
     tracks: VodTracks = VodTracks(),
-    /** A recording's captions, which the player draws, on or off; null for a library item, whose subtitles are in [tracks]. */
+    /**
+     * A recording's captions, which the player draws, on or off; null for a library item,
+     * whose subtitles are in [tracks].
+     */
     captionsOn: Boolean? = null,
     onToggleCaptions: () -> Unit = {},
     captionStyle: CaptionStyle = CaptionStyle.SYSTEM,
@@ -199,7 +233,8 @@ fun VodPlayerScreen(
     val intro by remember(title.markers) { derivedStateOf { introAt(title.markers, state.positionMs) } }
     val credits by remember(title.markers) { derivedStateOf { creditsAt(title.markers, state.positionMs) } }
     val pastStart by remember { derivedStateOf { state.positionMs > START_OVER_AFTER_MS } }
-    val windowHeightDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
+    val windowHeightDp =
+        with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
 
     var mediaSession by remember { mutableStateOf<MediaSessionHandle?>(null) }
     // Each item starts at normal speed; the Speed button steps it on, and leaving puts the shared player back.
@@ -211,6 +246,7 @@ fun VodPlayerScreen(
         val current = sessions.current.value?.takeIf { it.itemId == itemId } ?: return
         when (val plan = vodSeekPlan(current, targetMs, player.durationMs, current.itemDurationMs)) {
             is VodSeekPlan.InStream -> player.seekTo(plan.streamMs)
+
             is VodSeekPlan.Restart -> {
                 player.stop()
                 scope.launch {
@@ -261,9 +297,13 @@ fun VodPlayerScreen(
             if (player.currentStreamUrl == s.url) return@withStateAtLeast
             // A new URL for this page's item (a restart, a reopen) keeps it paused; a page's first item plays, even
             // after another item was left paused.
-            val wasPaused = loadedUrl != null && !player.playWhenReady && player.hasItem && player.currentChannelId.isNullOrEmpty()
+            val wasPaused =
+                loadedUrl != null && !player.playWhenReady && player.hasItem && player.currentChannelId.isNullOrEmpty()
             player.stop()
-            player.setStream(s, NowPlaying(currentTitle.title, currentTitle.subtitle.orEmpty(), currentTitle.artworkUrl))
+            player.setStream(
+                s,
+                NowPlaying(currentTitle.title, currentTitle.subtitle.orEmpty(), currentTitle.artworkUrl),
+            )
             loadedUrl = s.url
             pendingSeek = (s.startAtMs - s.offsetMs).takeIf { it > 0 }
             state.positionMs = s.startAtMs
@@ -404,8 +444,19 @@ fun VodPlayerScreen(
     }
     // The bar stays up while paused or scrubbing, and leaves a few seconds after the last key, tap or mouse movement
     // otherwise; a button that had focus hands it back to the picture.
-    LaunchedEffect(state.overlayVisible, state.overlayRequest, paused, state.scrubTarget, state.failure, state.autoSkipSeconds != null) {
-        if (!state.overlayVisible || paused || state.scrubTarget != null || state.failure != null || state.autoSkipSeconds != null) return@LaunchedEffect
+    LaunchedEffect(
+        state.overlayVisible,
+        state.overlayRequest,
+        paused,
+        state.scrubTarget,
+        state.failure,
+        state.autoSkipSeconds != null,
+    ) {
+        if (!state.overlayVisible || paused || state.scrubTarget != null || state.failure != null ||
+            state.autoSkipSeconds != null
+        ) {
+            return@LaunchedEffect
+        }
         delay(BAR_IDLE_MS)
         state.overlayVisible = false
     }
@@ -582,7 +633,11 @@ fun VodPlayerScreen(
 
     LaunchedEffect(Unit) { requestFocusWhenAttached(focus) }
     // A button that had focus when the bar left, or when it was removed, hands it back to the picture.
-    LaunchedEffect(state.overlayVisible, buttons.size) { if (state.buttonsFocused && (!state.overlayVisible || buttons.isEmpty())) focus.requestFocus() }
+    LaunchedEffect(state.overlayVisible, buttons.size) {
+        if (state.buttonsFocused && (!state.overlayVisible || buttons.isEmpty())) {
+            focus.requestFocus()
+        }
+    }
     LaunchedEffect(state.focusSkip, state.overlayVisible, buttons.firstOrNull()) {
         if (!state.focusSkip) return@LaunchedEffect
         if (state.overlayVisible && !pointerDriven && buttons.firstOrNull() in SKIP_BUTTONS) {
@@ -607,8 +662,13 @@ fun VodPlayerScreen(
             .semantics { contentDescription = title.title }
             .onPreviewKeyEvent { event ->
                 state.onKeyEvent(
-                    event.key, event.type, controls, paused,
-                    hasButtons = buttons.isNotEmpty(), tracksPickable = tracks.pickable, repeatCount = event.repeatCountOrNull,
+                    event.key,
+                    event.type,
+                    controls,
+                    paused,
+                    hasButtons = buttons.isNotEmpty(),
+                    tracksPickable = tracks.pickable,
+                    repeatCount = event.repeatCountOrNull,
                     nowMs = scrubClock(),
                 )
             }
@@ -634,7 +694,14 @@ fun VodPlayerScreen(
     ) {
         player.Video(Modifier.fillMaxSize(), zoom) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
         // A recording's captions are the stream's own, drawn by the player as on live TV.
-        if (captionsOn == true) Captions(player, captionStyle, CaptionPolicy.bottomPaddingFraction(windowHeightDp), Modifier.fillMaxSize())
+        if (captionsOn == true) {
+            Captions(
+                player,
+                captionStyle,
+                CaptionPolicy.bottomPaddingFraction(windowHeightDp),
+                Modifier.fillMaxSize(),
+            )
+        }
         KeepScreenOn(status.isPlaying)
         // Picture-in-picture shows only the picture: the subtitles are drawn at the full screen's size.
         if (inPictureInPicture) return@Box
@@ -644,8 +711,17 @@ fun VodPlayerScreen(
             AnimatedVisibility(barVisible && pointerDriven, enter = PopIn, exit = PopOut) {
                 PlayerBackControl(onExit)
             }
-            AnimatedVisibility(rememberSettled((buffering || stream == null || state.waitingForConverter) && state.failure == null), enter = PopIn, exit = PopOut) {
-                StatusPill(stringResource(if (state.waitingForConverter) Res.string.vod_waiting_converter else Res.string.vod_starting), busy = true)
+            AnimatedVisibility(
+                rememberSettled((buffering || stream == null || state.waitingForConverter) && state.failure == null),
+                enter = PopIn,
+                exit = PopOut,
+            ) {
+                StatusPill(
+                    stringResource(
+                        if (state.waitingForConverter) Res.string.vod_waiting_converter else Res.string.vod_starting,
+                    ),
+                    busy = true,
+                )
             }
             AnimatedVisibility(paused && state.failure == null && stream != null, enter = PopIn, exit = PopOut) {
                 StatusPill(stringResource(Res.string.player_paused))
@@ -662,14 +738,35 @@ fun VodPlayerScreen(
             val popIn = PopIn
             val popOut = PopOut
             AnimatedContent(toast, transitionSpec = { popIn togetherWith popOut }, label = "toast") { shown ->
-                if (shown != null) StatusPill(shown.arg?.let { stringResource(shown.text, stringResource(it)) } ?: stringResource(shown.text))
+                if (shown != null) {
+                    StatusPill(
+                        shown.arg?.let {
+                            stringResource(shown.text, stringResource(it))
+                        } ?: stringResource(shown.text),
+                    )
+                }
             }
             VolumeToast()
         }
         state.failure?.let { FailureCard(it, live = false) }
-        state.next?.let { UpNextCard(it, nextSecondsLeft, pointerDriven, onPlay = onPlayNext, onCancel = onExit, stillWatching = stillWatching) }
+        state.next?.let {
+            UpNextCard(
+                it,
+                nextSecondsLeft,
+                pointerDriven,
+                onPlay = onPlayNext,
+                onCancel = onExit,
+                stillWatching = stillWatching,
+            )
+        }
         TransportDisc(state.transport, state.transportPulse)
-        SeekBadge(state.scrubTarget.takeIf { !barVisible && state.failure == null }, positionMs = { state.positionMs }, scrub = title.scrub)
+        SeekBadge(
+            state.scrubTarget.takeIf {
+                !barVisible && state.failure == null
+            },
+            positionMs = { state.positionMs },
+            scrub = title.scrub,
+        )
 
         InfoBar(barVisible) {
             Column(
@@ -684,13 +781,37 @@ fun VodPlayerScreen(
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     // Announced as the bar comes up; the ticking times below are not, or a screen reader would read
                     // every second of them.
-                    Column(Modifier.weight(1f).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
-                        Text(title.title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Column(
+                        Modifier.weight(1f).semantics(mergeDescendants = true) {
+                            liveRegion = LiveRegionMode.Polite
+                        },
+                    ) {
+                        Text(
+                            title.title,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                         title.subtitle?.let {
-                            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
-                    stream?.mode?.let { mode -> modeLabel(mode)?.let { Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+                    stream?.mode?.let { mode ->
+                        modeLabel(mode)?.let {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
                 val length = state.durationMs?.takeIf { it > 0 }
                 Box(Modifier.fillMaxWidth()) {
@@ -708,12 +829,18 @@ fun VodPlayerScreen(
                             },
                         )
                     } else {
-                        VodSeekBar(positionMs = { state.positionMs }, durationMs = state.durationMs, scrubMs = state.scrubTarget, markers = title.markers)
+                        VodSeekBar(positionMs = {
+                            state.positionMs
+                        }, durationMs = state.durationMs, scrubMs = state.scrubTarget, markers = title.markers)
                     }
                     val target = state.scrubTarget
-                    if (title.scrub != null && target != null && length != null) ScrubThumbnailOverBar(title.scrub, target, length)
+                    if (title.scrub != null && target != null && length != null) {
+                        ScrubThumbnailOverBar(title.scrub, target, length)
+                    }
                 }
-                VodTimes(positionMs = { state.positionMs }, scrubMs = state.scrubTarget, durationMs = state.durationMs, speed = speed)
+                VodTimes(positionMs = {
+                    state.positionMs
+                }, scrubMs = state.scrubTarget, durationMs = state.durationMs, speed = speed)
                 val items = buttons.map { button ->
                     vodButtonItem(
                         button,
@@ -726,18 +853,37 @@ fun VodPlayerScreen(
                         onClick = {
                             when (button) {
                                 VodButton.SKIP_BREAK -> breakEnd?.let(::seekItem)
+
                                 VodButton.SKIP_INTRO -> intro?.endMs?.let(::seekItem)
-                                VodButton.SKIP_CREDITS -> if (creditsToNext) onPlayNext() else credits?.endMs?.let(::seekItem)
+
+                                VodButton.SKIP_CREDITS -> if (creditsToNext) {
+                                    onPlayNext()
+                                } else {
+                                    credits?.endMs?.let(
+                                        ::seekItem,
+                                    )
+                                }
+
                                 VodButton.TRACKS -> if (state.tracksOpen) state.closeTracks() else state.openTracks()
+
                                 VodButton.CAPTIONS -> switchCaptions()
+
                                 VodButton.ZOOM -> stepZoom()
-                                VodButton.SLEEP -> sleep.step(Clock.System.now().toEpochMilliseconds(), endOfItem = true)
+
+                                VodButton.SLEEP -> sleep.step(
+                                    Clock.System.now().toEpochMilliseconds(),
+                                    endOfItem = true,
+                                )
+
                                 VodButton.SPEED -> speed = nextSpeed(speed)
+
                                 VodButton.START_OVER -> seekItem(0)
+
                                 VodButton.NEXT -> onPlayNext()
                             }
                             state.showInfo()
-                            // A seek moves on and the picture takes the keys again; Captions, Zoom, Sleep and Speed stay for another press.
+                            // A seek moves on and the picture takes the keys again; Captions, Zoom, Sleep
+                            // and Speed stay for another press.
                             if (button !in STAYING_BUTTONS) focus.requestFocus()
                         },
                     )
@@ -749,17 +895,37 @@ fun VodPlayerScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         itemVerticalAlignment = Alignment.CenterVertically,
                     ) {
-                        ControlIcon(SofaIcons.Replay10, stringResource(Res.string.vod_control_back), { seekItem(state.positionMs - VodScrub.BACK_STEP_MS); state.showInfo() })
-                        PlayPauseControl(paused, failed = state.failure != null, onPlayPause = { togglePause(); state.showInfo() }, onRetry = ::retryItem, primary = true)
-                        ControlIcon(SofaIcons.Forward30, stringResource(Res.string.vod_control_forward), { seekItem(state.positionMs + VodScrub.FORWARD_STEP_MS); state.showInfo() })
-                        PlayerButtonRow(items, entry = rowEntry, onFocused = { state.buttonsFocused = it }, showLabel = false)
-                        VolumeControl(onAdjust = state::showInfo, onDone = { state.showInfo(); focus.requestFocus() })
+                        ControlIcon(SofaIcons.Replay10, stringResource(Res.string.vod_control_back), {
+                            seekItem(state.positionMs - VodScrub.BACK_STEP_MS)
+                            state.showInfo()
+                        })
+                        PlayPauseControl(paused, failed = state.failure != null, onPlayPause = {
+                            togglePause()
+                            state.showInfo()
+                        }, onRetry = ::retryItem, primary = true)
+                        ControlIcon(SofaIcons.Forward30, stringResource(Res.string.vod_control_forward), {
+                            seekItem(state.positionMs + VodScrub.FORWARD_STEP_MS)
+                            state.showInfo()
+                        })
+                        PlayerButtonRow(items, entry = rowEntry, onFocused = {
+                            state.buttonsFocused = it
+                        }, showLabel = false)
+                        VolumeControl(onAdjust = state::showInfo, onDone = {
+                            state.showInfo()
+                            focus.requestFocus()
+                        })
                         FullScreenControl()
                     }
                 } else if (items.isNotEmpty()) {
-                    PlayerButtonRow(items, entry = rowEntry, onFocused = { state.buttonsFocused = it }, showLabel = true)
+                    PlayerButtonRow(items, entry = rowEntry, onFocused = {
+                        state.buttonsFocused = it
+                    }, showLabel = true)
                     if (!state.buttonsFocused) {
-                        Text(stringResource(Res.string.vod_options_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            stringResource(Res.string.vod_options_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
@@ -768,7 +934,9 @@ fun VodPlayerScreen(
         if (!state.tracksOpen && state.failure == null && state.next == null) {
             subtitles?.let { cues ->
                 val gap = SUBTITLE_GAP + subtitleLook.raise.height
-                VodSubtitle(cues, { state.positionMs - subtitleOffsetMs }, bottom = if (barVisible) barHeight + gap else gap, look = subtitleLook)
+                VodSubtitle(cues, {
+                    state.positionMs - subtitleOffsetMs
+                }, bottom = if (barVisible) barHeight + gap else gap, look = subtitleLook)
             }
         }
         if (state.tracksOpen) {
@@ -776,8 +944,14 @@ fun VodPlayerScreen(
                 tracks,
                 audioTrack,
                 subtitleTrack,
-                onAudio = { pickAudio(it); focus.requestFocus() },
-                onSubtitle = { pickSubtitle(it); focus.requestFocus() },
+                onAudio = {
+                    pickAudio(it)
+                    focus.requestFocus()
+                },
+                onSubtitle = {
+                    pickSubtitle(it)
+                    focus.requestFocus()
+                },
                 offsetMs = subtitleOffsetMs.takeIf { subtitles != null },
                 onOffset = { subtitleOffsetMs = it },
             )
@@ -795,14 +969,32 @@ private fun VodTimes(positionMs: () -> Long, scrubMs: Long?, durationMs: Long?, 
     val durationText = durationMs?.let(::formatPlayTime)
     val now by rememberMinuteNow()
     val timeFormat = rememberTimeFormatter()
-    val endsText = vodEndsAt(now, scrubMs ?: positionMs(), durationMs, speed)?.let { stringResource(Res.string.vod_ends_at, timeFormat.format(it)) }
-    val description = if (durationText != null) stringResource(Res.string.vod_position_description, positionText, durationText) else positionText
+    val endsText = vodEndsAt(now, scrubMs ?: positionMs(), durationMs, speed)?.let {
+        stringResource(Res.string.vod_ends_at, timeFormat.format(it))
+    }
+    val description = if (durationText != null) {
+        stringResource(Res.string.vod_position_description, positionText, durationText)
+    } else {
+        positionText
+    }
     Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = description }) {
-        Text(positionText, style = MaterialTheme.typography.titleMedium, color = if (scrubMs != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+        Text(
+            positionText,
+            style = MaterialTheme.typography.titleMedium,
+            color = if (scrubMs != null) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+        )
         Spacer(Modifier.weight(1f))
-        endsText?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        endsText?.let {
+            Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         Spacer(Modifier.weight(1f))
-        durationText?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        durationText?.let {
+            Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
@@ -823,7 +1015,11 @@ private fun VodSeekBar(positionMs: () -> Long, durationMs: Long?, scrubMs: Long?
         if (length == null) return@Canvas
         scrubMs?.let { s ->
             val w = 4.dp.toPx()
-            drawRect(cursor, Offset(s.coerceIn(0, length).toFloat() / length * size.width - w / 2, 0f), Size(w, size.height))
+            drawRect(
+                cursor,
+                Offset(s.coerceIn(0, length).toFloat() / length * size.width - w / 2, 0f),
+                Size(w, size.height),
+            )
         }
     }
 }
@@ -833,8 +1029,20 @@ private fun VodSeekBar(positionMs: () -> Long, durationMs: Long?, scrubMs: Long?
  * ([onScrub], which the times follow) and a release or a tap seeks there ([onSeek]).
  */
 @Composable
-private fun VodSeekSlider(positionMs: () -> Long, lengthMs: Long, markers: List<VodMarker>, onScrub: (Long) -> Unit, onSeek: (Long) -> Unit) {
-    val state = remember(lengthMs) { SliderState(value = positionMs().coerceIn(0, lengthMs).toFloat(), trackRange = 0f..lengthMs.toFloat()) }
+private fun VodSeekSlider(
+    positionMs: () -> Long,
+    lengthMs: Long,
+    markers: List<VodMarker>,
+    onScrub: (Long) -> Unit,
+    onSeek: (Long) -> Unit,
+) {
+    val state = remember(lengthMs) {
+        SliderState(
+            value = positionMs().coerceIn(0, lengthMs).toFloat(),
+            trackRange =
+            0f..lengthMs.toFloat(),
+        )
+    }
     var dragging by remember { mutableStateOf(false) }
     LaunchedEffect(state) {
         snapshotFlow { positionMs() }.collect { if (!dragging) state.value = it.coerceIn(0, lengthMs).toFloat() }
@@ -863,7 +1071,13 @@ private fun VodSeekSlider(positionMs: () -> Long, lengthMs: Long, markers: List<
 }
 
 /** The seek bar's track: [playedFraction] of it filled, with the breaks marked over it. */
-private fun DrawScope.drawSeekTrack(playedFraction: Float, lengthMs: Long?, markers: List<VodMarker>, played: Color, marker: Color) {
+private fun DrawScope.drawSeekTrack(
+    playedFraction: Float,
+    lengthMs: Long?,
+    markers: List<VodMarker>,
+    played: Color,
+    marker: Color,
+) {
     val barHeight = 6.dp.toPx()
     val top = (size.height - barHeight) / 2
     val radius = CornerRadius(barHeight / 2)
@@ -872,11 +1086,18 @@ private fun DrawScope.drawSeekTrack(playedFraction: Float, lengthMs: Long?, mark
     fun x(ms: Long) = (ms.coerceIn(0, lengthMs).toFloat() / lengthMs) * size.width
     drawRoundRect(played, Offset(0f, top), Size(playedFraction.coerceIn(0f, 1f) * size.width, barHeight), radius)
     markers.filter { it.kind == VodMarkerKind.BREAK }.forEach { m ->
-        drawRect(marker.copy(alpha = 0.8f), Offset(x(m.startMs), top), Size((x(m.endMs) - x(m.startMs)).coerceAtLeast(2f), barHeight))
+        drawRect(
+            marker.copy(alpha = 0.8f),
+            Offset(x(m.startMs), top),
+            Size((x(m.endMs) - x(m.startMs)).coerceAtLeast(2f), barHeight),
+        )
     }
 }
 
-/** The row's button for [button], with a recording's captions shown as [captionsOn], the picture at [zoom], the [sleep] timer and the [speed]. */
+/**
+ * The row's button for [button], with a recording's captions shown as [captionsOn], the picture at [zoom], the
+ * [sleep] timer and the [speed].
+ */
 @Composable
 private fun vodButtonItem(
     button: VodButton,
@@ -888,26 +1109,47 @@ private fun vodButtonItem(
     speed: Float,
     onClick: () -> Unit,
 ): PlayerButtonItem = when (button) {
-    VodButton.SKIP_BREAK -> PlayerButtonItem(SofaIcons.FastForward, stringResource(Res.string.vod_control_skip_break), onClick)
-    VodButton.SKIP_INTRO -> PlayerButtonItem(
+    VodButton.SKIP_BREAK -> PlayerButtonItem(
         SofaIcons.FastForward,
-        autoSkipSeconds?.let { stringResource(Res.string.vod_control_skip_intro_countdown, it) } ?: stringResource(Res.string.vod_control_skip_intro),
+        stringResource(Res.string.vod_control_skip_break),
         onClick,
     )
+
+    VodButton.SKIP_INTRO -> PlayerButtonItem(
+        SofaIcons.FastForward,
+        autoSkipSeconds?.let { stringResource(Res.string.vod_control_skip_intro_countdown, it) }
+            ?: stringResource(Res.string.vod_control_skip_intro),
+        onClick,
+    )
+
     VodButton.SKIP_CREDITS ->
-        if (creditsToNext) PlayerButtonItem(SofaIcons.SkipNext, stringResource(Res.string.vod_control_next), onClick)
-        else PlayerButtonItem(SofaIcons.FastForward, stringResource(Res.string.vod_control_skip_credits), onClick)
+        if (creditsToNext) {
+            PlayerButtonItem(SofaIcons.SkipNext, stringResource(Res.string.vod_control_next), onClick)
+        } else {
+            PlayerButtonItem(SofaIcons.FastForward, stringResource(Res.string.vod_control_skip_credits), onClick)
+        }
+
     VodButton.TRACKS -> PlayerButtonItem(SofaIcons.Subtitles, stringResource(Res.string.vod_tracks_title), onClick)
+
     VodButton.CAPTIONS -> PlayerButtonItem(
         if (captionsOn) SofaIcons.ClosedCaption else SofaIcons.ClosedCaptionOff,
         stringResource(Res.string.player_control_captions),
         onClick,
         state = stringResource(if (captionsOn) Res.string.captions_on else Res.string.captions_off),
     )
+
     VodButton.ZOOM -> zoomButtonItem(zoom, onClick)
+
     VodButton.SLEEP -> sleepButtonItem(sleep, onClick)
+
     VodButton.SPEED -> speedButtonItem(speed, onClick)
-    VodButton.START_OVER -> PlayerButtonItem(SofaIcons.Replay, stringResource(Res.string.vod_control_start_over), onClick)
+
+    VodButton.START_OVER -> PlayerButtonItem(
+        SofaIcons.Replay,
+        stringResource(Res.string.vod_control_start_over),
+        onClick,
+    )
+
     VodButton.NEXT -> PlayerButtonItem(SofaIcons.SkipNext, stringResource(Res.string.vod_control_next), onClick)
 }
 
@@ -915,9 +1157,13 @@ private fun vodButtonItem(
 private val SKIP_BUTTONS = setOf(VodButton.SKIP_BREAK, VodButton.SKIP_INTRO, VodButton.SKIP_CREDITS)
 
 /** The buttons that keep focus after a press, as each press steps them on (the track card takes it itself). */
-private val STAYING_BUTTONS = setOf(VodButton.CAPTIONS, VodButton.ZOOM, VodButton.SLEEP, VodButton.SPEED, VodButton.TRACKS)
+private val STAYING_BUTTONS =
+    setOf(VodButton.CAPTIONS, VodButton.ZOOM, VodButton.SLEEP, VodButton.SPEED, VodButton.TRACKS)
 
-/** A CC or Zoom press's answer, [text] with [arg] in it if any, shown for a moment; compared by identity so a repeated press restarts it. */
+/**
+ * A CC or Zoom press's answer, [text] with [arg] in it if any, shown for a moment; compared by identity
+ * so a repeated press restarts it.
+ */
 private class VodToast(val text: StringResource, val arg: StringResource? = null)
 
 @Composable

@@ -8,7 +8,8 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 class ProgramTimingTest {
-    private val program = Program("c", Instant.parse("2026-10-12T20:00:00Z"), Instant.parse("2026-10-12T21:30:00Z"), "Show", null)
+    private val program =
+        Program("c", Instant.parse("2026-10-12T20:00:00Z"), Instant.parse("2026-10-12T21:30:00Z"), "Show", null)
 
     @Test
     fun `an airing program reports the minutes left rounded up`() {
@@ -18,7 +19,10 @@ class ProgramTimingTest {
 
     @Test
     fun `an upcoming program reports the time until it starts`() {
-        assertEquals(ProgramTiming.Upcoming(1.hours + 20.minutes), programTiming(program, Instant.parse("2026-10-12T18:40:00Z")))
+        assertEquals(
+            ProgramTiming.Upcoming(1.hours + 20.minutes),
+            programTiming(program, Instant.parse("2026-10-12T18:40:00Z")),
+        )
     }
 
     @Test

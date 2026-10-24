@@ -19,7 +19,9 @@ import kotlin.time.TimeSource
 
 private val processStart = TimeSource.Monotonic.markNow()
 
-/** Milliseconds on a monotonic clock that does not jump with the wall clock; the rest timers and pause rules read it. */
+/**
+ * Milliseconds on a monotonic clock that does not jump with the wall clock; the rest timers and pause rules read it.
+ */
 internal fun uptimeMs(): Long = processStart.elapsedNow().inWholeMilliseconds
 
 /** The clock a scrub rests by: [uptimeMs], or in a test the test's own clock, so a slow machine does not settle it. */
@@ -49,12 +51,14 @@ internal class TimeFormatter(val zone: TimeZone, val twentyFourHour: Boolean = f
 
     fun format(instant: Instant): String = instant.toLocalDateTime(zone).time.format(clockFormat)
 
-    fun day(instant: Instant): String = DayOfWeekNames.ENGLISH_ABBREVIATED.names[instant.toLocalDateTime(zone).dayOfWeek.ordinal]
+    fun day(instant: Instant): String =
+        DayOfWeekNames.ENGLISH_ABBREVIATED.names[instant.toLocalDateTime(zone).dayOfWeek.ordinal]
 
     fun sameDay(a: Instant, b: Instant): Boolean = a.toLocalDateTime(zone).date == b.toLocalDateTime(zone).date
 
     /** Calendar days from [from] to [to] in the zone: 0 on the same day, 1 when [to] is tomorrow. */
-    fun daysBetween(from: Instant, to: Instant): Int = from.toLocalDateTime(zone).date.daysUntil(to.toLocalDateTime(zone).date)
+    fun daysBetween(from: Instant, to: Instant): Int =
+        from.toLocalDateTime(zone).date.daysUntil(to.toLocalDateTime(zone).date)
 
     fun range(start: Instant, stop: Instant): String = "${format(start)} - ${format(stop)}"
 }
@@ -85,8 +89,9 @@ private val placeholder = Regex("%(\\d+)\\$[sd]")
  * A string resource's template with its `%1$s`/`%2$d` placeholders filled, for text built outside composition
  * (semantics read lazily); in composition, `stringResource(res, args)` does the same.
  */
-internal fun formatTemplate(template: String, vararg args: Any): String =
-    placeholder.replace(template) { match -> args.getOrNull(match.groupValues[1].toInt() - 1)?.toString() ?: match.value }
+internal fun formatTemplate(template: String, vararg args: Any): String = placeholder.replace(template) { match ->
+    args.getOrNull(match.groupValues[1].toInt() - 1)?.toString() ?: match.value
+}
 
 /** A time in the item as `M:SS` or `H:MM:SS`. */
 internal fun formatPlayTime(ms: Long): String {

@@ -27,18 +27,29 @@ fun Route.libraryRoutes(libraries: LibraryService) {
     val catalog = libraries.catalog
     get("/api/v1/libraries") { call.respond(catalog.libraries()) }
     get("/api/v1/libraries/{id}/items") {
-        val limit = call.request.queryParameters["limit"]?.let { it.toIntOrNull()?.takeIf { n -> n in 1..500 } ?: throw ApiFailure(400, "INVALID_REQUEST", "limit is 1 to 500") } ?: 100
+        val limit =
+            call.request.queryParameters["limit"]?.let {
+                it.toIntOrNull()?.takeIf { n -> n in 1..500 }
+                    ?: throw ApiFailure(400, "INVALID_REQUEST", "limit is 1 to 500")
+            }
+                ?: 100
         val unwatched = call.request.queryParameters["unwatched"] == "true"
         val query = call.request.queryParameters
-        call.respond(catalog.items(call.parameters["id"]!!, query["sort"], unwatched, query["cursor"], limit, query["genre"]))
+        call.respond(
+            catalog.items(call.parameters["id"]!!, query["sort"], unwatched, query["cursor"], limit, query["genre"]),
+        )
     }
     get("/api/v1/library/home") { call.respond(catalog.home()) }
     get("/api/v1/library/search") {
-        val query = call.request.queryParameters["q"]?.takeIf { it.length <= 100 } ?: throw ApiFailure(400, "INVALID_REQUEST", "q is 1 to 100 characters")
+        val query =
+            call.request.queryParameters["q"]?.takeIf { it.length <= 100 }
+                ?: throw ApiFailure(400, "INVALID_REQUEST", "q is 1 to 100 characters")
         call.respond(catalog.search(query, 50))
     }
     get("/api/v1/library/items/{id}") { call.respond(catalog.item(call.parameters["id"]!!)) }
-    put("/api/v1/library/items/{id}/play-state") { call.respond(catalog.updatePlayState(call.parameters["id"]!!, call.appBody<UpdatePlayState>())) }
+    put("/api/v1/library/items/{id}/play-state") {
+        call.respond(catalog.updatePlayState(call.parameters["id"]!!, call.appBody<UpdatePlayState>()))
+    }
 }
 
 /**
@@ -49,7 +60,8 @@ fun Route.libraryRoutes(libraries: LibraryService) {
 fun Route.artworkRoutes(libraries: LibraryService) {
     get("/artwork/{id}/scrub/{sheet}") {
         val sheet = call.parameters["sheet"]?.toIntOrNull()
-            ?.let { libraries.scrub?.sheet(call.parameters["id"]!!, it) } ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown artwork")
+            ?.let { libraries.scrub?.sheet(call.parameters["id"]!!, it) }
+            ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown artwork")
         // The URL carries the version of the sheets, which a changed file replaces.
         call.response.header(HttpHeaders.CacheControl, "public, max-age=604800")
         call.response.header("X-Content-Type-Options", "nosniff")
@@ -57,7 +69,9 @@ fun Route.artworkRoutes(libraries: LibraryService) {
     }
     get("/artwork/{id}/{role}") {
         val artwork = libraries.artwork ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown artwork")
-        val view = libraries.catalog.snapshot().views[call.parameters["id"]!!] ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown artwork")
+        val view =
+            libraries.catalog.snapshot().views[call.parameters["id"]!!]
+                ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown artwork")
         val source = when (call.parameters["role"]) {
             "poster" -> view.poster
             "backdrop" -> view.backdrop
@@ -82,10 +96,17 @@ fun Route.artworkRoutes(libraries: LibraryService) {
 fun Route.vodRoutes(vod: VodSessions) {
     post("/api/v1/vod-sessions") { call.respond(HttpStatusCode.Created, vod.open(call.appBody<OpenVodPlayback>())) }
     get("/api/v1/vod-sessions/{id}") { call.respond(vod.get(call.parameters["id"]!!)) }
-    patch("/api/v1/vod-sessions/{id}") { call.respond(vod.update(call.parameters["id"]!!, call.appBody<UpdateVodPlayback>())) }
-    delete("/api/v1/vod-sessions/{id}") { vod.release(call.parameters["id"]!!); call.respond(HttpStatusCode.NoContent) }
+    patch("/api/v1/vod-sessions/{id}") {
+        call.respond(vod.update(call.parameters["id"]!!, call.appBody<UpdateVodPlayback>()))
+    }
+    delete("/api/v1/vod-sessions/{id}") {
+        vod.release(call.parameters["id"]!!)
+        call.respond(HttpStatusCode.NoContent)
+    }
     get("/api/v1/library/items/{id}/subtitles/{index}") {
-        val index = call.parameters["index"]?.toIntOrNull() ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "No such subtitle stream")
+        val index =
+            call.parameters["index"]?.toIntOrNull()
+                ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "No such subtitle stream")
         val file = vod.subtitles(call.parameters["id"]!!, index)
         call.response.header(HttpHeaders.CacheControl, "private, max-age=3600")
         call.respond(LocalPathContent(file, ContentType.parse("text/vtt; charset=utf-8")))
@@ -94,10 +115,15 @@ fun Route.vodRoutes(vod: VodSessions) {
         // Direct play seeks with byte ranges; the HLS files are small and served whole.
         install(PartialContent)
         get {
-            val epoch = call.parameters["epoch"]?.toIntOrNull() ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown media")
-            val media = vod.media(call.parameters["id"]!!, epoch, call.parameters["secret"]!!, call.parameters["name"]!!)
-                ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown media")
-            call.response.header(HttpHeaders.CacheControl, if (media.contentType.endsWith("mpegurl")) "no-store" else "private, max-age=3600")
+            val epoch =
+                call.parameters["epoch"]?.toIntOrNull() ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown media")
+            val media =
+                vod.media(call.parameters["id"]!!, epoch, call.parameters["secret"]!!, call.parameters["name"]!!)
+                    ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown media")
+            call.response.header(
+                HttpHeaders.CacheControl,
+                if (media.contentType.endsWith("mpegurl")) "no-store" else "private, max-age=3600",
+            )
             call.respond(LocalPathContent(media.file, ContentType.parse(media.contentType)))
         }
     }

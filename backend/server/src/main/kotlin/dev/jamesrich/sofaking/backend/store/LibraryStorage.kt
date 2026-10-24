@@ -6,7 +6,6 @@ import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.LibraryRecord
 import dev.jamesrich.sofaking.backend.library.MediaInfo
 import dev.jamesrich.sofaking.backend.library.PlayStateRecord
-import java.time.Instant
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
@@ -21,6 +20,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
+import java.time.Instant
 
 /** A stored document may carry fields this server does not declare. */
 private val libraryJson = Json { ignoreUnknownKeys = true }
@@ -50,7 +50,9 @@ suspend fun BackendStore.renameLibrary(id: String, name: String): Boolean = quer
 
 /** Removes the library, its items, their watch state and their TMDB lookups; the files are never touched. */
 suspend fun BackendStore.deleteLibrary(id: String): Boolean = query {
-    val itemIds = LibraryItems.select(LibraryItems.id).where { LibraryItems.libraryId eq id }.map { it[LibraryItems.id] }
+    val itemIds = LibraryItems.select(LibraryItems.id).where {
+        LibraryItems.libraryId eq id
+    }.map { it[LibraryItems.id] }
     itemIds.chunked(500).forEach { chunk ->
         PlayStates.deleteWhere { itemId inList chunk }
         LibraryMetadataRows.deleteWhere { itemId inList chunk }
@@ -91,7 +93,10 @@ suspend fun BackendStore.saveLibraryItems(items: List<LibraryItemRecord>) = quer
 /** Marks [ids] missing since [at], leaving those already marked as they are. */
 suspend fun BackendStore.markLibraryItemsMissing(ids: Collection<String>, at: Instant) = query {
     ids.chunked(500).forEach { chunk ->
-        LibraryItems.update({ (LibraryItems.id inList chunk) and LibraryItems.missingSince.isNull() }) { it[missingSince] = at.toString() }
+        LibraryItems.update({ (LibraryItems.id inList chunk) and LibraryItems.missingSince.isNull() }) {
+            it[missingSince] =
+                at.toString()
+        }
     }
 }
 
@@ -108,23 +113,30 @@ suspend fun BackendStore.deleteLibraryItems(ids: Collection<String>) = query {
 /** Every stored watch state, by item id; the table holds a row only for items someone started or finished. */
 suspend fun BackendStore.playStates(): Map<String, PlayStateRecord> = read {
     PlayStates.selectAll().map {
-        PlayStateRecord(it[PlayStates.itemId], it[PlayStates.positionMs], it[PlayStates.durationMs], it[PlayStates.watched], it[PlayStates.updatedAt])
+        PlayStateRecord(
+            it[PlayStates.itemId],
+            it[PlayStates.positionMs],
+            it[PlayStates.durationMs],
+            it[PlayStates.watched],
+            it[PlayStates.updatedAt],
+        )
     }.associateBy { it.itemId }
 }
 
 /** Writes [states], and forgets [cleared]: an item back at the start and unwatched keeps no row. */
-suspend fun BackendStore.savePlayStates(states: List<PlayStateRecord>, cleared: Collection<String> = emptyList()) = query {
-    states.chunked(500).forEach { chunk ->
-        PlayStates.batchUpsert(chunk) { state ->
-            this[PlayStates.itemId] = state.itemId
-            this[PlayStates.positionMs] = state.positionMs
-            this[PlayStates.durationMs] = state.durationMs
-            this[PlayStates.watched] = state.watched
-            this[PlayStates.updatedAt] = state.updatedAt
+suspend fun BackendStore.savePlayStates(states: List<PlayStateRecord>, cleared: Collection<String> = emptyList()) =
+    query {
+        states.chunked(500).forEach { chunk ->
+            PlayStates.batchUpsert(chunk) { state ->
+                this[PlayStates.itemId] = state.itemId
+                this[PlayStates.positionMs] = state.positionMs
+                this[PlayStates.durationMs] = state.durationMs
+                this[PlayStates.watched] = state.watched
+                this[PlayStates.updatedAt] = state.updatedAt
+            }
         }
+        cleared.chunked(500).forEach { chunk -> PlayStates.deleteWhere { itemId inList chunk } }
     }
-    cleared.chunked(500).forEach { chunk -> PlayStates.deleteWhere { itemId inList chunk } }
-}
 
 private fun UpdateBuilder<*>.write(item: LibraryItemRecord) {
     this[LibraryItems.id] = item.id
@@ -154,8 +166,14 @@ private fun UpdateBuilder<*>.write(item: LibraryItemRecord) {
 /** A row with a kind this server does not know is skipped, so a downgrade never fails the whole list. */
 private fun ResultRow.library(): LibraryRecord? = LibraryKind.of(this[Libraries.kind])?.let { kind ->
     LibraryRecord(
-        this[Libraries.id], this[Libraries.name], kind, this[Libraries.path], this[Libraries.createdAt],
-        this[Libraries.scannedAt], this[Libraries.scanOk], this[Libraries.scanNote],
+        this[Libraries.id],
+        this[Libraries.name],
+        kind,
+        this[Libraries.path],
+        this[Libraries.createdAt],
+        this[Libraries.scannedAt],
+        this[Libraries.scanOk],
+        this[Libraries.scanNote],
     )
 }
 
@@ -176,8 +194,12 @@ private fun ResultRow.item() = LibraryItemRecord(
     durationMs = this[LibraryItems.durationMs],
     size = this[LibraryItems.size],
     modifiedAt = this[LibraryItems.modifiedAt],
-    media = this[LibraryItems.mediaJson]?.let { runCatching { libraryJson.decodeFromString(MediaInfo.serializer(), it) }.getOrNull() },
-    details = this[LibraryItems.detailsJson]?.let { runCatching { libraryJson.decodeFromString(ItemDetails.serializer(), it) }.getOrNull() },
+    media = this[LibraryItems.mediaJson]?.let {
+        runCatching { libraryJson.decodeFromString(MediaInfo.serializer(), it) }.getOrNull()
+    },
+    details = this[LibraryItems.detailsJson]?.let {
+        runCatching { libraryJson.decodeFromString(ItemDetails.serializer(), it) }.getOrNull()
+    },
     poster = this[LibraryItems.poster],
     backdrop = this[LibraryItems.backdrop],
     addedAt = this[LibraryItems.addedAt],

@@ -20,7 +20,9 @@ import kotlin.test.Test
  */
 class AppKeyFuzzTest {
     private val seed = System.getenv("SOFAKING_FUZZ_SEED")?.toLongOrNull() ?: 1L
-    private val script = System.getenv("SOFAKING_FUZZ_KEYS")?.split(',')?.map { name -> REMOTE.first { it.name == name.trim() } }
+    private val script = System.getenv("SOFAKING_FUZZ_KEYS")?.split(',')?.map { name ->
+        REMOTE.first { it.name == name.trim() }
+    }
     private val steps = script?.size ?: System.getenv("SOFAKING_FUZZ_STEPS")?.toIntOrNull() ?: 300
 
     /** What each key left focused, by its label, so a run that sits in one corner of the app shows it. */
@@ -40,9 +42,17 @@ class AppKeyFuzzTest {
             runSofaKing(tv, out) {
                 val started = System.nanoTime()
                 walk()
-                println("Key fuzz (${out.name}): seed $seed, $steps keys in ${(System.nanoTime() - started) / 1_000_000_000} s, ${server.sessionsOpened.get()} sessions opened, ${server.guideQueries.get()} guide queries, ${visited.size} focus targets")
+                println(
+                    "Key fuzz (${out.name}): seed $seed, $steps keys in " +
+                        "${(System.nanoTime() - started) / 1_000_000_000} s, ${server.sessionsOpened.get()} sessions " +
+                        "opened, ${server.guideQueries.get()} guide queries, ${visited.size} focus targets",
+                )
                 out.resolve("visited-$seed.txt")
-                    .writeText(visited.entries.sortedByDescending { it.value }.joinToString("\n") { "${it.value}\t${it.key}" })
+                    .writeText(
+                        visited.entries.sortedByDescending {
+                            it.value
+                        }.joinToString("\n") { "${it.value}\t${it.key}" },
+                    )
                 out.resolve("trace-$seed.txt").writeText(trace.joinToString("\n"))
             }
         } finally {
@@ -71,7 +81,11 @@ class AppKeyFuzzTest {
         val pressed = ArrayDeque<String>()
         fun failAt(reason: String, cause: Throwable? = null): Nothing {
             out.resolve("trace-$seed.txt").writeText(trace.joinToString("\n"))
-            failWith("$reason (seed $seed, step ${pressed.size}); last keys: ${pressed.takeLast(KEY_TRAIL).joinToString(" ")}", cause)
+            failWith(
+                "$reason (seed $seed, step ${pressed.size}); last keys: " +
+                    "${pressed.takeLast(KEY_TRAIL).joinToString(" ")}",
+                cause,
+            )
         }
         repeat(steps) { step ->
             val key = script?.get(step) ?: REMOTE.weightedPick(random)

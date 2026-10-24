@@ -89,11 +89,12 @@ class AppJourneyTest {
     }
 
     @Test
-    fun `a held OK on a Library card opens its menu and the next OK opens the card on a desktop`() = journey(tv = false) {
-        guideCell()
-        keys("Up", "Up", "Down", "OK", "Right", "Down", "Down")
-        heldOkOpensCardMenu(back = "Escape")
-    }
+    fun `a held OK on a Library card opens its menu and the next OK opens the card on a desktop`() =
+        journey(tv = false) {
+            guideCell()
+            keys("Up", "Up", "Down", "OK", "Right", "Down", "Down")
+            heldOkOpensCardMenu(back = "Escape")
+        }
 
     @Test
     fun `Down from the guide chips returns to the grid on a desktop`() = journey(tv = false) {

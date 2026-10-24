@@ -4,16 +4,22 @@ import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.store.AdChannelRecord
 import java.net.URI
 import java.time.Instant
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class AdListenerTest {
     private val now = Instant.parse("2026-10-23T18:00:00Z")
-    private fun record(id: String, watchedDaysAgo: Long?, marked: Boolean, heardMinutesAgo: Long? = null) = AdChannelRecord(
-        id, "p", 0, watchedDaysAgo?.let { now.minusSeconds(it * 86_400) }, 0, 0, if (marked) now else null, 0, heardMinutesAgo?.let { now.minusSeconds(it * 60) },
-    )
+    private fun record(id: String, watchedDaysAgo: Long?, marked: Boolean, heardMinutesAgo: Long? = null) =
+        AdChannelRecord(
+            id, "p", 0,
+            watchedDaysAgo?.let {
+                now.minusSeconds(it * 86_400)
+            },
+            0, 0, if (marked) now else null, 0, heardMinutesAgo?.let { now.minusSeconds(it * 60) },
+        )
 
     @Test
-    fun `channels watched lately without markers come first, then watched with markers, then unheard, then least recently heard`() {
+    fun `recent channels without markers come first, then recent ones with markers, unheard, least recently heard`() {
         val known = listOf(
             record("old-unmarked", watchedDaysAgo = 30, marked = false, heardMinutesAgo = 600),
             record("unmarked-yesterday", watchedDaysAgo = 1, marked = false),
@@ -24,10 +30,21 @@ class AdListenerTest {
         )
         val lineup = known.map { it.channelId } + "never-heard" + "watched-now"
         assertEquals(
-            listOf("unmarked-today", "unmarked-yesterday", "unmarked-just-heard", "marked-today", "never-heard", "heard-long-ago", "old-unmarked"),
+            listOf(
+                "unmarked-today",
+                "unmarked-yesterday",
+                "unmarked-just-heard",
+                "marked-today",
+                "never-heard",
+                "heard-long-ago",
+                "old-unmarked",
+            ),
             AdListener.pick(known, lineup, busy = setOf("watched-now"), now = now),
         )
-        assertEquals(listOf("unmarked-today", "unmarked-yesterday"), AdListener.pick(known, lineup, emptySet(), now = now).take(2))
+        assertEquals(
+            listOf("unmarked-today", "unmarked-yesterday"),
+            AdListener.pick(known, lineup, emptySet(), now = now).take(2),
+        )
     }
 
     @Test
@@ -49,7 +66,10 @@ hi/index.m3u8
 lo/index.m3u8
 """
         assertEquals("https://cdn.example.test/live/audio/en.m3u8", AdListener.mediaOf(master, base))
-        assertEquals("https://cdn.example.test/live/lo/index.m3u8", AdListener.mediaOf(master.replace("AUDIO=\"aac\"", ""), base))
+        assertEquals(
+            "https://cdn.example.test/live/lo/index.m3u8",
+            AdListener.mediaOf(master.replace("AUDIO=\"aac\"", ""), base),
+        )
         assertEquals(base.toString(), AdListener.mediaOf("#EXTM3U\n#EXTINF:6,\na.ts\n", base))
     }
 }

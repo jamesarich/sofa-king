@@ -37,4 +37,3 @@ apply(from = "../gradle/build-cache.settings.gradle.kts")
 rootProject.name = "sofa-king"
 includeBuild("../contract")
 include(":core", ":ui", ":androidApp", ":baselineprofile")
-

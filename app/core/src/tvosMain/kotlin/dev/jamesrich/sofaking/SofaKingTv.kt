@@ -8,33 +8,33 @@ import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.DataStoreSettingsStore
 import dev.jamesrich.sofaking.data.DvrRecording
-import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LibrarySort
+import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.MediaItem
-import dev.jamesrich.sofaking.data.PlaybackProfile
+import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.PlaybackIntent
+import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.SeriesRule
-import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.ServerConnection
+import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.data.TopLevelTab
-import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.TrackChoice
 import dev.jamesrich.sofaking.data.ViewerSync
 import dev.jamesrich.sofaking.data.airingsOf
 import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialAudio
 import dev.jamesrich.sofaking.data.initialSubtitle
-import dev.jamesrich.sofaking.data.trackChoice
 import dev.jamesrich.sofaking.data.isPictureSubtitle
 import dev.jamesrich.sofaking.data.onAppleTv
+import dev.jamesrich.sofaking.data.trackChoice
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -86,7 +86,13 @@ class SofaKingTv {
     /** The server Settings names, its one playback session and the guide's record marks, for every ViewModel below. */
     private val connection = ServerConnection(store.settings, scope, viewerSync = ViewerSync(store, storage.client))
 
-    val viewModel = LineupViewModel(store = store, lineupCache = storage.lineupCache, connection = connection, client = storage.client)
+    val viewModel =
+        LineupViewModel(
+            store = store,
+            lineupCache = storage.lineupCache,
+            connection = connection,
+            client = storage.client,
+        )
 
     /** The media libraries, playing through the same session as the channels. */
     val library = LibraryViewModel(connection.api, connection.sessions)
@@ -116,7 +122,10 @@ class SofaKingTv {
     @Throws(Exception::class)
     suspend fun release() = viewModel.sessions.release()
 
-    /** Like an open, a reopen still running when the player leaves is canceled by [stopWatching], so it holds nothing after. */
+    /**
+     * Like an open, a reopen still running when the player leaves is canceled by
+     * [stopWatching], so it holds nothing after.
+     */
     @Throws(Exception::class)
     suspend fun reopen(): PlaybackStream? = opening { viewModel.sessions.reopen() }
 
@@ -161,7 +170,8 @@ class SofaKingTv {
     }
 
     /** Opens [libraryId]'s grid in [sort] order, only what is not watched with [unwatched], only [genre] when given. */
-    fun openGrid(libraryId: String, sort: LibrarySort, unwatched: Boolean, genre: String?) = library.openGrid(libraryId, sort, unwatched, genre)
+    fun openGrid(libraryId: String, sort: LibrarySort, unwatched: Boolean, genre: String?) =
+        library.openGrid(libraryId, sort, unwatched, genre)
 
     fun loadMore() = library.loadMore()
 
@@ -174,7 +184,8 @@ class SofaKingTv {
      */
     @Throws(Exception::class)
     suspend fun playItem(item: MediaItem, fromStart: Boolean): PlaybackStream = opening {
-        val state = withTimeoutOrNull(DETAIL_WAIT_MS) { library.detail(item.id).first { it !is ItemDetailState.Loading } }
+        val state =
+            withTimeoutOrNull(DETAIL_WAIT_MS) { library.detail(item.id).first { it !is ItemDetailState.Loading } }
         val detail = (state as? ItemDetailState.Ready)?.detail
         val choice = trackChoice(item)
         val audio = detail?.let { initialAudio(it, choice) }?.takeIf { it.index != detail.let(::defaultAudio)?.index }
@@ -183,12 +194,22 @@ class SofaKingTv {
     }
 
     /** The tracks the viewer picked in [item]'s show, which its episodes start with; null for none or a movie. */
-    fun trackChoice(item: MediaItem): TrackChoice? = item.showId?.let { viewModel.settings.value?.trackChoices?.get(it) }
+    fun trackChoice(item: MediaItem): TrackChoice? =
+        item.showId?.let { viewModel.settings.value?.trackChoices?.get(it) }
 
     /** Keeps the audio track [audioIndex] and subtitle track [subtitleIndex] (negative for none) for [item]'s show. */
     fun rememberTracks(item: MediaItem, detail: MediaItemDetail, audioIndex: Int, subtitleIndex: Int) {
         val show = item.showId ?: return
-        viewModel.setTrackChoice(show, trackChoice(detail, audioIndex.takeIf { it >= 0 }, subtitleIndex.takeIf { it >= 0 }))
+        viewModel.setTrackChoice(
+            show,
+            trackChoice(
+                detail,
+                audioIndex.takeIf {
+                    it >= 0
+                },
+                subtitleIndex.takeIf { it >= 0 },
+            ),
+        )
     }
 
     /**
@@ -196,8 +217,19 @@ class SofaKingTv {
      * the picture subtitle track [subtitleIndex] drawn in (none when negative).
      */
     @Throws(Exception::class)
-    suspend fun switchItemTracks(item: MediaItem, positionMs: Long, audioIndex: Int, subtitleIndex: Int): PlaybackStream = opening {
-        library.switchTracks(item, appleTvProfile, positionMs, audioIndex.takeIf { it >= 0 }, subtitleIndex.takeIf { it >= 0 })
+    suspend fun switchItemTracks(
+        item: MediaItem,
+        positionMs: Long,
+        audioIndex: Int,
+        subtitleIndex: Int,
+    ): PlaybackStream = opening {
+        library.switchTracks(
+            item,
+            appleTvProfile,
+            positionMs,
+            audioIndex.takeIf { it >= 0 },
+            subtitleIndex.takeIf { it >= 0 },
+        )
     }
 
     /** [itemId]'s text subtitle track [index], or null when the server cannot give it. */
@@ -209,17 +241,26 @@ class SofaKingTv {
     suspend fun upNext(item: MediaItem): MediaItem? = library.upNext(item)
 
     /** True when [error], from an open, a restart or a track switch, is the server saying every converter is busy. */
-    fun isConverterBusy(error: Throwable): Boolean = (error as? SofaKingException)?.code == Wire.ErrorCode.CAPACITY_EXHAUSTED
+    fun isConverterBusy(error: Throwable): Boolean =
+        (error as? SofaKingException)?.code == Wire.ErrorCode.CAPACITY_EXHAUSTED
 
     /** Restarts a converted stream at [positionMs] in the item; a file played as it is comes back unchanged. */
     @Throws(Exception::class)
     suspend fun restartItemAt(positionMs: Long): PlaybackStream? = viewModel.sessions.restartAt(positionMs)
 
     /** The player is at [positionMs] in [itemId]; [durationMs] is 0 while the length is unknown. */
-    fun itemProgress(itemId: String, positionMs: Long, durationMs: Long) = library.progress(itemId, positionMs, durationMs.takeIf { it > 0 })
+    fun itemProgress(itemId: String, positionMs: Long, durationMs: Long) = library.progress(
+        itemId,
+        positionMs,
+        durationMs.takeIf { it > 0 },
+    )
 
     /** Playback of [itemId] stopped at [positionMs]; saved now, and the library's pages reload. */
-    fun itemStopped(itemId: String, positionMs: Long, durationMs: Long) = library.stopped(itemId, positionMs, durationMs.takeIf { it > 0 })
+    fun itemStopped(itemId: String, positionMs: Long, durationMs: Long) = library.stopped(
+        itemId,
+        positionMs,
+        durationMs.takeIf { it > 0 },
+    )
 
     fun watchRecordings(onChange: (RecordingsState) -> Unit): Watch = watch(recordings.state, onChange)
 
@@ -261,7 +302,8 @@ class SofaKingTv {
 
     /** Sets whether [rule] takes new episodes only and how many recordings it keeps (0 for all). */
     @Throws(Exception::class)
-    suspend fun updateRule(rule: SeriesRule, newOnly: Boolean, keep: Int): Boolean = recordings.updateRule(rule, newOnly, keep)
+    suspend fun updateRule(rule: SeriesRule, newOnly: Boolean, keep: Int): Boolean =
+        recordings.updateRule(rule, newOnly, keep)
 
     /** Stops [rule]: it and the recordings it scheduled go, what it recorded stays. */
     @Throws(Exception::class)
@@ -287,7 +329,9 @@ class SofaKingTv {
         viewModel.setLiveBreaks(mode)
     }
 
-    /** Counts [ms] more of ads the break screen covered on [day], a local date as `2026-10-22`, toward Ads dodged today. */
+    /**
+     * Counts [ms] more of ads the break screen covered on [day], a local date as `2026-10-22`, toward Ads dodged today.
+     */
     fun addAdsDodged(day: String, ms: Long) {
         viewModel.addAdsDodged(day, ms)
     }
@@ -341,7 +385,11 @@ class SofaKingTv {
     /** The program's description; the property clashes with `NSObject.description`, so Swift reads it here. */
     fun summary(program: Program): String? = program.description
 
-    private fun <T> watch(flow: Flow<T>, onChange: (T) -> Unit): Watch = Watch(scope.launch { flow.collect { onChange(it) } })
+    private fun <T> watch(flow: Flow<T>, onChange: (T) -> Unit): Watch = Watch(
+        scope.launch {
+            flow.collect { onChange(it) }
+        },
+    )
 
     private companion object {
         /** How long playing an item waits for its page to learn whether it starts with drawn-in subtitles. */

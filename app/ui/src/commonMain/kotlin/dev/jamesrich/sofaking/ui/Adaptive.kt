@@ -43,16 +43,15 @@ internal data class LayoutProfile(val tv: Boolean, val compactWidth: Boolean, va
     companion object {
         val Tv = LayoutProfile(tv = true, compactWidth = false, compactHeight = false)
 
-        fun of(tv: Boolean, sizeClass: WindowSizeClass): LayoutProfile =
-            if (tv) {
-                Tv
-            } else {
-                LayoutProfile(
-                    tv = false,
-                    compactWidth = !sizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND),
-                    compactHeight = !sizeClass.isHeightAtLeastBreakpoint(WindowSizeClass.HEIGHT_DP_MEDIUM_LOWER_BOUND),
-                )
-            }
+        fun of(tv: Boolean, sizeClass: WindowSizeClass): LayoutProfile = if (tv) {
+            Tv
+        } else {
+            LayoutProfile(
+                tv = false,
+                compactWidth = !sizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND),
+                compactHeight = !sizeClass.isHeightAtLeastBreakpoint(WindowSizeClass.HEIGHT_DP_MEDIUM_LOWER_BOUND),
+            )
+        }
     }
 }
 
@@ -70,10 +69,12 @@ private val TV_OVERSCAN_VERTICAL = 27.dp
 private val HANDHELD_MARGIN_VERTICAL = 12.dp
 
 /** TV overscan, which a set may crop: 48dp at the sides, 27dp at the top and bottom. */
-private val TvOverscan = WindowInsets(left = 48.dp, top = TV_OVERSCAN_VERTICAL, right = 48.dp, bottom = TV_OVERSCAN_VERTICAL)
+private val TvOverscan =
+    WindowInsets(left = 48.dp, top = TV_OVERSCAN_VERTICAL, right = 48.dp, bottom = TV_OVERSCAN_VERTICAL)
 
 /** Breathing room beyond the system bars and cutouts on a phone, tablet, desktop or browser. */
-private val HandheldMargin = WindowInsets(left = 16.dp, top = HANDHELD_MARGIN_VERTICAL, right = 16.dp, bottom = HANDHELD_MARGIN_VERTICAL)
+private val HandheldMargin =
+    WindowInsets(left = 16.dp, top = HANDHELD_MARGIN_VERTICAL, right = 16.dp, bottom = HANDHELD_MARGIN_VERTICAL)
 
 /**
  * The space a screen keeps clear at the window's edges. A TV keeps the overscan, or the system bars and cutouts
@@ -81,24 +82,25 @@ private val HandheldMargin = WindowInsets(left = 16.dp, top = HANDHELD_MARGIN_VE
  * clear of the system bars, cutouts and keyboard, plus a small margin.
  */
 @Composable
-internal fun screenInsets(): WindowInsets =
-    if (LocalLayoutProfile.current.tv) {
-        WindowInsets.systemBars.union(WindowInsets.displayCutout).union(TvOverscan)
-    } else {
-        WindowInsets.safeDrawing.add(HandheldMargin)
-    }
+internal fun screenInsets(): WindowInsets = if (LocalLayoutProfile.current.tv) {
+    WindowInsets.systemBars.union(WindowInsets.displayCutout).union(TvOverscan)
+} else {
+    WindowInsets.safeDrawing.add(HandheldMargin)
+}
 
 /** Pads [sides] of the content by [screenInsets]. */
 @Composable
-internal fun Modifier.screenPadding(sides: WindowInsetsSides = WindowInsetsSides.Horizontal + WindowInsetsSides.Vertical): Modifier =
-    windowInsetsPadding(screenInsets().only(sides))
+internal fun Modifier.screenPadding(
+    sides: WindowInsetsSides = WindowInsetsSides.Horizontal + WindowInsetsSides.Vertical,
+): Modifier = windowInsetsPadding(screenInsets().only(sides))
 
 /**
  * The vertical margin at a panel's edge inside the screen, where no system bar or cutout reaches: the overscan's on
  * a TV, so the panel matches the screen's margins, and the small handheld margin elsewhere.
  */
 @Composable
-internal fun panelEdgeMargin(): Dp = if (LocalLayoutProfile.current.tv) TV_OVERSCAN_VERTICAL else HANDHELD_MARGIN_VERTICAL
+internal fun panelEdgeMargin(): Dp =
+    if (LocalLayoutProfile.current.tv) TV_OVERSCAN_VERTICAL else HANDHELD_MARGIN_VERTICAL
 
 /** What drove the app last: the remote or a keyboard, or a finger or mouse. */
 internal enum class InputKind { KEYS, POINTER }

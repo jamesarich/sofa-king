@@ -1,5 +1,9 @@
 package dev.jamesrich.sofaking.backend.store
 
+import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
+import org.sqlite.SQLiteConfig
+import org.sqlite.javax.SQLiteConnectionPoolDataSource
 import java.io.PrintWriter
 import java.nio.file.Files
 import java.nio.file.Path
@@ -10,10 +14,6 @@ import javax.sql.ConnectionEvent
 import javax.sql.ConnectionEventListener
 import javax.sql.DataSource
 import javax.sql.PooledConnection
-import org.jetbrains.exposed.v1.jdbc.Database
-import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
-import org.sqlite.SQLiteConfig
-import org.sqlite.javax.SQLiteConnectionPoolDataSource
 
 private val sources = ConcurrentHashMap<Database, PinnedConnectionSource>()
 
@@ -36,7 +36,10 @@ internal fun databaseAt(directory: Path, readOnly: Boolean = false): Database {
         }
     }
     val source = PinnedConnectionSource(
-        SQLiteConnectionPoolDataSource(config).apply { url = "jdbc:sqlite:${directory.toAbsolutePath().resolve("backend.sqlite")}" },
+        SQLiteConnectionPoolDataSource(config).apply {
+            url =
+                "jdbc:sqlite:${directory.toAbsolutePath().resolve("backend.sqlite")}"
+        },
     )
     return Database.connect(source).also { sources[it] = source }
 }
@@ -50,11 +53,14 @@ internal fun closeDatabase(database: Database) {
 /**
  * Keeps one physical SQLite connection for the database's life and hands out sqlite-jdbc's pooled handles to it:
  * the close Exposed sends after each transaction returns the handle, and the physical connection, with its pragmas,
- * stays open. Every transaction on a connection runs on that connection's one thread, so a larger pool would buy nothing, while
- * opening a connection per transaction re-applies the pragmas and checkpoints the WAL each time the last one closes.
- * A handle that reports a connection error drops the physical connection, so the next transaction reopens it.
+ * stays open. Every transaction on a connection runs on that connection's one thread, so a larger pool would
+ * buy nothing, while opening a connection per transaction re-applies the pragmas and checkpoints the WAL
+ * each time the last one closes. A handle that reports a connection error drops the physical connection, so
+ * the next transaction reopens it.
  */
-internal class PinnedConnectionSource(private val delegate: SQLiteConnectionPoolDataSource) : DataSource, AutoCloseable {
+internal class PinnedConnectionSource(private val delegate: SQLiteConnectionPoolDataSource) :
+    DataSource,
+    AutoCloseable {
     private var pooled: PooledConnection? = null
 
     @Synchronized override fun getConnection(): Connection {
@@ -82,8 +88,12 @@ internal class PinnedConnectionSource(private val delegate: SQLiteConnectionPool
     }
 
     override fun getLogWriter(): PrintWriter? = delegate.logWriter
-    override fun setLogWriter(out: PrintWriter?) { delegate.logWriter = out }
-    override fun setLoginTimeout(seconds: Int) { delegate.loginTimeout = seconds }
+    override fun setLogWriter(out: PrintWriter?) {
+        delegate.logWriter = out
+    }
+    override fun setLoginTimeout(seconds: Int) {
+        delegate.loginTimeout = seconds
+    }
     override fun getLoginTimeout(): Int = delegate.loginTimeout
     override fun getParentLogger(): Logger = delegate.parentLogger
     override fun <T : Any?> unwrap(iface: Class<T>): T = delegate.unwrap(iface)

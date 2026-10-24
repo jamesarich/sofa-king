@@ -30,7 +30,8 @@ class SettingsReadRetryTest {
             emitAll(memory.data)
         }
 
-        override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences) = memory.updateData(transform)
+        override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences) =
+            memory.updateData(transform)
     }
 
     @Test

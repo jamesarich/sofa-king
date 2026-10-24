@@ -164,7 +164,7 @@ struct ContentView: View {
         .onOpenURL { url in
             if let guideId = TopShelfChannels.guideId(from: url) {
                 model.requestedChannel = guideId
-            } else if let request = PairingLinkKt.parsePairingLink(link: url.absoluteString) {
+            } else if let request = PairingRequestKt.parsePairingLink(link: url.absoluteString) {
                 model.pair(request)
             }
         }

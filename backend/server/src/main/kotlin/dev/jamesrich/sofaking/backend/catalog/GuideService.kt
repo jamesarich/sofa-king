@@ -150,13 +150,15 @@ class GuideService(
                 val ends = parsed.programs.groupBy { it.channelId }.mapValues { (_, rows) -> rows.maxOf { it.endsAt } }
                 val stored = StoredGuide(config.id, importedAt, parsed.channels, ends, parsed.programs.size)
                 published.updateAndGet { Published(it.guides + (config.id to stored)) }
-                status(config.id) {
-                    GuideStatus(
-                        config.id,
-                        importedAt.toString(),
-                        channels = parsed.channels.size,
-                        programs = parsed.programs.size,
-                    )
+                _statuses.updateAndGet { all ->
+                    all.replacing(config.id) {
+                        GuideStatus(
+                            config.id,
+                            importedAt.toString(),
+                            channels = parsed.channels.size,
+                            programs = parsed.programs.size,
+                        )
+                    }
                 }
                 log.info(
                     "guide import guide={} channels={} programs={} wanted={} controlChars={} durationMs={}",
@@ -170,7 +172,7 @@ class GuideService(
                 onImported()
                 JobOutcome(true, "${parsed.channels.size} channels, ${parsed.programs.size} programs")
             }.getOrElse { e ->
-                status(config.id) { it.copy(errorCode = "IMPORT_FAILED") }
+                _statuses.updateAndGet { all -> all.replacing(config.id) { it.copy(errorCode = "IMPORT_FAILED") } }
                 log.warn(
                     "guide import guide={} failed class={} message=\"{}\" durationMs={}",
                     config.id,
@@ -181,11 +183,6 @@ class GuideService(
                 JobOutcome(false, "IMPORT_FAILED (${e.javaClass.simpleName})")
             }
         }
-    }
-
-    /** Replaces the status of guide [id] with what [update] makes of it. */
-    private fun status(id: String, update: (GuideStatus) -> GuideStatus) {
-        _statuses.updateAndGet { list -> list.map { if (it.id == id) update(it) else it } }
     }
 
     /** Asks the guide's loop to refresh soon; repeated requests before it runs coalesce into one. */
@@ -207,6 +204,10 @@ class GuideService(
         }
     }
 }
+
+/** This list with the status of guide [id] replaced by what [update] makes of it. */
+private fun List<GuideStatus>.replacing(id: String, update: (GuideStatus) -> GuideStatus) =
+    map { if (it.id == id) update(it) else it }
 
 /** Fetches a guide: from its service's client for a `provider` guide, else as XMLTV from its URL. */
 private class GuideFetcher(

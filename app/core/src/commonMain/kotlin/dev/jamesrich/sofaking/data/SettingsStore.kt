@@ -185,11 +185,21 @@ enum class AutoOpenDelay(val afterMs: Long?) {
     AFTER_30_SECONDS(afterMs = 30_000L),
 }
 
-interface SettingsStore {
+/** The app's stored settings, read as one [settings] flow and written through each area's setters. */
+interface SettingsStore :
+    ChannelSettings,
+    CaptionSettings,
+    PlayerSettings,
+    DisplaySettings,
+    DeviceSettings {
     val settings: Flow<AppSettings>
+}
 
-    suspend fun setServer(serverUrl: String, apiToken: String)
-
+/**
+ * The channels the viewer keeps: favorites and their order, hidden channels, the recent list, the guide filter and
+ * where the app starts.
+ */
+interface ChannelSettings {
     suspend fun toggleFavorite(guideId: String)
 
     /** Records [guideId] as the channel being watched: the last channel, and the front of the recent list. */
@@ -198,6 +208,27 @@ interface SettingsStore {
     /** Keeps the guide filter the viewer chose, by its key, or null for All. */
     suspend fun setGuideFilter(key: String?)
 
+    suspend fun setChannelHidden(guideId: String, hidden: Boolean)
+
+    /** Hides or shows every channel in [guideIds] in one write, for a group's switch. */
+    suspend fun setChannelsHidden(guideIds: Collection<String>, hidden: Boolean)
+
+    suspend fun setZapSkipsHidden(enabled: Boolean)
+
+    suspend fun setFavoritesOrder(order: List<String>)
+
+    /** [guideId] is kept only for [StartupTarget.CHANNEL]; the other targets clear it. */
+    suspend fun setStartup(target: StartupTarget, guideId: String? = null)
+
+    /** Remembers [tab] as the one the app was last on. */
+    suspend fun setLastTab(tab: TopLevelTab)
+}
+
+/**
+ * Captions on live TV and subtitles on library items: on or off, their timing, style and look, and the tracks picked
+ * per show.
+ */
+interface CaptionSettings {
     suspend fun setCaptionsEnabled(enabled: Boolean)
 
     suspend fun setCaptionAdvanceMs(ms: Int)
@@ -208,49 +239,16 @@ interface SettingsStore {
 
     suspend fun setCaptionStyle(style: CaptionStyle)
 
-    suspend fun setAutoOpenDelay(delay: AutoOpenDelay)
-
-    suspend fun setPreviewSound(enabled: Boolean)
-
-    /** Keeps the players' [level], 0 to [AppSettings.MAX_VOLUME], and whether it is [muted]. */
-    suspend fun setVolume(level: Int, muted: Boolean)
-
-    suspend fun setKeyLegendShown(count: Int)
-
-    /** [guideId] is kept only for [StartupTarget.CHANNEL]; the other targets clear it. */
-    suspend fun setStartup(target: StartupTarget, guideId: String? = null)
-
-    /** Remembers [tab] as the one the app was last on. */
-    suspend fun setLastTab(tab: TopLevelTab)
-
-    suspend fun setClockFormat(format: ClockFormat)
-
-    suspend fun setGuideDensity(density: GuideDensity)
-
-    suspend fun setChannelHidden(guideId: String, hidden: Boolean)
-
-    /** Hides or shows every channel in [guideIds] in one write, for a group's switch. */
-    suspend fun setChannelsHidden(guideIds: Collection<String>, hidden: Boolean)
-
-    suspend fun setZapSkipsHidden(enabled: Boolean)
-
-    suspend fun setSkipCommercials(enabled: Boolean)
-
-    suspend fun setAutoSkipIntros(enabled: Boolean)
-
-    suspend fun setHideSpoilers(enabled: Boolean)
-
     suspend fun setSubtitleLook(look: SubtitleLook)
-
-    suspend fun setLiveBreaks(mode: LiveBreaks)
-
-    /** Adds [ms] of ads the break screen covered on [day] to [AppSettings.adsDodged]. */
-    suspend fun addAdsDodged(day: String, ms: Long)
 
     /** Keeps [choice] as the tracks picked in the show [showId]. */
     suspend fun setTrackChoice(showId: String, choice: TrackChoice)
+}
 
-    suspend fun setFavoritesOrder(order: List<String>)
+/** How the players play: volume, decoder, buffer and frame rate, and what they skip (commercials, intros, breaks). */
+interface PlayerSettings {
+    /** Keeps the players' [level], 0 to [AppSettings.MAX_VOLUME], and whether it is [muted]. */
+    suspend fun setVolume(level: Int, muted: Boolean)
 
     suspend fun setMatchFrameRate(enabled: Boolean)
 
@@ -260,6 +258,35 @@ interface SettingsStore {
     suspend fun setChannelDecoder(guideId: String, decoder: DecoderPreference?)
 
     suspend fun setBuffer(buffer: BufferPreference)
+
+    suspend fun setSkipCommercials(enabled: Boolean)
+
+    suspend fun setAutoSkipIntros(enabled: Boolean)
+
+    suspend fun setLiveBreaks(mode: LiveBreaks)
+
+    /** Adds [ms] of ads the break screen covered on [day] to [AppSettings.adsDodged]. */
+    suspend fun addAdsDodged(day: String, ms: Long)
+}
+
+/** How the app looks around the player: the guide's preview, clock format, density, the key legend and spoilers. */
+interface DisplaySettings {
+    suspend fun setAutoOpenDelay(delay: AutoOpenDelay)
+
+    suspend fun setPreviewSound(enabled: Boolean)
+
+    suspend fun setKeyLegendShown(count: Int)
+
+    suspend fun setClockFormat(format: ClockFormat)
+
+    suspend fun setGuideDensity(density: GuideDensity)
+
+    suspend fun setHideSpoilers(enabled: Boolean)
+}
+
+/** This device's own: the server it pairs with, its client id, the preferences sync and the Settings PIN. */
+interface DeviceSettings {
+    suspend fun setServer(serverUrl: String, apiToken: String)
 
     /** The stored client id, generating and storing one on the first call. */
     suspend fun ensureClientId(): String

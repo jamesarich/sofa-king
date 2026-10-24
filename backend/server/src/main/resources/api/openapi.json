@@ -157,7 +157,7 @@
       "LibraryItem": {
         "type": "object", "required": ["id", "libraryId", "kind", "title"],
         "properties": {
-          "id": { "type": "string" }, "libraryId": { "type": "string" }, "kind": { "type": "string", "enum": ["movie", "show", "season", "episode", "video"] }, "title": { "type": "string" },
+          "id": { "type": "string" }, "libraryId": { "type": "string" }, "kind": { "type": "string", "enum": ["movie", "show", "season", "episode", "video", "extra"] }, "title": { "type": "string" },
           "parentId": { "type": ["string", "null"] }, "showId": { "type": ["string", "null"] }, "showTitle": { "type": ["string", "null"] },
           "year": { "type": ["integer", "null"] }, "season": { "type": ["integer", "null"] }, "episode": { "type": ["integer", "null"] }, "episodeEnd": { "type": ["integer", "null"] },
           "aired": { "type": ["string", "null"] }, "overview": { "type": ["string", "null"] }, "durationMs": { "type": ["integer", "null"] },
@@ -166,7 +166,8 @@
           "videoHeight": { "type": ["integer", "null"] }, "hdr": { "type": "boolean" },
           "children": { "type": "integer", "description": "A show's seasons (or episodes when it has no season folders), or a season's episodes." },
           "unwatched": { "type": "integer", "description": "A show's or season's unwatched episodes." },
-          "playState": { "oneOf": [{ "$ref": "#/components/schemas/PlayState" }, { "type": "null" }], "description": "A movie's, episode's or video's watch state; null before it is started." }
+          "playState": { "oneOf": [{ "$ref": "#/components/schemas/PlayState" }, { "type": "null" }], "description": "A movie's, episode's or video's watch state; null before it is started." },
+          "extra": { "type": ["string", "null"], "enum": ["trailer", "featurette", "behind_the_scenes", "deleted_scene", "interview", "scene", "short", "other", null], "description": "An extra's kind; null for anything else. A client shows a kind it does not know as other." }
         }
       },
       "LibraryPage": {
@@ -193,7 +194,9 @@
           "audio": { "type": "array", "items": { "$ref": "#/components/schemas/MediaTrack" } }, "subtitles": { "type": "array", "items": { "$ref": "#/components/schemas/MediaTrack" } },
           "container": { "type": ["string", "null"] }, "videoCodec": { "type": ["string", "null"] },
           "segments": { "type": "array", "items": { "$ref": "#/components/schemas/MediaSegment" }, "description": "Spans a player offers to skip, such as an episode's intro." },
-          "scrub": { "oneOf": [{ "$ref": "#/components/schemas/ScrubThumbnails" }, { "type": "null" }], "description": "Thumbnails to show over the seek bar while scrubbing; null until the server has made them, or for a file under five minutes." }
+          "scrub": { "oneOf": [{ "$ref": "#/components/schemas/ScrubThumbnails" }, { "type": "null" }], "description": "Thumbnails to show over the seek bar while scrubbing; null until the server has made them, or for a file under five minutes." },
+          "extras": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" }, "description": "A movie's or show's trailers, featurettes and other extras, trailers first." },
+          "related": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" }, "description": "For a movie, show or video, up to 12 others in its library that share its genres, the most shared first." }
         }
       },
       "ScrubThumbnails": {

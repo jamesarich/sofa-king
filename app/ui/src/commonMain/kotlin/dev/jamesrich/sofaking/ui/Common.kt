@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,8 +59,9 @@ fun MessageScreen(
     loading: Boolean = false,
 ) {
     Box(Modifier.fillMaxSize().screenPadding(), contentAlignment = Alignment.Center) {
+        // A phone in landscape is too short for the logo, the reason and Retry together, so the message scrolls.
         Column(
-            modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
+            modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

@@ -21,8 +21,18 @@ import java.util.concurrent.atomic.AtomicInteger
 /** The deepest folder a scan descends to below a library's folder. */
 private const val MAX_DEPTH = 10
 
-/** One video file found under a library folder; [relative] uses `/` on every platform. */
-internal data class FoundFile(val relative: String, val size: Long, val modifiedAt: String)
+/**
+ * One video file found under a library folder; [relative] uses `/` on every platform. An [extra] belongs to the item
+ * in the folder [owner] (relative, empty for the library folder), the one named [ownerStem] when its name says.
+ */
+internal data class FoundFile(
+    val relative: String,
+    val size: Long,
+    val modifiedAt: String,
+    val extra: ExtraKind? = null,
+    val owner: String? = null,
+    val ownerStem: String? = null,
+)
 
 /**
  * What a scan decided: rows new or changed since the last scan to write whole, ids newly missing,
@@ -57,12 +67,14 @@ class LibraryScanner(
             return ScanPlan(emptyList(), emptyList(), emptyList(), ScanResult(0, 0, 0, 0, 0, unavailable = true))
         }
         val byId = existing.associateBy { it.id }
+        val (extraFiles, mainFiles) = files.partition { it.extra != null }
         val built = withContext(Dispatchers.IO) {
-            when (library.kind) {
-                LibraryKind.MOVIES -> files.map { movie(library.id, root, it) }
-                LibraryKind.SHOWS -> shows(library.id, root, files)
-                LibraryKind.VIDEOS -> files.map { video(library.id, root, it) }
+            val main = when (library.kind) {
+                LibraryKind.MOVIES -> mainFiles.map { movie(library.id, root, it) }
+                LibraryKind.SHOWS -> shows(library.id, root, mainFiles)
+                LibraryKind.VIDEOS -> mainFiles.map { video(library.id, root, it) }
             }
+            main + extras(library, main, extraFiles)
         }
         val added = AtomicInteger()
         val updated = AtomicInteger()
@@ -99,6 +111,8 @@ class LibraryScanner(
         val parents = items.associate { it.id to it.parentId }
         val newest = HashMap<String, String>()
         for (item in items) {
+            // An extra found later does not bring its movie back up.
+            if (item.kind == ItemKind.EXTRA) continue
             var parent = item.parentId
             while (parent != null) {
                 if ((newest[parent] ?: "") < item.addedAt) newest[parent] = item.addedAt
@@ -126,7 +140,7 @@ class LibraryScanner(
                 updated.get(),
                 missing.count { byId[it]?.path != null },
                 delete.size,
-                files.size,
+                built.count { it.path != null },
             ),
         )
     }
@@ -152,8 +166,10 @@ class LibraryScanner(
                         // Links are not followed, so nothing outside the library folder is ever listed.
                         if (attrs.isRegularFile && isVideoFile(file.fileName.toString())) {
                             found +=
-                                FoundFile(
-                                    root.relativize(file).joinToString("/"),
+                                found(
+                                    root.relativize(file).map {
+                                        it.toString()
+                                    },
                                     attrs.size(),
                                     attrs.lastModifiedTime().toInstant().toString(),
                                 )
@@ -169,6 +185,92 @@ class LibraryScanner(
             return null
         }
         return found.sortedBy { it.relative }
+    }
+
+    /** A file at [segments] under the library folder, an extra when a folder above it or its name says so. */
+    private fun found(segments: List<String>, size: Long, modifiedAt: String): FoundFile {
+        val relative = segments.joinToString("/")
+        val folders = segments.dropLast(1)
+        val inFolder = folders.indices.lastOrNull { extraFolderKind(folders[it]) != null }
+        if (inFolder !=
+            null
+        ) {
+            return FoundFile(
+                relative,
+                size,
+                modifiedAt,
+                extraFolderKind(folders[inFolder]),
+                folders.take(inFolder).joinToString("/"),
+            )
+        }
+        val suffix = extraSuffix(segments.last()) ?: return FoundFile(relative, size, modifiedAt)
+        return FoundFile(relative, size, modifiedAt, suffix.first, folders.joinToString("/"), suffix.second)
+    }
+
+    /**
+     * The [files] that are extras, as items of the movie or show they belong to among [main]: a movie's are in its
+     * folder (or named for it beside it), a show's anywhere in its folder. Extras nothing claims, such as those of a
+     * folder of loose movies, and every extra in an Other videos library, are left out.
+     */
+    private fun extras(
+        library: LibraryRecord,
+        main: List<LibraryItemRecord>,
+        files: List<FoundFile>,
+    ): List<LibraryItemRecord> {
+        if (library.kind == LibraryKind.VIDEOS) return emptyList()
+        val movies = main.filter { it.kind == ItemKind.MOVIE }.groupBy { it.path!!.substringBeforeLast('/', "") }
+        val shows = main.filter { it.kind == ItemKind.SHOW }.mapTo(HashSet()) { it.id }
+        return files.mapNotNull { file ->
+            val owner = file.owner ?: return@mapNotNull null
+            val kind = file.extra ?: return@mapNotNull null
+            val parent = when (library.kind) {
+                LibraryKind.MOVIES -> movies[owner].orEmpty().let { here ->
+                    file.ownerStem?.let { stem ->
+                        here.firstOrNull {
+                            it.path!!.substringAfterLast('/').substringBeforeLast('.') ==
+                                stem
+                        }
+                    }
+                        ?: here.firstOrNull()?.takeIf { owner.isNotEmpty() || here.size == 1 }
+                }?.id
+
+                else -> owner.takeIf {
+                    it.isNotEmpty()
+                }?.let { itemId(library.id, "show:${it.substringBefore('/')}") }?.takeIf {
+                    it in
+                        shows
+                }
+            } ?: return@mapNotNull null
+            val stem = file.relative.substringAfterLast('/').substringBeforeLast('.')
+            val title = if (file.ownerStem !=
+                null
+            ) {
+                kind.label
+            } else {
+                titleYear(stem).let {
+                    if (it.year !=
+                        null
+                    ) {
+                        "${it.title} (${it.year})"
+                    } else {
+                        it.title
+                    }
+                }.ifEmpty { stem }
+            }
+            LibraryItemRecord(
+                id = itemId(
+                    library.id,
+                    "file:${file.relative}",
+                ),
+                libraryId = library.id, kind = ItemKind.EXTRA, parentId = parent,
+                path = file.relative, title = title,
+                sortTitle = "${kind.ordinal} ${sortTitle(
+                    title,
+                )}",
+                size = file.size,
+                modifiedAt = file.modifiedAt, details = ItemDetails(extra = kind.wire), addedAt = "",
+            )
+        }
     }
 
     private fun movie(libraryId: String, root: Path, file: FoundFile): LibraryItemRecord {

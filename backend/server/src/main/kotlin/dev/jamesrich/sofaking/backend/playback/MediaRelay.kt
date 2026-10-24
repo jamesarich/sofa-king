@@ -63,10 +63,24 @@ class MediaRelay(
         val job = coroutineContext[Job]!!
         val resource = sessions.acquire(id, epoch, token, job, call.request.origin.remoteAddress)
         try {
-            // A native source resolves to its playable URL now; the headers it needs go with every request to it.
+            // A native source resolves to its playable URL now; the headers it needs go with every request to it. One
+            // that fails moves the session to the channel's next source, and the 410 sends the player to it.
             val stream = try {
                 feeds.playable(resource.offering)
             } catch (_: ProviderFailure) {
+                if (sessions.sourceFailed(
+                        id,
+                        epoch,
+                        job,
+                    )
+                ) {
+                    throw ApiFailure(
+                        410,
+                        Wire.ErrorCode.STREAM_CHANGED,
+                        "The source failed; fetch the current session descriptor",
+                        true,
+                    )
+                }
                 throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
             }
             if (resource.shared) {

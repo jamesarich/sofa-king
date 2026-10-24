@@ -23,11 +23,14 @@ enum class ItemKind(internal val wire: String?) {
     SEASON(Wire.ItemKind.SEASON),
     EPISODE(Wire.ItemKind.EPISODE),
     VIDEO(Wire.ItemKind.VIDEO),
+
+    /** A movie's or show's trailer, featurette or other extra, listed on its page. */
+    EXTRA(Wire.ItemKind.EXTRA),
     OTHER(null),
     ;
 
     /** True for an item a VOD session can play. */
-    val playable: Boolean get() = this == MOVIE || this == EPISODE || this == VIDEO
+    val playable: Boolean get() = this == MOVIE || this == EPISODE || this == VIDEO || this == EXTRA
 
     internal companion object {
         fun fromWire(value: String) = entries.firstOrNull { it.wire == value } ?: OTHER
@@ -95,6 +98,8 @@ data class MediaItem(
     val children: Int = 0,
     val unwatched: Int = 0,
     val progress: PlayProgress? = null,
+    /** For an [ItemKind.EXTRA], what kind of extra it is. */
+    val extra: ExtraKind? = null,
 ) {
     /** A label such as `S2 E5` or `S1 E1–E2`; null for anything but an episode with numbers. */
     val episodeLabel: String?
@@ -136,7 +141,28 @@ data class MediaItemDetail(
     val credits: IntroSpan? = null,
     /** Thumbnails the player shows over its seek bar while scrubbing, once the server has made them. */
     val scrub: ScrubTiles? = null,
+    /** A movie's or show's trailers, featurettes and other extras. */
+    val extras: List<MediaItem> = emptyList(),
+    /** Others in the item's library that share its genres, the most shared first. */
+    val related: List<MediaItem> = emptyList(),
 )
+
+/** What kind of extra an [ItemKind.EXTRA] is; one the server names that the app does not know is [OTHER]. */
+enum class ExtraKind(internal val wire: String) {
+    TRAILER(Wire.ExtraKind.TRAILER),
+    FEATURETTE(Wire.ExtraKind.FEATURETTE),
+    BEHIND_THE_SCENES(Wire.ExtraKind.BEHIND_THE_SCENES),
+    DELETED_SCENE(Wire.ExtraKind.DELETED_SCENE),
+    INTERVIEW(Wire.ExtraKind.INTERVIEW),
+    SCENE(Wire.ExtraKind.SCENE),
+    SHORT(Wire.ExtraKind.SHORT),
+    OTHER(Wire.ExtraKind.OTHER),
+    ;
+
+    internal companion object {
+        fun fromWire(value: String) = entries.firstOrNull { it.wire == value } ?: OTHER
+    }
+}
 
 /**
  * A file's scrub thumbnails: [sheets] (resolved URLs) of [columns] by [rows] tiles, each [tileWidth] by [tileHeight]

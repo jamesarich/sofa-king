@@ -49,10 +49,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import dev.jamesrich.sofaking.data.ExtraKind
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_card_menu
+import dev.jamesrich.sofaking.resources.library_extra_behind_the_scenes
+import dev.jamesrich.sofaking.resources.library_extra_deleted_scene
+import dev.jamesrich.sofaking.resources.library_extra_featurette
+import dev.jamesrich.sofaking.resources.library_extra_interview
+import dev.jamesrich.sofaking.resources.library_extra_other
+import dev.jamesrich.sofaking.resources.library_extra_scene
+import dev.jamesrich.sofaking.resources.library_extra_short
+import dev.jamesrich.sofaking.resources.library_extra_trailer
 import dev.jamesrich.sofaking.resources.library_mark_unwatched
 import dev.jamesrich.sofaking.resources.library_mark_watched
 import dev.jamesrich.sofaking.resources.library_play_from_start
@@ -131,10 +140,18 @@ private fun WideCard(
     menu: CardMenu? = null,
 ) {
     val title = if (item.kind == ItemKind.EPISODE) item.showTitle ?: item.title else item.title
-    val subtitle = if (item.kind == ItemKind.EPISODE) {
-        listOfNotNull(item.episodeLabel, item.title.takeIf { item.showTitle != null }).joinToString(" · ")
-    } else {
-        item.year?.toString()
+    val extra = item.extra
+    val subtitle = when {
+        item.kind == ItemKind.EPISODE -> listOfNotNull(
+            item.episodeLabel,
+            item.title.takeIf {
+                item.showTitle != null
+            },
+        ).joinToString(" · ")
+
+        extra != null -> stringResource(extraLabel(extra))
+
+        else -> item.year?.toString()
     }
     Column(modifier.width(WIDE_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ItemCard(
@@ -309,6 +326,18 @@ private fun cardLabel(title: String, subtitle: String?): String = listOfNotNull(
         it.isNotEmpty()
     },
 ).joinToString(", ")
+
+/** What kind of extra [kind] is, as a card's second line says it. */
+internal fun extraLabel(kind: ExtraKind): StringResource = when (kind) {
+    ExtraKind.TRAILER -> Res.string.library_extra_trailer
+    ExtraKind.FEATURETTE -> Res.string.library_extra_featurette
+    ExtraKind.BEHIND_THE_SCENES -> Res.string.library_extra_behind_the_scenes
+    ExtraKind.DELETED_SCENE -> Res.string.library_extra_deleted_scene
+    ExtraKind.INTERVIEW -> Res.string.library_extra_interview
+    ExtraKind.SCENE -> Res.string.library_extra_scene
+    ExtraKind.SHORT -> Res.string.library_extra_short
+    ExtraKind.OTHER -> Res.string.library_extra_other
+}
 
 /**
  * A poster's second line: a show's season or episode count would need the details, so the year, or the episode number.

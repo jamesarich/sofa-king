@@ -8,6 +8,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.runBlocking
+import java.net.URI
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -125,6 +126,51 @@ class UpstreamRequestTest {
                     it.bodyAsText()
                 }
             }
+        }
+    }
+
+    @Test fun `a redirect to a github raw file goes straight to raw githubusercontent`() = runBlocking<Unit> {
+        val asked = mutableListOf<String>()
+        HttpClient(
+            MockEngine { request ->
+                asked += request.url.toString()
+                if (request.url.host ==
+                    "i.mjh.test"
+                ) {
+                    respond(
+                        "",
+                        HttpStatusCode.Found,
+                        headersOf(
+                            HttpHeaders.Location,
+                            "https://github.com/matthuisman/i.mjh.nz/raw/refs/heads/master/SamsungTVPlus/.channels.json.gz",
+                        ),
+                    )
+                } else {
+                    respond("channels")
+                }
+            },
+        ) { followRedirects = false }.use { http ->
+            assertEquals(
+                "channels",
+                http.withUpstreamResponse("https://i.mjh.test/x", "https://i.mjh.test/x", emptyMap()) {
+                    it.bodyAsText()
+                },
+            )
+        }
+        assertEquals(
+            listOf(
+                "https://i.mjh.test/x",
+                "https://raw.githubusercontent.com/matthuisman/i.mjh.nz/refs/heads/master/SamsungTVPlus/.channels.json.gz",
+            ),
+            asked,
+        )
+        for (other in listOf(
+            "https://github.com/matthuisman/i.mjh.nz",
+            "https://github.com/o/r/blob/main/f",
+            "https://github.com/o/r/raw/main/f?token=1",
+            "https://example.com/o/r/raw/main/f",
+        )) {
+            assertEquals(URI(other), rawGitHub(URI(other)))
         }
     }
 }

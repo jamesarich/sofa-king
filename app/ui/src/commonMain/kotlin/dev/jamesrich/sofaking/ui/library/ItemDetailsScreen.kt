@@ -61,6 +61,7 @@ import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_cast
 import dev.jamesrich.sofaking.resources.library_directors
 import dev.jamesrich.sofaking.resources.library_episodes
+import dev.jamesrich.sofaking.resources.library_extras
 import dev.jamesrich.sofaking.resources.library_go_to_show
 import dev.jamesrich.sofaking.resources.library_load_failed
 import dev.jamesrich.sofaking.resources.library_loading
@@ -70,6 +71,7 @@ import dev.jamesrich.sofaking.resources.library_play
 import dev.jamesrich.sofaking.resources.library_play_episode
 import dev.jamesrich.sofaking.resources.library_play_from_start
 import dev.jamesrich.sofaking.resources.library_rating
+import dev.jamesrich.sofaking.resources.library_related
 import dev.jamesrich.sofaking.resources.library_resume
 import dev.jamesrich.sofaking.resources.library_resume_episode
 import dev.jamesrich.sofaking.resources.library_season
@@ -102,14 +104,17 @@ internal class ItemDetailsActions(
     val onRetry: () -> Unit,
     val onPerson: (String) -> Unit = {},
     val onOpenShow: (String) -> Unit = {},
+    /** Opens another item's page, from More like this. */
+    val onOpenItem: (MediaItem) -> Unit = {},
 )
 
 /**
  * An item's page, after Plex: the backdrop behind the title, its year, length and ratings, the overview, then Play
  * or Resume (focused on arrival), Play from beginning and Mark watched. A show lists its seasons as chips with
  * [season]'s episodes under them, the season [selectedSeasonId] names; a season lists its own episodes. OK on an
- * episode plays it, resuming where it stopped. [returnedFrom] is the episode the viewer just watched, which takes
- * focus instead of the first button.
+ * episode plays it, resuming where it stopped. Under them are the item's Extras, which OK plays, and More like this,
+ * which OK opens. [returnedFrom] is the episode or extra the viewer just watched, which takes focus instead of the
+ * first button.
  */
 @Composable
 internal fun ItemDetailsScreen(
@@ -158,9 +163,11 @@ private fun Details(
     val primaryFocus = remember { FocusRequester() }
     val episodeFocus = remember { FocusRequester() }
     val returnTo = returnedFrom?.takeIf { id -> episodes.any { it.id == id } }
+    val returnToExtra = returnedFrom?.takeIf { id -> detail.extras.any { it.id == id } }
     // The first button takes focus once, when the page is in; a later refresh leaves focus where the viewer put it.
     LaunchedEffect(item.id) { requestFocusWhenAttached(primaryFocus) }
     LaunchedEffect(returnTo) { if (returnTo != null) requestFocusWhenAttached(episodeFocus) }
+    LaunchedEffect(returnToExtra) { if (returnToExtra != null) requestFocusWhenAttached(episodeFocus) }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val heroHeight = maxHeight * HERO_FRACTION
@@ -197,6 +204,44 @@ private fun Details(
                     EpisodeRow(episode, hideSpoilers && hidesSpoilers(episode), onClick = {
                         actions.onPlay(episode, false)
                     }, modifier = Modifier.padding(sides).then(modifier))
+                }
+                if (detail.extras.isNotEmpty()) {
+                    item(key = "extras") {
+                        ItemRow(
+                            stringResource(Res.string.library_extras),
+                            detail.extras,
+                            CardStyle.WIDE,
+                            sides,
+                            onOpen = { actions.onPlay(it, false) },
+                            onPlay = { actions.onPlay(it, false) },
+                            focusItem = returnToExtra,
+                            focusRequester = episodeFocus,
+                        )
+                    }
+                }
+                if (detail.related.isNotEmpty()) {
+                    item(key = "related") {
+                        val style = if (detail.related.all {
+                                it.kind == ItemKind.VIDEO
+                            }
+                        ) {
+                            CardStyle.WIDE
+                        } else {
+                            CardStyle.POSTER
+                        }
+                        ItemRow(
+                            stringResource(
+                                Res.string.library_related,
+                            ),
+                            detail.related,
+                            style,
+                            sides,
+                            onOpen = actions.onOpenItem,
+                            onPlay = {
+                                actions.onPlay(it, false)
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -391,6 +436,39 @@ private fun FileLine(detail: MediaItemDetail) {
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
+}
+
+/** A titled row of cards: OK on one calls [onOpen], the remote's Play key [onPlay]; [focusItem] takes [focusRequester]. */
+@Composable
+private fun ItemRow(
+    title: String,
+    items: List<MediaItem>,
+    style: CardStyle,
+    sides: PaddingValues,
+    onOpen: (MediaItem) -> Unit,
+    onPlay: (MediaItem) -> Unit,
+    focusItem: String? = null,
+    focusRequester: FocusRequester? = null,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionTitle(title, sides)
+        LazyRow(
+            contentPadding = sides,
+            horizontalArrangement = Arrangement.spacedBy(CARD_GAP),
+            modifier = Modifier.focusRestorer(),
+        ) {
+            items(items, key = { it.id }) { item ->
+                val focus = if (item.id == focusItem &&
+                    focusRequester != null
+                ) {
+                    Modifier.focusRequester(focusRequester)
+                } else {
+                    Modifier
+                }
+                LibraryCard(item, style, onOpen, onPlay, menu = null, modifier = focus)
+            }
+        }
+    }
 }
 
 /** The cast as chips; OK on one searches the libraries for what else they are in. */

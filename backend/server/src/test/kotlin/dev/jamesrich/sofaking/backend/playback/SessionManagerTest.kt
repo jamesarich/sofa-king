@@ -284,6 +284,66 @@ class SessionManagerTest {
         }
     }
 
+    @Test fun `a source that fails to resolve moves the session to the next and never back`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-failover-")
+        try {
+            HttpClient(CIO).use { http ->
+                openStore(dir).use { store ->
+                    val clock = MutableClock()
+                    val config = FeedConfig("p", "http://example.test/feed.m3u", probe = false)
+                    val offerings = listOf("first", "second").map {
+                        Offering(it, "c", "p", "http://example.test/$it.ts", "mpegts")
+                    }
+                    store.saveSnapshot(
+                        FeedSnapshot("p", listOf(Channel("c", "1", "Station")), offerings, clock.now.toString()),
+                    )
+                    for (id in listOf(
+                        "first",
+                        "second",
+                    )) {
+                        store.recordObservation(id, Observation("ok-$id", clock.now, true), clock.now)
+                    }
+                    val feeds = FeedService(listOf(config), store, http, clock)
+                    feeds.initialize()
+                    val catalog = lineupStack(feeds, store, clock, http).catalog
+                    val sessions = SessionManager(catalog, store, clock)
+                    val opened = sessions.open(OpenPlayback(catalog.catalog().channels.single().id, "watch", "one"))
+                    val first = Job()
+                    assertEquals(
+                        "first",
+                        sessions.acquire(
+                            opened.id,
+                            1,
+                            opened.descriptor.url.substringAfterLast('/'),
+                            first,
+                        ).offering.id,
+                    )
+                    assertTrue(sessions.sourceFailed(opened.id, 1, first))
+                    val moved = sessions.get(opened.id)
+                    assertEquals(2, moved.descriptor.epoch)
+                    val second = Job()
+                    assertEquals(
+                        "second",
+                        sessions.acquire(
+                            opened.id,
+                            2,
+                            moved.descriptor.url.substringAfterLast('/'),
+                            second,
+                        ).offering.id,
+                    )
+                    assertTrue(
+                        sessions.sourceFailed(opened.id, 1, first),
+                        "a request from an older epoch just re-reads",
+                    )
+                    assertFalse(sessions.sourceFailed(opened.id, 2, second), "no source is left")
+                    sessions.close()
+                }
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
     @Test fun `re-acquiring a live MPEG-TS stream cancels the previous media request but HLS requests coexist`() =
         runBlocking<Unit> {
             val dir = Files.createTempDirectory("sofa-reacquire-")

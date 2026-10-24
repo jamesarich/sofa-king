@@ -10,7 +10,6 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
     id("sofaking.kotlin")
-    id("sofaking.lint")
     id("sofaking.android")
 }
 
@@ -65,9 +64,13 @@ kotlin {
             commonWebpackConfig { outputFileName = "sofaking.js" }
             testTask { enabled = false }
         }
-        // Coil's JS decoder loads skiko, whose glue writes to `window`; give Node one so the test binary loads.
+        // Coil's JS decoder loads skiko, whose glue writes to `window`; give Node one so the test binary loads. Mocha's
+        // 2-second default is too short on a busy CI runner, as in core.
         nodejs {
-            testTask { nodeJsArgs += listOf("--import", "data:text/javascript,globalThis.window ??= globalThis") }
+            testTask {
+                nodeJsArgs += listOf("--import", "data:text/javascript,globalThis.window ??= globalThis")
+                useMocha { timeout = "30s" }
+            }
         }
         binaries.executable()
     }

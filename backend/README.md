@@ -2,7 +2,7 @@
 
 The Sofa King server is the heart of a self-hosted media center for a home network, and it is Sofa King busy. It keeps three things in one container:
 
-- **Live TV.** One channel lineup built from free streaming services, broadcasters' free news feeds, HDHomeRun tuners, M3U playlists and XMLTV guides, served to the Sofa King app, to Plex as an HDHomeRun tuner, and to M3U and XMLTV players.
+- **Live TV.** One channel lineup built from free streaming services, broadcasters' own free feeds, HDHomeRun tuners, M3U playlists and XMLTV guides, served to the Sofa King app, to Plex as an HDHomeRun tuner, and to M3U and XMLTV players.
 - **Recordings.** A DVR that records programs, time windows and series from the guide, finds their commercial breaks and keeps them in the folder layout media servers scan.
 - **Media libraries.** Your own movies, shows and other videos from a read-only folder, with details and artwork, watch progress, episodes' intros found for Skip intro, and playback converted on the fly for a device that cannot take the file.
 
@@ -10,7 +10,7 @@ The [Sofa King app](../app/README.md) plays all three on TVs, phones, desktops, 
 
 ## Why
 
-- **One container does the whole job.** Native clients for 17 free streaming (FAST) services, the free news feeds of a dozen broadcasters and HDHomeRun tuners share one container with an HDHomeRun emulation for Plex, a DVR and a library server, so there is no separate playlist tool, tuner proxy or recorder to run.
+- **One container does the whole job.** Native clients for 17 free streaming (FAST) services, the free feeds of about twenty broadcasters and HDHomeRun tuners share one container with an HDHomeRun emulation for Plex, a DVR and a library server, so there is no separate playlist tool, tuner proxy or recorder to run.
 - **The service clients run on your server.** Hosted FAST playlists have been taken down after DMCA notices. Here the server talks to the services itself; only Samsung TV Plus and The Roku Channel take their channel lists from a published mirror.
 - **One station per channel.** The same channel from several services becomes one station with the others as fallbacks. Channels whose names only roughly match are merged when their schedules agree, and kept apart otherwise.
 - **Numbers stay put.** Every number the server assigns is written back to the lineup policy file, so a channel keeps its number through rebuilds and on a new server.
@@ -24,7 +24,7 @@ The [Sofa King app](../app/README.md) plays all three on TVs, phones, desktops, 
 
 Live TV:
 
-- Native clients for 17 free streaming services, broadcasters' own free news feeds and HDHomeRun tuners, with their guides ([providers](docs/providers.md))
+- Native clients for 17 free streaming services, broadcasters' own free feeds and HDHomeRun tuners, with their guides ([providers](docs/providers.md))
 - M3U playlists and XMLTV guides, plain or gzip
 - A [lineup policy](docs/lineup-policy.md) file that rebuilds the same lineup on any server, with a preview before any change
 - Groups, stable numbers, logos, guide mapping and failover order, stored in SQLite

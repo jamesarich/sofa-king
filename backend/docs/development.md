@@ -29,7 +29,7 @@ You need JDK 21 and FFmpeg. Run the commands from `backend/`:
    }
    ```
 
-   [`deploy/sources.example.json`](../deploy/sources.example.json) lists the native provider of every free streaming service, the broadcasters' news feeds (`direct`) and an M3U provider example. The PBS and M3U entries need your values.
+   [`deploy/sources.example.json`](../deploy/sources.example.json) lists the native provider of every free streaming service, the broadcasters' own feeds (`direct`) and an M3U provider example. The PBS and M3U entries need your values.
 
 3. Start the server. It listens on `127.0.0.1:8080` by default:
 

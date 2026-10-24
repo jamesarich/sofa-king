@@ -150,7 +150,8 @@ class LibraryService(
                 Files.list(root).use { stream ->
                     stream.filter {
                         Files.isDirectory(it, java.nio.file.LinkOption.NOFOLLOW_LINKS) &&
-                            !skippedFolder(it.fileName.toString())
+                            !skippedFolder(it.fileName.toString()) &&
+                            extraFolderKind(it.fileName.toString()) == null
                     }.sorted().toList()
                 }.flatMap { folders(it, depth - 1) }
             } catch (_: java.io.IOException) {

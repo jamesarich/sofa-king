@@ -52,9 +52,9 @@ jobs:
       # FFmpeg makes the fixture channels; the app plays them through libVLC, in Xvfb, driven by xdotool, and the
       # script closes the window through python-xlib.
       - name: Install FFmpeg, libVLC and the X tools
-        run: >-
-          sudo apt-get update && sudo apt-get install -y --no-install-recommends
-          ffmpeg vlc-plugin-base xvfb xdotool imagemagick python3-xlib
+        uses: ./.github/actions/apt-install
+        with:
+          packages: ffmpeg vlc-plugin-base xvfb xdotool imagemagick python3-xlib
       - name: Build the server distribution
         working-directory: backend
         run: ./gradlew --console=plain :server:installDist

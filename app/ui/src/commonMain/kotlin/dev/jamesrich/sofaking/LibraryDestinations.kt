@@ -167,6 +167,7 @@ internal fun LibraryItemDestination(
             onRetry = { libraryVm.detail(route.itemId, refresh = true) },
             onPerson = { shell.push(Route.LibrarySearch(query = it)) },
             onOpenShow = { shell.push(Route.LibraryItem(it)) },
+            onOpenItem = { shell.push(Route.LibraryItem(it.id)) },
         ),
         returnedFrom = arrival.returnedFrom,
         hideSpoilers = hideSpoilers,

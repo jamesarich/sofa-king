@@ -69,14 +69,31 @@ class LibraryServiceTest {
             "Heat (1995) [1080p]/Heat.1995.nfo",
             "<movie><title>Heat</title><year>1995</year><plot>A heist.</plot></movie>",
         )
+        movies.file("Alien (1979)/Featurettes/Making Alien.mkv")
+        movies.file("Heat (1995) [1080p]/Samples/Heat-sample.mkv")
+        // Extras of a folder of loose movies belong to none of them.
         movies.file("Extras/Something.mkv")
         val library = s.service.create("Movies", LibraryKind.MOVIES, movies.toString())
 
         val first = s.service.scan(library.id)
-        assertEquals(2, first.files)
-        assertEquals(2, first.added)
-        assertEquals(2, s.probes.get())
+        assertEquals(4, first.files)
+        assertEquals(4, first.added)
+        assertEquals(4, s.probes.get())
         val items = s.store.libraryItems(library.id).associateBy { it.title }
+        assertEquals(setOf("Alien", "Heat", "Trailer", "Making Alien"), items.keys)
+        val alien = items.getValue("Alien")
+        assertEquals(
+            listOf(ItemKind.EXTRA, ItemKind.EXTRA),
+            listOf(items.getValue("Trailer").kind, items.getValue("Making Alien").kind),
+        )
+        assertEquals(
+            listOf(alien.id, alien.id),
+            listOf(items.getValue("Trailer").parentId, items.getValue("Making Alien").parentId),
+        )
+        assertEquals(
+            listOf(ExtraKind.TRAILER.wire, ExtraKind.FEATURETTE.wire),
+            listOf(items.getValue("Trailer").details?.extra, items.getValue("Making Alien").details?.extra),
+        )
         assertEquals(1979, items.getValue("Alien").year)
         assertEquals("Alien (1979)/poster.jpg", items.getValue("Alien").poster)
         assertEquals("A heist.", items.getValue("Heat").overview)
@@ -85,7 +102,7 @@ class LibraryServiceTest {
         // An unchanged file keeps its probe; ids are the same on every scan.
         val again = s.service.scan(library.id)
         assertEquals(0, again.added + again.updated)
-        assertEquals(2, s.probes.get())
+        assertEquals(4, s.probes.get())
         assertEquals(items.values.map { it.id }.toSet(), s.store.libraryItems(library.id).map { it.id }.toSet())
     }
 
@@ -98,9 +115,11 @@ class LibraryServiceTest {
         tv.file("Show (2020)/Specials/Show - S00E01 - Making of.mkv")
         tv.file("Nightly News/Season 2026/Nightly News - 2026-10-17 - Evening.ts")
         tv.file(".inprogress/Nightly News/Season 2026/Nightly News - 2026-10-18 - Evening.ts")
+        tv.file("Show (2020)/Extras/Cast interview.mkv")
+        tv.file("Show (2020)/Season 01/Deleted Scenes/Cut scene.mkv")
         val library = s.service.create("TV", LibraryKind.SHOWS, tv.toString())
         val result = s.service.scan(library.id)
-        assertEquals(4, result.files)
+        assertEquals(6, result.files)
 
         val items = s.store.libraryItems(library.id)
         val shows = items.filter { it.kind == ItemKind.SHOW }.associateBy { it.title }
@@ -115,6 +134,16 @@ class LibraryServiceTest {
         val news = items.single { it.kind == ItemKind.EPISODE && it.aired == "2026-10-17" }
         assertEquals("Evening", news.title)
         assertEquals(2026, news.season)
+        // A show's extras, from its folder or a season's, belong to the show and are no season.
+        val extras = items.filter { it.kind == ItemKind.EXTRA }
+        assertEquals(setOf("Cast interview", "Cut scene"), extras.map { it.title }.toSet())
+        assertEquals(setOf(shows.getValue("The Show").id), extras.map { it.parentId }.toSet())
+        assertEquals(
+            setOf(ExtraKind.OTHER.wire, ExtraKind.DELETED_SCENE.wire),
+            extras.map {
+                it.details?.extra
+            }.toSet(),
+        )
     }
 
     @Test

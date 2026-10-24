@@ -24,6 +24,9 @@ private val processStart = TimeSource.Monotonic.markNow()
  */
 internal fun uptimeMs(): Long = processStart.elapsedNow().inWholeMilliseconds
 
+/** The clock a scrub rests by: [uptimeMs], or in a test the test's own clock, so a slow machine does not settle it. */
+internal val LocalUptimeMs = staticCompositionLocalOf<() -> Long> { ::uptimeMs }
+
 private val twelveHourFormat = LocalTime.Format {
     amPmHour(Padding.NONE)
     char(':')

@@ -43,6 +43,14 @@ class DirectClientTest {
                                 it.name.isNotBlank() && it.group!!.isNotBlank() && it.tags.single().length == 2
                             },
                         )
+                        assertEquals(listOf("de"), channels.single { it.id == "das-erste" }.tags)
+                        assertEquals(
+                            "Euronews",
+                            channels.single {
+                                it.id == "euronews"
+                            }.name,
+                            "named as the FAST services name it, so the stations merge",
+                        )
                         val resolved = client.resolve("fox-weather")
                         assertEquals("https://247wlive.foxweather.com/stream/index.m3u8", resolved.url)
                         assertEquals(mapOf("User-Agent" to "Mozilla/5.0"), resolved.headers)

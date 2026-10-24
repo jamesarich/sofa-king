@@ -54,6 +54,8 @@ class LibraryRepository(private val api: SofaKingApi) {
                     it.sheets.mapNotNull(api::logoUrl),
                 )
             },
+            extras = dto.extras.map(::item),
+            related = dto.related.map(::item),
         )
     }
 
@@ -122,6 +124,7 @@ class LibraryRepository(private val api: SofaKingApi) {
         children = dto.children,
         unwatched = dto.unwatched,
         progress = dto.playState?.let { PlayProgress(it.positionMs, it.durationMs, it.watched) },
+        extra = dto.extra?.let(ExtraKind::fromWire) ?: ExtraKind.OTHER.takeIf { dto.kind == Wire.ItemKind.EXTRA },
     )
 
     companion object {

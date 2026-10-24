@@ -23,6 +23,8 @@ import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.Density
 import androidx.navigationevent.NavigationEventInput
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
+import coil3.SingletonImageLoader
+import coil3.annotation.DelicateCoilApi
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.PairingRequest
@@ -41,7 +43,7 @@ import kotlin.test.fail
  * TV layout when [tv] is set, and runs [block] once the guide shows the lineup. libVLC is left out, so the player
  * reports that VLC is missing without looking for it. A failure's screen and semantics tree go to [out].
  */
-@OptIn(ExperimentalTestApi::class)
+@OptIn(ExperimentalTestApi::class, DelicateCoilApi::class)
 internal fun runSofaKing(tv: Boolean, out: File, server: FakeServer = FakeServer(), block: AppDriver.() -> Unit) {
     out.mkdirs()
     System.setProperty(TV_PROPERTY, tv.toString())
@@ -53,6 +55,9 @@ internal fun runSofaKing(tv: Boolean, out: File, server: FakeServer = FakeServer
         val data = Files.createTempDirectory("sofaking-test").toString()
         initSofaKing(AppStorage.inDirectory(data, ClientInfo("desktop", "test")))
         newDesktopLivePlayer = { VlcLivePlayer(it) { throw UnsatisfiedLinkError("libVLC left out") } }
+        // App sets Coil's singleton image loader, which refuses once an earlier screen test in this JVM made the
+        // default one, and would otherwise keep the last test's loader.
+        SingletonImageLoader.reset()
         runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
             setContent {
                 // A window turns an Escape nothing took into a back event; the test scene has no window, so this does.

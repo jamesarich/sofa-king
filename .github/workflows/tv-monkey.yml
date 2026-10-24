@@ -51,7 +51,9 @@ jobs:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       # The fixture channels are a clip FFmpeg generates; the server relays HLS through FFmpeg too.
       - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+        uses: ./.github/actions/apt-install
+        with:
+          packages: ffmpeg
       - name: Build the server distribution
         working-directory: backend
         run: ./gradlew --console=plain :server:installDist

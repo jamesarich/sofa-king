@@ -69,8 +69,8 @@ object ServiceCatalog {
     val all: List<ServiceInfo> = listOf(
         ServiceInfo(
             "direct",
-            "Broadcasters' news feeds",
-            "Live news from CBS News, ABC News Australia and other broadcasters' own sites",
+            "Broadcasters' own feeds",
+            "Live news and public channels from CBS News, ARD, RTVE, Euronews and other broadcasters' own sites",
         ),
         ServiceInfo("whale", "Whale TV+", "About 200 channels across every genre"),
         ServiceInfo("samsung", "Samsung TV Plus", "Samsung's free channels, by country", listOf(region)),

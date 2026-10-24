@@ -7,29 +7,59 @@ import java.time.LocalDate
 internal val VIDEO_EXTENSIONS =
     setOf("mkv", "mp4", "m4v", "mov", "avi", "ts", "m2ts", "mts", "webm", "wmv", "mpg", "mpeg", "flv", "ogv", "3gp")
 
-/** Folders Plex and Jellyfin treat as extras or NAS housekeeping; a scan skips them and what they hold. */
+/** Folders Plex and Jellyfin treat as extras, by the [ExtraKind] of what they hold. */
+private val EXTRA_FOLDERS = mapOf(
+    "trailers" to ExtraKind.TRAILER, "featurettes" to ExtraKind.FEATURETTE,
+    "behind the scenes" to ExtraKind.BEHIND_THE_SCENES,
+    "deleted scenes" to ExtraKind.DELETED_SCENE, "interviews" to ExtraKind.INTERVIEW, "scenes" to ExtraKind.SCENE,
+    "shorts" to ExtraKind.SHORT, "extras" to ExtraKind.OTHER, "other" to ExtraKind.OTHER,
+)
+
+/** Samples and NAS housekeeping; a scan skips them and what they hold. */
 private val SKIPPED_FOLDERS = setOf(
-    "extras", "featurettes", "behind the scenes", "deleted scenes", "interviews", "scenes", "shorts", "trailers",
-    "samples", "sample",
-    "other", "@eadir", "#recycle", "#snapshot", "lost+found", "\$recycle.bin", "system volume information",
+    "samples",
+    "sample",
+    "@eadir",
+    "#recycle",
+    "#snapshot",
+    "lost+found",
+    "\$recycle.bin",
+    "system volume information",
 )
 
 /** File-name suffixes Plex reads as extras of the movie beside them. */
-private val EXTRA_SUFFIXES =
-    listOf(
-        "-trailer", "-sample", "-featurette", "-behindthescenes", "-deleted", "-interview", "-scene", "-short",
-        "-other",
-    )
+private val EXTRA_SUFFIXES = listOf(
+    "-trailer" to ExtraKind.TRAILER,
+    "-featurette" to ExtraKind.FEATURETTE,
+    "-behindthescenes" to ExtraKind.BEHIND_THE_SCENES,
+    "-deleted" to ExtraKind.DELETED_SCENE,
+    "-interview" to ExtraKind.INTERVIEW,
+    "-scene" to ExtraKind.SCENE,
+    "-short" to ExtraKind.SHORT,
+    "-other" to ExtraKind.OTHER,
+)
 
+/** Whether a scan leaves out the folder [name] and what it holds: hidden, samples or housekeeping. */
 internal fun skippedFolder(name: String): Boolean = name.startsWith('.') || name.lowercase() in SKIPPED_FOLDERS
 
-/** Whether [fileName] is a video a scan lists: a known extension, not hidden, not an extra by its suffix. */
+/** The kind of extra the folder [name] holds, such as `Trailers`; null for any other folder. */
+internal fun extraFolderKind(name: String): ExtraKind? = EXTRA_FOLDERS[name.lowercase()]
+
+/** The kind of extra [fileName] is by its suffix, such as `Alien (1979)-trailer.mkv`, and the name before it. */
+internal fun extraSuffix(fileName: String): Pair<ExtraKind, String>? {
+    val stem = fileName.substringBeforeLast('.')
+    return EXTRA_SUFFIXES.firstOrNull { (suffix, _) -> stem.lowercase().endsWith(suffix) }?.let { (suffix, kind) ->
+        kind to
+            stem.dropLast(suffix.length)
+    }
+}
+
+/** Whether [fileName] is a video a scan lists: a known extension, not hidden, not a sample. */
 internal fun isVideoFile(fileName: String): Boolean {
     if (fileName.startsWith('.')) return false
     val extension = fileName.substringAfterLast('.', "").lowercase()
     if (extension !in VIDEO_EXTENSIONS) return false
-    val stem = fileName.substringBeforeLast('.').lowercase()
-    return EXTRA_SUFFIXES.none { stem.endsWith(it) }
+    return !fileName.substringBeforeLast('.').lowercase().endsWith("-sample")
 }
 
 /** A title and the year in its trailing `(1999)`, as Plex and Jellyfin name movie and show folders. */

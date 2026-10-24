@@ -67,14 +67,15 @@ internal class LibraryView(
     val suggestions: List<LibrarySuggestion> = emptyList(),
 )
 
-/** What a library holds, in words: "120 movies", "14 shows, 612 episodes". */
+/** What a library holds, in words: "120 movies", "14 shows, 612 episodes", with its extras when it has any. */
 internal fun librarySummary(kind: LibraryKind, counts: Map<String, Int>): String {
     fun n(key: String) = counts[key] ?: 0
-    return when (kind) {
+    val main = when (kind) {
         LibraryKind.MOVIES -> plural(n(ItemKind.MOVIE), "movie")
         LibraryKind.SHOWS -> "${plural(n(ItemKind.SHOW), "show")}, ${plural(n(ItemKind.EPISODE), "episode")}"
         LibraryKind.VIDEOS -> plural(n(ItemKind.VIDEO), "video")
     }
+    return if (n(ItemKind.EXTRA) > 0) "$main, ${plural(n(ItemKind.EXTRA), "extra")}" else main
 }
 
 internal fun libraryPage(chrome: Chrome, view: LibraryView): String = layout("Library", chrome, "/admin/library") {

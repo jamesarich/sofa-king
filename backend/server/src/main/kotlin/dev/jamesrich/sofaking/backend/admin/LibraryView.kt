@@ -1,9 +1,10 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.library.ItemKind
+import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.LibraryRecord
 import dev.jamesrich.sofaking.backend.library.LibrarySuggestion
 import kotlinx.html.a
-import kotlinx.html.div
 import kotlinx.html.form
 
 /**
@@ -30,3 +31,14 @@ internal class LibraryView(
     /** Folders whose names say what they hold, each one click from a library. */
     val suggestions: List<LibrarySuggestion> = emptyList(),
 )
+
+/** What a library holds, in words: "120 movies", "14 shows, 612 episodes", with its extras when it has any. */
+internal fun librarySummary(kind: LibraryKind, counts: Map<String, Int>): String {
+    fun n(key: String) = counts[key] ?: 0
+    val main = when (kind) {
+        LibraryKind.MOVIES -> plural(n(ItemKind.MOVIE), "movie")
+        LibraryKind.SHOWS -> "${plural(n(ItemKind.SHOW), "show")}, ${plural(n(ItemKind.EPISODE), "episode")}"
+        LibraryKind.VIDEOS -> plural(n(ItemKind.VIDEO), "video")
+    }
+    return if (n(ItemKind.EXTRA) > 0) "$main, ${plural(n(ItemKind.EXTRA), "extra")}" else main
+}

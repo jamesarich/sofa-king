@@ -22,8 +22,8 @@ import java.util.UUID
 private const val TITLE_LIMIT = 200
 
 /** A rule's episodes to keep, 0 for all of them, and its priority over the other rules. */
-private val KEEP_RANGE = 0..1000
-private val PRIORITY_RANGE = -100..100
+internal val KEEP_RANGE = 0..1000
+internal val PRIORITY_RANGE = -100..100
 
 /** The series rules: which titles to record, on which channels, how much to keep. A change runs [changed]. */
 class DvrRules internal constructor(

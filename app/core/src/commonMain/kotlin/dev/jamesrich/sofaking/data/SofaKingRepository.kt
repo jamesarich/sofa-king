@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.data
 
 import dev.jamesrich.sofaking.contract.Wire
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -55,7 +56,7 @@ class SofaKingRepository(
         return try {
             query(chunks, from, to, pinRevision = true)
         } catch (e: SofaKingException) {
-            if (e.status != 409) throw e
+            if (e.statusCode != HttpStatusCode.Conflict) throw e
             query(chunks, from, to, pinRevision = false)
         }
     }

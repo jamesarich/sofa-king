@@ -1,23 +1,24 @@
 # The rules the app's code is not yet refactored to (see gradle/detekt.yml). Each line goes in the pull request that
-# refactors the code it covers, and this file with the last one.
+# refactors the code it covers, and this file with the last one. An exclude here replaces gradle/detekt.yml's, so the
+# tests are excluded again where that file excludes them.
 complexity:
   LongMethod:
-    active: false
+    excludes: ['**/ui/src/**']
   LargeClass:
-    active: false
+    excludes: ['**/ui/src/**']
   NestedBlockDepth:
-    active: false
+    excludes: ['**/ui/src/**']
   TooManyFunctions:
     active: false
   CyclomaticComplexMethod:
-    active: false
+    excludes: ['**/ui/src/**']
 
 style:
   LoopWithTooManyJumpStatements:
-    active: false
+    excludes: ['**/ui/src/**']
   MagicNumber:
-    active: false
+    excludes: ['**/ui/src/**', '**/*Test/**', '**/test/**', '**/*.kts']
   ReturnCount:
-    active: false
+    excludes: ['**/ui/src/**']
   ThrowsCount:
-    active: false
+    excludes: ['**/ui/src/**']

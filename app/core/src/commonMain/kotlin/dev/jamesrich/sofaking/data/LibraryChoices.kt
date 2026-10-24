@@ -104,13 +104,10 @@ fun trackLabel(track: MediaTrackInfo, number: Int): String {
     return if (parts.isEmpty()) "Track $number" else parts.joinToString(" · ")
 }
 
-private fun channelLayout(channels: Int): String = when (channels) {
-    1 -> "Mono"
-    2 -> "Stereo"
-    6 -> "5.1"
-    8 -> "7.1"
-    else -> "$channels ch"
-}
+/** What a track with this many audio channels is called. */
+private val CHANNEL_LAYOUTS = mapOf(1 to "Mono", 2 to "Stereo", 6 to "5.1", 8 to "7.1")
+
+private fun channelLayout(channels: Int): String = CHANNEL_LAYOUTS[channels] ?: "$channels ch"
 
 /**
  * What an item's page says about its file: the [sound] of the track it starts with, such as "Dolby Digital 5.1",

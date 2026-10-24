@@ -113,14 +113,14 @@ object CachedLineupSerializer : OkioSerializer<CachedLineup?> {
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
 class CachedLineup internal constructor(
-    @ProtoNumber(1) val key: String,
-    @ProtoNumber(2) internal val channels: List<CachedChannel> = emptyList(),
+    @ProtoNumber(number = 1) val key: String,
+    @ProtoNumber(number = 2) internal val channels: List<CachedChannel> = emptyList(),
     /** Programs grouped by channel, so the channel id is not repeated per program; read from older files only. */
-    @ProtoNumber(3) internal val guide: List<CachedGuide> = emptyList(),
+    @ProtoNumber(number = 3) internal val guide: List<CachedGuide> = emptyList(),
     /**
      * The programs as an encoded [CachedGuides], copied as bytes when the file is read and decoded only on demand.
      */
-    @ProtoNumber(4) internal val guideBytes: ByteArray = ByteArray(0),
+    @ProtoNumber(number = 4) internal val guideBytes: ByteArray = ByteArray(0),
 ) {
     internal fun toLineup(at: Instant): Lineup = Lineup(toChannels(), guide(at))
 
@@ -177,39 +177,39 @@ class CachedLineup internal constructor(
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
 internal class CachedChannel(
-    @ProtoNumber(1) val guideId: String,
-    @ProtoNumber(2) val number: Double,
-    @ProtoNumber(3) val name: String,
-    @ProtoNumber(4) val logo: String? = null,
-    @ProtoNumber(5) val groups: List<String> = emptyList(),
-    @ProtoNumber(6) val guideStatus: String,
+    @ProtoNumber(number = 1) val guideId: String,
+    @ProtoNumber(number = 2) val number: Double,
+    @ProtoNumber(number = 3) val name: String,
+    @ProtoNumber(number = 4) val logo: String? = null,
+    @ProtoNumber(number = 5) val groups: List<String> = emptyList(),
+    @ProtoNumber(number = 6) val guideStatus: String,
 )
 
 /** Every channel's programs, the message [CachedLineup.guideBytes] holds. */
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
-internal class CachedGuides(@ProtoNumber(1) val guide: List<CachedGuide> = emptyList())
+internal class CachedGuides(@ProtoNumber(number = 1) val guide: List<CachedGuide> = emptyList())
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
 internal class CachedGuide(
-    @ProtoNumber(1) val channelId: String,
-    @ProtoNumber(2) val programs: List<CachedProgram> = emptyList(),
+    @ProtoNumber(number = 1) val channelId: String,
+    @ProtoNumber(number = 2) val programs: List<CachedProgram> = emptyList(),
 )
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
 internal class CachedProgram(
-    @ProtoNumber(1) val start: Long,
-    @ProtoNumber(2) val stop: Long,
-    @ProtoNumber(3) val title: String,
-    @ProtoNumber(4) val description: String? = null,
-    @ProtoNumber(5) val subTitle: String? = null,
-    @ProtoNumber(6) val episode: String? = null,
-    @ProtoNumber(7) val isNew: Boolean = false,
-    @ProtoNumber(8) val rating: String? = null,
-    @ProtoNumber(9) val icon: String? = null,
-    @ProtoNumber(10) val kinds: Int = 0,
+    @ProtoNumber(number = 1) val start: Long,
+    @ProtoNumber(number = 2) val stop: Long,
+    @ProtoNumber(number = 3) val title: String,
+    @ProtoNumber(number = 4) val description: String? = null,
+    @ProtoNumber(number = 5) val subTitle: String? = null,
+    @ProtoNumber(number = 6) val episode: String? = null,
+    @ProtoNumber(number = 7) val isNew: Boolean = false,
+    @ProtoNumber(number = 8) val rating: String? = null,
+    @ProtoNumber(number = 9) val icon: String? = null,
+    @ProtoNumber(number = 10) val kinds: Int = 0,
 ) {
     fun toProgram(channelId: String) = Program(
         channelId = channelId,

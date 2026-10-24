@@ -83,6 +83,12 @@ internal object WatchNextArtwork {
         val server =
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(SERVER, null)
                 ?: throw FileNotFoundException(uri.toString())
+        download(server, uri, file)
+        return file
+    }
+
+    /** Copies [uri]'s image from [server] into [file], through a partial file, so a cut-off read caches nothing. */
+    private fun download(server: String, uri: Uri, file: File) {
         val query = uri.encodedQuery?.let { "?$it" }.orEmpty()
         val connection = URL(server + uri.encodedPath + query).openConnection() as HttpURLConnection
         try {
@@ -94,16 +100,14 @@ internal object WatchNextArtwork {
             val partial = File(file.parentFile, file.name + ".part")
             connection.inputStream.use { input -> partial.outputStream().use(input::copyTo) }
             if (!partial.renameTo(file)) throw IOException("$uri: not cached")
-            return file
         } finally {
             connection.disconnect()
         }
     }
 
-    private fun valid(uri: Uri): Boolean {
-        val segments = uri.pathSegments
-        return segments.size == 3 && segments[0] == "artwork" && ID.matches(segments[1]) && segments[2] in ROLES
-    }
+    /** Whether [uri]'s path is `artwork`, an item id and one of [ROLES]. */
+    private fun valid(uri: Uri): Boolean = uri.pathSegments.takeIf { it.size == PATH_SEGMENTS }
+        ?.let { (kind, id, role) -> kind == "artwork" && ID.matches(id) && role in ROLES } == true
 
     private fun cacheDir(context: Context) = File(context.cacheDir, "watch-next").apply { mkdirs() }
 
@@ -111,6 +115,7 @@ internal object WatchNextArtwork {
         MessageDigest.getInstance("SHA-256").digest(uri.toString().toByteArray()).joinToString("") { "%02x".format(it) }
 
     private const val TIMEOUT_MS = 10_000
+    private const val PATH_SEGMENTS = 3
 }
 
 /** Answers the launcher's reads of the Watch Next row's artwork; not exported, so only granted readers reach it. */

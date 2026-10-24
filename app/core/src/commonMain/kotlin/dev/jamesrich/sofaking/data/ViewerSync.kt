@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.data
 
 import co.touchlab.kermit.Logger
-import kotlinx.coroutines.CancellationException
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
@@ -60,65 +60,77 @@ class ViewerSync(
 
     private suspend fun sync(api: SofaKingApi) {
         val clientId = store.ensureClientId()
-        var known: SyncedPreferences? = null
-        var supported = true
         // Until the server answers, this device cannot tell a missing copy from a newer one, so it pushes nothing.
-        var remote: ViewerPreferencesDto? = null
-        var answered = false
-        while (!answered) {
+        val copy = serverCopy(api, clientId) ?: return
+        var known = copy.preferences?.let { adopt(it) }
+        var supported = true
+        // Every change from here on, the current state first; the one just taken over is skipped by the comparison.
+        store.settings.map(::SyncedPreferences).distinctUntilChanged().debounce(settleTime).collectLatest { local ->
+            if (!supported || local == known) return@collectLatest
+            if (push(api, clientId, local)) known = local else supported = false
+        }
+    }
+
+    /** The server's copy, asked for until the server answers; null when the server refuses to read it. */
+    private suspend fun serverCopy(api: SofaKingApi, clientId: String): ServerCopy? {
+        while (true) {
             try {
-                remote = api.preferences(clientId)
-                answered = true
-            } catch (e: CancellationException) {
-                throw e
+                return ServerCopy(api.preferences(clientId))
             } catch (e: SofaKingException) {
                 // A refusal will not change by asking again; a timeout, a rate limit or a server error may.
-                if (e.status in 400..499 && e.status != 408 && e.status != 429) {
+                if (e.refusal) {
                     log.i { "preferences: the server refused to read them (${e.code}); not syncing" }
-                    return
+                    return null
                 }
                 log.w { "preferences: could not read the server's copy (${e.code})" }
             } catch (e: IOException) {
                 log.w { "preferences: could not read the server's copy (${e.message})" }
             }
-            if (!answered) delay(retryAfter)
-        }
-        val initial = store.settings.first()
-        if (remote != null && remote.updatedAt.isNotEmpty() && remote.updatedAt != initial.preferencesSyncedAt) {
-            val taken = SyncedPreferences.of(remote)
-            log.i { "preferences: taking the server's copy from ${remote.updatedAt}" }
-            store.applyServerPreferences(taken.hidden, taken.favorites, taken.recent, remote.updatedAt)
-            known = taken
-        } else if (remote != null) {
-            known = SyncedPreferences.of(remote)
-        }
-        // Every change from here on, the current state first; the one just taken over is skipped by the comparison.
-        store.settings.map(::SyncedPreferences).distinctUntilChanged().debounce(settleTime).collectLatest { local ->
-            if (!supported || local == known) return@collectLatest
-            while (true) {
-                try {
-                    val saved = api.savePreferences(clientId, local.toDto(client))
-                    store.setPreferencesSyncedAt(saved.updatedAt)
-                    known = local
-                    return@collectLatest
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: SofaKingException) {
-                    if (e.status == 404 || e.status == 401) {
-                        log.i { "preferences: the server does not keep them (${e.code}); not syncing" }
-                        supported = false
-                        return@collectLatest
-                    }
-                    log.w { "preferences: push refused (${e.code})" }
-                } catch (e: IOException) {
-                    log.w { "preferences: push failed (${e.message})" }
-                }
-                delay(retryAfter)
-            }
+            delay(retryAfter)
         }
     }
+
+    /** [remote] as this device has it now: taken over when it changed since this device last synced. */
+    private suspend fun adopt(remote: ViewerPreferencesDto): SyncedPreferences {
+        val taken = SyncedPreferences.of(remote)
+        if (remote.updatedAt.isNotEmpty() && remote.updatedAt != store.settings.first().preferencesSyncedAt) {
+            log.i { "preferences: taking the server's copy from ${remote.updatedAt}" }
+            store.applyServerPreferences(taken.hidden, taken.favorites, taken.recent, remote.updatedAt)
+        }
+        return taken
+    }
+
+    /** Pushes [local] until the server keeps it: true once saved, false when the server does not keep preferences. */
+    private suspend fun push(api: SofaKingApi, clientId: String, local: SyncedPreferences): Boolean {
+        while (true) {
+            try {
+                val saved = api.savePreferences(clientId, local.toDto(client))
+                store.setPreferencesSyncedAt(saved.updatedAt)
+                return true
+            } catch (e: SofaKingException) {
+                if (e.statusCode == HttpStatusCode.NotFound || e.statusCode == HttpStatusCode.Unauthorized) {
+                    log.i { "preferences: the server does not keep them (${e.code}); not syncing" }
+                    return false
+                }
+                log.w { "preferences: push refused (${e.code})" }
+            } catch (e: IOException) {
+                log.w { "preferences: push failed (${e.message})" }
+            }
+            delay(retryAfter)
+        }
+    }
+
+    /** The server's answer when asked for its copy: null [preferences] when it has none. */
+    private class ServerCopy(val preferences: ViewerPreferencesDto?)
 
     private companion object {
         val log = Logger.withTag("SofaKing")
     }
 }
+
+/** A client error asking again will not change: any 4xx but a timeout or a rate limit. */
+private val SofaKingException.refusal: Boolean
+    get() = status in CLIENT_ERRORS && statusCode != HttpStatusCode.RequestTimeout &&
+        statusCode != HttpStatusCode.TooManyRequests
+
+private val CLIENT_ERRORS = 400..499

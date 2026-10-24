@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.data
 
 import co.touchlab.kermit.Logger
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -100,7 +101,7 @@ class ServerConnection(
                 }
             }.onFailure { e ->
                 if (e is SofaKingException) {
-                    if (e.status == 404) return ServerCapabilities()
+                    if (e.statusCode == HttpStatusCode.NotFound) return ServerCapabilities()
                     log.w { "bootstrap refused: ${e.code}" }
                 } else {
                     log.w { "bootstrap failed: ${e.message}" }

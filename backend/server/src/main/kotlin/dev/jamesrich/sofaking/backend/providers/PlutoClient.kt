@@ -16,12 +16,14 @@ import kotlinx.serialization.json.put
  * Pluto TV as pluto.tv uses it: `boot/v4/start` with the install's device id as client id answers a session JWT,
  * the stitcher host and its query parameters; the channels service lists channels and categories and serves the
  * guide as timelines; a resolve is the channel's stitcher path with those parameters and the JWT. Channels entitled
- * only to registered users are left out.
+ * only to registered users are left out. Pluto picks the lineup by the caller's address, so another country's lineup
+ * takes the `region` and `forwardedFor` options ([RegionOptions]).
  */
 class PlutoClient(private val context: ProviderContext) : ProviderClient {
     override val service: String get() = "pluto"
 
     private val bootUrl = context.options["bootUrl"] ?: BOOT_URL
+    private val regional = RegionOptions(context.options)
 
     private class Listed(val channel: ProviderChannel, val path: String)
 
@@ -70,7 +72,7 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
             ?: throw ProviderFailure("Channel is no longer listed", transient = false)
         val session = session()
         val url = "${session.stitcher}/v2$path?${session.params}&jwt=${session.token}&masterJWTPassthrough=true&includeExtendedEvents=true"
-        return ResolvedStream(url, STREAM_HEADERS, context.clock.instant().plus(URL_LIFETIME))
+        return ResolvedStream(url, streamHeaders(), context.clock.instant().plus(URL_LIFETIME))
     }
 
     private suspend fun listed(): List<Listed> = context.cached(CHANNELS, Duration.ofMinutes(30)) { fetchChannels() }
@@ -90,7 +92,7 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
             if (channel["entitlements"].array.isNotEmpty() || result.containsKey(id)) continue
             val logo = channel["images"].array.firstOrNull { it.str("type") == "colorLogoPNG" }.str("url")
             val group = channel["categoryIDs"].array.firstNotNullOfOrNull { categories[it.string] }
-            result[id] = Listed(ProviderChannel(id, name, channel.str("number"), httpOrNull(logo), group, listOf("us")), path)
+            result[id] = Listed(ProviderChannel(id, name, channel.str("number"), httpOrNull(logo), group, regional.tags), path)
         }
         if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
         return result.values.toList()
@@ -115,7 +117,7 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
         val query = "appName=web&appVersion=$APP_VERSION&deviceVersion=122.0.0&deviceModel=web&deviceMake=chrome&deviceType=web" +
             "&clientModelNumber=1.0.0&serverSideAds=false&drmCapabilities=&blockingMode=&notificationVersion=1&appLaunchCount=&lastAppLaunchDate=" +
             "&clientID=$clientId&clientTime=${URLEncoder.encode(now.truncatedTo(ChronoUnit.SECONDS).toString(), Charsets.UTF_8)}"
-        val boot = context.http.get("$bootUrl?$query", STREAM_HEADERS + ("Accept" to "application/json")).require("Pluto boot").json()
+        val boot = context.http.get("$bootUrl?$query", streamHeaders() + ("Accept" to "application/json")).require("Pluto boot").json()
         val session = Session(
             boot.str("sessionToken") ?: throw ProviderFailure("Pluto boot answered no session"),
             boot["servers"].str("channels") ?: CHANNELS_BASE,
@@ -127,8 +129,10 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
         return session
     }
 
-    private fun headers(session: Session) = STREAM_HEADERS + mapOf("Accept" to "application/json", "Authorization" to "Bearer ${session.token}")
+    private fun headers(session: Session) = streamHeaders() + mapOf("Accept" to "application/json", "Authorization" to "Bearer ${session.token}")
 
+    /** What every request sends: the web client's headers, and with `forwardedFor` the address that picks the region. */
+    private fun streamHeaders() = STREAM_HEADERS + regional.headers
 
     companion object {
         private const val BOOT_URL = "https://boot.pluto.tv/v4/start"

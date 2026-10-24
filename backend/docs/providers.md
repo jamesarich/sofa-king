@@ -40,7 +40,7 @@ The portal's Sources page writes this file: every service is a switch, with its 
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
 | `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo`, `pluto`, `tubi`, `direct`, `hdhomerun` |
-| `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung`, `dma` and `market` for `localnow`, `market` for `xumo`, `url` (required) and `transcode` for `hdhomerun` |
+| `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung`, `region` and `forwardedFor` for `pluto` and `plex`, `dma` and `market` for `localnow`, `market` for `xumo`, `url` (required) and `transcode` for `hdhomerun` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
 | `probe` | `true` | Probes resolve the channel and qualify the resolved URL like any source. A lineup policy ignores it ([probing](lineup-policy.md#probing)) |
@@ -62,6 +62,16 @@ Programs carry the metadata the guide responses already hold, with no extra requ
 | `samsung`, `roku` | Whatever the XMLTV carries, read as for any XMLTV guide |
 
 From the other services' guides the server reads titles, descriptions and times only.
+
+### Other countries' lineups
+
+Samsung TV Plus publishes each country's lineup, so another country is only its `region` (see [samsung](#samsung-samsung-tv-plus)). Pluto TV and Plex pick the lineup by the caller's address instead. For them, `region` is the two-letter code the channels are tagged with, and `forwardedFor` is an IP address in that country, sent as `X-Forwarded-For` on every request the client makes and every request the relay makes for the provider's streams, so the service answers as it would in that country. Give each country its own provider beside the US one:
+
+```json
+{ "id": "pluto-gb", "type": "native", "service": "pluto", "options": { "region": "gb", "forwardedFor": "ADDRESS_IN_GB" } }
+```
+
+The i.mjh.nz Pluto TV and Plex channel lists carry one address per country they serve. Both services honor the header. Pluto TV's 14 addresses give 12 lineups, since Argentina and Mexico share one Latin American lineup and the Chile address answers with Canada's. Plex's 8 give 8, and the streams play from a US connection with the header on every request. LG Channels answers any country but the US with an error, so `lg` takes no region. The services decide whether they honor the header, and a lineup they serve that way can stop answering at any time. Presenting an address that is not the server's is a further departure from the services' terms than the clients already are. A `forwardedFor` that is not an IP address fails the provider's imports and resolves, never the server's start.
 
 ## How a native source plays
 

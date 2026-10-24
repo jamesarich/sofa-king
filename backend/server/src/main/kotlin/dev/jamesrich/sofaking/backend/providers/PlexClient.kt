@@ -14,7 +14,8 @@ import kotlinx.coroutines.delay
 /**
  * Plex's free live channels as watch.plex.tv uses them: an anonymous plex.tv token, the `plex` lineup on
  * epg.provider.plex.tv with a genre listing per guide filter, the per-channel `grid` for the guide, and a
- * `library/parts` master served directly with the token in its query.
+ * `library/parts` master served directly with the token in its query. Plex picks the lineup by the caller's address,
+ * so another country's lineup takes the `region` and `forwardedFor` options ([RegionOptions]).
  */
 class PlexClient(private val context: ProviderContext) : ProviderClient {
     override val service: String get() = "plex"
@@ -23,6 +24,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
     private val authUrl = context.options["authUrl"] ?: AUTH_URL
     private val gridSpacingMillis = context.options["gridSpacingMillis"]?.toLongOrNull() ?: GRID_SPACING_MILLIS
     private val rateLimitWaitMillis = context.options["rateLimitWaitMillis"]?.toLongOrNull() ?: RATE_LIMIT_WAIT_MILLIS
+    private val regional = RegionOptions(context.options)
 
     private class Listed(val channel: ProviderChannel, val partKey: String)
 
@@ -75,7 +77,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
         var url = ""
         val answer = signedIn { token ->
             url = "$apiBase$key?includeAllStreams=1&X-Plex-Product=${encode(PRODUCT)}&X-Plex-Token=${encode(token)}"
-            context.http.get(url, STREAM_HEADERS, limit = MANIFEST_LIMIT, follow = false)
+            context.http.get(url, streamHeaders(), limit = MANIFEST_LIMIT, follow = false)
         }
         // Some parts redirect to their CDN master. A part Plex answers 400 for is not served to anyone; asking again never changes that.
         val target = if (answer.status in 300..399 && answer.location != null) {
@@ -86,7 +88,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
             if (!answer.text().trimStart().startsWith("#EXTM3U")) throw ProviderFailure("Plex part is not a playlist")
             url
         }
-        return ResolvedStream(target, STREAM_HEADERS, context.clock.instant().plus(URL_LIFETIME))
+        return ResolvedStream(target, streamHeaders(), context.clock.instant().plus(URL_LIFETIME))
     }
 
     private suspend fun listed(): List<Listed> = context.cached(CHANNELS, Duration.ofMinutes(30)) { fetchChannels() }
@@ -103,7 +105,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
             val name = channel.str("title") ?: continue
             val key = media["Part"][0].str("key") ?: continue
             if (result.containsKey(id)) continue
-            result[id] = Listed(ProviderChannel(id, name, null, httpOrNull(channel.str("thumb")), groups[id], listOf("us")), key)
+            result[id] = Listed(ProviderChannel(id, name, null, httpOrNull(channel.str("thumb")), groups[id], regional.tags), key)
         }
         if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
         return result.values.toList()
@@ -152,7 +154,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun token(): String {
         context.state(TOKEN)?.let { return it }
-        val answer = context.http.post(authUrl, BASE_HEADERS + ("X-Plex-Client-Identifier" to context.deviceId()) + ("Accept" to "application/json"), body = "")
+        val answer = context.http.post(authUrl, BASE_HEADERS + regional.headers + ("X-Plex-Client-Identifier" to context.deviceId()) + ("Accept" to "application/json"), body = "")
             .require("Plex anonymous auth").json()
         val token = answer.str("authToken") ?: throw ProviderFailure("Plex anonymous auth returned no token")
         context.saveState(TOKEN, token, null)
@@ -160,7 +162,10 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
     }
 
     private suspend fun headers(token: String): Map<String, String> =
-        BASE_HEADERS + mapOf("Accept" to "application/json", "X-Plex-Token" to token, "X-Plex-Client-Identifier" to context.deviceId())
+        BASE_HEADERS + regional.headers + mapOf("Accept" to "application/json", "X-Plex-Token" to token, "X-Plex-Client-Identifier" to context.deviceId())
+
+    /** What a stream request sends: the web client's headers, and with `forwardedFor` the address that picks the region. */
+    private fun streamHeaders() = STREAM_HEADERS + regional.headers
 
     private fun encode(value: String) = URLEncoder.encode(value, Charsets.UTF_8)
 

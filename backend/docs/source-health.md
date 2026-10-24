@@ -19,14 +19,14 @@ Healthy sources recheck after six hours. A recheck of a healthy source copies th
 
 | Evidence | Class | Strike |
 | --- | --- | --- |
-| HTTP 401, 403, or FFmpeg `Server returned 401/403` | `AUTH` | No |
+| HTTP 401, 403, or FFmpeg `Server returned 401/403` | `AUTH` | No, unless another source of the provider qualified since this one was last refused |
 | HTTP 429 or FFmpeg `Server returned 429` | `RATE_LIMIT` | No |
 | HTTP 5xx, FFmpeg `Server returned 5XX`, connection refused/reset/timeout, DNS, TLS, or decode deadline exceeded | `PROVIDER` | No |
 | HTTP 502 from a configured restream origin (`SOFA_RESTREAM_ORIGINS`) | `OFFERING` | Yes |
 | HTTP 404, 410 or other 4xx; 2xx without a stream signature; FFmpeg `Server returned 404` or `4XX`; decode failures; premature stream end | `OFFERING` | Yes |
 | Missing decoder, permission, memory or disk errors | `LOCAL` | No |
 
-`OFFERING` evidence points at the source itself, so only it strikes. Restream origins are LAN proxies whose 502 means their upstream is gone. List them as `host` or `host:port`; the scheme's default port applies when a URL has none. The same 502 from any other origin is provider evidence and never strikes.
+`OFFERING` evidence points at the source itself, so only it strikes. A refusal is the provider's while its credentials fail everywhere, but once another source of the same provider has qualified since a source was last refused, the refusal is that source's own, such as a channel geo-blocked from the server's country or behind a partner's dead token, and it is recorded as `OFFERING`. A credential outage stops every source of the provider qualifying, so it never quarantines them. The server keeps these times in memory, so after a restart a source's first refusal does not strike. Restream origins are LAN proxies whose 502 means their upstream is gone. List them as `host` or `host:port`; the scheme's default port applies when a URL has none. The same 502 from any other origin is provider evidence and never strikes.
 
 ## States
 

@@ -83,6 +83,10 @@ class ProbeWorker(
     private val outcomes = HashMap<String, Int>()
     private var batchStartedAt: Instant? = null
 
+    /** When a source of each provider last qualified, and when each source was last refused, for [evidence]. */
+    private val providerQualified = HashMap<String, Instant>()
+    private val refused = HashMap<String, Instant>()
+
     suspend fun run() = coroutineScope {
         repeat(config.parallelism) { launch { worker() } }
     }
@@ -229,17 +233,35 @@ class ProbeWorker(
                     )
             }
         val at = clock.instant()
+        val recorded = mutex.withLock {
+            evidence(offering, failure, at).also { outcomes.merge(it?.name ?: "QUALIFIED", 1, Int::plus) }
+        }
         val after = store.recordObservation(
             offering.id,
-            Observation(UUID.randomUUID().toString(), at, failure == null, failure),
+            Observation(UUID.randomUUID().toString(), at, recorded == null, recorded),
             at,
         )
-        mutex.withLock { outcomes.merge(failure?.name ?: "QUALIFIED", 1, Int::plus) }
         onObserved(offering.id)
         if (before != after.status) {
             log.info("source health offering={} from={} to={}", offering.id, before, after.status)
             onHealthChanged(offering.id)
         }
+    }
+
+    /**
+     * [failure] as the health policy takes it. A refusal ([FailureClass.AUTH]) is the provider's while its credentials
+     * fail everywhere, but this source's own once another source of the provider has qualified since this one was
+     * last refused, as with a channel geo-blocked or behind a partner's dead token: it then strikes as
+     * [FailureClass.OFFERING]. A credential outage stops the provider's other sources qualifying too, so it never
+     * quarantines them.
+     */
+    private fun evidence(offering: Offering, failure: FailureClass?, at: Instant): FailureClass? {
+        if (failure == null) providerQualified[offering.providerId] = at
+        if (failure != FailureClass.AUTH) return failure
+        val previous = refused.put(offering.id, at)
+        val qualified = providerQualified[offering.providerId]
+        val sourceOwn = previous != null && qualified != null && !qualified.isBefore(previous)
+        return if (sourceOwn) FailureClass.OFFERING else failure
     }
 
     /**

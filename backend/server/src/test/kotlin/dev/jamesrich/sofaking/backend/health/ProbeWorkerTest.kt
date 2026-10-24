@@ -111,6 +111,52 @@ class ProbeWorkerTest {
         }
     }
 
+    @Test fun `a refusal strikes once the provider's other sources qualify, but not while all are refused`() =
+        runBlocking<Unit> {
+            val dir = Files.createTempDirectory("sofa-probe-refused-")
+            try {
+                HttpClient(CIO).use { http ->
+                    openStore(dir).use { store ->
+                        val clock = MutableClock()
+                        store.saveSnapshot(
+                            FeedSnapshot(
+                                "p",
+                                listOf(Channel("a", "1", "Blocked"), Channel("b", "2", "Open")),
+                                listOf(
+                                    Offering("blocked", "a", "p", "http://example.test/a.m3u8", "hls"),
+                                    Offering("open", "b", "p", "http://example.test/b.m3u8", "hls"),
+                                ),
+                                clock.now.toString(),
+                            ),
+                        )
+                        val feeds =
+                            FeedService(listOf(FeedConfig("p", "http://example.test/feed.m3u")), store, http, clock)
+                        feeds.initialize()
+                        var outage = true
+                        val worker = ProbeWorker(feeds, store, clock, "unused") { offering, _ ->
+                            if (offering.id == "open" && !outage) null else FailureClass.AUTH
+                        }
+                        repeat(2) {
+                            while (worker.step()) Unit
+                            clock.now = clock.now.plusSeconds(300)
+                        }
+                        assertTrue(store.health("blocked")!!.failures.isEmpty(), "a credential outage strikes nothing")
+                        assertTrue(store.health("open")!!.failures.isEmpty())
+                        outage = false
+                        repeat(2) {
+                            while (worker.step()) Unit
+                            clock.now = clock.now.plusSeconds(300)
+                        }
+                        assertEquals(HealthStatus.HEALTHY, store.health("open")!!.status)
+                        assertEquals(HealthStatus.SUSPECT, store.health("blocked")!!.status)
+                        assertEquals(FailureClass.OFFERING, store.health("blocked")!!.failures.single().failureClass)
+                    }
+                }
+            } finally {
+                dir.toFile().deleteRecursively()
+            }
+        }
+
     @Test
     fun `a resolve that throws outside the provider contract is recorded against the source`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-probe-resolve-")

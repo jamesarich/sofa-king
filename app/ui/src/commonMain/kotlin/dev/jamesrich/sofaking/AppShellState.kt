@@ -34,14 +34,19 @@ internal class AppShellState(
     /** A back stack per tab, shown by Navigation 3. */
     var nav by nav
 
-    /** The channel the player has tuned, so the guide knows which one it came back from, and the one before it for Last. */
+    /**
+     * The channel the player has tuned, so the guide knows which one it came back from, and the one before it for Last.
+     */
     var history by history
 
     /** The cold start has picked its page, once per process; the guide and preview wait for it. */
     var launchDecided by launchDecided
         private set
 
-    /** The PIN, once entered, opens Settings and the pages behind it until the viewer leaves for the guide or the player. */
+    /**
+     * The PIN, once entered, opens Settings and the pages behind it until the viewer
+     * leaves for the guide or the player.
+     */
     var settingsUnlocked by settingsUnlocked
 
     /** Where focus goes when a tab's page comes back, or null once it has been asked for. */
@@ -56,7 +61,9 @@ internal class AppShellState(
     /** The Settings lock's count of wrong tries, which outlives each trip to Settings. */
     val settingsLock = SettingsLock()
 
-    /** The players' sleep timer, which lasts through zaps and Up next until the viewer leaves the full-screen player. */
+    /**
+     * The players' sleep timer, which lasts through zaps and Up next until the viewer leaves the full-screen player.
+     */
     val sleep = SleepTimer()
 
     /** The items Up next played by itself in a row, for "Still watching?". */
@@ -86,7 +93,15 @@ internal class AppShellState(
 
     /** A tab picked in the header or the navigation bar; Live comes back on the channel last watched. */
     fun openTab(picked: Tab) {
-        nav = nav.closeSettings().open(picked, if (picked == Tab.LIVE) Arrival(returnedFrom = history.watching) else Arrival())
+        nav =
+            nav.closeSettings().open(
+                picked,
+                if (picked == Tab.LIVE) {
+                    Arrival(returnedFrom = history.watching)
+                } else {
+                    Arrival()
+                },
+            )
     }
 
     /** Leaving Settings lands on the page it was opened from, with focus back on the header's Settings button. */
@@ -168,5 +183,5 @@ internal fun tabsOffered(
         is LibraryHomeState.Ready -> libraryHome.home.libraries.isNotEmpty()
         else -> true
     },
-    recordings = capabilities.recordings || open == Tab.RECORDINGS && recordings != RecordingsState.Unavailable,
+    recordings = capabilities.recordings || (open == Tab.RECORDINGS && recordings != RecordingsState.Unavailable),
 )

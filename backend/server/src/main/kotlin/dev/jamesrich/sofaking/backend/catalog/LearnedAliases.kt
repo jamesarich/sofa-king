@@ -13,9 +13,14 @@ private val START_TOLERANCE: Duration = Duration.ofMinutes(5)
 
 /**
  * What schedule evidence decided in one run. [learned] maps each new `from` key to the station key it joins;
- * [suggestions] are loose pairs no schedule could settle; [findings] are merges the evidence wanted but the policy blocked.
+ * [suggestions] are loose pairs no schedule could settle; [findings] are merges the evidence
+ * wanted but the policy blocked.
  */
-class Learning(val learned: Map<String, String> = emptyMap(), val suggestions: List<String> = emptyList(), val findings: List<String> = emptyList())
+class Learning(
+    val learned: Map<String, String> = emptyMap(),
+    val suggestions: List<String> = emptyList(),
+    val findings: List<String> = emptyList(),
+)
 
 /**
  * Pairs of live stations, each sorted, whose channels share a loose name ([looseName]) and that [never] does not
@@ -33,7 +38,14 @@ fun loosePairs(result: BuildResult, never: List<List<String>>): List<Pair<String
     val pairs = sortedSetOf<Pair<String, String>>(compareBy({ it.first }, { it.second }))
     for (stations in byLoose.values) {
         val keys = stations.toList()
-        for (i in keys.indices) for (j in i + 1 until keys.size) if (!neverMerges(never, keys[i], keys[j])) pairs += keys[i] to keys[j]
+        for (i in keys.indices) {
+            for (j in i + 1 until keys.size) {
+                if (!neverMerges(never, keys[i], keys[j])) {
+                    pairs +=
+                        keys[i] to keys[j]
+                }
+            }
+        }
     }
     return pairs.toList()
 }
@@ -43,13 +55,20 @@ private fun titleKey(title: String): String = title.lowercase().filter { it.isLe
 
 /** Programs of [a] that [b] airs too: the same title starting within five minutes, each program matched once. */
 fun matchingPrograms(a: List<GuideProgram>, b: List<GuideProgram>): Int {
-    val pool = b.map { titleKey(it.title) to it.startsAt }.filter { it.first.isNotEmpty() }.sortedBy { it.second }.toMutableList()
+    val pool = b.map {
+        titleKey(it.title) to it.startsAt
+    }.filter { it.first.isNotEmpty() }.sortedBy { it.second }.toMutableList()
     var matched = 0
     for (program in a.sortedWith(compareBy({ it.startsAt }, { it.title }))) {
         val title = titleKey(program.title)
         if (title.isEmpty()) continue
-        val index = pool.indexOfFirst { (other, starts) -> other == title && abs(Duration.between(starts, program.startsAt).toSeconds()) <= START_TOLERANCE.toSeconds() }
-        if (index >= 0) { pool.removeAt(index); matched++ }
+        val index = pool.indexOfFirst { (other, starts) ->
+            other == title && abs(Duration.between(starts, program.startsAt).toSeconds()) <= START_TOLERANCE.toSeconds()
+        }
+        if (index >= 0) {
+            pool.removeAt(index)
+            matched++
+        }
     }
     return matched
 }
@@ -62,7 +81,8 @@ fun sameSchedule(a: List<GuideProgram>, b: List<GuideProgram>): Boolean {
 }
 
 /** An override that holds nothing but a number, which a learned alias may drop with its station. */
-internal fun numberOnly(override: StationOverride?): Boolean = override == null || override.copy(number = null) == StationOverride()
+internal fun numberOnly(override: StationOverride?): Boolean =
+    override == null || override.copy(number = null) == StationOverride()
 
 /**
  * Decides the loose pairs of [result] from [schedules] (station key to its guide's programs in the window; a key
@@ -87,25 +107,40 @@ fun learnAliases(result: BuildResult, policy: LineupPolicy, schedules: Map<Strin
         }
         if (!sameSchedule(left, right)) continue
         val (ra, rb) = root(a) to root(b)
-        if (ra != rb) { val (low, high) = listOf(ra, rb).sorted(); parent[high] = low }
+        if (ra != rb) {
+            val (low, high) = listOf(ra, rb).sorted()
+            parent[high] = low
+        }
     }
-    val components = parent.keys.plus(parent.values).distinct().groupBy(::root).values.map { it.sorted() }.sortedBy { it.first() }
+    val components = parent.keys.plus(parent.values).distinct().groupBy(::root).values.map {
+        it.sorted()
+    }.sortedBy { it.first() }
     val learned = sortedMapOf<String, String>()
     val findings = ArrayList<String>()
     for (members in components) {
         val into = members.maxWith(target)
-        val apart = members.flatMap { a -> members.filter { b -> a < b && neverMerges(never, a, b) }.map { b -> "$a and $b" } }
+        val apart = members.flatMap { a ->
+            members.filter { b -> a < b && neverMerges(never, a, b) }.map { b -> "$a and $b" }
+        }
         if (apart.isNotEmpty()) {
-            findings += "$into: schedules match ${members.filter { it != into }.joinToString()}, but names.never keeps ${apart.joinToString()} apart; not merged"
+            findings +=
+                "$into: schedules match ${members.filter { it != into }.joinToString()}, but names.never keeps " +
+                "${apart.joinToString()} apart; not merged"
             continue
         }
         for (from in members.filter { it != into }) {
             val override = policy.stations[from]
-            // A number the household set is never released, so a merge would lose it; one the server wrote goes with the key.
+            // A number the household set is never released, so a merge would lose it; one the
+            // server wrote goes with the key.
             val handNumbered = override?.number != null && from !in policy.numbering.assigned
-            if (numberOnly(override) && !handNumbered) learned[from] = into
-            else {
-                val why = if (handNumbered && numberOnly(override)) "its number was set by hand" else "its station override holds more than a number"
+            if (numberOnly(override) && !handNumbered) {
+                learned[from] = into
+            } else {
+                val why = if (handNumbered && numberOnly(override)) {
+                    "its number was set by hand"
+                } else {
+                    "its station override holds more than a number"
+                }
                 findings += "$from: schedule matches $into, but $why; not merged"
                 suggestions += "$from: possible alias of $into"
             }
@@ -118,7 +153,11 @@ fun learnAliases(result: BuildResult, policy: LineupPolicy, schedules: Map<Strin
  * [existing] without [drop], plus [added], each target resolved through the rest so no entry chains. Entries that
  * resolve to themselves are left out.
  */
-fun mergeLearned(existing: Map<String, String>, added: Map<String, String>, drop: Set<String> = emptySet()): Map<String, String> {
+fun mergeLearned(
+    existing: Map<String, String>,
+    added: Map<String, String>,
+    drop: Set<String> = emptySet(),
+): Map<String, String> {
     val all = existing.filterKeys { it !in drop } + added
     fun final(key: String): String {
         var value = key

@@ -7,7 +7,10 @@ package dev.jamesrich.sofaking.data
 data class PlaybackPreferences(
     val matchFrameRate: Boolean = false,
     val decoder: DecoderPreference = DecoderPreference.AUTO,
-    /** Per-channel overrides of [decoder], keyed by [Channel.guideId], for the odd stream a hardware decoder cannot play. */
+    /**
+     * Per-channel overrides of [decoder], keyed by [Channel.guideId], for the odd stream a
+     * hardware decoder cannot play.
+     */
     val decoderByChannel: Map<String, DecoderPreference> = emptyMap(),
     val buffer: BufferPreference = BufferPreference.STANDARD,
 ) {

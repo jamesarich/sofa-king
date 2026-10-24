@@ -5,11 +5,11 @@ import dev.jamesrich.sofaking.backend.api.HdhrRefusedClient
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.hdhrAllowed
 import dev.jamesrich.sofaking.backend.store.saveHdhrAllowed
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Clock
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /** A client the HDHomeRun emulation refused: its address, when it last asked, and the path it asked for. */
 data class HdhrRefusal(val address: String, val at: Instant, val path: String)
@@ -29,8 +29,10 @@ class HdhrAccess(
 ) {
     private val fromEnvironment = AddressAllowList(configured)
     private val writes = Mutex()
+
     @Volatile var allowed: List<String> = emptyList()
         private set
+
     @Volatile private var fromPortal = AddressAllowList(emptyList())
     private val refused = ConcurrentHashMap<String, HdhrRefusal>()
 
@@ -54,15 +56,21 @@ class HdhrAccess(
     val open: Boolean get() = configured.isEmpty() && allowed.isEmpty() && openWhenEmpty
 
     /** The addresses refused since the start that are still refused, newest first. */
-    fun refusals(): List<HdhrRefusal> = refused.values.filterNot { r -> isAllowed(r.address) }.sortedByDescending { it.at }
+    fun refusals(): List<HdhrRefusal> = refused.values.filterNot { r ->
+        isAllowed(r.address)
+    }.sortedByDescending { it.at }
 
     /** What the admin API and the portal show; [enabled] says whether the emulation is served at all. */
     fun status(enabled: Boolean) = HdhrAccessStatus(
-        enabled, open, configured, allowed, refusals().map { HdhrRefusedClient(it.address, it.at.toString(), it.path) },
+        enabled,
+        open,
+        configured,
+        allowed,
+        refusals().map { HdhrRefusedClient(it.address, it.at.toString(), it.path) },
     )
 
-    private fun isAllowed(address: String) =
-        (configured.isNotEmpty() && fromEnvironment.allows(address)) || (allowed.isNotEmpty() && fromPortal.allows(address))
+    private fun isAllowed(address: String) = (configured.isNotEmpty() && fromEnvironment.allows(address)) ||
+        (allowed.isNotEmpty() && fromPortal.allows(address))
 
     /**
      * Replaces the portal's addresses with [entries], IP literals or CIDR blocks, and applies them at once. Fails with

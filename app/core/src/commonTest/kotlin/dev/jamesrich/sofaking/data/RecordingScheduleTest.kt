@@ -14,8 +14,16 @@ import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RecordingScheduleTest {
-    private val news = Program("c1", Instant.parse("2026-10-18T18:00:00Z"), Instant.parse("2026-10-18T18:30:00Z"), "Evening News", null)
-    private val film = Program("c1", Instant.parse("2026-10-18T20:00:00Z"), Instant.parse("2026-10-18T22:00:00Z"), "Film", null)
+    private val news =
+        Program(
+            "c1",
+            Instant.parse("2026-10-18T18:00:00Z"),
+            Instant.parse("2026-10-18T18:30:00Z"),
+            "Evening News",
+            null,
+        )
+    private val film =
+        Program("c1", Instant.parse("2026-10-18T20:00:00Z"), Instant.parse("2026-10-18T22:00:00Z"), "Film", null)
 
     private val recordings = """{"recordings":[
         {"id":"r1","channelId":"c1","title":"Evening News","startsAt":"2026-10-18T18:00:00Z","endsAt":"2026-10-18T18:30:00Z","state":"scheduled"},
@@ -35,7 +43,11 @@ class RecordingScheduleTest {
 
         assertEquals(RecordingMark(recording = true, series = true), schedule.marks.value.of(news))
         assertEquals(RecordingMark(), schedule.marks.value.of(film), "a failed recording is not set to record")
-        assertEquals(RecordingMark(series = true), schedule.marks.value.of(news.copy(channelId = "c2")), "a rule for any channel")
+        assertEquals(
+            RecordingMark(series = true),
+            schedule.marks.value.of(news.copy(channelId = "c2")),
+            "a rule for any channel",
+        )
     }
 
     @Test
@@ -51,7 +63,12 @@ class RecordingScheduleTest {
 
         assertEquals(listOf("r1", "r0"), assertIs<RecordingsState.Ready>(schedule.state.value).recordings.map { it.id })
         assertTrue(schedule.marks.value.of(news).recording)
-        assertEquals(listOf("GET /api/v1/recordings", "GET /api/v1/recording-rules"), http.requests.map { it.toString() })
+        assertEquals(
+            listOf("GET /api/v1/recordings", "GET /api/v1/recording-rules"),
+            http.requests.map {
+                it.toString()
+            },
+        )
     }
 
     @Test
@@ -59,9 +76,30 @@ class RecordingScheduleTest {
         var scheduled = false
         val http = FakeHttp(this) { seen ->
             when {
-                seen.method == "POST" -> { scheduled = true; json("""{"id":"r9","channelId":"c1","title":"Film","startsAt":"2026-10-18T20:00:00Z","endsAt":"2026-10-18T22:00:00Z","state":"scheduled"}""", 201) }
-                seen.method == "DELETE" -> { scheduled = false; json("", 204) }
-                seen.path == "/api/v1/recordings" -> json(if (scheduled) """{"recordings":[{"id":"r9","channelId":"c1","title":"Film","startsAt":"2026-10-18T20:00:00Z","endsAt":"2026-10-18T22:00:00Z","state":"scheduled"}]}""" else "{}")
+                seen.method == "POST" -> {
+                    scheduled = true
+                    json(
+                        """{"id":"r9","channelId":"c1","title":"Film","startsAt":"2026-10-18T20:00:""" +
+                            """00Z","endsAt":"2026-10-18T22:00:00Z","state":"scheduled"}""",
+                        201,
+                    )
+                }
+
+                seen.method == "DELETE" -> {
+                    scheduled = false
+                    json("", 204)
+                }
+
+                seen.path == "/api/v1/recordings" -> json(
+                    if (scheduled) {
+                        """{"recordings":[{"id":"r9","channelId":"c1","title":"Film",""" +
+                            """"startsAt":"2026-10-18T20:00:00Z","endsAt":"2026-10-18T22:00:""" +
+                            """00Z","state":"scheduled"}]}"""
+                    } else {
+                        "{}"
+                    },
+                )
+
                 else -> json("{}")
             }
         }
@@ -70,11 +108,20 @@ class RecordingScheduleTest {
 
         assertTrue(schedule.toggle(film))
         assertTrue(schedule.marks.value.of(film).recording)
-        assertEquals(listOf("r9"), assertIs<RecordingsState.Ready>(schedule.state.value).recordings.map { it.id }, "the Recordings tab shows it too")
+        assertEquals(
+            listOf("r9"),
+            assertIs<RecordingsState.Ready>(schedule.state.value).recordings.map {
+                it.id
+            },
+            "the Recordings tab shows it too",
+        )
         assertTrue(schedule.toggle(film))
         assertFalse(schedule.marks.value.of(film).recording)
         assertEquals(
-            listOf("""POST /api/v1/recordings {"channelId":"c1","startsAt":"2026-10-18T20:00:00Z"}""", "DELETE /api/v1/recordings/r9"),
+            listOf(
+                """POST /api/v1/recordings {"channelId":"c1","startsAt":"2026-10-18T20:00:00Z"}""",
+                "DELETE /api/v1/recordings/r9",
+            ),
             http.requests.filter { it.method != "GET" }.map { it.toString() },
         )
     }
@@ -88,7 +135,10 @@ class RecordingScheduleTest {
         runCurrent()
 
         assertFalse(schedule.toggleSeries(news))
-        assertEquals("""POST /api/v1/recording-rules {"title":"Evening News","channelId":"c1"}""", http.requestsOfKind("POST").single())
+        assertEquals(
+            """POST /api/v1/recording-rules {"title":"Evening News","channelId":"c1"}""",
+            http.requestsOfKind("POST").single(),
+        )
     }
 
     @Test
@@ -102,7 +152,12 @@ class RecordingScheduleTest {
         assertTrue(http.requests.isEmpty())
         enabled.value = true
         runCurrent()
-        assertEquals(listOf("GET /api/v1/recordings", "GET /api/v1/recording-rules"), http.requests.map { it.toString() })
+        assertEquals(
+            listOf("GET /api/v1/recordings", "GET /api/v1/recording-rules"),
+            http.requests.map {
+                it.toString()
+            },
+        )
     }
 
     @Test

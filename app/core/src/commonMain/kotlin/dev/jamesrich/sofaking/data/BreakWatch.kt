@@ -20,7 +20,11 @@ class BreakWatch internal constructor(private val timeSource: TimeSource) {
     private var stalling = false
     private var frozen: AdBreakNow? = null
 
-    val over: Boolean get() = if (stalling && frozen != null) false else seen.let { it == null || it.elapsedNow() >= GAP }
+    val over: Boolean get() = if (stalling && frozen != null) {
+        false
+    } else {
+        seen.let { it == null || it.elapsedNow() >= GAP }
+    }
 
     /** The break to show after [found], the latest reading, or null when there is none. */
     fun shown(found: AdBreakNow?): AdBreakNow? {

@@ -44,7 +44,9 @@ class LiveBreaksTest {
         assertNull(at(24_000))
     }
 
-    /** A five-segment window of six-second segments numbered from [sequence], on a clock where segment 0 starts at 0. */
+    /**
+     * A five-segment window of six-second segments numbered from [sequence], on a clock where segment 0 starts at 0.
+     */
     private fun AdMarks.window(sequence: Long, vararg tags: String) =
         add(tags.toList(), sequence, List(5) { (sequence + it) * 6_000L }, List(5) { 6_000L })
 
@@ -53,7 +55,8 @@ class LiveBreaksTest {
         val marks = AdMarks()
         marks.window(10, "#EXT-X-SOFA-AD:FIRST=10,LAST=14")
         marks.window(12, "#EXT-X-SOFA-AD:FIRST=12,LAST=16")
-        // The picture is in segment 11, which the latest window no longer lists; the show segment after 16 is unknown yet.
+        // The picture is in segment 11, which the latest window no longer lists; the show
+        // segment after 16 is unknown yet.
         assertEquals(AdBreakNow(remainingMs = null), marks.at(68_000))
         marks.window(13, "#EXT-X-SOFA-AD:FIRST=13,LAST=16")
         assertEquals(AdBreakNow(remainingMs = 34_000), marks.at(68_000))

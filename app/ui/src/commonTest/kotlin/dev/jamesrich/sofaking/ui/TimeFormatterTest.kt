@@ -26,7 +26,10 @@ class TimeFormatterTest {
         val formatter = TimeFormatter(FixedOffsetTimeZone(UtcOffset(hours = -5)), twentyFourHour = true)
         assertEquals("13:30", formatter.format(Instant.parse("2026-10-12T18:30:00Z")))
         assertEquals("00:05", formatter.format(Instant.parse("2026-10-12T05:05:00Z")))
-        assertEquals("13:00 - 14:30", formatter.range(Instant.parse("2026-10-12T18:00:00Z"), Instant.parse("2026-10-12T19:30:00Z")))
+        assertEquals(
+            "13:00 - 14:30",
+            formatter.range(Instant.parse("2026-10-12T18:00:00Z"), Instant.parse("2026-10-12T19:30:00Z")),
+        )
     }
 
     @Test
@@ -39,7 +42,10 @@ class TimeFormatterTest {
 
     @Test
     fun `a range joins two times with a dash`() {
-        assertEquals("1:00 PM - 2:30 PM", chicago.range(Instant.parse("2026-10-12T18:00:00Z"), Instant.parse("2026-10-12T19:30:00Z")))
+        assertEquals(
+            "1:00 PM - 2:30 PM",
+            chicago.range(Instant.parse("2026-10-12T18:00:00Z"), Instant.parse("2026-10-12T19:30:00Z")),
+        )
     }
 
     @Test

@@ -3,11 +3,11 @@ package dev.jamesrich.sofaking.ui.player
 import androidx.compose.ui.input.key.Key
 import dev.jamesrich.sofaking.ui.guide.gridStep
 import dev.jamesrich.sofaking.ui.isOk
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.test.Test
 
 class PlayerKeysTest {
     @Test
@@ -107,7 +107,7 @@ class PlayerKeysTest {
     }
 
     @Test
-    fun `in the channel list Up and Down go to the list while Left and Right are swallowed and the rest reach the player`() {
+    fun `in the channel list Up and Down move the list and Left and Right are eaten while the rest reach the player`() {
         assertEquals(MiniGuideKey.LIST, Key.DirectionUp.inMiniGuide())
         assertEquals(MiniGuideKey.LIST, Key.DirectionDown.inMiniGuide())
         assertEquals(MiniGuideKey.SWALLOWED, Key.DirectionLeft.inMiniGuide())

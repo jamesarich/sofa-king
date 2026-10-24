@@ -1,11 +1,11 @@
 package dev.jamesrich.sofaking.ui.player
 
 import androidx.annotation.OptIn
-import co.touchlab.kermit.Logger
 import androidx.media3.common.ForwardingSimpleBasePlayer
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import co.touchlab.kermit.Logger
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 

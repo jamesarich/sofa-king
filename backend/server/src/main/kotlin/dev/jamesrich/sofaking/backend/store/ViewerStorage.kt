@@ -2,7 +2,6 @@ package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.api.Viewer
 import dev.jamesrich.sofaking.contract.ViewerPreferences
-import java.time.Instant
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.eq
@@ -10,9 +9,13 @@ import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
+import java.time.Instant
 
 /** A stored document may carry fields this server's contract does not declare. */
-private val viewerJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+private val viewerJson = Json {
+    ignoreUnknownKeys = true
+    encodeDefaults = true
+}
 
 /** Every viewer, most recently seen first. */
 suspend fun BackendStore.viewers(): List<Viewer> = read {
@@ -37,36 +40,46 @@ suspend fun BackendStore.touchViewer(clientId: String, name: String, platform: S
         it[firstSeenAt] = at
         it[lastSeenAt] = at
     }.insertedCount
-    if (inserted == 0) Viewers.update({ Viewers.clientId eq clientId }) {
-        it[lastSeenAt] = at
-        if (name.isNotEmpty()) it[Viewers.name] = name
-        if (platform.isNotEmpty()) it[Viewers.platform] = platform
+    if (inserted == 0) {
+        Viewers.update({ Viewers.clientId eq clientId }) {
+            it[lastSeenAt] = at
+            if (name.isNotEmpty()) it[Viewers.name] = name
+            if (platform.isNotEmpty()) it[Viewers.platform] = platform
+        }
     }
     Unit
 }
 
 /** Replaces [clientId]'s preferences with [preferences], stamped [now]; the stored document is returned. */
-suspend fun BackendStore.saveViewerPreferences(clientId: String, preferences: ViewerPreferences, now: Instant): ViewerPreferences = query {
+suspend fun BackendStore.saveViewerPreferences(
+    clientId: String,
+    preferences: ViewerPreferences,
+    now: Instant,
+): ViewerPreferences = query {
     val at = now.toString()
     val existing = Viewers.selectAll().where { Viewers.clientId eq clientId }.singleOrNull()
     val name = preferences.name.ifEmpty { existing?.get(Viewers.name).orEmpty() }
     val platform = preferences.platform.ifEmpty { existing?.get(Viewers.platform).orEmpty() }
     val stored = preferences.copy(name = name, platform = platform, updatedAt = at)
     val json = viewerJson.encodeToString(ViewerPreferences.serializer(), stored)
-    if (existing == null) Viewers.insertIgnore {
-        it[Viewers.clientId] = clientId
-        it[Viewers.name] = name
-        it[Viewers.platform] = platform
-        it[firstSeenAt] = at
-        it[lastSeenAt] = at
-        it[preferencesJson] = json
-        it[updatedAt] = at
-    } else Viewers.update({ Viewers.clientId eq clientId }) {
-        it[Viewers.name] = name
-        it[Viewers.platform] = platform
-        it[lastSeenAt] = at
-        it[preferencesJson] = json
-        it[updatedAt] = at
+    if (existing == null) {
+        Viewers.insertIgnore {
+            it[Viewers.clientId] = clientId
+            it[Viewers.name] = name
+            it[Viewers.platform] = platform
+            it[firstSeenAt] = at
+            it[lastSeenAt] = at
+            it[preferencesJson] = json
+            it[updatedAt] = at
+        }
+    } else {
+        Viewers.update({ Viewers.clientId eq clientId }) {
+            it[Viewers.name] = name
+            it[Viewers.platform] = platform
+            it[lastSeenAt] = at
+            it[preferencesJson] = json
+            it[updatedAt] = at
+        }
     }
     stored
 }
@@ -81,7 +94,15 @@ private fun ResultRow.viewer(): Viewer {
         runCatching { viewerJson.decodeFromString(ViewerPreferences.serializer(), json) }.getOrNull()
     }
     return Viewer(
-        this[Viewers.clientId], this[Viewers.name], this[Viewers.platform], this[Viewers.firstSeenAt], this[Viewers.lastSeenAt],
-        preferences?.copy(name = this[Viewers.name], platform = this[Viewers.platform], updatedAt = this[Viewers.updatedAt].orEmpty()),
+        this[Viewers.clientId],
+        this[Viewers.name],
+        this[Viewers.platform],
+        this[Viewers.firstSeenAt],
+        this[Viewers.lastSeenAt],
+        preferences?.copy(
+            name = this[Viewers.name],
+            platform = this[Viewers.platform],
+            updatedAt = this[Viewers.updatedAt].orEmpty(),
+        ),
     )
 }

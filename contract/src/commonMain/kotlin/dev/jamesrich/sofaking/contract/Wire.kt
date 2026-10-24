@@ -1,6 +1,9 @@
 package dev.jamesrich.sofaking.contract
 
-/** Values the server sends and clients branch on. They stay strings on the wire: a client reads an unknown one as its fallback. */
+/**
+ * Values the server sends and clients branch on. They stay strings on the wire: a client reads
+ * an unknown one as its fallback.
+ */
 object Wire {
     object Intent {
         const val PREVIEW = "preview"
@@ -59,6 +62,7 @@ object Wire {
         const val SEASON = "season"
         const val EPISODE = "episode"
         const val VIDEO = "video"
+
         /** A trailer, featurette or other extra, listed in its movie's or show's [LibraryItemDetail.extras]. */
         const val EXTRA = "extra"
     }
@@ -79,10 +83,13 @@ object Wire {
     object VodMode {
         /** The file as is, with byte ranges. */
         const val DIRECT = "direct"
+
         /** The streams as they are, in an HLS container. */
         const val REMUX = "remux"
+
         /** The video as it is and the audio converted. */
         const val AUDIO = "audio"
+
         /** Video and audio converted. */
         const val TRANSCODE = "transcode"
     }
@@ -91,6 +98,7 @@ object Wire {
     object SegmentKind {
         /** The opening titles and theme an episode shares with others of its show. */
         const val INTRO = "intro"
+
         /** The end credits an episode shares with others of its show; an app that does not know the kind ignores it. */
         const val CREDITS = "credits"
     }
@@ -101,7 +109,10 @@ object Wire {
         const val RECENT = "recent"
     }
 
-    /** How a server advertises itself on the LAN over mDNS (DNS-SD): this service type, the API's port, and a TXT record. */
+    /**
+     * How a server advertises itself on the LAN over mDNS (DNS-SD): this service type, the
+     * API's port, and a TXT record.
+     */
     object Discovery {
         const val SERVICE_TYPE = "_sofaking._tcp"
 

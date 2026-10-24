@@ -19,10 +19,10 @@ internal abstract class StreamLivePlayer(private val nowMs: () -> Long = ::uptim
         private set
     private val pauseClock = LivePauseClock()
 
-    protected val _status = MutableStateFlow(PlayerStatus())
-    protected val _errors = MutableSharedFlow<PlayerError>(extraBufferCapacity = 8)
-    override val status: StateFlow<PlayerStatus> = _status.asStateFlow()
-    override val errors: SharedFlow<PlayerError> = _errors.asSharedFlow()
+    protected val mutableStatus = MutableStateFlow(PlayerStatus())
+    protected val mutableErrors = MutableSharedFlow<PlayerError>(extraBufferCapacity = 8)
+    override val status: StateFlow<PlayerStatus> = mutableStatus.asStateFlow()
+    override val errors: SharedFlow<PlayerError> = mutableErrors.asSharedFlow()
 
     override val currentChannelId: String? get() = stream?.channelId
     override val currentStreamUrl: String? get() = stream?.url

@@ -2,7 +2,10 @@ package dev.jamesrich.sofaking.backend.api
 
 import kotlinx.serialization.Serializable
 
-/** The last Plex sync: when it ran and why, the DVRs whose guide it reloaded, each device it mapped, and what it could not do. */
+/**
+ * The last Plex sync: when it ran and why, the DVRs whose guide it reloaded, each device it
+ * mapped, and what it could not do.
+ */
 @Serializable data class PlexStatus(
     val syncMinutes: Int,
     val lastSyncAt: String? = null,
@@ -15,7 +18,10 @@ import kotlinx.serialization.Serializable
     val findings: List<String> = emptyList(),
 )
 
-/** One of this server's HDHomeRun devices in a Plex DVR: [device] is its index, [plexKey] Plex's key for it, [mapped] the channels saved. */
+/**
+ * One of this server's HDHomeRun devices in a Plex DVR: [device] is its index, [plexKey] Plex's key for
+ * it, [mapped] the channels saved.
+ */
 @Serializable data class PlexDeviceStatus(
     val deviceId: String,
     val device: Int,
@@ -27,7 +33,8 @@ import kotlinx.serialization.Serializable
 
 /**
  * Who may reach the HDHomeRun emulation: [configured] from `SOFA_HDHR_ALLOW`, [allowed] from the portal, and the
- * addresses it refused since the start that are still refused, newest first. [open] is true when every address is admitted.
+ * addresses it refused since the start that are still refused, newest first. [open] is true
+ * when every address is admitted.
  */
 @Serializable data class HdhrAccessStatus(
     val enabled: Boolean,

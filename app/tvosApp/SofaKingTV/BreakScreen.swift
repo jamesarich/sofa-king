@@ -1,10 +1,12 @@
 import SwiftUI
 
-/// The break screen, as the Compose app draws it: black, with the crown-on-sofa mark drifting around and bouncing off
-/// the edges the way an old DVD player's screensaver did, a new color on every edge and the brand colors back on a
-/// corner, with a line to mark the occasion. `remainingMs`, when known, counts down under the mark, over `quip` (the
-/// line the player dealt for this break), `upNext` and the ads dodged today: `dodgedBeforeMs` before this break plus
-/// the time since `coveredSince`. It draws only; the player decides about the sound.
+/// The break screen, as the Compose app draws it: the crown-on-sofa mark drifting around and bouncing off the edges the
+/// way an old DVD player's screensaver did, a new color on every edge and the brand colors back on a corner, with a line
+/// to mark the occasion. The screen starts black, and each hit paints it the sofa's color from before the hit, a little
+/// see-through so the picture faintly shows under it. `remainingMs`, when known, counts down in the middle of the
+/// screen, over `quip` (the line the player dealt for this break), `upNext` and the ads dodged today: `dodgedBeforeMs`
+/// before this break plus the time since `coveredSince`. Only the mark moves; the words stay put. It draws only; the
+/// player decides about the sound.
 struct BreakScreen: View {
     let remainingMs: Int64?
     var quip = ""
@@ -26,6 +28,9 @@ struct BreakScreen: View {
         "Recline. Unwind. Repeat.",
     ]
 
+    /// How much of the picture the screen lets through: hardly any, so the stream only just shows.
+    static let backdropOpacity = 0.9
+
     /// Today in the device's time zone, as `2026-10-22`: the day Ads dodged today counts in.
     static func today() -> String {
         let parts = Calendar.current.dateComponents([.year, .month, .day], from: .now)
@@ -36,41 +41,51 @@ struct BreakScreen: View {
         GeometryReader { geometry in
             TimelineView(.animation) { context in
                 let markSize = min(max(min(geometry.size.width, geometry.size.height) * 0.22, 96), 240)
-                // Wide and tall enough for the lines under the mark, which are wider than the mark itself.
-                let unit = CGSize(width: markSize * 2.2, height: markSize + 150)
                 let bounce = Bounce(
                     // Counted from a fixed date, so the mark carries on where it was whenever the countdown redraws the screen.
                     seconds: context.date.timeIntervalSinceReferenceDate,
-                    room: CGSize(width: max(geometry.size.width - unit.width, 1), height: max(geometry.size.height - unit.height, 1))
+                    room: CGSize(width: max(geometry.size.width - markSize, 1), height: max(geometry.size.height - markSize, 1))
                 )
-                let faint = Color(red: 0.77, green: 0.73, blue: 0.85).opacity(0.7)
-                VStack(spacing: 6) {
+                // The mark's dark ink on a sofa color, the brand's mauve on black.
+                let ink = bounce.backdropHue == nil ? Color(red: 0.77, green: 0.73, blue: 0.85) : SofaMark.ink
+                ZStack {
+                    Group {
+                        if let hue = bounce.backdropHue {
+                            SofaMark.lavender.hueRotation(.degrees(hue))
+                        } else {
+                            Color.black
+                        }
+                    }
+                    .opacity(BreakScreen.backdropOpacity)
+                    .animation(.easeInOut(duration: 0.4), value: bounce.backdropHue)
                     SofaMark()
                         .frame(width: markSize, height: markSize)
                         .hueRotation(.degrees(bounce.hue))
-                    Text(label)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .foregroundStyle(Color(red: 0.77, green: 0.73, blue: 0.85))
-                    Text(bounce.cornerSeconds.map { $0 < 4 } == true ? "Corner! You saw it. Nobody will believe you." : line)
-                        .font(.callout)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(Color(red: 0.77, green: 0.73, blue: 0.85))
-                    if let upNext {
-                        Text(upNext).font(.caption).lineLimit(1).foregroundStyle(faint)
+                        .position(x: bounce.x + markSize / 2, y: bounce.y + markSize / 2)
+                    VStack(spacing: 6) {
+                        Text(label)
+                            .font(.title3)
+                            .lineLimit(1)
+                            .fixedSize()
+                        Text(bounce.cornerSeconds.map { $0 < 4 } == true ? "Corner! You saw it. Nobody will believe you." : line)
+                            .font(.callout)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                        if let upNext {
+                            Text(upNext).font(.caption).lineLimit(1).opacity(0.7)
+                        }
+                        let dodgedMinutes = (dodgedBeforeMs + Int64(max(context.date.timeIntervalSince(coveredSince), 0) * 1000)) / 60_000
+                        if dodgedMinutes > 0 {
+                            Text("Ads dodged today: \(BreakScreen.hoursAndMinutes(dodgedMinutes))").font(.caption).lineLimit(1).opacity(0.7)
+                        }
                     }
-                    let dodgedMinutes = (dodgedBeforeMs + Int64(max(context.date.timeIntervalSince(coveredSince), 0) * 1000)) / 60_000
-                    if dodgedMinutes > 0 {
-                        Text("Ads dodged today: \(BreakScreen.hoursAndMinutes(dodgedMinutes))").font(.caption).lineLimit(1).foregroundStyle(faint)
-                    }
+                    .foregroundStyle(ink)
+                    .animation(.easeInOut(duration: 0.4), value: bounce.backdropHue)
+                    .frame(maxWidth: geometry.size.width * 0.6)
                 }
-                .frame(width: unit.width, height: unit.height, alignment: .top)
-                .position(x: bounce.x + unit.width / 2, y: bounce.y + unit.height / 2)
+                .frame(width: geometry.size.width, height: geometry.size.height)
             }
         }
-        .background(.black)
         .ignoresSafeArea()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
@@ -99,7 +114,8 @@ struct BreakScreen: View {
 
 /// Where the mark is after `seconds`, worked out from the start rather than step by step: each axis runs back and forth
 /// across its room at the same speed. Every edge it has hit moves the color on; a corner, both edges at once, brings
-/// the brand colors back and its line for a few seconds.
+/// the brand colors back and its line for a few seconds. The screen behind it wears the hue the mark had before its
+/// last hit.
 struct Bounce {
     static let speed: Double = 72
     static let cornerSlop: Double = 6
@@ -108,6 +124,8 @@ struct Bounce {
     let x: Double
     let y: Double
     let hue: Double
+    /// The hue the mark wore into its last hit, for the screen behind it; nil before the first.
+    let backdropHue: Double?
     /// How long ago the mark hit a corner, while that corner was its last hit; nil after an edge.
     let cornerSeconds: Double?
 
@@ -117,10 +135,30 @@ struct Bounce {
         let (y, yHits, yLastHit) = Bounce.axis(distance, from: room.height * 0.2, room: room.height)
         self.x = x
         self.y = y
-        let hits = xHits + yHits
-        let corner = xHits > 0 && yHits > 0 && abs(xLastHit - yLastHit) <= Bounce.cornerSlop
-        hue = hits == 0 || corner ? 0 : Bounce.hues[(hits - 1) % 5 + 1]
+        let corner = Bounce.corner(xHits: xHits, yHits: yHits, xLastHit: xLastHit, yLastHit: yLastHit)
+        hue = Bounce.hue(hits: xHits + yHits, corner: corner)
         cornerSeconds = corner ? (distance - max(xLastHit, yLastHit)) / Bounce.speed : nil
+        // Before the last hit: that axis one lap back, the other as it is. An axis that has not hit yet has a
+        // negative last hit, so the later one is always the axis that hit.
+        if xHits + yHits == 0 {
+            backdropHue = nil
+        } else if xLastHit >= yLastHit {
+            let before = Bounce.corner(xHits: xHits - 1, yHits: yHits, xLastHit: xLastHit - room.width, yLastHit: yLastHit)
+            backdropHue = Bounce.hue(hits: xHits + yHits - 1, corner: before)
+        } else {
+            let before = Bounce.corner(xHits: xHits, yHits: yHits - 1, xLastHit: xLastHit, yLastHit: yLastHit - room.height)
+            backdropHue = Bounce.hue(hits: xHits + yHits - 1, corner: before)
+        }
+    }
+
+    /// Whether the last hits on the two axes came close enough together to be a corner.
+    private static func corner(xHits: Int, yHits: Int, xLastHit: Double, yLastHit: Double) -> Bool {
+        xHits > 0 && yHits > 0 && abs(xLastHit - yLastHit) <= Bounce.cornerSlop
+    }
+
+    /// The mark's hue after `hits` edges: the brand's own at the start and on a corner, else the next in the cycle.
+    private static func hue(hits: Int, corner: Bool) -> Double {
+        hits == 0 || corner ? 0 : Bounce.hues[(hits - 1) % 5 + 1]
     }
 
     /// The place along one axis after moving `distance` from `start`, the edges hit so far, and the distance at the last one.
@@ -134,6 +172,11 @@ struct Bounce {
 
 /// The crown-on-sofa mark, from the Compose app's `banner_logo` vector (a 120 by 120 viewport).
 struct SofaMark: View {
+    /// The sofa's own color (its body and arms), which the screen behind the mark wears in the mark's last hue.
+    static let lavender = color(0xC9B8FF)
+    /// The mark's dark ink, for words over a sofa color.
+    static let ink = color(0x14111F)
+
     var body: some View {
         Canvas { context, size in
             let scale = min(size.width, size.height) / 120

@@ -1,10 +1,11 @@
 package dev.jamesrich.sofaking.ui.player
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,11 +30,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -66,7 +68,9 @@ import dev.jamesrich.sofaking.resources.break_screen_back_in
 import dev.jamesrich.sofaking.resources.break_screen_title
 import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.hoursAndMinutes
+import dev.jamesrich.sofaking.ui.theme.SofaLavender
 import dev.jamesrich.sofaking.ui.theme.SofaMauve
+import dev.jamesrich.sofaking.ui.theme.SofaPlum
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -145,6 +149,15 @@ internal fun hueRotation(degrees: Float): ColorMatrix {
 
 private const val HALF_TURN_DEGREES = 180f
 
+/** This color turned [degrees] around the hue wheel by [hueRotation], as the logo's parts are when it wears that hue. */
+internal fun Color.hueRotated(degrees: Float): Color {
+    val m = hueRotation(degrees).values
+    val rgb = floatArrayOf(red, green, blue)
+    fun channel(row: Int) = (0..2).sumOf { (m[row * 5 + it] * rgb[it]).toDouble() }.toFloat().coerceIn(0f, 1f)
+    return Color(channel(0), channel(1), channel(2), alpha)
+}
+
+
 /** The share of red, green and blue in lightness, which a hue rotation keeps (the Filter Effects spec's weights). */
 private val LUMA = floatArrayOf(0.213f, 0.715f, 0.072f)
 
@@ -195,13 +208,15 @@ private object BreakTally {
 }
 
 /**
- * The break screen: black, with the crown-on-sofa mark drifting around and bouncing off the edges the way an old DVD
- * player's screensaver did, a new color on every edge and the brand colors back on a corner, with a little pop and a
- * line to mark the occasion. [remainingMs], when known, counts down under the mark, over a line picked for the break,
- * [upNext] (the channel's next program) and the ads dodged today, [dodgedBeforeMs] before this break plus the time
- * it has been up. Everything moves with the mark, so nothing sits still long enough to burn in. When it goes,
- * [onCover] gets the milliseconds it was on screen, counted in drawn frames, so time in the background is left out.
- * It draws only; the player decides whether the sound plays under it.
+ * The break screen: the crown-on-sofa mark drifting around and bouncing off the edges the way an old DVD player's
+ * screensaver did, a new color on every edge and the brand colors back on a corner, with a little pop and a line to mark
+ * the occasion. The screen starts black, and each hit paints it the sofa's color from before the hit, a little see-through
+ * so the picture faintly shows under it. [remainingMs], when known, counts down in the middle of the screen, over a line
+ * picked for the break, [upNext] (the channel's next program) and the ads dodged today, [dodgedBeforeMs] before this
+ * break plus the time it has been up. Only the mark moves; the words stay put in the middle, and the changing color
+ * behind them keeps them from burning in. When it goes, [onCover] gets the milliseconds it was on screen, counted in
+ * drawn frames, so time in the background is left out. It draws only; the player decides whether the sound plays under
+ * it.
  */
 @Composable
 internal fun BreakScreen(
@@ -212,63 +227,78 @@ internal fun BreakScreen(
     onCover: (Long) -> Unit = {},
 ) {
     val label = stringResource(Res.string.break_screen_title)
-    BoxWithConstraints(
-        modifier
-            .fillMaxSize()
-            .background(SofaScrim)
-            .semantics {
-                contentDescription = label
-                liveRegion = LiveRegionMode.Polite
-            },
-    ) {
-        val density = LocalDensity.current
+    val density = LocalDensity.current
+    val speedPxPerSecond = with(density) { BOUNCE_SPEED.toPx() }
+    val cornerSlop = with(density) { CORNER_SLOP.toPx() }
+    BoxWithConstraints(modifier.fillMaxSize()) {
         val logoSize = (minOf(maxWidth, maxHeight) * LOGO_SHARE).coerceIn(MIN_LOGO, MAX_LOGO)
-        val speedPxPerSecond = with(density) { BOUNCE_SPEED.toPx() }
-        val cornerSlop = with(density) { CORNER_SLOP.toPx() }
         val area = with(density) { IntSize(maxWidth.roundToPx(), maxHeight.roundToPx()) }
+        val unit = with(density) { logoSize.roundToPx() }
         val motion = remember {
             BreakMotion(Bounce(area.width * START_X, area.height * START_Y, right = true, down = true))
         }
         val quip = remember { BreakTally.quips.next() }
         LaunchedEffect(motion.corner) { motion.endCornerLine() }
         val dodgedMinutes = rememberDodgedMinutes(motion, dodgedBeforeMs, onCover)
-        LaunchedEffect(area, motion.unit) {
-            if (motion.unit != IntSize.Zero) motion.drift(area, speedPxPerSecond, cornerSlop)
-        }
-        val tint = motion.tint
-        val filter = remember(tint) { if (tint == 0) null else ColorFilter.colorMatrix(hueRotation(BOUNCE_HUES[tint])) }
-        Column(
-            modifier = Modifier
-                .offset { IntOffset(motion.bounce.x.roundToInt(), motion.bounce.y.roundToInt()) }
-                .onSizeChanged { motion.unit = it }
-                .graphicsLayer {
-                    // The pop grows out of the corner just hit, which the mark is now heading
-                    // away from, so it stays on screen.
-                    val bounce = motion.bounce
-                    transformOrigin = TransformOrigin(if (bounce.right) 0f else 1f, if (bounce.down) 0f else 1f)
-                    scaleX = motion.pop.value
-                    scaleY = motion.pop.value
+        LaunchedEffect(area, unit) { motion.drift(area, IntSize(unit, unit), speedPxPerSecond, cornerSlop) }
+        val backdrop by animateColorAsState(breakBackdrop(motion.backdrop), tween(BACKDROP_FADE_MS))
+        val ink by animateColorAsState(breakInk(motion.backdrop), tween(BACKDROP_FADE_MS))
+        Box(
+            Modifier
+                .fillMaxSize()
+                .drawBehind { drawRect(backdrop) }
+                .semantics {
+                    contentDescription = label
+                    liveRegion = LiveRegionMode.Polite
                 },
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Image(
-                painterResource(Res.drawable.banner_logo),
-                contentDescription = null,
-                colorFilter = filter,
-                modifier = Modifier.size(logoSize),
-            )
+            BouncingMark(motion, logoSize)
             val left = remainingMs?.invoke()
             BreakLines(
                 if (left != null) stringResource(Res.string.break_screen_back_in, formatPlayTime(left)) else label,
                 breakLine(motion.corner, left, quip),
                 upNext,
                 dodgedMinutes,
-                lineWidth = logoSize * 2.5f,
+                ink,
+                lineWidth = maxWidth * LINE_SHARE,
+                modifier = Modifier.align(Alignment.Center),
             )
         }
     }
 }
+
+/** The mark alone, [size] square, where [motion] has it, in its hue and with its corner pop. */
+@Composable
+private fun BouncingMark(motion: BreakMotion, size: Dp) {
+    val tint = motion.tint
+    val filter = remember(tint) { if (tint == 0) null else ColorFilter.colorMatrix(hueRotation(BOUNCE_HUES[tint])) }
+    Image(
+        painterResource(Res.drawable.banner_logo),
+        contentDescription = null,
+        colorFilter = filter,
+        modifier = Modifier
+            .offset { IntOffset(motion.bounce.x.roundToInt(), motion.bounce.y.roundToInt()) }
+            .size(size)
+            .graphicsLayer {
+                // The pop grows out of the corner just hit, which the mark is now heading
+                // away from, so it stays on screen.
+                val bounce = motion.bounce
+                transformOrigin = TransformOrigin(if (bounce.right) 0f else 1f, if (bounce.down) 0f else 1f)
+                scaleX = motion.pop.value
+                scaleY = motion.pop.value
+            },
+    )
+}
+
+/**
+ * The screen behind the mark: black before its first hit, then the sofa's lavender (its body and arms in the logo) in [tint], the hue it wore into its last hit,
+ * either way a little see-through.
+ */
+internal fun breakBackdrop(tint: Int?): Color =
+    (if (tint == null) SofaScrim else SofaLavender.hueRotated(BOUNCE_HUES[tint])).copy(alpha = BACKDROP_ALPHA)
+
+/** The words' color over [breakBackdrop] of [tint]: the brand's mauve on black, the mark's dark ink on a sofa color. */
+internal fun breakInk(tint: Int?): Color = if (tint == null) SofaMauve else SofaPlum
 
 /**
  * The minutes of ads dodged today: [dodgedBeforeMs] before this break plus the time [motion] has been drawn, which
@@ -286,14 +316,16 @@ private fun rememberDodgedMinutes(motion: BreakMotion, dodgedBeforeMs: Long, onC
 }
 
 /**
- * The mark's drift: where it is and which way it heads ([bounce]), its size once laid out ([unit]), its [tint], its
- * [pop] on a corner, the [corner] just hit while its line shows, and how long it has been drawn ([coveredNanos]).
+ * The mark's drift: where it is and which way it heads ([bounce]), its [tint], the tint it wore into its last hit
+ * ([backdrop], null before the first), its [pop] on a corner, the [corner] just hit while its line shows, and how long
+ * it has been drawn ([coveredNanos]).
  */
 @Stable
 private class BreakMotion(start: Bounce) {
     var bounce by mutableStateOf(start)
-    var unit by mutableStateOf(IntSize.Zero)
     var tint by mutableIntStateOf(0)
+        private set
+    var backdrop by mutableStateOf<Int?>(null)
         private set
     val pop = Animatable(1f)
     var corner by mutableStateOf<Int?>(null)
@@ -308,8 +340,8 @@ private class BreakMotion(start: Bounce) {
         corner = null
     }
 
-    /** Moves the mark around [area] at [speedPxPerSecond], one step a frame, until canceled. */
-    suspend fun drift(area: IntSize, speedPxPerSecond: Float, cornerSlop: Float): Unit = coroutineScope {
+    /** Moves the mark, [unit] in size, around [area] at [speedPxPerSecond], one step a frame, until canceled. */
+    suspend fun drift(area: IntSize, unit: IntSize, speedPxPerSecond: Float, cornerSlop: Float): Unit = coroutineScope {
         val roomX = (area.width - unit.width).toFloat()
         val roomY = (area.height - unit.height).toFloat()
         bounce =
@@ -331,7 +363,10 @@ private class BreakMotion(start: Bounce) {
                 bounce = next
                 hit
             }
-            if (hit != BounceHit.NONE) tint = bounce.tint
+            if (hit != BounceHit.NONE) {
+                backdrop = tint
+                tint = bounce.tint
+            }
             if (hit == BounceHit.CORNER) {
                 launch {
                     pop.snapTo(CORNER_POP)
@@ -354,28 +389,41 @@ private fun breakLine(corner: Int?, leftMs: Long?, quip: Int): String = when {
 }
 
 /**
- * The countdown, the [line] under it, then fainter, what is on next and the ads dodged today, each at most [lineWidth]
- * wide.
+ * The countdown, the [line] under it, then fainter, what is on next and the ads dodged today, all in [ink] and each at
+ * most [lineWidth] wide.
  */
 @Composable
-private fun BreakLines(countdown: String, line: String, upNext: String?, dodgedMinutes: Long, lineWidth: Dp) {
+@Suppress("LongParameterList") // One argument per line drawn, plus their look.
+private fun BreakLines(
+    countdown: String,
+    line: String,
+    upNext: String?,
+    dodgedMinutes: Long,
+    ink: Color,
+    lineWidth: Dp,
+    modifier: Modifier = Modifier,
+) {
     val width = Modifier.widthIn(max = lineWidth)
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(
+        modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         Text(
             countdown,
-            style = MaterialTheme.typography.titleMedium,
-            color = SofaMauve,
+            style = MaterialTheme.typography.titleLarge,
+            color = ink,
             modifier = Modifier.padding(top = 4.dp),
         )
         Text(
             line,
             style = MaterialTheme.typography.bodyLarge,
-            color = SofaMauve,
+            color = ink,
             textAlign = TextAlign.Center,
             maxLines = 2,
             modifier = width,
         )
-        val faint = SofaMauve.copy(alpha = 0.7f)
+        val faint = ink.copy(alpha = 0.7f)
         if (upNext != null) {
             Text(
                 upNext,
@@ -405,6 +453,15 @@ private val BOUNCE_SPEED = 72.dp
 private const val LOGO_SHARE = 0.22f
 private val MIN_LOGO = 96.dp
 private val MAX_LOGO = 240.dp
+
+/** How wide the words in the middle may run, as a share of the screen's width. */
+private const val LINE_SHARE = 0.6f
+
+/** How much of the picture the screen lets through: hardly any, so the stream only just shows. */
+private const val BACKDROP_ALPHA = 0.9f
+
+/** How long the screen takes to turn the new color after a hit. */
+private const val BACKDROP_FADE_MS = 400
 
 /** Where the mark starts, as a share of the screen's width and height. */
 private const val START_X = 0.3f

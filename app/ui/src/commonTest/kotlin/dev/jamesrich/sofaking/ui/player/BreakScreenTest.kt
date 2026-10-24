@@ -1,5 +1,9 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.ui.theme.SofaLavender
+import dev.jamesrich.sofaking.ui.theme.SofaMauve
+import dev.jamesrich.sofaking.ui.theme.SofaPlum
+import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -117,6 +121,33 @@ class BreakScreenTest {
         val identity = hueRotation(0f).values
         val expected = floatArrayOf(1f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 1f, 0f)
         expected.forEachIndexed { i, v -> assertEquals(v, identity[i], 0.001f, "entry $i") }
+    }
+
+    @Test
+    fun `a hue turn keeps the color's lightness and a full turn brings it back`() {
+        fun lightness(red: Float, green: Float, blue: Float) = 0.213f * red + 0.715f * green + 0.072f * blue
+        val turned = SofaLavender.hueRotated(120f)
+        assertNotEquals(SofaLavender, turned)
+        assertEquals(
+            lightness(SofaLavender.red, SofaLavender.green, SofaLavender.blue),
+            lightness(turned.red, turned.green, turned.blue),
+            0.01f,
+        )
+        val back = SofaLavender.hueRotated(360f)
+        assertEquals(SofaLavender.red, back.red, 0.01f)
+        assertEquals(SofaLavender.green, back.green, 0.01f)
+        assertEquals(SofaLavender.blue, back.blue, 0.01f)
+    }
+
+    @Test
+    fun `the screen is see-through black before a hit and the sofa's last color after`() {
+        assertEquals(SofaScrim.copy(alpha = 0.9f), breakBackdrop(null))
+        assertEquals(SofaMauve, breakInk(null))
+        assertEquals(SofaLavender.copy(alpha = 0.9f), breakBackdrop(0))
+        val third = breakBackdrop(3)
+        assertEquals(0.9f, third.alpha, 0.001f)
+        assertEquals(SofaLavender.hueRotated(BOUNCE_HUES[3]).copy(alpha = 0.9f), third)
+        assertEquals(SofaPlum, breakInk(3))
     }
 
     @Test

@@ -106,16 +106,16 @@ struct PlayerView: View {
         return BreakScreen(
             remainingMs: adBreak.remainingMs?.int64Value,
             quip: breakQuip,
-            upNext: upNext,
+            watching: watching,
             dodgedBeforeMs: model.settings?.adsDodged.on(day: BreakScreen.today()) ?? 0,
             coveredSince: coveredSince ?? .now
         )
     }
 
-    /// The channel's next program, for the break screen: `Up next: Forensic Files at 9:30 PM`.
-    private var upNext: String? {
-        guard let lineup = model.lineup, let next = model.core.nowAndNext(lineup: lineup, channel: channel).next else { return nil }
-        return "Up next: \(next.title) at \(model.core.start(of: next).formatted(date: .omitted, time: .shortened))"
+    /// The program on now, for the break screen: `You're watching: Forensic Files`.
+    private var watching: String? {
+        guard let lineup = model.lineup, let now = model.core.nowAndNext(lineup: lineup, channel: channel).now else { return nil }
+        return "You're watching: \(now.title)"
     }
 
     /// Deals the break screen its line and starts counting the time it covers.

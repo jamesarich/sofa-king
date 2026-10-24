@@ -210,7 +210,7 @@ private object BreakTally {
  * screensaver did, a new color on every edge and the brand colors back on a corner, with a little pop and a line to
  * mark the occasion. The screen starts black, and each hit paints it the sofa's color from before the hit, a little
  * see-through so the picture faintly shows under it. [remainingMs], when known, counts down in the middle of the
- * screen, over a line picked for the break, [upNext] (the channel's next program) and the ads dodged today,
+ * screen, over a line picked for the break, [watching] (the program on now) and the ads dodged today,
  * [dodgedBeforeMs] before this break plus the time it has been up. Only the mark moves; the words stay put in the
  * middle, and the changing color behind them keeps them from burning in. When it goes, [onCover] gets the milliseconds
  * it was on screen, counted in drawn frames, so time in the background is left out. It draws only; the player decides
@@ -220,7 +220,7 @@ private object BreakTally {
 internal fun BreakScreen(
     modifier: Modifier = Modifier,
     remainingMs: (() -> Long?)? = null,
-    upNext: String? = null,
+    watching: String? = null,
     dodgedBeforeMs: Long = 0,
     onCover: (Long) -> Unit = {},
 ) {
@@ -256,7 +256,7 @@ internal fun BreakScreen(
             BreakLines(
                 if (left != null) stringResource(Res.string.break_screen_back_in, formatPlayTime(left)) else label,
                 breakLine(motion.corner, left, quip),
-                upNext,
+                watching,
                 dodgedMinutes,
                 ink,
                 lineWidth = lineWidth,
@@ -387,7 +387,7 @@ private fun breakLine(corner: Int?, leftMs: Long?, quip: Int): String = when {
 }
 
 /**
- * The countdown, the [line] under it, then fainter, what is on next and the ads dodged today, all in [ink] and each at
+ * The countdown, the [line] under it, then fainter, the program on now and the ads dodged today, all in [ink] and each at
  * most [lineWidth] wide.
  */
 @Composable
@@ -395,7 +395,7 @@ private fun breakLine(corner: Int?, leftMs: Long?, quip: Int): String = when {
 private fun BreakLines(
     countdown: String,
     line: String,
-    upNext: String?,
+    watching: String?,
     dodgedMinutes: Long,
     ink: Color,
     lineWidth: Dp,
@@ -425,7 +425,7 @@ private fun BreakLines(
         // Both faint lines keep their place while empty, so the ads dodged showing up a minute in does not move the
         // words above it.
         Text(
-            upNext ?: " ",
+            watching ?: " ",
             style = MaterialTheme.typography.bodySmall,
             color = faint,
             maxLines = 1,

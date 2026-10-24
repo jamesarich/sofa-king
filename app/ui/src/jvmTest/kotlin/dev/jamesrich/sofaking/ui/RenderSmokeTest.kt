@@ -245,11 +245,11 @@ class RenderSmokeTest {
     }
 
     @Test
-    fun `the break screen carries the next program and the ads dodged today`() {
+    fun `the break screen carries the program on now and the ads dodged today`() {
         val image = render("break-screen-extras") {
             BreakScreen(
                 remainingMs = null,
-                upNext = "Up next: Forensic Files at 9:30 PM",
+                watching = "You're watching: Forensic Files",
                 dodgedBeforeMs = 14 * 60_000L,
             )
         }

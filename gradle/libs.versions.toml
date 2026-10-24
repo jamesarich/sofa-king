@@ -4,7 +4,7 @@
 # The one version of Sofa King: the app on every platform (About row, Android versionName, the desktop packages, the
 # Swift hosts' MARKETING_VERSION), the contract and the server's jars.
 sofaking = "0.1.0"
-agp = "9.5.0-alpha10"
+agp = "9.5.0-rc01"
 kotlin = "2.5.0-Beta2"
 compose-multiplatform = "1.13.0-alpha02"
 # Compose bundles an older Hot Reload plugin that still calls a Gradle API removed in Gradle 10; this one is clean.

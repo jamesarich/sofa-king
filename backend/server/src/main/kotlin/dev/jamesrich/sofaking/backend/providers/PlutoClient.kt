@@ -9,7 +9,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.net.URLEncoder
 import java.time.Duration
-import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 private class Session(val token: String, val channels: String, val stitcher: String, val params: String)

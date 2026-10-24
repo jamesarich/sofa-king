@@ -1,12 +1,10 @@
 package dev.jamesrich.sofaking.backend
 
-import dev.jamesrich.sofaking.backend.http.AddressAllowList
 import dev.jamesrich.sofaking.backend.library.HardwareAccel
 import dev.jamesrich.sofaking.backend.library.TmdbConfig
 import dev.jamesrich.sofaking.backend.library.VideoEncoder
 import dev.jamesrich.sofaking.backend.logging.LogSettings
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
-import dev.jamesrich.sofaking.backend.update.UpdateChecker
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -164,14 +162,14 @@ data class ServerConfig(
 
         /** The shortest token the server accepts, and the shortest Plex token. */
         internal const val TOKEN_MIN_LENGTH = 32
-        private const val PLEX_TOKEN_MIN_LENGTH = 8
+        internal const val PLEX_TOKEN_MIN_LENGTH = 8
 
         /** The longest name Plex shows for a device, and the most devices beside the first. */
-        private const val DEVICE_NAME_LIMIT = 64
-        private const val EXTRA_PORTS_LIMIT = 7
+        internal const val DEVICE_NAME_LIMIT = 64
+        internal const val EXTRA_PORTS_LIMIT = 7
 
         /** Where earlier images kept the database; a database there and none in the data directory stops the start. */
-        private val LEGACY_DATA_DIRECTORY: Path = Path.of("/data")
+        internal val LEGACY_DATA_DIRECTORY: Path = Path.of("/data")
 
         /**
          * The configuration the server starts with: [fromEnvironment] after reading `NAME_FILE` secrets, then the
@@ -187,104 +185,24 @@ data class ServerConfig(
         ): ServerConfig {
             val (resolved, origins) = readSecretFiles(environment, readFile)
             val base = fromEnvironment(resolved, requireToken = false)
-            val directory = base.dataDirectory
-            val legacyDatabase = legacyDataDirectory.resolve("backend.sqlite")
-            require(
-                directory.toAbsolutePath().normalize() == legacyDataDirectory.toAbsolutePath().normalize() ||
-                    Files.exists(directory.resolve("backend.sqlite")) || !Files.isRegularFile(legacyDatabase),
-            ) {
-                "$legacyDatabase exists but SOFA_DATA_DIR ($directory) holds no database. " +
-                    "Move the contents of $legacyDataDirectory into $directory, or set " +
-                    "SOFA_DATA_DIR=$legacyDataDirectory"
-            }
-            val found = mutableSetOf<String>()
-            fun pick(name: String, set: Path?, fileName: String, what: String): Path? {
-                val candidate = directory.resolve(fileName)
-                return when {
-                    set != null -> set.also { log("config: $what file=$it from=$name") }
-
-                    Files.isRegularFile(candidate) -> candidate.also {
-                        found += name
-                        log("config: $what file=$it from=SOFA_DATA_DIR, $name is unset")
-                    }
-
-                    else -> null.also { log("config: no $what file; set $name or add $fileName to $directory") }
-                }
-            }
-            val sources = pick("SOFA_SOURCES", base.sourcesFile, "sources.json", "sources")
-            val policy = pick("SOFA_POLICY", base.policyFile, "policy.json", "lineup policy")
-            var apiToken = base.apiToken
-            var adminToken = base.adminToken
-            var outputToken = base.outputs.token
-            var secretsFile: Path? = null
+            requireNoLegacyDatabase(base.dataDirectory, legacyDataDirectory)
+            val found = DataDirectoryFiles(base.dataDirectory, log)
+            val sources = found.pick("SOFA_SOURCES", base.sourcesFile, "sources.json", "sources")
+            val policy = found.pick("SOFA_POLICY", base.policyFile, "policy.json", "lineup policy")
             val allOrigins = origins.toMutableMap()
-            val missing = buildList {
-                if (apiToken == null) add("apiToken")
-                if (adminToken == null) add("adminToken")
-                if (outputToken == null) add("outputToken")
-            }
-            if (!isLoopback(base.host) && missing.isNotEmpty()) {
-                val file = SecretsFile(directory.resolve(SecretsFile.NAME))
-                val (values, generated) = file.resolve(missing)
-                secretsFile = file.path
-                values["apiToken"]?.let { token ->
-                    apiToken = token
-                    allOrigins["SOFA_API_TOKEN"] = SecretOrigin.GENERATED
-                    if ("apiToken" in
-                        generated
-                    ) {
-                        log(
-                            "secrets: generated SOFA_API_TOKEN and stored it in ${file.path}; reveal it in the admin " +
-                                "portal under Settings",
-                        )
-                    } else {
-                        log("secrets: SOFA_API_TOKEN from ${file.path}")
-                    }
-                }
-                values["adminToken"]?.let { token ->
-                    adminToken = token
-                    allOrigins["SOFA_ADMIN_TOKEN"] = SecretOrigin.GENERATED
-                    if ("adminToken" in generated) {
-                        log(
-                            "secrets: generated SOFA_ADMIN_TOKEN and stored it in ${file.path}. To read it: " +
-                                "docker compose exec sofa-king-backend cat /config/secrets.json (outside Docker: cat " +
-                                "${file.path}). " +
-                                "Sign in at /admin with adminToken; Settings there reveals the API token",
-                        )
-                    } else {
-                        log("secrets: SOFA_ADMIN_TOKEN from ${file.path}")
-                    }
-                }
-                values["outputToken"]?.let { token ->
-                    outputToken = token
-                    allOrigins["SOFA_OUTPUT_TOKEN"] = SecretOrigin.GENERATED
-                    if ("outputToken" in
-                        generated
-                    ) {
-                        log(
-                            "secrets: generated SOFA_OUTPUT_TOKEN and stored it in ${file.path}; the portal's Plex " +
-                                "page shows the player URLs with it",
-                        )
-                    } else {
-                        log("secrets: SOFA_OUTPUT_TOKEN from ${file.path}")
-                    }
-                }
-            }
-            var tmdb = base.tmdb
-            if (tmdb == null) {
-                val file = SecretsFile(directory.resolve(SecretsFile.NAME))
-                file.stored(SecretsFile.TMDB_TOKEN)?.let { token ->
-                    tmdb = tmdbConfig(resolved + ("SOFA_TMDB_TOKEN" to token))
-                    allOrigins["SOFA_TMDB_TOKEN"] = SecretOrigin.SAVED
-                    log("secrets: SOFA_TMDB_TOKEN from ${file.path}, saved from the portal")
-                }
-            }
+            val (tokens, secretsFile) =
+                if (isLoopback(base.host)) emptyMap<String, String>() to null else storedTokens(base, allOrigins, log)
+            val tmdb = base.tmdb ?: savedTmdb(resolved, base.dataDirectory, allOrigins, log)
             return base.copy(
-                sourcesFile = sources, policyFile = policy, apiToken = apiToken, adminToken = adminToken, tmdb = tmdb,
-                outputs = base.outputs.copy(
-                    token = outputToken,
-                ),
-                secretOrigins = allOrigins, secretsFile = secretsFile, foundInDataDirectory = found,
+                sourcesFile = sources,
+                policyFile = policy,
+                apiToken = tokens["apiToken"] ?: base.apiToken,
+                adminToken = tokens["adminToken"] ?: base.adminToken,
+                tmdb = tmdb,
+                outputs = base.outputs.copy(token = tokens["outputToken"] ?: base.outputs.token),
+                secretOrigins = allOrigins,
+                secretsFile = secretsFile,
+                foundInDataDirectory = found.found,
             )
         }
 
@@ -292,167 +210,57 @@ data class ServerConfig(
 
         /** [requireToken] false leaves a non-loopback bind without `SOFA_API_TOKEN` to [load], which generates one. */
         fun fromEnvironment(environment: Map<String, String>, requireToken: Boolean = true): ServerConfig {
+            val env = EnvironmentReader(environment)
             val host = environment["SOFA_HOST"] ?: "127.0.0.1"
             require(host.isNotBlank()) { "SOFA_HOST must not be blank" }
-            val port = number(environment, "SOFA_PORT", DEFAULT_PORT, PORT_RANGE)
+            val port = env.number("SOFA_PORT", DEFAULT_PORT, PORT_RANGE)
             val directory = environment["SOFA_DATA_DIR"] ?: "data"
             require(directory.isNotBlank()) { "SOFA_DATA_DIR must not be blank" }
-            val token = environment["SOFA_API_TOKEN"]
-            require(token == null || token.length >= TOKEN_MIN_LENGTH) {
-                "SOFA_API_TOKEN must contain at least $TOKEN_MIN_LENGTH characters"
+            val token = env.token("SOFA_API_TOKEN")
+            require(isLoopback(host) || token != null || !requireToken) {
+                "Non-loopback binding requires SOFA_API_TOKEN"
             }
-            val loopbackBind = isLoopback(host)
-            require(loopbackBind || token != null || !requireToken) { "Non-loopback binding requires SOFA_API_TOKEN" }
-            val capacity = number(environment, "SOFA_MAX_SESSIONS", DEFAULT_MAX_SESSIONS, MAX_SESSIONS_RANGE)
-            val sources = environment["SOFA_SOURCES"]?.let {
-                require(it.isNotBlank())
-                Path.of(it)
-            }
-            val policy = environment["SOFA_POLICY"]?.let {
-                require(it.isNotBlank()) { "SOFA_POLICY must not be blank" }
-                Path.of(it)
-            }
-            val parallelism =
-                number(environment, "SOFA_PROBE_PARALLELISM", DEFAULT_PROBE_PARALLELISM, PROBE_PARALLELISM_RANGE)
-            val origins =
-                environment["SOFA_RESTREAM_ORIGINS"].orEmpty().split(',').map {
-                    it.trim().lowercase()
-                }.filter { it.isNotEmpty() }.toSet()
-            require(
-                origins.all {
-                    it.matches(Regex("[a-z0-9.\\-\\[\\]:]+"))
-                },
-            ) { "SOFA_RESTREAM_ORIGINS entries must be host or host:port" }
-            val retention =
-                number(environment, "SOFA_OBSERVATION_RETENTION_DAYS", DEFAULT_RETENTION_DAYS, RETENTION_DAYS_RANGE)
-            val adminToken = environment["SOFA_ADMIN_TOKEN"]
-            require(adminToken == null || adminToken.length >= TOKEN_MIN_LENGTH) {
-                "SOFA_ADMIN_TOKEN must contain at least $TOKEN_MIN_LENGTH characters"
-            }
-            val loopback = flag(environment, "SOFA_ALLOW_LOOPBACK_UPSTREAMS", false)
-            val outputToken = environment["SOFA_OUTPUT_TOKEN"]
-            require(
-                outputToken == null ||
-                    (
-                        outputToken.length >= TOKEN_MIN_LENGTH &&
-                            outputToken.all { it.isLetterOrDigit() || it == '-' || it == '_' }
-                        ),
-            ) {
-                "SOFA_OUTPUT_TOKEN must contain at least $TOKEN_MIN_LENGTH letters, digits, hyphens or underscores"
-            }
-            val guideDays = number(environment, "SOFA_XMLTV_DAYS", DEFAULT_GUIDE_DAYS, GUIDE_DAYS_RANGE)
-            val freeGib =
-                number(environment, "SOFA_RECORDINGS_FREE_GIB", DEFAULT_RECORDINGS_FREE_GIB, RECORDINGS_FREE_GIB_RANGE)
-            val keepDays = number(environment, "SOFA_RECORDINGS_KEEP_DAYS", 0, RECORDINGS_KEEP_DAYS_RANGE)
-            val learnedBreaks = LearnedBreaks.of(environment["SOFA_LEARNED_BREAKS"] ?: "shadow")
-                ?: throw IllegalArgumentException("SOFA_LEARNED_BREAKS must be one of off, shadow, on")
-            val adListeners = number(environment, "SOFA_AD_LISTENERS", DEFAULT_AD_LISTENERS, AD_LISTENERS_RANGE)
-            val comskip = (environment["SOFA_COMSKIP"] ?: "comskip").trim()
-            require(comskip.isNotEmpty()) {
-                "SOFA_COMSKIP must not be blank; set it to none to turn commercial detection off"
-            }
-            val hdhrEnabled = flag(environment, "SOFA_HDHR_ENABLED", true)
-            val tuners = (environment["SOFA_HDHR_TUNERS"] ?: DEFAULT_TUNERS.toString()).toIntOrNull()
-            require(tuners != null && tuners in 1..capacity) {
-                "SOFA_HDHR_TUNERS must be between 1 and SOFA_MAX_SESSIONS"
-            }
-            val deviceId = environment["SOFA_HDHR_DEVICE_ID"]?.uppercase()
-            require(deviceId == null || deviceId.matches(Regex("[0-9A-F]{8}"))) {
-                "SOFA_HDHR_DEVICE_ID must be eight hex digits"
-            }
-            val friendlyName = environment["SOFA_HDHR_NAME"] ?: "Sofa King"
-            require(
-                friendlyName.isNotBlank() && friendlyName.length <= DEVICE_NAME_LIMIT && friendlyName.none {
-                    it < ' '
-                },
-            ) { "SOFA_HDHR_NAME must be 1 to $DEVICE_NAME_LIMIT printable characters" }
-            val allow = environment["SOFA_HDHR_ALLOW"].orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
-            AddressAllowList(allow)
-            val extraPorts = environment["SOFA_HDHR_EXTRA_PORTS"].orEmpty().split(',').map {
-                it.trim()
-            }.filter { it.isNotEmpty() }.map {
-                it.toIntOrNull()
-                    ?: 0
-            }
-            require(
-                extraPorts.all { it in PORT_RANGE } && extraPorts.distinct().size == extraPorts.size &&
-                    port !in extraPorts &&
-                    extraPorts.size <= EXTRA_PORTS_LIMIT,
-            ) {
-                "SOFA_HDHR_EXTRA_PORTS must list up to $EXTRA_PORTS_LIMIT distinct ports other than SOFA_PORT"
-            }
-            val deviceSize =
-                number(environment, "SOFA_HDHR_DEVICE_SIZE", HdhrConfig.DEFAULT_DEVICE_SIZE, DEVICE_SIZE_RANGE)
-            val publicPorts = environment["SOFA_HDHR_PUBLIC_PORTS"].orEmpty().split(',').map {
-                it.trim()
-            }.filter { it.isNotEmpty() }.map {
-                it.toIntOrNull()
-                    ?: 0
-            }
-            require(
-                publicPorts.isEmpty() || (
-                    publicPorts.size == 1 + extraPorts.size && publicPorts.all { it in PORT_RANGE } &&
-                        publicPorts.distinct().size == publicPorts.size
-                    ),
-            ) {
-                "SOFA_HDHR_PUBLIC_PORTS must list one distinct port per device: SOFA_PORT's, then each of " +
-                    "SOFA_HDHR_EXTRA_PORTS"
-            }
-            val plex = plexConfig(environment, hdhrEnabled)
-            val recordings = environment["SOFA_RECORDINGS_DIR"]?.let {
-                require(it.isNotBlank()) { "SOFA_RECORDINGS_DIR must not be blank" }
-                Path.of(it)
-            }
+            val capacity = env.number("SOFA_MAX_SESSIONS", DEFAULT_MAX_SESSIONS, MAX_SESSIONS_RANGE)
+            val hdhrEnabled = env.flag("SOFA_HDHR_ENABLED", true)
+            val data = Path.of(directory)
             return ServerConfig(
                 host,
                 port,
-                Path.of(directory),
-                sources,
+                data,
+                env.path("SOFA_SOURCES"),
                 token,
                 capacity,
                 environment["SOFA_FFMPEG"] ?: "ffmpeg",
-                parallelism,
-                origins,
-                retention,
-                loopback,
-                adminToken,
-                OutputConfig(outputToken, guideDays),
-                HdhrConfig(hdhrEnabled, tuners, deviceId, friendlyName, allow, extraPorts, deviceSize, publicPorts),
-                policy,
-                plex,
+                env.number("SOFA_PROBE_PARALLELISM", DEFAULT_PROBE_PARALLELISM, PROBE_PARALLELISM_RANGE),
+                restreamOrigins(env),
+                env.number("SOFA_OBSERVATION_RETENTION_DAYS", DEFAULT_RETENTION_DAYS, RETENTION_DAYS_RANGE),
+                env.flag("SOFA_ALLOW_LOOPBACK_UPSTREAMS", false),
+                env.token("SOFA_ADMIN_TOKEN"),
+                outputConfig(env),
+                hdhrConfig(env, port, capacity, hdhrEnabled),
+                env.path("SOFA_POLICY"),
+                plexConfig(env, hdhrEnabled),
                 logging = LogSettings.from(environment),
-                revision = environment["SOFA_REVISION"]?.trim()?.takeIf { it.isNotEmpty() } ?: "unknown",
-                version = environment["SOFA_VERSION"]?.trim()?.takeIf { it.isNotEmpty() } ?: "unknown",
-                updateImage =
-                environment["SOFA_UPDATE_IMAGE"]?.trim()?.takeIf {
-                    it.isNotEmpty()
-                }?.also { UpdateChecker.ImageRef.parse(it) }
-                    ?: if (environment["SOFA_UPDATE_IMAGE"] == null) DEFAULT_UPDATE_IMAGE else null,
+                revision = env.text("SOFA_REVISION") ?: "unknown",
+                version = env.text("SOFA_VERSION") ?: "unknown",
+                updateImage = updateImage(env),
                 corsOrigins = corsOrigins(environment["SOFA_CORS_ORIGINS"]),
-                recordingsDirectory = recordings ?: Path.of(directory).resolve("recordings"),
-                mediaDirectory =
-                environment["SOFA_MEDIA_DIR"]?.let {
-                    require(it.isNotBlank()) { "SOFA_MEDIA_DIR must not be blank" }
-                    Path.of(it)
-                }
-                    ?: Path.of(directory).resolve("media"),
-                tmdb = tmdbConfig(environment),
-                maxTranscodes = number(
-                    environment,
-                    "SOFA_MAX_TRANSCODES",
-                    DEFAULT_MAX_TRANSCODES,
-                    MAX_TRANSCODES_RANGE,
-                ),
+                recordingsDirectory = env.path("SOFA_RECORDINGS_DIR") ?: data.resolve("recordings"),
+                mediaDirectory = env.path("SOFA_MEDIA_DIR") ?: data.resolve("media"),
+                tmdb = tmdbConfig(env),
+                maxTranscodes = env.number("SOFA_MAX_TRANSCODES", DEFAULT_MAX_TRANSCODES, MAX_TRANSCODES_RANGE),
                 videoEncoder = VideoEncoder(
                     HardwareAccel.parse(environment["SOFA_HWACCEL"]),
-                    environment["SOFA_HWACCEL_DEVICE"]?.trim()?.ifEmpty { null } ?: VideoEncoder.DEFAULT_DEVICE,
+                    env.text("SOFA_HWACCEL_DEVICE") ?: VideoEncoder.DEFAULT_DEVICE,
                 ),
-                recordingsFreeGib = freeGib,
-                recordingsKeepDays = keepDays,
-                learnedBreaks = learnedBreaks,
-                adListeners = adListeners,
-                comskip = comskip.takeUnless { it == "none" },
-                mdns = flag(environment, "SOFA_MDNS", !isLoopback(host)),
+                recordingsFreeGib =
+                env.number("SOFA_RECORDINGS_FREE_GIB", DEFAULT_RECORDINGS_FREE_GIB, RECORDINGS_FREE_GIB_RANGE),
+                recordingsKeepDays = env.number("SOFA_RECORDINGS_KEEP_DAYS", 0, RECORDINGS_KEEP_DAYS_RANGE),
+                learnedBreaks = LearnedBreaks.of(environment["SOFA_LEARNED_BREAKS"] ?: "shadow")
+                    ?: throw IllegalArgumentException("SOFA_LEARNED_BREAKS must be one of off, shadow, on"),
+                adListeners = env.number("SOFA_AD_LISTENERS", DEFAULT_AD_LISTENERS, AD_LISTENERS_RANGE),
+                comskip = comskip(env),
+                mdns = env.flag("SOFA_MDNS", !isLoopback(host)),
             )
         }
 
@@ -471,63 +279,5 @@ data class ServerConfig(
                 val host = uri.host.lowercase()
                 CorsOrigin(scheme, if (uri.port == -1) host else "$host:${uri.port}")
             }.distinct()
-
-        private fun tmdbConfig(environment: Map<String, String>): TmdbConfig? {
-            val language = environment["SOFA_TMDB_LANGUAGE"]?.trim()
-            require(language == null || language.matches(Regex("[a-z]{2,3}(-[A-Z]{2})?"))) {
-                "SOFA_TMDB_LANGUAGE must be a language tag such as en-US"
-            }
-            val token = environment["SOFA_TMDB_TOKEN"]?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-            require(
-                token.length >= TOKEN_MIN_LENGTH && token.none {
-                    it <= ' ' || it == '\u007f'
-                },
-            ) { "SOFA_TMDB_TOKEN must be a TMDB API read access token or API key" }
-            return TmdbConfig(token, language ?: "en-US")
-        }
-
-        private fun plexConfig(environment: Map<String, String>, hdhrEnabled: Boolean): PlexConfig? {
-            val url = environment["SOFA_PLEX_URL"]
-            val token = environment["SOFA_PLEX_TOKEN"]
-            require((url == null) == (token == null)) { "SOFA_PLEX_URL and SOFA_PLEX_TOKEN must be set together" }
-            if (url == null || token == null) return null
-            require(hdhrEnabled) { "SOFA_PLEX_URL requires SOFA_HDHR_ENABLED" }
-            require(
-                token.length >= PLEX_TOKEN_MIN_LENGTH && token.none {
-                    it <= ' ' || it == '\u007f'
-                },
-            ) { "SOFA_PLEX_TOKEN must contain at least $PLEX_TOKEN_MIN_LENGTH printable characters without spaces" }
-            val minutes =
-                number(environment, "SOFA_PLEX_SYNC_MINUTES", DEFAULT_PLEX_SYNC_MINUTES, PLEX_SYNC_MINUTES_RANGE)
-            val base = environment["SOFA_PLEX_TUNER_BASE"]?.let { origin(it, "SOFA_PLEX_TUNER_BASE", withPort = false) }
-            return PlexConfig(origin(url, "SOFA_PLEX_URL", withPort = true), token, minutes, base)
-        }
-
-        /** [value] as `scheme://host[:port]`, rejecting paths, queries and credentials. */
-        private fun origin(value: String, name: String, withPort: Boolean): String {
-            val uri = runCatching { java.net.URI(value.trim().removeSuffix("/")) }.getOrNull()
-            val valid =
-                uri != null && uri.scheme?.lowercase() in setOf("http", "https") && !uri.host.isNullOrEmpty() &&
-                    uri.rawUserInfo == null &&
-                    uri.rawPath.isNullOrEmpty() && uri.rawQuery == null && uri.rawFragment == null &&
-                    (withPort || uri.port == -1)
-            require(valid) {
-                if (withPort) "$name must be http(s)://host[:port]" else "$name must be http(s)://host without a port"
-            }
-            return "${uri.scheme.lowercase()}://${uri.rawAuthority}"
-        }
-
-        /** [name]'s whole number, [default] when it is unset; one outside [range] stops the start. */
-        private fun number(environment: Map<String, String>, name: String, default: Int, range: IntRange): Int {
-            val value = (environment[name] ?: default.toString()).toIntOrNull()
-            require(value != null && value in range) { "$name must be between ${range.first} and ${range.last}" }
-            return value
-        }
-
-        private fun flag(environment: Map<String, String>, name: String, default: Boolean): Boolean {
-            val value = environment[name]?.lowercase() ?: return default
-            require(value in setOf("true", "false")) { "$name must be true or false" }
-            return value == "true"
-        }
     }
 }

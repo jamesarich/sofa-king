@@ -1,20 +1,15 @@
 package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.dvr.StoredRecording
-import dev.jamesrich.sofaking.backend.dvr.StoredRule
 import dev.jamesrich.sofaking.contract.RecordingBreak
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.statements.UpdateBuilder
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
-import org.jetbrains.exposed.v1.jdbc.name
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
-import org.jetbrains.exposed.v1.jdbc.upsert
 import java.time.Duration
 import java.time.Instant
 

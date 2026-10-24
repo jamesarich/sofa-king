@@ -21,7 +21,6 @@ import dev.jamesrich.sofaking.backend.http.RealServer
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.upstream.RELAY_CREDENTIAL_HEADER
-import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.readHead
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO

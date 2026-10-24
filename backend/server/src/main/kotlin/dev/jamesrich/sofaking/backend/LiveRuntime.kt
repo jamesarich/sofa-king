@@ -1,63 +1,30 @@
 package dev.jamesrich.sofaking.backend
 
 import dev.jamesrich.sofaking.backend.ads.AdListener
-import dev.jamesrich.sofaking.backend.ads.BreakLibrary
 import dev.jamesrich.sofaking.backend.catalog.CatalogService
 import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.GuideService
-import dev.jamesrich.sofaking.backend.catalog.HdhrSizing
 import dev.jamesrich.sofaking.backend.catalog.LineupService
-import dev.jamesrich.sofaking.backend.catalog.PolicyFile
 import dev.jamesrich.sofaking.backend.catalog.PolicyService
-import dev.jamesrich.sofaking.backend.catalog.loadPolicy
-import dev.jamesrich.sofaking.backend.catalog.loadSources
-import dev.jamesrich.sofaking.backend.dvr.Commercials
 import dev.jamesrich.sofaking.backend.dvr.Dvr
-import dev.jamesrich.sofaking.backend.dvr.Recorder
-import dev.jamesrich.sofaking.backend.dvr.Retention
-import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.HdhrAccess
-import dev.jamesrich.sofaking.backend.http.hdhrDeviceId
 import dev.jamesrich.sofaking.backend.jobs.Jobs
-import dev.jamesrich.sofaking.backend.library.FfmpegFingerprinter
-import dev.jamesrich.sofaking.backend.library.FfmpegSheetMaker
-import dev.jamesrich.sofaking.backend.library.IntroDetector
-import dev.jamesrich.sofaking.backend.library.LibraryArtwork
-import dev.jamesrich.sofaking.backend.library.LibraryMetadata
-import dev.jamesrich.sofaking.backend.library.LibraryScanner
 import dev.jamesrich.sofaking.backend.library.LibraryService
-import dev.jamesrich.sofaking.backend.library.MediaProbe
-import dev.jamesrich.sofaking.backend.library.MediaRoot
-import dev.jamesrich.sofaking.backend.library.ScrubSheets
-import dev.jamesrich.sofaking.backend.library.TmdbClient
 import dev.jamesrich.sofaking.backend.library.VodSessions
-import dev.jamesrich.sofaking.backend.library.ffprobeBeside
-import dev.jamesrich.sofaking.backend.logging.applyLogLevel
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.MediaRelay
-import dev.jamesrich.sofaking.backend.playback.SegmentAudio
 import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.TsRemux
-import dev.jamesrich.sofaking.backend.plex.HdhrDevice
 import dev.jamesrich.sofaking.backend.plex.PlexSync
-import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
-import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.settings.RuntimeSettings
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.setup.SetupService
 import dev.jamesrich.sofaking.backend.store.BackendStore
-import dev.jamesrich.sofaking.backend.store.plexStatus
-import dev.jamesrich.sofaking.backend.store.recordAdChannel
-import dev.jamesrich.sofaking.backend.store.savePlexStatus
-import dev.jamesrich.sofaking.backend.update.RunningBuild
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
-import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.HttpTimeout
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -73,13 +40,6 @@ import org.slf4j.LoggerFactory
 import java.time.Clock
 
 private val runtimeLog = LoggerFactory.getLogger(LiveRuntime::class.java)
-
-/** How often the break library saves what it learned. */
-private const val LIBRARY_FLUSH_MS = 300_000L
-
-/** How often lapsed playback sessions, and lapsed library playback sessions, are swept. */
-private const val SESSION_EXPIRE_MS = 1_000L
-private const val VOD_EXPIRE_MS = 5_000L
 
 /**
  * The runtime's scope: a background coroutine that fails is logged by its name and exception
@@ -180,249 +140,21 @@ class LiveRuntime(
             restart: () -> Unit = SetupService::exitForRestart,
         ): LiveRuntime {
             val started = clock.instant()
-            val sources = loadSources(config.sourcesFile)
-            val providerIds = sources.providers.mapTo(HashSet()) { provider -> provider.id }
-            val loadedPolicy = config.policyFile?.let { loadPolicy(it, providerIds) }
-            val http = HttpClient(CIO) {
-                followRedirects = false
-                install(HttpTimeout) {
-                    requestTimeoutMillis = 60_000
-                    connectTimeoutMillis = 5000
-                    socketTimeoutMillis =
-                        15_000
-                }
-            }
-            val scope = backgroundScope()
-            val jobs = Jobs(clock)
-            val settings = RuntimeSettings(store, RuntimeValues.of(config), clock)
-            for (problem in settings.load()) runtimeLog.warn("runtime settings: dropped a saved value: {}", problem)
-            // The level the operator saved outranks the environment's from here on; logback
-            // read the environment's at start.
-            settings.onChange { applyLogLevel(it.logLevel) }
+            val assembly =
+                RuntimeAssembly(
+                    store,
+                    config,
+                    clock,
+                    RuntimeOptions(policyDebounceMillis, probes, plexDebounceMillis, restart),
+                )
             // Whatever fails before the runtime is whole stops its background work and closes its client.
             var created = false
             try {
-                val policy = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
-                lateinit var logos: LogoCache
-                var policyService: PolicyService? = null
-                var dvrService: Dvr? = null
-                val providers = ProviderRegistry.create(sources.providers, http, store, clock, policy)
-                val feeds =
-                    FeedService(sources.providers, store, http, clock, policy, providers, jobs) {
-                        logos.requestSweep()
-                        policyService?.requestRun("feeds")
-                    }
-                feeds.initialize()
-                lateinit var lineup: LineupService
-                val guides =
-                    GuideService(sources.allGuides, store, http, clock, policy, providers, onImported = {
-                        policyService?.requestRun("guides")
-                        dvrService?.requestSchedule("guides")
-                    }, jobs = jobs) {
-                        val mapped = lineup.wanted()
-                        val extra = policyService?.wantedGuides().orEmpty()
-                        if (extra.isEmpty()) {
-                            mapped
-                        } else {
-                            (mapped.keys + extra.keys).associateWith { id ->
-                                mapped[id].orEmpty() + extra[id].orEmpty()
-                            }
-                        }
-                    }
-                guides.initialize()
-                lineup = LineupService(store, clock, feeds, guides) { logos.requestSweep() }
-                lineup.initialize()
-                val plex = config.plex?.let { plexConfig ->
-                    val ports = config.hdhr.publicPorts(config.port)
-                    PlexSync(
-                        plexConfig, http, clock, {
-                            val serverId = store.serverId()
-                            List(config.hdhr.devices) { n ->
-                                HdhrDevice(n, hdhrDeviceId(config.hdhr, serverId, n), ports[n])
-                            }
-                        },
-                        plexDebounceMillis, settings.current.plexSyncMinutes * 60_000L, initial = store.plexStatus(),
-                        persist = store::savePlexStatus, jobs = jobs,
-                    )
-                }
-                val catalog = CatalogService(feeds, guides, lineup, store, clock)
-                logos =
-                    LogoCache(store, http, clock, config.dataDirectory.resolve("logos"), policy, {
-                        lineup.entries().mapNotNull(catalog::logoSource)
-                    }, jobs = jobs)
-                logos.initialize()
-                val sessions = SessionManager(catalog, store, clock, settings.current.maxSessions)
-                val library = BreakLibrary(store, clock).also { it.load() }
-                sessions.library = library
-                scope.launch(CoroutineName("ad-library")) {
-                    while (isActive) {
-                        delay(LIBRARY_FLUSH_MS)
-                        runCatchingCancellable { library.flush() }
-                            .onFailure { runtimeLog.warn("ad library save failed: {}", it.toString()) }
-                    }
-                }
-                settings.onChange { values ->
-                    sessions.capacity = values.maxSessions
-                    sessions.learnedBreaks = LearnedBreaks.of(values.learnedBreaks) ?: LearnedBreaks.SHADOW
-                    plex?.setInterval(values.plexSyncMinutes)
-                }
-                sessions.onCensus =
-                    { channel, provider, census ->
-                        scope.launch { store.recordAdChannel(channel, provider, census, clock.instant()) }
-                    }
-                policyService = loadedPolicy?.let { loaded ->
-                    lateinit var service: PolicyService
-                    val sizing = if (config.hdhr.enabled) {
-                        HdhrSizing(
-                            config.hdhr.devices,
-                            config.hdhr.deviceSize,
-                        )
-                    } else {
-                        null
-                    }
-                    val file = PolicyFile(loaded, providerIds) { service.requestRun("policy") }
-                    service = PolicyService(
-                        file, feeds, guides, lineup, store, clock, sizing, policyDebounceMillis,
-                        onLineupChanged = {
-                            plex?.requestSync("policy")
-                        }, extraFindings = { plex?.findings().orEmpty() }, jobs = jobs,
-                    )
-                    service
-                }
-                feeds.start(scope)
-                guides.start(scope)
-                logos.start(scope)
-                logos.requestSweep()
-                policyService?.start(scope)
-                policyService?.requestRun("startup")
-                plex?.start(scope)
-                plex?.requestSync("startup")
-                val audio = SegmentAudio(config.ffmpeg)
-                val relay = MediaRelay(http, feeds, sessions, scope, audio = audio)
-                val listener = AdListener(
-                    http, feeds, sessions, store, library, audio, relay.permits, clock,
-                    channels = {
-                        lineup.entries().filter { it.enabled }.map { it.id }
-                    }, slots = { settings.current.adListeners }, mode = { sessions.learnedBreaks },
-                ).also { it.start(scope) }
-                val loopback = LoopbackRelay(http, policy, relay.permits)
-                // Under a policy the worker probes what the lineup's stations reference,
-                // whatever the providers' probe flags.
-                val service = policyService
-                val worker = if (probes && (service != null || sources.providers.any { it.probe })) {
-                    val probeConfig =
-                        ProbeConfig(
-                            parallelism = config.probeParallelism,
-                            restreamOrigins = config.restreamOrigins,
-                            observationRetention = java.time.Duration.ofDays(config.observationRetentionDays.toLong()),
-                        )
-                    val targets = service?.let { { it.probeTargets() } }
-                    ProbeWorker(
-                        feeds, store, clock, config.ffmpeg, http, probeConfig, onObserved = { id ->
-                            sessions.healthChanged(id)
-                        },
-                        onHealthChanged = { service?.requestRun("health") }, targets = targets, relay = loopback,
-                    )
-                } else {
-                    null
-                }
-                val dvr = Dvr(
-                    store, lineup, guides,
-                    Recorder(
-                        config.ffmpeg,
-                        sessions,
-                        feeds,
-                        clock,
-                        loopback,
-                        shared = relay::joinShared,
-                    ),
-                    config.recordingsDirectory, clock, {
-                        settings.current.maxSessions
-                    },
-                    { java.time.Duration.ofDays(settings.current.guideDays.toLong()) },
-                    retention = { settings.current.let { Retention(it.recordingsFreeGib, it.recordingsKeepDays) } },
-                    commercials = config.comskip?.let {
-                        Commercials(it, config.dataDirectory.resolve("dvr"))
-                    },
-                    jobs = jobs,
-                ).also { dvrService = it }
-                val updates =
-                    UpdateChecker(
-                        http,
-                        clock,
-                        config.dataDirectory,
-                        config.updateImage,
-                        RunningBuild(config.revision, config.version),
-                        jobs,
-                    )
-                updates.start(scope)
-                val libraries = LibraryService(
-                    store, clock,
-                    listOf(
-                        MediaRoot("Media", config.mediaDirectory),
-                        MediaRoot("Recordings", config.recordingsDirectory),
-                    ),
-                    LibraryScanner(MediaProbe(ffprobeBeside(config.ffmpeg))::probe), jobs,
-                    metadata = config.tmdb?.let { LibraryMetadata(store, TmdbClient(http, it), clock, it.region) },
-                    artwork = LibraryArtwork(http, config.dataDirectory.resolve("artwork"), ffmpeg = config.ffmpeg),
-                    intros = IntroDetector(
-                        store,
-                        clock,
-                        jobs,
-                        FfmpegFingerprinter(config.ffmpeg, config.dataDirectory.resolve("intros")),
-                    ).also {
-                        it.start(scope)
-                    },
-                    scrub = ScrubSheets(
-                        store,
-                        clock,
-                        jobs,
-                        FfmpegSheetMaker(config.ffmpeg),
-                        config.dataDirectory.resolve("scrub"),
-                    ).also {
-                        it.start(scope)
-                    },
-                )
-                libraries.start(scope)
-                val vod = VodSessions(
-                    libraries.catalog,
-                    clock,
-                    config.ffmpeg,
-                    config.dataDirectory.resolve("transcode"),
-                    config.maxTranscodes,
-                    recordings = dvr::playable,
-                    probe = MediaProbe(ffprobeBeside(config.ffmpeg))::probe,
-                    encoder = config.videoEncoder,
-                )
-                vod.start()
-                val runtime = LiveRuntime(
-                    store, feeds, guides, lineup, catalog, sessions, relay,
-                    TsRemux(
-                        config.ffmpeg,
-                        loopback,
-                    ),
-                    logos, http, scope,
-                    policyService, plex, started, jobs, settings, worker, PairingService(clock), updates,
-                    SetupService(config, restart, checkTmdb = {
-                        TmdbClient(http, it).check()
-                    }),
-                    libraries, vod, dvr, loopback,
-                    HdhrAccess(config.hdhr.allow, ServerConfig.isLoopback(config.host), store, clock).also {
-                        it.load()
-                    },
-                    listener,
-                )
-                dvr.start(scope)
-                dvr.requestSchedule("startup")
-                scope.launchEvery("session-expire", SESSION_EXPIRE_MS) { sessions.expire() }
-                scope.launchEvery("vod-expire", VOD_EXPIRE_MS) { vod.expire() }
-                if (worker != null) scope.launch(CoroutineName("probe-worker")) { worker.run() }
-                created = true
-                return runtime
+                return assembly.assemble(started).also { created = true }
             } finally {
                 if (!created) {
-                    scope.cancel()
-                    http.close()
+                    assembly.scope.cancel()
+                    assembly.http.close()
                 }
             }
         }

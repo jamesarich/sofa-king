@@ -295,7 +295,9 @@ class ProbeWorker(
         }
 }
 
-/** Which offerings a step probes first, after the plan's order: the unhealthy, then the unverified, then the healthy. */
+/**
+ * Which offerings a step probes first, after the plan's order: the unhealthy, then the unverified, then the healthy.
+ */
 private fun HealthStatus.probePriority(): Int = when (this) {
     HealthStatus.HEALTHY -> 2
     HealthStatus.UNVERIFIED -> 1

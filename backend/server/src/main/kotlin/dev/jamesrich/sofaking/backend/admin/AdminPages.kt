@@ -4,7 +4,6 @@ import dev.jamesrich.sofaking.backend.GIB
 import dev.jamesrich.sofaking.backend.KIB
 import dev.jamesrich.sofaking.backend.MIB
 import dev.jamesrich.sofaking.backend.api.ActiveSession
-import dev.jamesrich.sofaking.backend.api.GuideMapping
 import dev.jamesrich.sofaking.backend.api.GuideStatus
 import dev.jamesrich.sofaking.backend.api.HdhrAccessStatus
 import dev.jamesrich.sofaking.backend.api.PlexStatus

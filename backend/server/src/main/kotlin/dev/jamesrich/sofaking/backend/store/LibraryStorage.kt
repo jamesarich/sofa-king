@@ -1,20 +1,11 @@
 package dev.jamesrich.sofaking.backend.store
 
-import dev.jamesrich.sofaking.backend.library.ItemDetails
-import dev.jamesrich.sofaking.backend.library.LibraryItemRecord
 import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.LibraryRecord
-import dev.jamesrich.sofaking.backend.library.MediaInfo
-import dev.jamesrich.sofaking.backend.library.PlayStateRecord
-import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.statements.UpdateBuilder
-import org.jetbrains.exposed.v1.jdbc.batchUpsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.select

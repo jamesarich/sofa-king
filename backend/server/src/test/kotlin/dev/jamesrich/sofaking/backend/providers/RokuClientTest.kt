@@ -1,13 +1,9 @@
 package dev.jamesrich.sofaking.backend.providers
 
-import dev.jamesrich.sofaking.backend.catalog.MutableClock
-import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.saveProviderState
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import java.nio.file.Files
 import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -77,85 +73,61 @@ class RokuClientTest {
         "contentBase" to "${fixture.base}/content/",
     )
 
-    @Test fun `lists the mirror's clear channels by number with their first group`() = runBlocking<Unit> {
-        val dir = Files.createTempDirectory("sofa-roku-")
-        try {
-            ProviderFixture().use { fixture ->
-                ProviderFixture.httpClient().use { http ->
-                    openStore(dir).use { store ->
-                        fixture.roku()
-                        val client =
-                            RokuClient(ProviderFixture.context("roku", options(fixture), http, store, MutableClock()))
-                        val channels = client.channels()
-                        assertEquals(
-                            listOf(liveNow, "5f9c59c52f0ad475d90a33fdfd14d651", teamUsa),
-                            channels.map {
-                                it.id
-                            },
-                        )
-                        assertEquals("LiveNOW from FOX", channels[0].name)
-                        assertEquals("103", channels[0].number)
-                        assertEquals("News", channels[0].group)
-                        assertEquals("Olympics", channels[2].group)
-                        assertTrue(channels[0].logo!!.startsWith("https://images.sr.roku.com/"))
-                        assertEquals(0, fixture.hits("/api/v1/csrf"), "listing needs no Roku session")
-                    }
-                }
-            }
-        } finally {
-            dir.toFile().deleteRecursively()
-        }
+    @Test fun `lists the mirror's clear channels by number with their first group`() = providerTest("sofa-roku-") {
+        fixture.roku()
+        val client =
+            RokuClient(context("roku", options(fixture)))
+        val channels = client.channels()
+        assertEquals(
+            listOf(liveNow, "5f9c59c52f0ad475d90a33fdfd14d651", teamUsa),
+            channels.map { it.id },
+        )
+        assertEquals("LiveNOW from FOX", channels[0].name)
+        assertEquals("103", channels[0].number)
+        assertEquals("News", channels[0].group)
+        assertEquals("Olympics", channels[2].group)
+        assertTrue(channels[0].logo!!.startsWith("https://images.sr.roku.com/"))
+        assertEquals(0, fixture.hits("/api/v1/csrf"), "listing needs no Roku session")
     }
 
-    @Test fun `resolve boots a web session, looks up the playId once and refuses a DRM answer`() = runBlocking<Unit> {
-        val dir = Files.createTempDirectory("sofa-roku-")
-        try {
-            ProviderFixture().use { fixture ->
-                ProviderFixture.httpClient().use { http ->
-                    openStore(dir).use { store ->
-                        fixture.roku()
-                        val clock = MutableClock()
-                        store.saveProviderState(
-                            "roku",
-                            "session",
-                            "_csrf=stale\nstale-csrf",
-                            clock.now.plusSeconds(600),
-                            clock.now,
-                        )
-                        val client = RokuClient(ProviderFixture.context("roku", options(fixture), http, store, clock))
-                        val resolved = client.resolve(liveNow)
-                        assertEquals(
-                            "${fixture.base}/osm/v1/hls/master/fixture/index.m3u8?traceId=fixture",
-                            resolved.url,
-                        )
-                        assertEquals(clock.now.plus(Duration.ofHours(5)), resolved.expiresAt)
-                        assertEquals(1, fixture.hits("/api/v1/csrf"), "the stale session was refused once and replaced")
-                        assertEquals(
-                            "_csrf=fixture-cookie; _uc=two",
-                            fixture.lastHeaders["/api/v3/playback"]!!["cookie"],
-                            "the later cookie of a name wins",
-                        )
-                        val request = Json.parseToJsonElement(fixture.lastBody["/api/v3/playback"]!!).jsonObject
-                        assertEquals("s-fox.Zml4dHVyZQ==", request["playId"]!!.jsonPrimitive.content)
-                        assertEquals("m3u", request["mediaFormat"]!!.jsonPrimitive.content)
-                        client.resolve(liveNow)
-                        assertEquals(
-                            2,
-                            fixture.hits("/api/v2/homescreen/content/${fixture.base}/content/$liveNow"),
-                            "refused once with the stale session, then never again",
-                        )
-                        assertEquals(1, fixture.hits("/api/v1/csrf"), "the session is reused")
-                        assertFailsWith<ProviderFailure> {
-                            client.resolve(teamUsa)
-                        }.let { assertFalse(it.transient, "a DRM answer is the channel's fault") }
-                        assertFailsWith<ProviderFailure> {
-                            client.resolve("483af83e821059b8b3f0825ae2d43e31")
-                        }.let { assertFalse(it.transient) }
-                    }
-                }
-            }
-        } finally {
-            dir.toFile().deleteRecursively()
+    @Test fun `resolve boots a web session, looks up the playId once and refuses a DRM answer`() =
+        providerTest("sofa-roku-") {
+            fixture.roku()
+            store.saveProviderState(
+                "roku",
+                "session",
+                "_csrf=stale\nstale-csrf",
+                clock.now.plusSeconds(600),
+                clock.now,
+            )
+            val client = RokuClient(ProviderFixture.context("roku", options(fixture), http, store, clock))
+            val resolved = client.resolve(liveNow)
+            assertEquals(
+                "${fixture.base}/osm/v1/hls/master/fixture/index.m3u8?traceId=fixture",
+                resolved.url,
+            )
+            assertEquals(clock.now.plus(Duration.ofHours(5)), resolved.expiresAt)
+            assertEquals(1, fixture.hits("/api/v1/csrf"), "the stale session was refused once and replaced")
+            assertEquals(
+                "_csrf=fixture-cookie; _uc=two",
+                fixture.lastHeaders["/api/v3/playback"]!!["cookie"],
+                "the later cookie of a name wins",
+            )
+            val request = Json.parseToJsonElement(fixture.lastBody["/api/v3/playback"]!!).jsonObject
+            assertEquals("s-fox.Zml4dHVyZQ==", request["playId"]!!.jsonPrimitive.content)
+            assertEquals("m3u", request["mediaFormat"]!!.jsonPrimitive.content)
+            client.resolve(liveNow)
+            assertEquals(
+                2,
+                fixture.hits("/api/v2/homescreen/content/${fixture.base}/content/$liveNow"),
+                "refused once with the stale session, then never again",
+            )
+            assertEquals(1, fixture.hits("/api/v1/csrf"), "the session is reused")
+            assertFailsWith<ProviderFailure> {
+                client.resolve(teamUsa)
+            }.let { assertFalse(it.transient, "a DRM answer is the channel's fault") }
+            assertFailsWith<ProviderFailure> {
+                client.resolve("483af83e821059b8b3f0825ae2d43e31")
+            }.let { assertFalse(it.transient) }
         }
-    }
 }

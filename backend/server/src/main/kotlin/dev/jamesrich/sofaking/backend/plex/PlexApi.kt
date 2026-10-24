@@ -1,12 +1,7 @@
 package dev.jamesrich.sofaking.backend.plex
 
 import dev.jamesrich.sofaking.backend.PlexConfig
-import dev.jamesrich.sofaking.backend.api.PlexDeviceStatus
-import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
-import dev.jamesrich.sofaking.backend.jobs.JobOutcome
-import dev.jamesrich.sofaking.backend.jobs.Jobs
-import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.accept
@@ -18,17 +13,6 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.URLBuilder
 import io.ktor.http.encodeURLPathPart
 import io.ktor.http.isSuccess
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.selects.onTimeout
-import kotlinx.coroutines.selects.select
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
@@ -36,11 +20,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import org.slf4j.LoggerFactory
-import java.time.Clock
-import java.time.Duration
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
-import kotlinx.coroutines.channels.Channel as Trigger
 
 private const val GRABBER = "device://tv.plex.grabbers.hdhomerun/"
 

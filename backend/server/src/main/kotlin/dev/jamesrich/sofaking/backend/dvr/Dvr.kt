@@ -5,7 +5,6 @@ import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.GuideService
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.LineupService
-import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.PlayableFile
@@ -14,40 +13,26 @@ import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.Recordings
 import dev.jamesrich.sofaking.backend.store.addRecording
 import dev.jamesrich.sofaking.backend.store.deleteRecording
-import dev.jamesrich.sofaking.backend.store.deleteRecordingRule
 import dev.jamesrich.sofaking.backend.store.guides
 import dev.jamesrich.sofaking.backend.store.lineup
 import dev.jamesrich.sofaking.backend.store.programs
 import dev.jamesrich.sofaking.backend.store.recording
-import dev.jamesrich.sofaking.backend.store.recordingRule
 import dev.jamesrich.sofaking.backend.store.recordingRules
 import dev.jamesrich.sofaking.backend.store.recordings
 import dev.jamesrich.sofaking.backend.store.saveRecording
-import dev.jamesrich.sofaking.backend.store.saveRecordingRule
-import dev.jamesrich.sofaking.backend.store.stored
-import dev.jamesrich.sofaking.contract.CreateRecordingRule
 import dev.jamesrich.sofaking.contract.Recording
 import dev.jamesrich.sofaking.contract.RecordingList
-import dev.jamesrich.sofaking.contract.RecordingRule
-import dev.jamesrich.sofaking.contract.RecordingStorage
 import dev.jamesrich.sofaking.contract.ScheduleRecording
 import dev.jamesrich.sofaking.contract.UpdateRecording
-import dev.jamesrich.sofaking.contract.UpdateRecordingRule
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.isPresent
-import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.selects.onTimeout
@@ -58,13 +43,11 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The DVR: series rules and one-off recordings, the schedule the rules make from the guide, and the recordings

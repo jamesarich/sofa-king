@@ -29,29 +29,33 @@ data class UpstreamPolicy(val allowLoopback: Boolean = false) {
 
     /** Why the relay refuses to fetch [target], or null when it may. */
     private fun rejection(target: URI): String? {
-        val host = target.host?.takeIf { target.scheme in UPSTREAM_SCHEMES && target.userInfo == null }
-            ?.trim('[', ']')?.lowercase()?.removeSuffix(".")
-            ?: return UNSUPPORTED
-        // The C resolver FFmpeg uses reads 0x7f000001, 0177.0.0.1 and 2130706433 as 127.0.0.1; only a plain
-        // dotted quad is a literal here.
-        if (!host.contains(':') && host.split('.').all { NUMERIC_PART.matches(it) } && !DOTTED_QUAD.matches(host)) {
-            return UNSUPPORTED
-        }
+        val host = literalHost(target) ?: return UNSUPPORTED
         val literal = if (host.all { it.isDigit() || it == '.' } || host.contains(':')) {
             runCatching { InetAddress.getByName(host) }.getOrNull()
         } else {
             null
         }
         val loopback = literal?.isLoopbackAddress ?: (host == "localhost" || host.endsWith(".localhost"))
-        val unroutable = literal != null &&
-            (literal.isLinkLocalAddress || literal.isAnyLocalAddress || literal.isMulticastAddress)
         return when {
-            unroutable -> "Unroutable upstream address"
+            literal != null && literal.unroutable -> "Unroutable upstream address"
             loopback && !allowLoopback -> "Loopback upstream address"
             else -> null
         }
     }
 }
+
+/** [target]'s host, lowercase and without brackets or a trailing dot; null for one the relay never fetches. */
+private fun literalHost(target: URI): String? {
+    val host = target.host?.takeIf { target.scheme in UPSTREAM_SCHEMES && target.userInfo == null }
+        ?.trim('[', ']')?.lowercase()?.removeSuffix(".")
+        ?: return null
+    // The C resolver FFmpeg uses reads 0x7f000001, 0177.0.0.1 and 2130706433 as 127.0.0.1; only a plain
+    // dotted quad is a literal here.
+    val numeric = !host.contains(':') && host.split('.').all { NUMERIC_PART.matches(it) }
+    return host.takeUnless { numeric && !DOTTED_QUAD.matches(it) }
+}
+
+private val InetAddress.unroutable: Boolean get() = isLinkLocalAddress || isAnyLocalAddress || isMulticastAddress
 
 private const val UNSUPPORTED = "Unsupported upstream address"
 private val UPSTREAM_SCHEMES = setOf("http", "https")

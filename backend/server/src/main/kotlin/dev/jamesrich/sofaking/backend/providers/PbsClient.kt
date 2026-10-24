@@ -5,7 +5,6 @@ import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import kotlinx.serialization.json.JsonElement
 import java.time.Duration
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 

@@ -176,13 +176,18 @@ internal class TmdbClient(
     }
 
     private suspend inline fun <reified T> get(path: String, vararg query: Pair<String, String?>): T {
-        val response: HttpResponse = runCatchingCancellable {
+        val response = request(path, query)
+        failureOf(response.status)?.let { throw TmdbFailure(it) }
+        return runCatchingCancellable { tmdbJson.decodeFromString<T>(response.bodyAsText()) }
+            .getOrElse { throw TmdbFailure("TMDB_BAD_RESPONSE") }
+    }
+
+    /** [path] asked with the token and the language; a request that never gets an answer is `TMDB_UNREACHABLE`. */
+    private suspend fun request(path: String, query: Array<out Pair<String, String?>>): HttpResponse =
+        runCatchingCancellable {
             http.get(base + path.split('/').joinToString("/") { it.encodeURLPathPart() }) {
                 if (v3Key) {
-                    parameter(
-                        "api_key",
-                        config.token,
-                    )
+                    parameter("api_key", config.token)
                 } else {
                     header(HttpHeaders.Authorization, "Bearer ${config.token}")
                 }
@@ -194,20 +199,14 @@ internal class TmdbClient(
             // Only the class goes on: the transport's message can carry the URL, and with it a v3 key.
             throw TmdbFailure("TMDB_UNREACHABLE (${it.javaClass.simpleName})")
         }
-        when (response.status) {
-            HttpStatusCode.OK -> {}
-            HttpStatusCode.Unauthorized -> throw TmdbFailure("TMDB_AUTH")
-            HttpStatusCode.TooManyRequests -> throw TmdbFailure("TMDB_RATE_LIMITED")
-            else -> throw TmdbFailure("TMDB_HTTP_${response.status.value}")
-        }
-        return try {
-            tmdbJson.decodeFromString(response.bodyAsText())
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            throw TmdbFailure("TMDB_BAD_RESPONSE")
-        }
-    }
+}
+
+/** The failure code of a TMDB answer with [status]; null for a success. */
+private fun failureOf(status: HttpStatusCode): String? = when (status) {
+    HttpStatusCode.OK -> null
+    HttpStatusCode.Unauthorized -> "TMDB_AUTH"
+    HttpStatusCode.TooManyRequests -> "TMDB_RATE_LIMITED"
+    else -> "TMDB_HTTP_${status.value}"
 }
 
 /** The TMDB image at [path] (`/abc.jpg`) in [size] (`w500`, `w1280`, `original`). */

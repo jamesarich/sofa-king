@@ -179,7 +179,7 @@ class LibraryServiceTest {
             val shows = Files.createDirectories(s.root.resolve("TV_Shows"))
             Files.createDirectories(s.root.resolve("Films/Movies"))
             Files.createDirectories(s.root.resolve("Music"))
-            val suggested = s.service.suggestions()
+            val suggested = s.service.folders.suggestions()
             assertEquals(
                 listOf(
                     LibrarySuggestion("Films", LibraryKind.MOVIES, s.root.resolve("Films")),
@@ -190,7 +190,7 @@ class LibraryServiceTest {
                 "only names that say what a folder holds, and only one level down",
             )
             s.service.create("Movies", LibraryKind.MOVIES, movies.toString())
-            assertEquals(listOf("Films", "TV_Shows"), s.service.suggestions().map { it.name })
+            assertEquals(listOf("Films", "TV_Shows"), s.service.folders.suggestions().map { it.name })
         }
 
     @Test fun `a relative media root drops the folders in use, and two adds of one folder give one library`() =
@@ -229,12 +229,12 @@ class LibraryServiceTest {
                 "a double submit is a 409, not a 500",
             )
             assertTrue(
-                service.folderChoices().none {
+                service.folders.choices().none {
                     it.fileName.toString() == "Movies"
                 },
                 "the folder in use is not offered",
             )
-            assertTrue(service.suggestions().isEmpty())
+            assertTrue(service.folders.suggestions().isEmpty())
             store.close()
             dir.toFile().deleteRecursively()
         }
@@ -269,8 +269,8 @@ class LibraryServiceTest {
                 s.service.create("Again", LibraryKind.MOVIES, movies.toString())
             }.status,
         )
-        assertFalse(s.service.folderChoices().contains(movies))
-        assertTrue(s.service.folderChoices().contains(s.root))
+        assertFalse(s.service.folders.choices().contains(movies))
+        assertTrue(s.service.folders.choices().contains(s.root))
     }
 
     @Test fun `removing a library does not wait for its files to be probed, and the scan then writes nothing`() =

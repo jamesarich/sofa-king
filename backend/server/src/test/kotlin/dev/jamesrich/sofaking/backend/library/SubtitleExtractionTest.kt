@@ -65,9 +65,9 @@ class SubtitleExtractionTest {
             val subtitles = transcode.resolve("subtitles")
             fun parts() = if (Files.isDirectory(subtitles)) subtitles.listDirectoryEntries("*.part") else emptyList()
 
-            val slow = async(Dispatchers.Default) { vod.subtitles(ids.getValue("Slow"), SIDECAR_BASE) }
+            val slow = async(Dispatchers.Default) { vod.subtitles.vtt(ids.getValue("Slow"), SIDECAR_BASE) }
             withTimeout(10_000) { while (parts().isEmpty()) delay(20) }
-            val fast = withTimeout(10_000) { vod.subtitles(ids.getValue("Fast"), SIDECAR_BASE) }
+            val fast = withTimeout(10_000) { vod.subtitles.vtt(ids.getValue("Fast"), SIDECAR_BASE) }
             assertTrue(Files.readString(fast).startsWith("WEBVTT"))
 
             slow.cancelAndJoin()

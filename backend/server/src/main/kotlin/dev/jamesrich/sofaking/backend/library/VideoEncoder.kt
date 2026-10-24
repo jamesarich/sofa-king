@@ -121,31 +121,40 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
         ffmpeg: String,
         exists: (String) -> Boolean = { java.io.File(it).exists() },
         run: (List<String>) -> Boolean = ::succeeds,
+    ): VideoEncoder = when (accel) {
+        HardwareAccel.NONE -> this
+        HardwareAccel.AUTO -> firstWorking(ffmpeg, exists, run)
+        else -> checked(ffmpeg, run)
+    }
+
+    /** The first GPU encoder that works, NVENC first, else software. */
+    private suspend fun firstWorking(
+        ffmpeg: String,
+        exists: (String) -> Boolean,
+        run: (List<String>) -> Boolean,
     ): VideoEncoder {
-        if (accel == HardwareAccel.NONE) return this
-        if (accel == HardwareAccel.AUTO) {
-            val candidates = buildList {
-                if (exists(NVIDIA_DEVICE)) add(HardwareAccel.NVENC)
-                if (exists(device)) {
-                    add(HardwareAccel.VAAPI)
-                    add(HardwareAccel.QSV)
-                }
+        val candidates = buildList {
+            if (exists(NVIDIA_DEVICE)) add(HardwareAccel.NVENC)
+            if (exists(device)) {
+                add(HardwareAccel.VAAPI)
+                add(HardwareAccel.QSV)
             }
-            for (candidate in candidates) {
-                val encoder = VideoEncoder(candidate, device)
-                if (withContext(Dispatchers.IO) { run(encoder.testCommand(ffmpeg)) }) {
-                    log.info("vod encoder ready accel={} (auto)", candidate.setting)
-                    return encoder
-                }
-            }
-            log.info(
-                "vod encoder: no GPU encoder works (tried {}); converting in software",
-                candidates.joinToString {
-                    it.setting
-                }.ifEmpty { "none" },
-            )
-            return VideoEncoder(HardwareAccel.NONE, device)
         }
+        val working = candidates.map { VideoEncoder(it, device) }
+            .firstOrNull { encoder -> withContext(Dispatchers.IO) { run(encoder.testCommand(ffmpeg)) } }
+        if (working != null) {
+            log.info("vod encoder ready accel={} (auto)", working.accel.setting)
+            return working
+        }
+        log.info(
+            "vod encoder: no GPU encoder works (tried {}); converting in software",
+            candidates.joinToString { it.setting }.ifEmpty { "none" },
+        )
+        return VideoEncoder(HardwareAccel.NONE, device)
+    }
+
+    /** This encoder when it works, else software. */
+    private suspend fun checked(ffmpeg: String, run: (List<String>) -> Boolean): VideoEncoder {
         if (withContext(Dispatchers.IO) { run(testCommand(ffmpeg)) }) {
             log.info("vod encoder ready accel={}", accel.setting)
             return this

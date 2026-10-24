@@ -1,7 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.contract.LetterCount
-import java.time.LocalDate
 
 /** The video containers a library scan picks up, by lower-case extension. */
 internal val VIDEO_EXTENSIONS =
@@ -88,14 +87,10 @@ private val ORDINAL = Regex("""^(?:0\d{1,2}|\d)\s+-\s+(?=\S)""")
  */
 internal fun titleYear(raw: String): TitleYear {
     val name = (if (' ' !in raw) raw.replace('.', ' ').replace('_', ' ') else raw).replace(ORDINAL, "")
-    YEAR.matchEntire(name)?.let { match ->
-        val year = match.groupValues[2].toInt()
-        if (year in PLAUSIBLE_YEARS) return TitleYear(clean(match.groupValues[1]), year)
-    }
-    BARE_YEAR.matchEntire(name)?.let { match ->
-        return TitleYear(clean(match.groupValues[1]), match.groupValues[2].toInt())
-    }
-    return TitleYear(clean(name), null)
+    val dated = YEAR.matchEntire(name)?.takeIf { it.groupValues[2].toInt() in PLAUSIBLE_YEARS }
+        ?: BARE_YEAR.matchEntire(name)
+    return dated?.let { TitleYear(cleanTitle(it.groupValues[1]), it.groupValues[2].toInt()) }
+        ?: TitleYear(cleanTitle(name), null)
 }
 
 /** A release group after the bracketed tags, as Sonarr and Radarr name files: `Title [WEBDL-1080p][x264]-RAWR`. */
@@ -107,80 +102,9 @@ private val QUALITY = Regex(
         """](?:480|576|720|1080|2160)p)?(?:\s+(?:Proper|Repack))*(?:-[A-Za-z0-9]+)?$""",
 )
 
-private fun clean(title: String): String =
+/** [title] without the release group, bracketed tags and quality a file name carries. */
+internal fun cleanTitle(title: String): String =
     title.replace(RELEASE_GROUP, "").replace(BRACKETED, "").trim().replace(QUALITY, "").trimEnd('-', '.', '_').trim()
-
-/** An episode's numbers or air date and the title after them, read from its file name. */
-internal data class EpisodeName(
-    val season: Int?,
-    val episode: Int?,
-    val episodeEnd: Int? = null,
-    val aired: LocalDate? = null,
-    val title: String? = null,
-)
-
-private val SEASON_EPISODE =
-    Regex("""(?i)(?:^|[\s._\-\[(])s(\d{1,4})[\s._]?e(\d{1,4})(?:[\s._]?-?[\s._]?e(\d{1,4}))?""")
-private val CROSS = Regex("""(?i)(?:^|[\s._\-\[(])(\d{1,2})x(\d{2,3})(?:-(\d{2,3}))?""")
-private val AIR_DATE = Regex("""(?:^|[\s._\-\[(])((?:19|20)\d{2})[-._](\d{2})[-._](\d{2})""")
-private val SEASON_FOLDER = Regex("""(?i)^(?:season|series|staffel|saison|temporada)[\s._]*(\d{1,4})$""")
-private val SPECIALS_FOLDER = Regex("""(?i)^specials?$""")
-
-/** The season a folder named `Season 01`, `Season 2024` or `Specials` (season 0) holds; null for any other folder. */
-internal fun seasonOfFolder(name: String): Int? {
-    if (SPECIALS_FOLDER.matches(name.trim())) return 0
-    return SEASON_FOLDER.matchEntire(name.trim())?.groupValues?.get(1)?.toInt()
-}
-
-/**
- * The numbers of an episode file: `Show - S01E02 - Title.mkv`, `Show.S01E02E03.mkv`, `Show 1x02.mkv`, or a
- * date-based `Show - 2026-10-17 - Title.ts` as the DVR names news and talk shows. [stem] is the name without its
- * extension; the title is whatever follows the numbers after ` - `.
- */
-internal fun episodeName(stem: String): EpisodeName {
-    SEASON_EPISODE.find(stem)?.let { match ->
-        val (season, episode, end) = match.destructured
-        return EpisodeName(
-            season.toInt(),
-            episode.toInt(),
-            end.toIntOrNull(),
-            title = titleAfter(
-                stem,
-                match.range.last + 1,
-            ),
-        )
-    }
-    AIR_DATE.find(stem)?.let { match ->
-        val (y, m, d) = match.destructured
-        val date = runCatching { LocalDate.of(y.toInt(), m.toInt(), d.toInt()) }.getOrNull()
-        if (date != null) return EpisodeName(null, null, aired = date, title = titleAfter(stem, match.range.last + 1))
-    }
-    CROSS.find(stem)?.let { match ->
-        val (season, episode, end) = match.destructured
-        return EpisodeName(
-            season.toInt(),
-            episode.toInt(),
-            end.toIntOrNull(),
-            title = titleAfter(
-                stem,
-                match.range.last + 1,
-            ),
-        )
-    }
-    return EpisodeName(null, null)
-}
-
-private const val TITLE_DASH = " - "
-
-private val SAME_DAY_TIME = Regex("""\s*\(\d{2}\.\d{2}\)\s*$""")
-
-/** The text after ` - ` that follows the episode's numbers, without a DVR's same-day ` (HH.MM)` or a bracketed tag. */
-private fun titleAfter(stem: String, from: Int): String? {
-    val rest = stem.substring(from.coerceAtMost(stem.length))
-    val dash = rest.indexOf(TITLE_DASH)
-    if (dash < 0) return null
-    return clean(rest.substring(dash + TITLE_DASH.length).replace(SAME_DAY_TIME, "")).ifEmpty { null }
-}
 
 private val TMDB_TAG = Regex("""(?i)[\[{](?:tmdb|tmdbid)[-=](\d+)[\]}]""")
 

@@ -185,16 +185,12 @@ class LibraryCatalogTest {
         assertFailsWith<ApiFailure> { catalog.updatePlayState(show.id, UpdatePlayState(positionMs = 5)) }
     }
 
-    @Test fun `TMDB fills what files leave out, but a nfo and local art win`() = runBlocking<Unit> {
-        val calls = mutableListOf<String>()
-        val s = setup(
-            HttpClient(
-                MockEngine { request ->
-                    calls += request.url.encodedPath
-                    respond(jpeg, HttpStatusCode.OK)
-                },
-            ),
-        )
+    /**
+     * A movies library of Alien, with TMDB's facts and art, and Heat, with a nfo and a poster of its own as well as
+     * TMDB's facts; [http] serves TMDB's images.
+     */
+    private suspend fun twoMovies(http: HttpClient? = null): Setup {
+        val s = setup(http)
         val movies = s.root.resolve("movies")
         movies.file("Alien (1979)/Alien (1979).mkv")
         movies.file("Heat (1995)/Heat (1995).mkv")
@@ -235,7 +231,12 @@ class LibraryCatalogTest {
             ),
         )
         s.service.scan(library.id) // a scan bumps the revision the catalog rebuilds on
+        return s
+    }
 
+    @Test fun `TMDB fills what files leave out, but a nfo and local art win`() = runBlocking<Unit> {
+        val s = twoMovies()
+        val library = s.service.libraries().single()
         val page = s.service.catalog.items(library.id, "rating", false, null, 10).items
         val alien = page.first { it.title == "Alien" }
         assertEquals("In space.", alien.overview)
@@ -248,12 +249,25 @@ class LibraryCatalogTest {
         val view = s.service.catalog.snapshot().views
         assertEquals(ArtSource.Tmdb("/a.jpg", "w342"), view.getValue(alien.id).poster)
         assertIs<ArtSource.Local>(view.getValue(heat.id).poster, "local art wins")
+    }
+
+    @Test fun `a TMDB image is downloaded once, and no path leads outside`() = runBlocking<Unit> {
+        val calls = mutableListOf<String>()
+        val s = twoMovies(
+            HttpClient(
+                MockEngine { request ->
+                    calls += request.url.encodedPath
+                    respond(jpeg, HttpStatusCode.OK)
+                },
+            ),
+        )
+        val alien = s.service.catalog.snapshot().views.values.first { it.item.title == "Alien" }
         val artwork = s.service.artwork!!
-        assertNotNull(artwork.image(view.getValue(alien.id).poster!!))
-        assertNotNull(artwork.image(view.getValue(alien.id).poster!!))
+        assertNotNull(artwork.image(alien.poster!!))
+        assertNotNull(artwork.image(alien.poster!!))
         assertEquals(listOf("/t/p/w342/a.jpg"), calls, "a TMDB image is downloaded once")
         assertNull(artwork.image(ArtSource.Tmdb("/../etc.jpg", "w342")))
-        assertNull(artwork.image(ArtSource.Local(movies, "../outside.jpg")))
+        assertNull(artwork.image(ArtSource.Local(s.root.resolve("movies"), "../outside.jpg")))
     }
 
     @Test fun `search finds titles, top-level items before episodes`() = runBlocking<Unit> {

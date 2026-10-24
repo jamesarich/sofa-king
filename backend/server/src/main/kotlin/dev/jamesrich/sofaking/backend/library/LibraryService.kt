@@ -28,7 +28,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.slf4j.LoggerFactory
-import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
@@ -48,19 +47,6 @@ private const val LIBRARY_NAME_LIMIT = 100
  * A folder a library may be added from: [root] is where the operator mounted media, [label] how the portal names it.
  */
 data class MediaRoot(val label: String, val root: Path)
-
-/** A folder whose name says what it holds, offered as a library to add with one click. */
-data class LibrarySuggestion(val name: String, val kind: LibraryKind, val path: Path)
-
-/** What a folder named so holds, by its name in lower case with separators as spaces. */
-private val SUGGESTED_KINDS = mapOf(
-    "movies" to LibraryKind.MOVIES, "movie" to LibraryKind.MOVIES, "films" to LibraryKind.MOVIES,
-    "film" to LibraryKind.MOVIES,
-    "tv" to LibraryKind.SHOWS, "tv shows" to LibraryKind.SHOWS, "shows" to LibraryKind.SHOWS,
-    "series" to LibraryKind.SHOWS,
-    "tv series" to LibraryKind.SHOWS, "television" to LibraryKind.SHOWS,
-    "videos" to LibraryKind.VIDEOS, "home videos" to LibraryKind.VIDEOS, "music videos" to LibraryKind.VIDEOS,
-)
 
 /**
  * The media libraries: adding, renaming and removing them, and scanning their folders. A library's folder must sit
@@ -91,6 +77,9 @@ class LibraryService(
     /** What clients read: the home rows, the items, search and watch state. */
     val catalog = LibraryCatalog(store, clock) { revision.get() }
 
+    /** The folders a library may be added from. */
+    val folders = LibraryFolders(store, roots)
+
     private val trigger = Channel<Unit>(Channel.CONFLATED)
     private val pending = ConcurrentHashMap.newKeySet<String>()
 
@@ -117,71 +106,13 @@ class LibraryService(
     /** Present items by library and kind. */
     suspend fun counts(): Map<String, Map<String, Int>> = store.libraryItemCounts()
 
-    /**
-     * The folders a new library can use: each root and its subfolders two levels down, skipping hidden and NAS
-     * housekeeping folders and those another library already uses.
-     */
-    suspend fun folderChoices(): List<Path> {
-        val used = store.libraries().mapTo(HashSet()) { it.path }
-        // Absolute, as create stores them, so a relative root still drops the folders in use.
-        return roots.flatMap { root -> folders(root.root.toAbsolutePath().normalize(), 2) }.filter {
-            it.toString() !in
-                used
-        }
-    }
-
-    /**
-     * The unused folders right under a root whose names say what they hold, such as `Movies` or `TV Shows`, named after
-     * the folder; one under the recordings folder carries the root's label too, as `TV (Recordings)`.
-     */
-    suspend fun suggestions(): List<LibrarySuggestion> {
-        val parents = roots.associateBy { it.root.toAbsolutePath().normalize() }
-        return folderChoices().mapNotNull { folder ->
-            val root = parents[folder.parent] ?: return@mapNotNull null
-            val name = folder.fileName.toString()
-            val key = name.lowercase().replace(Regex("[_.\\-]+"), " ").replace(Regex("\\s+"), " ").trim()
-            val kind = SUGGESTED_KINDS[key] ?: return@mapNotNull null
-            LibrarySuggestion(if (root == roots.first()) name else "$name (${root.label})", kind, folder)
-        }
-    }
-
-    private fun folders(root: Path, depth: Int): List<Path> {
-        if (!Files.isDirectory(root)) return emptyList()
-        val below = if (depth == 0) {
-            emptyList()
-        } else {
-            try {
-                Files.list(root).use { stream ->
-                    stream.filter {
-                        Files.isDirectory(it, java.nio.file.LinkOption.NOFOLLOW_LINKS) &&
-                            !skippedFolder(it.fileName.toString()) &&
-                            extraFolderKind(it.fileName.toString()) == null
-                    }.sorted().toList()
-                }.flatMap { folders(it, depth - 1) }
-            } catch (_: java.io.IOException) {
-                emptyList()
-            }
-        }
-        return listOf(root.normalize()) + below
-    }
-
     suspend fun create(name: String, kind: LibraryKind, path: String): LibraryRecord {
-        val title = name.trim()
-        if (title.isEmpty() || title.length > LIBRARY_NAME_LIMIT) {
-            throw ApiFailure(
-                HttpStatusCode.BadRequest,
-                "INVALID_REQUEST",
-                "A library name has 1 to $LIBRARY_NAME_LIMIT characters",
-            )
-        }
-        val folder = allowed(path)
+        val title = titleOf(name)
+        val folder = folders.allowed(path)
         val library =
             LibraryRecord(UUID.randomUUID().toString(), title, kind, folder.toString(), clock.instant().toString())
         creating.withLock {
-            if (store.libraries().any {
-                    it.path == folder.toString()
-                }
-            ) {
+            if (store.libraries().any { it.path == folder.toString() }) {
                 throw ApiFailure(HttpStatusCode.Conflict, "LIBRARY_EXISTS", "Another library already uses that folder")
             }
             store.insertLibrary(library)
@@ -192,32 +123,25 @@ class LibraryService(
     }
 
     suspend fun rename(id: String, name: String): LibraryRecord {
-        val title = name.trim()
-        if (title.isEmpty() || title.length > LIBRARY_NAME_LIMIT) {
-            throw ApiFailure(
-                HttpStatusCode.BadRequest,
-                "INVALID_REQUEST",
-                "A library name has 1 to $LIBRARY_NAME_LIMIT characters",
-            )
-        }
-        if (!store.renameLibrary(
-                id,
-                title,
-            )
-        ) {
+        if (!store.renameLibrary(id, titleOf(name))) {
             throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
         }
         revision.incrementAndGet()
         return library(id)
     }
 
+    private fun titleOf(name: String): String =
+        name.trim().takeIf { it.isNotEmpty() && it.length <= LIBRARY_NAME_LIMIT }
+            ?: throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                "A library name has 1 to $LIBRARY_NAME_LIMIT characters",
+            )
+
     /** Forgets the library, its items and their watch state; its files stay where they are. */
     suspend fun delete(id: String) {
         scanLock.withLock {
-            if (!store.deleteLibrary(
-                    id,
-                )
-            ) {
+            if (!store.deleteLibrary(id)) {
                 throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
             }
         }
@@ -242,10 +166,7 @@ class LibraryService(
             val plan = scanner.scan(library, Path.of(library.path), store.libraryItems(library.id), now)
             scanLock.withLock {
                 // Removed since this scan began: it writes nothing.
-                if (store.libraries().none {
-                        it.id == library.id
-                    }
-                ) {
+                if (store.libraries().none { it.id == library.id }) {
                     throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
                 }
                 if (plan.save.isNotEmpty()) store.saveLibraryItems(plan.save)
@@ -289,13 +210,7 @@ class LibraryService(
                 trigger.receive()
                 val wanted = pending.toList().also { pending.removeAll(it.toSet()) }
                 val ids = runCatchingCancellable {
-                    if (ALL in
-                        wanted
-                    ) {
-                        store.libraries().map { it.id }
-                    } else {
-                        wanted
-                    }
+                    if (ALL in wanted) store.libraries().map { it.id } else wanted
                 }.getOrElse { e ->
                     log.warn("library scan failed class={}", e.javaClass.simpleName)
                     emptyList()
@@ -314,33 +229,6 @@ class LibraryService(
                 }
             }
         }
-    }
-
-    /** [path] as a normalized absolute folder inside one of [roots], or a 400 naming what is wrong. */
-    private fun allowed(path: String): Path {
-        val candidate = try {
-            Path.of(path.trim()).toAbsolutePath().normalize()
-        } catch (_: Exception) {
-            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Not a folder path")
-        }
-        val root = roots.firstOrNull { candidate.startsWith(it.root.toAbsolutePath().normalize()) }
-            ?: throw ApiFailure(
-                HttpStatusCode.BadRequest,
-                "INVALID_REQUEST",
-                "A library folder must be inside ${roots.joinToString(" or ") { it.root.toString() }}",
-            )
-        if (!Files.isDirectory(
-                candidate,
-            )
-        ) {
-            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "No folder at that path")
-        }
-        // A link inside the root must not lead the scan outside it.
-        val real = candidate.toRealPath()
-        if (!real.startsWith(root.root.toRealPath())) {
-            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "That folder links outside ${root.root}")
-        }
-        return candidate
     }
 
     private companion object {

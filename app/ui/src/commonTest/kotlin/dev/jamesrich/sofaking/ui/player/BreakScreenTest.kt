@@ -145,7 +145,7 @@ class BreakScreenTest {
         assertEquals(SofaMauve, breakInk(null))
         assertEquals(SofaLavender.copy(alpha = 0.9f), breakBackdrop(0))
         val third = breakBackdrop(3)
-        assertEquals(0.9f, third.alpha, 0.001f)
+        assertEquals(0.9f, third.alpha, 0.01f, "8-bit alpha")
         assertEquals(SofaLavender.hueRotated(BOUNCE_HUES[3]).copy(alpha = 0.9f), third)
         assertEquals(SofaPlum, breakInk(3))
     }

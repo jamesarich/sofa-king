@@ -47,6 +47,9 @@ class TouchTest {
         device.executeShellCommand(
             "cmd overlay enable-exclusive --category com.android.internal.systemui.navbar.gestural",
         )
+        // Seen as confirmed, as after a viewer's first "Got it": the full-screen player's first immersive moment
+        // otherwise shows the system's hint, which takes input focus until it is tapped away.
+        device.executeShellCommand("settings put secure immersive_mode_confirmations confirmed")
         device.setOrientationNatural()
         val link = Uri.parse("sofaking://pair").buildUpon()
             .appendQueryParameter("server", address).appendQueryParameter("code", server.pairingCode()).build()
@@ -94,12 +97,7 @@ class TouchTest {
             )!!.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
         eventually("the player back full screen") { !inPictureInPicture() && device.hasObject(By.res(PLAYER)) }
-        // Back goes to the window with input focus, and System UI can keep it after picture-in-picture closes; a touch
-        // on the player hands it back, as it does for a viewer.
-        if (!within(FOCUS_MS) { appFocused() }) {
-            println("Back from picture-in-picture, input focus stayed on ${focusedWindow()}; touching the player")
-            device.click(device.displayWidth / 2, device.displayHeight / 4)
-        }
+        // Back goes to the window with input focus, which the player takes back a moment after picture-in-picture.
         check(within(TIMEOUT_MS) { appFocused() }) { "Input focus stayed on ${focusedWindow()}" }
         check(server.watching().size == 1) {
             "Back from picture-in-picture, the app holds ${server.watching().size} sessions"
@@ -234,7 +232,6 @@ class TouchTest {
         val FIRST_PAGE: Pattern = Pattern.compile("$PLAYER|$GUIDE")
 
         const val TIMEOUT_MS = 30_000L
-        const val FOCUS_MS = 5_000L
         const val POLL_MS = 500L
         const val PLAYBACK_MS = 5_000L
         const val SETTLE_MS = 2_000L

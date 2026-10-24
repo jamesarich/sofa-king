@@ -102,123 +102,124 @@ class OutputTest {
         return Served(runtime, store, clock, channels)
     }
 
-    @Test fun `playlist and guide serve the enabled lineup to the output token in the query or the API bearer`() =
-        testApplication {
-            val dir = Files.createTempDirectory("sofa-output-lists-")
-            Fixture().use { fixture ->
-                val served = serve(dir, listOf(fixture.feed, fixture.tsFeed))
-                try {
-                    val hls = served.channels.single { it.displayNumber == "5" }
-                    val ts = served.channels.single { it.displayNumber == "6" }
-                    assertEquals(HttpStatusCode.Unauthorized, client.get("/output/playlist.m3u").status)
-                    assertEquals(HttpStatusCode.Unauthorized, client.get("/output/playlist.m3u?token=wrong").status)
-                    assertEquals(
-                        HttpStatusCode.Unauthorized,
-                        client.get("/output/guide.xml") {
-                            bearerAuth("wrong")
-                        }.status,
-                    )
-                    assertEquals(HttpStatusCode.Unauthorized, client.get("/output/stream/${hls.id}.m3u8").status)
-                    // The API token opens the outputs as a bearer only; in a query it would leak into player configs.
-                    assertEquals(HttpStatusCode.Unauthorized, client.get("/output/playlist.m3u?token=$token").status)
-                    assertEquals(HttpStatusCode.OK, client.get("/output/playlist.m3u") { bearerAuth(token) }.status)
+    @Test fun `the outputs take the output token in the query or the API token as a bearer`() = outputLists {
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/output/playlist.m3u").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/output/playlist.m3u?token=wrong").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/output/guide.xml") { bearerAuth("wrong") }.status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/output/stream/${hls.id}.m3u8").status)
+        // The API token opens the outputs as a bearer only; in a query it would leak into player configs.
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/output/playlist.m3u?token=$token").status)
+        assertEquals(HttpStatusCode.OK, client.get("/output/playlist.m3u") { bearerAuth(token) }.status)
+    }
 
-                    val playlist = client.get("/output/playlist.m3u?token=$output")
-                    assertEquals(HttpStatusCode.OK, playlist.status)
-                    assertTrue(playlist.headers[HttpHeaders.ContentType]!!.startsWith("audio/x-mpegurl"))
-                    val body = playlist.bodyAsText()
-                    val lines = body.lines()
-                    assertEquals(
-                        "#EXTM3U url-tvg=\"$base/output/guide.xml?token=$output\" " +
-                            "x-tvg-url=\"$base/output/guide.xml?token=$output\"",
-                        lines[0],
-                    )
-                    assertEquals(
-                        "#EXTINF:-1 tvg-id=\"${hls.id}\" tvg-chno=\"5\" tvg-name=\"Station\" " +
-                            "group-title=\"News\",Station",
-                        lines[1],
-                    )
-                    assertEquals("$base/output/stream/${hls.id}.m3u8?token=$output", lines[2])
-                    assertEquals(
-                        "#EXTINF:-1 tvg-id=\"${ts.id}\" tvg-chno=\"6\" tvg-name=\"TS Station\",TS Station",
-                        lines[3],
-                    )
-                    assertEquals("$base/output/stream/${ts.id}.ts?token=$output", lines[4])
-                    assertFalse(body.contains(fixture.base))
+    @Test fun `the playlist lists each channel with its guide and stream URLs`() = outputLists {
+        val playlist = client.get("/output/playlist.m3u?token=$output")
+        assertEquals(HttpStatusCode.OK, playlist.status)
+        assertTrue(playlist.headers[HttpHeaders.ContentType]!!.startsWith("audio/x-mpegurl"))
+        val body = playlist.bodyAsText()
+        val lines = body.lines()
+        assertEquals(
+            "#EXTM3U url-tvg=\"$base/output/guide.xml?token=$output\" " +
+                "x-tvg-url=\"$base/output/guide.xml?token=$output\"",
+            lines[0],
+        )
+        assertEquals(
+            "#EXTINF:-1 tvg-id=\"${hls.id}\" tvg-chno=\"5\" tvg-name=\"Station\" group-title=\"News\",Station",
+            lines[1],
+        )
+        assertEquals("$base/output/stream/${hls.id}.m3u8?token=$output", lines[2])
+        assertEquals("#EXTINF:-1 tvg-id=\"${ts.id}\" tvg-chno=\"6\" tvg-name=\"TS Station\",TS Station", lines[3])
+        assertEquals("$base/output/stream/${ts.id}.ts?token=$output", lines[4])
+        assertFalse(body.contains(fixture.base))
+    }
 
-                    val guide = client.get("/output/guide.xml?token=$output&days=2")
-                    assertEquals(HttpStatusCode.OK, guide.status)
-                    assertTrue(guide.headers[HttpHeaders.ContentType]!!.startsWith("application/xml"))
-                    val xml = guide.bodyAsText()
-                    assertTrue(xml.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<tv "))
-                    assertTrue(
-                        xml.contains(
-                            "<channel id=\"${hls.id}\"><display-name>Station</display-name><display-name>5</" +
-                                "display-name></channel>",
-                        ),
-                    )
-                    assertTrue(
-                        xml.contains(
-                            "<channel id=\"${ts.id}\"><display-name>TS " +
-                                "Station</display-name><display-name>6</display-name></channel>",
-                        ),
-                    )
-                    assertTrue(
-                        xml.contains(
-                            "<programme start=\"20261010130000 +0000\" stop=\"20261010140000 +0000\" " +
-                                "channel=\"${hls.id}\"><title>Morning</title>" +
-                                "<category lang=\"en\">News</category><episode-num " +
-                                "system=\"original-air-date\">2026-10-10 13:00:00</episode-num></programme>",
-                        ),
-                    )
-                    assertFalse(xml.contains("Elsewhere"))
-                    assertTrue(
-                        xml.contains(
-                            "<programme start=\"20261010100000 +0000\" stop=\"20261010110000 +0000\" " +
-                                "channel=\"${ts.id}\"><title>TS Station</title>" +
-                                "<category lang=\"en\">Series</category><episode-num " +
-                                "system=\"original-air-date\">2026-10-10 10:00:00</episode-num></programme>",
-                        ),
-                        "a channel with no programs gets hourly placeholders",
-                    )
-                    assertFalse(
-                        xml.contains("channel=\"${hls.id}\"><title>Station</title>"),
-                        "a channel with programs gets none",
-                    )
-                    assertTrue(xml.trimEnd().endsWith("</tv>"))
-                    for (path in listOf("/output/guide.xml?token=$output", "/output/playlist.m3u?token=$output")) {
-                        val gzipped = client.get(path) { header(HttpHeaders.AcceptEncoding, "gzip") }
-                        assertEquals("gzip", gzipped.headers[HttpHeaders.ContentEncoding], path)
-                        val plain = java.util.zip.GZIPInputStream(gzipped.bodyAsBytes().inputStream()).use {
-                            it.readAllBytes().decodeToString()
-                        }
-                        assertEquals(
-                            client.get(path).bodyAsText().substringBefore('\n'),
-                            plain.substringBefore('\n'),
-                            path,
-                        )
-                    }
-                    assertEquals(HttpStatusCode.BadRequest, client.get("/output/guide.xml?token=$output&days=0").status)
-                    assertEquals(
-                        HttpStatusCode.BadRequest,
-                        client.get("/output/guide.xml?token=$output&days=15").status,
-                    )
+    @Test fun `the guide lists each channel and its programs, with placeholders where it has none`() = outputLists {
+        val guide = client.get("/output/guide.xml?token=$output&days=2")
+        assertEquals(HttpStatusCode.OK, guide.status)
+        assertTrue(guide.headers[HttpHeaders.ContentType]!!.startsWith("application/xml"))
+        val xml = guide.bodyAsText()
+        assertTrue(xml.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<tv "))
+        assertTrue(
+            xml.contains(
+                "<channel id=\"${hls.id}\"><display-name>Station</display-name>" +
+                    "<display-name>5</display-name></channel>",
+            ),
+        )
+        assertTrue(
+            xml.contains(
+                "<channel id=\"${ts.id}\"><display-name>TS Station</display-name>" +
+                    "<display-name>6</display-name></channel>",
+            ),
+        )
+        assertTrue(
+            xml.contains(
+                "<programme start=\"20261010130000 +0000\" stop=\"20261010140000 +0000\" " +
+                    "channel=\"${hls.id}\"><title>Morning</title>" +
+                    "<category lang=\"en\">News</category><episode-num " +
+                    "system=\"original-air-date\">2026-10-10 13:00:00</episode-num></programme>",
+            ),
+        )
+        assertFalse(xml.contains("Elsewhere"))
+        assertTrue(
+            xml.contains(
+                "<programme start=\"20261010100000 +0000\" stop=\"20261010110000 +0000\" " +
+                    "channel=\"${ts.id}\"><title>TS Station</title>" +
+                    "<category lang=\"en\">Series</category><episode-num " +
+                    "system=\"original-air-date\">2026-10-10 10:00:00</episode-num></programme>",
+            ),
+            "a channel with no programs gets hourly placeholders",
+        )
+        assertFalse(xml.contains("channel=\"${hls.id}\"><title>Station</title>"), "a channel with programs gets none")
+        assertTrue(xml.trimEnd().endsWith("</tv>"))
+    }
 
-                    client.patch("/api/v1/admin/lineup/${ts.id}") {
-                        bearerAuth(token)
-                        contentType(ContentType.Application.Json)
-                        setBody("""{"enabled":false}""")
-                    }
-                    assertFalse(client.get("/output/playlist.m3u?token=$output").bodyAsText().contains(ts.id))
-                    assertFalse(client.get("/output/guide.xml?token=$output").bodyAsText().contains(ts.id))
-                    assertEquals(HttpStatusCode.NotFound, client.get("/output/stream/${ts.id}.ts?token=$output").status)
-                } finally {
-                    served.runtime.close()
-                    served.store.close()
-                    dir.toFile().deleteRecursively()
-                }
+    @Test fun `the outputs are compressed for a player that accepts gzip`() = outputLists {
+        for (path in listOf("/output/guide.xml?token=$output", "/output/playlist.m3u?token=$output")) {
+            val gzipped = client.get(path) { header(HttpHeaders.AcceptEncoding, "gzip") }
+            assertEquals("gzip", gzipped.headers[HttpHeaders.ContentEncoding], path)
+            val plain = java.util.zip.GZIPInputStream(gzipped.bodyAsBytes().inputStream()).use {
+                it.readAllBytes().decodeToString()
+            }
+            assertEquals(client.get(path).bodyAsText().substringBefore('\n'), plain.substringBefore('\n'), path)
+        }
+    }
+
+    @Test fun `a guide of fewer than 1 or more than 14 days answers 400`() = outputLists {
+        assertEquals(HttpStatusCode.BadRequest, client.get("/output/guide.xml?token=$output&days=0").status)
+        assertEquals(HttpStatusCode.BadRequest, client.get("/output/guide.xml?token=$output&days=15").status)
+    }
+
+    @Test fun `a disabled channel leaves both lists and its stream answers 404`() = outputLists {
+        client.patch("/api/v1/admin/lineup/${ts.id}") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody("""{"enabled":false}""")
+        }
+        assertFalse(client.get("/output/playlist.m3u?token=$output").bodyAsText().contains(ts.id))
+        assertFalse(client.get("/output/guide.xml?token=$output").bodyAsText().contains(ts.id))
+        assertEquals(HttpStatusCode.NotFound, client.get("/output/stream/${ts.id}.ts?token=$output").status)
+    }
+
+    /** The fixture's HLS and TS feeds served by [serve], with their channels 5 ([hls]) and 6 ([ts]). */
+    private class Lists(val app: ApplicationTestBuilder, val fixture: Fixture, served: Served) {
+        val client get() = app.client
+        val hls = served.channels.single { it.displayNumber == "5" }
+        val ts = served.channels.single { it.displayNumber == "6" }
+    }
+
+    private fun outputLists(block: suspend Lists.() -> Unit) = testApplication {
+        val dir = Files.createTempDirectory("sofa-output-lists-")
+        Fixture().use { fixture ->
+            val served = serve(dir, listOf(fixture.feed, fixture.tsFeed))
+            try {
+                Lists(this, fixture, served).block()
+            } finally {
+                served.runtime.close()
+                served.store.close()
+                dir.toFile().deleteRecursively()
             }
         }
+    }
 
     @Test
     fun `a guide's own numbering and metadata reach the XMLTV and the JSON guide without a synthesized air date`() =

@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.api.HdhrAccessStatus
 import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
+import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.upstream.readHead
 import dev.jamesrich.sofaking.contract.Catalog
@@ -40,6 +41,7 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -60,180 +62,103 @@ class HdhrTest {
     private val token = "secret".repeat(8)
     private val base = "http://localhost:80"
 
-    @Test fun `discovery, lineup and device description match what Plex reads`() = testApplication {
-        val dir = Files.createTempDirectory("sofa-hdhr-")
-        Fixture().use { fixture ->
-            val feeds = listOf(fixture.feed, fixture.tsFeed)
-            val sources = dir.resolve("sources.json")
-            Files.writeString(sources, Json.encodeToString(feeds))
-            val store = openStore(dir)
-            val hdhr = HdhrConfig(tuners = 3, deviceId = "ABCDEF01", friendlyName = "Den TV")
-            val runtime = LiveRuntime.create(
-                store,
-                ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, hdhr = hdhr),
-                MutableClock(),
-            )
-            try {
-                feeds.forEach { runtime.feeds.refresh(it) }
-                runtime.adoptAll()
-                application { backendModule(store, MutableClock(), runtime, token, hdhr = hdhr) }
-                val channels = Json.decodeFromString<Catalog>(
-                    client.get("/api/v1/channels") {
-                        bearerAuth(token)
-                    }.bodyAsText(),
-                ).channels
-                val ts = channels.single { it.displayNumber == "6" }
+    @Test fun `discovery answers the device Plex expects`() = plexDevice {
+        val discover = client.get("/discover.json")
+        assertEquals(HttpStatusCode.OK, discover.status)
+        assertTrue(discover.headers[HttpHeaders.ContentType]!!.startsWith("application/json"))
+        val device = Json.parseToJsonElement(discover.bodyAsText()).jsonObject
+        assertEquals("Den TV", device["FriendlyName"]!!.jsonPrimitive.content)
+        assertEquals("ABCDEF01", device["DeviceID"]!!.jsonPrimitive.content)
+        assertEquals("HDTC-2US", device["ModelNumber"]!!.jsonPrimitive.content)
+        assertEquals("hdhomeruntc_atsc", device["FirmwareName"]!!.jsonPrimitive.content)
+        assertEquals(base, device["BaseURL"]!!.jsonPrimitive.content)
+        assertEquals("$base/lineup.json", device["LineupURL"]!!.jsonPrimitive.content)
+        assertEquals(3, device["TunerCount"]!!.jsonPrimitive.int)
+        assertTrue(device.containsKey("DeviceAuth") && device.containsKey("Manufacturer"))
+    }
 
-                val discover = client.get("/discover.json")
-                assertEquals(HttpStatusCode.OK, discover.status)
-                assertTrue(discover.headers[HttpHeaders.ContentType]!!.startsWith("application/json"))
-                val device = Json.parseToJsonElement(discover.bodyAsText()).jsonObject
-                assertEquals("Den TV", device["FriendlyName"]!!.jsonPrimitive.content)
-                assertEquals("ABCDEF01", device["DeviceID"]!!.jsonPrimitive.content)
-                assertEquals("HDTC-2US", device["ModelNumber"]!!.jsonPrimitive.content)
-                assertEquals("hdhomeruntc_atsc", device["FirmwareName"]!!.jsonPrimitive.content)
-                assertEquals(base, device["BaseURL"]!!.jsonPrimitive.content)
-                assertEquals("$base/lineup.json", device["LineupURL"]!!.jsonPrimitive.content)
-                assertEquals(3, device["TunerCount"]!!.jsonPrimitive.int)
-                assertTrue(device.containsKey("DeviceAuth") && device.containsKey("Manufacturer"))
+    @Test fun `the lineup lists each channel number and a scan has nothing to do`() = plexDevice {
+        val lineup = lineup()
+        assertEquals(listOf("5", "6"), lineup.map { it["GuideNumber"]!!.jsonPrimitive.content })
+        assertEquals(listOf("Station", "TS Station"), lineup.map { it["GuideName"]!!.jsonPrimitive.content })
+        assertEquals(listOf("$base/auto/v5", "$base/auto/v6"), lineup.map { it["URL"]!!.jsonPrimitive.content })
+        assertEquals(setOf("GuideNumber", "GuideName", "URL"), lineup.first().keys)
+        assertEquals(
+            """{"ScanInProgress":0,"ScanPossible":0,"Source":"Cable","SourceList":["Cable"]}""",
+            client.get("/lineup_status.json").bodyAsText(),
+        )
+        assertEquals(HttpStatusCode.OK, client.get("/lineup.post?scan=start").status)
+        assertEquals(HttpStatusCode.OK, client.post("/lineup.post?scan=start").status)
+    }
 
-                val lineup = Json.parseToJsonElement(client.get("/lineup.json").bodyAsText()).jsonArray.map {
-                    it.jsonObject
-                }
-                assertEquals(listOf("5", "6"), lineup.map { it["GuideNumber"]!!.jsonPrimitive.content })
-                assertEquals(listOf("Station", "TS Station"), lineup.map { it["GuideName"]!!.jsonPrimitive.content })
-                assertEquals(listOf("$base/auto/v5", "$base/auto/v6"), lineup.map { it["URL"]!!.jsonPrimitive.content })
-                assertEquals(setOf("GuideNumber", "GuideName", "URL"), lineup.first().keys)
-
-                assertEquals(
-                    """{"ScanInProgress":0,"ScanPossible":0,"Source":"Cable","SourceList":["Cable"]}""",
-                    client.get("/lineup_status.json").bodyAsText(),
-                )
-                assertEquals(HttpStatusCode.OK, client.get("/lineup.post?scan=start").status)
-                assertEquals(HttpStatusCode.OK, client.post("/lineup.post?scan=start").status)
-
-                val description = client.get("/device.xml")
-                assertTrue(description.headers[HttpHeaders.ContentType]!!.startsWith("application/xml"))
-                val xml = description.bodyAsText()
-                assertTrue(xml.startsWith("<?xml version=\"1.0\" encoding=\"utf-8\"?>"))
-                for (expected in listOf(
-                    "<URLBase>$base</URLBase>",
-                    "<friendlyName>Den TV</friendlyName>",
-                    "<serialNumber>ABCDEF01</serialNumber>",
-                    "<UDN>uuid:${store.serverId()}</UDN>",
-                )) {
-                    assertTrue(xml.contains(expected), expected)
-                }
-
-                // A TS source streams through the fan-out under the channel number.
-                val head = withTimeout(20_000) {
-                    client.prepareGet("/auto/v6").execute { response ->
-                        assertEquals(HttpStatusCode.OK, response.status)
-                        assertEquals("video/mp2t", response.headers[HttpHeaders.ContentType])
-                        response.bodyAsChannel().readHead(188 * 3)
-                    }
-                }
-                for (packet in 0 until 3) assertEquals(0x47.toByte(), head[packet * 188])
-                assertEquals(HttpStatusCode.NotFound, client.get("/auto/v99").status)
-
-                // Plex refuses duplicate guide numbers, so the second entry with a number is left out of the lineup.
-                client.patch("/api/v1/admin/lineup/${ts.id}") {
-                    bearerAuth(token)
-                    contentType(ContentType.Application.Json)
-                    setBody("""{"number":"5"}""")
-                }
-                assertEquals(
-                    listOf("Station"),
-                    Json.parseToJsonElement(client.get("/lineup.json").bodyAsText()).jsonArray.map {
-                        it.jsonObject["GuideName"]!!.jsonPrimitive.content
-                    },
-                )
-                client.patch("/api/v1/admin/lineup/${ts.id}") {
-                    bearerAuth(token)
-                    contentType(ContentType.Application.Json)
-                    setBody("""{"enabled":false,"number":"6"}""")
-                }
-                assertEquals(1, Json.parseToJsonElement(client.get("/lineup.json").bodyAsText()).jsonArray.size)
-                assertEquals(HttpStatusCode.NotFound, client.get("/auto/v6").status)
-            } finally {
-                runtime.close()
-                store.close()
-                dir.toFile().deleteRecursively()
-            }
+    @Test fun `the UPnP description names the device and the server's identity`() = plexDevice {
+        val description = client.get("/device.xml")
+        assertTrue(description.headers[HttpHeaders.ContentType]!!.startsWith("application/xml"))
+        val xml = description.bodyAsText()
+        assertTrue(xml.startsWith("<?xml version=\"1.0\" encoding=\"utf-8\"?>"))
+        for (expected in listOf(
+            "<URLBase>$base</URLBase>",
+            "<friendlyName>Den TV</friendlyName>",
+            "<serialNumber>ABCDEF01</serialNumber>",
+            "<UDN>uuid:${store.serverId()}</UDN>",
+        )) {
+            assertTrue(xml.contains(expected), expected)
         }
     }
 
-    @Test
-    fun `the device ID derives from the server identity, the allow-list gates every route, disabling removes them`() =
-        testApplication {
-            val dir = Files.createTempDirectory("sofa-hdhr-gates-")
-            val store = openStore(dir)
-            val sources = dir.resolve("sources.json")
-            Files.writeString(sources, "[]")
-            val runtime = LiveRuntime.create(
-                store,
-                ServerConfig("127.0.0.1", 8080, dir, sources, token),
-                MutableClock(),
-            )
-            try {
-                application {
-                    routing {
-                        route("/open") { hdhrRoutes(runtime, HdhrConfig(), store) }
-                        route("/lan") {
-                            hdhrRoutes(
-                                runtime,
-                                HdhrConfig(),
-                                store,
-                                HdhrAccess(listOf("10.0.0.0/8"), false, store, MutableClock()),
-                            )
-                        }
-                        route("/loop") {
-                            hdhrRoutes(
-                                runtime,
-                                HdhrConfig(),
-                                store,
-                                HdhrAccess(listOf("127.0.0.1", "::1"), false, store, MutableClock()),
-                            )
-                        }
-                    }
-                    backendModule(store, MutableClock(), runtime, token, hdhr = HdhrConfig(enabled = false))
-                }
-                val derived = Json.parseToJsonElement(
-                    client.get("/open/discover.json").bodyAsText(),
-                ).jsonObject["DeviceID"]!!.jsonPrimitive.content
-                assertTrue(derived.matches(Regex("[0-9A-F]{8}")), derived)
-                assertEquals(
-                    derived,
-                    Json.parseToJsonElement(
-                        client.get("/open/discover.json").bodyAsText(),
-                    ).jsonObject["DeviceID"]!!.jsonPrimitive.content,
-                )
-                for (path in listOf(
-                    "discover.json",
-                    "lineup.json",
-                    "lineup_status.json",
-                    "device.xml",
-                    "lineup.post",
-                    "auto/v5",
-                )) {
-                    assertEquals(HttpStatusCode.Forbidden, client.get("/lan/$path").status, path)
-                }
-                assertEquals(HttpStatusCode.OK, client.get("/loop/discover.json").status)
-                assertEquals(
-                    HttpStatusCode.Forbidden,
-                    client.get("/open/discover.json") {
-                        header(HttpHeaders.XForwardedFor, "203.0.113.5")
-                    }.status,
-                    "open on loopback, but not through a proxy",
-                )
-                assertEquals(HttpStatusCode.NotFound, client.get("/discover.json").status)
-                assertEquals(HttpStatusCode.NotFound, client.get("/lineup.json").status)
-            } finally {
-                runtime.close()
-                store.close()
-                dir.toFile().deleteRecursively()
+    @Test fun `a TS channel streams through the fan-out under its number`() = plexDevice {
+        val head = withTimeout(20_000) {
+            client.prepareGet("/auto/v6").execute { response ->
+                assertEquals(HttpStatusCode.OK, response.status)
+                assertEquals("video/mp2t", response.headers[HttpHeaders.ContentType])
+                response.bodyAsChannel().readHead(188 * 3)
             }
         }
+        for (packet in 0 until 3) assertEquals(0x47.toByte(), head[packet * 188])
+        assertEquals(HttpStatusCode.NotFound, client.get("/auto/v99").status)
+    }
+
+    @Test fun `a repeated number keeps only its first channel and a disabled one leaves the lineup`() = plexDevice {
+        val ts = Json.decodeFromString<Catalog>(
+            client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText(),
+        ).channels.single { it.displayNumber == "6" }
+        // Plex refuses duplicate guide numbers, so the second entry with a number is left out of the lineup.
+        edit(ts.id, """{"number":"5"}""")
+        assertEquals(listOf("Station"), lineup().map { it["GuideName"]!!.jsonPrimitive.content })
+        edit(ts.id, """{"enabled":false,"number":"6"}""")
+        assertEquals(1, lineup().size)
+        assertEquals(HttpStatusCode.NotFound, client.get("/auto/v6").status)
+    }
+
+    @Test fun `the device ID derives from the server identity and holds`() = gatedDevices {
+        val derived = deviceId("/open")
+        assertTrue(derived.matches(Regex("[0-9A-F]{8}")), derived)
+        assertEquals(derived, deviceId("/open"))
+    }
+
+    @Test fun `the allow-list gates every route and loopback opens only to this machine`() = gatedDevices {
+        for (path in listOf(
+            "discover.json",
+            "lineup.json",
+            "lineup_status.json",
+            "device.xml",
+            "lineup.post",
+            "auto/v5",
+        )) {
+            assertEquals(HttpStatusCode.Forbidden, client.get("/lan/$path").status, path)
+        }
+        assertEquals(HttpStatusCode.OK, client.get("/loop/discover.json").status)
+        assertEquals(
+            HttpStatusCode.Forbidden,
+            client.get("/open/discover.json") { header(HttpHeaders.XForwardedFor, "203.0.113.5") }.status,
+            "open on loopback, but not through a proxy",
+        )
+    }
+
+    @Test fun `disabled devices are not served`() = gatedDevices {
+        assertEquals(HttpStatusCode.NotFound, client.get("/discover.json").status)
+        assertEquals(HttpStatusCode.NotFound, client.get("/lineup.json").status)
+    }
 
     @Test
     fun `a closed bind refuses and remembers the address, a portal allow admits it at once and survives restarts`() =
@@ -361,4 +286,76 @@ class HdhrTest {
             assertFailsWith<IllegalArgumentException>(bad) { AddressAllowList(listOf(bad)) }
         }
     }
+
+    /** A device named Den TV with three tuners over the fixture's HLS and TS feeds, both adopted. */
+    private inner class PlexDevice(val app: ApplicationTestBuilder, val store: BackendStore) {
+        val client get() = app.client
+
+        suspend fun lineup() =
+            Json.parseToJsonElement(client.get("/lineup.json").bodyAsText()).jsonArray.map { it.jsonObject }
+
+        suspend fun edit(id: String, body: String) = client.patch("/api/v1/admin/lineup/$id") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+    }
+
+    private fun plexDevice(block: suspend PlexDevice.() -> Unit) = testApplication {
+        val dir = Files.createTempDirectory("sofa-hdhr-")
+        Fixture().use { fixture ->
+            val feeds = listOf(fixture.feed, fixture.tsFeed)
+            val sources = dir.resolve("sources.json")
+            Files.writeString(sources, Json.encodeToString(feeds))
+            val store = openStore(dir)
+            val hdhr = HdhrConfig(tuners = 3, deviceId = "ABCDEF01", friendlyName = "Den TV")
+            val runtime = LiveRuntime.create(
+                store,
+                ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, hdhr = hdhr),
+                MutableClock(),
+            )
+            try {
+                feeds.forEach { runtime.feeds.refresh(it) }
+                runtime.adoptAll()
+                application { backendModule(store, MutableClock(), runtime, token, hdhr = hdhr) }
+                PlexDevice(this, store).block()
+            } finally {
+                runtime.close()
+                store.close()
+                dir.toFile().deleteRecursively()
+            }
+        }
+    }
+
+    /**
+     * Devices under `/open` with no allow-list, `/lan` for 10.0.0.0/8 and `/loop` for loopback, beside a server whose
+     * own devices are disabled.
+     */
+    private fun gatedDevices(block: suspend ApplicationTestBuilder.() -> Unit) = testApplication {
+        val dir = Files.createTempDirectory("sofa-hdhr-gates-")
+        val store = openStore(dir)
+        val sources = dir.resolve("sources.json")
+        Files.writeString(sources, "[]")
+        val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token), MutableClock())
+        fun access(vararg allowed: String) = HdhrAccess(allowed.toList(), false, store, MutableClock())
+        try {
+            application {
+                routing {
+                    route("/open") { hdhrRoutes(runtime, HdhrConfig(), store) }
+                    route("/lan") { hdhrRoutes(runtime, HdhrConfig(), store, access("10.0.0.0/8")) }
+                    route("/loop") { hdhrRoutes(runtime, HdhrConfig(), store, access("127.0.0.1", "::1")) }
+                }
+                backendModule(store, MutableClock(), runtime, token, hdhr = HdhrConfig(enabled = false))
+            }
+            block()
+        } finally {
+            runtime.close()
+            store.close()
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    private suspend fun ApplicationTestBuilder.deviceId(prefix: String): String =
+        Json.parseToJsonElement(client.get("$prefix/discover.json").bodyAsText()).jsonObject["DeviceID"]!!
+            .jsonPrimitive.content
 }

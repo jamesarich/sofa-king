@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui.library
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,46 +8,30 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.ExtraKind
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
@@ -62,17 +45,9 @@ import dev.jamesrich.sofaking.resources.library_extra_other
 import dev.jamesrich.sofaking.resources.library_extra_scene
 import dev.jamesrich.sofaking.resources.library_extra_short
 import dev.jamesrich.sofaking.resources.library_extra_trailer
-import dev.jamesrich.sofaking.resources.library_mark_unwatched
-import dev.jamesrich.sofaking.resources.library_mark_watched
-import dev.jamesrich.sofaking.resources.library_play_from_start
-import dev.jamesrich.sofaking.resources.library_watched
 import dev.jamesrich.sofaking.ui.Artwork
 import dev.jamesrich.sofaking.ui.WIDESCREEN
-import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.isOk
-import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
-import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
-import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -170,9 +145,6 @@ private fun WideCard(
     }
 }
 
-/** What a card's menu does: play from the start (null when that is not offered) and mark watched or unwatched. */
-internal class CardMenu(val onPlayFromStart: ((MediaItem) -> Unit)?, val onSetWatched: (MediaItem, Boolean) -> Unit)
-
 /**
  * The card itself, with [menu] on a held OK. The menu is a window of its own, so a held OK opens it once the key comes
  * up: the whole press ends on the card, whose click would otherwise wait for a key-up that went to the menu and ignore
@@ -229,85 +201,6 @@ private fun ItemCard(
     }
 }
 
-/** [menu]'s entries for [item] while [expanded], the first focused; picking one or dismissing it calls [onClose]. */
-@Composable
-private fun CardMenuDropdown(item: MediaItem, menu: CardMenu, expanded: Boolean, onClose: () -> Unit) {
-    val first = remember { FocusRequester() }
-    DropdownMenu(expanded = expanded, onDismissRequest = onClose, modifier = Modifier.arrowKeysMoveFocus()) {
-        val entries = cardMenuEntries(item, playFromStart = menu.onPlayFromStart != null)
-        entries.forEachIndexed { index, entry ->
-            DropdownMenuItem(
-                text = { Text(stringResource(entry.label)) },
-                onClick = {
-                    onClose()
-                    when (entry) {
-                        CardMenuEntry.PLAY_FROM_START -> menu.onPlayFromStart?.invoke(item)
-                        CardMenuEntry.MARK_WATCHED -> menu.onSetWatched(item, true)
-                        CardMenuEntry.MARK_UNWATCHED -> menu.onSetWatched(item, false)
-                    }
-                },
-                modifier = if (index == 0) Modifier.focusRequester(first) else Modifier,
-            )
-        }
-        LaunchedEffect(Unit) { requestFocusWhenAttached(first) }
-    }
-}
-
-private val CardMenuEntry.label: StringResource
-    get() = when (this) {
-        CardMenuEntry.PLAY_FROM_START -> Res.string.library_play_from_start
-        CardMenuEntry.MARK_WATCHED -> Res.string.library_mark_watched
-        CardMenuEntry.MARK_UNWATCHED -> Res.string.library_mark_unwatched
-    }
-
-/** The progress bar along the bottom, the watched tick and a show's unwatched count. */
-@Composable
-private fun BoxScope.ItemMarks(item: MediaItem) {
-    val progress = item.progress
-    when {
-        progress?.watched == true -> WatchedTick(Modifier.align(Alignment.TopEnd).padding(8.dp))
-
-        item.unwatched > 0 && (item.kind == ItemKind.SHOW || item.kind == ItemKind.SEASON) -> Text(
-            item.unwatched.toString(),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.align(
-                Alignment.TopEnd,
-            ).padding(
-                8.dp,
-            ).background(MaterialTheme.colorScheme.primary, BadgeShape).padding(horizontal = 8.dp, vertical = 2.dp),
-        )
-    }
-    if (progress != null && progress.inProgress) {
-        progress.fraction?.let { ProgressStrip(it, Modifier.align(Alignment.BottomCenter)) }
-    }
-}
-
-/** How far into an item playback is, as a thin bar across the bottom of its picture. */
-@Composable
-internal fun ProgressStrip(fraction: Float, modifier: Modifier = Modifier) {
-    LinearProgressIndicator(
-        progress = { fraction },
-        color = MaterialTheme.colorScheme.primary,
-        trackColor = SofaOverlayTrack,
-        drawStopIndicator = {},
-        gapSize = 0.dp,
-        modifier = modifier.fillMaxWidth().height(4.dp),
-    )
-}
-
-@Composable
-internal fun WatchedTick(modifier: Modifier = Modifier) {
-    Box(modifier.size(28.dp).background(SofaOverlayScrim, CircleShape), contentAlignment = Alignment.Center) {
-        Icon(
-            Icons.Filled.Check,
-            contentDescription = stringResource(Res.string.library_watched),
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp),
-        )
-    }
-}
-
 @Composable
 private fun CardLabel(title: String, subtitle: String?) {
     // The card above says the same to a screen reader.
@@ -359,7 +252,6 @@ internal fun Modifier.playKey(onPlay: (() -> Unit)?): Modifier = if (onPlay == n
 }
 
 internal val CardShape = RoundedCornerShape(12.dp)
-private val BadgeShape = RoundedCornerShape(8.dp)
 
 /** About six posters across a 1080p set inside its overscan. */
 internal val POSTER_WIDTH = 132.dp

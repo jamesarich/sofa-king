@@ -14,9 +14,8 @@ import org.jetbrains.kotlin.gradle.plugin.KotlinBasePlugin
  *
  * - Spotless formats the Kotlin sources and Gradle scripts with ktlint, set up by the repository's `.editorconfig`:
  *   `spotlessCheck` fails on a file ktlint would change, and `spotlessApply` changes it.
- * - detekt analyzes each Kotlin project with its default rules plus `gradle/detekt.yml` and the build's
- *   `gradle/detekt-pending/<build>.yml` if it has one, and the Compose rules with `gradle/detekt-compose.yml` where the
- *   Compose compiler is applied: `detekt` fails on any finding.
+ * - detekt analyzes each Kotlin project with its default rules plus `gradle/detekt.yml`, and the Compose rules with
+ *   `gradle/detekt-compose.yml` where the Compose compiler is applied: `detekt` fails on any finding.
  *
  * Both versions come from the version catalog; the Compose rules are built against one detekt version.
  */
@@ -48,11 +47,7 @@ class LintConventionPlugin : Plugin<Project> {
                 detekt.source.setFrom(layout.projectDirectory.dir("src"))
                 detekt.buildUponDefaultConfig.set(true)
                 // Every build sits one directory below the repository root, beside the shared gradle/ directory.
-                val root = isolated.rootProject.projectDirectory
-                detekt.config.setFrom(root.file("../gradle/detekt.yml"))
-                // The rules this build's code is not yet refactored to, until the pull requests that do it.
-                val pending = root.file("../gradle/detekt-pending/${root.asFile.name}.yml")
-                if (pending.asFile.exists()) detekt.config.from(pending)
+                detekt.config.setFrom(isolated.rootProject.projectDirectory.file("../gradle/detekt.yml"))
                 detekt.parallel.set(true)
             }
             pluginManager.withPlugin("org.jetbrains.kotlin.plugin.compose") {

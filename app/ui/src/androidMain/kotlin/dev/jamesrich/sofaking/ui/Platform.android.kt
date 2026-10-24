@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
-import android.provider.Settings
 import android.speech.RecognizerIntent
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,12 +23,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.content.getSystemService
 import androidx.lifecycle.LifecycleOwner
-import dev.jamesrich.sofaking.data.PlaybackSessions
-import dev.jamesrich.sofaking.data.PublishedBuild
-import dev.jamesrich.sofaking.data.UpdateInstaller
-import dev.jamesrich.sofaking.data.appUpdateInstaller
-import dev.jamesrich.sofaking.ui.player.LivePlayer
-import dev.jamesrich.sofaking.ui.player.MatchExoDisplayFrameRate
 
 @Composable
 internal actual fun rememberIsTelevision(): Boolean {
@@ -107,49 +100,7 @@ internal actual val KeyEvent.repeatCountOrNull: Int? get() = nativeKeyEvent.repe
 
 internal actual val KeyEvent.isLongPress: Boolean get() = nativeKeyEvent.isLongPress
 
-/** The system's captioning preferences; a build without that activity (some set-top boxes) gets no row. */
-@Composable
-internal actual fun rememberSystemCaptionSettings(): (() -> Unit)? {
-    val context = LocalContext.current
-    return remember(context) {
-        val intent = Intent(Settings.ACTION_CAPTIONING_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (intent.resolveActivity(context.packageManager) == null) {
-            null
-        } else {
-            {
-                try {
-                    context.startActivity(intent)
-                } catch (_: ActivityNotFoundException) {
-                }
-            }
-        }
-    }
-}
-
-internal actual fun captionEngineName(): String = "Media3"
-
-internal actual val supportsPlaybackPreferences: Boolean = true
-
 internal actual val platformMovesFocusOnArrows: Boolean = true
-
-internal actual val supportsCaptionSync: Boolean = true
-
-internal actual val pageServerUrl: String? = null
-
-@Composable
-internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) =
-    MatchExoDisplayFrameRate(player, enabled)
-
-internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = latest.apkUrl ?: latest.pageUrl
-
-@Composable
-internal actual fun rememberUpdateInstaller(): UpdateInstaller? {
-    val context = LocalContext.current
-    return remember(context) { appUpdateInstaller(context) }
-}
 
 @Composable
 internal actual fun rememberAppLifecycleOwner(host: LifecycleOwner): LifecycleOwner = host
-
-@Composable
-internal actual fun ReleaseOnPageExit(sessions: PlaybackSessions) = Unit

@@ -16,7 +16,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.webgl.WebGLRenderTarget
 import androidx.compose.ui.platform.webgl.rememberWebGLRenderTarget
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.HtmlElementView
 import co.touchlab.kermit.Logger
@@ -27,8 +26,6 @@ import dev.jamesrich.sofaking.resources.app_name
 import kotlinx.browser.document
 import kotlinx.browser.window
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.jetbrains.compose.resources.stringResource
@@ -49,16 +46,9 @@ import org.khronos.webgl.WebGLRenderingContext.Companion.TEXTURE_WRAP_T
 import org.khronos.webgl.WebGLRenderingContext.Companion.UNSIGNED_BYTE
 import org.khronos.webgl.WebGLTexture
 import org.w3c.dom.CanPlayTypeResult
-import org.w3c.dom.DISABLED
 import org.w3c.dom.EMPTY
-import org.w3c.dom.HIDDEN
 import org.w3c.dom.HTMLMediaElement
 import org.w3c.dom.HTMLVideoElement
-import org.w3c.dom.SHOWING
-import org.w3c.dom.TextTrack
-import org.w3c.dom.TextTrackCue
-import org.w3c.dom.TextTrackMode
-import org.w3c.dom.events.Event
 import org.w3c.dom.get
 import org.w3c.dom.url.URL
 import kotlin.time.Duration.Companion.milliseconds
@@ -81,34 +71,21 @@ actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
  * Browsers play HLS natively (Safari, recent Chromium) and have no MPEG-TS demuxer, so a TS-only channel reports
  * an unsupported format.
  */
-internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val appName: String) : StreamLivePlayer() {
-    private val video = (document.createElement("video") as HTMLVideoElement).apply {
-        setAttribute("playsinline", "")
-        // A cross-origin stream's frames can be drawn into WebGL only when fetched with CORS.
-        crossOrigin = "anonymous"
-        style.width = "100%"
-        style.height = "100%"
-        style.backgroundColor = "black"
-        style.setProperty("object-fit", "contain")
-    }
-    private var captionsOn = false
-    private var cueTrack: TextTrack? = null
-    private val onCueChange = { _: Event -> cueTrack?.let(::publishCues) ?: Unit }
-    private val onGesture = { _: Event -> restoreSound() }
+internal class HtmlLivePlayer(
+    override val captionSync: CaptionSync,
+    private val appName: String,
+    private val video: HTMLVideoElement = newVideoElement(),
+    private val drawsInCanvas: MutableStateFlow<Boolean> = MutableStateFlow(true),
+    private val tracks: HtmlTracks = HtmlTracks(video, drawsInCanvas),
+) : StreamLivePlayer(),
+    PlayerTracks by tracks {
+    private val autoplay = HtmlAutoplay(video)
     private var loaded = false
-    private var awaitingGesture = false
 
-    private val drawsInCanvas = MutableStateFlow(true)
     private val frameSize = MutableStateFlow(IntSize(1, 1))
 
     /** False from a reset until the new stream's first frame is on screen; rebuffering keeps the last frame. */
     private val hasFrame = MutableStateFlow(false)
-
-    private val _cues = MutableStateFlow<List<CaptionCue>>(emptyList())
-    override val cues: StateFlow<List<CaptionCue>> = _cues.asStateFlow()
-
-    /** Browsers expose a stream's audio tracks only behind flags, so the card never offers a choice here. */
-    override val audioTracks: StateFlow<List<AudioTrack>> = MutableStateFlow(emptyList<AudioTrack>()).asStateFlow()
 
     init {
         video.addEventListener("playing") {
@@ -125,13 +102,10 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         video.addEventListener("loadedmetadata") {
             loaded = true
             updateFrameSize()
-            applyCaptions()
+            tracks.apply()
         }
         video.addEventListener("resize") { updateFrameSize() }
-        video.textTracks.addEventListener("addtrack") { applyCaptions() }
-        // Capture phase, so the press counts even when the app consumes it.
-        document.addEventListener("keydown", onGesture, true)
-        document.addEventListener("pointerdown", onGesture, true)
+        video.textTracks.addEventListener("addtrack") { tracks.apply() }
         video.addEventListener("error") {
             // A cross-origin HLS stream that fails before loading may come from a server that sends no CORS headers
             // on media: play it again as a plain element, which needs none. TS fails for its format and reports.
@@ -151,13 +125,12 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
 
     override val bufferedMs: Long get() = 0L
     override val supportsCaptionLead: Boolean get() = false
-    override val hasTextTrack: Boolean get() = video.textTracks.length > 0
 
     override var volume: Float
         get() = video.volume.toFloat()
         set(value) {
             video.volume = value.toDouble()
-            video.muted = value == 0f || awaitingGesture
+            video.muted = value == 0f || autoplay.awaitingGesture
         }
 
     override val drawsVolumeControl: Boolean get() = true
@@ -166,23 +139,8 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         get() = mutableStatus.value.playWhenReady
         set(value) {
             mutableStatus.update { it.copy(playWhenReady = value) }
-            if (value) startPlayback() else video.pause()
+            if (value) autoplay.start() else video.pause()
         }
-
-    override fun setCaptionsEnabled(enabled: Boolean) {
-        captionsOn = enabled
-        applyCaptions()
-    }
-
-    override fun selectAudioTrack(id: String) = Unit
-
-    /** The element reports only the picture size. */
-    override fun streamInfo(): StreamInfo = StreamInfo(
-        width = video.videoWidth.takeIf {
-            it > 0
-        },
-        height = video.videoHeight.takeIf { it > 0 },
-    )
 
     override fun prepare() {
         val url = stream?.url ?: return
@@ -190,16 +148,14 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         loaded = false
         hasFrame.value = false
         video.src = url
-        if (playWhenReady) startPlayback()
+        if (playWhenReady) autoplay.start()
     }
 
     override fun stop() {
         video.pause()
         video.removeAttribute("src")
         video.load()
-        cueTrack?.removeEventListener("cuechange", onCueChange)
-        cueTrack = null
-        _cues.value = emptyList()
+        tracks.clear()
         hasFrame.value = false
         mutableStatus.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
     }
@@ -257,28 +213,9 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
      * The page title and the browser's Media Session: its metadata reaches the OS media controls, and their media
      * keys come back here. Browsers without the API keep the title alone.
      */
-    private val mediaSessions = NewestMediaSession(::openBrowserSession)
+    private val mediaSessions = NewestMediaSession { onZapStep -> openBrowserSession(appName, this, onZapStep) }
 
     override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = mediaSessions.open(onZapStep)
-
-    private fun openBrowserSession(onZapStep: (Int) -> Unit): MediaSessionHandle {
-        setMediaAction("play") { play() }
-        setMediaAction("pause") { pause() }
-        setMediaAction("nexttrack") { onZapStep(1) }
-        setMediaAction("previoustrack") { onZapStep(-1) }
-        return object : MediaSessionHandle {
-            override fun publish(nowPlaying: NowPlaying) {
-                document.title = "${nowPlaying.title} - $appName"
-                setMediaMetadata(nowPlaying.title, nowPlaying.subtitle, nowPlaying.artworkUrl)
-            }
-
-            override fun close() {
-                document.title = appName
-                for (action in MEDIA_ACTIONS) clearMediaAction(action)
-                clearMediaMetadata()
-            }
-        }
-    }
 
     /**
      * Draws each decoded frame into a WebGL texture inside Compose's canvas, so overlays draw over the picture as on
@@ -337,34 +274,12 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
 
     private fun useElement() {
         drawsInCanvas.value = false
-        applyCaptions()
+        tracks.apply()
     }
 
     override fun release() {
         stop()
-        document.removeEventListener("keydown", onGesture, true)
-        document.removeEventListener("pointerdown", onGesture, true)
-    }
-
-    /**
-     * Browsers refuse autoplay with sound until the page has had a user gesture. A refused play() is retried muted,
-     * which they allow, and the sound returns on the first key press or pointer press.
-     */
-    private fun startPlayback() {
-        video.play().unsafeCast<PlayPromise>().catch { error ->
-            if (error.unsafeCast<DomError>().name == "NotAllowedError" && !video.muted) {
-                awaitingGesture = true
-                video.muted = true
-                video.play()
-            }
-            null
-        }
-    }
-
-    private fun restoreSound() {
-        if (!awaitingGesture) return
-        awaitingGesture = false
-        video.muted = video.volume == 0.0
+        autoplay.release()
     }
 
     private fun updateFrameSize() {
@@ -372,37 +287,17 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
             frameSize.value = IntSize(video.videoWidth, video.videoHeight)
         }
     }
+}
 
-    /**
-     * The first text track is on while captions are. Drawn in the canvas, it stays HIDDEN and its active cues go to
-     * [cues] for the shared caption renderer; the element view lets the browser draw it.
-     */
-    private fun applyCaptions() {
-        val tracks = video.textTracks
-        for (i in 0 until tracks.length) {
-            val track = tracks[i] ?: continue
-            val on = captionsOn && i == 0
-            track.mode = when {
-                !on -> TextTrackMode.DISABLED
-                drawsInCanvas.value -> TextTrackMode.HIDDEN
-                else -> TextTrackMode.SHOWING
-            }
-            if (on && track !== cueTrack) {
-                cueTrack?.removeEventListener("cuechange", onCueChange)
-                cueTrack = track
-                track.addEventListener("cuechange", onCueChange)
-            }
-        }
-        if (!captionsOn || !drawsInCanvas.value) _cues.value = emptyList()
-    }
-
-    private fun publishCues(track: TextTrack) {
-        if (!captionsOn || !drawsInCanvas.value || track.mode != TextTrackMode.HIDDEN) return
-        val active = track.activeCues ?: return run { _cues.value = emptyList() }
-        _cues.value = (0 until active.length).mapNotNull { i ->
-            active[i]?.let { cue -> cueText(cue).takeIf { it.isNotBlank() }?.let { CaptionCue(AnnotatedString(it)) } }
-        }
-    }
+/** The one `<video>` element the player plays in. */
+private fun newVideoElement(): HTMLVideoElement = (document.createElement("video") as HTMLVideoElement).apply {
+    setAttribute("playsinline", "")
+    // A cross-origin stream's frames can be drawn into WebGL only when fetched with CORS.
+    crossOrigin = "anonymous"
+    style.width = "100%"
+    style.height = "100%"
+    style.backgroundColor = "black"
+    style.setProperty("object-fit", "contain")
 }
 
 /**
@@ -480,15 +375,6 @@ private external interface WebGL2Blit : JsAny {
     )
 }
 
-/** The promise play() returns; the bindings type it differently on js and wasm. */
-private external interface PlayPromise : JsAny {
-    fun catch(onRejected: (JsAny) -> JsAny?): JsAny
-}
-
-private external interface DomError : JsAny {
-    val name: String
-}
-
 /**
  * Suspends until [video] presents its next frame. Browsers without `requestVideoFrameCallback` (Firefox before
  * 132) wait for the next display frame instead.
@@ -519,50 +405,7 @@ private fun cancelVideoFrame(video: HTMLVideoElement, handle: Int) {
     js("video.cancelVideoFrameCallback(handle);")
 }
 
-private val MEDIA_ACTIONS = listOf("play", "pause", "nexttrack", "previoustrack")
-
-/** An action the browser doesn't know throws; it is skipped, as the spec advises. */
-// detekt sees no use of the parameters: the JavaScript in js() reads them by name.
-@Suppress("UnusedParameter")
-private fun setMediaAction(action: String, handler: () -> Unit) {
-    js(
-        "if ('mediaSession' in navigator) { " +
-            "try { navigator.mediaSession.setActionHandler(action, function () { handler(); }); } catch (e) {} }",
-    )
-}
-
-// detekt sees no use of the parameters: the JavaScript in js() reads them by name.
-@Suppress("UnusedParameter")
-private fun clearMediaAction(action: String) {
-    js(
-        "if ('mediaSession' in navigator) { " +
-            "try { navigator.mediaSession.setActionHandler(action, null); } catch (e) {} }",
-    )
-}
-
-// detekt sees no use of the parameters: the JavaScript in js() reads them by name.
-@Suppress("UnusedParameter")
-private fun setMediaMetadata(title: String, artist: String, artworkUrl: String?) {
-    js(
-        "if ('mediaSession' in navigator) { navigator.mediaSession.metadata = " +
-            "new MediaMetadata({ title: title, artist: artist, artwork: artworkUrl ? [{ src: artworkUrl }] : [] }); }",
-    )
-}
-
-private fun clearMediaMetadata() {
-    js("if ('mediaSession' in navigator) { navigator.mediaSession.metadata = null; }")
-}
-
 private fun isCrossOrigin(url: String): Boolean = URL(url, window.location.href).origin != window.location.origin
-
-/** A VTT cue's text with its markup tags removed; the bindings have no VTTCue. */
-private fun cueText(cue: TextTrackCue): String = cue.unsafeCast<TextCue>().text.orEmpty().replace(cueMarkup, "")
-
-private val cueMarkup = Regex("<[^>]*>")
-
-private external interface TextCue : JsAny {
-    val text: String?
-}
 
 /** The element's `object-fit` for [VideoZoom], for the fallback that shows the element itself. */
 private val VideoZoom.objectFit: String

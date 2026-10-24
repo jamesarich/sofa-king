@@ -8,8 +8,10 @@ import dev.jamesrich.sofaking.data.AdBreakNow
 import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackStream
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /** Where the player is with its item; a live stream that reaches [ENDED] was closed by the server. */
 enum class PlaybackState { IDLE, BUFFERING, READY, ENDED }
@@ -118,39 +120,10 @@ internal class NewestMediaSession(private val openSession: (onZapStep: (Int) -> 
     }
 }
 
-/**
- * The app's one live player, shared by the guide preview and the full screen so OK on the previewed channel
- * continues its stream. Each platform plays the server's HLS or MPEG-TS with its own engine: Media3 on Android,
- * libVLC on desktops, AVPlayer on iOS, a video element on the web. Items are tagged with their channel id and
- * opened with the descriptor's MIME type, never sniffed.
- */
-interface LivePlayer {
-    val status: StateFlow<PlayerStatus>
-    val errors: SharedFlow<PlayerError>
-
+/** The caption and audio tracks of the stream a [LivePlayer] holds. */
+interface PlayerTracks {
     /** The cues on screen now; empty while captions are off or the stream carries none. */
     val cues: StateFlow<List<CaptionCue>>
-
-    /** The caption lead the full screen sets per channel; engines without a text renderer hook leave it unused. */
-    val captionSync: CaptionSync
-
-    /** The channel whose stream the player holds, or null with no item. */
-    val currentChannelId: String?
-
-    /** The URL of the stream the player holds, or null with no item. */
-    val currentStreamUrl: String?
-
-    /** True while the player holds an item, prepared or stopped. */
-    val hasItem: Boolean
-
-    /** How much media is downloaded ahead of the playback position; engines that cannot report it say 0. */
-    val bufferedMs: Long
-
-    /**
-     * True when the engine renders text through [captionSync] and reports [bufferedMs], so a caption lead can be
-     * applied and adjusted; the others show captions where the stream puts them.
-     */
-    val supportsCaptionLead: Boolean
 
     /** True when the current stream offers a caption track the player can show. */
     val hasTextTrack: Boolean
@@ -167,45 +140,12 @@ interface LivePlayer {
     /** What the engine knows about the stream now; the stream card reads it while open. */
     fun streamInfo(): StreamInfo
 
-    /** The engine's loudness, 0 (silent) to 1 (the stream's own level). */
-    var volume: Float
-
-    /**
-     * True where nothing outside the app turns this player up or down for the viewer (a desktop window, a browser
-     * page), so the players draw their own volume control (see [PlayerVolume]); a TV, phone or Apple TV has the
-     * system's volume keys instead.
-     */
-    val drawsVolumeControl: Boolean get() = false
-
-    var playWhenReady: Boolean
-
     /** Text tracks are disabled rather than unselected, so a zap keeps the choice; set it before the first prepare. */
     fun setCaptionsEnabled(enabled: Boolean)
+}
 
-    /** The decoder and buffer choices, applied from the next [setStream]; engines without the knobs ignore them. */
-    fun setPlaybackPreferences(preferences: PlaybackPreferences) = Unit
-
-    /**
-     * A new item for [stream], tagged with its channel; [nowPlaying] goes to the media session. Call [prepare] after.
-     */
-    fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying? = null)
-
-    /** The held item at [stream]'s new URL, keeping its channel tag and metadata. Call [prepare] after. */
-    fun replaceStream(stream: PlaybackStream)
-
-    fun prepare()
-
-    /** Stops and resets the renderers; the item and [playWhenReady] are kept for the next [prepare]. */
-    fun stop()
-
-    /**
-     * Resumes, at the live edge when a live stream's pause outlasted [LIVE_RESUME_AFTER_MS]; a
-     * seekable item resumes where it paused.
-     */
-    fun play()
-
-    fun pause()
-
+/** Moving through a seekable item, its speed, and the ad break in a live one, where the engine can. */
+interface PlayerTimeline {
     /**
      * True while the item is a [PlaybackStream.seekable] one the engine can move through: a recording, finished or
      * still growing, or a library file. A live channel is never seekable, whatever its playlist allows.
@@ -250,6 +190,76 @@ interface LivePlayer {
      * the ads; null when it cannot say.
      */
     val loadedAheadMs: Long? get() = null
+}
+
+/**
+ * The app's one live player, shared by the guide preview and the full screen so OK on the previewed channel
+ * continues its stream. Each platform plays the server's HLS or MPEG-TS with its own engine: Media3 on Android,
+ * libVLC on desktops, AVPlayer on iOS, a video element on the web. Items are tagged with their channel id and
+ * opened with the descriptor's MIME type, never sniffed.
+ */
+interface LivePlayer :
+    PlayerTracks,
+    PlayerTimeline {
+    val status: StateFlow<PlayerStatus>
+    val errors: SharedFlow<PlayerError>
+
+    /** The caption lead the full screen sets per channel; engines without a text renderer hook leave it unused. */
+    val captionSync: CaptionSync
+
+    /** The channel whose stream the player holds, or null with no item. */
+    val currentChannelId: String?
+
+    /** The URL of the stream the player holds, or null with no item. */
+    val currentStreamUrl: String?
+
+    /** True while the player holds an item, prepared or stopped. */
+    val hasItem: Boolean
+
+    /** How much media is downloaded ahead of the playback position; engines that cannot report it say 0. */
+    val bufferedMs: Long
+
+    /**
+     * True when the engine renders text through [captionSync] and reports [bufferedMs], so a caption lead can be
+     * applied and adjusted; the others show captions where the stream puts them.
+     */
+    val supportsCaptionLead: Boolean
+
+    /** The engine's loudness, 0 (silent) to 1 (the stream's own level). */
+    var volume: Float
+
+    /**
+     * True where nothing outside the app turns this player up or down for the viewer (a desktop window, a browser
+     * page), so the players draw their own volume control (see [PlayerVolume]); a TV, phone or Apple TV has the
+     * system's volume keys instead.
+     */
+    val drawsVolumeControl: Boolean get() = false
+
+    var playWhenReady: Boolean
+
+    /** The decoder and buffer choices, applied from the next [setStream]; engines without the knobs ignore them. */
+    fun setPlaybackPreferences(preferences: PlaybackPreferences) = Unit
+
+    /**
+     * A new item for [stream], tagged with its channel; [nowPlaying] goes to the media session. Call [prepare] after.
+     */
+    fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying? = null)
+
+    /** The held item at [stream]'s new URL, keeping its channel tag and metadata. Call [prepare] after. */
+    fun replaceStream(stream: PlaybackStream)
+
+    fun prepare()
+
+    /** Stops and resets the renderers; the item and [playWhenReady] are kept for the next [prepare]. */
+    fun stop()
+
+    /**
+     * Resumes, at the live edge when a live stream's pause outlasted [LIVE_RESUME_AFTER_MS]; a
+     * seekable item resumes where it paused.
+     */
+    fun play()
+
+    fun pause()
 
     /**
      * What the engine plays as it is, sent when a library item opens: the server plays a file that fits as it is
@@ -292,4 +302,24 @@ class LivePauseClock {
 
     /** True when the player should jump to the live edge before resuming. */
     fun onPlay(nowMs: Long): Boolean = shouldResumeAtLive(pausedAtMs, nowMs).also { pausedAtMs = null }
+}
+
+/** A media session that goes nowhere, for a platform or player without one; media keys reach the window as keys. */
+internal object NoMediaSession : MediaSessionHandle {
+    override fun publish(nowPlaying: NowPlaying) = Unit
+
+    override fun close() = Unit
+}
+
+/** No captions and no audio choice, for a player that plays nothing. */
+internal object NoTracks : PlayerTracks {
+    override val cues: StateFlow<List<CaptionCue>> = MutableStateFlow(emptyList<CaptionCue>()).asStateFlow()
+    override val hasTextTrack: Boolean = false
+    override val audioTracks: StateFlow<List<AudioTrack>> = MutableStateFlow(emptyList<AudioTrack>()).asStateFlow()
+
+    override fun selectAudioTrack(id: String) = Unit
+
+    override fun streamInfo(): StreamInfo = StreamInfo()
+
+    override fun setCaptionsEnabled(enabled: Boolean) = Unit
 }

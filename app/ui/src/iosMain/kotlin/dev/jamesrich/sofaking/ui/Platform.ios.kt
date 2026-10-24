@@ -8,20 +8,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.lifecycle.LifecycleOwner
-import dev.jamesrich.sofaking.data.PlaybackSessions
-import dev.jamesrich.sofaking.data.PublishedBuild
-import dev.jamesrich.sofaking.data.UpdateInstaller
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import platform.Foundation.NSDateFormatter
 import platform.Foundation.NSLocale
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
-import platform.Foundation.NSURL
 import platform.Foundation.currentLocale
 import platform.UIKit.UIAccessibilityIsVoiceOverRunning
 import platform.UIKit.UIAccessibilityVoiceOverStatusDidChangeNotification
 import platform.UIKit.UIApplication
-import platform.UIKit.UIApplicationOpenSettingsURLString
 
 /** iPhone and iPad; Apple TV is not a target. */
 @Composable
@@ -71,41 +66,11 @@ internal actual val KeyEvent.repeatCountOrNull: Int? get() = null
 
 internal actual val KeyEvent.isLongPress: Boolean get() = false
 
-/** The app's page in the Settings app, where iOS keeps its caption style under Accessibility. */
-@Composable
-internal actual fun rememberSystemCaptionSettings(): (() -> Unit)? = remember {
-    val url = NSURL.URLWithString(UIApplicationOpenSettingsURLString)
-    if (url == null) {
-        null
-    } else {
-        { UIApplication.sharedApplication.openURL(url, options = emptyMap<Any?, Any>(), completionHandler = null) }
-    }
-}
-
-internal actual fun captionEngineName(): String = "AVPlayer"
-
-internal actual val supportsPlaybackPreferences: Boolean = false
-
 internal actual val platformMovesFocusOnArrows: Boolean = false
-
-internal actual val supportsCaptionSync: Boolean = false
-
-internal actual val pageServerUrl: String? = null
-
-@Composable
-internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit
 
 /** The SwiftUI host owns the status bar, and the app offers no picture-in-picture on iOS. */
 @Composable
 internal actual fun rememberPlayerWindow(player: LivePlayer, active: Boolean): Boolean = false
 
-internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = null
-
-@Composable
-internal actual fun rememberUpdateInstaller(): UpdateInstaller? = null
-
 @Composable
 internal actual fun rememberAppLifecycleOwner(host: LifecycleOwner): LifecycleOwner = host
-
-@Composable
-internal actual fun ReleaseOnPageExit(sessions: PlaybackSessions) = Unit

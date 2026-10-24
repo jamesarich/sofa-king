@@ -26,6 +26,11 @@ jobs:
       # A step's condition cannot read a secret, only whether the job has one.
       SIGN_APT: ${{ secrets.APT_SIGNING_KEY != '' }}
     steps:
+      # The whole history, for the notes' range.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: dist-*
@@ -55,6 +60,46 @@ jobs:
           gpg --batch --yes --clearsign -o InRelease Release
           gpg --batch --yes --armor --detach-sign -o Release.gpg Release
           gpg --export > sofa-king-archive-keyring.gpg
+      # The notes cover the commits since the release being replaced, which was created at its commit. Without that
+      # release, or when its commit is not behind this one, they cover the last 20 commits.
+      - name: Find the notes' range
+        id: range
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          previous=$(gh release view snapshot --json targetCommitish --jq .targetCommitish 2>/dev/null || true)
+          if [ "$previous" = "$GITHUB_SHA" ]; then
+            gh release view snapshot --json body --jq .body > "$RUNNER_TEMP/notes.md"
+            echo "reuse=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "$previous" ] && git merge-base --is-ancestor "$previous" HEAD 2>/dev/null; then
+            echo "range=$previous..HEAD" >> "$GITHUB_OUTPUT"
+          else
+            echo "range=HEAD~20..HEAD" >> "$GITHUB_OUTPUT"
+          fi
+      # A rerun of a published commit keeps that release's notes.
+      - name: Write the notes
+        if: steps.range.outputs.reuse != 'true'
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: .github/cliff.toml
+          args: --strip all ${{ steps.range.outputs.range }}
+        env:
+          OUTPUT: ${{ runner.temp }}/changes.md
+      - name: Add the build line
+        if: steps.range.outputs.reuse != 'true'
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            if [ -s "$RUNNER_TEMP/changes.md" ]; then
+              cat "$RUNNER_TEMP/changes.md"
+            else
+              echo "No new features or fixes since the previous snapshot."
+            fi
+            echo
+            echo "Built from ${GITHUB_SHA} by ${RUN_URL}. Unsigned desktop packages; the APK uses a debug key."
+          } > "$RUNNER_TEMP/notes.md"
       - name: Replace the snapshot release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -66,4 +111,4 @@ jobs:
             --prerelease \
             --target "$GITHUB_SHA" \
             --title "Snapshot $VERSION" \
-            --notes "Built from ${GITHUB_SHA} by ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Unsigned desktop packages; the APK uses a debug key."
+            --notes-file "$RUNNER_TEMP/notes.md"

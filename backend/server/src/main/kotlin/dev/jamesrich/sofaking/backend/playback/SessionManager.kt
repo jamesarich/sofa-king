@@ -34,6 +34,8 @@ internal class LiveSession(
 ) {
     var epoch = 1
     var intent = request.intent
+    /** Sources that failed to resolve for this session; it never goes back to them. */
+    val failed = HashSet<String>()
     /** Bytes relayed to the player over every media request, for the portal's Watching now. */
     val bytes = AtomicLong()
     val busy: Boolean get() = requests.any { it.isActive }
@@ -186,7 +188,7 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
         val refreshed = catalog.offering(session.offering.id)
         if (refreshed == null || health == null || !eligible(health)) {
             session.cancel(); session.epoch++; session.resources.clear()
-            session.offering = select(session.request.channelId)
+            session.offering = select(session.request.channelId, session.failed)
         }
         if (refreshed != null && session.offering.id == refreshed.id && session.offering.url != refreshed.url) {
             session.cancel(); session.offering = refreshed; session.epoch++; session.resources.clear()
@@ -217,6 +219,24 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
                 it.cancel(); it.epoch++; it.resources.clear()
             }
         }
+    }
+    /**
+     * The session's source failed to resolve, so the session moves on to the channel's next eligible source and
+     * true comes back: the relay answers 410 and the player re-reads the descriptor. False when no other source is
+     * left. A source's health only changes with the prober, so without this one failing provider would refuse the
+     * channel until the next probe even with healthy sources behind it.
+     */
+    suspend fun sourceFailed(id: String, epoch: Int, job: Job): Boolean = mutex.withLock {
+        val session = active(id)
+        if (session.epoch != epoch) return@withLock true
+        session.failed += session.offering.id
+        val candidates = catalog.offeringsFor(session.request.channelId)?.filter { it.id !in session.failed } ?: return@withLock false
+        val next = choose(candidates, store.allHealth()) ?: return@withLock false
+        session.cancel(except = job)
+        session.offering = next
+        session.epoch++
+        session.resources.clear()
+        true
     }
     /** The first fetch found [protocol] instead of the descriptor's; the source keeps it, across restarts, for later sessions. */
     suspend fun protocolObserved(id: String, epoch: Int, protocol: String, job: Job) {
@@ -277,9 +297,9 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
         return found
     }
     /** Lineup order within each health rank: a healthy second choice beats an unverified first choice. */
-    private suspend fun select(channelId: String): Offering {
+    private suspend fun select(channelId: String, except: Set<String> = emptySet()): Offering {
         val candidates = catalog.offeringsFor(channelId) ?: throw ApiFailure(404, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")
-        return choose(candidates, store.allHealth()) ?: throw ApiFailure(503, "SOURCE_UNAVAILABLE", "No eligible source", true)
+        return choose(candidates.filter { it.id !in except }, store.allHealth()) ?: throw ApiFailure(503, "SOURCE_UNAVAILABLE", "No eligible source", true)
     }
     private fun choose(candidates: List<Offering>, states: Map<String, HealthState>): Offering? =
         candidates.sortedBy { selectionRank(states[it.id]?.status) }.firstOrNull { states[it.id]?.let(::eligible) == true }

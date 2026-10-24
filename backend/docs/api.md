@@ -117,7 +117,7 @@ curl --fail -X PATCH \
 
 Send `{}` to renew without changing intent. Fetch the session periodically; if its descriptor epoch changes, reopen the returned media URL. When the current source stops being selectable, the fetch moves the session to the entry's next selectable source with a new epoch.
 
-A session serves at most 12 media requests at once; one more answers `429 CAPACITY_EXHAUSTED`. A media request for a session whose source is no longer selectable answers `503 SOURCE_UNAVAILABLE` and ends the session's other media requests; fetch the session to move it to the next source. A media URL from an older epoch answers `410 STREAM_CHANGED`, and one for a session that ended answers `410 SESSION_EXPIRED`.
+A session serves at most 12 media requests at once; one more answers `429 CAPACITY_EXHAUSTED`. A media request for a session whose source is no longer selectable answers `503 SOURCE_UNAVAILABLE` and ends the session's other media requests; fetch the session to move it to the next source. A media request whose provider source fails to resolve moves the session to the channel's next selectable source and answers `410 STREAM_CHANGED`, so the player re-reads the session; with no other source it answers `502 UPSTREAM_UNAVAILABLE`. A media URL from an older epoch answers `410 STREAM_CHANGED`, and one for a session that ended answers `410 SESSION_EXPIRED`.
 
 Release the session when playback ends:
 

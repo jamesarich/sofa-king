@@ -68,7 +68,12 @@ object IntroMatch {
         fun close() {
             if (start < 0) return
             val length = last - start + 1
-            if (length in minPoints..maxPoints && matches >= MIN_DENSITY * length && (best == null || length > best!!.length)) best = Run(start, last, shift)
+            val longest = best?.let { length > it.length } ?: true
+            if (length in minPoints..maxPoints && matches >= MIN_DENSITY * length &&
+                longest
+            ) {
+                best = Run(start, last, shift)
+            }
         }
         for (i in from until until) {
             if (Integer.bitCount(a[i] xor b[i + shift]) > MAX_BIT_ERRORS) continue
@@ -87,7 +92,8 @@ object IntroMatch {
         return best
     }
 
-    private fun span(start: Int, end: Int) = IntroSpan((start * POINT_MS).roundToLong(), ((end + 1) * POINT_MS).roundToLong())
+    private fun span(start: Int, end: Int) =
+        IntroSpan((start * POINT_MS).roundToLong(), ((end + 1) * POINT_MS).roundToLong())
 
     /**
      * An episode's intro from what it shares with several others of its show: the span the most others agree with

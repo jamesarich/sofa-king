@@ -15,6 +15,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
@@ -25,6 +26,7 @@ import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.Density
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.PublishedBuild
+import dev.jamesrich.sofaking.data.ReleaseNote
 import dev.jamesrich.sofaking.data.UpdateState
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlin.test.Test
@@ -33,11 +35,18 @@ import kotlin.test.assertTrue
 
 /**
  * About, the last block of Settings, as a TV reaches it: focus on its last button scrolls only as far as that button,
- * so the TMDB notice sits above it, and Check again turned itself off while checking, which dropped focus to another row.
+ * so the TMDB notice sits above it, and Check again turned itself off while checking,
+ * which dropped focus to another row.
  */
 @OptIn(ExperimentalTestApi::class)
 class SettingsAboutFocusTest {
-    private val latest = PublishedBuild(version = "0.1.0-dev.400+abc1234", run = 400, pageUrl = "https://example.invalid/release", apkUrl = null)
+    private val latest =
+        PublishedBuild(
+            version = "0.1.0-dev.400+abc1234",
+            run = 400,
+            pageUrl = "https://example.invalid/release",
+            apkUrl = null,
+        )
     private val checkAgain = "Check again"
     private val tmdbNotice = "This product uses the TMDB API"
 
@@ -62,12 +71,12 @@ class SettingsAboutFocusTest {
     /** Scrolls to the end, then back until the notice and Check again are both below the visible list. */
     private fun ComposeUiTest.hideAboutBelowTheList() {
         val list = onNode(hasScrollAction())
-        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 100_000f) }
+        list.performSemanticsAction(SemanticsActions.ScrollBy) { val _ = it(0f, 100_000f) }
         waitForIdle()
         val bottom = list.getUnclippedBoundsInRoot().bottom
         val notice = onNodeWithText(tmdbNotice, substring = true).getUnclippedBoundsInRoot()
         val shift = with(density) { (bottom - notice.top).toPx() } + 1f
-        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, -shift) }
+        list.performSemanticsAction(SemanticsActions.ScrollBy) { val _ = it(0f, -shift) }
         waitForIdle()
         assertTrue(!shown(tmdbNotice) && !shown(checkAgain), "the setup leaves About below the visible list")
     }
@@ -79,14 +88,15 @@ class SettingsAboutFocusTest {
     }
 
     @Test
-    fun `focus on Check again shows it and the notice above it`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
-        showSettings(update = { UpdateState.UpToDate(latest) })
-        hideAboutBelowTheList()
-        onNodeWithText(checkAgain).requestFocus()
-        waitForIdle()
-        assertTrue(shown(checkAgain), "Check again, the page's last line, shows once it has focus")
-        assertTrue(shown(tmdbNotice), "the notice above Check again shows with it")
-    }
+    fun `focus on Check again shows it and the notice above it`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            showSettings(update = { UpdateState.UpToDate(latest) })
+            hideAboutBelowTheList()
+            onNodeWithText(checkAgain).requestFocus()
+            waitForIdle()
+            assertTrue(shown(checkAgain), "Check again, the page's last line, shows once it has focus")
+            assertTrue(shown(tmdbNotice), "the notice above Check again shows with it")
+        }
 
     @Test
     fun `Check again keeps focus while the check runs`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
@@ -113,4 +123,25 @@ class SettingsAboutFocusTest {
         waitForIdle()
         onNodeWithText(checkAgain).assertIsFocused()
     }
+
+    @Test
+    fun `focus on Check again shows What's new above it with at most six lines`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            val changes = (1..6).map { ReleaseNote(401, fix = true, text = "Fix $it") } +
+                (1..2).map { ReleaseNote(402, fix = false, text = "Feature $it") }
+            showSettings(update = { UpdateState.Available(latest.copy(run = 402), changes) })
+            hideAboutBelowTheList()
+            onNodeWithText(checkAgain).requestFocus()
+            waitForIdle()
+            assertTrue(shown(checkAgain), "Check again shows once it has focus")
+            assertTrue(shown("What's new"), "What's new sits above the buttons, in view with them")
+            assertTrue(shown("Feature 1"), "new features come before the fixes")
+            assertTrue(shown("Fix 4"))
+            assertEquals(
+                0,
+                onAllNodesWithText("Fix 5").fetchSemanticsNodes().size,
+                "the lines past six are counted, not shown",
+            )
+            assertTrue(shown("And 2 more changes"))
+        }
 }

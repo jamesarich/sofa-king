@@ -7,14 +7,14 @@ import androidx.compose.runtime.setValue
 
 /** The sleep timer's settings, in the order a press on its button steps through them. */
 enum class SleepChoice(val minutes: Int?) {
-    OFF(null),
-    MINUTES_15(15),
-    MINUTES_30(30),
-    MINUTES_60(60),
-    MINUTES_90(90),
+    OFF(minutes = null),
+    MINUTES_15(minutes = 15),
+    MINUTES_30(minutes = 30),
+    MINUTES_60(minutes = 60),
+    MINUTES_90(minutes = 90),
 
     /** The end of the live program on now, or of the library item or recording playing. */
-    END(null),
+    END(minutes = null),
 }
 
 /**
@@ -38,7 +38,10 @@ class SleepTimer {
      */
     fun step(nowMs: Long, programEndMs: Long? = null, endOfItem: Boolean = false) {
         var next = SleepChoice.entries[(choice.ordinal + 1) % SleepChoice.entries.size]
-        if (next == SleepChoice.END && (programEndMs == null || programEndMs <= nowMs) && !endOfItem) next = SleepChoice.OFF
+        val programOver = programEndMs == null || programEndMs <= nowMs
+        if (next == SleepChoice.END && programOver && !endOfItem) {
+            next = SleepChoice.OFF
+        }
         choice = next
         stopAtMs = when {
             next.minutes != null -> nowMs + next.minutes * MINUTE_MS
@@ -59,7 +62,8 @@ class SleepTimer {
     val atEndOfItem: Boolean get() = choice == SleepChoice.END && stopAtMs == null
 
     /** The minutes left, rounded up, while a time is set. */
-    fun minutesLeft(nowMs: Long): Int? = stopAtMs?.let { (((it - nowMs).coerceAtLeast(0) + MINUTE_MS - 1) / MINUTE_MS).toInt() }
+    fun minutesLeft(nowMs: Long): Int? =
+        stopAtMs?.let { (((it - nowMs).coerceAtLeast(0) + MINUTE_MS - 1) / MINUTE_MS).toInt() }
 }
 
 /**

@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/guide.png" alt="The guide in the desktop app: category chips, the focused channel's program and its muted preview, and a grid of channels over the afternoon" width="800">
+  <img src="docs/images/android-tv-guide.webp" alt="The guide on Android TV: category chips, the focused channel's program beside its muted preview, and a grid of channels over the evening" width="800">
 </p>
 
 A self-hosted media center for a home network. One server keeps live TV, a DVR and your own movies and shows; one app watches all of it on Android TV, Google TV, phones, desktops, iOS, Apple TV and the web. No subscription or cloud account needed, and no reason to leave the sofa: it is Sofa King convenient.
@@ -26,7 +26,66 @@ A self-hosted media center for a home network. One server keeps live TV, a DVR a
 - **Plays well with others.** The same lineup goes to Plex as an HDHomeRun tuner and to M3U and XMLTV players.
 
 <p align="center">
-  <img src="docs/images/player.png" alt="The player in the desktop app: a channel full screen with the info bar showing its number, name, program, rating, time and what is next" width="800">
+  <img src="docs/images/desktop-player.webp" alt="The player in the desktop app: a channel full screen with the info bar showing its number, name, program, rating, time and what is next, over the bar's buttons" width="800">
+</p>
+
+## Screenshots
+
+Every platform's app against the same server, playing a showcase lineup of the Blender Foundation's open movies (Big Buck Bunny, Elephants Dream, Sintel, Tears of Steel and Caminandes, © Blender Foundation, under [Creative Commons Attribution](https://creativecommons.org/licenses/by/3.0/) licenses) with a made-up guide. [`screenshots.yml`](.github/workflows/screenshots.yml) takes them; [Screenshots](app/docs/development.md#screenshots) describes it.
+
+**Android TV**
+
+<p>
+  <img src="docs/images/android-tv-player.webp" width="49%" alt="The channel list over a playing channel on Android TV">
+  <img src="docs/images/android-tv-library.webp" width="49%" alt="The Library tab on Android TV: recently added movies and TV shows">
+  <img src="docs/images/android-tv-show.webp" width="49%" alt="A show's page on Android TV: its seasons, its next episode to play and the episode list">
+  <img src="docs/images/android-tv-movie.webp" width="49%" alt="A movie's page on Android TV: details, Play, Mark watched and the cast">
+</p>
+
+**Android phone**
+
+<p>
+  <img src="docs/images/android-phone-guide.webp" width="24%" alt="The guide on an Android phone">
+  <img src="docs/images/android-phone-player.webp" width="24%" alt="The player on an Android phone with its info bar and buttons">
+  <img src="docs/images/android-phone-library.webp" width="24%" alt="The Library tab on an Android phone">
+  <img src="docs/images/android-phone-show.webp" width="24%" alt="A show's page on an Android phone">
+</p>
+
+**Android tablet**
+
+<p>
+  <img src="docs/images/android-tablet-guide.webp" width="32%" alt="The guide on an Android tablet: nothing has focus on a touch screen, so the preview waits for a tap">
+  <img src="docs/images/android-tablet-player.webp" width="32%" alt="The player on an Android tablet with its info bar and buttons">
+  <img src="docs/images/android-tablet-show.webp" width="32%" alt="A show's page on an Android tablet">
+</p>
+
+**Desktop (Linux)**
+
+<p>
+  <img src="docs/images/desktop-guide.webp" width="49%" alt="The guide in the desktop app with the focused channel's preview">
+  <img src="docs/images/desktop-movie.webp" width="49%" alt="A movie's page in the desktop app">
+</p>
+
+**Web**
+
+<p>
+  <img src="docs/images/web-library.webp" width="49%" alt="The Library tab in a browser">
+  <img src="docs/images/web-show.webp" width="49%" alt="A show's page in a browser">
+</p>
+
+**iPhone and iPad**
+
+<p>
+  <img src="docs/images/iphone-guide.webp" width="49%" alt="The guide on an iPhone">
+  <img src="docs/images/iphone-player.webp" width="49%" alt="A channel full screen on an iPhone">
+  <img src="docs/images/ipad-guide.webp" width="49%" alt="The guide on an iPad">
+  <img src="docs/images/ipad-library.webp" width="49%" alt="The Library tab on an iPad">
+</p>
+
+**Apple TV**
+
+<p>
+  <img src="docs/images/apple-tv-guide.webp" width="49%" alt="The channel list on Apple TV, with search and what is on now and next">
 </p>
 
 ## Get it

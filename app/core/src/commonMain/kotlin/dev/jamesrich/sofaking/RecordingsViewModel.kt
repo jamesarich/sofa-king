@@ -37,7 +37,9 @@ class RecordingsViewModel(
     }
 
     /** [id] as the list has it, or null before the list is in or once it is gone. */
-    fun recording(id: String): DvrRecording? = (state.value as? RecordingsState.Ready)?.recordings?.firstOrNull { it.id == id }
+    fun recording(id: String): DvrRecording? = (state.value as? RecordingsState.Ready)?.recordings?.firstOrNull {
+        it.id == id
+    }
 
     /**
      * Cancels a scheduled recording, stops a running one, or deletes a finished one and its file. False when the
@@ -49,7 +51,8 @@ class RecordingsViewModel(
      * Changes [rule]: whether it takes new episodes only, and how many recordings it keeps (0 for all). False when the
      * server refused or could not be reached; the list reloads either way.
      */
-    suspend fun updateRule(rule: SeriesRule, newOnly: Boolean = rule.newOnly, keep: Int = rule.keep): Boolean = schedule.updateRule(rule, newOnly, keep)
+    suspend fun updateRule(rule: SeriesRule, newOnly: Boolean = rule.newOnly, keep: Int = rule.keep): Boolean =
+        schedule.updateRule(rule, newOnly, keep)
 
     /** Deletes [rule] and the recordings it scheduled; what it recorded stays. */
     suspend fun deleteRule(rule: SeriesRule): Boolean = schedule.deleteRule(rule)
@@ -65,9 +68,11 @@ class RecordingsViewModel(
     }
 
     /** The player is at [positionMs] in [recordingId]: remembered for a reopen, and saved every [saveInterval]. */
-    fun progress(recordingId: String, positionMs: Long, durationMs: Long?) {
+    fun progress(recordingId: String, positionMs: Long) {
         sessions.reportPosition(positionMs)
-        if (positions.due(recordingId)) save(recordingId, UpdateRecordingDto(positionMs = positionMs.coerceAtLeast(0)), refresh = false)
+        if (positions.due(recordingId)) {
+            save(recordingId, UpdateRecordingDto(positionMs = positionMs.coerceAtLeast(0)), refresh = false)
+        }
     }
 
     /** Playback of [recordingId] stopped at [positionMs]: saved now, watched near the end, and the list reloads. */
@@ -75,7 +80,14 @@ class RecordingsViewModel(
         sessions.reportPosition(positionMs)
         positions.reset(recordingId)
         val watched = durationMs != null && durationMs > 0 && positionMs >= durationMs * WATCHED_AT
-        val update = if (watched) UpdateRecordingDto(positionMs = 0, watched = true) else UpdateRecordingDto(positionMs = positionMs.coerceAtLeast(0))
+        val update = if (watched) {
+            UpdateRecordingDto(
+                positionMs = 0,
+                watched = true,
+            )
+        } else {
+            UpdateRecordingDto(positionMs = positionMs.coerceAtLeast(0))
+        }
         save(recordingId, update, refresh = true)
     }
 

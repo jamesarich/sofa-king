@@ -8,6 +8,7 @@ import com.sun.jna.platform.mac.CoreFoundation.CFStringRef
 import com.sun.jna.platform.win32.Kernel32
 import com.sun.jna.platform.win32.WinBase
 import com.sun.jna.ptr.IntByReference
+import dev.jamesrich.sofaking.data.runCatchingCancellable
 
 private val log = Logger.withTag("SofaKing")
 
@@ -23,7 +24,9 @@ internal val displayWake: WakeHolds? = when {
 }
 
 // The execution state belongs to the thread that sets it; composition sets and clears it on the UI thread.
-private fun keepWindowsAwake() = guarded { Kernel32.INSTANCE.SetThreadExecutionState(WinBase.ES_CONTINUOUS or WinBase.ES_DISPLAY_REQUIRED) }
+private fun keepWindowsAwake() = guarded {
+    Kernel32.INSTANCE.SetThreadExecutionState(WinBase.ES_CONTINUOUS or WinBase.ES_DISPLAY_REQUIRED)
+}
 
 private fun letWindowsSleep() = guarded { Kernel32.INSTANCE.SetThreadExecutionState(WinBase.ES_CONTINUOUS) }
 
@@ -34,7 +37,9 @@ private fun keepMacAwake() = guarded {
     val name = CFStringRef.createCFString("Sofa King is playing")
     try {
         val id = IntByReference()
-        if (PowerAssertions.INSTANCE.IOPMAssertionCreateWithName(type, ASSERTION_LEVEL_ON, name, id) == 0) macAssertion = id.value
+        if (PowerAssertions.INSTANCE.IOPMAssertionCreateWithName(type, ASSERTION_LEVEL_ON, name, id) == 0) {
+            macAssertion = id.value
+        }
     } finally {
         type.release()
         name.release()
@@ -46,14 +51,19 @@ private fun letMacSleep() = guarded {
     macAssertion = null
 }
 
-/** A missing or refusing power API costs only the display staying awake, never playback. */
+/**
+ * A missing or refusing power API costs only the display staying awake, never playback. JNA reports a missing library
+ * or function as a LinkageError, and a failing call as an exception.
+ */
 private inline fun guarded(call: () -> Unit) {
     try {
-        call()
-    } catch (e: Throwable) {
-        log.w(e) { "keeping the display awake failed" }
+        runCatchingCancellable(call).onFailure(::wakeFailed)
+    } catch (e: LinkageError) {
+        wakeFailed(e)
     }
 }
+
+private fun wakeFailed(failure: Throwable) = log.w(failure) { "keeping the display awake failed" }
 
 /** IOKit's power assertions, which the JNA platform library does not map. */
 @Suppress("FunctionName")

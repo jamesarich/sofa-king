@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.ImageComposeScene
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.use
@@ -16,46 +18,44 @@ import dev.jamesrich.sofaking.ItemDetailState
 import dev.jamesrich.sofaking.LibraryGrid
 import dev.jamesrich.sofaking.LibraryHomeState
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.AutoOpenDelay
+import dev.jamesrich.sofaking.data.CaptionStyle
+import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.DiscoveredServer
+import dev.jamesrich.sofaking.data.GuideStatus
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.LibrarySort
+import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.MediaHome
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.data.MediaShelf
 import dev.jamesrich.sofaking.data.PlayProgress
-import dev.jamesrich.sofaking.data.AutoOpenDelay
-import dev.jamesrich.sofaking.data.CaptionStyle
-import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.GuideStatus
-import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.guide.ProgramDetails
 import dev.jamesrich.sofaking.ui.guide.ProgramSheet
-import dev.jamesrich.sofaking.ui.player.BreakScreen
-import dev.jamesrich.sofaking.ui.player.CaptionSync
-import dev.jamesrich.sofaking.ui.player.InfoBar
-import dev.jamesrich.sofaking.ui.player.InfoOverlay
-import dev.jamesrich.sofaking.ui.player.MiniGuide
-import androidx.compose.runtime.remember
-import androidx.compose.ui.focus.FocusRequester
-import dev.jamesrich.sofaking.ui.player.PlayerButtonItem
-import dev.jamesrich.sofaking.ui.player.PlayerButtonRow
-import dev.jamesrich.sofaking.ui.theme.SofaIcons
-import dev.jamesrich.sofaking.ui.player.PlayerScreen
-import dev.jamesrich.sofaking.ui.player.UnavailableLivePlayer
 import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
 import dev.jamesrich.sofaking.ui.library.ItemDetailsScreen
 import dev.jamesrich.sofaking.ui.library.LibraryGridActions
 import dev.jamesrich.sofaking.ui.library.LibraryGridScreen
 import dev.jamesrich.sofaking.ui.library.LibraryHomeActions
 import dev.jamesrich.sofaking.ui.library.LibraryHomeScreen
+import dev.jamesrich.sofaking.ui.player.BreakScreen
+import dev.jamesrich.sofaking.ui.player.CaptionSync
+import dev.jamesrich.sofaking.ui.player.InfoBar
+import dev.jamesrich.sofaking.ui.player.InfoOverlay
+import dev.jamesrich.sofaking.ui.player.MiniGuide
+import dev.jamesrich.sofaking.ui.player.PlayerButtonItem
+import dev.jamesrich.sofaking.ui.player.PlayerButtonRow
+import dev.jamesrich.sofaking.ui.player.PlayerScreen
+import dev.jamesrich.sofaking.ui.player.UnavailableLivePlayer
 import dev.jamesrich.sofaking.ui.settings.SettingsLockScreen
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -76,6 +76,7 @@ import kotlin.time.Duration.Companion.minutes
 class RenderSmokeTest {
     private val now = Clock.System.now()
     private val start = now - 20.minutes
+
     // A loopback server stands in for the server's /logos/ route; channels without a logo keep an empty slot.
     private val logo = run {
         val png = java.io.File("../androidApp/src/main/res/drawable-xhdpi/banner.png").readBytes()
@@ -122,9 +123,16 @@ class RenderSmokeTest {
         },
     )
 
-    /** Runs the scene on this thread's event loop, so effects resume where the frames draw; each frame yields to them. */
+    /**
+     * Runs the scene on this thread's event loop, so effects resume where the frames draw; each frame yields to them.
+     */
     private fun render(name: String, content: @Composable () -> Unit): Image = runBlocking {
-        val image = ImageComposeScene(width = 1920, height = 1080, density = Density(2f), coroutineContext = coroutineContext.minusKey(Job)) {
+        val image = ImageComposeScene(
+            width = 1920,
+            height = 1080,
+            density = Density(2f),
+            coroutineContext = coroutineContext.minusKey(Job),
+        ) {
             SofaKingTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { content() }
             }
@@ -144,11 +152,19 @@ class RenderSmokeTest {
         image
     }
 
-    /** True when the image has pixels other than the top-left one's color, i.e. something was drawn on the background. */
+    /**
+     * True when the image has pixels other than the top-left one's color, i.e. something was drawn on the background.
+     */
     private fun Image.hasContent(): Boolean {
         val bitmap = org.jetbrains.skia.Bitmap.makeFromImage(this)
         val background = bitmap.getColor(0, 0)
-        for (y in 0 until height step 8) for (x in 0 until width step 8) if (bitmap.getColor(x, y) != background) return true
+        for (y in 0 until height step 8) {
+            for (x in 0 until width step 8) {
+                if (bitmap.getColor(x, y) != background) {
+                    return true
+                }
+            }
+        }
         return false
     }
 
@@ -166,7 +182,7 @@ class RenderSmokeTest {
                 returnedFrom = null,
                 onPlay = { _, _, _ -> },
                 onToggleFavorite = {},
-                onFilterChanged = {},
+                onFilterChange = {},
                 onLoadGuideWindow = {},
                 previewPlayer = UnavailableLivePlayer(CaptionSync(), "TEST"),
                 sessions = PlaybackSessions(),
@@ -183,7 +199,9 @@ class RenderSmokeTest {
     fun `the program details panel fits its buttons and description`() {
         val program = lineup.guide.getValue("c0").first().copy(
             title = "Sailor Moon",
-            description = List(12) { "Usagi and the girls are excited to attend the school festival." }.joinToString(" "),
+            description = List(12) {
+                "Usagi and the girls are excited to attend the school festival."
+            }.joinToString(" "),
         )
         val image = render("guide-details") {
             // The guide sits under the app's header, so the panel gets the height below it.
@@ -206,7 +224,11 @@ class RenderSmokeTest {
     fun `settings renders its fields and switches`() {
         val image = render("settings") {
             SettingsScreen(
-                settings = AppSettings(serverUrl = "http://sofa.lan:9193", apiToken = "s3cret-token", captionsEnabled = true),
+                settings = AppSettings(
+                    serverUrl = "http://sofa.lan:9193",
+                    apiToken = "s3cret-token",
+                    captionsEnabled = true,
+                ),
                 onSave = { _, _ -> },
                 onBack = {},
                 channelCount = channels.size,
@@ -226,7 +248,11 @@ class RenderSmokeTest {
     @Test
     fun `the break screen carries the next program and the ads dodged today`() {
         val image = render("break-screen-extras") {
-            BreakScreen(remainingMs = null, upNext = "Up next: Forensic Files at 9:30 PM", dodgedBeforeMs = 14 * 60_000L)
+            BreakScreen(
+                remainingMs = null,
+                upNext = "Up next: Forensic Files at 9:30 PM",
+                dodgedBeforeMs = 14 * 60_000L,
+            )
         }
         assertTrue(image.hasContent())
     }
@@ -241,9 +267,14 @@ class RenderSmokeTest {
 
     @Test
     fun `settings with no server lists the servers found on the network`() {
-        val found = listOf(DiscoveredServer("Sofa King", "http://192.0.2.10:9193"), DiscoveredServer("Sofa King (2)", "http://192.0.2.11:9193"))
+        val found =
+            listOf(
+                DiscoveredServer("Sofa King", "http://192.0.2.10:9193"),
+                DiscoveredServer("Sofa King (2)", "http://192.0.2.11:9193"),
+            )
         val image = render("settings-discovered") {
-            SettingsScreen(settings = AppSettings(), onSave = { _, _ -> }, onBack = {}, channelCount = 0, discoveredServers = flowOf(found))
+            SettingsScreen(settings = AppSettings(), onSave = { _, _ ->
+            }, onBack = {}, channelCount = 0, discoveredServers = flowOf(found))
         }
         assertTrue(image.hasContent())
     }
@@ -251,7 +282,8 @@ class RenderSmokeTest {
     @Test
     fun `the settings lock page renders its field and buttons`() {
         val image = render("settings-lock") {
-            SettingsLockScreen(pinHash = "salt:hash", apiToken = "s3cret-token", onUnlocked = {}, onPinRemoved = {}, onBack = {})
+            SettingsLockScreen(pinHash = "salt:hash", apiToken = "s3cret-token", onUnlock = {
+            }, onPinRemove = {}, onBack = {})
         }
         assertTrue(image.hasContent())
     }
@@ -309,7 +341,7 @@ class RenderSmokeTest {
                         PlayerButtonItem(SofaIcons.Forward30, "Forward 30 seconds", {}),
                     ),
                     entry = remember { FocusRequester() },
-                    onFocused = {},
+                    onFocus = {},
                     showLabel = true,
                 )
             }
@@ -333,7 +365,8 @@ class RenderSmokeTest {
                 )
             }
         }
-        // A long name once squeezed the captions badge until it wrapped a letter a line and stretched the bar up the screen.
+        // A long name once squeezed the captions badge until it wrapped a letter a line and
+        // stretched the bar up the screen.
         assertTrue(image.firstContentRow() > image.height / 3)
     }
 
@@ -342,7 +375,14 @@ class RenderSmokeTest {
         val image = render("player-info-bar") {
             Box(Modifier.fillMaxSize()) {
                 InfoBar(visible = true) {
-                    InfoOverlay(lineup = lineup, channel = channels[0], now = now, captionsOn = false, captionAdvanceMs = null, scope = null)
+                    InfoOverlay(
+                        lineup = lineup,
+                        channel = channels[0],
+                        now = now,
+                        captionsOn = false,
+                        captionAdvanceMs = null,
+                        scope = null,
+                    )
                 }
             }
         }
@@ -359,7 +399,7 @@ class RenderSmokeTest {
                 player = UnavailableLivePlayer(CaptionSync(), "TEST"),
                 sessions = PlaybackSessions(),
                 onExit = {},
-                onChannelChanged = {},
+                onChannelChange = {},
                 captionsEnabled = true,
             )
         }
@@ -372,7 +412,19 @@ class RenderSmokeTest {
         id = "m$i",
         libraryId = "movies",
         kind = ItemKind.MOVIE,
-        title = listOf("The Long Night", "Harbor Lights", "Paper Moon", "Quiet Town", "Northbound", "Second Act", "Glass Garden", "Dust")[i % 8],
+        title = listOf(
+            "The Long Night",
+            "Harbor Lights",
+            "Paper Moon",
+            "Quiet Town",
+            "Northbound",
+            "Second Act",
+            "Glass Garden",
+            "Dust",
+        )[
+            i %
+                8,
+        ],
         year = 1990 + i,
         durationMs = 6_480_000,
         poster = logo.takeIf { i % 3 != 1 },
@@ -399,7 +451,7 @@ class RenderSmokeTest {
         showTitle = "Harbor Patrol",
         season = season,
         episode = i + 1,
-        aired = "2024-0${season}-1${i}",
+        aired = "2024-0$season-1$i",
         durationMs = 2_700_000,
         backdrop = logo.takeIf { i % 2 == 0 },
         overview = "The crew follows a lead across the bay while a storm closes in on the harbor.",
@@ -425,7 +477,11 @@ class RenderSmokeTest {
     fun `the library home renders its rows and libraries`() {
         val home = MediaHome(
             shelves = listOf(
-                MediaShelf("continue", "Continue watching", listOf(movie(0), episode(1, 2, PlayProgress(900_000, 2_700_000, false)))),
+                MediaShelf(
+                    "continue",
+                    "Continue watching",
+                    listOf(movie(0), episode(1, 2, PlayProgress(900_000, 2_700_000, false))),
+                ),
                 MediaShelf("recent", "Recently added in Movies", List(8) { movie(it) }, libraryId = "movies"),
                 MediaShelf("recent", "Recently added in TV Shows", listOf(show), libraryId = "shows"),
             ),
@@ -446,14 +502,35 @@ class RenderSmokeTest {
             directors = listOf("Lee Moran"),
         )
         val image = render("library-movie") {
-            ItemDetailsScreen(ItemDetailState.Ready(detail), season = null, selectedSeasonId = null, actions = ItemDetailsActions({ _, _ -> }, { _, _ -> }, {}, {}))
+            ItemDetailsScreen(
+                ItemDetailState.Ready(detail),
+                season = null,
+                selectedSeasonId = null,
+                actions = ItemDetailsActions({
+                        _,
+                        _,
+                    ->
+                }, { _, _ -> }, {}, {}),
+            )
         }
         assertTrue(image.hasContent())
     }
 
     @Test
     fun `a show's page renders its seasons and episodes`() {
-        val seasons = List(2) { MediaItem("s${it + 1}", "shows", ItemKind.SEASON, "Season ${it + 1}", parentId = "show", season = it + 1, unwatched = 4) }
+        val seasons =
+            List(2) {
+                MediaItem(
+                    "s${it + 1}",
+                    "shows",
+                    ItemKind.SEASON,
+                    "Season ${it + 1}",
+                    parentId = "show",
+                    season =
+                    it + 1,
+                    unwatched = 4,
+                )
+            }
         val next = episode(2, 1, PlayProgress(600_000, 2_700_000, false))
         val detail = MediaItemDetail(item = show, children = seasons, next = next)
         val season = MediaItemDetail(
@@ -461,14 +538,35 @@ class RenderSmokeTest {
             children = listOf(episode(2, 0, PlayProgress(0, 2_700_000, true)), next) + List(3) { episode(2, it + 2) },
         )
         val image = render("library-show") {
-            ItemDetailsScreen(ItemDetailState.Ready(detail), ItemDetailState.Ready(season), selectedSeasonId = "s2", actions = ItemDetailsActions({ _, _ -> }, { _, _ -> }, {}, {}))
+            ItemDetailsScreen(
+                ItemDetailState.Ready(detail),
+                ItemDetailState.Ready(season),
+                selectedSeasonId = "s2",
+                actions = ItemDetailsActions({
+                        _,
+                        _,
+                    ->
+                }, { _, _ -> }, {}, {}),
+            )
         }
         assertTrue(image.hasContent())
     }
 
     @Test
     fun `a library's grid renders its chips and posters`() {
-        val grid = LibraryGrid("movies", LibrarySort.ADDED, unwatched = false, items = List(14) { movie(it) }, genres = listOf("Action", "Comedy", "Drama"), total = 42, next = "c2", loading = false)
+        val grid =
+            LibraryGrid(
+                "movies",
+                LibrarySort.ADDED,
+                unwatched = false,
+                items = List(14) {
+                    movie(it)
+                },
+                genres = listOf("Action", "Comedy", "Drama"),
+                total = 42,
+                next = "c2",
+                loading = false,
+            )
         val image = render("library-grid") {
             LibraryGridScreen(movies, grid, LibraryGridActions({}, {}, {}, {}, {}, {}))
         }

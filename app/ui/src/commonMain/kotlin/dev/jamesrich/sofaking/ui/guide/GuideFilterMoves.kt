@@ -3,8 +3,8 @@ package dev.jamesrich.sofaking.ui.guide
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.ProgramKind
-import kotlin.time.Instant
 import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
+import kotlin.time.Instant
 
 /**
  * All, Favorites, Recent, a kind of program on now for each kind [onNow] holds, then every group in the order its
@@ -68,10 +68,18 @@ internal fun GuideFilter.key(): String? = when (this) {
 /** The filter a stored [key] names; anything unknown, including a group no longer in the lineup, reads as All. */
 internal fun guideFilterFromKey(key: String?): GuideFilter = when {
     key == null -> GuideFilter.All
+
     key == "favorites" -> GuideFilter.Favorites
+
     key == "recent" -> GuideFilter.Recent
+
     key.startsWith(GROUP_KEY) && key.length > GROUP_KEY.length -> GuideFilter.Group(key.removePrefix(GROUP_KEY))
-    key.startsWith(ON_NOW_KEY) -> ProgramKind.entries.firstOrNull { it.name.lowercase() == key.removePrefix(ON_NOW_KEY) }?.let { GuideFilter.OnNow(it) } ?: GuideFilter.All
+
+    key.startsWith(ON_NOW_KEY) -> ProgramKind.entries.firstOrNull {
+        it.name.lowercase() == key.removePrefix(ON_NOW_KEY)
+    }?.let { GuideFilter.OnNow(it) }
+        ?: GuideFilter.All
+
     else -> GuideFilter.All
 }
 
@@ -87,11 +95,13 @@ internal sealed interface GuideNumberTarget {
     data object Missing : GuideNumberTarget
 }
 
-internal fun guideNumberTarget(entry: ChannelNumberEntry, visible: List<Channel>, all: List<Channel>): GuideNumberTarget {
-    entry.indexIn(visible)?.let { return GuideNumberTarget.Row(it) }
-    entry.indexIn(all)?.let { return GuideNumberTarget.Hidden(all[it].guideId) }
-    return GuideNumberTarget.Missing
-}
+internal fun guideNumberTarget(
+    entry: ChannelNumberEntry,
+    visible: List<Channel>,
+    all: List<Channel>,
+): GuideNumberTarget = entry.indexIn(visible)?.let { GuideNumberTarget.Row(it) }
+    ?: entry.indexIn(all)?.let { GuideNumberTarget.Hidden(all[it].guideId) }
+    ?: GuideNumberTarget.Missing
 
 /** The first list item after a filter change: [focusedId]'s row in the slot the grid keeps it in, else the top. */
 internal fun firstItemAfterFilter(visible: List<Channel>, focusedId: String?): Int {

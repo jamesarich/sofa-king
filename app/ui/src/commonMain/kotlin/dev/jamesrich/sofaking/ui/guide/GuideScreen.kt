@@ -1,10 +1,9 @@
 package dev.jamesrich.sofaking.ui.guide
 
-import dev.jamesrich.sofaking.ui.appLifecycleOwner
-import dev.jamesrich.sofaking.ui.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,71 +31,60 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
-import dev.jamesrich.sofaking.resources.*
-import dev.jamesrich.sofaking.data.AutoOpenDelay
-import dev.jamesrich.sofaking.data.CaptionStyle
-import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.airingsOf
-import dev.jamesrich.sofaking.data.Lineup
-import dev.jamesrich.sofaking.data.orderedFavorites
-import dev.jamesrich.sofaking.data.ProgramKind
-import dev.jamesrich.sofaking.data.Program
-import dev.jamesrich.sofaking.data.PlaybackSessions
-import dev.jamesrich.sofaking.data.RecordingMark
-import dev.jamesrich.sofaking.data.RecordingMarks
-import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
-import dev.jamesrich.sofaking.ui.preview.PreviewDwell
-import dev.jamesrich.sofaking.ui.player.ZapScope
-import dev.jamesrich.sofaking.ui.player.ChannelNumberBadge
-import dev.jamesrich.sofaking.ui.FIRST_FOCUS_FRAMES
-import dev.jamesrich.sofaking.ui.rememberMinuteNow
-import dev.jamesrich.sofaking.ui.rememberTimeFormatter
-import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
-import kotlin.time.Clock
-import kotlin.time.Instant
-import dev.jamesrich.sofaking.ui.player.LivePlayer
-import dev.jamesrich.sofaking.ui.rememberScreenReaderActive
-import dev.jamesrich.sofaking.ui.rememberVoiceSearch
-import dev.jamesrich.sofaking.ui.uptimeMs
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.minutes
-import kotlin.math.roundToInt
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import dev.jamesrich.sofaking.data.AutoOpenDelay
+import dev.jamesrich.sofaking.data.CaptionStyle
+import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.data.RecordingMark
+import dev.jamesrich.sofaking.data.RecordingMarks
+import dev.jamesrich.sofaking.data.airingsOf
+import dev.jamesrich.sofaking.data.orderedFavorites
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.guide_favorites_none
+import dev.jamesrich.sofaking.resources.guide_recent_none
+import dev.jamesrich.sofaking.resources.guide_search_hint
+import dev.jamesrich.sofaking.resources.guide_search_none
+import dev.jamesrich.sofaking.resources.guide_search_voice_prompt
+import dev.jamesrich.sofaking.resources.refreshing
+import dev.jamesrich.sofaking.ui.BackHandler
+import dev.jamesrich.sofaking.ui.FIRST_FOCUS_FRAMES
 import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
+import dev.jamesrich.sofaking.ui.appLifecycleOwner
+import dev.jamesrich.sofaking.ui.player.ChannelNumberBadge
+import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.player.ZapScope
+import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
+import dev.jamesrich.sofaking.ui.preview.PreviewDwell
+import dev.jamesrich.sofaking.ui.rememberMinuteNow
+import dev.jamesrich.sofaking.ui.rememberScreenReaderActive
+import dev.jamesrich.sofaking.ui.rememberTimeFormatter
+import dev.jamesrich.sofaking.ui.rememberVoiceSearch
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
-
-@Serializable
-internal sealed interface GuideFilter {
-    @Serializable
-    data object All : GuideFilter
-    @Serializable
-    data object Favorites : GuideFilter
-    /** The channels watched most recently, newest first. */
-    @Serializable
-    data object Recent : GuideFilter
-    @Serializable
-    data class Group(val name: String) : GuideFilter
-    /** The channels showing a [kind] of program now. */
-    @Serializable
-    data class OnNow(val kind: ProgramKind) : GuideFilter
-}
+import dev.jamesrich.sofaking.ui.uptimeMs
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
+import kotlin.math.roundToInt
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Instant
 
 /** How often the kinds of program on now are read again. */
 private const val ON_NOW_REFRESH_SECONDS = 300L
@@ -104,7 +92,10 @@ private const val ON_NOW_REFRESH_SECONDS = 300L
 /** How often the initial focus is retried after the row refused it, before the header keeps focus. */
 private const val INITIAL_FOCUS_ATTEMPTS = 3
 
-/** What the preview's rest timers watch: the channel under focus, the last key press, whether the preview failed and whether sound is on. */
+/**
+ * What the preview's rest timers watch: the channel under focus, the last key press, whether the preview
+ * failed and whether sound is on.
+ */
 private data class DwellInput(val channelId: String?, val nonce: Int, val failed: Boolean, val sound: Boolean)
 
 /** The guide's test tag; Android exposes it as a resource id for the Baseline Profile generator. */
@@ -125,8 +116,6 @@ fun GuideScreen(
     favorites: Set<String>,
     recentChannels: List<String>,
     initialChannelId: String?,
-    /** The order Settings gave the favorites; the Favorites filter lists them so, the rest by number. */
-    favoritesOrder: List<String> = emptyList(),
     /** The filter saved from the last visit (see [guideFilterFromKey]); a fresh guide opens on it. */
     initialFilterKey: String?,
     startAtNow: Boolean,
@@ -136,7 +125,7 @@ fun GuideScreen(
     onPlay: (channel: Channel, scope: ZapScope?, unattended: Boolean) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     /** The viewer chose a filter chip; its key is saved for the next launch. */
-    onFilterChanged: (String?) -> Unit,
+    onFilterChange: (String?) -> Unit,
     /** The grid moved to a day whose programs may not be loaded; the window starts at the given instant. */
     onLoadGuideWindow: (Instant) -> Unit,
     previewPlayer: LivePlayer,
@@ -145,6 +134,9 @@ fun GuideScreen(
     captionStyle: CaptionStyle,
     autoOpenDelay: AutoOpenDelay,
     previewSound: Boolean,
+    modifier: Modifier = Modifier,
+    /** The order Settings gave the favorites; the Favorites filter lists them so, the rest by number. */
+    favoritesOrder: List<String> = emptyList(),
     /** How programs are set to record; null on a server that does not record, which hides the record buttons. */
     recordingMarks: RecordingMarks? = null,
     /** Records the program or cancels its recording; false when the server did not take it. */
@@ -156,23 +148,28 @@ fun GuideScreen(
     startInHeader: Boolean = false,
     /** Whether the guide is the page on top; on its way out under the player it leaves the volume alone. */
     shown: Boolean = true,
-    modifier: Modifier = Modifier,
 ) {
     val now by rememberMinuteNow()
     val state = rememberGuideState(now, initialFilterKey, startSearch, startInHeader)
     val liveStart = remember(state.liveStartSecond) { Instant.fromEpochSeconds(state.liveStartSecond) }
-    val windowStart = remember(liveStart, state.dayOffset) { liveStart + (state.dayOffset * GuideTimeline.WINDOW_MINUTES).minutes }
+    val windowStart = remember(liveStart, state.dayOffset) {
+        liveStart + (state.dayOffset * GuideTimeline.WINDOW_MINUTES).minutes
+    }
     val windowEnd = remember(windowStart) { GuideTimeline.windowEnd(windowStart) }
     val nowMinute = GuideTimeline.offsetMinutes(windowStart, now).takeIf { now >= windowStart && now < windowEnd }
     val nowClamped = GuideTimeline.offsetMinutes(windowStart, now)
     LaunchedEffect(now) { state.rollWindow(now) }
     val timeFormat = rememberTimeFormatter()
 
-    // What is on now is read every few minutes, not every minute, so the chips and their lists hold still while browsing.
+    // What is on now is read every few minutes, not every minute, so the chips and their
+    // lists hold still while browsing.
     val onNowSlot = now.epochSeconds / ON_NOW_REFRESH_SECONDS
     val kindsOnNow = remember(lineup.channels, lineup.guide, onNowSlot) { channelsOnNow(lineup, now) }
     val filters = remember(lineup.channels, kindsOnNow.keys) { guideFilters(lineup.channels, kindsOnNow.keys) }
-    val filterCounts = remember(lineup.channels, favorites, recentChannels, kindsOnNow) { guideFilterCounts(lineup.channels, favorites, recentChannels, kindsOnNow) }
+    val filterCounts =
+        remember(lineup.channels, favorites, recentChannels, kindsOnNow) {
+            guideFilterCounts(lineup.channels, favorites, recentChannels, kindsOnNow)
+        }
     val activeFilter = state.filter.takeIf { it in filters } ?: GuideFilter.All
 
     val query = if (state.searchOpen) state.searchText.text.toString() else ""
@@ -202,7 +199,15 @@ fun GuideScreen(
             buildMap {
                 for (channel in byFilter) {
                     // Within the window on screen: a match from earlier would jump to the window's start, not to it.
-                    val later = GuideSearch.upcoming(query, lineup.guide[channel.guideId].orEmpty(), maxOf(searchNow, windowStart - 1.milliseconds), windowEnd)
+                    val later = GuideSearch.upcoming(
+                        query,
+                        lineup.guide[channel.guideId].orEmpty(),
+                        maxOf(
+                            searchNow,
+                            windowStart - 1.milliseconds,
+                        ),
+                        windowEnd,
+                    )
                     if (later.isNotEmpty()) put(channel.guideId, later)
                 }
             }
@@ -224,7 +229,12 @@ fun GuideScreen(
     }
     val items = remember(visible, upcoming) { guideListItems(visible, upcoming) }
     // One requester per Later line, so a row step can land on its first chip.
-    val laterFocus = remember(items) { items.filterIsInstance<GuideListItem.Later>().associate { it.key to FocusRequester() } }
+    val laterFocus = remember(items) {
+        items.filterIsInstance<GuideListItem.Later>().associate {
+            it.key to
+                FocusRequester()
+        }
+    }
 
     val scrollState = rememberScrollState()
     val listState = rememberLazyListState()
@@ -245,7 +255,12 @@ fun GuideScreen(
     val currentPreviewSound by rememberUpdatedState(previewSound)
     val lastInput = LocalLastInput.current
     val dwell = remember(fullScreenAfterMs) {
-        PreviewDwell(suppressedChannelId = returnedFrom, fullScreenAfterMs = fullScreenAfterMs, pointerDriven = lastInput.kind == InputKind.POINTER)
+        PreviewDwell(
+            suppressedChannelId = returnedFrom,
+            fullScreenAfterMs = fullScreenAfterMs,
+            pointerDriven =
+            lastInput.kind == InputKind.POINTER,
+        )
     }
 
     val selectedChip = remember { FocusRequester() }
@@ -263,7 +278,7 @@ fun GuideScreen(
             scope.launch { scrollState.animateScrollTo((px - marginPx).roundToInt().coerceAtLeast(0)) }
         }
     }
-    val onCellFocused: (Channel, GuideCell) -> Unit = { channel, cell ->
+    val onCellFocus: (Channel, GuideCell) -> Unit = { channel, cell ->
         state.cellFocused(channel, cell)
         revealMinute(state.cursor)
     }
@@ -272,8 +287,17 @@ fun GuideScreen(
         revealMinute(minute)
     }
 
-    LaunchedEffect(visible.isNotEmpty(), activeFilter, state.searchOpen, state.initialFocusAttempt, state.awaitingEntry, state.dayOffset) {
-        if (state.awaitingEntry || state.initialFocusDone || state.initialFocusAttempt >= INITIAL_FOCUS_ATTEMPTS) return@LaunchedEffect
+    LaunchedEffect(
+        visible.isNotEmpty(),
+        activeFilter,
+        state.searchOpen,
+        state.initialFocusAttempt,
+        state.awaitingEntry,
+        state.dayOffset,
+    ) {
+        if (state.awaitingEntry || state.initialFocusDone || state.initialFocusAttempt >= INITIAL_FOCUS_ATTEMPTS) {
+            return@LaunchedEffect
+        }
         if (startAtNow && state.dayOffset != 0) {
             // Now is in today's window, whatever day the guide was left on; this reruns on it.
             state.dayOffset = 0
@@ -291,20 +315,26 @@ fun GuideScreen(
             return@LaunchedEffect
         }
         val nowAt = nowMinute ?: nowClamped
-        if (startAtNow) state.cursor = nowAt else if (returnedFrom != null) state.cursor = cursorOnReturn(state.cursor, nowAt)
+        if (startAtNow) {
+            state.cursor = nowAt
+        } else if (returnedFrom !=
+            null
+        ) {
+            state.cursor = cursorOnReturn(state.cursor, nowAt)
+        }
         val row = initialGuideRow(visible, returnedFrom, state.lastFocusedGuideId, initialChannelId)
         if (row >= 0) {
             // Before the first measure the layout info is empty; a restored scroll position must not be thrown away.
             withFrameNanos { }
             val item = rowIndexOf(items, visible[row])
             if (listState.layoutInfo.visibleItemsInfo.none { it.index == item }) listState.scrollToItem(item)
-            // The row reports through onJumpHandled whether its cell took focus.
+            // The row reports through onJumpFinish whether its cell took focus.
             requestJump(visible[row].guideId, state.cursor)
         } else if (!requestFocusWhenAttached(initialFocus, FIRST_FOCUS_FRAMES)) {
             state.initialFocusAttempt++
         }
     }
-    val onJumpHandled: (Boolean) -> Unit = { landed -> state.jumpHandled(landed) }
+    val onJumpFinish: (Boolean) -> Unit = { landed -> state.jumpHandled(landed) }
     // Only a composed row answers a jump; one whose row left the list (the lineup refreshing under the first
     // focus) would wait forever, so it counts as missed and the first focus scrolls to the row again.
     LaunchedEffect(state.jump) {
@@ -333,6 +363,7 @@ fun GuideScreen(
             listState.scrollToItem((target - FOCUS_ROW_SLOT).coerceAtLeast(0))
             when (val item = items[target]) {
                 is GuideListItem.Row -> requestJump(item.channel.guideId, state.cursor)
+
                 is GuideListItem.Later -> {
                     laterFocus[item.key]?.let { requestFocusWhenAttached(it, FIRST_FOCUS_FRAMES) }
                     state.pendingRow = null
@@ -352,7 +383,11 @@ fun GuideScreen(
         if (!state.initialFocusDone) return@LaunchedEffect
         val jumpRow = state.numberJump?.let { id -> visible.indexOfFirst { it.guideId == id } } ?: -1
         state.numberJump = null
-        if (jumpRow >= 0) focusRow(rowIndexOf(items, visible[jumpRow])) else listState.scrollToItem(firstItemAfterFilter(items.map { it.channel }, state.focused?.channel?.guideId))
+        if (jumpRow >= 0) {
+            focusRow(rowIndexOf(items, visible[jumpRow]))
+        } else {
+            listState.scrollToItem(firstItemAfterFilter(items.map { it.channel }, state.focused?.channel?.guideId))
+        }
     }
 
     // Typed channel digits, as the player takes them. OK or the entry timeout commits them.
@@ -364,9 +399,11 @@ fun GuideScreen(
 
     val onGridKey: (KeyEvent) -> Boolean = { event -> state.onGridKey(event.key, event.type, items, focusRow) }
 
-    // Now goes to the focused channel's row, which the chips keep, else the first row on screen; a day ahead comes back to the live window.
+    // Now goes to the focused channel's row, which the chips keep, else the first row on screen; a day ahead
+    // comes back to the live window.
     val onNow: () -> Unit = {
-        val guideId = state.focused?.channel?.guideId ?: items.getOrNull(listState.firstVisibleItemIndex)?.channel?.guideId
+        val guideId =
+            state.focused?.channel?.guideId ?: items.getOrNull(listState.firstVisibleItemIndex)?.channel?.guideId
         state.dayOffset = 0
         if (guideId != null) requestJump(guideId, GuideTimeline.offsetMinutes(liveStart, now))
     }
@@ -381,12 +418,16 @@ fun GuideScreen(
             state.focused?.channel?.guideId?.let { requestJump(it, state.cursor) }
         }
     }
-    // The details of the focused program, on the Info key or a held OK; Watch plays it and Back or Close returns focus to its cell.
+    // The details of the focused program, on the Info key or a held OK; Watch plays it and Back or
+    // Close returns focus to its cell.
     val onCloseDetails: () -> Unit = {
         state.details = null
         state.focused?.channel?.guideId?.let { requestJump(it, state.cursor) }
     }
-    val startVoiceSearch = rememberVoiceSearch(stringResource(Res.string.guide_search_voice_prompt)) { spoken -> state.voiceSearched(spoken) }
+    val startVoiceSearch =
+        rememberVoiceSearch(stringResource(Res.string.guide_search_voice_prompt)) { spoken ->
+            state.voiceSearched(spoken)
+        }
     val openVoiceSearch: () -> Unit = {
         if (!startVoiceSearch()) state.openSearchField()
     }
@@ -394,15 +435,24 @@ fun GuideScreen(
     // From the grid, Back climbs to the selected chip (scrolled into the row first, since only a composed chip
     // can take focus), from the chips to the header's open tab; a press with nowhere left to climb leaves the
     // activity to finish.
-    val backAction = guideBackAction(state.searchOpen, state.gridFocused, state.chipsFocused, hasHeader = headerFocus != null)
+    val backAction = guideBackAction(
+        state.searchOpen,
+        state.gridFocused,
+        state.chipsFocused,
+        hasHeader =
+        headerFocus != null,
+    )
     val climb: () -> Unit = {
         when (backAction) {
             GuideBack.CLOSE_SEARCH -> state.closeSearch()
+
             GuideBack.FOCUS_CHIPS -> scope.launch {
                 chipsState.scrollToItem(selectedChipIndex(filters, activeFilter))
                 requestFocusWhenAttached(selectedChip)
             }
+
             GuideBack.FOCUS_HEADER -> headerFocus?.requestFocus()
+
             GuideBack.EXIT -> Unit
         }
     }
@@ -432,7 +482,9 @@ fun GuideScreen(
     val currentRequestJump by rememberUpdatedState(requestJump)
     val currentWindowStart by rememberUpdatedState(windowStart)
     val onJumpTo: (Channel, Program) -> Unit = remember {
-        { channel, program -> currentRequestJump(channel.guideId, GuideTimeline.offsetMinutes(currentWindowStart, program.start)) }
+        { channel, program ->
+            currentRequestJump(channel.guideId, GuideTimeline.offsetMinutes(currentWindowStart, program.start))
+        }
     }
     val env = rememberGuideRowEnv(
         timeFormat = timeFormat,
@@ -441,7 +493,7 @@ fun GuideScreen(
         minutePx = minutePx,
         minStickyTextPx = minStickyTextPx,
         scrollState = scrollState,
-        onCellFocused = onCellFocused,
+        onCellFocus = onCellFocus,
         onPlay = play,
         onToggleFavorite = onToggleFavorite,
         onOpenDetails = onOpenDetails,
@@ -461,13 +513,18 @@ fun GuideScreen(
             onSearch = { state.toggleSearch() },
             onSelect = {
                 state.filter = it
-                onFilterChanged(it.key())
+                onFilterChange(it.key())
             },
             // Down returns to the cell focus left, wherever the chip is. Searched geometrically, it could land on a
             // rail item below and left of the chips rather than the grid.
             modifier = chipModifier
                 .focusProperties {
-                    onExit = { if (requestedFocusDirection == FocusDirection.Down && !state.searchOpen) grid.requestFocus(FocusDirection.Enter) }
+                    onExit =
+                        {
+                            if (requestedFocusDirection == FocusDirection.Down && !state.searchOpen) {
+                                grid.requestFocus(FocusDirection.Enter)
+                            }
+                        }
                 }
                 .onFocusChanged { state.chipsFocused = it.hasFocus },
         )
@@ -495,14 +552,22 @@ fun GuideScreen(
         val at = Clock.System.now()
         if (state.cameBack(at)) {
             state.rollWindow(at)
-            val guideId = state.focused?.channel?.guideId ?: items.getOrNull(listState.firstVisibleItemIndex)?.channel?.guideId
+            val guideId =
+                state.focused?.channel?.guideId ?: items.getOrNull(listState.firstVisibleItemIndex)?.channel?.guideId
             if (guideId != null) requestJump(guideId, GuideTimeline.offsetMinutes(state.liveStart, at))
         }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP, appLifecycleOwner) { state.left(Clock.System.now()) }
     LaunchedEffect(dwell) {
         snapshotFlow {
-            DwellInput(state.focused?.channel?.guideId?.takeIf { state.gridFocused && !state.searchOpen }, state.dwellNonce, state.previewFailed, currentPreviewSound)
+            DwellInput(
+                state.focused?.channel?.guideId?.takeIf {
+                    state.gridFocused && !state.searchOpen
+                },
+                state.dwellNonce,
+                state.previewFailed,
+                currentPreviewSound,
+            )
         }
             .collectLatest { input ->
                 if (dwell.channelId != input.channelId) dwell.onFocus(input.channelId, uptimeMs())
@@ -513,7 +578,11 @@ fun GuideScreen(
                         // The same handoff as OK: the preview session is promoted, nothing reloads. A preview
                         // without a picture is not opened; it would only carry its failure to the full screen.
                         val channel = state.focused?.channel?.takeIf { it.guideId == dwell.channelId }
-                        if (channel != null && !input.failed && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) currentOnPlay(channel, currentZapScope, true)
+                        if (channel != null && !input.failed &&
+                            lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                        ) {
+                            currentOnPlay(channel, currentZapScope, true)
+                        }
                         return@collectLatest
                     }
                     delay(dwell.nextTransitionMs(now) ?: return@collectLatest)
@@ -562,10 +631,14 @@ fun GuideScreen(
             .onPreviewKeyEvent { event -> state.onKeyEvent(event.key, event.type, backAction, controls) }
             .then(onGuidePointer),
     ) {
-        Column(modifier = Modifier.fillMaxSize().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).padding(top = 16.dp)) {
+        Column(
+            modifier = Modifier.fillMaxSize().screenPadding(
+                WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
+            ).padding(top = 16.dp),
+        ) {
             if (PREVIEW_ENABLED && profile.showsPreviewBand) {
                 PreviewBand(
-                    focused = state.focusedState,
+                    focused = { state.focused },
                     now = now,
                     guideLoading = lineup.guideLoading,
                     searchOpen = state.searchOpen,
@@ -578,7 +651,7 @@ fun GuideScreen(
                     muted = state.previewMuted,
                     ownsVolume = shown,
                     failed = state.previewFailed,
-                    onFailedChanged = { state.previewFailed = it },
+                    onFailedChange = { state.previewFailed = it },
                 )
             } else {
                 chips(Modifier.fillMaxWidth())
@@ -588,7 +661,16 @@ fun GuideScreen(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            GuideTimeHeader(scrollState, viewport, minutePx, windowStart, now, nowMinute, timeFormat)
+            GuideTimeHeader(
+                scrollState = scrollState,
+                viewport = { viewport.intValue },
+                onViewportChange = { viewport.intValue = it },
+                minutePx = minutePx,
+                windowStart = windowStart,
+                now = now,
+                nowMinute = nowMinute,
+                timeFormat = timeFormat,
+            )
             GuideGrid(
                 state = state,
                 lineup = lineup,
@@ -610,7 +692,7 @@ fun GuideScreen(
                 focusRequester = grid,
                 laterFocus = laterFocus,
                 onGridKey = onGridKey,
-                onJumpHandled = onJumpHandled,
+                onJumpFinish = onJumpFinish,
             )
         }
         ChannelNumberBadge(state.numbers)
@@ -629,7 +711,9 @@ fun GuideScreen(
                 recording = recordingMarks?.let { marks -> shown.program?.let(marks::of) ?: RecordingMark() },
                 onRecord = onRecord,
                 onRecordSeries = onRecordSeries,
-                airings = remember(lineup, shown.program, onNowSlot) { shown.program?.let { lineup.airingsOf(it, now) }.orEmpty() },
+                airings = remember(lineup, shown.program, onNowSlot) {
+                    shown.program?.let { lineup.airingsOf(it, now) }.orEmpty()
+                },
                 onShowAiring = { airing -> state.details = ProgramDetails(airing.channel, airing.program) },
             )
         }

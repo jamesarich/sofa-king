@@ -23,7 +23,8 @@ class VodTracksTest {
 
     @Test
     fun `with a choice of audio the card opens on the audio playing or the first`() {
-        val tracks = VodTracks(audio = listOf(VodTrack(1, "English"), VodTrack(2, "Commentary")), subtitles = listOf(english))
+        val tracks =
+            VodTracks(audio = listOf(VodTrack(1, "English"), VodTrack(2, "Commentary")), subtitles = listOf(english))
         assertEquals(TracksFocus.Audio(2), tracksFocus(tracks, audio = 2, subtitle = 3))
         assertEquals(TracksFocus.Audio(1), tracksFocus(tracks, audio = null, subtitle = 3))
     }
@@ -46,6 +47,9 @@ class VodTracksTest {
         assertEquals(-500L, stepSubtitleOffset(-250, -1))
         assertEquals(SUBTITLE_OFFSET_MAX_MS, stepSubtitleOffset(SUBTITLE_OFFSET_MAX_MS, 1))
         assertEquals(-SUBTITLE_OFFSET_MAX_MS, stepSubtitleOffset(-9_900, -1))
-        assertEquals(listOf("0 s", "+0.25 s", "\u22121.5 s", "+10 s"), listOf(0L, 250L, -1_500L, 10_000L).map(::subtitleOffsetText))
+        assertEquals(
+            listOf("0 s", "+0.25 s", "\u22121.5 s", "+10 s"),
+            listOf(0L, 250L, -1_500L, 10_000L).map(::subtitleOffsetText),
+        )
     }
 }

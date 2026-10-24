@@ -69,7 +69,9 @@ internal fun runSofaKing(tv: Boolean, out: File, server: FakeServer = FakeServer
                 App(pairing = PairingRequest(server.url, "123456"))
             }
             val driver = AppDriver(this, server, backInput, uncaught, out)
-            waitUntil("the guide shows the lineup", timeoutMillis = 20_000) { server.guideQueries.get() > 0 && driver.focusedCount() > 0 }
+            waitUntil("the guide shows the lineup", timeoutMillis = 20_000) {
+                server.guideQueries.get() > 0 && driver.focusedCount() > 0
+            }
             driver.block()
         }
     } finally {
@@ -101,7 +103,10 @@ internal class AppDriver(
     /** Waits for the focused node's label to become [label], and fails with the screen saved when it does not. */
     fun assertFocused(label: String?) = assertFocused("\"$label\"") { it == label }
 
-    /** Waits for the focused node's label to match [what], described by [expected], and fails with the screen saved when it does not. */
+    /**
+     * Waits for the focused node's label to match [what], described by [expected], and fails with the
+     * screen saved when it does not.
+     */
     fun assertFocused(expected: String, what: (String?) -> Boolean) {
         val reached = runCatching { ui.waitUntil(timeoutMillis = SETTLE_MS) { what(focusedLabel()) } }.isSuccess
         if (!reached) failWith("expected focus on $expected, found \"${focusedLabel()}\"")
@@ -109,8 +114,19 @@ internal class AppDriver(
 
     /** Saves the screen and the semantics tree to [out], then fails with [reason]. */
     fun failWith(reason: String, cause: Throwable? = null): Nothing {
-        runCatching { ImageIO.write(ui.onAllNodes(isRoot()).onLast().captureToImage().toAwtImage(), "png", File(out, "failure.png")) }
-        runCatching { File(out, "failure-semantics.txt").writeText(ui.onAllNodes(isRoot(), useUnmergedTree = true).printToString(maxDepth = Int.MAX_VALUE)) }
+        val _ = runCatching {
+            ImageIO.write(
+                ui.onAllNodes(isRoot()).onLast().captureToImage().toAwtImage(),
+                "png",
+                File(out, "failure.png"),
+            )
+        }
+        val _ = runCatching {
+            File(
+                out,
+                "failure-semantics.txt",
+            ).writeText(ui.onAllNodes(isRoot(), useUnmergedTree = true).printToString(maxDepth = Int.MAX_VALUE))
+        }
         if (cause != null) throw AssertionError(reason, cause) else fail(reason)
     }
 
@@ -199,7 +215,9 @@ internal class EscapeBackInput : NavigationEventInput() {
     fun onKeyEvent(event: KeyEvent) {
         when {
             event.key == Key.Escape && event.type == KeyEventType.KeyDown -> dispatchOnBackCompleted()
+
             event.key == Key.Back && event.type == KeyEventType.KeyDown -> backDown = true
+
             event.key == Key.Back && event.type == KeyEventType.KeyUp && backDown -> {
                 backDown = false
                 dispatchOnBackCompleted()

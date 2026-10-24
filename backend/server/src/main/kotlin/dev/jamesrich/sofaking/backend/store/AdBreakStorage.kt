@@ -1,12 +1,12 @@
 package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.ads.BreakEntry
-import java.time.Instant
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.batchUpsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import java.time.Instant
 
 /** Every entry of the break library. */
 suspend fun BackendStore.adBreaks(): List<BreakEntry> = read { AdBreakRows.selectAll().map { it.entry() } }
@@ -31,14 +31,21 @@ suspend fun BackendStore.saveAdBreaks(entries: Collection<BreakEntry>) = query {
 
 /** Drops the entries [ids] names. */
 suspend fun BackendStore.deleteAdBreaks(ids: Collection<String>) = query {
-    ids.chunked(500).forEach { chunk -> AdBreakRows.deleteWhere { AdBreakRows.id inList chunk } }
+    ids.chunked(ROW_CHUNK).forEach { chunk -> AdBreakRows.deleteWhere { AdBreakRows.id inList chunk } }
 }
 
 private fun ResultRow.entry(): BreakEntry {
     fun list(text: String) = text.split(',').filter { it.isNotEmpty() }.toSet()
     return BreakEntry(
-        this[AdBreakRows.id], points(this[AdBreakRows.points]), this[AdBreakRows.providerId], this[AdBreakRows.sourceBreak], Instant.parse(this[AdBreakRows.createdAt]),
-        channels = list(this[AdBreakRows.channels]), days = list(this[AdBreakRows.days]), lastHitAt = this[AdBreakRows.lastHitAt]?.let(Instant::parse),
+        this[AdBreakRows.id],
+        points(
+            this[AdBreakRows.points],
+        ),
+        this[AdBreakRows.providerId], this[AdBreakRows.sourceBreak], Instant.parse(this[AdBreakRows.createdAt]),
+        channels = list(
+            this[AdBreakRows.channels],
+        ),
+        days = list(this[AdBreakRows.days]), lastHitAt = this[AdBreakRows.lastHitAt]?.let(Instant::parse),
         hits = this[AdBreakRows.hits], falseHits = this[AdBreakRows.falseHits], blocked = this[AdBreakRows.blocked],
     )
 }

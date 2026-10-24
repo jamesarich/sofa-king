@@ -1,19 +1,22 @@
 package dev.jamesrich.sofaking.backend.store
 
-import java.time.Instant
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.lessEq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
-
-/** A portal session as stored: [key] is the SHA-256 of the cookie's session ID. */
-data class StoredAdminSession(val key: String, val csrf: String, val expiresAt: Instant)
+import java.time.Instant
 
 /** The portal sessions that outlive [now], after deleting the expired ones. */
 suspend fun BackendStore.adminSessions(now: Instant): List<StoredAdminSession> = query {
     AdminSessionRows.deleteWhere { expiresAt lessEq now.toString() }
-    AdminSessionRows.selectAll().map { StoredAdminSession(it[AdminSessionRows.key], it[AdminSessionRows.csrf], Instant.parse(it[AdminSessionRows.expiresAt])) }
+    AdminSessionRows.selectAll().map {
+        StoredAdminSession(
+            it[AdminSessionRows.key],
+            it[AdminSessionRows.csrf],
+            Instant.parse(it[AdminSessionRows.expiresAt]),
+        )
+    }
 }
 
 suspend fun BackendStore.saveAdminSession(session: StoredAdminSession) = query {

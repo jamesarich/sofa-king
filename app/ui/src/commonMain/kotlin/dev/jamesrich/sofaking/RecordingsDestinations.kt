@@ -8,7 +8,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.DvrRecording
 import dev.jamesrich.sofaking.data.RecordingsState
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.loading
+import dev.jamesrich.sofaking.resources.recordings_loading
+import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.VodMarker
@@ -22,7 +25,13 @@ import org.jetbrains.compose.resources.stringResource
 
 /** The Recordings tab: the list, read again each time it opens. [tabBack] climbs to the header, then opens Live. */
 @Composable
-internal fun RecordingsDestination(arrival: Arrival, shell: AppShellState, recordingsVm: RecordingsViewModel, tabBack: () -> Unit, headerFocused: Boolean) {
+internal fun RecordingsDestination(
+    arrival: Arrival,
+    shell: AppShellState,
+    recordingsVm: RecordingsViewModel,
+    tabBack: () -> Unit,
+    headerFocused: Boolean,
+) {
     val recordings by recordingsVm.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { recordingsVm.refresh() }
     RecordingsScreen(
@@ -38,13 +47,23 @@ internal fun RecordingsDestination(arrival: Arrival, shell: AppShellState, recor
     )
 }
 
-/** A recording full screen, skipping its commercial breaks when Settings says so; one gone from the list sends the viewer back. */
+/**
+ * A recording full screen, skipping its commercial breaks when Settings says so; one gone from
+ * the list sends the viewer back.
+ */
 @Composable
-internal fun RecordingDestination(route: Route.Recording, shell: AppShellState, vm: LineupViewModel, recordingsVm: RecordingsViewModel, player: LivePlayer) {
+internal fun RecordingDestination(
+    route: Route.Recording,
+    shell: AppShellState,
+    vm: LineupViewModel,
+    recordingsVm: RecordingsViewModel,
+    player: LivePlayer,
+) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val recordings by recordingsVm.state.collectAsStateWithLifecycle()
     // Kept once found, so a list reload while it plays never swaps the title or markers under the player.
-    val recording = remember(route.recordingId, recordings is RecordingsState.Ready) { recordingsVm.recording(route.recordingId) }
+    val recording =
+        remember(route.recordingId, recordings is RecordingsState.Ready) { recordingsVm.recording(route.recordingId) }
     when {
         recording != null -> VodPlayerScreen(
             title = recording.vodTitle(),
@@ -52,8 +71,8 @@ internal fun RecordingDestination(route: Route.Recording, shell: AppShellState, 
             sessions = vm.sessions,
             itemId = recording.id,
             open = { recordingsVm.play(recording, player.playbackProfile, route.fromStart) },
-            onPosition = { position, duration -> recordingsVm.progress(recording.id, position, duration) },
-            onStopped = { position, duration -> recordingsVm.stopped(recording.id, position, duration) },
+            onPosition = { position, _ -> recordingsVm.progress(recording.id, position) },
+            onStop = { position, duration -> recordingsVm.stopped(recording.id, position, duration) },
             onExit = shell::back,
             autoSkipBreaks = settings?.skipCommercials ?: false,
             captionsOn = settings?.captionsEnabled ?: false,
@@ -63,7 +82,11 @@ internal fun RecordingDestination(route: Route.Recording, shell: AppShellState, 
             onZoom = { shell.videoZoom = it },
             sleep = shell.sleep,
         )
-        recordings is RecordingsState.Ready || recordings is RecordingsState.Failed -> LaunchedEffect(Unit) { shell.back() }
+
+        recordings is RecordingsState.Ready || recordings is RecordingsState.Failed -> LaunchedEffect(Unit) {
+            shell.back()
+        }
+
         else -> MessageScreen(stringResource(Res.string.recordings_loading), loading = true)
     }
 }

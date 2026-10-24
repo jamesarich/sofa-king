@@ -2,9 +2,17 @@ package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.store.openStore
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
+import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.get
+import io.ktor.client.request.post
+import io.ktor.client.request.put
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
+import io.ktor.http.plus
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
@@ -12,7 +20,9 @@ import io.ktor.server.testing.testApplication
 import java.nio.file.Files
 import java.time.Duration
 import java.util.concurrent.CopyOnWriteArrayList
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class PreAuthLimitsTest {
     private val apiToken = "api".repeat(12)
@@ -25,12 +35,25 @@ class PreAuthLimitsTest {
             application { backendModule(store, MutableClock(), apiToken = apiToken, adminToken = adminToken) }
             val big = "x".repeat(70_000)
             for (token in listOf(null, apiToken)) {
-                val response = client.post("/api/v1/playback-sessions") { token?.let { bearerAuth(it) }; contentType(ContentType.Application.Json); setBody(big) }
+                val response = client.post("/api/v1/playback-sessions") {
+                    token?.let { bearerAuth(it) }
+                    contentType(ContentType.Application.Json)
+                    setBody(big)
+                }
                 assertEquals(HttpStatusCode.PayloadTooLarge, response.status, "token: $token")
                 assertTrue(response.bodyAsText().contains("REQUEST_TOO_LARGE"))
             }
-            assertEquals(HttpStatusCode.PayloadTooLarge, client.post("/admin/login") { contentType(ContentType.Application.FormUrlEncoded); setBody("token=$big") }.status)
-        } finally { store.close(); dir.toFile().deleteRecursively() }
+            assertEquals(
+                HttpStatusCode.PayloadTooLarge,
+                client.post("/admin/login") {
+                    contentType(ContentType.Application.FormUrlEncoded)
+                    setBody("token=$big")
+                }.status,
+            )
+        } finally {
+            store.close()
+            dir.toFile().deleteRecursively()
+        }
     }
 
     @Test fun `only the policy writes may send more than 64 KiB`() {
@@ -45,7 +68,8 @@ class PreAuthLimitsTest {
         assertEquals("Request exceeds 4 MiB", tooLargeMessage(POLICY_BODY_LIMIT))
     }
 
-    @Test fun `a rejected bearer is logged with its route and address, never the token or the query`() = testApplication {
+    @Test
+    fun `a rejected bearer is logged with its route and address, never the token or the query`() = testApplication {
         val dir = Files.createTempDirectory("sofa-preauth-")
         val store = openStore(dir)
         val lines = CopyOnWriteArrayList<String>()
@@ -56,12 +80,20 @@ class PreAuthLimitsTest {
                 routing { get("/api/v1/channels") { call.respondText("channels") } }
             }
             val wrong = apiToken.reversed()
-            assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/channels?token=$apiToken") { bearerAuth(wrong) }.status)
+            assertEquals(
+                HttpStatusCode.Unauthorized,
+                client.get("/api/v1/channels?token=$apiToken") {
+                    bearerAuth(wrong)
+                }.status,
+            )
             assertEquals(HttpStatusCode.OK, client.get("/api/v1/channels") { bearerAuth(apiToken) }.status)
             assertEquals(1, lines.size, "$lines")
             assertTrue(lines.single().matches(Regex("auth failed route=/api/v1/channels remote=\\S+")), lines.single())
             assertTrue(lines.none { wrong in it || apiToken in it || "token=" in it }, "$lines")
-        } finally { store.close(); dir.toFile().deleteRecursively() }
+        } finally {
+            store.close()
+            dir.toFile().deleteRecursively()
+        }
     }
 
     @Test fun `auth failure lines are capped each minute and the next one counts what was dropped`() {

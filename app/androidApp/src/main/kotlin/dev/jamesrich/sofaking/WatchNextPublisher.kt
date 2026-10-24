@@ -4,8 +4,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.core.net.toUri
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.tvprovider.media.tv.TvContractCompat
 import androidx.tvprovider.media.tv.TvContractCompat.WatchNextPrograms
 import androidx.tvprovider.media.tv.WatchNextProgram
@@ -13,6 +13,7 @@ import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.WatchNext
 import dev.jamesrich.sofaking.data.itemLink
+import dev.jamesrich.sofaking.data.runCatchingCancellable
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
 
@@ -35,15 +36,23 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
     }
 
     private fun write(items: List<MediaItem>) {
-        try {
+        runCatchingCancellable {
             val resolver = context.contentResolver
             // The provider answers with this app's own entries only.
-            val existing = resolver.query(WatchNextPrograms.CONTENT_URI, WatchNextProgram.PROJECTION, null, null, null)?.use { cursor ->
+            val existing = resolver.query(
+                WatchNextPrograms.CONTENT_URI,
+                WatchNextProgram.PROJECTION,
+                null,
+                null,
+                null,
+            )?.use { cursor ->
                 buildList { while (cursor.moveToNext()) add(WatchNextProgram.fromCursor(cursor)) }
             }.orEmpty()
             val byItem = existing.associateBy { it.internalProviderId }
             val shown = items.map { it.id }.toSet()
-            existing.filter { it.internalProviderId !in shown }.forEach { resolver.delete(TvContractCompat.buildWatchNextProgramUri(it.id), null, null) }
+            existing.filter {
+                it.internalProviderId !in shown
+            }.forEach { resolver.delete(TvContractCompat.buildWatchNextProgramUri(it.id), null, null) }
             WatchNextArtwork.grant(context)
             val now = System.currentTimeMillis()
             items.forEachIndexed { index, item ->
@@ -53,13 +62,18 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
                 if (old == null) {
                     resolver.insert(WatchNextPrograms.CONTENT_URI, program.toContentValues())
                 } else {
-                    resolver.update(TvContractCompat.buildWatchNextProgramUri(old.id), program.toContentValues(), null, null)
+                    resolver.update(
+                        TvContractCompat.buildWatchNextProgramUri(old.id),
+                        program.toContentValues(),
+                        null,
+                        null,
+                    )
                 }
             }
             WatchNextArtwork.keepOnly(context, items.mapNotNull { artwork(it)?.first })
-        } catch (e: RuntimeException) {
+        }.onFailure {
             // A launcher without the TV provider, or one that refuses this app's writes, leaves the row as it was.
-            Log.w(TAG, "watch next: the row was not updated: $e")
+            Log.w(TAG, "watch next: the row was not updated: $it")
         }
     }
 
@@ -69,8 +83,13 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
      */
     private fun program(item: MediaItem, old: WatchNextProgram?, engagedAt: Long): WatchNextProgram {
         val positionMs = item.progress?.takeIf { it.inProgress }?.positionMs ?: 0
-        val type = if (positionMs > 0) WatchNextPrograms.WATCH_NEXT_TYPE_CONTINUE else WatchNextPrograms.WATCH_NEXT_TYPE_NEXT
-        val unchanged = old != null && old.watchNextType == type && old.lastPlaybackPositionMillis.toLong() == positionMs
+        val type = if (positionMs > 0) {
+            WatchNextPrograms.WATCH_NEXT_TYPE_CONTINUE
+        } else {
+            WatchNextPrograms.WATCH_NEXT_TYPE_NEXT
+        }
+        val unchanged =
+            old != null && old.watchNextType == type && old.lastPlaybackPositionMillis.toLong() == positionMs
         val builder = WatchNextProgram.Builder()
             .setWatchNextType(type)
             .setLastEngagementTimeUtcMillis(if (unchanged) old.lastEngagementTimeUtcMillis else engagedAt)
@@ -102,8 +121,14 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
 
     /** The backdrop, which fits the row's wide cards, else the poster, as the launcher may read them. */
     private fun artwork(item: MediaItem): Pair<Uri, Int>? =
-        item.backdrop?.let { WatchNextArtwork.contentUri(context, it) }?.let { it to TvContractCompat.PreviewPrograms.ASPECT_RATIO_16_9 }
-            ?: item.poster?.let { WatchNextArtwork.contentUri(context, it) }?.let { it to TvContractCompat.PreviewPrograms.ASPECT_RATIO_MOVIE_POSTER }
+        item.backdrop?.let { WatchNextArtwork.contentUri(context, it) }?.let {
+            it to
+                TvContractCompat.PreviewPrograms.ASPECT_RATIO_16_9
+        }
+            ?: item.poster?.let { WatchNextArtwork.contentUri(context, it) }?.let {
+                it to
+                    TvContractCompat.PreviewPrograms.ASPECT_RATIO_MOVIE_POSTER
+            }
 }
 
 private const val TAG = "SofaKing"

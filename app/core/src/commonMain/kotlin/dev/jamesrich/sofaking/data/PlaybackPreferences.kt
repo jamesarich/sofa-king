@@ -7,7 +7,10 @@ package dev.jamesrich.sofaking.data
 data class PlaybackPreferences(
     val matchFrameRate: Boolean = false,
     val decoder: DecoderPreference = DecoderPreference.AUTO,
-    /** Per-channel overrides of [decoder], keyed by [Channel.guideId], for the odd stream a hardware decoder cannot play. */
+    /**
+     * Per-channel overrides of [decoder], keyed by [Channel.guideId], for the odd stream a
+     * hardware decoder cannot play.
+     */
     val decoderByChannel: Map<String, DecoderPreference> = emptyMap(),
     val buffer: BufferPreference = BufferPreference.STANDARD,
 ) {
@@ -22,7 +25,7 @@ enum class DecoderPreference { AUTO, SOFTWARE }
  * stall. STANDARD is the engine's own; FAST_START trades a stall or two for a quicker picture, SMOOTH the reverse.
  */
 enum class BufferPreference(val startMs: Int, val rebufferMs: Int) {
-    FAST_START(500, 1_000),
-    STANDARD(1_000, 2_000),
-    SMOOTH(4_000, 6_000),
+    FAST_START(startMs = 500, rebufferMs = 1_000),
+    STANDARD(startMs = 1_000, rebufferMs = 2_000),
+    SMOOTH(startMs = 4_000, rebufferMs = 6_000),
 }

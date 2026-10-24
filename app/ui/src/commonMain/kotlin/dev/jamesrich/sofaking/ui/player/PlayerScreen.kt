@@ -1,13 +1,13 @@
 package dev.jamesrich.sofaking.ui.player
 
-import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
-import dev.jamesrich.sofaking.ui.appLifecycleOwner
-import dev.jamesrich.sofaking.ui.BackHandler
-import dev.jamesrich.sofaking.contract.Wire
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -27,26 +27,19 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.withStateAtLeast
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.withStateAtLeast
 import co.touchlab.kermit.Logger
-import dev.jamesrich.sofaking.ui.KeepScreenOn
-import dev.jamesrich.sofaking.ui.formatTemplate
-import dev.jamesrich.sofaking.ui.isOk
-import dev.jamesrich.sofaking.ui.isLongPress
-import dev.jamesrich.sofaking.ui.repeatCountOrNull
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.AdBreakNow
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.BreakWatch
@@ -58,27 +51,49 @@ import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMarks
+import dev.jamesrich.sofaking.data.runCatchingCancellable
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.break_up_next
+import dev.jamesrich.sofaking.resources.no_channels
+import dev.jamesrich.sofaking.resources.now_playing
+import dev.jamesrich.sofaking.resources.now_playing_channel
+import dev.jamesrich.sofaking.resources.player_recording
+import dev.jamesrich.sofaking.resources.player_recording_canceled
+import dev.jamesrich.sofaking.resources.player_recording_failed
+import dev.jamesrich.sofaking.resources.player_zoom_notice
+import dev.jamesrich.sofaking.resources.retry
+import dev.jamesrich.sofaking.resources.tuning
+import dev.jamesrich.sofaking.ui.BackHandler
+import dev.jamesrich.sofaking.ui.InputKind
+import dev.jamesrich.sofaking.ui.KeepScreenOn
+import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
+import dev.jamesrich.sofaking.ui.LocalLastInput
+import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
+import dev.jamesrich.sofaking.ui.appLifecycleOwner
+import dev.jamesrich.sofaking.ui.formatTemplate
+import dev.jamesrich.sofaking.ui.isLongPress
+import dev.jamesrich.sofaking.ui.isOk
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
+import dev.jamesrich.sofaking.ui.repeatCountOrNull
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import dev.jamesrich.sofaking.ui.secondsUp
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
-import kotlinx.coroutines.CancellationException
+import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Clock
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import dev.jamesrich.sofaking.ui.uptimeMs
-import androidx.compose.ui.input.pointer.pointerInput
-import dev.jamesrich.sofaking.ui.InputKind
-import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
-import dev.jamesrich.sofaking.ui.LocalLastInput
-import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
+import kotlin.time.Duration.Companion.microseconds
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 private const val CAPTION_TOAST_MS = 2_000L
+
 /** How long after the CC key Left and Right keep adjusting the channel's caption timing; each press restarts it. */
 internal const val CAPTION_TIMING_WINDOW_MS = 3_000L
 private const val MINI_GUIDE_IDLE_MS = 8_000L
@@ -86,23 +101,38 @@ private const val STREAM_CARD_IDLE_MS = 15_000L
 private const val LIVE_TOAST_MS = 1_500L
 private const val NOTICE_MS = 3_000L
 private const val SLEEP_CHECK_MS = 1_000L
+
+/** How often the caption lead follows the buffer, and how many of those steps pass between its debug lines. */
+private val CAPTION_LEAD_TICK = 250.milliseconds
+private const val CAPTION_LOG_TICKS = 8
+
 /** A swipe up this far on a touch screen opens the channel list. */
 private const val SWIPE_UP_DP = 80
+
 /** The server's answer when a session is asked for a channel id its lineup no longer has. */
 internal const val CHANNEL_NOT_FOUND = Wire.ErrorCode.CHANNEL_NOT_FOUND
+
 /** How long the player waits for the lineup it asked for to catch up with the one it holds. */
 private const val LINEUP_SYNC_MS = 2_000L
+
 /** How often the player looks for an ad in its own playlist; a break is several segments of a few seconds each. */
 private const val AD_BREAK_POLL_MS = 500L
-/** How often an engine that cannot read the playlist asks the server instead, and how long it waits after a failed ask. */
+
+/**
+ * How often an engine that cannot read the playlist asks the server instead, and how long it waits after a failed ask.
+ */
 private const val AD_BREAK_ASK_MS = 1_000L
 private const val AD_BREAK_RETRY_MS = 15_000L
 private val log = Logger.withTag("SofaKing")
 
-/** How long a zap rests before the new channel is tuned, so pressing through channels does not open a session per press. */
+/**
+ * How long a zap rests before the new channel is tuned, so pressing through channels does not open a session per press.
+ */
 internal const val ZAP_SETTLE_MS = 400L
 
-/** A zap from a tuned channel waits [ZAP_SETTLE_MS]; the first tune, which may take over the preview's stream, does not. */
+/**
+ * A zap from a tuned channel waits [ZAP_SETTLE_MS]; the first tune, which may take over the preview's stream, does not.
+ */
 internal fun zapSettleMs(tuned: Channel?, next: Channel): Long =
     if (tuned == null || tuned.guideId == next.guideId) 0L else ZAP_SETTLE_MS
 
@@ -118,24 +148,25 @@ const val PLAYER_TEST_TAG = "player"
 fun PlayerScreen(
     lineup: Lineup,
     startIndex: Int,
+    player: LivePlayer,
+    sessions: PlaybackSessions,
+    onExit: () -> Unit,
+    onChannelChange: (Channel) -> Unit,
+    modifier: Modifier = Modifier,
     /** The channel watched before this player opened, for Last; it may have been left through the guide. */
     previousGuideId: String? = null,
     /** The guide filter the channel was picked from; null cycles the whole lineup. */
     zapScope: ZapScope? = null,
     /** Opened by the guide with no key pressed: the screen may sleep until the first key or tap. */
     unattended: Boolean = false,
-    player: LivePlayer,
-    sessions: PlaybackSessions,
-    onExit: () -> Unit,
-    onChannelChanged: (Channel) -> Unit,
     onGuide: () -> Unit = onExit,
     onSearch: () -> Unit = onExit,
     reloadLineup: suspend () -> Lineup? = { null },
-    onChannelGone: (Channel) -> Unit = { onExit() },
+    onChannelMissing: (Channel) -> Unit = { onExit() },
     captionsEnabled: Boolean = false,
-    onCaptionsChanged: (Boolean) -> Unit = {},
+    onCaptionsChange: (Boolean) -> Unit = {},
     captionAdvanceFor: (Channel) -> Int = { AppSettings.DEFAULT_CAPTION_ADVANCE_MS },
-    onCaptionAdvanceChanged: (Channel, Int) -> Unit = { _, _ -> },
+    onCaptionAdvanceChange: (Channel, Int) -> Unit = { _, _ -> },
     captionStyle: CaptionStyle = CaptionStyle.SYSTEM,
     smoothCaptions: Boolean = true,
     /** Starred channels, for the channel list's Favorites chip, in the order Settings gave them. */
@@ -147,7 +178,7 @@ fun PlayerScreen(
     onToggleFavorite: ((Channel) -> Unit)? = null,
     /** How many info bars have carried the key legend so far; it rides the first [AppSettings.KEY_LEGEND_BARS]. */
     keyLegendShown: Int = AppSettings.KEY_LEGEND_BARS,
-    onKeyLegendShown: (Int) -> Unit = {},
+    onKeyLegendShow: (Int) -> Unit = {},
     /** The server's scheduled recordings, for the bar's Record; null where it does not record. */
     recordingMarks: RecordingMarks? = null,
     /** Records the program, or cancels its recording; false when the server did not take it. */
@@ -159,26 +190,39 @@ fun PlayerScreen(
     liveBreaks: LiveBreaks = LiveBreaks.PLAY,
     /** The ads the break screen covered today before now, and where each break screen's time goes when it closes. */
     adsDodgedTodayMs: Long = 0,
-    onAdsDodged: (Long) -> Unit = {},
+    onAdsDodge: (Long) -> Unit = {},
     /** The sleep timer, which leaves the player as Back does once it runs out. */
     sleep: SleepTimer = remember { SleepTimer() },
 ) {
-    val state = rememberPlayerState(lineup.channels, startIndex, previousGuideId, zapScope, captionsEnabled, attended = !unattended, keyLegendShown)
+    val state =
+        rememberPlayerState(
+            lineup.channels,
+            startIndex,
+            previousGuideId,
+            zapScope,
+            captionsEnabled,
+            attended = !unattended,
+            keyLegendShown,
+        )
     val captionSync = player.captionSync
     val nowPlayingTemplate = stringResource(Res.string.now_playing)
     val nowPlayingChannelTemplate = stringResource(Res.string.now_playing_channel)
-    val channels = remember(lineup.channels, zapScope, state.widened) { zapRing(lineup.channels, zapScope, state.widened) }
+    val channels =
+        remember(lineup.channels, zapScope, state.widened) { zapRing(lineup.channels, zapScope, state.widened) }
     val scoped = channels.size < lineup.channels.size
     // As rememberUpdatedState does: the key handlers and effects read the ring and the lineup last composed.
     state.channels = channels
     state.lineupChannels = lineup.channels
-    val currentOnChannelChanged by rememberUpdatedState(onChannelChanged)
-    val currentOnCaptionsChanged by rememberUpdatedState(onCaptionsChanged)
-    val currentOnCaptionAdvanceChanged by rememberUpdatedState(onCaptionAdvanceChanged)
-    val currentOnKeyLegendShown by rememberUpdatedState(onKeyLegendShown)
+    val currentOnChannelChange by rememberUpdatedState(onChannelChange)
+    val currentOnCaptionsChange by rememberUpdatedState(onCaptionsChange)
+    val currentOnCaptionAdvanceChange by rememberUpdatedState(onCaptionAdvanceChange)
+    val currentOnKeyLegendShow by rememberUpdatedState(onKeyLegendShow)
     val currentOnToggleFavorite by rememberUpdatedState(onToggleFavorite)
     val currentOnExit by rememberUpdatedState(onExit)
-    val windowHeightDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
+    val currentReloadLineup by rememberUpdatedState(reloadLineup)
+    val currentOnChannelMissing by rememberUpdatedState(onChannelMissing)
+    val windowHeightDp =
+        with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
     val captionBottomFraction = CaptionPolicy.bottomPaddingFraction(windowHeightDp)
     // The shared player may arrive already playing the channel from the guide preview.
     val status by player.status.collectAsStateWithLifecycle()
@@ -227,11 +271,9 @@ fun PlayerScreen(
                 player.adBreak()
             } else {
                 ahead?.let { loaded ->
-                    try {
+                    runCatchingCancellable {
                         sessions.adBreak(loaded)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
+                    }.getOrElse { e ->
                         // A server from before the break screen, or one between sessions: ask again in a while.
                         log.d { "ad break: ask failed: ${e.message}" }
                         wait = AD_BREAK_RETRY_MS
@@ -241,7 +283,10 @@ fun PlayerScreen(
             }
             val shown = if (stalled) watch.stalled() else watch.shown(found)
             if (found == null && shown != null && lastFound != null) {
-                log.d { "ad break: ${if (stalled) "picture stalled" else "reading lost it"}, holding ${shown.remainingMs ?: "?"} ms" }
+                log.d {
+                    "ad break: ${if (stalled) "picture stalled" else "reading lost it"}, holding " +
+                        "${shown.remainingMs ?: "?"} ms"
+                }
             }
             lastFound = found
             inAdBreak = shown != null
@@ -299,14 +344,14 @@ fun PlayerScreen(
         // Handed over from the guide preview mid-stream: keep it, and let the caption lead grow back from zero.
         // The same session is promoted to watch, so the stream continues and its lease grows to 90 s.
         val playerState = player.status.value.state
-        if (player.currentChannelId == channel.guideId && (playerState == PlaybackState.READY || playerState == PlaybackState.BUFFERING)) {
+        if (player.currentChannelId == channel.guideId &&
+            (playerState == PlaybackState.READY || playerState == PlaybackState.BUFFERING)
+        ) {
             captionSync.effectiveUs = 0L
             tuneJob.job = scope.launch {
-                try {
+                runCatchingCancellable {
                     sessions.setIntent(channel.guideId, PlaybackIntent.WATCH)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
+                }.onFailure { e ->
                     log.w(e) { "session: promote failed" }
                 }
             }
@@ -319,11 +364,9 @@ fun PlayerScreen(
         captionSync.effectiveUs = captionSync.advanceUs
         tuneJob.job = scope.launch {
             while (true) {
-                val stream = try {
+                val stream = runCatchingCancellable {
                     sessions.tune(channel.guideId, PlaybackIntent.WATCH)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
+                }.getOrElse { e ->
                     // The reconnect loop below tunes again with backoff, as it does for a stream that failed.
                     state.fail(failureCode(e))
                     return@launch
@@ -355,7 +398,7 @@ fun PlayerScreen(
             // A refresh that keeps the channel preserves its stream and session.
             if (before?.guideId != channel.guideId) {
                 load(channel)
-                currentOnChannelChanged(channel)
+                currentOnChannelChange(channel)
             }
         }
     }
@@ -378,16 +421,19 @@ fun PlayerScreen(
         }
         var tick = 0
         while (true) {
-            delay(250)
+            delay(CAPTION_LEAD_TICK)
             // While (re)buffering the start gate guards the lead; clamping then would collapse it to zero.
             if (!player.status.value.isPlaying) continue
             captionSync.effectiveUs = CaptionSync.nextEffectiveUs(
                 currentUs = captionSync.effectiveUs,
                 advanceUs = captionSync.advanceUs,
-                bufferedUs = player.bufferedMs * 1_000L,
+                bufferedUs = player.bufferedMs.milliseconds.inWholeMicroseconds,
             )
-            if (++tick % 8 == 0) {
-                log.d { "captions: buffered=${player.bufferedMs}ms lead=${captionSync.effectiveUs / 1000}ms of ${captionSync.advanceUs / 1000}ms" }
+            if (++tick % CAPTION_LOG_TICKS == 0) {
+                log.d {
+                    "captions: buffered=${player.bufferedMs}ms lead=${captionSync.effectiveUs.microseconds} of " +
+                        "${captionSync.advanceUs.microseconds}"
+                }
             }
         }
     }
@@ -411,17 +457,17 @@ fun PlayerScreen(
                 state.index = state.lineupChannels.indexOfFirst { it.guideId == channel.guideId }.coerceAtLeast(0)
             }
             var attempt = current.attempt
-            var reloaded = reloadLineup()
+            var reloaded = currentReloadLineup()
             while (reloaded == null) {
                 // Unreachable or timed out: the reload, not the dead id, is what backs off and tries again.
                 delay(reconnectDelayMs(attempt++))
                 lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {}
-                reloaded = reloadLineup()
+                reloaded = currentReloadLineup()
             }
             withTimeoutOrNull(LINEUP_SYNC_MS) { snapshotFlow { state.channels }.first { it == reloaded.channels } }
             val target = resolveReplacement(state.channels, channel)
             if (target == null) {
-                onChannelGone(channel)
+                currentOnChannelMissing(channel)
             } else {
                 state.index = target
                 state.clearFailure()
@@ -434,8 +480,8 @@ fun PlayerScreen(
             while (true) {
                 val remaining = until - uptimeMs()
                 if (remaining <= 0L) break
-                state.retryIn = ((remaining + 999L) / 1_000L).toInt()
-                delay(minOf(remaining, 1_000L))
+                state.retryIn = secondsUp(remaining)
+                delay(minOf(remaining.milliseconds, 1.seconds))
             }
         }
         state.retryIn = 0
@@ -448,7 +494,7 @@ fun PlayerScreen(
 
     LaunchedEffect(state.overlayVisible) {
         if (!state.overlayVisible || pointerDriven) return@LaunchedEffect
-        state.legendForNewBar()?.let(currentOnKeyLegendShown)
+        state.legendForNewBar()?.let(currentOnKeyLegendShow)
     }
 
     val focus = remember { FocusRequester() }
@@ -456,8 +502,12 @@ fun PlayerScreen(
     // Focus returns to the player surface whenever a panel closes, including after its list is removed, and when the
     // bar leaves while one of its buttons has it.
     LaunchedEffect(state.miniGuideOpen, state.streamCardOpen, state.overlayVisible) {
-        // Retried until the surface is placed: on entry it may not be yet, and a refused request would leave nothing focused.
-        if (!state.miniGuideOpen && !state.streamCardOpen && !(state.overlayVisible && state.buttonsFocused)) requestFocusWhenAttached(focus)
+        // Retried until the surface is placed: on entry it may not be yet, and a refused
+        // request would leave nothing focused.
+        val buttonsHoldFocus = state.overlayVisible && state.buttonsFocused
+        if (!state.miniGuideOpen && !state.streamCardOpen && !buttonsHoldFocus) {
+            requestFocusWhenAttached(focus)
+        }
     }
     // A short note at the top left: Record's answer once the server has taken the change or not, or the new zoom.
     var notice by remember { mutableStateOf<String?>(null) }
@@ -501,11 +551,17 @@ fun PlayerScreen(
         override fun toggleCaptions() {
             val enabled = !state.captionsOn
             player.setCaptionsEnabled(enabled)
-            state.captionsToggled(enabled, channelHasText = player.hasTextTrack, leadSupported = player.supportsCaptionLead, timingMs = channelAdvance)
-            currentOnCaptionsChanged(enabled)
+            state.captionsToggled(
+                enabled,
+                channelHasText = player.hasTextTrack,
+                leadSupported = player.supportsCaptionLead,
+                timingMs = channelAdvance,
+            )
+            currentOnCaptionsChange(enabled)
         }
 
-        override fun adjustCaptionTiming(direction: Int) = state.adjustCaptionTiming(direction, channelAdvance, currentOnCaptionAdvanceChanged)
+        override fun adjustCaptionTiming(direction: Int) =
+            state.adjustCaptionTiming(direction, channelAdvance, currentOnCaptionAdvanceChange)
 
         override fun playPause() = if (player.playWhenReady) player.pause() else player.play()
 
@@ -540,12 +596,14 @@ fun PlayerScreen(
 
         override fun stop() = onExit()
     }
+
     /**
      * OK with nothing else on screen, or Back with no panel open, goes to the break screen, which leaves on the
      * key-up; the info bar and zapping work over it as ever. Over a failure the keys work the failure card instead.
      */
     fun breakScreenTakes(key: Key): Boolean {
-        if (!breakScreenUp || state.failure != null || state.miniGuideOpen || state.streamCardOpen || state.buttonsFocused) return false
+        val controlsOpen = state.miniGuideOpen || state.streamCardOpen || state.buttonsFocused
+        if (!breakScreenUp || state.failure != null || controlsOpen) return false
         return key == Key.Back || (key.isOk && !state.overlayVisible && !state.numbers.hasDigits)
     }
     BackHandler {
@@ -556,7 +614,7 @@ fun PlayerScreen(
     }
 
     Box(
-        Modifier
+        modifier
             .fillMaxSize()
             .testTag(PLAYER_TEST_TAG)
             .background(SofaScrim)
@@ -578,11 +636,18 @@ fun PlayerScreen(
                     if (event.type == KeyEventType.KeyUp) adBreakDismissed = true
                     return@onPreviewKeyEvent true
                 }
-                state.onKeyEvent(event.key, event.type, controls, event.isLongPress, event.repeatCountOrNull, hasAudioTracks = audioTracks.isNotEmpty())
+                state.onKeyEvent(
+                    event.key,
+                    event.type,
+                    controls,
+                    event.isLongPress,
+                    event.repeatCountOrNull,
+                    hasAudioTracks = audioTracks.isNotEmpty(),
+                )
             }
-            // A tap or click on the video: the channel list closes, or the info bar and its touch controls toggle. Focus
-            // stays on the player surface, so the remote and keyboard keep working after a pointer has been used. A
-            // double click switches a window the app can make full screen.
+            // A tap or click on the video: the channel list closes, or the info bar and its touch controls toggle.
+            // Focus stays on the player surface, so the remote and keyboard keep working after a pointer has been used.
+            // A double click switches a window the app can make full screen.
             .pointerInput(fullScreen) {
                 detectTapGestures(
                     onDoubleTap = fullScreen?.let { { _ -> it.toggle() } },
@@ -616,20 +681,27 @@ fun PlayerScreen(
                 remainingMs = { adBreakLeftMs },
                 upNext = next?.let { stringResource(Res.string.break_up_next, it.title, timeFormat.format(it.start)) },
                 dodgedBeforeMs = adsDodgedTodayMs,
-                onCovered = onAdsDodged,
+                onCover = onAdsDodge,
             )
         }
 
         val channel = state.currentChannel
         if (channel == null) {
-            Text(stringResource(Res.string.no_channels), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.align(Alignment.Center))
+            Text(
+                stringResource(Res.string.no_channels),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.align(Alignment.Center),
+            )
         } else {
             StatusPills(
                 state,
                 buffering = buffering,
                 paused = paused,
                 notice = notice,
-                onBack = onExit.takeIf { pointerDriven && state.overlayVisible && !state.miniGuideOpen && !state.streamCardOpen },
+                onBack = onExit.takeIf {
+                    pointerDriven && state.overlayVisible && !state.miniGuideOpen && !state.streamCardOpen
+                },
             )
             state.failure?.let { FailureCard(it.code) { state.retryIn } }
             ChannelNumberBadge(state.numbers)
@@ -692,10 +764,11 @@ private fun PlayerTimers(state: PlayerState, player: LivePlayer, paused: Boolean
         while (state.streamCardOpen) {
             state.streamInfo = player.streamInfo()
             state.streamBufferedMs = player.bufferedMs
-            delay(1_000)
+            delay(1.seconds)
         }
     }
-    // The pause pill counts how far behind live the picture is; a resume past the live-resume rule says "Live" for a moment.
+    // The pause pill counts how far behind live the picture is; a resume past the live-resume
+    // rule says "Live" for a moment.
     LaunchedEffect(paused) {
         if (!paused) {
             val wasPaused = state.pauseState
@@ -710,7 +783,7 @@ private fun PlayerTimers(state: PlayerState, player: LivePlayer, paused: Boolean
         val pausedAt = uptimeMs()
         while (true) {
             state.pauseState = pauseStatus(pausedAt, uptimeMs())
-            delay(1_000)
+            delay(1.seconds)
         }
     }
     // The bar stays up while paused, as the library player's does.

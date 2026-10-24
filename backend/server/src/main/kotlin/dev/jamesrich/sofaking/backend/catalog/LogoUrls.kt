@@ -12,7 +12,7 @@ import java.util.HexFormat
  */
 fun normalizeLogoUrl(raw: String?, base: String? = null): String? {
     val trimmed = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-    if (trimmed.length > 2048) return null
+    if (trimmed.length > URL_LIMIT) return null
     val resolved = try {
         val reference = URI(percentEncode(trimmed))
         when {
@@ -25,9 +25,16 @@ fun normalizeLogoUrl(raw: String?, base: String? = null): String? {
     } catch (_: IllegalArgumentException) {
         return null
     }
-    if (resolved.scheme?.lowercase() !in setOf("http", "https") || resolved.host == null || resolved.userInfo != null) return null
-    return resolved.toString().takeIf { it.length <= 2048 }
+    if (resolved.scheme?.lowercase() !in setOf("http", "https") || resolved.host == null || resolved.userInfo != null) {
+        return null
+    }
+    return resolved.toString().takeIf { it.length <= URL_LIMIT }
 }
+
+private const val URL_LIMIT = 2048
+
+/** A percent escape: `%` and two hex digits. */
+private const val ESCAPE_LENGTH = 3
 
 private const val UNENCODED = "-._~:/?#[]@!$&'()*+,;="
 
@@ -35,22 +42,32 @@ private const val UNENCODED = "-._~:/?#[]@!$&'()*+,;="
 internal fun percentEncode(value: String): String {
     val out = StringBuilder(value.length + 16)
     var index = 0
-    while (index < value.length) {
-        val c = value[index]
-        when {
-            c == '%' && index + 2 < value.length && isHex(value[index + 1]) && isHex(value[index + 2]) -> {
-                out.append(value, index, index + 3); index += 3; continue
-            }
-            c.code in 0x21..0x7E && (c.isLetterOrDigit() || c in UNENCODED) -> out.append(c)
-            else -> {
-                val point = value.codePointAt(index)
-                for (byte in String(Character.toChars(point)).toByteArray(Charsets.UTF_8)) HEX.toHexDigits(out.append('%'), byte)
-                index += Character.charCount(point); continue
-            }
-        }
-        index++
-    }
+    while (index < value.length) index = encodeAt(value, index, out)
     return out.toString()
+}
+
+/** Appends the character of [value] at [index] to [out], percent-encoded as needed; the index after it. */
+private fun encodeAt(value: String, index: Int, out: StringBuilder): Int {
+    val c = value[index]
+    return when {
+        c == '%' && index + 2 < value.length && isHex(value[index + 1]) && isHex(value[index + 2]) -> {
+            out.append(value, index, index + ESCAPE_LENGTH)
+            index + ESCAPE_LENGTH
+        }
+
+        c in '!'..'~' && (c.isLetterOrDigit() || c in UNENCODED) -> {
+            out.append(c)
+            index + 1
+        }
+
+        else -> {
+            val point = value.codePointAt(index)
+            for (byte in String(Character.toChars(point)).toByteArray(Charsets.UTF_8)) {
+                HEX.toHexDigits(out.append('%'), byte)
+            }
+            index + Character.charCount(point)
+        }
+    }
 }
 
 private val HEX: HexFormat = HexFormat.of().withUpperCase()

@@ -44,14 +44,21 @@ class TouchTest {
         assumeTrue("Needs the fixture server: pass sofakingServer and sofakingToken", address != null && token != null)
         server = FixtureServer(address!!, token!!)
         // The back gesture from the screen's edge, which three-button navigation does not have.
-        device.executeShellCommand("cmd overlay enable-exclusive --category com.android.internal.systemui.navbar.gestural")
+        device.executeShellCommand(
+            "cmd overlay enable-exclusive --category com.android.internal.systemui.navbar.gestural",
+        )
+        // Seen as confirmed, as after a viewer's first "Got it": the full-screen player's first immersive moment
+        // otherwise shows the system's hint, which takes input focus until it is tapped away.
+        device.executeShellCommand("settings put secure immersive_mode_confirmations confirmed")
         device.setOrientationNatural()
         val link = Uri.parse("sofaking://pair").buildUpon()
             .appendQueryParameter("server", address).appendQueryParameter("code", server.pairingCode()).build()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         scenario = ActivityScenario.launch(Intent(Intent.ACTION_VIEW, link).setClass(context, MainActivity::class.java))
         // A start reopens the last channel full screen; Back leaves it for the guide.
-        check(device.wait(Until.hasObject(By.res(FIRST_PAGE)), TIMEOUT_MS)) { "Neither the guide nor the player opened" }
+        check(device.wait(Until.hasObject(By.res(FIRST_PAGE)), TIMEOUT_MS)) {
+            "Neither the guide nor the player opened"
+        }
         if (device.hasObject(By.res(PLAYER))) device.pressBack()
         check(device.wait(Until.hasObject(By.res(GUIDE)), TIMEOUT_MS)) { "The guide did not open" }
     }
@@ -64,12 +71,17 @@ class TouchTest {
         scenario.close()
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             val activities = ActivityLifecycleMonitorRegistry.getInstance()
-            Stage.entries.filter { it != Stage.DESTROYED }.flatMap { activities.getActivitiesInStage(it) }.forEach { it.finish() }
+            Stage.entries.filter {
+                it != Stage.DESTROYED
+            }.flatMap { activities.getActivitiesInStage(it) }.forEach { it.finish() }
         }
         eventually("the app to release its sessions once closed") { server.sessions().isEmpty() }
     }
 
-    /** Home from the player shrinks it into picture-in-picture, still playing; the launcher brings it back full screen. */
+    /**
+     * Home from the player shrinks it into picture-in-picture, still playing; the launcher brings it back full
+     * screen.
+     */
     @Test
     fun pictureInPicture() {
         play("Sofa Sports")
@@ -79,11 +91,21 @@ class TouchTest {
         check(server.watching().isNotEmpty()) { "The player stopped in picture-in-picture" }
 
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        context.startActivity(context.packageManager.getLaunchIntentForPackage(context.packageName)!!.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        context.startActivity(
+            context.packageManager.getLaunchIntentForPackage(
+                context.packageName,
+            )!!.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
         eventually("the player back full screen") { !inPictureInPicture() && device.hasObject(By.res(PLAYER)) }
-        check(server.watching().size == 1) { "Back from picture-in-picture, the app holds ${server.watching().size} sessions" }
+        // Back goes to the window with input focus, which the player takes back a moment after picture-in-picture.
+        check(within(TIMEOUT_MS) { appFocused() }) { "Input focus stayed on ${focusedWindow()}" }
+        check(server.watching().size == 1) {
+            "Back from picture-in-picture, the app holds ${server.watching().size} sessions"
+        }
         device.pressBack()
-        eventually("the guide, and the channel closed") { device.hasObject(By.res(GUIDE)) && server.watching().isEmpty() }
+        eventually("the guide, and the channel closed") {
+            device.hasObject(By.res(GUIDE)) && server.watching().isEmpty()
+        }
     }
 
     /**
@@ -100,7 +122,9 @@ class TouchTest {
         check(device.hasObject(By.res(PLAYER))) { "The first swipe from the edge left the player" }
         device.swipe(arrayOf(edge, Point(device.displayWidth / 3, middle), edge), SWIPE_STEPS / 2)
         Thread.sleep(SETTLE_MS)
-        check(device.hasObject(By.res(PLAYER)) && server.watching().isNotEmpty()) { "A canceled back swipe left the player" }
+        check(device.hasObject(By.res(PLAYER)) && server.watching().isNotEmpty()) {
+            "A canceled back swipe left the player"
+        }
 
         // The bars hide again about three seconds after a swipe brings them back, so the next swipe follows soon.
         var swipes = 0
@@ -110,7 +134,9 @@ class TouchTest {
             device.wait(Until.gone(By.res(PLAYER)), SWIPE_GAP_MS)
         }
         println("Predictive back: the player left after $swipes back swipes")
-        check(device.wait(Until.hasObject(By.res(GUIDE)), TIMEOUT_MS)) { "$BACK_SWIPES back swipes did not return to the guide" }
+        check(device.wait(Until.hasObject(By.res(GUIDE)), TIMEOUT_MS)) {
+            "$BACK_SWIPES back swipes did not return to the guide"
+        }
         eventually("the channel to close") { server.watching().isEmpty() }
     }
 
@@ -118,7 +144,9 @@ class TouchTest {
     @Test
     fun rotation() {
         play("Sofa Sports")
-        listOf({ device.setOrientationLeft() }, { device.setOrientationNatural() }, { device.setOrientationRight() }, { device.setOrientationNatural() })
+        listOf({
+            device.setOrientationLeft()
+        }, { device.setOrientationNatural() }, { device.setOrientationRight() }, { device.setOrientationNatural() })
             .forEach { turn ->
                 turn()
                 Thread.sleep(SETTLE_MS)
@@ -148,7 +176,11 @@ class TouchTest {
         // Back in front, so the close checks what the walk left open.
         if (!device.hasObject(By.pkg(PACKAGE).depth(0))) {
             val context = InstrumentationRegistry.getInstrumentation().targetContext
-            context.startActivity(context.packageManager.getLaunchIntentForPackage(context.packageName)!!.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            context.startActivity(
+                context.packageManager.getLaunchIntentForPackage(
+                    context.packageName,
+                )!!.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
             device.wait(Until.hasObject(By.pkg(PACKAGE).depth(0)), TIMEOUT_MS)
         }
     }
@@ -156,7 +188,8 @@ class TouchTest {
     // A tap on what a channel airs now plays it full screen; the channel's name is not a button.
     private fun play(channel: String) {
         val now = By.desc(Pattern.compile(Pattern.quote("$channel, ") + ".*airing now.*"))
-        val cell = checkNotNull(device.wait(Until.findObject(now), TIMEOUT_MS)) { "No $channel airing now in the guide" }
+        val cell =
+            checkNotNull(device.wait(Until.findObject(now), TIMEOUT_MS)) { "No $channel airing now in the guide" }
         cell.click()
         check(device.wait(Until.hasObject(By.res(PLAYER)), TIMEOUT_MS)) { "A tap on $channel did not open the player" }
         eventually("$channel to play") { server.watching().isNotEmpty() }
@@ -168,12 +201,24 @@ class TouchTest {
         return pinned
     }
 
+    private fun focusedWindow(): String = device.executeShellCommand("dumpsys window").lineSequence().firstOrNull {
+        "mCurrentFocus" in it
+    }?.trim().orEmpty()
+
+    private fun appFocused(): Boolean = "$PACKAGE/" in focusedWindow()
+
     private fun eventually(what: String, condition: () -> Boolean) {
-        val deadline = System.currentTimeMillis() + TIMEOUT_MS
+        check(within(TIMEOUT_MS, condition)) { "Timed out waiting for $what" }
+    }
+
+    /** Whether the condition holds within the time, checked every [POLL_MS]. */
+    private fun within(ms: Long, condition: () -> Boolean): Boolean {
+        val deadline = System.currentTimeMillis() + ms
         while (!condition()) {
-            check(System.currentTimeMillis() < deadline) { "Timed out waiting for $what" }
+            if (System.currentTimeMillis() >= deadline) return false
             Thread.sleep(POLL_MS)
         }
+        return true
     }
 
     private class Touch(val name: String, val weight: Int, val act: (UiDevice, Random) -> Unit)
@@ -207,10 +252,20 @@ class TouchTest {
                 device.swipe(from.x, from.y, to.x, to.y, 10)
             },
             Touch("back", 4) { device, _ ->
-                device.swipe(1, device.displayHeight / 2, device.displayWidth / 2, device.displayHeight / 2, SWIPE_STEPS)
+                device.swipe(
+                    1,
+                    device.displayHeight / 2,
+                    device.displayWidth / 2,
+                    device.displayHeight / 2,
+                    SWIPE_STEPS,
+                )
             },
-            Touch("longPress", 1) { device, random -> device.point(random).let { device.swipe(it.x, it.y, it.x, it.y, 200) } },
-            Touch("turn", 1) { device, random -> if (random.nextBoolean()) device.setOrientationLeft() else device.setOrientationNatural() },
+            Touch("longPress", 1) { device, random ->
+                device.point(random).let { device.swipe(it.x, it.y, it.x, it.y, 200) }
+            },
+            Touch("turn", 1) { device, random ->
+                if (random.nextBoolean()) device.setOrientationLeft() else device.setOrientationNatural()
+            },
             Touch("home", 1) { device, _ ->
                 device.pressHome()
                 device.waitForIdle(IDLE_MS)

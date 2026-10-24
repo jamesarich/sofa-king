@@ -1,10 +1,10 @@
 package dev.jamesrich.sofaking.backend.library
 
-import java.io.IOException
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 private val log = LoggerFactory.getLogger(VideoEncoder::class.java)
 
@@ -17,7 +17,8 @@ enum class HardwareAccel(val setting: String) {
     AUTO("auto"),
     VAAPI("vaapi"),
     QSV("qsv"),
-    NVENC("nvenc");
+    NVENC("nvenc"),
+    ;
 
     companion object {
         fun parse(value: String?): HardwareAccel {
@@ -38,7 +39,9 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
     fun inputArgs(): List<String> = when (accel) {
         // AUTO stands for software until [verified] picks an encoder.
         HardwareAccel.VAAPI -> listOf("-vaapi_device", device)
+
         HardwareAccel.QSV -> listOf("-qsv_device", device)
+
         else -> emptyList()
     }
 
@@ -61,7 +64,11 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
         val base = if (video?.transfer != null) "[0:v:0]$TONE_MAP,format=yuv420p[base]" else "[0:v:0]null[base]"
         val width = video?.width
         val height = video?.height
-        val sub = if (width != null && height != null) "[$subtitle]scale=$width:$height[sub]" else "[$subtitle]null[sub]"
+        val sub = if (width != null && height != null) {
+            "[$subtitle]scale=$width:$height[sub]"
+        } else {
+            "[$subtitle]null[sub]"
+        }
         val rest = (listOf("overlay=eof_action=pass:repeatlast=0") + sizeAndFormat()).joinToString(",")
         return listOf("-filter_complex", "$base;$sub;[base][sub]$rest[v]", "-map", "[v]")
     }
@@ -69,10 +76,27 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
     /** The encoder and its key frames, after [outputArgs]' filter or [overlayGraph]. */
     fun codecArgs(keyFrameSeconds: Int): List<String> {
         val encoder = when (accel) {
-            HardwareAccel.NONE, HardwareAccel.AUTO -> listOf("-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-maxrate", "10M", "-bufsize", "20M")
+            HardwareAccel.NONE,
+            HardwareAccel.AUTO,
+            -> listOf("-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-maxrate", "10M", "-bufsize", "20M")
+
             HardwareAccel.VAAPI -> listOf("-c:v", "h264_vaapi", "-b:v", "8M", "-maxrate", "10M", "-bufsize", "20M")
-            HardwareAccel.QSV -> listOf("-c:v", "h264_qsv", "-preset", "veryfast", "-global_quality", "23", "-forced_idr", "1")
-            HardwareAccel.NVENC -> listOf("-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "23", "-b:v", "0", "-maxrate", "10M", "-bufsize", "20M", "-forced-idr", "1")
+
+            HardwareAccel.QSV -> listOf(
+                "-c:v",
+                "h264_qsv",
+                "-preset",
+                "veryfast",
+                "-global_quality",
+                "23",
+                "-forced_idr",
+                "1",
+            )
+
+            HardwareAccel.NVENC -> listOf(
+                "-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "23", "-b:v", "0", "-maxrate", "10M",
+                "-bufsize", "20M", "-forced-idr", "1",
+            )
         }
         return encoder + listOf("-force_key_frames", "expr:gte(t,n_forced*$keyFrameSeconds)")
     }
@@ -94,24 +118,43 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
      * file is there.
      */
     suspend fun verified(
-        ffmpeg: String, exists: (String) -> Boolean = { java.io.File(it).exists() }, run: (List<String>) -> Boolean = ::succeeds,
+        ffmpeg: String,
+        exists: (String) -> Boolean = { java.io.File(it).exists() },
+        run: (List<String>) -> Boolean = ::succeeds,
+    ): VideoEncoder = when (accel) {
+        HardwareAccel.NONE -> this
+        HardwareAccel.AUTO -> firstWorking(ffmpeg, exists, run)
+        else -> checked(ffmpeg, run)
+    }
+
+    /** The first GPU encoder that works, NVENC first, else software. */
+    private suspend fun firstWorking(
+        ffmpeg: String,
+        exists: (String) -> Boolean,
+        run: (List<String>) -> Boolean,
     ): VideoEncoder {
-        if (accel == HardwareAccel.NONE) return this
-        if (accel == HardwareAccel.AUTO) {
-            val candidates = buildList {
-                if (exists(NVIDIA_DEVICE)) add(HardwareAccel.NVENC)
-                if (exists(device)) { add(HardwareAccel.VAAPI); add(HardwareAccel.QSV) }
+        val candidates = buildList {
+            if (exists(NVIDIA_DEVICE)) add(HardwareAccel.NVENC)
+            if (exists(device)) {
+                add(HardwareAccel.VAAPI)
+                add(HardwareAccel.QSV)
             }
-            for (candidate in candidates) {
-                val encoder = VideoEncoder(candidate, device)
-                if (withContext(Dispatchers.IO) { run(encoder.testCommand(ffmpeg)) }) {
-                    log.info("vod encoder ready accel={} (auto)", candidate.setting)
-                    return encoder
-                }
-            }
-            log.info("vod encoder: no GPU encoder works (tried {}); converting in software", candidates.joinToString { it.setting }.ifEmpty { "none" })
-            return VideoEncoder(HardwareAccel.NONE, device)
         }
+        val working = candidates.map { VideoEncoder(it, device) }
+            .firstOrNull { encoder -> withContext(Dispatchers.IO) { run(encoder.testCommand(ffmpeg)) } }
+        if (working != null) {
+            log.info("vod encoder ready accel={} (auto)", working.accel.setting)
+            return working
+        }
+        log.info(
+            "vod encoder: no GPU encoder works (tried {}); converting in software",
+            candidates.joinToString { it.setting }.ifEmpty { "none" },
+        )
+        return VideoEncoder(HardwareAccel.NONE, device)
+    }
+
+    /** This encoder when it works, else software. */
+    private suspend fun checked(ffmpeg: String, run: (List<String>) -> Boolean): VideoEncoder {
         if (withContext(Dispatchers.IO) { run(testCommand(ffmpeg)) }) {
             log.info("vod encoder ready accel={}", accel.setting)
             return this
@@ -123,7 +166,8 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
     /** One black frame through this encoder into nothing: whether the driver, the device and FFmpeg's build work. */
     private fun testCommand(ffmpeg: String): List<String> =
         listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error") + inputArgs() +
-            listOf("-f", "lavfi", "-i", "color=black:s=320x240:d=1", "-frames:v", "1") + outputArgs(hdr = false, keyFrameSeconds = 4) + listOf("-f", "null", "-")
+            listOf("-f", "lavfi", "-i", "color=black:s=320x240:d=1", "-frames:v", "1") +
+            outputArgs(hdr = false, keyFrameSeconds = 4) + listOf("-f", "null", "-")
 
     companion object {
         /** The first render node, where Intel and AMD GPUs show up in a container. */
@@ -132,12 +176,18 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
         /** The control device the NVIDIA container runtime passes in with a GPU. */
         const val NVIDIA_DEVICE = "/dev/nvidiactl"
 
+        /** How long the encoder check's one-frame encode may take. */
+        private const val CHECK_TIMEOUT_SECONDS = 20L
+
         /** HDR10 or HLG to SDR BT.709 with zimg and the Hable curve, as most media servers do. */
-        private const val TONE_MAP = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv"
+        private const val TONE_MAP = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709," +
+            "tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv"
 
         private fun succeeds(command: List<String>): Boolean = try {
-            val process = ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
-            if (!process.waitFor(20, TimeUnit.SECONDS)) {
+            val process = ProcessBuilder(
+                command,
+            ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+            if (!process.waitFor(CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 process.destroyForcibly()
                 false
             } else {

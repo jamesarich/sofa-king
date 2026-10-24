@@ -22,7 +22,10 @@ class PackageDownloadTest {
 
     @Test
     fun `the package lands in the file with its digest and progress`() = runTest {
-        val http = FakeHttp(this) { respond(bytes, HttpStatusCode.OK, headersOf(HttpHeaders.ContentLength, bytes.size.toString())) }
+        val http =
+            FakeHttp(this) {
+                respond(bytes, HttpStatusCode.OK, headersOf(HttpHeaders.ContentLength, bytes.size.toString()))
+            }
         val progress = mutableListOf<Int?>()
         assertEquals(sha256, downloadPackage(http.client, "${FAKE_BASE}app.apk", file) { progress += it })
         assertContentEquals(bytes, file.readBytes())
@@ -48,12 +51,8 @@ class PackageDownloadTest {
 
     @Test
     fun `a package goes to the installer only when every check passes`() {
-        fun verdict(
-            expected: String? = sha256,
-            name: String? = "app",
-            code: Long = 2,
-            sameKey: Boolean? = true,
-        ) = packageVerdict(expected, sha256, name, "app", code, installedVersionCode = 1, sameKey = sameKey)
+        fun verdict(expected: String? = sha256, name: String? = "app", code: Long = 2, sameKey: Boolean? = true) =
+            packageVerdict(expected, sha256, name, "app", code, installedVersionCode = 1, sameKey = sameKey)
         assertNull(verdict())
         assertNull(verdict(expected = null))
         assertNull(verdict(sameKey = null))

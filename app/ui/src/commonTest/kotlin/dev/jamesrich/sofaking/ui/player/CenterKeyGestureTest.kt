@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
-import kotlin.test.assertEquals
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class CenterKeyGestureTest {
     private val gesture = CenterKeyGesture()

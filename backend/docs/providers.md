@@ -40,7 +40,7 @@ The portal's Sources page writes this file: every service is a switch, with its 
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
 | `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo`, `pluto`, `tubi`, `direct`, `hdhomerun` |
-| `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung`, `dma` and `market` for `localnow`, `market` for `xumo`, `url` (required) and `transcode` for `hdhomerun` |
+| `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung` and `whale`, `region` and `forwardedFor` for `pluto` and `plex`, `dma` and `market` for `localnow`, `market` for `xumo`, `url` (required) and `transcode` for `hdhomerun` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
 | `probe` | `true` | Probes resolve the channel and qualify the resolved URL like any source. A lineup policy ignores it ([probing](lineup-policy.md#probing)) |
@@ -63,6 +63,16 @@ Programs carry the metadata the guide responses already hold, with no extra requ
 
 From the other services' guides the server reads titles, descriptions and times only.
 
+### Other countries' lineups
+
+Samsung TV Plus publishes each country's lineup, and Whale TV+ answers the country its request names, so for them another country is only its `region` (see [samsung](#samsung-samsung-tv-plus)). Whale TV+ serves 130 to 195 channels per country, a third of them or more outside the US lineup in most of Europe, and most of them play from a US connection. Pluto TV and Plex pick the lineup by the caller's address instead. For them, `region` is the two-letter code the channels are tagged with, and `forwardedFor` is an IP address in that country, sent as `X-Forwarded-For` on every request the client makes and every request the relay makes for the provider's streams, so the service answers as it would in that country. Give each country its own provider beside the US one:
+
+```json
+{ "id": "pluto-gb", "type": "native", "service": "pluto", "options": { "region": "gb", "forwardedFor": "ADDRESS_IN_GB" } }
+```
+
+The i.mjh.nz Pluto TV and Plex channel lists carry one address per country they serve. Both services honor the header. Pluto TV's 14 addresses give 12 lineups, since Argentina and Mexico share one Latin American lineup and the Chile address answers with Canada's. Plex's 8 give 8, and the streams play from a US connection with the header on every request. LG Channels answers any country but the US with an error, so `lg` takes no region. The services decide whether they honor the header, and a lineup they serve that way can stop answering at any time. Presenting an address that is not the server's is a further departure from the services' terms than the clients already are. A `forwardedFor` that is not an IP address fails the provider's imports and resolves, never the server's start.
+
 ## How a native source plays
 
 A native source's URL is `svc://SERVICE/CHANNEL_ID`: stable, never fetched, and what the lineup refers to. When a session opens the channel, the relay asks the provider to resolve it. The provider fills the service's ad macros (device ID, session ID, cache buster, privacy defaults) or follows the service's redirect, and the relay fetches the master playlist with the headers the service's own client sends. The resolution is cached per source until a minute before it expires, and for at most six hours: an hour for macro-filled URLs, the token lifetime for tokens, and six hours for static URLs. Every session, probe and remux on that source shares it. Nothing a player sees names the service. Media playlists and segments are the relay's opaque session paths, as for any HLS source. An MPEG-TS service (`hdhomerun`) resolves to the stream the relay fans out between players, as for any MPEG-TS source.
@@ -75,7 +85,7 @@ For each provider, the server keeps one random device ID and any session token i
 
 ### whale (Whale TV+)
 
-The web client at watch.whaletvplus.com, backed by the rlaxx API. An access token comes from `auth/access` with the web client's public key and lasts about 24 hours; the server stores it and reuses it for 23. The channel list is the category listing for `US`/`en`, with each channel once, under the first themed category as its group, with numbers and the white channel icon. Streams are Ottera, Amagi, MediaTailor and SoFast ad-stitched HLS templates. Their `[did]`, `[session_id]`, `[cachebuster]` and other `[...]` macros are filled per resolve, with unknown ones blanked, and requests carry the web client's `Origin` and `Referer`. The guide is the 7-day EPG endpoint, ten channels per request, for mapped channels only.
+The web client at watch.whaletvplus.com, backed by the rlaxx API. An access token comes from `auth/access` with the web client's public key and lasts about 24 hours; the server stores it and reuses it for 23. The channel list is the category listing for the `region` (default `US`) in English, with each channel once, under the first themed category as its group, with numbers and the white channel icon. Streams are Ottera, Amagi, MediaTailor and SoFast ad-stitched HLS templates. Their `[did]`, `[session_id]`, `[cachebuster]` and other `[...]` macros are filled per resolve, with unknown ones blanked, and requests carry the web client's `Origin` and `Referer`. The guide is the 7-day EPG endpoint, ten channels per request, for mapped channels only.
 
 Fragility: the public API key is the web client's and changes with it. A 401 or 403 drops the stored token and retries once. Channel IDs are the service's numeric IDs.
 
@@ -216,4 +226,4 @@ Fragility: every URL is hard-coded, so a broadcaster that moves or retires a fee
 
 ## Checking a provider
 
-`scripts/provider-smoke.py --service NAME [--option key=value]` starts a disposable server with that one provider, waits for the import and adopts every channel. It then opens sessions on three channels, expecting an HLS master from each, decodes five seconds of two of them with FFmpeg, and prints the counts. It needs the built distribution and network access to the service. See [development](development.md#scripts) for the other scripts.
+`scripts/provider-smoke.py --service NAME [--option key=value]` starts a disposable server with that one provider, waits for the import and adopts every channel. It then opens sessions on three channels, expecting an HLS master from each, decodes five seconds of two of them with FFmpeg, and prints the counts. It releases each session once it is done with it, so a run of failing channels never fills the server's playback slots. It needs the built distribution and network access to the service. See [development](development.md#scripts) for the other scripts.

@@ -24,7 +24,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,13 +48,28 @@ import dev.jamesrich.sofaking.data.Airing
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMark
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.guide_details_add_favorite
+import dev.jamesrich.sofaking.resources.guide_details_cancel_recording
+import dev.jamesrich.sofaking.resources.guide_details_close
+import dev.jamesrich.sofaking.resources.guide_details_more_airings
+import dev.jamesrich.sofaking.resources.guide_details_record
+import dev.jamesrich.sofaking.resources.guide_details_record_failed
+import dev.jamesrich.sofaking.resources.guide_details_record_series
+import dev.jamesrich.sofaking.resources.guide_details_remove_favorite
+import dev.jamesrich.sofaking.resources.guide_details_stop_series
+import dev.jamesrich.sofaking.resources.guide_details_watch
+import dev.jamesrich.sofaking.resources.guide_ended
+import dev.jamesrich.sofaking.resources.guide_starts_in
+import dev.jamesrich.sofaking.resources.guide_time_left
 import dev.jamesrich.sofaking.ui.BackHandler
-import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
-import dev.jamesrich.sofaking.ui.WholeLinesText
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.ProgramBadges
+import dev.jamesrich.sofaking.ui.WIDESCREEN
+import dev.jamesrich.sofaking.ui.WholeLinesText
+import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.episodeLine
+import dev.jamesrich.sofaking.ui.hoursAndMinutes
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.noListingText
 import dev.jamesrich.sofaking.ui.panelEdgeMargin
@@ -63,15 +77,9 @@ import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
-import dev.jamesrich.sofaking.ui.hoursAndMinutes
-import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
-
-/** What the details sheet shows: a channel and the program focused in its row, which may be a gap. */
-@Immutable
-internal data class ProgramDetails(val channel: Channel, val program: Program?)
 
 /** The side panel's width on a TV: room for the image beside the title and three buttons on a line. */
 private val PANEL_WIDTH = 560.dp
@@ -107,7 +115,6 @@ internal fun ProgramSheet(
     val airingsFocus = remember { FocusRequester() }
     val firstAiring = remember { FocusRequester() }
     var showAirings by remember(details) { mutableStateOf(false) }
-    var airingsShown by remember(details) { mutableStateOf(false) }
     val back: () -> Unit = { if (showAirings) showAirings = false else onDismiss() }
     val recordable = details.program?.takeIf { recording != null && programTiming(it, now) != ProgramTiming.Ended }
     val buttons: @Composable () -> Unit = {
@@ -133,7 +140,43 @@ internal fun ProgramSheet(
     }
     // Watch takes focus on every layout, so the remote or a keyboard can act on the panel or sheet at once.
     LaunchedEffect(details) { requestFocusWhenAttached(watchFocus) }
-    // The list's first airing takes focus as it opens, and More airings again as it closes.
+    AiringsFocus(details, showAirings, firstAiring, airingsFocus)
+    if (LocalLayoutProfile.current.tv) {
+        BackHandler(onBack = back)
+        DetailsPanel(onBack = back, onDismiss = onDismiss) {
+            if (showAirings) {
+                airingsList(Modifier.fillMaxSize().padding(24.dp))
+            } else {
+                PanelContent(details, now, guideLoading, buttons)
+            }
+        }
+    } else {
+        ModalBottomSheet(onDismissRequest = onDismiss) {
+            BackHandler(enabled = showAirings, onBack = back)
+            Box(Modifier.arrowKeysMoveFocus()) {
+                if (showAirings) {
+                    airingsList(
+                        Modifier.fillMaxWidth().heightIn(
+                            max = SHEET_TEXT_MAX_HEIGHT + 120.dp,
+                        ).padding(horizontal = 24.dp).padding(bottom = 24.dp),
+                    )
+                } else {
+                    SheetContent(details, now, guideLoading, buttons)
+                }
+            }
+        }
+    }
+}
+
+/** The list's first airing takes focus as it opens, and More airings again as it closes. */
+@Composable
+private fun AiringsFocus(
+    details: ProgramDetails,
+    showAirings: Boolean,
+    firstAiring: FocusRequester,
+    airingsFocus: FocusRequester,
+) {
+    var airingsShown by remember(details) { mutableStateOf(false) }
     LaunchedEffect(showAirings) {
         if (showAirings) {
             airingsShown = true
@@ -142,48 +185,56 @@ internal fun ProgramSheet(
             requestFocusWhenAttached(airingsFocus)
         }
     }
-    if (LocalLayoutProfile.current.tv) {
-        BackHandler(onBack = back)
-        Box(
-            Modifier
-                .fillMaxSize()
-                // Compose turns the remote's Back into a focus exit before BackHandler sees it, and the panel cancels
-                // exits, so Back is taken here. It closes on key-up, so no part of the press reaches the guide under it.
-                .onPreviewKeyEvent { event ->
-                    if (!event.key.closesDetails()) return@onPreviewKeyEvent false
-                    if (event.type == KeyEventType.KeyUp) back()
-                    true
-                }
-                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f))
-                // The scrim takes a tap or click, so touch on a TV closes it as Back does; no focus cue, it is not a control.
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
+}
+
+/**
+ * The TV's side panel over a scrim: Back closes it through [onBack], a tap on the scrim through [onDismiss], and focus
+ * stays inside it.
+ */
+@Composable
+private fun DetailsPanel(onBack: () -> Unit, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            // Compose turns the remote's Back into a focus exit before BackHandler sees it, and the panel cancels
+            // exits, so Back is taken here. It closes on key-up, so no part of the
+            // press reaches the guide under it.
+            .onPreviewKeyEvent { event ->
+                if (!event.key.closesDetails()) return@onPreviewKeyEvent false
+                if (event.type == KeyEventType.KeyUp) onBack()
+                true
+            }
+            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f))
+            // The scrim takes a tap or click, so touch on a TV closes it as Back does; no
+            // focus cue, it is not a control.
+            .clickable(
+                interactionSource = remember {
+                    MutableInteractionSource()
+                },
+                indication = null,
+                onClick = onDismiss,
+            ),
+    ) {
+        Surface(
+            // Darker than the buttons' raised plum, so an unfocused button still reads as a button.
+            color = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier.align(Alignment.CenterEnd)
+                .screenPadding(WindowInsetsSides.End + WindowInsetsSides.Bottom)
+                .padding(top = panelEdgeMargin())
+                .fillMaxHeight()
+                .width(PANEL_WIDTH)
+                // Focus stays in the panel: a D-pad move past its buttons must not land on the grid under it.
+                .focusProperties { onExit = { cancelFocusChange() } }
+                .clickable(
+                    interactionSource = remember {
+                        MutableInteractionSource()
+                    },
+                    indication = null,
+                    onClick = {},
+                ),
         ) {
-            Surface(
-                // Darker than the buttons' raised plum, so an unfocused button still reads as a button.
-                color = MaterialTheme.colorScheme.surface,
-                shape = MaterialTheme.shapes.large,
-                modifier = Modifier.align(Alignment.CenterEnd)
-                    .screenPadding(WindowInsetsSides.End + WindowInsetsSides.Bottom)
-                    .padding(top = panelEdgeMargin())
-                    .fillMaxHeight()
-                    .width(PANEL_WIDTH)
-                    // Focus stays in the panel: a D-pad move past its buttons must not land on the grid under it.
-                    .focusProperties { onExit = { cancelFocusChange() } }
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
-            ) {
-                if (showAirings) airingsList(Modifier.fillMaxSize().padding(24.dp)) else PanelContent(details, now, guideLoading, buttons)
-            }
-        }
-    } else {
-        ModalBottomSheet(onDismissRequest = onDismiss) {
-            BackHandler(enabled = showAirings, onBack = back)
-            Box(Modifier.arrowKeysMoveFocus()) {
-                if (showAirings) {
-                    airingsList(Modifier.fillMaxWidth().heightIn(max = SHEET_TEXT_MAX_HEIGHT + 120.dp).padding(horizontal = 24.dp).padding(bottom = 24.dp))
-                } else {
-                    SheetContent(details, now, guideLoading, buttons)
-                }
-            }
+            content()
         }
     }
 }
@@ -193,14 +244,21 @@ internal fun ProgramSheet(
  * ellipsized because the D-pad cannot scroll text, and the buttons at the bottom.
  */
 @Composable
-private fun PanelContent(details: ProgramDetails, now: Instant, guideLoading: Boolean, buttons: @Composable () -> Unit) {
+private fun PanelContent(
+    details: ProgramDetails,
+    now: Instant,
+    guideLoading: Boolean,
+    buttons: @Composable () -> Unit,
+) {
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            details.program?.icon?.let { ProgramImage(it, Modifier.width(PANEL_IMAGE_WIDTH).aspectRatio(16f / 9f)) }
+            details.program?.icon?.let { ProgramImage(it, Modifier.width(PANEL_IMAGE_WIDTH).aspectRatio(WIDESCREEN)) }
             Heading(details, now, guideLoading, Modifier.weight(1f))
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            details.program?.description?.let { WholeLinesText(it, MaterialTheme.typography.bodyMedium, Modifier.fillMaxSize()) }
+            details.program?.description?.let {
+                WholeLinesText(it, MaterialTheme.typography.bodyMedium, Modifier.fillMaxSize())
+            }
         }
         buttons()
     }
@@ -208,8 +266,16 @@ private fun PanelContent(details: ProgramDetails, now: Instant, guideLoading: Bo
 
 /** The bottom sheet: the full-width image, heading and description scroll above the buttons. */
 @Composable
-private fun SheetContent(details: ProgramDetails, now: Instant, guideLoading: Boolean, buttons: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+private fun SheetContent(
+    details: ProgramDetails,
+    now: Instant,
+    guideLoading: Boolean,
+    buttons: @Composable () -> Unit,
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Column(
             Modifier.heightIn(max = SHEET_TEXT_MAX_HEIGHT).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -223,7 +289,7 @@ private fun SheetContent(details: ProgramDetails, now: Instant, guideLoading: Bo
 }
 
 @Composable
-private fun ProgramImage(url: String, modifier: Modifier) {
+private fun ProgramImage(url: String, modifier: Modifier = Modifier) {
     AsyncImage(
         model = url,
         contentDescription = null,
@@ -242,13 +308,28 @@ private fun Heading(details: ProgramDetails, now: Instant, guideLoading: Boolean
         if (program == null) {
             Text(details.channel.noListingText(guideLoading), style = MaterialTheme.typography.titleLarge)
         } else {
-            Text(program.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                program.title,
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             program.episodeLine()?.let {
-                Text(it, style = MaterialTheme.typography.bodyLarge, color = secondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = secondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             // The badges ride on the time range and the time left has its own line, so neither wraps mid-phrase.
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(timeFormat.range(program.start, program.stop), style = MaterialTheme.typography.bodyMedium, color = secondary)
+                Text(
+                    timeFormat.range(program.start, program.stop),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = secondary,
+                )
                 ProgramBadges(
                     program = program,
                     live = isAiring(program, now),
@@ -259,7 +340,13 @@ private fun Heading(details: ProgramDetails, now: Instant, guideLoading: Boolean
             }
             Text(programTimingText(program, now), style = MaterialTheme.typography.bodyMedium, color = secondary)
         }
-        Text(details.channel.label(), style = MaterialTheme.typography.bodyMedium, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            details.channel.label(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = secondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -278,7 +365,12 @@ private fun SheetButtons(
             Text(stringResource(Res.string.guide_details_watch), maxLines = 1)
         }
         SofaButton(onClick = { onToggleFavorite(channel) }) {
-            Text(stringResource(if (isFavorite) Res.string.guide_details_remove_favorite else Res.string.guide_details_add_favorite), maxLines = 1)
+            Text(
+                stringResource(
+                    if (isFavorite) Res.string.guide_details_remove_favorite else Res.string.guide_details_add_favorite,
+                ),
+                maxLines = 1,
+            )
         }
         SofaButton(onClick = onDismiss) { Text(stringResource(Res.string.guide_details_close), maxLines = 1) }
     }
@@ -302,28 +394,58 @@ private fun RecordButtons(
         if (busy) return
         busy = true
         scope.launch {
-            try { failed = !action(program) } finally { busy = false }
+            try {
+                failed = !action(program)
+            } finally {
+                busy = false
+            }
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             SofaButton(onClick = { run(onRecord) }) {
-                Text(stringResource(if (mark.recording) Res.string.guide_details_cancel_recording else Res.string.guide_details_record), maxLines = 1)
+                Text(
+                    stringResource(
+                        if (mark.recording) {
+                            Res.string.guide_details_cancel_recording
+                        } else {
+                            Res.string.guide_details_record
+                        },
+                    ),
+                    maxLines = 1,
+                )
             }
             SofaButton(onClick = { run(onRecordSeries) }) {
-                Text(stringResource(if (mark.series) Res.string.guide_details_stop_series else Res.string.guide_details_record_series), maxLines = 1)
+                Text(
+                    stringResource(
+                        if (mark.series) {
+                            Res.string.guide_details_stop_series
+                        } else {
+                            Res.string.guide_details_record_series
+                        },
+                    ),
+                    maxLines = 1,
+                )
             }
         }
         if (failed) {
-            Text(stringResource(Res.string.guide_details_record_failed), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            Text(
+                stringResource(Res.string.guide_details_record_failed),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }
 
 /** "42 min left", "Starts in 1 h 20 min" or "Ended", from [programTiming]. */
 @Composable
-private fun programTimingText(program: Program, now: Instant): String = when (val timing = programTiming(program, now)) {
-    is ProgramTiming.Airing -> stringResource(Res.string.guide_time_left, timing.left.hoursAndMinutes())
-    is ProgramTiming.Upcoming -> stringResource(Res.string.guide_starts_in, timing.until.hoursAndMinutes())
-    ProgramTiming.Ended -> stringResource(Res.string.guide_ended)
-}
+private fun programTimingText(program: Program, now: Instant): String =
+    when (val timing = programTiming(program, now)) {
+        is ProgramTiming.Airing -> stringResource(Res.string.guide_time_left, timing.left.hoursAndMinutes())
+        is ProgramTiming.Upcoming -> stringResource(Res.string.guide_starts_in, timing.until.hoursAndMinutes())
+        ProgramTiming.Ended -> stringResource(Res.string.guide_ended)
+    }

@@ -15,7 +15,16 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.visibleChannels
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.channel_gone
+import dev.jamesrich.sofaking.resources.load_failed
+import dev.jamesrich.sofaking.resources.load_failed_hint
+import dev.jamesrich.sofaking.resources.loading
+import dev.jamesrich.sofaking.resources.no_channels
+import dev.jamesrich.sofaking.resources.no_channels_hint
+import dev.jamesrich.sofaking.resources.settings
+import dev.jamesrich.sofaking.resources.unconfigured
+import dev.jamesrich.sofaking.resources.unconfigured_hint
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
@@ -25,8 +34,8 @@ import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
 import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
-import kotlin.time.Instant
 import org.jetbrains.compose.resources.stringResource
+import kotlin.time.Instant
 
 /**
  * The lineup as this device shows it: hidden channels leave the guide and the channel list, and the player's zapping
@@ -59,17 +68,23 @@ internal fun GuideDestination(
     val s = state
     val visibleLineup = rememberVisibleLineup((s as? LineupState.Ready)?.lineup, settings?.hiddenChannels.orEmpty())
     when {
-        s is LineupState.Loading || settings == null || !shell.launchDecided -> MessageScreen(stringResource(Res.string.loading), loading = true)
+        s is LineupState.Loading || settings == null || !shell.launchDecided -> MessageScreen(
+            stringResource(Res.string.loading),
+            loading = true,
+        )
+
         s is LineupState.Unconfigured -> MessageScreen(
             message = stringResource(Res.string.unconfigured),
             hint = stringResource(Res.string.unconfigured_hint),
         )
+
         s is LineupState.Failed -> MessageScreen(
             message = stringResource(Res.string.load_failed),
             detail = s.message,
             hint = stringResource(Res.string.load_failed_hint),
             onRetry = vm::refresh,
         )
+
         s is LineupState.Ready -> GuideOrEmpty(
             lineup = visibleLineup ?: s.lineup,
             favorites = settings?.favorites.orEmpty(),
@@ -82,7 +97,7 @@ internal fun GuideDestination(
             returnedFrom = arrival.returnedFrom,
             onPlay = { guideId, scope, unattended -> shell.push(Route.Player(guideId, scope, unattended)) },
             onToggleFavorite = vm::toggleFavorite,
-            onFilterChanged = vm::setGuideFilter,
+            onFilterChange = vm::setGuideFilter,
             onLoadGuideWindow = vm::loadGuideWindow,
             previewPlayer = player,
             sessions = vm.sessions,
@@ -130,16 +145,16 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
         onExit = shell::back,
         onGuide = { shell.toGuide(Arrival(atNow = true)) },
         onSearch = { shell.toGuide(Arrival(search = true)) },
-        onChannelChanged = { shell.history = shell.history.tuned(it.guideId) },
+        onChannelChange = { shell.history = shell.history.tuned(it.guideId) },
         reloadLineup = vm::reloadLineup,
-        onChannelGone = { channel ->
+        onChannelMissing = { channel ->
             shell.notice = formatTemplate(channelGone, channel.label())
             shell.back()
         },
         captionsEnabled = settings?.captionsEnabled ?: false,
-        onCaptionsChanged = vm::setCaptionsEnabled,
+        onCaptionsChange = vm::setCaptionsEnabled,
         captionAdvanceFor = { settings?.captionAdvanceFor(it.guideId) ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS },
-        onCaptionAdvanceChanged = { channel, ms -> vm.setChannelCaptionAdvance(channel.guideId, ms) },
+        onCaptionAdvanceChange = { channel, ms -> vm.setChannelCaptionAdvance(channel.guideId, ms) },
         captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
         smoothCaptions = settings?.smoothCaptions ?: true,
         favorites = settings?.favorites.orEmpty(),
@@ -147,14 +162,14 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
         recentGuideIds = settings?.recentChannels.orEmpty(),
         onToggleFavorite = { vm.toggleFavorite(it.guideId) },
         keyLegendShown = settings?.keyLegendShown ?: AppSettings.KEY_LEGEND_BARS,
-        onKeyLegendShown = vm::setKeyLegendShown,
+        onKeyLegendShow = vm::setKeyLegendShown,
         recordingMarks = recordingMarks.takeIf { capabilities.recordings },
         onRecord = vm.recordings::toggle,
         zoom = shell.videoZoom,
         onZoom = { shell.videoZoom = it },
         liveBreaks = settings?.liveBreaks ?: LiveBreaks.PLAY,
         adsDodgedTodayMs = settings?.adsDodged?.on(localDay()) ?: 0,
-        onAdsDodged = { vm.addAdsDodged(localDay(), it) },
+        onAdsDodge = { vm.addAdsDodged(localDay(), it) },
         sleep = shell.sleep,
     )
 }
@@ -172,7 +187,7 @@ private fun GuideOrEmpty(
     returnedFrom: String?,
     onPlay: (guideId: String, scope: ZapScope?, unattended: Boolean) -> Unit,
     onToggleFavorite: (String) -> Unit,
-    onFilterChanged: (String?) -> Unit,
+    onFilterChange: (String?) -> Unit,
     onLoadGuideWindow: (Instant) -> Unit,
     previewPlayer: LivePlayer,
     sessions: PlaybackSessions,
@@ -202,7 +217,7 @@ private fun GuideOrEmpty(
             returnedFrom = returnedFrom,
             onPlay = { channel, scope, unattended -> onPlay(channel.guideId, scope, unattended) },
             onToggleFavorite = { onToggleFavorite(it.guideId) },
-            onFilterChanged = onFilterChanged,
+            onFilterChange = onFilterChange,
             onLoadGuideWindow = onLoadGuideWindow,
             previewPlayer = previewPlayer,
             sessions = sessions,

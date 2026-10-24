@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.data
 
 import co.touchlab.kermit.Logger
-import kotlinx.coroutines.CancellationException
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -27,8 +27,15 @@ sealed interface RecordingsState {
     /** The server does not record, or is too old to. */
     data object Unavailable : RecordingsState
 
-    /** Every recording but canceled ones, soonest scheduled first, then the rest newest first, and the series rules, oldest first. */
-    data class Ready(val recordings: List<DvrRecording>, val space: RecordingSpace, val rules: List<SeriesRule> = emptyList()) : RecordingsState
+    /**
+     * Every recording but canceled ones, soonest scheduled first, then the rest newest first, and
+     * the series rules, oldest first.
+     */
+    data class Ready(
+        val recordings: List<DvrRecording>,
+        val space: RecordingSpace,
+        val rules: List<SeriesRule> = emptyList(),
+    ) : RecordingsState
     data class Failed(val message: String) : RecordingsState
 }
 
@@ -47,7 +54,8 @@ data class RecordingMarks(
         series = ruleId(program) != null,
     )
 
-    internal fun ruleId(program: Program): String? = rules[ruleKey(program.title, program.channelId)] ?: rules[ruleKey(program.title, null)]
+    internal fun ruleId(program: Program): String? =
+        rules[ruleKey(program.title, program.channelId)] ?: rules[ruleKey(program.title, null)]
 }
 
 private fun recordingKey(channelId: String, start: Instant) = "$channelId@${start.toEpochMilliseconds()}"
@@ -75,6 +83,7 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
     val marks: StateFlow<RecordingMarks> = _marks.asStateFlow()
 
     @Volatile private var api: SofaKingApi? = null
+
     @Volatile private var records = false
     private val mutex = Mutex()
 
@@ -98,30 +107,43 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
     suspend fun refresh() = mutex.withLock {
         val api = api ?: return@withLock
         if (_state.value !is RecordingsState.Ready) _state.value = RecordingsState.Loading
-        _state.value = try {
+        _state.value = runCatchingCancellable {
             coroutineScope {
                 val list = async { api.recordings() }
                 val rules = async { api.recordingRules().rules.map { it.toModel() } }
                 val (recordings, storage) = list.await().let { it.recordings to it.storage }
-                RecordingsState.Ready(recordings.mapNotNull { it.toModel() }, RecordingSpace(storage.freeBytes, storage.totalBytes), rules.await())
+                RecordingsState.Ready(
+                    recordings.mapNotNull {
+                        it.toModel()
+                    },
+                    RecordingSpace(storage.freeBytes, storage.totalBytes),
+                    rules.await(),
+                )
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: SofaKingException) {
-            if (e.status == 404) RecordingsState.Unavailable else failed(e)
-        } catch (e: Exception) {
-            failed(e)
+        }.getOrElse { e ->
+            if (e is SofaKingException && e.statusCode == HttpStatusCode.NotFound) {
+                RecordingsState.Unavailable
+            } else {
+                failed(e)
+            }
         }
         publish()
     }
 
-    private fun failed(e: Exception): RecordingsState =
+    private fun failed(e: Throwable): RecordingsState =
         failedLoad("recordings", e, _state.value as? RecordingsState.Ready, RecordingsState::Failed)
 
-    /** Records [program], or cancels its recording when it has one. False when the server refused or could not be reached. */
+    /**
+     * Records [program], or cancels its recording when it has one. False when the server
+     * refused or could not be reached.
+     */
     suspend fun toggle(program: Program): Boolean = records && change("recording a program") {
         val id = _marks.value.recordings[recordingKey(program.channelId, program.start)]
-        if (id != null) deleteRecording(id) else scheduleRecording(ScheduleRecordingDto(program.channelId, program.start.toString()))
+        if (id != null) {
+            deleteRecording(id)
+        } else {
+            scheduleRecording(ScheduleRecordingDto(program.channelId, program.start.toString()))
+        }
     }
 
     /**
@@ -130,7 +152,11 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
      */
     suspend fun toggleSeries(program: Program): Boolean = records && change("recording a series") {
         val id = _marks.value.ruleId(program)
-        if (id != null) deleteRecordingRule(id) else createRecordingRule(CreateRecordingRuleDto(program.title.trim(), program.channelId))
+        if (id != null) {
+            deleteRecordingRule(id)
+        } else {
+            createRecordingRule(CreateRecordingRuleDto(program.title.trim(), program.channelId))
+        }
     }
 
     /** Cancels a scheduled recording, stops a running one, or deletes a finished one and its file. */
@@ -140,10 +166,11 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
     }
 
     /** Changes [rule]: whether it takes new episodes only, and how many recordings it keeps (0 for all). */
-    internal suspend fun updateRule(rule: SeriesRule, newOnly: Boolean, keep: Int): Boolean = change("changing a series rule") {
-        val fresh = updateRecordingRule(rule.id, UpdateRecordingRuleDto(newOnly = newOnly, keep = keep)).toModel()
-        edit { it.copy(rules = it.rules.map { r -> if (r.id == fresh.id) fresh else r }) }
-    }
+    internal suspend fun updateRule(rule: SeriesRule, newOnly: Boolean, keep: Int): Boolean =
+        change("changing a series rule") {
+            val fresh = updateRecordingRule(rule.id, UpdateRecordingRuleDto(newOnly = newOnly, keep = keep)).toModel()
+            edit { it.copy(rules = it.rules.map { r -> if (r.id == fresh.id) fresh else r }) }
+        }
 
     /** Deletes [rule] and the recordings it scheduled; what it recorded stays. */
     internal suspend fun deleteRule(rule: SeriesRule): Boolean = change("deleting a series rule") {
@@ -154,12 +181,22 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
     /** Saves where the household is in [recordingId]; with [show] the list takes the server's answer. */
     internal suspend fun save(recordingId: String, update: UpdateRecordingDto, show: Boolean) {
         val api = api ?: return
-        try {
+        runCatchingCancellable {
             val fresh = api.updateRecording(recordingId, update).toModel()
-            if (show && fresh != null) edit { it.copy(recordings = it.recordings.map { r -> if (r.id == fresh.id) fresh else r }) }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+            if (show && fresh != null) {
+                edit {
+                    it.copy(
+                        recordings = it.recordings.map { r ->
+                            if (r.id == fresh.id) {
+                                fresh
+                            } else {
+                                r
+                            }
+                        },
+                    )
+                }
+            }
+        }.onFailure { e ->
             log.w { "saving the recording position failed: ${e.describe()}" }
         }
     }
@@ -167,12 +204,10 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
     /** Runs [action] on the server, then reads the lists again whether it worked or not. False when it failed. */
     private suspend fun change(what: String, action: suspend SofaKingApi.() -> Unit): Boolean {
         val api = api ?: return false
-        val done = try {
+        val done = runCatchingCancellable {
             api.action()
             true
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+        }.getOrElse { e ->
             log.w { "$what failed: ${e.describe()}" }
             false
         }

@@ -2,12 +2,21 @@ package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.api.PolicyChange
 import dev.jamesrich.sofaking.backend.api.PolicyChangeEntry
-import java.time.Instant
 import kotlinx.serialization.json.Json
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.count
+import org.jetbrains.exposed.v1.core.lessEq
+import org.jetbrains.exposed.v1.jdbc.batchInsert
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import java.time.Instant
 
-private val changeJson = Json { encodeDefaults = true; ignoreUnknownKeys = true }
+private val changeJson = Json {
+    encodeDefaults = true
+    ignoreUnknownKeys = true
+}
 
 /** Appends [changes] to the change log and keeps the newest [keep] rows. */
 suspend fun BackendStore.recordPolicyChanges(changes: List<PolicyChange>, at: Instant, keep: Int = 10_000) {
@@ -21,7 +30,9 @@ suspend fun BackendStore.recordPolicyChanges(changes: List<PolicyChange>, at: In
         val count = PolicyChanges.id.count()
         val total = PolicyChanges.select(count).single()[count]
         if (total > keep) {
-            val cutoff = PolicyChanges.select(PolicyChanges.id).orderBy(PolicyChanges.id to SortOrder.DESC).limit(1).offset(keep.toLong()).single()[PolicyChanges.id]
+            val cutoff = PolicyChanges.select(
+                PolicyChanges.id,
+            ).orderBy(PolicyChanges.id to SortOrder.DESC).limit(1).offset(keep.toLong()).single()[PolicyChanges.id]
             PolicyChanges.deleteWhere { PolicyChanges.id lessEq cutoff }
         }
     }
@@ -30,6 +41,10 @@ suspend fun BackendStore.recordPolicyChanges(changes: List<PolicyChange>, at: In
 /** The newest [limit] changes, newest first. */
 suspend fun BackendStore.policyChanges(limit: Int): List<PolicyChangeEntry> = read {
     PolicyChanges.selectAll().orderBy(PolicyChanges.id to SortOrder.DESC).limit(limit).map {
-        PolicyChangeEntry(it[PolicyChanges.id], it[PolicyChanges.appliedAt], changeJson.decodeFromString(it[PolicyChanges.changeJson]))
+        PolicyChangeEntry(
+            it[PolicyChanges.id],
+            it[PolicyChanges.appliedAt],
+            changeJson.decodeFromString(it[PolicyChanges.changeJson]),
+        )
     }
 }

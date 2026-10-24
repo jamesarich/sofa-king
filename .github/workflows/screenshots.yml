@@ -1,0 +1,253 @@
+name: Screenshots
+
+# The documentation's screenshots, from every platform a runner can show headlessly: the web app in Chrome and the Linux
+# desktop app on a virtual display, the Android phone, tablet and TV apps in emulators, and the iPhone, iPad and Apple TV
+# apps in simulators, each against the server's installed distribution serving the showcase lineup (Blender's open movies
+# as live channels and libraries, app/scripts/showcase.py). Uploads one artifact per platform; copy the ones the docs use
+# into docs/images. By hand, and on changes to the scripts or this file.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "app/scripts/screenshots.py"
+      - "app/scripts/showcase.py"
+      - "app/scripts/fixture_server.py"
+      - ".github/workflows/screenshots.yml"
+      - ".github/actions/apt-install/**"
+
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  SOFAKING_CACHE_USERNAME: ${{ secrets.SOFAKING_CACHE_USERNAME }}
+  SOFAKING_CACHE_PASSWORD: ${{ secrets.SOFAKING_CACHE_PASSWORD }}
+
+jobs:
+  # The movies are cut once, here, and every other job restores the cut: six jobs reading the movies at once get turned
+  # away by their hosts.
+  showcase:
+    name: Showcase
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install FFmpeg
+        uses: ./.github/actions/apt-install
+        with:
+          packages: ffmpeg
+      - id: version
+        name: Read the showcase's version
+        working-directory: app/scripts
+        run: echo "version=$(python3 -c 'import showcase; print(showcase.VERSION)')" >> "$GITHUB_OUTPUT"
+      - id: cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/sofa-king-showcase
+          key: showcase-${{ steps.version.outputs.version }}
+          enableCrossOsArchive: true
+      - name: Cut the showcase
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: app/scripts
+        run: python3 -c 'import showcase; showcase.prepare()'
+
+  linux:
+    name: Web and desktop
+    needs: showcase
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      # FFmpeg cuts the showcase and the server relays through it; the desktop app plays through VLC, and Java takes keys
+      # only from a window a window manager has focused. Playwright drives the runner's own Chrome.
+      - name: Install the tools
+        uses: ./.github/actions/apt-install
+        with:
+          packages: ffmpeg vlc xvfb openbox xdotool imagemagick
+      - name: Install Playwright
+        run: pip install playwright
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/sofa-king-showcase
+          key: showcase-${{ needs.showcase.outputs.version }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
+      - name: Build the server distribution
+        working-directory: backend
+        run: ./gradlew --console=plain :server:installDist
+      - name: Build the web and desktop apps
+        working-directory: app
+        run: ./gradlew --console=plain :ui:wasmJsBrowserDistribution :ui:createDistributable
+      - name: Take the web screenshots
+        working-directory: app
+        run: python3 scripts/screenshots.py web --app ui/build/dist/wasmJs/productionExecutable --channel chrome --out build/screenshots/web
+      - name: Take the desktop screenshots
+        working-directory: app
+        run: python3 scripts/screenshots.py desktop --app "ui/build/compose/binaries/main/app/Sofa King/bin/Sofa King" --out build/screenshots/desktop
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: screenshots-linux
+          path: app/build/screenshots/
+          if-no-files-found: ignore
+
+  android:
+    name: Android (${{ matrix.kind }})
+    needs: showcase
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - kind: phone
+            target: google_apis
+            profile: pixel_7
+          - kind: tablet
+            target: google_apis
+            profile: pixel_tablet
+          - kind: tv
+            target: android-tv
+            profile: tv_1080p
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      - name: Install FFmpeg
+        uses: ./.github/actions/apt-install
+        with:
+          packages: ffmpeg
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/sofa-king-showcase
+          key: showcase-${{ needs.showcase.outputs.version }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
+      - name: Build the server distribution
+        working-directory: backend
+        run: ./gradlew --console=plain :server:installDist
+      - name: Build the debug app
+        working-directory: app
+        run: ./gradlew --console=plain :androidApp:assembleDebug
+      # The emulator needs hardware acceleration, which the runner gives only to the kvm group.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Take the screenshots
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 36
+          target: ${{ matrix.target }}
+          arch: x86_64
+          profile: ${{ matrix.profile }}
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: python3 app/scripts/screenshots.py android-${{ matrix.kind }} --app app/androidApp/build/outputs/apk/debug/androidApp-debug.apk --out app/build/screenshots/android-${{ matrix.kind }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: screenshots-android-${{ matrix.kind }}
+          path: app/build/screenshots/
+          if-no-files-found: ignore
+
+  apple:
+    name: iPhone, iPad and Apple TV
+    needs: showcase
+    runs-on: macos-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      - name: Read the Kotlin version
+        id: kotlin
+        working-directory: gradle
+        run: echo "version=$(sed -n 's/^kotlin = "\(.*\)"$/\1/p' libs.versions.toml)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ steps.kotlin.outputs.version }}
+          restore-keys: konan-${{ runner.os }}-
+      - name: Install the tools
+        run: brew install ffmpeg xcodegen
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/sofa-king-showcase
+          key: showcase-${{ needs.showcase.outputs.version }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
+      - name: Build the server distribution
+        working-directory: backend
+        run: ./gradlew --console=plain :server:installDist
+      - name: Build the iOS and Apple TV apps
+        working-directory: app
+        run: |
+          ./gradlew --console=plain :ui:linkDebugFrameworkIosSimulatorArm64 :core:linkDebugFrameworkTvosSimulatorArm64
+          (cd iosApp && xcodegen && xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath ../build/xcode CODE_SIGNING_ALLOWED=NO -quiet build)
+          (cd tvosApp && xcodegen && xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -configuration Debug \
+            -destination 'generic/platform=tvOS Simulator' -derivedDataPath ../build/xcode CODE_SIGNING_ALLOWED=NO -quiet build)
+      # One simulator at a time, booted for its run: the newest runtime's device whose name starts with each prefix, a
+      # Pro or a 4K before the others.
+      - name: Take the screenshots
+        working-directory: app
+        run: |
+          device() {
+            xcrun simctl list devices available --json | python3 -c 'import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          runtime = max((r for r in devices if any(d["name"].startswith(sys.argv[1]) for d in devices[r])), key=lambda r: [int(n) for n in r.rsplit("-", 2)[-2:]])
+          named = [d for d in devices[runtime] if d["name"].startswith(sys.argv[1])]
+          print(min(named, key=lambda d: ("Pro" not in d["name"], "4K" not in d["name"], "1080p" in d["name"], "Max" in d["name"], d["name"]))["udid"])' "$1"
+          }
+          shoot() {
+            udid=$(device "$1")
+            xcrun simctl boot "$udid"
+            xcrun simctl bootstatus "$udid" -b
+            python3 scripts/screenshots.py "$2" --name "$3" --app "$4" --out "build/screenshots/$3"
+            xcrun simctl shutdown "$udid"
+          }
+          products=build/xcode/Build/Products
+          shoot iPhone ios iphone "$products/Debug-iphonesimulator/SofaKing.app"
+          shoot iPad ios ipad "$products/Debug-iphonesimulator/SofaKing.app"
+          shoot "Apple TV" tvos tvos "$products/Debug-appletvsimulator/SofaKingTV.app"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: screenshots-apple
+          path: app/build/screenshots/
+          if-no-files-found: ignore

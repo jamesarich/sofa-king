@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking
 
-import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
@@ -21,12 +20,14 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldValue
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSuiteScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -36,11 +37,19 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.app_name
+import dev.jamesrich.sofaking.resources.nav_library
+import dev.jamesrich.sofaking.resources.nav_live
+import dev.jamesrich.sofaking.resources.nav_settings
+import dev.jamesrich.sofaking.resources.recordings_title
+import dev.jamesrich.sofaking.resources.refreshing
+import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
@@ -48,7 +57,9 @@ import dev.jamesrich.sofaking.ui.SofaLoaderLabel
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.tvFocus
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -62,7 +73,7 @@ internal fun TabPage(
     tabFocus: FocusRequester,
     settingsFocus: FocusRequester,
     headerReturn: HeaderReturn?,
-    onHeaderFocusRequested: () -> Unit,
+    onHeaderFocusRequest: () -> Unit,
     refreshing: Boolean,
     notice: String?,
     onSettings: () -> Unit,
@@ -72,6 +83,7 @@ internal fun TabPage(
 ) {
     val showsTabs = tv
     var pageFocused by remember { mutableStateOf(false) }
+    val currentOnHeaderFocusRequest by rememberUpdatedState(onHeaderFocusRequest)
     // Keyed on nothing, so clearing the flag does not cancel the request; it runs on each return here.
     LaunchedEffect(Unit) {
         val target = headerReturn
@@ -84,7 +96,7 @@ internal fun TabPage(
                 repeat(IDLE_FOCUS_FRAMES) { withFrameNanos { } }
                 if (!pageFocused) requestFocusWhenAttached(button)
             }
-            onHeaderFocusRequested()
+            currentOnHeaderFocusRequest()
         } else if (focusHeaderIfIdle) {
             // A page that takes no focus of its own (Library's home, Recordings with nothing recorded) leaves it on
             // its tab, in the header on a TV and on the rail or bar elsewhere, so something is focused from the start
@@ -117,9 +129,13 @@ internal fun TabPage(
 /** Frames a tab page gets to focus something of its own before its tab takes focus. */
 private const val IDLE_FOCUS_FRAMES = 3
 
-
 /** Which destination is open, whether Library and Recordings are offered, and what picking one does. */
-internal class TabsModel(val selected: Tab, val libraryShown: Boolean, val recordingsShown: Boolean, val onTab: (Tab) -> Unit)
+internal class TabsModel(
+    val selected: Tab,
+    val libraryShown: Boolean,
+    val recordingsShown: Boolean,
+    val onTab: (Tab) -> Unit,
+)
 
 /**
  * Live, Library, Recordings and Settings around [content]. A TV keeps them in the header, so the guide loses no
@@ -143,36 +159,35 @@ internal fun TopLevel(
         return
     }
     val type = NavigationSuiteScaffoldDefaults.navigationSuiteType(currentWindowAdaptiveInfoV2())
-    val state = rememberNavigationSuiteScaffoldState(if (shown) NavigationSuiteScaffoldValue.Visible else NavigationSuiteScaffoldValue.Hidden)
+    val state =
+        rememberNavigationSuiteScaffoldState(
+            if (shown) NavigationSuiteScaffoldValue.Visible else NavigationSuiteScaffoldValue.Hidden,
+        )
     LaunchedEffect(shown) { if (shown) state.show() else state.hide() }
     NavigationSuiteScaffold(
         navigationItems = {
-            NavigationSuiteItem(
-                selected = !settingsOpen && tabs.selected == Tab.LIVE,
-                onClick = { tabs.onTab(Tab.LIVE) },
-                modifier = if (!settingsOpen && tabs.selected == Tab.LIVE) Modifier.focusRequester(tabFocus) else Modifier,
-                icon = { Icon(SofaIcons.LiveTv, contentDescription = null) },
-                label = { Text(stringResource(Res.string.nav_live)) },
-                navigationSuiteType = type,
-            )
+            val selected = tabs.selected.takeUnless { settingsOpen }
+            TabItem(Tab.LIVE, SofaIcons.LiveTv, Res.string.nav_live, selected, tabs.onTab, tabFocus, type)
             if (tabs.libraryShown) {
-                NavigationSuiteItem(
-                    selected = !settingsOpen && tabs.selected == Tab.LIBRARY,
-                    onClick = { tabs.onTab(Tab.LIBRARY) },
-                    modifier = if (!settingsOpen && tabs.selected == Tab.LIBRARY) Modifier.focusRequester(tabFocus) else Modifier,
-                    icon = { Icon(SofaIcons.VideoLibrary, contentDescription = null) },
-                    label = { Text(stringResource(Res.string.nav_library)) },
-                    navigationSuiteType = type,
+                TabItem(
+                    Tab.LIBRARY,
+                    SofaIcons.VideoLibrary,
+                    Res.string.nav_library,
+                    selected,
+                    tabs.onTab,
+                    tabFocus,
+                    type,
                 )
             }
             if (tabs.recordingsShown) {
-                NavigationSuiteItem(
-                    selected = !settingsOpen && tabs.selected == Tab.RECORDINGS,
-                    onClick = { tabs.onTab(Tab.RECORDINGS) },
-                    modifier = if (!settingsOpen && tabs.selected == Tab.RECORDINGS) Modifier.focusRequester(tabFocus) else Modifier,
-                    icon = { Icon(SofaIcons.Recordings, contentDescription = null) },
-                    label = { Text(stringResource(Res.string.recordings_title)) },
-                    navigationSuiteType = type,
+                TabItem(
+                    Tab.RECORDINGS,
+                    SofaIcons.Recordings,
+                    Res.string.recordings_title,
+                    selected,
+                    tabs.onTab,
+                    tabFocus,
+                    type,
                 )
             }
             NavigationSuiteItem(
@@ -191,6 +206,28 @@ internal fun TopLevel(
     )
 }
 
+/** One tab in the navigation suite, selected when it is the [open] one, which then takes [tabFocus]. */
+@Composable
+private fun TabItem(
+    tab: Tab,
+    icon: ImageVector,
+    label: StringResource,
+    open: Tab?,
+    onTab: (Tab) -> Unit,
+    tabFocus: FocusRequester,
+    type: NavigationSuiteType,
+) {
+    val selected = open == tab
+    NavigationSuiteItem(
+        selected = selected,
+        onClick = { onTab(tab) },
+        modifier = if (selected) Modifier.focusRequester(tabFocus) else Modifier,
+        icon = { Icon(icon, contentDescription = null) },
+        label = { Text(stringResource(label)) },
+        navigationSuiteType = type,
+    )
+}
+
 /**
  * The TV's destinations as pills in the header: the open one filled, every one with the D-pad focus cue. Focus
  * coming up from the page lands on the open one ([tabFocus]).
@@ -203,8 +240,24 @@ private fun HeaderTabs(tabs: TabsModel, tabFocus: FocusRequester) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         HeaderTab(stringResource(Res.string.nav_live), tabs.selected == Tab.LIVE, tabFocus) { tabs.onTab(Tab.LIVE) }
-        if (tabs.libraryShown) HeaderTab(stringResource(Res.string.nav_library), tabs.selected == Tab.LIBRARY, tabFocus) { tabs.onTab(Tab.LIBRARY) }
-        if (tabs.recordingsShown) HeaderTab(stringResource(Res.string.recordings_title), tabs.selected == Tab.RECORDINGS, tabFocus) { tabs.onTab(Tab.RECORDINGS) }
+        if (tabs.libraryShown) {
+            HeaderTab(
+                stringResource(Res.string.nav_library),
+                tabs.selected == Tab.LIBRARY,
+                tabFocus,
+            ) {
+                tabs.onTab(Tab.LIBRARY)
+            }
+        }
+        if (tabs.recordingsShown) {
+            HeaderTab(
+                stringResource(Res.string.recordings_title),
+                tabs.selected == Tab.RECORDINGS,
+                tabFocus,
+            ) {
+                tabs.onTab(Tab.RECORDINGS)
+            }
+        }
     }
 }
 
@@ -214,23 +267,36 @@ private fun HeaderTab(label: String, selected: Boolean, tabFocus: FocusRequester
         onClick = onClick,
         shape = CircleShape,
         color = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
-        contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.semantics { this.selected = selected }.then(if (selected) Modifier.focusRequester(tabFocus) else Modifier).tvFocus(CircleShape),
+        contentColor = if (selected) {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        modifier = Modifier.semantics {
+            this.selected = selected
+        }.then(if (selected) Modifier.focusRequester(tabFocus) else Modifier).tvFocus(CircleShape),
     ) {
-        Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+        )
     }
 }
 
-/** App bar above the guide and the library, with the TV's [tabs], inside the overscan margins; the mark sits within the buttons' height so no grid row is lost. */
+/**
+ * App bar above the guide and the library, with the TV's [tabs], inside the overscan margins; the mark sits within the
+ * buttons' height so no grid row is lost.
+ */
 @Composable
 private fun Header(
     refreshing: Boolean,
     notice: String?,
     onSettings: (() -> Unit)?,
     settingsFocus: FocusRequester,
+    modifier: Modifier = Modifier,
     tabs: TabsModel? = null,
     tabFocus: FocusRequester = remember { FocusRequester() },
-    modifier: Modifier = Modifier,
 ) {
     Row(
         modifier.fillMaxWidth().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
@@ -258,7 +324,12 @@ private fun Header(
             // The last text is kept so the notice reads while it fades out.
             var lastNotice by remember { mutableStateOf("") }
             LaunchedEffect(notice) { if (notice != null) lastNotice = notice }
-            AnimatedVisibility(visible = notice != null, enter = PopIn, exit = PopOut, modifier = Modifier.weight(1f, fill = false)) {
+            AnimatedVisibility(
+                visible = notice != null,
+                enter = PopIn,
+                exit = PopOut,
+                modifier = Modifier.weight(1f, fill = false),
+            ) {
                 Text(
                     notice ?: lastNotice,
                     style = MaterialTheme.typography.labelLarge,

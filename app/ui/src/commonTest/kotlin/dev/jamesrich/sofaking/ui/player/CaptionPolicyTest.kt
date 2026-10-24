@@ -1,12 +1,12 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.data.AppSettings
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNull
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.test.Test
 
 class CaptionPolicyTest {
 

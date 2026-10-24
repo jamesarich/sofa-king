@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.dvr
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.SeasonEpisode
 import dev.jamesrich.sofaking.backend.catalog.seasonEpisode
+import dev.jamesrich.sofaking.backend.library.yearOf
 import java.nio.file.Path
 import java.time.Instant
 import java.time.LocalDate
@@ -25,6 +26,9 @@ data class RecordingTitle(
         /** The guide calls a program a movie through one of its categories. */
         private val MOVIE_CATEGORIES = setOf("movie", "movies", "film", "feature film")
 
+        /** The years a guide date may name, from the first motion pictures on. */
+        private val YEARS = 1870..9999
+
         fun of(program: GuideProgram): RecordingTitle {
             val movie = program.categories.any { it.trim().lowercase() in MOVIE_CATEGORIES }
             return RecordingTitle(
@@ -32,7 +36,7 @@ data class RecordingTitle(
                 episodeTitle = program.subTitle,
                 numbering = if (movie) null else seasonEpisode(program.episodeNumbers),
                 movie = movie,
-                year = program.date?.take(4)?.toIntOrNull()?.takeIf { it in 1870..9999 },
+                year = yearOf(program.date)?.takeIf { it in YEARS },
             )
         }
     }
@@ -42,7 +46,8 @@ data class RecordingTitle(
  * Where recordings go under the recordings folder, in the layout Plex, Jellyfin, Emby and Kodi scan without help:
  *
  * - an episode the guide numbers by season and episode: `TV/Show/Season 01/Show - S01E02 - Episode.ts`
- * - one it does not (an episode number alone, news, sports, talk): `TV/Show/Season 2026/Show - 2026-10-17 - Episode.ts`, the date-based form
+ * - one it does not (an episode number alone, news, sports, talk): `TV/Show/Season 2026/Show - 2026-10-17 -
+ * Episode.ts`, the date-based form
  * - a movie: `Movies/Title (Year)/Title (Year).ts`
  *
  * Names keep to characters every file system and SMB share accepts. A recording is written under the hidden
@@ -65,7 +70,9 @@ object RecordingLayout {
     fun path(title: RecordingTitle, start: Instant, zone: ZoneId, taken: (Path) -> Boolean = { false }): Path {
         val local = start.atZone(zone)
         val (folder, name) = folderAndName(title, local.toLocalDate())
-        val candidates = sequenceOf(name, "$name (${TIME.format(local)})") + generateSequence(2) { it + 1 }.map { "$name (${TIME.format(local)}) ($it)" }
+        val candidates =
+            sequenceOf(name, "$name (${TIME.format(local)})") +
+                generateSequence(2) { it + 1 }.map { "$name (${TIME.format(local)}) ($it)" }
         return candidates.map { folder.resolve("$it.$EXTENSION") }.first { !taken(it) }
     }
 
@@ -74,7 +81,9 @@ object RecordingLayout {
 
     private fun folderAndName(title: RecordingTitle, date: LocalDate): Pair<Path, String> {
         val show = clean(title.show).ifEmpty { "Unknown" }
-        val episode = title.episodeTitle?.let(::clean)?.takeIf { it.isNotEmpty() && !it.equals(show, ignoreCase = true) }
+        val episode = title.episodeTitle?.let(::clean)?.takeIf {
+            it.isNotEmpty() && !it.equals(show, ignoreCase = true)
+        }
         if (title.movie) {
             val named = title.year?.let { "$show ($it)" } ?: show
             return Path.of(MOVIES, named) to named
@@ -82,14 +91,21 @@ object RecordingLayout {
         val season = title.numbering?.season
         val number = title.numbering?.episode
         if (season != null && number != null) {
-            val name = listOfNotNull(show, "S%02dE%02d".format(Locale.ROOT, season, number), episode).joinToString(" - ")
+            val name = listOfNotNull(
+                show,
+                "S%02dE%02d".format(Locale.ROOT, season, number),
+                episode,
+            ).joinToString(" - ")
             return Path.of(TV, show, "Season %02d".format(Locale.ROOT, season)) to name
         }
         val name = listOfNotNull(show, DATE.format(date), episode).joinToString(" - ")
         return Path.of(TV, show, "Season ${date.year}") to name
     }
 
-    /** [text] without path separators (`Title: Part` reads `Title - Part`), characters Windows and SMB refuse, control characters, or trailing dots. */
+    /**
+     * [text] without path separators (`Title: Part` reads `Title - Part`), characters Windows and SMB refuse,
+     * control characters, or trailing dots.
+     */
     internal fun clean(text: String): String {
         val replaced = text.replace(": ", " - ").map { c ->
             when {

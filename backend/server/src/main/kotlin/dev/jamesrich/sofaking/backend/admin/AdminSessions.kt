@@ -5,6 +5,8 @@ import dev.jamesrich.sofaking.backend.store.StoredAdminSession
 import dev.jamesrich.sofaking.backend.store.adminSessions
 import dev.jamesrich.sofaking.backend.store.deleteAdminSession
 import dev.jamesrich.sofaking.backend.store.saveAdminSession
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Clock
@@ -15,8 +17,6 @@ import java.util.HexFormat
 import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /** One signed-in browser: [key] is the HMAC of the ID its cookie holds, [csrf] goes in every form it posts. */
 class AdminSession(internal val key: String, val csrf: String, val expiresAt: Instant) {
@@ -37,12 +37,13 @@ class AdminSessions(
     private val clock: Clock,
     private val secret: String?,
     private val store: BackendStore? = null,
-    private val lifetime: Duration = Duration.ofHours(12),
+    private val lifetime: Duration = LIFETIME,
     private val limit: Int = 32,
 ) {
     private val random = SecureRandom()
     private val sessions = ConcurrentHashMap<String, AdminSession>()
     private val loaded = Mutex()
+
     @Volatile private var ready = store == null
 
     /** Reads the stored sessions once, before the first lookup. */
@@ -50,7 +51,11 @@ class AdminSessions(
         if (ready) return
         loaded.withLock {
             if (ready) return
-            for (stored in store!!.adminSessions(clock.instant())) sessions.putIfAbsent(stored.key, AdminSession(stored.key, stored.csrf, stored.expiresAt))
+            for (stored in store!!.adminSessions(
+                clock.instant(),
+            )) {
+                sessions.putIfAbsent(stored.key, AdminSession(stored.key, stored.csrf, stored.expiresAt))
+            }
             ready = true
         }
     }
@@ -72,9 +77,9 @@ class AdminSessions(
         if (id.isNullOrEmpty() || secret == null) return null
         load()
         val session = sessions[hash(id)] ?: return null
-        if (session.expiresAt.isAfter(clock.instant())) return session
-        remove(session.key)
-        return null
+        val live = session.expiresAt.isAfter(clock.instant())
+        if (!live) remove(session.key)
+        return session.takeIf { live }
     }
 
     /** Ends the session whose cookie holds [id]. */
@@ -91,7 +96,9 @@ class AdminSessions(
         store?.deleteAdminSession(key)
     }
 
-    private fun token(): String = ByteArray(32).also(random::nextBytes).let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
+    private fun token(): String = ByteArray(TOKEN_BYTES).also(random::nextBytes).let {
+        Base64.getUrlEncoder().withoutPadding().encodeToString(it)
+    }
 
     private fun hash(id: String): String {
         val mac = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(secret!!.toByteArray(), "HmacSHA256")) }
@@ -105,3 +112,7 @@ internal fun sameSecret(presented: String?, expected: String): Boolean {
     val digest = { value: String -> MessageDigest.getInstance("SHA-256").digest(value.toByteArray()) }
     return MessageDigest.isEqual(digest(presented), digest(expected))
 }
+
+/** How long a sign-in lasts, and the random bytes in a session token. */
+private val LIFETIME: Duration = Duration.ofHours(12)
+private const val TOKEN_BYTES = 32

@@ -9,7 +9,8 @@ import kotlin.test.assertTrue
 
 class LayoutProfileTest {
     /** The size class of a window [widthDp] by [heightDp], as the adaptive library computes it. */
-    private fun window(widthDp: Int, heightDp: Int) = WindowSizeClass.BREAKPOINTS_V2.computeWindowSizeClass(widthDp, heightDp)
+    private fun window(widthDp: Int, heightDp: Int) =
+        WindowSizeClass.BREAKPOINTS_V2.computeWindowSizeClass(widthDp, heightDp)
 
     @Test
     fun `a TV keeps its layout at any window size`() {

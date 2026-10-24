@@ -15,9 +15,14 @@ import kotlinx.coroutines.flow.first
 
 /**
  * The app's objects over a platform's [storage]: one settings store per file and one connection to the server it
- * names, shared by every ViewModel. They live as long as the process; the ViewModels, per screen host, read through them.
+ * names, shared by every ViewModel. They live as long as the process; the ViewModels, per
+ * screen host, read through them.
  */
-internal class AppGraph(private val storage: AppStorage, private val discovery: ServerDiscovery, val watchNext: WatchNext) {
+internal class AppGraph(
+    private val storage: AppStorage,
+    private val discovery: ServerDiscovery,
+    private val watchNext: WatchNext,
+) {
     private val settings: SettingsStore = DataStoreSettingsStore(storage.settings)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -33,9 +38,16 @@ internal class AppGraph(private val storage: AppStorage, private val discovery: 
         )
     }
 
-    fun lineupViewModel(): LineupViewModel = LineupViewModel(store = settings, lineupCache = storage.lineupCache, connection = connection, client = storage.client, discovery = discovery)
+    fun lineupViewModel(): LineupViewModel = LineupViewModel(
+        store = settings,
+        lineupCache = storage.lineupCache,
+        connection = connection,
+        client = storage.client,
+        discovery = discovery,
+    )
 
-    fun libraryViewModel(): LibraryViewModel = LibraryViewModel(connection.api, connection.sessions)
+    fun libraryViewModel(): LibraryViewModel =
+        LibraryViewModel(connection.api, connection.sessions, watchNext = watchNext)
 
     /** The Recordings tab reads the same list as the guide's record marks, from the connection. */
     fun recordingsViewModel(): RecordingsViewModel = RecordingsViewModel(connection.recordings, connection.sessions)
@@ -65,7 +77,11 @@ internal val appGraph: AppGraph
  * finds servers on the network for Settings, where the platform can browse; [watchNext] is the platform's row of what
  * to watch next outside the app, where it has one.
  */
-fun initSofaKing(storage: AppStorage, discovery: ServerDiscovery = ServerDiscovery.None, watchNext: WatchNext = WatchNext.None) {
+fun initSofaKing(
+    storage: AppStorage,
+    discovery: ServerDiscovery = ServerDiscovery.None,
+    watchNext: WatchNext = WatchNext.None,
+) {
     check(graph == null) { "initSofaKing runs once per process" }
     graph = AppGraph(storage, discovery, watchNext)
 }

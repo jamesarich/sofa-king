@@ -1,12 +1,12 @@
 package dev.jamesrich.sofaking.ui.player
 
-import dev.jamesrich.sofaking.data.AdBreakNow
 import android.content.Context
 import androidx.annotation.OptIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -27,6 +27,7 @@ import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.ui.compose.ContentFrame
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
+import dev.jamesrich.sofaking.data.AdBreakNow
 import dev.jamesrich.sofaking.data.DecoderPreference
 import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackProfile
@@ -39,7 +40,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.atomic.AtomicInteger
-import androidx.compose.ui.draw.clipToBounds
+import kotlin.time.Duration.Companion.microseconds
 
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
@@ -64,7 +65,8 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
     val exo: ExoPlayer = run {
         val extractors = DefaultExtractorsFactory()
             .setTsExtractorFlags(
-                DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS,
+                DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
+                    DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS,
             )
             .setTsSubtitleFormats(captionFormats())
         // A decoder that fails to start hands over to the next one the selector lists.
@@ -252,8 +254,8 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
         adMarks.add(
             tags = playlist.tags,
             mediaSequence = playlist.mediaSequence,
-            startsMs = segments.map { windowStartMs + it.relativeStartTimeUs / 1_000 },
-            durationsMs = segments.map { it.durationUs / 1_000 },
+            startsMs = segments.map { windowStartMs + it.relativeStartTimeUs.microseconds.inWholeMilliseconds },
+            durationsMs = segments.map { it.durationUs.microseconds.inWholeMilliseconds },
         )
         return adMarks.at(windowStartMs + exo.currentPosition)
     }
@@ -294,7 +296,10 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
     /** Made for the first session; it listens to [exo] until the player is released, so later sessions reuse it. */
     private val sessionPlayer by lazy { LivePlayerWrapper(this) }
 
-    /** Live video through media3-ui-compose: `ContentFrame` sizes a SurfaceView to the picture and shows [shutter] after each reset. */
+    /**
+     * Live video through media3-ui-compose: `ContentFrame` sizes a SurfaceView to the picture and
+     * shows [shutter] after each reset.
+     */
     @Composable
     override fun Video(modifier: Modifier, zoom: VideoZoom, shutter: @Composable () -> Unit) {
         ContentFrame(

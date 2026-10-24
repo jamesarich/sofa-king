@@ -60,8 +60,9 @@ jobs:
           gpg --batch --yes --clearsign -o InRelease Release
           gpg --batch --yes --armor --detach-sign -o Release.gpg Release
           gpg --export > sofa-king-archive-keyring.gpg
-      # The notes cover the commits since the release being replaced, which was created at its commit. Without that
-      # release, or when its commit is not behind this one, they cover the last 20 commits.
+      # The notes add a section for the commits since the release being replaced, which was created at its commit, above
+      # that release's own sections. Without that release, or when its commit is not behind this one, the new section
+      # covers the last 20 commits.
       - name: Find the notes' range
         id: range
         env:
@@ -69,8 +70,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           previous=$(gh release view snapshot --json targetCommitish --jq .targetCommitish 2>/dev/null || true)
+          gh release view snapshot --json body --jq .body 2>/dev/null | tr -d '\r' > "$RUNNER_TEMP/previous.md" || true
           if [ "$previous" = "$GITHUB_SHA" ]; then
-            gh release view snapshot --json body --jq .body > "$RUNNER_TEMP/notes.md"
+            cp "$RUNNER_TEMP/previous.md" "$RUNNER_TEMP/notes.md"
             echo "reuse=true" >> "$GITHUB_OUTPUT"
           elif [ -n "$previous" ] && git merge-base --is-ancestor "$previous" HEAD 2>/dev/null; then
             echo "range=$previous..HEAD" >> "$GITHUB_OUTPUT"
@@ -78,7 +80,7 @@ jobs:
             echo "range=HEAD~20..HEAD" >> "$GITHUB_OUTPUT"
           fi
       # A rerun of a published commit keeps that release's notes.
-      - name: Write the notes
+      - name: Write the changes
         if: steps.range.outputs.reuse != 'true'
         uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4
         with:
@@ -86,19 +88,22 @@ jobs:
           args: --strip all ${{ steps.range.outputs.range }}
         env:
           OUTPUT: ${{ runner.temp }}/changes.md
-      - name: Add the build line
+      # The build line, this snapshot's section when it has changes, then the previous release's sections up to 20 in
+      # all, so the app's update check can list every change since the build a device runs.
+      - name: Write the notes
         if: steps.range.outputs.reuse != 'true'
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          VERSION: ${{ inputs.version }}
         run: |
           {
-            if [ -s "$RUNNER_TEMP/changes.md" ]; then
-              cat "$RUNNER_TEMP/changes.md"
-            else
-              echo "No new features or fixes since the previous snapshot."
-            fi
-            echo
             echo "Built from ${GITHUB_SHA} by ${RUN_URL}. Unsigned desktop packages; the APK uses a debug key."
+            if [ -s "$RUNNER_TEMP/changes.md" ]; then
+              printf '\n## %s\n' "$VERSION"
+              cat "$RUNNER_TEMP/changes.md"
+              echo
+            fi
+            awk '/^## /{n++} n>=1 && n<=19' "$RUNNER_TEMP/previous.md"
           } > "$RUNNER_TEMP/notes.md"
       - name: Replace the snapshot release
         env:

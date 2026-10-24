@@ -20,31 +20,44 @@ class BreakWatch internal constructor(private val timeSource: TimeSource) {
     private var stalling = false
     private var frozen: AdBreakNow? = null
 
-    val over: Boolean get() = if (stalling && frozen != null) false else seen.let { it == null || it.elapsedNow() >= GAP }
+    val over: Boolean get() = if (stalling && frozen != null) {
+        false
+    } else {
+        seen.let { it == null || it.elapsedNow() >= GAP }
+    }
 
     /** The break to show after [found], the latest reading, or null when there is none. */
     fun shown(found: AdBreakNow?): AdBreakNow? {
         if (stalling) {
             // The picture moves again: the held break's countdown and gap go on from where the stall stopped them.
             stalling = false
-            frozen?.let { held ->
-                seen = timeSource.markNow()
-                ends = held.remainingMs?.let { timeSource.markNow() + it.milliseconds }
-            }
+            frozen?.let(::see)
             frozen = null
         }
-        if (found != null) {
-            seen = timeSource.markNow()
-            ends = found.remainingMs?.let { timeSource.markNow() + it.milliseconds }
-            return found
+        return when {
+            found != null -> found.also(::see)
+
+            over -> {
+                seen = null
+                ends = null
+                null
+            }
+
+            else -> left(ends)
         }
-        if (over) {
-            seen = null
-            ends = null
-            return null
-        }
-        val ends = ends ?: return AdBreakNow(remainingMs = null)
-        return (-ends.elapsedNow()).inWholeMilliseconds.takeIf { it > 0 }?.let { AdBreakNow(it) }
+    }
+
+    /** Marks [found] as on screen now, its countdown running from here. */
+    private fun see(found: AdBreakNow) {
+        seen = timeSource.markNow()
+        ends = found.remainingMs?.let { timeSource.markNow() + it.milliseconds }
+    }
+
+    /** The break still up until [ends], or one with no known end when that is null. */
+    private fun left(ends: TimeMark?): AdBreakNow? = if (ends == null) {
+        AdBreakNow(remainingMs = null)
+    } else {
+        (-ends.elapsedNow()).inWholeMilliseconds.takeIf { it > 0 }?.let { AdBreakNow(it) }
     }
 
     /**

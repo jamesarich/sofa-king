@@ -245,8 +245,7 @@ struct VodPlayerView: View {
         ((error as NSError).userInfo["KotlinException"] as? KotlinThrowable).map { model.core.isConverterBusy(error: $0) } ?? false
     }
 
-    /// Plays `s`, titled for the transport bar; once it is ready a stream that starts before the asked-for point (or
-    /// `startMs`) seeks there.
+    /// Plays `s`, titled for the transport bar; once it is ready it seeks to the asked-for point (or `startMs`).
     private func load(_ s: PlaybackStream, at startMs: Int64? = nil) {
         guard let url = URL(string: s.url) else { return }
         let start = startMs ?? s.startAtMs
@@ -260,8 +259,10 @@ struct VodPlayerView: View {
             return AVInterstitialTimeRange(timeRange: CMTimeRange(start: start, duration: CMTime(value: b.endMs - b.startMs, timescale: 1000)))
         }
         lastPositionMs = start
-        let seekMs = start - s.offsetMs
-        var sought = seekMs <= 0
+        // A stream the server is still converting is an HLS event playlist, which AVPlayer joins at its live edge, so
+        // even a start at the stream's beginning seeks there.
+        let seekMs = max(start - s.offsetMs, 0)
+        var sought = false
         itemObservers = [
             item.publisher(for: \.status).filter { $0 == .readyToPlay }.sink { _ in
                 failure = nil
@@ -314,7 +315,7 @@ struct VodPlayerView: View {
         }
         switch request.source {
         case .item(let item): model.core.itemProgress(itemId: item.id, positionMs: positionMs, durationMs: durationMs)
-        case .recording(let recording): model.core.recordingProgress(recordingId: recording.id, positionMs: positionMs, durationMs: durationMs)
+        case .recording(let recording): model.core.recordingProgress(recordingId: recording.id, positionMs: positionMs)
         }
     }
 

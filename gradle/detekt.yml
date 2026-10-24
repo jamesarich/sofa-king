@@ -1,0 +1,34 @@
+# detekt's settings for every Kotlin project, on top of its defaults (the sofaking.lint convention in build-logic). Only
+# what differs from the defaults is here; each change says why.
+
+# A build whose code is not yet refactored to some of the size and complexity rules turns them off in its own
+# gradle/detekt-pending/<build>.yml, which the pull request that does the refactoring shrinks; there is no baseline.
+
+# The defaults skip test code for some rules by the usual test source set names. This repository also has androidHostTest,
+# fileTest, tvosTest and screenshotTest, so every source set whose name ends in Test is skipped instead.
+complexity:
+  TooManyFunctions:
+    excludes: &tests ['**/*Test/**', '**/test/**']
+    # detekt's Compose guidance: previews add no complexity.
+    ignoreAnnotatedFunctions: ['Preview']
+  CyclomaticComplexMethod:
+    # A when that maps each case to one value is a table, not branching logic.
+    ignoreSimpleWhenEntries: true
+
+naming:
+  FunctionNaming:
+    excludes: *tests
+    # detekt's Compose guidance: composables that emit UI are named like types.
+    ignoreAnnotated: ['Composable']
+
+style:
+  MagicNumber:
+    excludes: ['**/*Test/**', '**/test/**', '**/*.kts'] # the tests, as above, and the Gradle scripts
+  ReturnCount:
+    # A guard clause (`?: return`, `if (...) return` at the top) is the idiomatic Kotlin early exit, not extra exits.
+    excludeGuardClauses: true
+  ThrowsCount:
+    excludeGuardClauses: true
+  UnusedPrivateFunction:
+    # detekt's Compose guidance: previews are used by the IDE and the screenshot tests, not by code.
+    ignoreAnnotated: ['Preview']

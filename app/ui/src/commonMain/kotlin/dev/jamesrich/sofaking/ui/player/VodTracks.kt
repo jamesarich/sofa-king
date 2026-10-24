@@ -28,7 +28,14 @@ import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.SubtitleRaise
 import dev.jamesrich.sofaking.data.Subtitles
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.stream_card_audio
+import dev.jamesrich.sofaking.resources.vod_tracks_earlier
+import dev.jamesrich.sofaking.resources.vod_tracks_later
+import dev.jamesrich.sofaking.resources.vod_tracks_subtitles
+import dev.jamesrich.sofaking.resources.vod_tracks_subtitles_off
+import dev.jamesrich.sofaking.resources.vod_tracks_timing
+import dev.jamesrich.sofaking.resources.vod_tracks_title
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
@@ -86,7 +93,12 @@ internal sealed interface TracksFocus {
  * so the card opens on what is playing.
  */
 internal fun tracksFocus(tracks: VodTracks, audio: Int?, subtitle: Int?): TracksFocus = when {
-    tracks.audio.size > 1 -> TracksFocus.Audio(audio?.takeIf { a -> tracks.audio.any { it.index == a } } ?: tracks.audio.first().index)
+    tracks.audio.size > 1 -> TracksFocus.Audio(
+        audio?.takeIf { a ->
+            tracks.audio.any { it.index == a }
+        } ?: tracks.audio.first().index,
+    )
+
     else -> TracksFocus.Subtitle(subtitle?.takeIf { s -> tracks.subtitles.any { it.index == s } })
 }
 
@@ -136,15 +148,29 @@ internal fun BoxScope.TracksCard(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(stringResource(Res.string.vod_tracks_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        Text(
+            stringResource(Res.string.vod_tracks_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
         if (tracks.audio.size > 1) {
-            Text(stringResource(Res.string.stream_card_audio), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(Res.string.stream_card_audio),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             tracks.audio.forEach { track ->
-                TrackRow(track.label, track.index == audio, onClick = { onAudio(track.index) }, modifier = focusFor(TracksFocus.Audio(track.index)))
+                TrackRow(track.label, track.index == audio, onClick = {
+                    onAudio(track.index)
+                }, modifier = focusFor(TracksFocus.Audio(track.index)))
             }
         }
         if (tracks.subtitles.isNotEmpty()) {
-            Text(stringResource(Res.string.vod_tracks_subtitles), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(Res.string.vod_tracks_subtitles),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             TrackRow(
                 stringResource(Res.string.vod_tracks_subtitles_off),
                 subtitle == null,
@@ -152,16 +178,39 @@ internal fun BoxScope.TracksCard(
                 modifier = focusFor(TracksFocus.Subtitle(null)),
             )
             tracks.subtitles.forEach { track ->
-                TrackRow(track.label, track.index == subtitle, onClick = { onSubtitle(track.index) }, modifier = focusFor(TracksFocus.Subtitle(track.index)))
+                TrackRow(track.label, track.index == subtitle, onClick = {
+                    onSubtitle(track.index)
+                }, modifier = focusFor(TracksFocus.Subtitle(track.index)))
             }
         }
         if (offsetMs != null) {
-            Text(stringResource(Res.string.vod_tracks_timing), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                SofaButton(onClick = { onOffset(stepSubtitleOffset(offsetMs, -1)) }) { Text(stringResource(Res.string.vod_tracks_earlier)) }
-                Text(subtitleOffsetText(offsetMs), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                SofaButton(onClick = { onOffset(stepSubtitleOffset(offsetMs, 1)) }) { Text(stringResource(Res.string.vod_tracks_later)) }
-            }
+            SubtitleTiming(offsetMs, onOffset)
+        }
+    }
+}
+
+/** The subtitle timing: Earlier and Later step [offsetMs] through [onOffset], with the offset between them. */
+@Composable
+private fun SubtitleTiming(offsetMs: Long, onOffset: (Long) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(Res.string.vod_tracks_timing),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            SofaButton(onClick = {
+                onOffset(stepSubtitleOffset(offsetMs, -1))
+            }) { Text(stringResource(Res.string.vod_tracks_earlier)) }
+            Text(
+                subtitleOffsetText(offsetMs),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center,
+            )
+            SofaButton(onClick = {
+                onOffset(stepSubtitleOffset(offsetMs, 1))
+            }) { Text(stringResource(Res.string.vod_tracks_later)) }
         }
     }
 }
@@ -178,13 +227,14 @@ internal fun BoxScope.SubtitleText(text: String, bottom: Dp, look: SubtitleLook 
         lineHeight = base.lineHeight * look.size.scale,
         shadow = if (look.box) null else SUBTITLE_SHADOW,
     )
+    val surface = if (look.box) Modifier.background(SofaOverlayScrim, OverlayShape) else Modifier
     Box(Modifier.align(Alignment.BottomCenter).screenPadding().padding(bottom = bottom)) {
         Text(
             text,
             style = style,
             color = if (look.box) MaterialTheme.colorScheme.onSurface else Color.White,
             textAlign = TextAlign.Center,
-            modifier = (if (look.box) Modifier.background(SofaOverlayScrim, OverlayShape) else Modifier).padding(horizontal = 16.dp, vertical = 6.dp),
+            modifier = surface.padding(horizontal = 16.dp, vertical = 6.dp),
         )
     }
 }

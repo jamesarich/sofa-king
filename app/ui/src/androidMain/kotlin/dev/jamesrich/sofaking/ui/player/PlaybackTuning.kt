@@ -4,6 +4,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import dev.jamesrich.sofaking.data.BufferPreference
 import kotlin.concurrent.Volatile
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * The buffer and decoder choices as the playback thread reads them: the codec selector and the load control are
@@ -26,12 +27,14 @@ class PlaybackTuning {
     }
 
     /** How much must be buffered before playback starts, on a fresh start or after a stall. */
-    fun bufferNeededUs(rebuffering: Boolean): Long = (if (rebuffering) rebufferMs else startBufferMs) * 1_000L
+    fun bufferNeededUs(rebuffering: Boolean): Long =
+        (if (rebuffering) rebufferMs else startBufferMs).milliseconds.inWholeMicroseconds
 
     /** Media3's own decoder order, or the software decoders first for the stream a hardware decoder cannot play. */
     @UnstableApi
-    val codecSelector: MediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
-        val selector = if (preferSoftware) MediaCodecSelector.PREFER_SOFTWARE else MediaCodecSelector.DEFAULT
-        selector.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
-    }
+    val codecSelector: MediaCodecSelector =
+        MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+            val selector = if (preferSoftware) MediaCodecSelector.PREFER_SOFTWARE else MediaCodecSelector.DEFAULT
+            selector.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
+        }
 }

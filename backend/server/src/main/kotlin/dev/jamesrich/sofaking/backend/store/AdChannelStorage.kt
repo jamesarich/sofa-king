@@ -1,25 +1,12 @@
 package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.playback.AdCensus
-import java.time.Instant
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
-
-/** A channel's row of [AdChannels]. */
-data class AdChannelRecord(
-    val channelId: String,
-    val providerId: String,
-    val watchedMs: Long,
-    val lastWatchedAt: Instant?,
-    val breaks: Int,
-    val learned: Int,
-    val markedAt: Instant?,
-    val listenedMs: Long,
-    val lastListenedAt: Instant?,
-)
+import java.time.Instant
 
 /** Every channel the sessions or the listener have played. */
 suspend fun BackendStore.adChannels(): List<AdChannelRecord> = read { AdChannels.selectAll().map { it.adChannel() } }
@@ -28,7 +15,13 @@ suspend fun BackendStore.adChannels(): List<AdChannelRecord> = read { AdChannels
  * Adds what one play of [channelId] on [providerId] found, ending at [now], to the channel's totals: a viewer's when
  * [listened] is false, the listener's when it is true.
  */
-suspend fun BackendStore.recordAdChannel(channelId: String, providerId: String, census: AdCensus, now: Instant, listened: Boolean = false) = query {
+suspend fun BackendStore.recordAdChannel(
+    channelId: String,
+    providerId: String,
+    census: AdCensus,
+    now: Instant,
+    listened: Boolean = false,
+) = query {
     val current = AdChannels.selectAll().where { AdChannels.channelId eq channelId }.singleOrNull()?.adChannel()
     val markedAt = if (census.marked) now.toString() else current?.markedAt?.toString()
     if (current == null) {
@@ -62,7 +55,14 @@ suspend fun BackendStore.recordAdChannel(channelId: String, providerId: String, 
 }
 
 private fun ResultRow.adChannel() = AdChannelRecord(
-    this[AdChannels.channelId], this[AdChannels.providerId], this[AdChannels.watchedMs], this[AdChannels.lastWatchedAt]?.let(Instant::parse),
-    this[AdChannels.breaks], this[AdChannels.learned], this[AdChannels.markedAt]?.let(Instant::parse), this[AdChannels.listenedMs],
+    this[AdChannels.channelId], this[AdChannels.providerId], this[AdChannels.watchedMs],
+    this[AdChannels.lastWatchedAt]?.let(
+        Instant::parse,
+    ),
+    this[AdChannels.breaks], this[AdChannels.learned],
+    this[AdChannels.markedAt]?.let(
+        Instant::parse,
+    ),
+    this[AdChannels.listenedMs],
     this[AdChannels.lastListenedAt]?.let(Instant::parse),
 )

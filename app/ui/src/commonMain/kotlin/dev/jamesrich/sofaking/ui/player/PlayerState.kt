@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -146,7 +147,7 @@ internal class PlayerState(
     var streamCardActivity by mutableIntStateOf(0)
         private set
     var streamInfo by mutableStateOf(StreamInfo())
-    var streamBufferedMs by mutableStateOf(0L)
+    var streamBufferedMs by mutableLongStateOf(0L)
 
     var pauseState by mutableStateOf<PauseStatus?>(null)
     var liveToast by mutableStateOf(false)
@@ -187,7 +188,10 @@ internal class PlayerState(
         miniGuideOpen = false
     }
 
-    /** Moves [step] channels through the lineup, wrapping at its ends; positive is down the guide, as [PlayerAction.zapStep] gives it. */
+    /**
+     * Moves [step] channels through the lineup, wrapping at its ends; positive is down the guide, as
+     * [PlayerAction.zapStep] gives it.
+     */
     fun zapStep(step: Int) {
         val size = channels.size
         if (size > 0) zapTo((index + step).mod(size))
@@ -215,10 +219,12 @@ internal class PlayerState(
         val outside = if (target == null) pending.indexIn(lineupChannels)?.let { lineupChannels[it] } else null
         when {
             target != null -> zapTo(target)
+
             outside != null -> {
                 pendingNumber = outside.guideId
                 widened = true
             }
+
             else -> numbers.missed(pending.digits)
         }
     }
@@ -273,14 +279,21 @@ internal class PlayerState(
     /** Captions were switched; the toast offers the timing for a few seconds where the engine applies one. */
     fun captionsToggled(enabled: Boolean, channelHasText: Boolean, leadSupported: Boolean, timingMs: Int) {
         captionsOn = enabled
-        captionToast = CaptionToast(CaptionPolicy.toggleOutcome(enabled, channelHasText), timingMs.takeIf { enabled && leadSupported })
+        captionToast =
+            CaptionToast(
+                CaptionPolicy.toggleOutcome(enabled, channelHasText),
+                timingMs.takeIf { enabled && leadSupported },
+            )
     }
 
     /** The caption timing of the channel on screen, as adjusted here or else as [stored] keeps it. */
     fun captionAdvance(stored: (Channel) -> Int): Int =
         currentChannel?.let { advanceOverrides[it.guideId] ?: stored(it) } ?: 0
 
-    /** One step earlier (Right) or later (Left) from [advance] for this channel; the toast restarts its window at the new timing. */
+    /**
+     * One step earlier (Right) or later (Left) from [advance] for this channel; the toast
+     * restarts its window at the new timing.
+     */
     fun adjustCaptionTiming(direction: Int, advance: Int, onChanged: (Channel, Int) -> Unit) {
         val channel = currentChannel ?: return
         val toast = captionToast ?: return
@@ -310,7 +323,9 @@ internal class PlayerState(
         streamCardActivity++
     }
 
-    /** A new info bar shows: it carries the key legend for the first few bars; returns the count to save when it does. */
+    /**
+     * A new info bar shows: it carries the key legend for the first few bars; returns the count to save when it does.
+     */
     fun legendForNewBar(): Int? {
         legendOnThisBar = legendCount < AppSettings.KEY_LEGEND_BARS
         return if (legendOnThisBar) ++legendCount else null
@@ -325,19 +340,26 @@ internal class PlayerState(
             // The press that closed a panel ends here: with the panel's focused row gone, its key-up can miss the
             // surface's key handler and arrive as a Back of its own.
             swallowBackUp -> swallowBackUp = false
+
             streamCardOpen -> streamCardOpen = false
+
             miniGuideOpen -> miniGuideOpen = false
+
             // Where Back skips the key path (Android with predictive back), it reaches the row only here.
             buttonsFocused -> {
                 controls.focusPicture()
                 keepInfo()
             }
+
             else -> return true
         }
         return false
     }
 
-    /** A tap or click on the video: the stream card or the channel list closes, or the info bar and its touch controls toggle. */
+    /**
+     * A tap or click on the video: the stream card or the channel list closes, or the info bar
+     * and its touch controls toggle.
+     */
     fun tap() {
         if (streamCardOpen) {
             streamCardOpen = false
@@ -361,73 +383,117 @@ internal class PlayerState(
         isLongPress: Boolean = false,
         repeatCount: Int? = null,
         hasAudioTracks: Boolean = false,
-    ): Boolean {
-        if (buttonsFocused) {
-            // Each key keeps the bar up for another while.
-            overlayRequest++
-            when (key.inButtonRow()) {
-                ButtonRowKey.ROW -> return false
-                // Up, Back and Escape hand focus back to the picture on key-up, so the key-up cannot act there too.
-                ButtonRowKey.LEAVE -> {
-                    if (type == KeyEventType.KeyUp) controls.focusPicture()
-                    return true
-                }
-                ButtonRowKey.PLAYER -> controls.focusPicture()
+    ): Boolean = buttonRowKey(key, type, controls)
+        ?: backKey(key, type)
+        ?: when {
+            key == Key.Info -> onInfo(type, isLongPress, repeatCount)
+            key.isOk -> okKey(type, isLongPress, repeatCount, controls, hasAudioTracks)
+            type != KeyEventType.KeyDown || channels.isEmpty() -> false
+            streamCardOpen -> streamCardKey(key, controls)
+            miniGuideOpen -> miniGuideKey(key, controls)
+            else -> onKey(key, controls)
+        }
+
+    /** A key while the button row has focus: the row's own keys stay there; null when the key goes on. */
+    private fun buttonRowKey(key: Key, type: KeyEventType, controls: PlayerControls): Boolean? {
+        if (!buttonsFocused) return null
+        // Each key keeps the bar up for another while.
+        overlayRequest++
+        return when (key.inButtonRow()) {
+            ButtonRowKey.ROW -> false
+
+            // Up, Back and Escape hand focus back to the picture on key-up, so the key-up cannot act there too.
+            ButtonRowKey.LEAVE -> {
+                if (type == KeyEventType.KeyUp) controls.focusPicture()
+                true
+            }
+
+            ButtonRowKey.PLAYER -> {
+                controls.focusPicture()
+                null
             }
         }
-        // The mini-guide's focused list swallows Back before BackHandler sees it, so close it here and
-        // eat the matching key-up so the same press can't also leave the player.
-        if (key == Key.Back) {
-            if (type == KeyEventType.KeyDown && (miniGuideOpen || streamCardOpen)) {
-                miniGuideOpen = false
+    }
+
+    /**
+     * The mini-guide's focused list swallows Back before BackHandler sees it, so Back closes it here and eats the
+     * matching key-up, so the same press can't also leave the player. Null when the key goes on.
+     */
+    private fun backKey(key: Key, type: KeyEventType): Boolean? = when {
+        key != Key.Back -> null
+
+        type == KeyEventType.KeyDown && (miniGuideOpen || streamCardOpen) -> {
+            miniGuideOpen = false
+            streamCardOpen = false
+            swallowBackUp = true
+            true
+        }
+
+        type == KeyEventType.KeyUp && swallowBackUp -> {
+            swallowBackUp = false
+            true
+        }
+
+        else -> null
+    }
+
+    private fun okKey(
+        type: KeyEventType,
+        isLongPress: Boolean,
+        repeatCount: Int?,
+        controls: PlayerControls,
+        hasAudioTracks: Boolean,
+    ): Boolean = when {
+        !streamCardOpen -> onCenter(type, isLongPress, repeatCount, controls)
+
+        // The focused track row takes OK; with nothing to pick, OK closes the card on its key-up.
+        streamCardOk(hasAudioTracks) == StreamCardKey.CARD -> false
+
+        else -> {
+            if (type == KeyEventType.KeyUp) streamCardOpen = false
+            true
+        }
+    }
+
+    private fun streamCardKey(key: Key, controls: PlayerControls): Boolean {
+        streamCardActivity++
+        return when (key.inStreamCard()) {
+            // The focused track row handles OK.
+            StreamCardKey.CARD -> false
+
+            StreamCardKey.CLOSE -> {
                 streamCardOpen = false
-                swallowBackUp = true
-                return true
+                true
             }
-            if (type == KeyEventType.KeyUp && swallowBackUp) {
-                swallowBackUp = false
-                return true
-            }
-        }
-        if (key == Key.Info) return onInfo(type, isLongPress, repeatCount)
-        if (key.isOk) {
-            if (streamCardOpen) {
-                // The focused track row takes OK; with nothing to pick, OK closes the card on its key-up.
-                if (streamCardOk(hasAudioTracks) == StreamCardKey.CARD) return false
-                if (type == KeyEventType.KeyUp) streamCardOpen = false
-                return true
-            }
-            return onCenter(type, isLongPress, repeatCount, controls)
-        }
-        if (type != KeyEventType.KeyDown || channels.isEmpty()) return false
-        if (streamCardOpen) {
-            streamCardActivity++
-            return when (key.inStreamCard()) {
-                // The focused track row handles OK.
-                StreamCardKey.CARD -> false
-                StreamCardKey.CLOSE -> {
-                    streamCardOpen = false
-                    true
-                }
-                StreamCardKey.PLAYER -> {
-                    streamCardOpen = false
-                    onKey(key, controls)
-                }
+
+            StreamCardKey.PLAYER -> {
+                streamCardOpen = false
+                onKey(key, controls)
             }
         }
-        if (!miniGuideOpen) return onKey(key, controls)
+    }
+
+    private fun miniGuideKey(key: Key, controls: PlayerControls): Boolean {
         miniGuideActivity++
         return when (key.inMiniGuide(miniGuideChipsFocused)) {
             // The focused row or chip handles OK.
             MiniGuideKey.LIST -> false
+
             MiniGuideKey.SWALLOWED -> true
+
             MiniGuideKey.PLAYER -> onKey(key, controls)
         }
     }
 
     /** OK is judged on key-up: a short press acts as [playerOk] decides, a long press recalls the last channel. */
-    private fun onCenter(type: KeyEventType, isLongPress: Boolean, repeatCount: Int?, controls: PlayerControls): Boolean {
-        // With the mini-guide open, its focused row, chip or button takes OK; the press still counts against its idle timer.
+    private fun onCenter(
+        type: KeyEventType,
+        isLongPress: Boolean,
+        repeatCount: Int?,
+        controls: PlayerControls,
+    ): Boolean {
+        // With the mini-guide open, its focused row, chip or button takes OK; the press still
+        // counts against its idle timer.
         if (miniGuideOpen) {
             miniGuideActivity++
             return false
@@ -438,6 +504,7 @@ internal class PlayerState(
                 if (centerGesture.onKeyDown(isLongPress, repeatCount) == CenterPress.LONG) recallLastChannel()
                 true
             }
+
             KeyEventType.KeyUp -> {
                 if (centerGesture.onKeyUp() == CenterPress.SHORT) {
                     when (playerOk(numbers.hasDigits, failure != null && currentChannel != null, overlayVisible)) {
@@ -449,80 +516,105 @@ internal class PlayerState(
                 }
                 true
             }
+
             else -> false
         }
     }
 
     private fun onKey(key: Key, controls: PlayerControls): Boolean {
         if (channels.isEmpty()) return false
-        when (key.playerExit()) {
-            PlayerExit.GUIDE_AT_NOW -> {
-                controls.guide()
-                return true
-            }
-            PlayerExit.SEARCH -> {
-                controls.search()
-                return true
-            }
-            null -> Unit
+        val exit = key.playerExit()
+        val digit = key.digitValue()
+        val action = key.playerAction()
+        when {
+            exit == PlayerExit.GUIDE_AT_NOW -> controls.guide()
+            exit == PlayerExit.SEARCH -> controls.search()
+            digit != null -> numbers.append(digit)
+            action != null -> act(action, controls)
+            else -> return false
         }
-        key.digitValue()?.let { digit ->
-            numbers.append(digit)
-            return true
-        }
-        val action = key.playerAction() ?: return false
+        return true
+    }
+
+    private fun act(action: PlayerAction, controls: PlayerControls) {
         when (action) {
             PlayerAction.TOGGLE_CAPTIONS -> controls.toggleCaptions()
-            PlayerAction.ZAP_UP, PlayerAction.ZAP_DOWN, PlayerAction.CHANNEL_UP, PlayerAction.CHANNEL_DOWN -> zapStep(action.zapStep()!!)
+
+            PlayerAction.ZAP_UP, PlayerAction.ZAP_DOWN, PlayerAction.CHANNEL_UP, PlayerAction.CHANNEL_DOWN -> zapStep(
+                action.zapStep()!!,
+            )
+
             PlayerAction.LAST_CHANNEL -> recallLastChannel()
+
             // The bar comes up with the change and, paused, stays up, as the library player's does.
             PlayerAction.PLAY_PAUSE -> {
                 controls.playPause()
                 showInfo()
             }
+
             PlayerAction.PLAY -> {
                 controls.play()
                 showInfo()
             }
+
             PlayerAction.PAUSE -> {
                 controls.pause()
                 showInfo()
             }
+
             PlayerAction.TOGGLE_INFO -> if (!numbers.hasDigits) overlayVisible = !overlayVisible
+
             PlayerAction.LEFT, PlayerAction.RIGHT -> {
                 val adjustable = captionToast?.timingMs != null && captionsOn
                 when (playerSideKey(adjustable, overlayVisible)) {
                     // Right shows captions earlier, Left later.
-                    PlayerSideKey.ADJUST_CAPTION_TIMING -> controls.adjustCaptionTiming(if (action == PlayerAction.RIGHT) 1 else -1)
+                    PlayerSideKey.ADJUST_CAPTION_TIMING -> controls.adjustCaptionTiming(
+                        if (action == PlayerAction.RIGHT) {
+                            1
+                        } else {
+                            -1
+                        },
+                    )
+
                     PlayerSideKey.FOCUS_BUTTONS -> {
                         controls.focusButtons()
                         keepInfo()
                     }
+
                     PlayerSideKey.SHOW_INFO -> showInfo()
                 }
             }
+
             PlayerAction.STREAM_INFO -> openStreamCard()
+
             PlayerAction.RECORD -> controls.record()
+
             PlayerAction.ZOOM -> controls.zoom()
+
             PlayerAction.STOP -> controls.stop()
         }
-        return true
     }
 
     /** Info is judged on key-up: a short press toggles the info bar, a long press opens the stream card. */
     private fun onInfo(type: KeyEventType, isLongPress: Boolean, repeatCount: Int?): Boolean {
         when (type) {
-            KeyEventType.KeyDown -> if (infoGesture.onKeyDown(isLongPress, repeatCount) == CenterPress.LONG) openStreamCard()
+            KeyEventType.KeyDown -> if (infoGesture.onKeyDown(isLongPress, repeatCount) == CenterPress.LONG) {
+                openStreamCard()
+            }
+
             KeyEventType.KeyUp -> if (infoGesture.onKeyUp() == CenterPress.SHORT) {
                 when {
                     streamCardOpen -> streamCardOpen = false
+
                     miniGuideOpen -> {
                         miniGuideOpen = false
                         showInfo()
                     }
+
                     !numbers.hasDigits -> overlayVisible = !overlayVisible
                 }
             }
+
             else -> return false
         }
         return true
@@ -542,6 +634,15 @@ internal fun rememberPlayerState(
 ): PlayerState {
     val numbers = rememberChannelNumberInput()
     return remember {
-        PlayerState(lineupChannels, startIndex, previousGuideId, zapScope, captionsOn, attended, keyLegendShown, numbers)
+        PlayerState(
+            lineupChannels,
+            startIndex,
+            previousGuideId,
+            zapScope,
+            captionsOn,
+            attended,
+            keyLegendShown,
+            numbers,
+        )
     }
 }

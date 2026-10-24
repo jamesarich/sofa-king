@@ -49,17 +49,26 @@ import kotlinx.serialization.Serializable
 @Serializable data class RecordingStorage(val freeBytes: Long = 0, val totalBytes: Long = 0, val usedBytes: Long = 0)
 
 /** `GET /api/v1/recordings`: every recording the server knows, soonest scheduled first, then newest kept. */
-@Serializable data class RecordingList(val recordings: List<Recording> = emptyList(), val storage: RecordingStorage = RecordingStorage())
+@Serializable data class RecordingList(
+    val recordings: List<Recording> = emptyList(),
+    val storage: RecordingStorage = RecordingStorage(),
+)
 
 /**
  * `POST /api/v1/recordings`: record the program on [channelId] that starts at [startsAt]. With [endsAt], record
  * that window instead, whatever the guide says, under [title] (the channel's name when null); a channel without a
  * guide can be recorded only this way.
  */
-@Serializable data class ScheduleRecording(val channelId: String, val startsAt: String, val endsAt: String? = null, val title: String? = null)
+@Serializable data class ScheduleRecording(
+    val channelId: String,
+    val startsAt: String,
+    val endsAt: String? = null,
+    val title: String? = null,
+)
 
 /** `PATCH /api/v1/recordings/{id}`: each set field replaces the stored one. */
-@Serializable data class UpdateRecording(val protected: Boolean? = null, val positionMs: Long? = null, val watched: Boolean? = null)
+@Serializable
+data class UpdateRecording(val protected: Boolean? = null, val positionMs: Long? = null, val watched: Boolean? = null)
 
 /**
  * A series rule: record every airing whose title is [title] (ignoring case), on [channelId] or on any channel when
@@ -92,7 +101,9 @@ import kotlinx.serialization.Serializable
     val priority: Int = 0,
 )
 
-/** `PATCH /api/v1/recording-rules/{id}`: each set field replaces the stored one; [anyChannel] true clears the channel. */
+/**
+ * `PATCH /api/v1/recording-rules/{id}`: each set field replaces the stored one; [anyChannel] true clears the channel.
+ */
 @Serializable data class UpdateRecordingRule(
     val channelId: String? = null,
     val anyChannel: Boolean? = null,

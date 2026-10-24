@@ -84,7 +84,7 @@ The smoke scripts start disposable servers in temporary directories. `smoke.py` 
 
 ## Code
 
-Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the constraints in [AGENTS.md](../AGENTS.md). Keep network and media work outside database transactions, preserve coroutine cancellation, and close the HTTP clients, jobs and processes you own. [Architecture](architecture.md) describes how the code is organized.
+Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the constraints in [AGENTS.md](../AGENTS.md). Keep network and media work outside database transactions, preserve coroutine cancellation, and close the HTTP clients, jobs and processes you own. [Architecture](architecture.md) describes how the code is organized. Run `./gradlew spotlessApply detekt` before you commit; CI fails on code ktlint would change and on any detekt finding, as [formatting and static analysis](../../CONTRIBUTING.md#formatting-and-static-analysis) describes.
 
 ## Scripts
 

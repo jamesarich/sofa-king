@@ -8,7 +8,8 @@ enum class LibraryKind(internal val wire: String?) {
     MOVIES(Wire.LibraryKind.MOVIES),
     SHOWS(Wire.LibraryKind.SHOWS),
     VIDEOS(Wire.LibraryKind.VIDEOS),
-    OTHER(null);
+    OTHER(null),
+    ;
 
     internal companion object {
         fun fromWire(value: String) = entries.firstOrNull { it.wire == value } ?: OTHER
@@ -22,9 +23,11 @@ enum class ItemKind(internal val wire: String?) {
     SEASON(Wire.ItemKind.SEASON),
     EPISODE(Wire.ItemKind.EPISODE),
     VIDEO(Wire.ItemKind.VIDEO),
+
     /** A movie's or show's trailer, featurette or other extra, listed on its page. */
     EXTRA(Wire.ItemKind.EXTRA),
-    OTHER(null);
+    OTHER(null),
+    ;
 
     /** True for an item a VOD session can play. */
     val playable: Boolean get() = this == MOVIE || this == EPISODE || this == VIDEO || this == EXTRA
@@ -54,11 +57,7 @@ data class MediaLibrary(
 )
 
 /** The household's place in an item. */
-data class PlayProgress(
-    val positionMs: Long,
-    val durationMs: Long?,
-    val watched: Boolean,
-) {
+data class PlayProgress(val positionMs: Long, val durationMs: Long?, val watched: Boolean) {
     /** How far in, from 0 to 1, or null when the length is unknown. */
     val fraction: Float? get() = durationMs?.takeIf { it > 0 }?.let { (positionMs.toFloat() / it).coerceIn(0f, 1f) }
 
@@ -157,7 +156,8 @@ enum class ExtraKind(internal val wire: String) {
     INTERVIEW(Wire.ExtraKind.INTERVIEW),
     SCENE(Wire.ExtraKind.SCENE),
     SHORT(Wire.ExtraKind.SHORT),
-    OTHER(Wire.ExtraKind.OTHER);
+    OTHER(Wire.ExtraKind.OTHER),
+    ;
 
     internal companion object {
         fun fromWire(value: String) = entries.firstOrNull { it.wire == value } ?: OTHER
@@ -179,7 +179,8 @@ data class ScrubTiles(
 ) {
     /** The tile showing [positionMs], or the last one past the end; null when there are none. */
     fun tileAt(positionMs: Long): ScrubTile? {
-        if (intervalMs <= 0 || frames <= 0 || columns <= 0 || rows <= 0 || tileWidth <= 0 || tileHeight <= 0) return null
+        val gridless = columns <= 0 || rows <= 0 || tileWidth <= 0 || tileHeight <= 0
+        if (intervalMs <= 0 || frames <= 0 || gridless) return null
         val n = (positionMs.coerceAtLeast(0) / intervalMs).coerceAtMost(frames - 1L).toInt()
         val perSheet = columns * rows
         val sheet = sheets.getOrNull(n / perSheet) ?: return null
@@ -205,10 +206,7 @@ data class MediaShelf(
     val key: String get() = libraryId?.let { "$id:$it" } ?: id
 }
 
-data class MediaHome(
-    val shelves: List<MediaShelf>,
-    val libraries: List<MediaLibrary>,
-)
+data class MediaHome(val shelves: List<MediaShelf>, val libraries: List<MediaLibrary>)
 
 /** One page of a library's items; [next] is the cursor for the page after, null on the last. */
 data class MediaPage(
@@ -229,13 +227,8 @@ data class LetterJump(val letter: String, val offset: Int)
  * whose items come in more than one run is placed at its first.
  */
 fun letterJumps(runs: List<Pair<String, Int>>): List<LetterJump> {
-    var offset = 0
-    val jumps = LinkedHashMap<String, LetterJump>()
-    for ((letter, count) in runs) {
-        jumps.getOrPut(letter) { LetterJump(letter, offset) }
-        offset += count
-    }
-    return jumps.values.toList()
+    val offsets = runs.runningFold(0) { offset, (_, count) -> offset + count }
+    return runs.zip(offsets) { (letter, _), offset -> LetterJump(letter, offset) }.distinctBy { it.letter }
 }
 
 /**
@@ -249,7 +242,10 @@ data class PlaybackProfile(
     val audioCodecs: List<String> = emptyList(),
     val maxHeight: Int? = null,
     val hdr: Boolean = false,
-    /** The video codecs it decodes at more than 8 bits a sample, such as `hevc` for HEVC Main 10; null leaves it to the server. */
+    /**
+     * The video codecs it decodes at more than 8 bits a sample, such as `hevc` for HEVC Main
+     * 10; null leaves it to the server.
+     */
     val deepColor: List<String>? = null,
     /**
      * True for a player whose own scrubber cannot ask for a conversion to restart: the server then lists the whole

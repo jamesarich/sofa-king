@@ -3,38 +3,29 @@ package dev.jamesrich.sofaking.backend.plex
 import dev.jamesrich.sofaking.backend.PlexConfig
 import dev.jamesrich.sofaking.backend.api.PlexDeviceStatus
 import dev.jamesrich.sofaking.backend.api.PlexStatus
-import dev.jamesrich.sofaking.backend.catalog.redactedMessage
-import io.ktor.client.HttpClient
-import io.ktor.client.plugins.timeout
-import io.ktor.client.request.accept
-import io.ktor.client.request.header
-import io.ktor.client.request.request
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpMethod
-import io.ktor.http.URLBuilder
-import io.ktor.http.encodeURLPathPart
-import io.ktor.http.isSuccess
-import java.time.Clock
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
-import java.time.Duration
-import java.util.concurrent.atomic.AtomicReference
-import kotlinx.coroutines.CancellationException
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
+import io.ktor.client.HttpClient
+import io.ktor.client.request.request
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel as Trigger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.add
 import org.slf4j.LoggerFactory
+import java.time.Clock
+import java.time.Duration
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.channels.Channel as Trigger
 
 /** One of this server's HDHomeRun devices: its index, the DeviceID it reports, and the port Plex reaches it on. */
 data class HdhrDevice(val index: Int, val id: String, val port: Int)
@@ -42,15 +33,9 @@ data class HdhrDevice(val index: Int, val id: String, val port: Int)
 /** Plex rejects a longer channel-map request line; 35 KB fails where 25 KB saves. */
 internal const val PLEX_URL_LIMIT = 30_000
 
-private const val GRABBER = "device://tv.plex.grabbers.hdhomerun/"
-
-private class PlexFailure(message: String) : Exception(message)
-
-private class Dvr(val key: String, val lineup: String?, val devices: List<Device>)
-
-private class Device(val key: String, val uuid: String)
-
-private class Mapping(val deviceIdentifier: String, val lineupIdentifier: String, val channelKey: String)
+/** How much of a failed sync's error the Jobs page shows, and how much the status keeps. */
+private const val ERROR_SHOWN = 200
+private const val ERROR_LIMIT = 1_000
 
 /**
  * Keeps Plex Live TV's channel maps in step with the lineup: for each DVR device that is one of this server's tuners,
@@ -64,7 +49,7 @@ class PlexSync(
     private val devices: suspend () -> List<HdhrDevice>,
     /** Quiet time after a lineup change before the sync, so a burst of changes is one sync. */
     private val debounceMillis: Long = 120_000,
-    intervalMillis: Long = config.syncMinutes * 60_000L,
+    intervalMillis: Long = TimeUnit.MINUTES.toMillis(config.syncMinutes.toLong()),
     /** The status a previous run stored, shown until this run's first sync replaces it. */
     initial: PlexStatus? = null,
     /** Stores each sync's status; a failure is logged and the sync still counts. */
@@ -75,6 +60,8 @@ class PlexSync(
     private val log = LoggerFactory.getLogger(PlexSync::class.java)
     private val mutex = Mutex()
     private val trigger = Trigger<String>(Trigger.CONFLATED)
+    private val api = PlexApi(config, http)
+
     @Volatile private var intervalMillis: Long = intervalMillis
     private val syncMinutes: Int get() = (intervalMillis / 60_000L).toInt()
     private val status = AtomicReference(initial?.copy(syncMinutes = syncMinutes) ?: PlexStatus(syncMinutes))
@@ -89,8 +76,9 @@ class PlexSync(
 
     /** Syncs every [minutes] from the next sync on; the status and the Jobs page follow. */
     fun setInterval(minutes: Int) {
-        if (minutes * 60_000L == intervalMillis) return
-        intervalMillis = minutes * 60_000L
+        val millis = TimeUnit.MINUTES.toMillis(minutes.toLong())
+        if (millis == intervalMillis) return
+        intervalMillis = millis
         register()
         status.updateAndGet { it.copy(syncMinutes = minutes) }
     }
@@ -112,13 +100,16 @@ class PlexSync(
                 trigger.onReceive { it }
                 onTimeout(intervalMillis) { "interval" }
             }
-            // A sync the operator asked for starts at once; a lineup change waits out the debounce so a burst is one sync.
+            // A sync the operator asked for starts at once; a lineup change waits out the
+            // debounce so a burst is one sync.
             if (cause != "interval" && cause != "now") {
                 delay(debounceMillis)
                 trigger.tryReceive()
             }
-            try { sync(cause) } catch (e: CancellationException) { throw e } catch (e: Exception) {
-                log.warn("plex sync failed class={} message=\"{}\"", e.javaClass.simpleName, message(e))
+            runCatchingCancellable {
+                sync(cause)
+            }.onFailure { e ->
+                log.warn("plex sync failed class={} message=\"{}\"", e.javaClass.simpleName, api.message(e))
             }
         }
     }
@@ -129,142 +120,119 @@ class PlexSync(
         jobs.record("plex") {
             val status = syncNow(cause)
             next = status
-            if (status.lastError != null) JobOutcome(false, status.lastError.take(200))
-            else JobOutcome(true, "${status.devices.sumOf { it.mapped }} channels mapped on ${status.devices.size} devices" + if (status.missingDevices.isEmpty()) "" else ", ${status.missingDevices.size} not in Plex")
+            if (status.lastError != null) {
+                JobOutcome(false, status.lastError.take(ERROR_SHOWN))
+            } else {
+                JobOutcome(
+                    true,
+                    "${status.devices.sumOf { it.mapped }} channels mapped on ${status.devices.size} devices" +
+                        if (status.missingDevices.isEmpty()) "" else ", ${status.missingDevices.size} not in Plex",
+                )
+            }
         }
         next!!
     }
 
     private suspend fun syncNow(cause: String): PlexStatus {
         val started = clock.instant()
-        val ours = devices()
-        val errors = ArrayList<String>()
-        val findings = ArrayList<String>()
-        val mapped = ArrayList<PlexDeviceStatus>()
-        val touched = LinkedHashSet<String>()
-        var missing = emptyList<HdhrDevice>()
-        try {
-            val dvrs = dvrs()
-            val present = ArrayList<Triple<Dvr, Device, HdhrDevice>>()
-            for (dvr in dvrs) for (device in dvr.devices) ours.firstOrNull { device.uuid.endsWith("/${it.id}", ignoreCase = true) }?.let { present += Triple(dvr, device, it) }
-            val absent = ours.filter { mine -> present.none { it.third == mine } }
-            val added = HashSet<HdhrDevice>()
-            val target = present.firstOrNull()?.first
-            if (config.tunerBase != null && target != null) {
-                for (device in absent) {
-                    try {
-                        present += Triple(target, add(target, device), device)
-                        added += device
-                    } catch (e: CancellationException) { throw e } catch (e: Exception) { errors += "device ${device.id}: ${message(e)}" }
-                }
-            }
-            missing = absent - added
-            for (device in missing) findings += "plex: device ${device.id} (device ${device.index}) is not added to Plex"
-            for ((dvr, device, mine) in present) {
-                try {
-                    val count = map(dvr, device, mine, findings)
-                    if (count > 0) touched += dvr.key
-                    mapped += PlexDeviceStatus(mine.id, mine.index, device.key, dvr.key, count, mine in added)
-                } catch (e: CancellationException) { throw e } catch (e: Exception) { errors += "device ${mine.id}: ${message(e)}" }
-            }
-            for (dvr in touched) {
-                try { send(HttpMethod.Post, "/livetv/dvrs/${dvr.encodeURLPathPart()}/reloadGuide") }
-                catch (e: CancellationException) { throw e } catch (e: Exception) { errors += "DVR $dvr: ${message(e)}" }
-            }
-        } catch (e: CancellationException) { throw e } catch (e: Exception) {
-            errors += message(e)
-        }
-        val error = errors.takeIf { it.isNotEmpty() }?.joinToString("; ")?.take(1000)
-        if (error != null) findings += "plex: sync failed: $error"
+        val pass = SyncPass(api, devices(), addDevices = config.tunerBase != null)
+        pass.run()
+        val error = pass.error
         val next = PlexStatus(
-            syncMinutes, clock.instant().toString(), cause, error, touched.toList(), mapped.sortedBy { it.device }, missing.map { it.id }, findings,
+            syncMinutes,
+            clock.instant().toString(),
+            cause,
+            error,
+            pass.touched.toList(),
+            pass.mapped.sortedBy { it.device },
+            pass.missing.map { it.id },
+            pass.findings,
         )
         status.set(next)
-        try { persist(next) } catch (e: CancellationException) { throw e } catch (e: Exception) {
+        runCatchingCancellable {
+            persist(next)
+        }.onFailure { e ->
             log.warn("plex status not stored class={}", e.javaClass.simpleName)
         }
         if (error != null) log.warn("plex sync cause={} error=\"{}\"", cause, error)
         log.info(
             "plex sync cause={} dvrs={} devices={} mapped={} missing={} durationMs={}",
-            cause, touched.size, mapped.size, mapped.sumOf { it.mapped }, missing.size, Duration.between(started, clock.instant()).toMillis(),
+            cause,
+            pass.touched.size,
+            pass.mapped.size,
+            pass.mapped.sumOf { it.mapped },
+            pass.missing.size,
+            Duration.between(started, clock.instant()).toMillis(),
         )
         return next
     }
-
-    private suspend fun dvrs(): List<Dvr> = (send(HttpMethod.Get, "/livetv/dvrs").container("Dvr")).map { dvr ->
-        Dvr(dvr.text("key") ?: throw PlexFailure("a DVR has no key"), dvr.text("lineup"), dvr.list("Device").mapNotNull(::deviceOf))
-    }
-
-    private fun deviceOf(device: JsonObject): Device? {
-        val key = device.text("key") ?: return null
-        return Device(key, device.text("uuid") ?: return null)
-    }
-
-    /** Adds [device] at the tuner base to [dvr]; refuses a device that reports another DeviceID, before it joins the DVR. */
-    private suspend fun add(dvr: Dvr, device: HdhrDevice): Device {
-        val uri = "${config.tunerBase}:${device.port}"
-        val created = send(HttpMethod.Post, "/media/grabbers/devices", listOf("uri" to uri)).container("Device").firstNotNullOfOrNull(::deviceOf)
-            ?: throw PlexFailure("Plex added no device at port ${device.port}")
-        if (!created.uuid.endsWith("/${device.id}", ignoreCase = true)) throw PlexFailure("port ${device.port} answers as ${created.uuid.removePrefix(GRABBER)}, not ${device.id}")
-        send(HttpMethod.Put, "/livetv/dvrs/${dvr.key.encodeURLPathPart()}/devices/${created.key.encodeURLPathPart()}")
-        log.info("plex added device id={} port={} dvr={} key={}", device.id, device.port, dvr.key, created.key)
-        return created
-    }
-
-    /** Saves the channel map Plex proposes for [device] with every channel enabled; returns the channels saved. */
-    private suspend fun map(dvr: Dvr, device: Device, mine: HdhrDevice, findings: MutableList<String>): Int {
-        val lineup = dvr.lineup ?: throw PlexFailure("DVR ${dvr.key} has no lineup")
-        val mappings = send(HttpMethod.Get, "/livetv/epg/channelmap", listOf("device" to device.uuid, "lineup" to lineup)).container("ChannelMapping").mapNotNull { m ->
-            Mapping(m.text("deviceIdentifier") ?: return@mapNotNull null, m.text("lineupIdentifier") ?: return@mapNotNull null, m.text("channelKey") ?: return@mapNotNull null)
-        }
-        if (mappings.isEmpty()) return 0
-        val parameters = ArrayList<Pair<String, String>>()
-        parameters += "channelsEnabled" to mappings.joinToString(",") { it.deviceIdentifier }
-        for (m in mappings) {
-            parameters += "channelMappingByKey[${m.deviceIdentifier}]" to m.channelKey
-            parameters += "channelMapping[${m.deviceIdentifier}]" to m.lineupIdentifier
-        }
-        val url = url("/media/grabbers/devices/${device.key.encodeURLPathPart()}/channelmap", parameters)
-        if (url.length > PLEX_URL_LIMIT) {
-            findings += "plex: device ${mine.id} has ${mappings.size} channels, too many for Plex to save; lower SOFA_HDHR_DEVICE_SIZE or add ports"
-            return 0
-        }
-        request(HttpMethod.Put, url, "/media/grabbers/devices/${device.key}/channelmap")
-        return mappings.size
-    }
-
-    private fun url(path: String, parameters: List<Pair<String, String>>): String =
-        URLBuilder("${config.url}$path").apply { for ((name, value) in parameters) this.parameters.append(name, value) }.buildString()
-
-    private suspend fun send(method: HttpMethod, path: String, parameters: List<Pair<String, String>> = emptyList()): JsonObject =
-        request(method, url(path, parameters), path)
-
-    /** The token goes in a header only, so no URL, log line or error message carries it. Redirects are not followed. */
-    private suspend fun request(method: HttpMethod, url: String, path: String): JsonObject {
-        val response = http.request(url) {
-            this.method = method
-            header("X-Plex-Token", config.token)
-            accept(ContentType.Application.Json)
-            timeout { requestTimeoutMillis = 60_000; socketTimeoutMillis = 60_000 }
-        }
-        if (!response.status.isSuccess()) throw PlexFailure("${method.value} $path answered ${response.status.value}")
-        val body = response.bodyAsText()
-        if (body.isBlank()) return JsonObject(emptyMap())
-        return Json.parseToJsonElement(body) as? JsonObject ?: throw PlexFailure("${method.value} $path answered something other than a JSON object")
-    }
-
-    private fun message(e: Throwable): String {
-        val text = if (e is PlexFailure) e.message.orEmpty() else "${e.javaClass.simpleName}: ${redactedMessage(e)}"
-        return text.replace(config.token, "<token>")
-    }
 }
 
-private fun JsonObject.container(name: String): List<JsonObject> = (this["MediaContainer"] as? JsonObject)?.list(name).orEmpty()
+/** One of our devices where Plex holds it: in [dvr] as [device]. */
+private class Present(val dvr: Dvr, val device: Device, val mine: HdhrDevice)
 
-private fun JsonObject.list(name: String): List<JsonObject> = when (val value = this[name]) {
-    is JsonArray -> value.filterIsInstance<JsonObject>()
-    is JsonObject -> listOf(value)
-    else -> emptyList()
+/**
+ * One sync of [ours] through [plex]: finds which DVR holds each device, adds the absent ones when [addDevices], saves
+ * each held device's channel map and reloads the guides it changed. Each step's failure is kept and the rest go on.
+ */
+private class SyncPass(private val plex: PlexApi, private val ours: List<HdhrDevice>, private val addDevices: Boolean) {
+    val errors = ArrayList<String>()
+    val findings = ArrayList<String>()
+    val mapped = ArrayList<PlexDeviceStatus>()
+    val touched = LinkedHashSet<String>()
+    var missing = emptyList<HdhrDevice>()
+        private set
+
+    /** The errors joined for the status, or null when the sync had none. */
+    val error: String? get() = errors.takeIf { it.isNotEmpty() }?.joinToString("; ")?.take(ERROR_LIMIT)
+
+    suspend fun run() {
+        runCatchingCancellable {
+            val present = plex.dvrs().flatMap { dvr ->
+                dvr.devices.mapNotNull { device ->
+                    ours.firstOrNull { device.uuid.endsWith("/${it.id}", ignoreCase = true) }?.let {
+                        Present(dvr, device, it)
+                    }
+                }
+            }.toMutableList()
+            val added = addAbsent(present)
+            for (place in present) map(place, place.mine in added)
+            for (dvr in touched) attempt("DVR $dvr") { plex.reloadGuide(dvr) }
+        }.onFailure { e ->
+            errors += plex.message(e)
+        }
+        error?.let { findings += "plex: sync failed: $it" }
+    }
+
+    /** Adds the devices no DVR holds to the first DVR that holds one of ours, when asked to; returns those added. */
+    private suspend fun addAbsent(present: MutableList<Present>): Set<HdhrDevice> {
+        val absent = ours.filter { mine -> present.none { it.mine == mine } }
+        val added = HashSet<HdhrDevice>()
+        val target = present.firstOrNull()?.dvr
+        if (addDevices && target != null) {
+            for (device in absent) {
+                attempt("device ${device.id}") {
+                    present += Present(target, plex.add(target, device), device)
+                    added += device
+                }
+            }
+        }
+        missing = absent - added
+        for (device in missing) findings += "plex: device ${device.id} (device ${device.index}) is not added to Plex"
+        return added
+    }
+
+    private suspend fun map(place: Present, added: Boolean) {
+        val mine = place.mine
+        attempt("device ${mine.id}") {
+            val count = plex.map(place.dvr, place.device, mine, findings)
+            if (count > 0) touched += place.dvr.key
+            mapped += PlexDeviceStatus(mine.id, mine.index, place.device.key, place.dvr.key, count, added)
+        }
+    }
+
+    /** Runs [step], keeping its failure as an error about [what]. */
+    private suspend fun attempt(what: String, step: suspend () -> Unit) {
+        runCatchingCancellable { step() }.onFailure { e -> errors += "$what: ${plex.message(e)}" }
+    }
 }
-
-private fun JsonObject.text(name: String): String? = (this[name] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content?.takeIf { it.isNotEmpty() }

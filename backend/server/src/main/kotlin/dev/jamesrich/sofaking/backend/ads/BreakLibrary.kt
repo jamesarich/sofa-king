@@ -32,19 +32,37 @@ class BreakEntry(
 ) {
     val blanking: Boolean get() = !blocked && falseHits == 0 && (channels.size >= 2 || days.size >= 2)
 
-    fun copy() = BreakEntry(id, points, providerId, source, createdAt, channels, days, lastHitAt, hits, falseHits, blocked)
+    fun copy() =
+        BreakEntry(id, points, providerId, source, createdAt, channels, days, lastHitAt, hits, falseHits, blocked)
 }
 
 /** Where [query] points [queryFrom] to [queryTo] (inclusive) match [entry] from its point [entryFrom]. */
 class BreakMatch(val entry: BreakEntry, val queryFrom: Int, val queryTo: Int, val entryFrom: Int) {
     val points: Int get() = queryTo - queryFrom + 1
+
     /** Points of the entry left after the match. */
     val entryLeft: Int get() = entry.points.size - (entryFrom + points)
+
+    /** The longer match wins; a blocked entry wins a tie, since show audio must veto. */
+    fun beats(other: BreakMatch): Boolean =
+        points > other.points || (points == other.points && entry.blocked && !other.entry.blocked)
 }
 
 /** The library's size and how the canary has gone over the last day. */
-data class LibraryStats(val entries: Int, val blanking: Int, val blocked: Int, val points: Long, val canaryHits: Int, val canaryFalse: Int, val frozen: Boolean) {
-    val precision: Double? get() = if (canaryHits + canaryFalse == 0) null else canaryHits.toDouble() / (canaryHits + canaryFalse)
+data class LibraryStats(
+    val entries: Int,
+    val blanking: Int,
+    val blocked: Int,
+    val points: Long,
+    val canaryHits: Int,
+    val canaryFalse: Int,
+    val frozen: Boolean,
+) {
+    val precision: Double? get() = if (canaryHits + canaryFalse == 0) {
+        null
+    } else {
+        canaryHits.toDouble() / (canaryHits + canaryFalse)
+    }
 }
 
 /**
@@ -62,13 +80,251 @@ data class LibraryStats(val entries: Int, val blanking: Int, val blocked: Int, v
  * Entries live in memory, indexed by word, and are saved by [flush]; one not marked or matched for [EXPIRY] goes.
  */
 class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
+    private val index = BreakIndex()
+    private val changes = Changes()
+    private val canary = Canary(clock)
+
+    /** Reads the saved entries. */
+    suspend fun load() {
+        val saved = store?.adBreaks().orEmpty()
+        synchronized(this) { saved.forEach(index::add) }
+    }
+
+    /** Saves what changed and drops the entries that expired. */
+    suspend fun flush() {
+        val (changed, gone) = synchronized(this) {
+            expire()
+            val (dirty, gone) = changes.drain()
+            dirty.mapNotNull { index.entry(it)?.copy() } to gone
+        }
+        store?.let {
+            if (gone.isNotEmpty()) it.deleteAdBreaks(gone)
+            if (changed.isNotEmpty()) it.saveAdBreaks(changed)
+        }
+    }
+
+    @Synchronized
+    fun stats(): LibraryStats {
+        val live = index.live
+        val (hits, wrong) = canary.counts()
+        return LibraryStats(
+            live.size,
+            live.count { it.blanking },
+            live.count { it.blocked },
+            index.pointCount,
+            hits,
+            wrong,
+            canary.frozen(),
+        )
+    }
+
+    /** Whether the canary's last day is under [CANARY_PRECISION], so no learned break is marked. */
+    @Synchronized
+    fun frozen(): Boolean = canary.frozen()
+
+    /**
+     * Learns [points], the audio of a break markers opened and closed on [channelId], from [source]: what matches an
+     * entry counts as that entry marked again, and each stretch of [MIN_LEARN_POINTS] or more that matches nothing
+     * becomes an entry of its own.
+     */
+    @Synchronized
+    fun learn(points: IntArray, channelId: String, providerId: String, source: String) {
+        val now = clock.instant()
+        val day = now.atOffset(ZoneOffset.UTC).toLocalDate().toString()
+        val known = markKnown(points, channelId, day)
+        for (run in freeRuns(known, MIN_LEARN_POINTS)) {
+            for (start in run step MAX_ENTRY_POINTS) {
+                val end = minOf(run.last + 1, start + MAX_ENTRY_POINTS)
+                if (end - start >= MIN_LEARN_POINTS) {
+                    val entry = BreakEntry(
+                        UUID.randomUUID().toString(),
+                        points.copyOfRange(start, end),
+                        providerId,
+                        source,
+                        now,
+                        setOf(channelId),
+                        setOf(day),
+                    )
+                    index.add(entry)
+                    changes.touched(entry.id)
+                }
+            }
+        }
+        if (index.pointCount > MAX_POINTS) changes.removed(index.evict(EVICT_TO))
+    }
+
+    /** Marks again each entry [points] match on [channelId] and [day]; true at each point a match covers. */
+    private fun markKnown(points: IntArray, channelId: String, day: String): BooleanArray {
+        val known = BooleanArray(points.size)
+        for (round in 1..MAX_LEARN_MATCHES) {
+            val match = index.best(points, MIN_LEARN_POINTS, known, exclude = null) ?: break
+            for (i in match.queryFrom..match.queryTo) known[i] = true
+            val entry = match.entry
+            if (!entry.blocked && (channelId !in entry.channels || day !in entry.days)) {
+                entry.channels += channelId
+                entry.days += day
+                changes.touched(entry.id)
+            }
+        }
+        return known
+    }
+
+    /**
+     * The longest match of [query] of [minPoints] or more, against any entry not learned by the clock tagged [exclude].
+     */
+    @Synchronized
+    fun match(query: IntArray, minPoints: Int, exclude: String? = null): BreakMatch? =
+        index.best(query, minPoints, null, exclude)
+
+    /** The canary found [entry] in a marked break on [channelId]. */
+    @Synchronized
+    fun hit(entry: BreakEntry) {
+        entry.hits++
+        entry.lastHitAt = clock.instant()
+        changes.touched(entry.id)
+        canary.record(hit = true)
+    }
+
+    /** The canary found [entry] in show audio: it is blocked, and its audio vetoes matches from now on. */
+    @Synchronized
+    fun falseHit(entry: BreakEntry) {
+        entry.falseHits++
+        entry.blocked = true
+        changes.touched(entry.id)
+        canary.record(hit = false)
+    }
+
+    /** A session matched [entry] on a channel without markers. */
+    @Synchronized
+    fun matched(entry: BreakEntry) {
+        entry.lastHitAt = clock.instant()
+        changes.touched(entry.id)
+    }
+
+    private fun expire() {
+        val before = clock.instant().minus(EXPIRY)
+        changes.removed(
+            index.removeWhere { (it.lastHitAt ?: it.createdAt).isBefore(before) && it.lastMarked().isBefore(before) },
+        )
+    }
+
+    companion object {
+        /** One Chromaprint point covers a third of its 4096-sample frame at 11,025 Hz. */
+        const val POINT_MS = 4096.0 / 3 / 11_025 * 1_000
+        const val MAX_BIT_ERRORS = 6
+        const val MIN_DENSITY = 0.6
+
+        /** About 2 s. */
+        const val MAX_GAP_POINTS = 16
+
+        /** About 10 s: the least a learned stretch, or a match that starts a break, may be. */
+        const val MIN_LEARN_POINTS = 81
+
+        /** About 4 minutes, which also bounds a position to [POSITION_BITS]. */
+        const val MAX_ENTRY_POINTS = 1_940
+        const val CANARY_PRECISION = 0.999
+        val CANARY_WINDOW: Duration = Duration.ofDays(1)
+        val EXPIRY: Duration = Duration.ofDays(30)
+
+        /** About 3 days of ads heard without a break; past it the least recently heard go. */
+        const val MAX_POINTS = 2_000_000L
+
+        /** Eviction goes on to nine tenths of [MAX_POINTS], so the next few adds do not evict again. */
+        private const val EVICT_TO = MAX_POINTS * 9 / 10
+        private const val MAX_LEARN_MATCHES = 16
+    }
+}
+
+/** The index is rebuilt once more than this share of its slots hold removed entries. */
+private const val MAX_DEAD_SHARE = 0.25
+private const val POSITION_BITS = 12
+private const val POSITION_MASK = (1 shl POSITION_BITS) - 1
+private const val COMMON_WORD = 2_000
+private const val CANDIDATES = 8
+private const val MIN_VOTES = 3
+
+/** The end of the last day markers placed this entry in a break, or when it was learned. */
+private fun BreakEntry.lastMarked(): Instant = days.maxOrNull()?.let {
+    java.time.LocalDate.parse(it).plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
+}
+    ?: createdAt
+
+/** The runs of at least [minLength] points [known] does not cover. */
+private fun freeRuns(known: BooleanArray, minLength: Int): List<IntRange> {
+    val runs = ArrayList<IntRange>()
+    var from = -1
+    for (i in 0..known.size) {
+        val free = i < known.size && !known[i]
+        if (free && from < 0) from = i
+        if (!free && from >= 0) {
+            if (i - from >= minLength) runs += from until i
+            from = -1
+        }
+    }
+    return runs
+}
+
+/** What changed since the last flush: the entries to save, and the ids of the entries to delete. */
+private class Changes {
+    private val dirty = HashSet<String>()
+    private val removed = HashSet<String>()
+
+    fun touched(id: String) {
+        dirty += id
+    }
+
+    fun removed(ids: Collection<String>) {
+        dirty -= ids.toSet()
+        removed += ids
+    }
+
+    /** The ids changed and the ids removed, forgotten here once taken. */
+    fun drain(): Pair<List<String>, List<String>> {
+        val taken = dirty.toList() to removed.toList()
+        dirty.clear()
+        removed.clear()
+        return taken
+    }
+}
+
+/** The canary's checks over the last [BreakLibrary.CANARY_WINDOW]: each a hit, or a match in show audio. */
+private class Canary(private val clock: Clock) {
+    private val checks = ArrayDeque<Pair<Instant, Boolean>>()
+
+    fun record(hit: Boolean) {
+        checks.addLast(clock.instant() to hit)
+        trim()
+    }
+
+    /** The hits and the false hits. */
+    fun counts(): Pair<Int, Int> {
+        trim()
+        val hits = checks.count { it.second }
+        return hits to checks.size - hits
+    }
+
+    /** Whether the checks are under [BreakLibrary.CANARY_PRECISION]. */
+    fun frozen(): Boolean {
+        val (hits, wrong) = counts()
+        return wrong > 0 && hits.toDouble() / (hits + wrong) < BreakLibrary.CANARY_PRECISION
+    }
+
+    private fun trim() {
+        val since = clock.instant().minus(BreakLibrary.CANARY_WINDOW)
+        while (checks.isNotEmpty() && checks.first().first.isBefore(since)) checks.removeFirst()
+    }
+}
+
+/**
+ * The entries in memory, indexed by Chromaprint word: a word's postings hold each entry slot and position it has.
+ * Matching works as [BreakLibrary] describes; the library holds the lock.
+ */
+private class BreakIndex {
     private val entries = ArrayList<BreakEntry?>()
     private val slots = HashMap<String, Int>()
     private val index = HashMap<Int, Postings>()
-    private val dirty = HashSet<String>()
-    private val removed = HashSet<String>()
-    private val canary = ArrayDeque<Pair<Instant, Boolean>>()
-    private var pointCount = 0L
+    var pointCount = 0L
+        private set
     private var deadSlots = 0
 
     private class Postings {
@@ -80,169 +336,85 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
         }
     }
 
-    /** Reads the saved entries. */
-    suspend fun load() {
-        val saved = store?.adBreaks().orEmpty()
-        synchronized(this) { saved.forEach(::add) }
-    }
+    val live: List<BreakEntry> get() = entries.filterNotNull()
 
-    /** Saves what changed and drops the entries that expired. */
-    suspend fun flush() {
-        val (changed, gone) = synchronized(this) {
-            expire()
-            val changed = dirty.mapNotNull { id -> slots[id]?.let { entries[it]?.copy() } }
-            val gone = removed.toList()
-            dirty.clear()
-            removed.clear()
-            changed to gone
-        }
-        store?.let {
-            if (gone.isNotEmpty()) it.deleteAdBreaks(gone)
-            if (changed.isNotEmpty()) it.saveAdBreaks(changed)
-        }
-    }
+    fun entry(id: String): BreakEntry? = slots[id]?.let { entries[it] }
 
-    @Synchronized
-    fun stats(): LibraryStats {
-        trimCanary()
-        val live = entries.filterNotNull()
-        return LibraryStats(
-            live.size, live.count { it.blanking }, live.count { it.blocked }, pointCount,
-            canary.count { it.second }, canary.count { !it.second }, frozenNow(),
-        )
-    }
-
-    /** Whether the canary's last day is under [CANARY_PRECISION], so no learned break is marked. */
-    @Synchronized
-    fun frozen(): Boolean {
-        trimCanary()
-        return frozenNow()
-    }
-
-    private fun frozenNow(): Boolean {
-        val wrong = canary.count { !it.second }
-        return wrong > 0 && (canary.size - wrong).toDouble() / canary.size < CANARY_PRECISION
-    }
-
-    /**
-     * Learns [points], the audio of a break markers opened and closed on [channelId], from [source]: what matches an
-     * entry counts as that entry marked again, and each stretch of [MIN_LEARN_POINTS] or more that matches nothing
-     * becomes an entry of its own.
-     */
-    @Synchronized
-    fun learn(points: IntArray, channelId: String, providerId: String, source: String) {
-        val now = clock.instant()
-        val day = now.atOffset(ZoneOffset.UTC).toLocalDate().toString()
-        val known = BooleanArray(points.size)
-        for (round in 1..MAX_LEARN_MATCHES) {
-            val match = best(points, MIN_LEARN_POINTS, known, exclude = null) ?: break
-            for (i in match.queryFrom..match.queryTo) known[i] = true
-            val entry = match.entry
-            if (!entry.blocked && (channelId !in entry.channels || day !in entry.days)) {
-                entry.channels += channelId
-                entry.days += day
-                dirty += entry.id
-            }
-        }
-        var from = -1
-        for (i in 0..points.size) {
-            val free = i < points.size && !known[i]
-            if (free && from < 0) from = i
-            if (!free && from >= 0) {
-                if (i - from >= MIN_LEARN_POINTS) {
-                    var start = from
-                    while (start < i) {
-                        val end = minOf(i, start + MAX_ENTRY_POINTS)
-                        if (end - start >= MIN_LEARN_POINTS) {
-                            val entry = BreakEntry(UUID.randomUUID().toString(), points.copyOfRange(start, end), providerId, source, now, setOf(channelId), setOf(day))
-                            add(entry)
-                            dirty += entry.id
-                        }
-                        start = end
-                    }
-                }
-                from = -1
-            }
-        }
-        if (pointCount > MAX_POINTS) evict()
-    }
-
-    /** The longest match of [query] of [minPoints] or more, against any entry not learned by the clock tagged [exclude]. */
-    @Synchronized
-    fun match(query: IntArray, minPoints: Int, exclude: String? = null): BreakMatch? = best(query, minPoints, null, exclude)
-
-    /** The canary found [entry] in a marked break on [channelId]. */
-    @Synchronized
-    fun hit(entry: BreakEntry) {
-        entry.hits++
-        entry.lastHitAt = clock.instant()
-        dirty += entry.id
-        canary.addLast(clock.instant() to true)
-        trimCanary()
-    }
-
-    /** The canary found [entry] in show audio: it is blocked, and its audio vetoes matches from now on. */
-    @Synchronized
-    fun falseHit(entry: BreakEntry) {
-        entry.falseHits++
-        entry.blocked = true
-        dirty += entry.id
-        canary.addLast(clock.instant() to false)
-        trimCanary()
-    }
-
-    /** A session matched [entry] on a channel without markers. */
-    @Synchronized
-    fun matched(entry: BreakEntry) {
-        entry.lastHitAt = clock.instant()
-        dirty += entry.id
-    }
-
-    private fun trimCanary() {
-        val since = clock.instant().minus(CANARY_WINDOW)
-        while (canary.isNotEmpty() && canary.first().first.isBefore(since)) canary.removeFirst()
-    }
-
-    private fun add(entry: BreakEntry) {
+    fun add(entry: BreakEntry) {
         val slot = entries.size
         entries += entry
         slots[entry.id] = slot
-        entry.points.forEachIndexed { position, word -> index.getOrPut(word) { Postings() }.add((slot shl POSITION_BITS) or position) }
+        entry.points.forEachIndexed { position, word ->
+            index.getOrPut(word) { Postings() }.add((slot shl POSITION_BITS) or position)
+        }
         pointCount += entry.points.size
     }
 
-    private fun remove(slot: Int) {
-        val entry = entries[slot] ?: return
-        entries[slot] = null
-        slots -= entry.id
-        dirty -= entry.id
-        removed += entry.id
-        pointCount -= entry.points.size
-        deadSlots++
+    /** Removes the entries [drop] selects; returns their ids. */
+    fun removeWhere(drop: (BreakEntry) -> Boolean): List<String> {
+        val gone = entries.indices.filter { slot -> entries[slot]?.let(drop) == true }.mapNotNull(::remove)
+        if (deadSlots > entries.size * MAX_DEAD_SHARE) rebuild()
+        return gone
     }
 
-    private fun expire() {
-        val before = clock.instant().minus(EXPIRY)
-        entries.indices.filter { slot -> entries[slot]?.let { (it.lastHitAt ?: it.createdAt).isBefore(before) && lastMarked(it).isBefore(before) } == true }.forEach(::remove)
-        if (deadSlots > entries.size / 4) rebuild()
-    }
-
-    private fun lastMarked(entry: BreakEntry): Instant =
-        entry.days.maxOrNull()?.let { java.time.LocalDate.parse(it).plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC) } ?: entry.createdAt
-
-    /** Drops the least recently heard entries until the library is back under [MAX_POINTS]. */
-    private fun evict() {
-        val order = entries.indices.filter { entries[it] != null && !entries[it]!!.blocked }
-            .sortedBy { slot -> entries[slot]!!.let { maxOf(it.lastHitAt ?: it.createdAt, lastMarked(it)) } }
+    /** Drops the least recently heard unblocked entries until [to] points are left; returns their ids. */
+    fun evict(to: Long): List<String> {
+        val order = entries.indices.filter { entries[it]?.blocked == false }
+            .sortedBy { slot -> entries[slot]!!.let { maxOf(it.lastHitAt ?: it.createdAt, it.lastMarked()) } }
+        val gone = ArrayList<String>()
         for (slot in order) {
-            if (pointCount <= MAX_POINTS * 9 / 10) break
-            remove(slot)
+            if (pointCount <= to) break
+            remove(slot)?.let(gone::add)
         }
         rebuild()
+        return gone
+    }
+
+    /** The longest match of [query] of [minPoints] or more outside [skip], against entries not learned by [exclude]. */
+    fun best(query: IntArray, minPoints: Int, skip: BooleanArray?, exclude: String?): BreakMatch? {
+        if (query.size < minPoints || index.isEmpty()) return null
+        return votes(query, skip).entries.sortedByDescending { it.value }.take(CANDIDATES)
+            .takeWhile { it.value >= MIN_VOTES }
+            .mapNotNull { (key, _) ->
+                entries[(key ushr Int.SIZE_BITS).toInt()]
+                    ?.takeUnless { exclude != null && it.source.startsWith("$exclude:") }
+                    ?.let { it to key.toInt() }
+            }.flatMap { (entry, shift) ->
+                (-1..1).mapNotNull { nudge ->
+                    longestRun(query, entry.points, shift + nudge, minPoints, skip)?.let { run ->
+                        BreakMatch(entry, run.first, run.last, run.first + shift + nudge)
+                    }
+                }
+            }.fold(null as BreakMatch?) { best, match -> if (best == null || match.beats(best)) match else best }
+    }
+
+    /** Each entry and shift the words of [query] outside [skip] vote for, with its votes. */
+    private fun votes(query: IntArray, skip: BooleanArray?): Map<Long, Int> {
+        val votes = HashMap<Long, Int>()
+        for (i in query.indices) {
+            // A word on very many entries (near silence) says nothing about which.
+            val postings = index[query[i]]?.takeIf { skip?.get(i) != true && it.size <= COMMON_WORD } ?: continue
+            for (k in 0 until postings.size) {
+                val posting = postings.data[k]
+                val slot = posting ushr POSITION_BITS
+                val shift = (posting and POSITION_MASK) - i
+                votes.merge(voteKey(slot, shift), 1, Int::plus)
+            }
+        }
+        return votes
+    }
+
+    private fun remove(slot: Int): String? {
+        val entry = entries[slot] ?: return null
+        entries[slot] = null
+        slots -= entry.id
+        pointCount -= entry.points.size
+        deadSlots++
+        return entry.id
     }
 
     private fun rebuild() {
-        val live = entries.filterNotNull()
+        val live = live
         entries.clear()
         slots.clear()
         index.clear()
@@ -250,89 +422,51 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
         deadSlots = 0
         live.forEach(::add)
     }
+}
 
-    private fun best(query: IntArray, minPoints: Int, skip: BooleanArray?, exclude: String?): BreakMatch? {
-        if (query.size < minPoints || index.isEmpty()) return null
-        val votes = HashMap<Long, Int>()
-        for (i in query.indices) {
-            if (skip?.get(i) == true) continue
-            val postings = index[query[i]] ?: continue
-            // A word on very many entries (near silence) says nothing about which.
-            if (postings.size > COMMON_WORD) continue
-            for (k in 0 until postings.size) {
-                val posting = postings.data[k]
-                val slot = posting ushr POSITION_BITS
-                val shift = (posting and POSITION_MASK) - i
-                votes.merge((slot.toLong() shl 32) or (shift.toLong() and 0xFFFFFFFFL), 1, Int::plus)
-            }
+/** An entry's slot in the high half and the shift between query and entry, as an unsigned word, in the low half. */
+private fun voteKey(slot: Int, shift: Int): Long = (slot.toLong() shl Int.SIZE_BITS) or shift.toUInt().toLong()
+
+/** With [entry] shifted [shift] points against [query], the longest run that passes the bounds. */
+private fun longestRun(query: IntArray, entry: IntArray, shift: Int, minPoints: Int, skip: BooleanArray?): IntRange? {
+    val finder = RunFinder(minPoints)
+    for (i in maxOf(0, -shift) until minOf(query.size, entry.size - shift)) {
+        val agrees = Integer.bitCount(query[i] xor entry[i + shift]) <= BreakLibrary.MAX_BIT_ERRORS
+        if (skip?.get(i) != true && agrees) finder.agree(i)
+    }
+    return finder.result()
+}
+
+/**
+ * The longest run of agreeing points, in order, of [minPoints] or more, with [BreakLibrary.MIN_DENSITY] of them
+ * agreeing and no gap over [BreakLibrary.MAX_GAP_POINTS].
+ */
+private class RunFinder(private val minPoints: Int) {
+    private var best: IntRange? = null
+    private var start = -1
+    private var last = -1
+    private var matches = 0
+
+    fun agree(i: Int) {
+        if (start >= 0 && i - last > BreakLibrary.MAX_GAP_POINTS) close()
+        if (start < 0) {
+            start = i
+            matches = 0
         }
-        var best: BreakMatch? = null
-        for ((key, count) in votes.entries.sortedByDescending { it.value }.take(CANDIDATES)) {
-            if (count < MIN_VOTES) break
-            val entry = entries[(key ushr 32).toInt()] ?: continue
-            if (exclude != null && entry.source.startsWith("$exclude:")) continue
-            val shift = key.toInt()
-            for (nudge in -1..1) {
-                val run = longestRun(query, entry.points, shift + nudge, minPoints, skip) ?: continue
-                val match = BreakMatch(entry, run.first, run.last, run.first + shift + nudge)
-                // The longest wins; a blocked entry wins a tie, since show audio must veto.
-                if (best == null || match.points > best.points || (match.points == best.points && entry.blocked && !best.entry.blocked)) best = match
-            }
-        }
-        return best
+        last = i
+        matches++
     }
 
-    /** With [entry] shifted [shift] points against [query], the longest run that passes the bounds. */
-    private fun longestRun(query: IntArray, entry: IntArray, shift: Int, minPoints: Int, skip: BooleanArray?): IntRange? {
-        val from = maxOf(0, -shift)
-        val until = minOf(query.size, entry.size - shift)
-        var best: IntRange? = null
-        var start = -1
-        var last = -1
-        var matches = 0
-        fun close() {
-            if (start < 0) return
-            val length = last - start + 1
-            if (length >= minPoints && matches >= MIN_DENSITY * length && (best == null || length > best!!.count())) best = start..last
-        }
-        for (i in from until until) {
-            if (skip?.get(i) == true || Integer.bitCount(query[i] xor entry[i + shift]) > MAX_BIT_ERRORS) continue
-            if (start >= 0 && i - last > MAX_GAP_POINTS) {
-                close()
-                start = -1
-            }
-            if (start < 0) {
-                start = i
-                matches = 0
-            }
-            last = i
-            matches++
-        }
+    fun result(): IntRange? {
         close()
         return best
     }
 
-    companion object {
-        /** One Chromaprint point covers a third of its 4096-sample frame at 11,025 Hz. */
-        const val POINT_MS = 4096.0 / 3 / 11_025 * 1_000
-        const val MAX_BIT_ERRORS = 6
-        const val MIN_DENSITY = 0.6
-        /** About 2 s. */
-        const val MAX_GAP_POINTS = 16
-        /** About 10 s: the least a learned stretch, or a match that starts a break, may be. */
-        const val MIN_LEARN_POINTS = 81
-        /** About 4 minutes, which also bounds a position to [POSITION_BITS]. */
-        const val MAX_ENTRY_POINTS = 1_940
-        const val CANARY_PRECISION = 0.999
-        val CANARY_WINDOW: Duration = Duration.ofDays(1)
-        val EXPIRY: Duration = Duration.ofDays(30)
-        /** About 3 days of ads heard without a break; past it the least recently heard go. */
-        const val MAX_POINTS = 2_000_000L
-        private const val POSITION_BITS = 12
-        private const val POSITION_MASK = (1 shl POSITION_BITS) - 1
-        private const val COMMON_WORD = 2_000
-        private const val CANDIDATES = 8
-        private const val MIN_VOTES = 3
-        private const val MAX_LEARN_MATCHES = 16
+    private fun close() {
+        if (start < 0) return
+        val length = last - start + 1
+        val longest = best?.let { length > it.count() } ?: true
+        if (length >= minPoints && matches >= BreakLibrary.MIN_DENSITY * length && longest) best = start..last
+        start = -1
     }
 }

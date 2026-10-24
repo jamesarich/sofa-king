@@ -8,7 +8,10 @@ import java.time.Instant
 /** One guide program on one lineup channel, as a rule sees it. */
 data class Airing(val channelId: String, val channelName: String, val program: GuideProgram)
 
-/** What the scheduler does to the stored recordings after one pass: airings to add and rule-scheduled recordings to drop. */
+/**
+ * What the scheduler does to the stored recordings after one pass: airings to add and
+ * rule-scheduled recordings to drop.
+ */
 data class Plan(val add: List<Pair<StoredRule, Airing>>, val drop: List<StoredRecording>)
 
 /**
@@ -17,7 +20,8 @@ data class Plan(val add: List<Pair<StoredRule, Airing>>, val drop: List<StoredRe
  */
 object DvrPlanner {
     /** States that count as having an episode: one is scheduled, running or kept. */
-    private val HELD = setOf(Wire.RecordingState.SCHEDULED, Wire.RecordingState.RECORDING, Wire.RecordingState.COMPLETED)
+    private val HELD =
+        setOf(Wire.RecordingState.SCHEDULED, Wire.RecordingState.RECORDING, Wire.RecordingState.COMPLETED)
 
     /** A guide that marks neither `new` nor `previously-shown` makes every airing new. */
     fun isNew(program: GuideProgram): Boolean = program.isNew || program.previouslyShown == null
@@ -45,7 +49,8 @@ object DvrPlanner {
         return episodeKey(name.show, name.numbering?.season, name.numbering?.episode, name.episodeTitle)
     }
 
-    private fun key(recording: StoredRecording): String? = episodeKey(recording.title, recording.season, recording.episode, recording.episodeTitle)
+    private fun key(recording: StoredRecording): String? =
+        episodeKey(recording.title, recording.season, recording.episode, recording.episodeTitle)
 
     /**
      * The airings [rules] add, by priority, and the scheduled recordings a rule made that no longer match anything in
@@ -61,14 +66,19 @@ object DvrPlanner {
             for (airing in airings.filter { matches(rule, it) }.sortedBy { it.program.startsAt }) {
                 val slot = airing.channelId to airing.program.startsAt
                 wanted += slot
-                if (airing.program.endsAt <= now || slot in taken) continue
                 val episode = key(airing)
-                if (episode != null && !episodes.add(episode)) continue
-                taken += slot
-                add += rule to airing
+                val open = airing.program.endsAt > now && slot !in taken && (episode == null || episode !in episodes)
+                if (open) {
+                    episode?.let(episodes::add)
+                    taken += slot
+                    add += rule to airing
+                }
             }
         }
-        val drop = existing.filter { it.ruleId != null && it.state == Wire.RecordingState.SCHEDULED && it.recordFrom > now && (it.channelId to it.startsAt) !in wanted }
+        val drop = existing.filter {
+            it.ruleId != null && it.state == Wire.RecordingState.SCHEDULED &&
+                it.recordFrom > now && (it.channelId to it.startsAt) !in wanted
+        }
         return Plan(add, drop)
     }
 
@@ -78,16 +88,32 @@ object DvrPlanner {
      * rule, a higher rule priority outranks a lower one, and the earlier-made recording wins a tie.
      */
     fun conflicts(recordings: List<StoredRecording>, priorities: Map<String, Int>, capacity: Int): Set<String> {
-        val active = recordings.filter { it.state == Wire.RecordingState.SCHEDULED || it.state == Wire.RecordingState.RECORDING }
+        val active = recordings.filter {
+            it.state == Wire.RecordingState.SCHEDULED || it.state == Wire.RecordingState.RECORDING
+        }
         fun rank(r: StoredRecording) = if (r.ruleId == null) Int.MAX_VALUE else priorities[r.ruleId] ?: 0
-        val ordered = active.sortedWith(compareByDescending<StoredRecording> { if (it.state == Wire.RecordingState.RECORDING) 1 else 0 }.thenByDescending(::rank).thenBy { it.createdAt })
+        val ordered = active.sortedWith(
+            compareByDescending<StoredRecording> {
+                if (it.state == Wire.RecordingState.RECORDING) {
+                    1
+                } else {
+                    0
+                }
+            }.thenByDescending(::rank).thenBy { it.createdAt },
+        )
         val placed = mutableListOf<StoredRecording>()
         val conflicting = HashSet<String>()
         for (recording in ordered) {
-            val overlapping = placed.filter { it.recordFrom < recording.recordUntil && recording.recordFrom < it.recordUntil }
+            val overlapping = placed.filter {
+                it.recordFrom < recording.recordUntil && recording.recordFrom < it.recordUntil
+            }
             // The most that run at once within this window is the peak among the overlapping windows' starts.
-            val peak = (overlapping.map { it.recordFrom } + recording.recordFrom).filter { it >= recording.recordFrom && it < recording.recordUntil }
-                .maxOfOrNull { moment -> overlapping.count { it.recordFrom <= moment && moment < it.recordUntil } } ?: 0
+            val peak =
+                (overlapping.map { it.recordFrom } + recording.recordFrom).filter {
+                    it >= recording.recordFrom && it < recording.recordUntil
+                }
+                    .maxOfOrNull { moment -> overlapping.count { it.recordFrom <= moment && moment < it.recordUntil } }
+                    ?: 0
             if (peak >= capacity) conflicting += recording.id else placed += recording
         }
         return conflicting
@@ -97,21 +123,36 @@ object DvrPlanner {
      * The finished recordings [retention] and the rules' keep counts no longer keep, each with its reason: `KEEP` for
      * a rule's oldest beyond its count (protected ones count but stay) and `AGE` for any older than the keep days.
      */
-    fun cull(recordings: List<StoredRecording>, rules: Map<String, StoredRule>, retention: Retention, now: Instant): List<Pair<StoredRecording, String>> {
+    fun cull(
+        recordings: List<StoredRecording>,
+        rules: Map<String, StoredRule>,
+        retention: Retention,
+        now: Instant,
+    ): List<Pair<StoredRecording, String>> {
         val completed = recordings.filter { it.state == Wire.RecordingState.COMPLETED }
         val out = LinkedHashMap<String, Pair<StoredRecording, String>>()
         for ((ruleId, held) in completed.filter { it.ruleId != null }.groupBy { it.ruleId!! }) {
             val keep = rules[ruleId]?.keep ?: 0
-            if (keep > 0) held.sortedByDescending { it.startsAt }.drop(keep).filterNot { it.protected }.forEach { out[it.id] = it to "KEEP" }
+            if (keep > 0) {
+                held.sortedByDescending { it.startsAt }.drop(keep).filterNot { it.protected }.forEach {
+                    out[it.id] =
+                        it to "KEEP"
+                }
+            }
         }
         if (retention.keepDays > 0) {
             val cutoff = now.minus(Duration.ofDays(retention.keepDays.toLong()))
-            completed.filter { !it.protected && it.endsAt < cutoff && it.id !in out }.forEach { out[it.id] = it to "AGE" }
+            completed.filter {
+                !it.protected && it.endsAt < cutoff && it.id !in out
+            }.forEach { out[it.id] = it to "AGE" }
         }
         return out.values.toList()
     }
 
-    /** The order the culler deletes in when space runs short: watched before unwatched, then oldest first; never a protected one. */
+    /**
+     * The order the culler deletes in when space runs short: watched before unwatched, then
+     * oldest first; never a protected one.
+     */
     fun byCullOrder(recordings: List<StoredRecording>): List<StoredRecording> =
         recordings.filter { it.state == Wire.RecordingState.COMPLETED && !it.protected }
             .sortedWith(compareByDescending<StoredRecording> { it.watched }.thenBy { it.startsAt })

@@ -39,7 +39,22 @@ import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.guide_cell_airing
+import dev.jamesrich.sofaking.resources.guide_cell_later
+import dev.jamesrich.sofaking.resources.guide_cell_none
+import dev.jamesrich.sofaking.resources.guide_details
+import dev.jamesrich.sofaking.resources.guide_favorite
+import dev.jamesrich.sofaking.resources.guide_later
+import dev.jamesrich.sofaking.resources.guide_later_day
+import dev.jamesrich.sofaking.resources.guide_out_of_date
+import dev.jamesrich.sofaking.resources.guide_range
+import dev.jamesrich.sofaking.resources.guide_today
+import dev.jamesrich.sofaking.resources.guide_toggle_favorite
+import dev.jamesrich.sofaking.resources.guide_tomorrow
+import dev.jamesrich.sofaking.resources.listing_loading
+import dev.jamesrich.sofaking.resources.no_guide
+import dev.jamesrich.sofaking.resources.no_listing
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.player.LivePlayer
@@ -60,7 +75,7 @@ internal fun rememberGuideRowEnv(
     minutePx: Float,
     minStickyTextPx: Float,
     scrollState: ScrollState,
-    onCellFocused: (Channel, GuideCell) -> Unit,
+    onCellFocus: (Channel, GuideCell) -> Unit,
     onPlay: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     onOpenDetails: (Channel, GuideCell) -> Unit,
@@ -78,9 +93,10 @@ internal fun rememberGuideRowEnv(
     val detailsLabel = stringResource(Res.string.guide_details)
     val laterLabel = stringResource(if (dayOffset == 0) Res.string.guide_later else Res.string.guide_later_day)
     return remember(
-        cellAiring, cellLater, cellNone, timeFormat, noListing, listingLoading, guideLoading, noGuide, guideOutOfDate, favoriteLabel,
+        cellAiring, cellLater, cellNone, timeFormat, noListing, listingLoading, guideLoading, noGuide, guideOutOfDate,
+        favoriteLabel,
         toggleFavoriteLabel, detailsLabel, laterLabel,
-        minutePx, minStickyTextPx, scrollState, onCellFocused, onPlay, onToggleFavorite, onOpenDetails, onJumpTo,
+        minutePx, minStickyTextPx, scrollState, onCellFocus, onPlay, onToggleFavorite, onOpenDetails, onJumpTo,
     ) {
         GuideRowEnv(
             cellAiring = cellAiring,
@@ -97,7 +113,7 @@ internal fun rememberGuideRowEnv(
             minutePx = minutePx,
             minStickyTextPx = minStickyTextPx,
             scrollState = scrollState,
-            onCellFocused = onCellFocused,
+            onCellFocus = onCellFocus,
             onPlay = onPlay,
             onToggleFavorite = onToggleFavorite,
             onOpenDetails = onOpenDetails,
@@ -112,7 +128,8 @@ internal fun rememberGuideRowEnv(
 @Composable
 internal fun GuideTimeHeader(
     scrollState: ScrollState,
-    viewport: MutableIntState,
+    viewport: () -> Int,
+    onViewportChange: (Int) -> Unit,
     minutePx: Float,
     windowStart: Instant,
     now: Instant,
@@ -120,7 +137,10 @@ internal fun GuideTimeHeader(
     timeFormat: TimeFormatter,
 ) {
     Row(Modifier.fillMaxWidth().height(HEADER_HEIGHT)) {
-        Box(Modifier.width(pinWidth(LocalLayoutProfile.current)).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+        Box(
+            Modifier.width(pinWidth(LocalLayoutProfile.current)).fillMaxHeight(),
+            contentAlignment = Alignment.CenterStart,
+        ) {
             VisibleRange(
                 scrollState = scrollState,
                 viewport = viewport,
@@ -136,7 +156,7 @@ internal fun GuideTimeHeader(
         TimelineStrip(
             scrollState = scrollState,
             nowMinute = nowMinute,
-            modifier = Modifier.weight(1f).onSizeChanged { viewport.intValue = it.width },
+            modifier = Modifier.weight(1f).onSizeChanged { onViewportChange(it.width) },
         ) {
             // Formatted once per window, not on every recomposition of the strip.
             val slotLabels = remember(windowStart, timeFormat) {
@@ -147,7 +167,9 @@ internal fun GuideTimeHeader(
             Row(Modifier.fillMaxHeight()) {
                 slotLabels.forEach { label ->
                     Box(
-                        Modifier.width(MINUTE_WIDTH * GuideTimeline.SLOT_MINUTES.toFloat()).fillMaxHeight().padding(start = 8.dp),
+                        Modifier.width(
+                            MINUTE_WIDTH * GuideTimeline.SLOT_MINUTES.toFloat(),
+                        ).fillMaxHeight().padding(start = 8.dp),
                         contentAlignment = Alignment.CenterStart,
                     ) {
                         Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
@@ -179,7 +201,7 @@ internal fun ColumnScope.GuideGrid(
     focusRequester: FocusRequester,
     laterFocus: Map<String, FocusRequester>,
     onGridKey: (KeyEvent) -> Boolean,
-    onJumpHandled: (Boolean) -> Unit,
+    onJumpFinish: (Boolean) -> Unit,
 ) {
     if (emptyMessage != null) {
         Text(
@@ -191,7 +213,10 @@ internal fun ColumnScope.GuideGrid(
         CompositionLocalProvider(LocalBringIntoViewSpec provides NoBringIntoView) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.weight(1f).focusRequester(focusRequester).focusRestorer().onFocusChanged { state.gridFocused = it.hasFocus }.onPreviewKeyEvent(onGridKey),
+                modifier = Modifier.weight(1f).focusRequester(focusRequester).focusRestorer().onFocusChanged {
+                    state.gridFocused =
+                        it.hasFocus
+                }.onPreviewKeyEvent(onGridKey),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 itemsIndexed(items, key = { _, item -> item.key }) { index, item ->
@@ -206,13 +231,14 @@ internal fun ColumnScope.GuideGrid(
                             env = env,
                             initialFocus = initialFocus.takeIf { index == 0 },
                             jump = state.jump?.takeIf { it.guideId == item.channel.guideId },
-                            onJumpHandled = onJumpHandled,
+                            onJumpFinish = onJumpFinish,
                         )
+
                         is GuideListItem.Later -> LaterRow(
                             item = item,
                             env = env,
                             firstFocus = laterFocus.getValue(item.key),
-                            onFocused = { state.laterFocused(item.key) },
+                            onFocus = { state.laterFocused(item.key) },
                         )
                     }
                 }
@@ -224,7 +250,7 @@ internal fun ColumnScope.GuideGrid(
 /** Chips and search or details beside the preview in one band, so the grid keeps four rows on a 1080p TV. */
 @Composable
 internal fun PreviewBand(
-    focused: State<FocusedCell?>,
+    focused: () -> FocusedCell?,
     now: Instant,
     guideLoading: Boolean,
     searchOpen: Boolean,
@@ -237,9 +263,9 @@ internal fun PreviewBand(
     muted: Boolean,
     ownsVolume: Boolean,
     failed: Boolean,
-    onFailedChanged: (Boolean) -> Unit,
+    onFailedChange: (Boolean) -> Unit,
 ) {
-    val cell = focused.value
+    val cell = focused()
     Row(Modifier.fillMaxWidth().height(PREVIEW_BAND_HEIGHT), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             chips(Modifier.fillMaxWidth())
@@ -251,7 +277,6 @@ internal fun PreviewBand(
                     channel = cell?.channel,
                     program = cell?.cell?.program,
                     live = cell?.cell?.program?.let { isAiring(it, now) } == true,
-                    now = now,
                     guideLoading = guideLoading,
                     modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds(),
                 )
@@ -266,7 +291,7 @@ internal fun PreviewBand(
             muted = muted,
             ownsVolume = ownsVolume,
             failed = failed,
-            onFailedChanged = onFailedChanged,
+            onFailedChange = onFailedChange,
         )
     }
 }

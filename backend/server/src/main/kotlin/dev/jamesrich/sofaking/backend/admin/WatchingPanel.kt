@@ -1,0 +1,165 @@
+package dev.jamesrich.sofaking.backend.admin
+
+import dev.jamesrich.sofaking.backend.api.ActiveSession
+import dev.jamesrich.sofaking.backend.library.VodActivity
+import dev.jamesrich.sofaking.contract.Wire
+import kotlinx.html.A
+import kotlinx.html.AUDIO
+import kotlinx.html.ButtonType
+import kotlinx.html.DIV
+import kotlinx.html.FlowContent
+import kotlinx.html.a
+import kotlinx.html.aside
+import kotlinx.html.audio
+import kotlinx.html.br
+import kotlinx.html.button
+import kotlinx.html.caption
+import kotlinx.html.classes
+import kotlinx.html.div
+import kotlinx.html.id
+import kotlinx.html.label
+import kotlinx.html.p
+import kotlinx.html.s
+import kotlinx.html.small
+import kotlinx.html.span
+import kotlinx.html.table
+import kotlinx.html.tbody
+import kotlinx.html.td
+import kotlinx.html.thead
+import kotlinx.html.title
+import kotlinx.html.tr
+
+/** One live session on the overview: the session, its channel's name and what that channel airs now. */
+internal class SessionRow(val active: ActiveSession, val channel: String?, val onNow: String?)
+
+/** A library file or recording being played, with what the portal calls it. */
+internal class PlayingRow(val activity: VodActivity, val title: String)
+
+/** A session the operator asked to stop, waiting for the confirmation. */
+internal class StopConfirm(val row: SessionRow)
+
+internal fun FlowContent.watchingPanel(chrome: Chrome, view: OverviewView) = panel(
+    "Watching now",
+    id = "watching",
+    aside = { span("muted") { +plural(view.sessions.size + view.playing.size, "session") } },
+) {
+    if (view.sessions.isEmpty() && view.playing.isEmpty()) {
+        p("muted") { +"Nobody is watching. The sofa is all yours." }
+    } else if (view.sessions.isNotEmpty()) {
+        liveSessions(chrome, view.sessions)
+    }
+    if (view.playing.isNotEmpty()) playing(chrome, view.playing)
+    p("muted small") {
+        +(
+            "Sent counts the bytes relayed to the player over a live session. Direct play serves the file as it " +
+                "is; remux and transcode run FFmpeg, and transcodes count toward the conversion limit. Stop " +
+                "ends the session; the player sees its stream end and may open a new one."
+            )
+    }
+}
+
+private fun DIV.liveSessions(chrome: Chrome, sessions: List<SessionRow>) = div("scroll") {
+    val now = chrome.now
+    table {
+        caption("sr") { +"Watching now" }
+        thead {
+            tr {
+                col("Channel")
+                col("On now")
+                col("Player")
+                col("Watching for")
+                col("Sent", "num")
+                col("Lease ends")
+                col("Action", "sr")
+            }
+        }
+        tbody {
+            for (row in sessions) {
+                val active = row.active
+                tr(flashClass(chrome, active.id)) {
+                    td {
+                        if (row.channel != null) {
+                            a("/admin/lineup/${active.channelId}", classes = "rowlink") { +row.channel }
+                        } else {
+                            +active.channelId
+                        }
+                        if (active.busy) {
+                            +" "
+                            chip("streaming", Tone.OK)
+                        }
+                        br()
+                        span("muted small") { +"via ${active.providerId}" }
+                    }
+                    td { if (row.onNow != null) +row.onNow else span("muted") { +"No guide" } }
+                    td {
+                        +(if (active.external) "M3U or Plex" else "Sofa King app")
+                        if (active.client != null) {
+                            br()
+                            span("muted small mono") { +active.client }
+                        }
+                    }
+                    td("nowrap") { +since(active.startedAt, now) }
+                    td("num nowrap") { +bytesText(active.bytes) }
+                    td("nowrap") { ago(active.expiresAt, now) }
+                    td {
+                        stopButton(
+                            "/admin/sessions/${active.id}/stop",
+                            chrome,
+                            "Stop the session on ${row.channel ?: active.channelId}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun DIV.playing(chrome: Chrome, playing: List<PlayingRow>) = div("scroll") {
+    val now = chrome.now
+    table {
+        caption("sr") { +"Playing from libraries and recordings" }
+        thead {
+            tr {
+                col("Playing")
+                col("How")
+                col("Watching for")
+                col("Lease ends")
+                col("Action", "sr")
+            }
+        }
+        tbody {
+            for (row in playing) {
+                val active = row.activity
+                tr(flashClass(chrome, active.id)) {
+                    td {
+                        +row.title
+                        br()
+                        span("muted small") { +(if (active.recordingId != null) "Recording" else "Library") }
+                    }
+                    td {
+                        chip(
+                            when (active.mode) {
+                                Wire.VodMode.DIRECT -> "direct play"
+                                Wire.VodMode.REMUX -> "remux"
+                                Wire.VodMode.AUDIO -> "audio converted"
+                                else -> "transcode"
+                            },
+                            if (active.mode == Wire.VodMode.TRANSCODE) Tone.WARN else Tone.OK,
+                        )
+                    }
+                    td("nowrap") { +since(active.startedAt.toString(), now) }
+                    td("nowrap") { ago(active.expiresAt.toString(), now) }
+                    td { stopButton("/admin/vod/${active.id}/stop", chrome, "Stop playing ${row.title}") }
+                }
+            }
+        }
+    }
+}
+
+private fun FlowContent.stopButton(action: String, chrome: Chrome, label: String) =
+    postForm(action, chrome.session, keepScroll = true) {
+        button(type = ButtonType.submit, classes = "small quiet") {
+            attributes["aria-label"] = label
+            +"Stop"
+        }
+    }

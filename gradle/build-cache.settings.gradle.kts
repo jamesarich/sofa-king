@@ -2,10 +2,9 @@
 // variables. CI pushes from main; every other build only reads. Each top-level build applies this, since in a composite
 // only the outermost build's cache settings count and CI builds app/, backend/ and contract/ on their own; build-logic,
 // only ever included, does not.
-fun cacheSetting(name: String): String? =
-    providers.gradleProperty("sofaking.cache.$name")
-        .orElse(providers.environmentVariable("SOFAKING_CACHE_${name.uppercase()}"))
-        .orNull?.trim()?.takeIf { it.isNotEmpty() }
+fun cacheSetting(name: String): String? = providers.gradleProperty("sofaking.cache.$name")
+    .orElse(providers.environmentVariable("SOFAKING_CACHE_${name.uppercase()}"))
+    .orNull?.trim()?.takeIf { it.isNotEmpty() }
 
 val cacheUsername = cacheSetting("username")
 val cachePassword = cacheSetting("password")

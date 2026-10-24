@@ -2,13 +2,13 @@ package dev.jamesrich.sofaking.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import dev.jamesrich.sofaking.ui.player.LivePlayer
 import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.lifecycle.LifecycleOwner
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PublishedBuild
 import dev.jamesrich.sofaking.data.UpdateInstaller
+import dev.jamesrich.sofaking.ui.player.LivePlayer
 
 /**
  * A desktop window, sized and placed by its user, unless started with `-Dsofaking.tv=true`, which lays the app out as
@@ -23,7 +23,10 @@ internal const val TV_PROPERTY = "sofaking.tv"
 @Composable
 internal actual fun rememberSystem24HourClock(): Boolean = remember {
     val format = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
-    (format as? java.text.SimpleDateFormat)?.toPattern()?.let { pattern -> pattern.contains('H') || pattern.contains('k') } ?: false
+    (format as? java.text.SimpleDateFormat)?.toPattern()?.let { pattern ->
+        pattern.contains('H') || pattern.contains('k')
+    }
+        ?: false
 }
 
 /** Desktop screen readers do not explore by touch; the preview may open full screen. */

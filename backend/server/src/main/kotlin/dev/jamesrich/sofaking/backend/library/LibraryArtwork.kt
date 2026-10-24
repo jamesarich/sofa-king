@@ -1,19 +1,17 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.backend.MIB
 import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.logos.LogoCache
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import io.ktor.client.HttpClient
 import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.readBuffer
-import java.nio.file.Files
-import java.nio.file.LinkOption
-import java.nio.file.Path
-import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -21,6 +19,10 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.io.readByteArray
 import org.slf4j.LoggerFactory
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
+import kotlin.time.Duration.Companion.seconds
 
 private val log = LoggerFactory.getLogger(LibraryArtwork::class.java)
 
@@ -29,6 +31,9 @@ private const val FRAME_SECONDS = 30L
 
 /** How many locks the image fetches share. */
 private const val LOCK_STRIPES = 64
+
+/** The largest picture fetched. */
+private const val ARTWORK_LIMIT = 8 * MIB
 
 /** A TMDB image path as its API returns one: a slash, then letters, digits, `_` or `-`, and an image extension. */
 private val TMDB_IMAGE_PATH = Regex("""/[A-Za-z0-9_-]{1,128}\.(jpg|jpeg|png|webp)""")
@@ -45,7 +50,7 @@ class LibraryArtwork(
     private val http: HttpClient?,
     private val directory: Path,
     private val tmdbImages: String = "https://image.tmdb.org/t/p",
-    private val maxBytes: Int = 8 * 1024 * 1024,
+    private val maxBytes: Int = ARTWORK_LIMIT,
     /** FFmpeg, which takes a frame for a file with no picture; null takes none. */
     private val ffmpeg: String? = null,
 ) {
@@ -78,11 +83,16 @@ class LibraryArtwork(
                     Files.createDirectories(directory)
                     val seconds = "%.3f".format(java.util.Locale.ROOT, source.atMs / 1000.0)
                     val command = listOf(
-                        ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-ss", seconds, "-i", video.toString(),
+                        ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-ss", seconds, "-i",
+                        video.toString(),
                         "-map", "0:v:0", "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", partial.toString(),
                     )
                     val made = try {
-                        ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(FRAME_SECONDS.seconds) == 0
+                        ProcessBuilder(
+                            command,
+                        ).redirectErrorStream(
+                            true,
+                        ).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(FRAME_SECONDS.seconds) == 0
                     } catch (_: java.io.IOException) {
                         false
                     }
@@ -90,7 +100,12 @@ class LibraryArtwork(
                         log.info("artwork frame failed")
                         return@withContext null
                     }
-                    Files.move(partial, file, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                    Files.move(
+                        partial,
+                        file,
+                        java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    )
                     Artwork(file, "image/jpeg")
                 }
             } finally {
@@ -103,7 +118,9 @@ class LibraryArtwork(
     private suspend fun local(source: ArtSource.Local): Artwork? = withContext(Dispatchers.IO) {
         val type = typeOf(source.relative) ?: return@withContext null
         val file = source.root.resolve(source.relative).normalize()
-        if (!file.startsWith(source.root.normalize()) || !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) return@withContext null
+        if (!file.startsWith(source.root.normalize()) || !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            return@withContext null
+        }
         Artwork(file, type)
     }
 
@@ -124,9 +141,9 @@ class LibraryArtwork(
         }
     }
 
-    private suspend fun download(url: String): ByteArray? = try {
+    private suspend fun download(url: String): ByteArray? = runCatchingCancellable {
         http!!.prepareGet(url).execute { response ->
-            if (response.status.value != 200) {
+            if (response.status != HttpStatusCode.OK) {
                 log.info("artwork fetch failed status={}", response.status.value)
                 return@execute null
             }
@@ -134,9 +151,7 @@ class LibraryArtwork(
             val bytes = response.bodyAsChannel().readBuffer(maxBytes.toLong() + 1).readByteArray()
             bytes.takeIf { it.size <= maxBytes && LogoCache.rasterType(it) != null }
         }
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
+    }.getOrElse { e ->
         log.info("artwork fetch failed class={}", e.javaClass.simpleName)
         null
     }

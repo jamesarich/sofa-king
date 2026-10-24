@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
@@ -28,43 +29,87 @@ class ItemDetailsExtrasTest {
         item = movie,
         extras = listOf(
             MediaItem("x1", "movies", ItemKind.EXTRA, "Trailer", parentId = "m1", extra = ExtraKind.TRAILER),
-            MediaItem("x2", "movies", ItemKind.EXTRA, "The Beast Within", parentId = "m1", extra = ExtraKind.BEHIND_THE_SCENES),
+            MediaItem(
+                "x2",
+                "movies",
+                ItemKind.EXTRA,
+                "The Beast Within",
+                parentId = "m1",
+                extra = ExtraKind.BEHIND_THE_SCENES,
+            ),
         ),
         related = listOf(MediaItem("m2", "movies", ItemKind.MOVIE, "Prometheus", year = 2012)),
     )
 
     @Test
-    fun `a movie's page lists its extras, which play, and more like it, which open`() = runSkikoComposeUiTest(Size(1920f, 3000f), Density(1f)) {
-        val played = mutableListOf<String>()
-        val opened = mutableListOf<String>()
+    fun `a movie's page lists its extras, which play, and more like it, which open`() =
+        runSkikoComposeUiTest(Size(1920f, 3000f), Density(1f)) {
+            val played = mutableListOf<String>()
+            val opened = mutableListOf<String>()
+            setContent {
+                SofaKingTheme {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        ItemDetailsScreen(
+                            ItemDetailState.Ready(detail),
+                            season = null,
+                            selectedSeasonId = null,
+                            actions = ItemDetailsActions({ item, _ ->
+                                played += item.id
+                            }, { _, _ -> }, {}, {}, onOpenItem = {
+                                opened +=
+                                    it.id
+                            }),
+                        )
+                    }
+                }
+            }
+            onAllNodesWithText("Extras").assertCountEquals(1)
+            onAllNodesWithText("More like this").assertCountEquals(1)
+            onNode(hasContentDescription("The Beast Within, Behind the scenes")).performClick()
+            onNode(hasContentDescription("Prometheus, 2012")).performClick()
+            assertEquals(listOf("x2"), played)
+            assertEquals(listOf("m2"), opened)
+        }
+
+    @Test
+    fun `back from a title like it lands on its card`() = runSkikoComposeUiTest(Size(1920f, 3000f), Density(1f)) {
         setContent {
             SofaKingTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     ItemDetailsScreen(
-                        ItemDetailState.Ready(detail), season = null, selectedSeasonId = null,
-                        actions = ItemDetailsActions({ item, _ -> played += item.id }, { _, _ -> }, {}, {}, onOpenItem = { opened += it.id }),
+                        ItemDetailState.Ready(detail),
+                        season = null,
+                        selectedSeasonId = null,
+                        actions = ItemDetailsActions({ _, _ -> }, { _, _ -> }, {}, {}),
+                        returnedFrom = "m2",
                     )
                 }
             }
         }
-        onAllNodesWithText("Extras").assertCountEquals(1)
-        onAllNodesWithText("More like this").assertCountEquals(1)
-        onNode(hasContentDescription("The Beast Within, Behind the scenes")).performClick()
-        onNode(hasContentDescription("Prometheus, 2012")).performClick()
-        assertEquals(listOf("x2"), played)
-        assertEquals(listOf("m2"), opened)
+        waitForIdle()
+        onNode(hasContentDescription("Prometheus, 2012")).assertIsFocused()
     }
 
     @Test
-    fun `a page with no extras or related titles shows neither row`() = runSkikoComposeUiTest(Size(1920f, 3000f), Density(1f)) {
-        setContent {
-            SofaKingTheme {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    ItemDetailsScreen(ItemDetailState.Ready(MediaItemDetail(movie)), season = null, selectedSeasonId = null, actions = ItemDetailsActions({ _, _ -> }, { _, _ -> }, {}, {}))
+    fun `a page with no extras or related titles shows neither row`() =
+        runSkikoComposeUiTest(Size(1920f, 3000f), Density(1f)) {
+            setContent {
+                SofaKingTheme {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        ItemDetailsScreen(
+                            ItemDetailState.Ready(MediaItemDetail(movie)),
+                            season = null,
+                            selectedSeasonId = null,
+                            actions = ItemDetailsActions({
+                                    _,
+                                    _,
+                                ->
+                            }, { _, _ -> }, {}, {}),
+                        )
+                    }
                 }
             }
+            onAllNodesWithText("Extras").assertCountEquals(0)
+            onAllNodesWithText("More like this").assertCountEquals(0)
         }
-        onAllNodesWithText("Extras").assertCountEquals(0)
-        onAllNodesWithText("More like this").assertCountEquals(0)
-    }
 }

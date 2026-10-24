@@ -48,12 +48,22 @@ internal val WIDE_CHOICE_WIDTH = 820.dp
 
 @Composable
 internal fun SectionHeader(title: String) {
-    Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+    Text(
+        title,
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 8.dp),
+    )
 }
 
 @Composable
 internal fun HelpText(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(FIELD_WIDTH))
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.width(FIELD_WIDTH),
+    )
 }
 
 /** A label with its control(s) beside it; one focus group so Left/Right stay inside the row. */
@@ -74,7 +84,13 @@ internal fun SettingRow(label: String, controls: @Composable () -> Unit) {
  * stops on a bare switch. [help] reads beneath the label and with it.
  */
 @Composable
-internal fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, help: String? = null, modifier: Modifier = Modifier) {
+internal fun ToggleRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    help: String? = null,
+) {
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
     val shape = MaterialTheme.shapes.medium
@@ -93,7 +109,11 @@ internal fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolea
         trailingContent = { Switch(checked = checked, onCheckedChange = null) },
         supportingContent = help?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
         colors = ListItemDefaults.colors(
-            containerColor = if (focused) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
+            containerColor = if (focused) {
+                MaterialTheme.colorScheme.surfaceVariant
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
         ),
     ) { Text(label, style = MaterialTheme.typography.titleSmall) }
 }

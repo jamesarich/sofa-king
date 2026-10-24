@@ -11,7 +11,10 @@ import kotlin.time.Duration.Companion.minutes
 internal enum class CardStyle { POSTER, WIDE }
 
 /** Search results split as the search draws them: movies and shows as posters, episodes and videos as wide cards. */
-internal class SearchSections(val posters: List<MediaItem>, val wide: List<MediaItem>)
+internal class SearchSections(val posters: List<MediaItem>, val wide: List<MediaItem>) {
+    /** Whether the search found anything. */
+    val found: Boolean get() = posters.isNotEmpty() || wide.isNotEmpty()
+}
 
 internal fun searchSections(results: List<MediaItem>): SearchSections {
     val (wide, posters) = results.partition { it.kind == ItemKind.EPISODE || it.kind == ItemKind.VIDEO }
@@ -21,7 +24,11 @@ internal fun searchSections(results: List<MediaItem>): SearchSections {
 /** Continue watching and a row of episodes or videos are wide; anything else shows posters. */
 internal fun cardStyleFor(shelf: MediaShelf): CardStyle = when {
     shelf.id == CONTINUE_SHELF -> CardStyle.WIDE
-    shelf.items.isNotEmpty() && shelf.items.all { it.kind == ItemKind.EPISODE || it.kind == ItemKind.VIDEO } -> CardStyle.WIDE
+
+    shelf.items.isNotEmpty() && shelf.items.all {
+        it.kind == ItemKind.EPISODE || it.kind == ItemKind.VIDEO
+    } -> CardStyle.WIDE
+
     else -> CardStyle.POSTER
 }
 
@@ -40,7 +47,10 @@ internal fun isWatched(item: MediaItem): Boolean = when (item.kind) {
     else -> item.progress?.watched == true
 }
 
-/** A card's menu: Play from beginning for something that plays and is partway in, when [playFromStart], then the watched toggle. */
+/**
+ * A card's menu: Play from beginning for something that plays and is partway in, when
+ * [playFromStart], then the watched toggle.
+ */
 internal fun cardMenuEntries(item: MediaItem, playFromStart: Boolean): List<CardMenuEntry> = listOfNotNull(
     CardMenuEntry.PLAY_FROM_START.takeIf { playFromStart && item.kind.playable && item.progress?.inProgress == true },
     if (isWatched(item)) CardMenuEntry.MARK_UNWATCHED else CardMenuEntry.MARK_WATCHED,

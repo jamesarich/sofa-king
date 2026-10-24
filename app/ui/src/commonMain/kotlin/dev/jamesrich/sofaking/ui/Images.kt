@@ -29,10 +29,9 @@ import dev.jamesrich.sofaking.ui.theme.SofaIcons
  * disk cache (not on the web) and decoding to the slot's size do the rest, so logos are on screen at a cold
  * start without the network and a guide full of them holds no full-size bitmaps.
  */
-internal fun sofaKingImageLoader(context: PlatformContext): ImageLoader =
-    ImageLoader.Builder(context)
-        .components { add(KtorNetworkFetcherFactory(httpClient = { mediaHttpClient })) }
-        .build()
+internal fun sofaKingImageLoader(context: PlatformContext): ImageLoader = ImageLoader.Builder(context)
+    .components { add(KtorNetworkFetcherFactory(httpClient = { mediaHttpClient })) }
+    .build()
 
 /**
  * The picture filling its card. Under it, and alone while it loads or when it fails, [label] stands in its place,
@@ -60,9 +59,21 @@ internal fun BoxScope.Artwork(url: String?, label: String?, hidden: Boolean = fa
         )
     }
     if (url == null) return
-    AsyncImage(url, contentDescription = null, contentScale = ContentScale.Crop, modifier = if (hidden) Modifier.fillMaxSize().blur(HIDDEN_BLUR) else Modifier.fillMaxSize())
-    if (hidden) Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = HIDDEN_DIM)))
+    AsyncImage(
+        url,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = if (hidden) Modifier.fillMaxSize().blur(HIDDEN_BLUR) else Modifier.fillMaxSize(),
+    )
+    if (hidden) {
+        Box(
+            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = HIDDEN_DIM)),
+        )
+    }
 }
 
 private val HIDDEN_BLUR = 16.dp
 private const val HIDDEN_DIM = 0.6f
+
+/** The 16:9 frame of a TV picture, and of the artwork cut to fit one. */
+internal const val WIDESCREEN = 16f / 9f

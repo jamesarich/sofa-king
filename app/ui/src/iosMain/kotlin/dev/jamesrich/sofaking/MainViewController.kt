@@ -8,9 +8,9 @@ import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.inDirectory
 import dev.jamesrich.sofaking.data.parsePairingLink
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
-import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSUserDomainMask
@@ -18,7 +18,7 @@ import platform.UIKit.UIDevice
 import platform.UIKit.UIViewController
 
 /**
- * Called once from the Swift app's init, before the first [MainViewController]. Not named `init…`: Kotlin/Native
+ * Called once from the Swift app's init, before the first [mainViewController]. Not named `init…`: Kotlin/Native
  * exports such functions to Swift as `doInit…`, since Objective-C reserves the init family for initializers.
  */
 @OptIn(ExperimentalForeignApi::class)
@@ -30,12 +30,19 @@ fun startSofaKingIos() {
         create = true,
         error = null,
     )
-    initSofaKing(AppStorage.inDirectory(requireNotNull(support?.path) { "no Application Support directory" }, ClientInfo("ios", UIDevice.currentDevice.name)))
+    initSofaKing(
+        AppStorage.inDirectory(
+            requireNotNull(support?.path) {
+                "no Application Support directory"
+            },
+            ClientInfo("ios", UIDevice.currentDevice.name),
+        ),
+    )
 }
 
 /**
  * Saves [serverUrl] with [apiToken], when given, and mutes the player when [muted], after [startSofaKingIos] and
- * before the first [MainViewController]. The debug host passes its `-serverUrl`, `-apiToken` and `-muted` launch
+ * before the first [mainViewController]. The debug host passes its `-serverUrl`, `-apiToken` and `-muted` launch
  * arguments here, so UI tests and headless checks need no typing on the simulator.
  */
 fun applySofaKingLaunchSettings(serverUrl: String?, apiToken: String?, muted: Boolean) = runBlocking {
@@ -51,7 +58,7 @@ fun openSofaKingLink(link: String) {
 }
 
 /** The whole app as one view controller for the SwiftUI host. */
-fun MainViewController(): UIViewController = ComposeUIViewController {
+fun mainViewController(): UIViewController = ComposeUIViewController {
     val pairing by pendingPairing.collectAsState()
-    App(pairing = pairing, onPairingHandled = { pendingPairing.value = null })
+    App(pairing = pairing, onPairingHandle = { pendingPairing.value = null })
 }

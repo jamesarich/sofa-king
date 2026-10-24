@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.data
 
 import co.touchlab.kermit.Logger
-import kotlinx.coroutines.CancellationException
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,7 +21,10 @@ import kotlinx.coroutines.plus
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-/** A server address and token the API can be built from, and the one API client built from them, which the connection closes. */
+/**
+ * A server address and token the API can be built from, and the one API client built from
+ * them, which the connection closes.
+ */
 internal data class Server(val url: String, val token: String, val api: SofaKingApi)
 
 /**
@@ -42,7 +45,10 @@ class ServerConnection(
 ) {
     private val work = scope + logFailures
 
-    /** The server as Settings has it, with one API client for the sessions and the repositories, or null while the address is not a usable URL. */
+    /**
+     * The server as Settings has it, with one API client for the sessions and the repositories, or null while
+     * the address is not a usable URL.
+     */
     internal val server: SharedFlow<Server?> = settings.filterNotNull()
         .map { s -> ServerAddress.normalizeUrl(s.serverUrl)?.let { it to s.apiToken } }
         .distinctUntilChanged()
@@ -70,7 +76,10 @@ class ServerConnection(
         if (viewerSync != null) work.launch { viewerSync.run(api) }
     }
 
-    /** What the server offers beyond live TV, from its bootstrap: nothing until it answers, or on a server too old to say. */
+    /**
+     * What the server offers beyond live TV, from its bootstrap: nothing until it answers,
+     * or on a server too old to say.
+     */
     @OptIn(ExperimentalCoroutinesApi::class)
     val capabilities: StateFlow<ServerCapabilities> = server
         .transformLatest { found ->
@@ -86,15 +95,17 @@ class ServerConnection(
     private suspend fun readCapabilities(api: SofaKingApi): ServerCapabilities {
         var wait = 5.seconds
         while (true) {
-            try {
-                return api.bootstrap().capabilities.let { ServerCapabilities(recordings = it.recordings, library = it.library) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: SofaKingException) {
-                if (e.status == 404) return ServerCapabilities()
-                log.w { "bootstrap refused: ${e.code}" }
-            } catch (e: Exception) {
-                log.w { "bootstrap failed: ${e.message}" }
+            runCatchingCancellable {
+                return api.bootstrap().capabilities.let {
+                    ServerCapabilities(recordings = it.recordings, library = it.library)
+                }
+            }.onFailure { e ->
+                if (e is SofaKingException) {
+                    if (e.statusCode == HttpStatusCode.NotFound) return ServerCapabilities()
+                    log.w { "bootstrap refused: ${e.code}" }
+                } else {
+                    log.w { "bootstrap failed: ${e.message}" }
+                }
             }
             delay(wait)
             wait = (wait * 2).coerceAtMost(5.minutes)

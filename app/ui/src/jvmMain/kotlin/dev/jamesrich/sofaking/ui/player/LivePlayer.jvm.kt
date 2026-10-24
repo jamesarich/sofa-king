@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
@@ -18,6 +19,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.PlaybackProfile
+import dev.jamesrich.sofaking.data.runCatchingCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,9 +32,9 @@ import org.jetbrains.skia.Pixmap
 import org.jetbrains.skia.impl.BufferUtil
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory
 import uk.co.caprica.vlcj.factory.discovery.NativeDiscovery
+import uk.co.caprica.vlcj.media.TrackType
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
-import uk.co.caprica.vlcj.media.TrackType
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormat
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCallback
@@ -43,7 +45,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.roundToInt
-import androidx.compose.ui.draw.clipToBounds
 
 private val log = Logger.withTag("SofaKing")
 
@@ -101,9 +102,14 @@ internal class VlcLivePlayer(
     /**
      * libVLC's stop and release block until its input thread ends, hundreds of milliseconds on a stalled stream,
      * and the app stops on every zap from the UI thread. Every libVLC command runs on this one thread, in order,
-     * while [_status] moves at once.
+     * while [mutableStatus] moves at once.
      */
-    private val commands = Executors.newSingleThreadExecutor { task -> Thread(task, "libvlc-commands").apply { isDaemon = true } }
+    private val commands = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "libvlc-commands").apply {
+            isDaemon =
+                true
+        }
+    }
 
     /**
      * Queues [task] on [commands], to run if libVLC loaded. Once [release] has shut the queue, a libVLC event still on
@@ -151,21 +157,29 @@ internal class VlcLivePlayer(
 
     init {
         execute {
+            // libVLC is a system install on desktops; without it every tune fails with a clear code. A missing library
+            // is a LinkageError, and vlcj throws its own exceptions for one that loads but does not start.
             try {
-                val factory = openVlc()
-                this.factory = factory
-                val vlc = factory.mediaPlayers().newEmbeddedMediaPlayer()
-                vlc.videoSurface().set(factory.videoSurfaces().newVideoSurface(Formats(), Frames(), true))
-                vlc.events().addMediaPlayerEventListener(Events())
-                player = vlc
-            } catch (e: Throwable) {
-                // libVLC is a system install on desktops; without it every tune fails with a clear code.
-                log.w(e) { "libVLC not found; playback is unavailable" }
+                runCatchingCancellable(::open).onFailure(::unavailable)
+            } catch (e: LinkageError) {
+                unavailable(e)
             }
         }
     }
 
+    private fun open() {
+        val factory = openVlc()
+        this.factory = factory
+        val vlc = factory.mediaPlayers().newEmbeddedMediaPlayer()
+        vlc.videoSurface().set(factory.videoSurfaces().newVideoSurface(Formats(), Frames(), true))
+        vlc.events().addMediaPlayerEventListener(Events())
+        player = vlc
+    }
+
+    private fun unavailable(failure: Throwable) = log.w(failure) { "libVLC not found; playback is unavailable" }
+
     override val bufferedMs: Long get() = 0L
+
     /** libVLC renders captions itself and reports no buffer depth, so there is nothing to lead. */
     override val supportsCaptionLead: Boolean = false
     override val hasTextTrack: Boolean get() = (player?.subpictures()?.trackCount() ?: 0) > 0
@@ -182,13 +196,13 @@ internal class VlcLivePlayer(
 
     /** On the command thread. */
     private fun applyVolume() {
-        vlc.audio().setVolume((volume * 100).roundToInt())
+        vlc.audio().setVolume((volume * VLC_FULL_VOLUME).roundToInt())
     }
 
     override var playWhenReady: Boolean
-        get() = _status.value.playWhenReady
+        get() = mutableStatus.value.playWhenReady
         set(value) {
-            _status.update { it.copy(playWhenReady = value) }
+            mutableStatus.update { it.copy(playWhenReady = value) }
             command { if (vlc.status().isPlayable) vlc.controls().setPause(!value) }
         }
 
@@ -214,30 +228,44 @@ internal class VlcLivePlayer(
             videoCodec = video?.codecName()?.takeIf { it.isNotBlank() }?.uppercase(),
             width = video?.width()?.takeIf { it > 0 },
             height = video?.height()?.takeIf { it > 0 },
-            frameRate = video?.let { if (it.frameRateBase() > 0) it.frameRate().toFloat() / it.frameRateBase() else null },
+            frameRate = video?.let {
+                if (it.frameRateBase() > 0) {
+                    it.frameRate().toFloat() / it.frameRateBase()
+                } else {
+                    null
+                }
+            },
             bitrateBps = video?.bitRate()?.takeIf { it > 0 },
             audioCodec = audio?.codecName()?.takeIf { it.isNotBlank() }?.uppercase(),
         )
     }
 
-    /** The audio tracks libVLC lists, without its "Disable" entry; on the command thread, since the list is read from libVLC. */
+    /**
+     * The audio tracks libVLC lists, without its "Disable" entry; on the command thread,
+     * since the list is read from libVLC.
+     */
     private fun readAudioTracks() {
         if (!isCurrent) return
         val current = vlc.audio().track()
         val tracks = vlc.audio().trackDescriptions().filter { it.id() >= 0 }
-        _audioTracks.value = if (tracks.size > 1) tracks.map { AudioTrack(it.id().toString(), it.description(), it.id() == current) } else emptyList()
+        _audioTracks.value =
+            if (tracks.size > 1) {
+                tracks.map { AudioTrack(it.id().toString(), it.description(), it.id() == current) }
+            } else {
+                emptyList()
+            }
     }
 
     override fun prepare() {
         val url = stream?.url ?: return
-        _status.update { it.copy(state = PlaybackState.BUFFERING) }
+        mutableStatus.update { it.copy(state = PlaybackState.BUFFERING) }
         val start = playWhenReady
         val opening = generation.incrementAndGet()
         execute {
             if (player == null) {
                 if (generation.get() != opening) return@execute
-                _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
-                _errors.tryEmit(PlayerError(VLC_NOT_INSTALLED))
+                mutableStatus.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
+                mutableErrors.tryEmit(PlayerError(VLC_NOT_INSTALLED))
                 return@execute
             }
             opened = opening
@@ -251,11 +279,14 @@ internal class VlcLivePlayer(
         command { vlc.controls().stop() }
         hasFrame = false
         _audioTracks.value = emptyList()
-        _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
+        mutableStatus.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
     }
 
     // libVLC answers these from its own state without blocking, so they are read on the caller's thread.
-    /** libVLC decodes nearly every container and codec in software, at any bit depth; it does not map HDR to the screen. */
+
+    /**
+     * libVLC decodes nearly every container and codec in software, at any bit depth; it does not map HDR to the screen.
+     */
     override val playbackProfile = PlaybackProfile(
         containers = listOf("mp4", "mkv", "webm", "ts", "avi", "mov"),
         videoCodecs = listOf("h264", "hevc", "vp8", "vp9", "av1", "mpeg2video", "mpeg4", "vc1"),
@@ -302,7 +333,10 @@ internal class VlcLivePlayer(
                 frameCount.intValue
                 synchronized(frameLock) {
                     val frame = image ?: return@Canvas
-                    val scale = zoom.contentScale.computeScaleFactor(Size(frame.width.toFloat(), frame.height.toFloat()), size)
+                    val scale = zoom.contentScale.computeScaleFactor(
+                        Size(frame.width.toFloat(), frame.height.toFloat()),
+                        size,
+                    )
                     val drawn = Size(frame.width * scale.scaleX, frame.height * scale.scaleY)
                     val origin = Offset((size.width - drawn.width) / 2, (size.height - drawn.height) / 2)
                     drawImage(
@@ -400,7 +434,7 @@ internal class VlcLivePlayer(
     private inner class Events : MediaPlayerEventAdapter() {
         override fun playing(mediaPlayer: MediaPlayer) {
             if (!isCurrent) return
-            _status.update { it.copy(state = PlaybackState.READY, isPlaying = true) }
+            mutableStatus.update { it.copy(state = PlaybackState.READY, isPlaying = true) }
             command {
                 applyCaptions()
                 readAudioTracks()
@@ -408,9 +442,9 @@ internal class VlcLivePlayer(
         }
 
         /**
-         * libVLC reports the device as each audio stream starts. On PulseAudio and PipeWire a volume set while no stream
-         * exists is lost, and the new stream takes the volume the server last saw for the app, often the guide's muted
-         * preview, so the player's volume is set again on the new stream.
+         * libVLC reports the device as each audio stream starts. On PulseAudio and PipeWire a volume set while no
+         * stream exists is lost, and the new stream takes the volume the server last saw for the app, often the guide's
+         * muted preview, so the player's volume is set again on the new stream.
          */
         override fun audioDeviceChanged(mediaPlayer: MediaPlayer, audioDevice: String?) {
             command { applyVolume() }
@@ -426,15 +460,17 @@ internal class VlcLivePlayer(
 
         override fun paused(mediaPlayer: MediaPlayer) {
             if (!isCurrent) return
-            _status.update { it.copy(state = PlaybackState.READY, isPlaying = false) }
+            mutableStatus.update { it.copy(state = PlaybackState.READY, isPlaying = false) }
         }
 
-        /** libVLC reports its cache filling throughout playback; only a cache short of full before playing is buffering. */
+        /**
+         * libVLC reports its cache filling throughout playback; only a cache short of full before playing is buffering.
+         */
         override fun buffering(mediaPlayer: MediaPlayer, newCache: Float) {
             if (!isCurrent) return
-            _status.update {
+            mutableStatus.update {
                 when {
-                    newCache >= 100f -> it.copy(state = PlaybackState.READY)
+                    newCache >= VLC_FULL_CACHE -> it.copy(state = PlaybackState.READY)
                     it.isPlaying -> it
                     else -> it.copy(state = PlaybackState.BUFFERING)
                 }
@@ -443,13 +479,13 @@ internal class VlcLivePlayer(
 
         override fun finished(mediaPlayer: MediaPlayer) {
             if (!isCurrent) return
-            _status.update { it.copy(state = PlaybackState.ENDED, isPlaying = false) }
+            mutableStatus.update { it.copy(state = PlaybackState.ENDED, isPlaying = false) }
         }
 
         override fun error(mediaPlayer: MediaPlayer) {
             if (!isCurrent) return
-            _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
-            _errors.tryEmit(PlayerError(PlayerErrorCodes.NETWORK_CONNECTION_FAILED))
+            mutableStatus.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
+            mutableErrors.tryEmit(PlayerError(PlayerErrorCodes.NETWORK_CONNECTION_FAILED))
         }
     }
 }
@@ -466,3 +502,7 @@ internal const val VLC_NOT_INSTALLED = "VLC_NOT_INSTALLED"
 
 /** libVLC's default `adaptive-livedelay`: how far behind the newest segment of a live HLS playlist it plays. */
 private const val VLC_LIVE_DELAY_MS = 15_000L
+
+/** libVLC's volume for the full level, and the cache it reports once full, both in percent. */
+private const val VLC_FULL_VOLUME = 100
+private const val VLC_FULL_CACHE = 100f

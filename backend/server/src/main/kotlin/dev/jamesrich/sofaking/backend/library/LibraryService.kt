@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.deleteLibrary
 import dev.jamesrich.sofaking.backend.store.deleteLibraryItems
@@ -16,14 +17,7 @@ import dev.jamesrich.sofaking.backend.store.markLibraryItemsMissing
 import dev.jamesrich.sofaking.backend.store.recordLibraryScan
 import dev.jamesrich.sofaking.backend.store.renameLibrary
 import dev.jamesrich.sofaking.backend.store.saveLibraryItems
-import java.nio.file.Files
-import java.nio.file.Path
-import java.time.Clock
-import java.time.Duration
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicLong
-import kotlinx.coroutines.CancellationException
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -34,25 +28,25 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.slf4j.LoggerFactory
+import java.nio.file.Path
+import java.time.Clock
+import java.time.Duration
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 private val log = LoggerFactory.getLogger(LibraryService::class.java)
 
 /** The scan job's id on the Jobs page. */
 internal const val LIBRARY_SCAN_JOB = "library-scan"
 
-/** A folder a library may be added from: [root] is where the operator mounted media, [label] how the portal names it. */
+private val SCAN_EVERY: Duration = Duration.ofHours(6)
+private const val LIBRARY_NAME_LIMIT = 100
+
+/**
+ * A folder a library may be added from: [root] is where the operator mounted media, [label] how the portal names it.
+ */
 data class MediaRoot(val label: String, val root: Path)
-
-/** A folder whose name says what it holds, offered as a library to add with one click. */
-data class LibrarySuggestion(val name: String, val kind: LibraryKind, val path: Path)
-
-/** What a folder named so holds, by its name in lower case with separators as spaces. */
-private val SUGGESTED_KINDS = mapOf(
-    "movies" to LibraryKind.MOVIES, "movie" to LibraryKind.MOVIES, "films" to LibraryKind.MOVIES, "film" to LibraryKind.MOVIES,
-    "tv" to LibraryKind.SHOWS, "tv shows" to LibraryKind.SHOWS, "shows" to LibraryKind.SHOWS, "series" to LibraryKind.SHOWS,
-    "tv series" to LibraryKind.SHOWS, "television" to LibraryKind.SHOWS,
-    "videos" to LibraryKind.VIDEOS, "home videos" to LibraryKind.VIDEOS, "music videos" to LibraryKind.VIDEOS,
-)
 
 /**
  * The media libraries: adding, renaming and removing them, and scanning their folders. A library's folder must sit
@@ -67,7 +61,7 @@ class LibraryService(
     val roots: List<MediaRoot>,
     private val scanner: LibraryScanner,
     private val jobs: Jobs,
-    private val every: Duration = Duration.ofHours(6),
+    private val every: Duration = SCAN_EVERY,
     /** TMDB lookups after each scan, when `SOFA_TMDB_TOKEN` is set. */
     val metadata: LibraryMetadata? = null,
     /** The posters and backdrops `/artwork` serves. */
@@ -83,12 +77,20 @@ class LibraryService(
     /** What clients read: the home rows, the items, search and watch state. */
     val catalog = LibraryCatalog(store, clock) { revision.get() }
 
+    /** The folders a library may be added from. */
+    val folders = LibraryFolders(store, roots)
+
     private val trigger = Channel<Unit>(Channel.CONFLATED)
     private val pending = ConcurrentHashMap.newKeySet<String>()
-    /** Held while a scan writes items and while a library is removed; listing, probing and the TMDB pass run without it. */
+
+    /**
+     * Held while a scan writes items and while a library is removed; listing, probing and the TMDB pass run without it.
+     */
     private val scanLock = Mutex()
+
     /** One scan at a time, TMDB pass included. */
     private val scans = Mutex()
+
     /** Held from the check that a folder is free to the insert that takes it. */
     private val creating = Mutex()
 
@@ -98,53 +100,21 @@ class LibraryService(
 
     suspend fun libraries(): List<LibraryRecord> = store.libraries()
 
-    suspend fun library(id: String): LibraryRecord = store.library(id) ?: throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
+    suspend fun library(id: String): LibraryRecord =
+        store.library(id) ?: throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
 
     /** Present items by library and kind. */
     suspend fun counts(): Map<String, Map<String, Int>> = store.libraryItemCounts()
 
-    /**
-     * The folders a new library can use: each root and its subfolders two levels down, skipping hidden and NAS
-     * housekeeping folders and those another library already uses.
-     */
-    suspend fun folderChoices(): List<Path> {
-        val used = store.libraries().mapTo(HashSet()) { it.path }
-        // Absolute, as create stores them, so a relative root still drops the folders in use.
-        return roots.flatMap { root -> folders(root.root.toAbsolutePath().normalize(), 2) }.filter { it.toString() !in used }
-    }
-
-    /**
-     * The unused folders right under a root whose names say what they hold, such as `Movies` or `TV Shows`, named after
-     * the folder; one under the recordings folder carries the root's label too, as `TV (Recordings)`.
-     */
-    suspend fun suggestions(): List<LibrarySuggestion> {
-        val parents = roots.associateBy { it.root.toAbsolutePath().normalize() }
-        return folderChoices().mapNotNull { folder ->
-            val root = parents[folder.parent] ?: return@mapNotNull null
-            val name = folder.fileName.toString()
-            val key = name.lowercase().replace(Regex("[_.\\-]+"), " ").replace(Regex("\\s+"), " ").trim()
-            val kind = SUGGESTED_KINDS[key] ?: return@mapNotNull null
-            LibrarySuggestion(if (root == roots.first()) name else "$name (${root.label})", kind, folder)
-        }
-    }
-
-    private fun folders(root: Path, depth: Int): List<Path> {
-        if (!Files.isDirectory(root)) return emptyList()
-        val below = if (depth == 0) emptyList() else try {
-            Files.list(root).use { stream ->
-                stream.filter { Files.isDirectory(it, java.nio.file.LinkOption.NOFOLLOW_LINKS) && !skippedFolder(it.fileName.toString()) && extraFolderKind(it.fileName.toString()) == null }.sorted().toList()
-            }.flatMap { folders(it, depth - 1) }
-        } catch (_: java.io.IOException) { emptyList() }
-        return listOf(root.normalize()) + below
-    }
-
     suspend fun create(name: String, kind: LibraryKind, path: String): LibraryRecord {
-        val title = name.trim()
-        if (title.isEmpty() || title.length > 100) throw ApiFailure(400, "INVALID_REQUEST", "A library name has 1 to 100 characters")
-        val folder = allowed(path)
-        val library = LibraryRecord(UUID.randomUUID().toString(), title, kind, folder.toString(), clock.instant().toString())
+        val title = titleOf(name)
+        val folder = folders.allowed(path)
+        val library =
+            LibraryRecord(UUID.randomUUID().toString(), title, kind, folder.toString(), clock.instant().toString())
         creating.withLock {
-            if (store.libraries().any { it.path == folder.toString() }) throw ApiFailure(409, "LIBRARY_EXISTS", "Another library already uses that folder")
+            if (store.libraries().any { it.path == folder.toString() }) {
+                throw ApiFailure(HttpStatusCode.Conflict, "LIBRARY_EXISTS", "Another library already uses that folder")
+            }
             store.insertLibrary(library)
         }
         revision.incrementAndGet()
@@ -153,16 +123,28 @@ class LibraryService(
     }
 
     suspend fun rename(id: String, name: String): LibraryRecord {
-        val title = name.trim()
-        if (title.isEmpty() || title.length > 100) throw ApiFailure(400, "INVALID_REQUEST", "A library name has 1 to 100 characters")
-        if (!store.renameLibrary(id, title)) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
+        if (!store.renameLibrary(id, titleOf(name))) {
+            throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
+        }
         revision.incrementAndGet()
         return library(id)
     }
 
+    private fun titleOf(name: String): String =
+        name.trim().takeIf { it.isNotEmpty() && it.length <= LIBRARY_NAME_LIMIT }
+            ?: throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                "A library name has 1 to $LIBRARY_NAME_LIMIT characters",
+            )
+
     /** Forgets the library, its items and their watch state; its files stay where they are. */
     suspend fun delete(id: String) {
-        scanLock.withLock { if (!store.deleteLibrary(id)) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library") }
+        scanLock.withLock {
+            if (!store.deleteLibrary(id)) {
+                throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
+            }
+        }
         revision.incrementAndGet()
         // Its scrub thumbnails go with the next pass, which finds their items gone.
         scrub?.request(null)
@@ -184,12 +166,16 @@ class LibraryService(
             val plan = scanner.scan(library, Path.of(library.path), store.libraryItems(library.id), now)
             scanLock.withLock {
                 // Removed since this scan began: it writes nothing.
-                if (store.libraries().none { it.id == library.id }) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
+                if (store.libraries().none { it.id == library.id }) {
+                    throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
+                }
                 if (plan.save.isNotEmpty()) store.saveLibraryItems(plan.save)
                 if (plan.missing.isNotEmpty()) store.markLibraryItemsMissing(plan.missing, now)
                 if (plan.delete.isNotEmpty()) store.deleteLibraryItems(plan.delete)
                 // Clients see the files now; the TMDB pass below can take minutes on a new library.
-                if (plan.save.isNotEmpty() || plan.missing.isNotEmpty() || plan.delete.isNotEmpty()) revision.incrementAndGet()
+                if (plan.save.isNotEmpty() || plan.missing.isNotEmpty() || plan.delete.isNotEmpty()) {
+                    revision.incrementAndGet()
+                }
             }
             val items = store.libraryItems(library.id)
             // Off the scan lock, so removing a library never waits for TMDB.
@@ -197,8 +183,11 @@ class LibraryService(
             val note = listOfNotNull(plan.result.note, looked?.note).joinToString("; ")
             scanLock.withLock {
                 // Removed during the TMDB pass, which then saved details for items that are gone.
-                if (store.libraries().none { it.id == library.id }) store.deleteLibraryItems(items.map { it.id })
-                else store.recordLibraryScan(library.id, now, !plan.result.unavailable, note)
+                if (store.libraries().none { it.id == library.id }) {
+                    store.deleteLibraryItems(items.map { it.id })
+                } else {
+                    store.recordLibraryScan(library.id, now, !plan.result.unavailable, note)
+                }
             }
             revision.incrementAndGet()
             if (library.kind == LibraryKind.SHOWS && !plan.result.unavailable) intros?.request(library.id)
@@ -211,37 +200,35 @@ class LibraryService(
 
     fun start(scope: CoroutineScope): Job {
         scope.launch(CoroutineName("library-scan-timer")) {
-            while (isActive) { requestScan(null); delay(every.toMillis()) }
+            while (isActive) {
+                requestScan(null)
+                delay(every.toMillis())
+            }
         }
         return scope.launch(CoroutineName("library-scan")) {
             while (isActive) {
                 trigger.receive()
                 val wanted = pending.toList().also { pending.removeAll(it.toSet()) }
-                val ids = try { if (ALL in wanted) store.libraries().map { it.id } else wanted } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                val ids = runCatchingCancellable {
+                    if (ALL in wanted) store.libraries().map { it.id } else wanted
+                }.getOrElse { e ->
                     log.warn("library scan failed class={}", e.javaClass.simpleName)
                     emptyList()
                 }
                 for (id in ids) {
-                    try { scan(id) } catch (e: CancellationException) { throw e } catch (e: Exception) {
-                        log.warn("library scan failed library={} class={} message=\"{}\"", id, e.javaClass.simpleName, redactedMessage(e))
+                    runCatchingCancellable {
+                        scan(id)
+                    }.onFailure { e ->
+                        log.warn(
+                            "library scan failed library={} class={} message=\"{}\"",
+                            id,
+                            e.javaClass.simpleName,
+                            redactedMessage(e),
+                        )
                     }
                 }
             }
         }
-    }
-
-    /** [path] as a normalized absolute folder inside one of [roots], or a 400 naming what is wrong. */
-    private fun allowed(path: String): Path {
-        val candidate = try { Path.of(path.trim()).toAbsolutePath().normalize() } catch (_: Exception) {
-            throw ApiFailure(400, "INVALID_REQUEST", "Not a folder path")
-        }
-        val root = roots.firstOrNull { candidate.startsWith(it.root.toAbsolutePath().normalize()) }
-            ?: throw ApiFailure(400, "INVALID_REQUEST", "A library folder must be inside ${roots.joinToString(" or ") { it.root.toString() }}")
-        if (!Files.isDirectory(candidate)) throw ApiFailure(400, "INVALID_REQUEST", "No folder at that path")
-        // A link inside the root must not lead the scan outside it.
-        val real = candidate.toRealPath()
-        if (!real.startsWith(root.root.toRealPath())) throw ApiFailure(400, "INVALID_REQUEST", "That folder links outside ${root.root}")
-        return candidate
     }
 
     private companion object {

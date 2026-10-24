@@ -1,15 +1,18 @@
 package dev.jamesrich.sofaking.backend.catalog
 
-import dev.jamesrich.sofaking.backend.api.*
-import dev.jamesrich.sofaking.contract.*
+import dev.jamesrich.sofaking.backend.api.AdoptProvider
+import dev.jamesrich.sofaking.backend.api.AdoptResult
+import dev.jamesrich.sofaking.backend.api.CreateLineupEntry
+import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.lineup
 import dev.jamesrich.sofaking.backend.store.saveLineup
-import java.time.Clock
-import java.util.UUID
-import java.util.concurrent.atomic.AtomicReference
+import dev.jamesrich.sofaking.contract.Channel
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.time.Clock
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * The household lineup: what the app sees, in order. Entries survive feed imports and refer to
@@ -25,9 +28,20 @@ class LineupService(
 ) {
     private class Published(val entries: List<LineupEntryRecord>) {
         val byId = entries.associateBy { it.id }
-        val revision = hash(entries.joinToString("\n") { "${it.id}|${it.number}|${it.name}|${it.group}|${it.logo}|${it.enabled}|${it.guide}|${it.offeringIds}" })
-        val wanted: Map<String, Set<String>> = entries.mapNotNull { it.guide }.groupBy({ it.guideId }, { it.channelId }).mapValues { it.value.toSet() }
+        val revision =
+            hash(
+                entries.joinToString("\n") {
+                    "${it.id}|${it.number}|${it.name}|${it.group}|${it.logo}|${it.enabled}|${it.guide}|" +
+                        "${it.offeringIds}"
+                },
+            )
+        val wanted: Map<String, Set<String>> = entries.mapNotNull {
+            it.guide
+        }.groupBy({ it.guideId }, { it.channelId }).mapValues { it.value.toSet() }
     }
+
+    /** Builds and checks the entries this service writes; the policy run checks its own with it too. */
+    internal val drafts = LineupDrafts(feeds, guides)
 
     private val mutex = Mutex()
     private val published = AtomicReference(Published(emptyList()))
@@ -46,7 +60,7 @@ class LineupService(
     fun wanted(): Map<String, Set<String>> = published.get().wanted
 
     suspend fun create(request: CreateLineupEntry): LineupEntryRecord = mutate { entries ->
-        val entry = draft(request, entries)
+        val entry = drafts.created(request, entries)
         val position = request.position?.coerceIn(0, entries.size) ?: entries.size
         entries.add(position, entry)
         entry
@@ -54,53 +68,48 @@ class LineupService(
 
     suspend fun update(id: String, request: UpdateLineupEntry): LineupEntryRecord = mutate { entries ->
         val index = entries.indexOfFirst { it.id == id }
-        if (index < 0) throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
-        val current = entries[index]
-        // An enabled flag the household sets is its own, so an automatic disable no longer explains it.
-        val household = request.enabled != null
-        val next = validated(
-            current.copy(
-                number = request.number ?: current.number,
-                name = request.name ?: current.name,
-                group = if (request.clearGroup) null else request.group ?: current.group,
-                logo = if (request.clearLogo) null else request.logo ?: current.logo,
-                enabled = request.enabled ?: current.enabled,
-                guide = if (request.clearGuide) null else request.guide ?: current.guide,
-                offeringIds = request.offerings?.also(::requireKnownOfferings) ?: current.offeringIds,
-                autoDisabledAt = if (household) null else current.autoDisabledAt,
-                autoDisabledReason = if (household) null else current.autoDisabledReason,
-            ),
-        )
+        if (index < 0) throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+        val next = drafts.updated(entries[index], request)
         entries.removeAt(index)
         entries.add(request.position?.coerceIn(0, entries.size) ?: index, next)
         next
     }
 
     suspend fun delete(id: String) = mutate { entries ->
-        if (!entries.removeIf { it.id == id }) throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+        if (!entries.removeIf { it.id == id }) {
+            throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+        }
     }
 
     /** [ids] must name every entry exactly once. */
     suspend fun reorder(ids: List<String>) = mutate { entries ->
         val byId = entries.associateBy { it.id }
-        if (ids.size != entries.size || ids.toSet() != byId.keys) throw ApiFailure(400, "INVALID_REQUEST", "Order must list every lineup entry exactly once")
+        if (ids.size != entries.size || ids.toSet() != byId.keys) {
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                "Order must list every lineup entry exactly once",
+            )
+        }
         entries.clear()
         ids.mapTo(entries) { byId.getValue(it) }
     }
 
     /** Adds every feed channel of [providerId] whose sources no entry references yet, in channel-number order. */
     suspend fun adopt(request: AdoptProvider): AdoptResult = mutate { entries ->
-        if (feeds.configs.none { it.id == request.providerId }) throw ApiFailure(404, "PROVIDER_NOT_FOUND", "Unknown provider")
+        if (feeds.configs.none { it.id == request.providerId }) {
+            throw ApiFailure(HttpStatusCode.NotFound, "PROVIDER_NOT_FOUND", "Unknown provider")
+        }
         val referenced = entries.flatMapTo(HashSet()) { it.offeringIds }
         var added = 0
         var skipped = 0
-        for (channel in feeds.channels(request.providerId).sortedWith(channelOrder)) {
-            val offerings = feeds.offeringsOf(channel.id)
+        for (channel in feeds.published.channels(request.providerId).sortedWith(channelOrder)) {
+            val offerings = feeds.published.offeringsOf(channel.id)
             if (offerings.isEmpty() || offerings.any { it.id in referenced }) {
                 skipped++
                 continue
             }
-            entries += draft(CreateLineupEntry(channelId = channel.id, enabled = request.enabled), entries)
+            entries += drafts.created(CreateLineupEntry(channelId = channel.id, enabled = request.enabled), entries)
             added++
         }
         AdoptResult(added, skipped)
@@ -115,52 +124,17 @@ class LineupService(
         val before = published.get().wanted
         val next = Published(entries)
         published.set(next)
-        for ((guideId, channels) in next.wanted) if (!before[guideId].orEmpty().containsAll(channels)) guides.requestRefresh(guideId)
+        for ((guideId, channels) in next.wanted) {
+            if (!before[guideId].orEmpty().containsAll(channels)) {
+                guides.requestRefresh(guideId)
+            }
+        }
         onChanged()
         result
     }
 
-    private fun draft(request: CreateLineupEntry, entries: List<LineupEntryRecord>): LineupEntryRecord {
-        val candidate = request.channelId?.let { feeds.channel(it) ?: throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown feed channel") }
-        val id = request.id?.let { runCatching { UUID.fromString(it).toString() }.getOrElse { throw ApiFailure(400, "INVALID_REQUEST", "Entry ID must be a UUID") } }
-            ?: UUID.randomUUID().toString()
-        if (entries.any { it.id == id }) throw ApiFailure(409, "LINEUP_ENTRY_EXISTS", "Lineup entry already exists")
-        val offerings = request.offerings?.also(::requireKnownOfferings) ?: candidate?.let { feeds.offeringsOf(it.id).map { o -> o.id } }.orEmpty()
-        val guide = request.guide ?: candidate?.legacyGuideId?.let { tvgId -> guides.guidesListing(tvgId).firstOrNull()?.let { GuideMapping(it, tvgId) } }
-        return validated(
-            LineupEntryRecord(
-                id = id,
-                number = request.number ?: candidate?.displayNumber ?: throw ApiFailure(400, "INVALID_REQUEST", "A number is required"),
-                name = request.name ?: candidate?.name ?: throw ApiFailure(400, "INVALID_REQUEST", "A name is required"),
-                group = request.group ?: candidate?.tags?.firstOrNull(),
-                logo = request.logo ?: candidate?.logo,
-                enabled = request.enabled ?: true,
-                guide = guide,
-                offeringIds = offerings,
-            ),
-        )
-    }
-
-    private fun requireKnownOfferings(ids: List<String>) {
-        if (ids.distinct().size != ids.size) throw ApiFailure(400, "INVALID_REQUEST", "Duplicate offering IDs")
-        ids.firstOrNull { feeds.offering(it) == null }?.let { throw ApiFailure(404, "SOURCE_NOT_FOUND", "Unknown source $it") }
-    }
-
-    internal fun validated(entry: LineupEntryRecord): LineupEntryRecord {
-        fun invalid(message: String): Nothing = throw ApiFailure(400, "INVALID_REQUEST", message)
-        if (entry.number.isBlank() || entry.number.length > 32 || entry.number.any { it.isWhitespace() }) invalid("Number must be 1 to 32 characters without spaces")
-        if (entry.name.isBlank() || entry.name.length > 256) invalid("Name must be 1 to 256 characters")
-        if (entry.group != null && (entry.group.isBlank() || entry.group.length > 128)) invalid("Group must be 1 to 128 characters")
-        val logo = entry.logo?.let { normalizeLogoUrl(it) ?: invalid("Logo must be an HTTP(S) URL") }
-        entry.guide?.let { mapping ->
-            if (guides.config(mapping.guideId) == null) invalid("Unknown guide ${mapping.guideId}")
-            if (mapping.channelId.isBlank() || mapping.channelId.length > 256) invalid("Guide channel ID must be 1 to 256 characters")
-        }
-        if (entry.offeringIds.size > 64) invalid("At most 64 sources per entry")
-        return entry.copy(name = entry.name.trim(), number = entry.number.trim(), group = entry.group?.trim(), logo = logo)
-    }
-
     companion object {
-        val channelOrder = compareBy<Channel>({ it.displayNumber.toDoubleOrNull() ?: Double.MAX_VALUE }, { it.name }, { it.id })
+        val channelOrder =
+            compareBy<Channel>({ it.displayNumber.toDoubleOrNull() ?: Double.MAX_VALUE }, { it.name }, { it.id })
     }
 }

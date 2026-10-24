@@ -10,6 +10,7 @@ on:
       - "contract/**"
       - "!contract/**/*.md"
       - "gradle/**"
+      - ".editorconfig"
       - "build-logic/**"
       - "!build-logic/**/*.md"
       - ".github/workflows/ci.yml"
@@ -26,6 +27,7 @@ on:
       - "contract/**"
       - "!contract/**/*.md"
       - "gradle/**"
+      - ".editorconfig"
       - "build-logic/**"
       - "!build-logic/**/*.md"
       - ".github/workflows/ci.yml"
@@ -87,6 +89,7 @@ jobs:
       - name: Test, lint and build
         run: >-
           ./gradlew --continue
+          spotlessCheck detekt
           :core:allTests :ui:jvmTest :ui:testAndroidHostTest :ui:jsNodeTest
           :core:compileTestKotlinLinuxX64 :core:compileKotlinLinuxArm64 :ui:compileTestKotlinIosSimulatorArm64
           :androidApp:lintDebug :androidApp:assembleRelease :androidApp:testDebugScreenshotTestDefaultTestSuite

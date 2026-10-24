@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.backend.http
 
+import dev.jamesrich.sofaking.backend.KIB
+import dev.jamesrich.sofaking.backend.MIB
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receiveStream
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -15,7 +17,7 @@ internal const val CONTROL_BODY_LIMIT = 64 * 1024L
 
 /** The 413 message for a body over [limit] bytes. */
 internal fun tooLargeMessage(limit: Long): String =
-    "Request exceeds " + if (limit % (1024 * 1024) == 0L) "${limit / (1024 * 1024)} MiB" else "${limit / 1024} KiB"
+    "Request exceeds " + if (limit % MIB == 0L) "${limit / MIB} MiB" else "${limit / KIB} KiB"
 
 /**
  * Control requests are small; the policy write may carry 4 MiB. The body is decoded as it streams in, with no copy

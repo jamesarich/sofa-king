@@ -8,7 +8,12 @@ internal enum class GuideBack { CLOSE_SEARCH, FOCUS_CHIPS, FOCUS_HEADER, EXIT }
  * there are any, and from there it exits, with no press-again step (Google's TV guidance: Back reaches the
  * launcher, never gated).
  */
-internal fun guideBackAction(searchOpen: Boolean, gridFocused: Boolean, chipsFocused: Boolean, hasHeader: Boolean): GuideBack = when {
+internal fun guideBackAction(
+    searchOpen: Boolean,
+    gridFocused: Boolean,
+    chipsFocused: Boolean,
+    hasHeader: Boolean,
+): GuideBack = when {
     searchOpen -> GuideBack.CLOSE_SEARCH
     gridFocused -> GuideBack.FOCUS_CHIPS
     chipsFocused && hasHeader -> GuideBack.FOCUS_HEADER

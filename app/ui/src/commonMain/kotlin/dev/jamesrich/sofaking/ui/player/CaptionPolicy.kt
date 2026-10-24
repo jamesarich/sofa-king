@@ -60,7 +60,7 @@ internal object CaptionPolicy {
     /** Caption timing in seconds with one decimal place and no sign, as shown in the overlay and the settings row. */
     fun advanceLabel(ms: Int): String {
         val magnitude = abs(ms)
-        return "${magnitude / 1_000}.${(magnitude % 1_000) / 100}"
+        return "${magnitude / MS_PER_SECOND}.${magnitude % MS_PER_SECOND / MS_PER_TENTH}"
     }
 
     /** Which way a timing moves captions: earlier than the stream puts them, later, or not at all. */
@@ -81,3 +81,6 @@ internal object CaptionPolicy {
         return (currentMs + delta).coerceIn(range)
     }
 }
+
+private const val MS_PER_SECOND = 1_000
+private const val MS_PER_TENTH = 100

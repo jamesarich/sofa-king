@@ -33,7 +33,29 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.SettingsPin
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.lock_forgot
+import dev.jamesrich.sofaking.resources.lock_forgot_help
+import dev.jamesrich.sofaking.resources.lock_forgot_no_token
+import dev.jamesrich.sofaking.resources.lock_forgot_wrong
+import dev.jamesrich.sofaking.resources.lock_help
+import dev.jamesrich.sofaking.resources.lock_pin
+import dev.jamesrich.sofaking.resources.lock_remove
+import dev.jamesrich.sofaking.resources.lock_title
+import dev.jamesrich.sofaking.resources.lock_unlock
+import dev.jamesrich.sofaking.resources.lock_wait
+import dev.jamesrich.sofaking.resources.lock_wrong
+import dev.jamesrich.sofaking.resources.settings_api_token
+import dev.jamesrich.sofaking.resources.settings_lock_cancel
+import dev.jamesrich.sofaking.resources.settings_lock_confirm
+import dev.jamesrich.sofaking.resources.settings_lock_help
+import dev.jamesrich.sofaking.resources.settings_lock_on
+import dev.jamesrich.sofaking.resources.settings_lock_pin
+import dev.jamesrich.sofaking.resources.settings_lock_pin_again
+import dev.jamesrich.sofaking.resources.settings_lock_pin_invalid
+import dev.jamesrich.sofaking.resources.settings_lock_pin_mismatch
+import dev.jamesrich.sofaking.resources.settings_lock_remove
+import dev.jamesrich.sofaking.resources.settings_lock_set
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -96,9 +118,9 @@ internal fun SettingsLockScreen(
     pinHash: String,
     /** The token the device holds, empty on a server without one; it unlocks and removes the PIN. */
     apiToken: String,
-    onUnlocked: () -> Unit,
+    onUnlock: () -> Unit,
     /** The token matched: remove the PIN; the caller then opens Settings. */
-    onPinRemoved: () -> Unit,
+    onPinRemove: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     lock: SettingsLock = remember { SettingsLock() },
@@ -110,22 +132,14 @@ internal fun SettingsLockScreen(
     var wrongPin by remember { mutableStateOf(false) }
     var wrongToken by remember { mutableStateOf(false) }
     var forgot by remember { mutableStateOf(false) }
-    // The wait is wall time, so the page re-reads it when it ends rather than on the next key press.
-    var waiting by remember { mutableStateOf(lock.waiting) }
-    LaunchedEffect(lock.waitEnds) {
-        waiting = lock.waiting
-        while (lock.waiting) {
-            delay(lock.remaining)
-            waiting = lock.waiting
-        }
-    }
+    val waiting = rememberWaiting(lock)
     val pinText = pin.text.toString()
     val canUnlock = SettingsPin.isValid(pinText) && !waiting
     val unlock = {
         if (canUnlock) {
             if (SettingsPin.matches(pinText, pinHash)) {
                 lock.passed()
-                onUnlocked()
+                onUnlock()
             } else {
                 lock.missed()
                 wrongPin = true
@@ -139,7 +153,7 @@ internal fun SettingsLockScreen(
         if (canRemove) {
             if (tokenText == apiToken) {
                 lock.passed()
-                onPinRemoved()
+                onPinRemove()
             } else {
                 wrongToken = true
                 token.clearText()
@@ -158,39 +172,81 @@ internal fun SettingsLockScreen(
         item { ScreenTitle(stringResource(Res.string.lock_title), onBack) }
         item { HelpText(stringResource(Res.string.lock_help)) }
         item {
-            Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(Res.string.lock_pin), style = MaterialTheme.typography.titleSmall)
-                PinField(pin, pinFocus, ImeAction.Done, onAction = unlock)
-                when {
-                    waiting -> ErrorText(stringResource(Res.string.lock_wait, SettingsLock.WAIT.inWholeSeconds))
-                    wrongPin -> ErrorText(stringResource(Res.string.lock_wrong))
-                }
-                Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    SofaButton(onClick = unlock, enabled = canUnlock) { Text(stringResource(Res.string.lock_unlock)) }
-                    SofaButton(onClick = { forgot = !forgot }) { Text(stringResource(Res.string.lock_forgot)) }
-                }
+            val error = when {
+                waiting -> stringResource(Res.string.lock_wait, SettingsLock.WAIT.inWholeSeconds)
+                wrongPin -> stringResource(Res.string.lock_wrong)
+                else -> null
             }
+            PinEntry(pin, pinFocus, error, canUnlock, unlock, onRecover = { forgot = !forgot })
         }
         if (forgot) {
-            item {
-                Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (apiToken.isEmpty()) {
-                        HelpText(stringResource(Res.string.lock_forgot_no_token))
-                    } else {
-                        HelpText(stringResource(Res.string.lock_forgot_help))
-                        Text(stringResource(Res.string.settings_api_token), style = MaterialTheme.typography.titleSmall)
-                        TvTextField(
-                            state = token,
-                            focusRequester = tokenFocus,
-                            imeAction = ImeAction.Done,
-                            onAction = remove,
-                            maskUnfocused = ::maskToken,
-                        )
-                        if (wrongToken) ErrorText(stringResource(Res.string.lock_forgot_wrong))
-                        SofaButton(onClick = remove, enabled = canRemove) { Text(stringResource(Res.string.lock_remove)) }
-                    }
-                }
-            }
+            item { ForgotPin(apiToken.isNotEmpty(), token, tokenFocus, wrongToken, canRemove, remove) }
+        }
+    }
+}
+
+/** Whether the lock makes the viewer wait. The wait is wall time, so this reads it again when it ends. */
+@Composable
+private fun rememberWaiting(lock: SettingsLock): Boolean {
+    var waiting by remember { mutableStateOf(lock.waiting) }
+    LaunchedEffect(lock.waitEnds) {
+        waiting = lock.waiting
+        while (lock.waiting) {
+            delay(lock.remaining)
+            waiting = lock.waiting
+        }
+    }
+    return waiting
+}
+
+/** The PIN field, the reason the last try failed ([error]), and Unlock and Forgot, which [onRecover] answers. */
+@Composable
+private fun PinEntry(
+    pin: TextFieldState,
+    pinFocus: FocusRequester,
+    error: String?,
+    canUnlock: Boolean,
+    unlock: () -> Unit,
+    onRecover: () -> Unit,
+) {
+    Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(Res.string.lock_pin), style = MaterialTheme.typography.titleSmall)
+        PinField(pin, pinFocus, ImeAction.Done, onAction = unlock)
+        if (error != null) ErrorText(error)
+        Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            SofaButton(onClick = unlock, enabled = canUnlock) { Text(stringResource(Res.string.lock_unlock)) }
+            SofaButton(onClick = onRecover) { Text(stringResource(Res.string.lock_forgot)) }
+        }
+    }
+}
+
+/** Forgot the PIN: the API token field that removes it, or a line saying the server has no token ([hasToken]). */
+@Composable
+private fun ForgotPin(
+    hasToken: Boolean,
+    token: TextFieldState,
+    tokenFocus: FocusRequester,
+    wrongToken: Boolean,
+    canRemove: Boolean,
+    remove: () -> Unit,
+) {
+    Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!hasToken) {
+            HelpText(stringResource(Res.string.lock_forgot_no_token))
+            return@Column
+        }
+        HelpText(stringResource(Res.string.lock_forgot_help))
+        Text(stringResource(Res.string.settings_api_token), style = MaterialTheme.typography.titleSmall)
+        TvTextField(
+            state = token,
+            focusRequester = tokenFocus,
+            imeAction = ImeAction.Done,
+            onAction = remove,
+            maskUnfocused = ::maskToken,
+        )
+        if (wrongToken) ErrorText(stringResource(Res.string.lock_forgot_wrong))
+        SofaButton(onClick = remove, enabled = canRemove) {
+            Text(stringResource(Res.string.lock_remove))
         }
     }
 }
@@ -200,7 +256,12 @@ internal fun SettingsLockScreen(
  * even the one just typed, so the PIN never shows on a shared screen.
  */
 @Composable
-private fun PinField(state: TextFieldState, focusRequester: FocusRequester, imeAction: ImeAction, onAction: () -> Unit) {
+private fun PinField(
+    state: TextFieldState,
+    focusRequester: FocusRequester,
+    imeAction: ImeAction,
+    onAction: () -> Unit,
+) {
     OutlinedSecureTextField(
         state = state,
         modifier = Modifier.focusRequester(focusRequester),
@@ -214,15 +275,20 @@ private fun PinField(state: TextFieldState, focusRequester: FocusRequester, imeA
 
 @Composable
 internal fun ErrorText(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.width(FIELD_WIDTH))
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+        modifier = Modifier.width(FIELD_WIDTH),
+    )
 }
 
 /**
  * The Lock section of Settings: Set a PIN opens two fields that must agree, and with a PIN set, Remove PIN
- * takes it off. [onPinChanged] gets the new digits, or null to remove the lock.
+ * takes it off. [onPinChange] gets the new digits, or null to remove the lock.
  */
 @Composable
-internal fun LockSection(locked: Boolean, onPinChanged: (String?) -> Unit) {
+internal fun LockSection(locked: Boolean, onPinChange: (String?) -> Unit) {
     var setting by remember { mutableStateOf(false) }
     val first = rememberTextFieldState()
     val again = rememberTextFieldState()
@@ -233,14 +299,18 @@ internal fun LockSection(locked: Boolean, onPinChanged: (String?) -> Unit) {
     val buttonFocus = remember { FocusRequester() }
     var pressed by remember { mutableStateOf(false) }
     LaunchedEffect(setting, locked) {
-        if (setting) requestFocusWhenAttached(firstFocus) else if (pressed) requestFocusWhenAttached(buttonFocus)
+        if (setting) {
+            requestFocusWhenAttached(firstFocus)
+        } else if (pressed) {
+            requestFocusWhenAttached(buttonFocus)
+        }
     }
     val firstText = first.text.toString()
     val againText = again.text.toString()
     val canSet = SettingsPin.isValid(firstText) && firstText == againText
     val set = {
         if (canSet) {
-            onPinChanged(firstText)
+            onPinChange(firstText)
             first.clearText()
             again.clearText()
             pressed = true
@@ -252,26 +322,62 @@ internal fun LockSection(locked: Boolean, onPinChanged: (String?) -> Unit) {
         when {
             locked -> {
                 HelpText(stringResource(Res.string.settings_lock_on))
-                SofaButton(onClick = { pressed = true; onPinChanged(null) }, modifier = Modifier.focusRequester(buttonFocus)) {
+                SofaButton(onClick = {
+                    pressed = true
+                    onPinChange(null)
+                }, modifier = Modifier.focusRequester(buttonFocus)) {
                     Text(stringResource(Res.string.settings_lock_remove))
                 }
             }
+
             !setting -> {
                 HelpText(stringResource(Res.string.settings_lock_help))
-                SofaButton(onClick = { setting = true }, modifier = Modifier.focusRequester(buttonFocus)) { Text(stringResource(Res.string.settings_lock_set)) }
-            }
-            else -> {
-                Text(stringResource(Res.string.settings_lock_pin), style = MaterialTheme.typography.titleSmall)
-                PinField(first, firstFocus, ImeAction.Next, onAction = { againFocus.requestFocus() })
-                if (firstText.isNotEmpty() && !SettingsPin.isValid(firstText)) ErrorText(stringResource(Res.string.settings_lock_pin_invalid))
-                Text(stringResource(Res.string.settings_lock_pin_again), style = MaterialTheme.typography.titleSmall)
-                PinField(again, againFocus, ImeAction.Done, onAction = set)
-                if (againText.isNotEmpty() && SettingsPin.isValid(firstText) && againText != firstText) ErrorText(stringResource(Res.string.settings_lock_pin_mismatch))
-                Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    SofaButton(onClick = set, enabled = canSet) { Text(stringResource(Res.string.settings_lock_confirm)) }
-                    SofaButton(onClick = { pressed = true; setting = false; first.clearText(); again.clearText() }) { Text(stringResource(Res.string.settings_lock_cancel)) }
+                SofaButton(onClick = {
+                    setting = true
+                }, modifier = Modifier.focusRequester(buttonFocus)) {
+                    Text(stringResource(Res.string.settings_lock_set))
                 }
             }
+
+            else -> NewPinFields(first, again, firstFocus, againFocus, canSet, set) {
+                pressed = true
+                setting = false
+                first.clearText()
+                again.clearText()
+            }
+        }
+    }
+}
+
+/** The new PIN twice, each with what is wrong with it, then Confirm ([set]) and Cancel. */
+@Composable
+private fun NewPinFields(
+    first: TextFieldState,
+    again: TextFieldState,
+    firstFocus: FocusRequester,
+    againFocus: FocusRequester,
+    canSet: Boolean,
+    set: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val firstText = first.text.toString()
+    val againText = again.text.toString()
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(Res.string.settings_lock_pin), style = MaterialTheme.typography.titleSmall)
+        PinField(first, firstFocus, ImeAction.Next, onAction = { againFocus.requestFocus() })
+        if (firstText.isNotEmpty() && !SettingsPin.isValid(firstText)) {
+            ErrorText(stringResource(Res.string.settings_lock_pin_invalid))
+        }
+        Text(stringResource(Res.string.settings_lock_pin_again), style = MaterialTheme.typography.titleSmall)
+        PinField(again, againFocus, ImeAction.Done, onAction = set)
+        if (againText.isNotEmpty() && SettingsPin.isValid(firstText) && againText != firstText) {
+            ErrorText(stringResource(Res.string.settings_lock_pin_mismatch))
+        }
+        Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            SofaButton(onClick = set, enabled = canSet) {
+                Text(stringResource(Res.string.settings_lock_confirm))
+            }
+            SofaButton(onClick = onCancel) { Text(stringResource(Res.string.settings_lock_cancel)) }
         }
     }
 }

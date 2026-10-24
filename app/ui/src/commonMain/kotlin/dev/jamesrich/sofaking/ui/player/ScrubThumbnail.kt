@@ -77,7 +77,10 @@ internal fun BoxScope.ScrubThumbnailOverBar(tiles: ScrubTiles, targetMs: Long, l
             .layout { measurable, constraints ->
                 val thumbnail = measurable.measure(Constraints())
                 val barWidth = constraints.maxWidth
-                val x = (barWidth * fraction - thumbnail.width / 2f).roundToInt().coerceIn(0, (barWidth - thumbnail.width).coerceAtLeast(0))
+                val x = (barWidth * fraction - thumbnail.width / 2f).roundToInt().coerceIn(
+                    0,
+                    (barWidth - thumbnail.width).coerceAtLeast(0),
+                )
                 layout(barWidth, 0) { thumbnail.place(x, -thumbnail.height - SCRUB_THUMBNAIL_GAP.roundToPx()) }
             },
     ) {

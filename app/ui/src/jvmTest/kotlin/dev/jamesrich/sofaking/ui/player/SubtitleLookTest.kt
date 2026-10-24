@@ -23,21 +23,24 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 class SubtitleLookTest {
     @Test
-    fun `a larger size draws taller subtitles and a raise lifts them`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(1f)) {
-        var look by mutableStateOf(SubtitleLook(SubtitleSize.SMALL))
-        setContent {
-            SofaKingTheme {
-                Box(Modifier.fillMaxSize()) { SubtitleText("Where are we going", bottom = 24.dp + look.raise.height, look = look) }
+    fun `a larger size draws taller subtitles and a raise lifts them`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(1f)) {
+            var look by mutableStateOf(SubtitleLook(SubtitleSize.SMALL))
+            setContent {
+                SofaKingTheme {
+                    Box(Modifier.fillMaxSize()) {
+                        SubtitleText("Where are we going", bottom = 24.dp + look.raise.height, look = look)
+                    }
+                }
             }
+            val small = onNodeWithText("Where are we going").getBoundsInRoot()
+            look = SubtitleLook(SubtitleSize.LARGE)
+            waitForIdle()
+            val large = onNodeWithText("Where are we going").getBoundsInRoot()
+            assertTrue(large.bottom - large.top > small.bottom - small.top, "large $large, small $small")
+            look = SubtitleLook(SubtitleSize.LARGE, SubtitleRaise.HIGH)
+            waitForIdle()
+            val raised = onNodeWithText("Where are we going").getBoundsInRoot()
+            assertTrue(raised.bottom < large.bottom - 100.dp, "raised $raised, at the bottom $large")
         }
-        val small = onNodeWithText("Where are we going").getBoundsInRoot()
-        look = SubtitleLook(SubtitleSize.LARGE)
-        waitForIdle()
-        val large = onNodeWithText("Where are we going").getBoundsInRoot()
-        assertTrue(large.bottom - large.top > small.bottom - small.top, "large $large, small $small")
-        look = SubtitleLook(SubtitleSize.LARGE, SubtitleRaise.HIGH)
-        waitForIdle()
-        val raised = onNodeWithText("Where are we going").getBoundsInRoot()
-        assertTrue(raised.bottom < large.bottom - 100.dp, "raised $raised, at the bottom $large")
-    }
 }

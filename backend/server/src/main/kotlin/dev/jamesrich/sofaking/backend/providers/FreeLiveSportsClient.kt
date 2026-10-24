@@ -3,8 +3,8 @@ package dev.jamesrich.sofaking.backend.providers
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
+import kotlinx.serialization.json.JsonElement
 import java.time.Duration
-import java.time.Instant
 
 /**
  * FreeLiveSports.tv (an Unreel/POWR site): one public catalog document with every channel, its HLS template
@@ -22,47 +22,89 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
-        return ParsedGuide(channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }, channels.filter { it.channel.id in wanted }.flatMap { it.programs })
+        return ParsedGuide(
+            channels.map {
+                GuideChannel(it.channel.id, it.channel.name, it.channel.logo)
+            },
+            channels.filter {
+                it.channel.id in
+                    wanted
+            }.flatMap { it.programs },
+        )
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
-        val template = listed().firstOrNull { it.channel.id == channelId }?.template
-            ?: run { context.invalidate(CATALOG); listed().firstOrNull { it.channel.id == channelId }?.template }
-            ?: throw ProviderFailure("Channel is no longer listed", transient = false)
+        val template = context.findListed(CATALOG) { listed().firstOrNull { it.channel.id == channelId }?.template }
         val now = context.clock.instant()
-        val url = Macros.fill(template, MACROS + mapOf("DEVICE_ID" to context.deviceId(), "CB" to now.epochSecond.toString(), "UA" to BROWSER_USER_AGENT))
+        val url = Macros.fill(
+            template,
+            MACROS + mapOf(
+                "DEVICE_ID" to context.deviceId(),
+                "CB" to now.epochSecond.toString(),
+                "UA" to BROWSER_USER_AGENT,
+            ),
+        )
         return ResolvedStream(url, HEADERS, now.plus(URL_LIFETIME))
     }
 
-    private suspend fun listed(): List<Listed> = context.cached(CATALOG, Duration.ofMinutes(10)) { fetchCatalog() }
+    private suspend fun listed(): List<Listed> = context.cached(CATALOG, CACHED_FOR) { fetchCatalog() }
 
     private suspend fun fetchCatalog(): List<Listed> {
         val payload = context.http.get(catalogUrl, HEADERS).require("FreeLiveSports catalog").json()
         val rows = (payload as? kotlinx.serialization.json.JsonArray)?.toList() ?: payload["channels"].array
-        val result = LinkedHashMap<String, Listed>()
-        for (row in rows.sortedBy { it["channelNumber"].long ?: Long.MAX_VALUE }) {
-            val id = row.str("_id") ?: row.str("id") ?: continue
-            val name = row.str("name") ?: continue
-            val template = row.str("url") ?: continue
-            if (result.containsKey(id)) continue
-            val programs = row["epg"]["entries"].array.mapNotNull { entry ->
-                val start = entry.str("start")?.let(::instantOrNull) ?: return@mapNotNull null
-                val end = entry.str("stop")?.let(::instantOrNull) ?: return@mapNotNull null
-                val title = entry.str("title") ?: return@mapNotNull null
-                if (end <= start) null else GuideProgram(id, start, end, title, entry.str("description"))
-            }
-            result[id] = Listed(ProviderChannel(id, name, row["channelNumber"].long?.toString(), httpOrNull(row.str("thumbnail")), "Sports", listOf("us")), template, programs)
-        }
+        val result = rows.sortedBy { it["channelNumber"].long ?: Long.MAX_VALUE }
+            .mapNotNull(::listing)
+            .distinctBy { it.channel.id }
         if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
-        return result.values.toList()
+        return result
     }
 
+    /** A channel with its embedded schedule; null when a field is missing. */
+    private fun listing(row: JsonElement): Listed? {
+        val id = row.str("_id") ?: row.str("id") ?: return null
+        val name = row.str("name") ?: return null
+        val template = row.str("url") ?: return null
+        val programs = row["epg"]["entries"].array.mapNotNull {
+            guideProgram(
+                id,
+                it.str("start")?.let(::instantOrNull),
+                it.str("stop")?.let(::instantOrNull),
+                it.str("title"),
+                it.str("description"),
+            )
+        }
+        return Listed(
+            ProviderChannel(
+                id,
+                name,
+                row["channelNumber"].long?.toString(),
+                httpOrNull(row.str("thumbnail")),
+                "Sports",
+                listOf("us"),
+            ),
+            template,
+            programs,
+        )
+    }
 
     companion object {
-        private const val CATALOG_URL = "https://epg.unreel.me/v2/sites/freelivesports/live-channels/public/081f73704b56aaceb6b459804761ec54?__site=freelivesports&__source=web"
+        private const val CATALOG_URL = "https://epg.unreel.me/v2/sites/freelivesports/live-channels/public/" +
+            "081f73704b56aaceb6b459804761ec54?__site=freelivesports&__source=web"
         private const val CATALOG = "catalog"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(10)
         private val URL_LIFETIME = Duration.ofHours(1)
-        private val HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Referer" to "https://www.freelivesports.tv/", "Origin" to "https://www.freelivesports.tv")
-        private val MACROS = mapOf("DEVICE_MODEL" to "web", "REF" to "https://www.freelivesports.tv/", "LAT" to "0", "GDPR" to "0")
+        private val HEADERS = mapOf(
+            "User-Agent" to BROWSER_USER_AGENT,
+            "Referer" to "https://www.freelivesports.tv/",
+            "Origin" to "https://www.freelivesports.tv",
+        )
+        private val MACROS = mapOf(
+            "DEVICE_MODEL" to "web",
+            "REF" to "https://www.freelivesports.tv/",
+            "LAT" to "0",
+            "GDPR" to "0",
+        )
     }
 }

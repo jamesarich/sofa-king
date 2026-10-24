@@ -11,9 +11,13 @@ data class AppSettings(
     val favorites: Set<String> = emptySet(),
     /** [Channel.guideId] of the channel watched most recently, to reopen on launch. */
     val lastChannel: String? = null,
-    /** The channels watched most recently, newest first, at most [RECENT_CHANNELS]; the guide's Recent chip lists them. */
+    /**
+     * The channels watched most recently, newest first, at most [RECENT_CHANNELS]; the guide's Recent chip lists them.
+     */
     val recentChannels: List<String> = emptyList(),
-    /** The guide filter last chosen, as the guide keys it (see `GuideFilter.key`), or null for All; reopened on launch. */
+    /**
+     * The guide filter last chosen, as the guide keys it (see `GuideFilter.key`), or null for All; reopened on launch.
+     */
     val guideFilter: String? = null,
     val captionsEnabled: Boolean = false,
     /** How many milliseconds ahead captions render, to offset live captioning delay; negative delays them instead. */
@@ -54,16 +58,26 @@ data class AppSettings(
     val hideSpoilers: Boolean = false,
     /** How a library item's text subtitles look; live and recording captions follow [captionStyle]. */
     val subtitleLook: SubtitleLook = SubtitleLook(),
-    /** What the live player does in an ad break a streaming channel marks: plays it, or covers it with the break screen. */
+    /**
+     * What the live player does in an ad break a streaming channel marks: plays it, or covers it with the break screen.
+     */
     val liveBreaks: LiveBreaks = LiveBreaks.PLAY,
     /** How long the break screen has covered ads today on this device; never synced. */
     val adsDodged: AdsDodged = AdsDodged(),
-    /** The favorites in the order the user put them (see [orderedFavorites]); starred channels not listed follow by number. */
+    /**
+     * The favorites in the order the user put them (see [orderedFavorites]); starred
+     * channels not listed follow by number.
+     */
     val favoritesOrder: List<String> = emptyList(),
     val playback: PlaybackPreferences = PlaybackPreferences(),
-    /** This installation's id on the server, under which it keeps the viewer's preferences; made once by [SettingsStore.ensureClientId]. */
+    /**
+     * This installation's id on the server, under which it keeps the viewer's preferences; made once by
+     * [SettingsStore.ensureClientId].
+     */
     val clientId: String = "",
-    /** The `updatedAt` of the server's preferences document this device last pushed or took over; empty before any sync. */
+    /**
+     * The `updatedAt` of the server's preferences document this device last pushed or took over; empty before any sync.
+     */
     val preferencesSyncedAt: String = "",
     /** The hash of the PIN that locks Settings (see [SettingsPin]), empty while there is no lock; never synced. */
     val settingsPin: String = "",
@@ -79,17 +93,25 @@ data class AppSettings(
 
     /** Keeps the token out of logs and crash reports; everything else prints as a data class would. */
     override fun toString(): String =
-        "AppSettings(serverUrl=$serverUrl, apiToken=${if (apiToken.isEmpty()) "unset" else "set"}, favorites=$favorites, " +
-            "lastChannel=$lastChannel, recentChannels=$recentChannels, guideFilter=$guideFilter, captionsEnabled=$captionsEnabled, " +
-            "captionAdvanceMs=$captionAdvanceMs, " +
-            "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, captionStyle=$captionStyle, " +
-            "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, volume=$volume, volumeMuted=$volumeMuted, keyLegendShown=$keyLegendShown, startup=$startup, " +
-            "startupChannel=$startupChannel, lastTab=$lastTab, clockFormat=$clockFormat, guideDensity=$guideDensity, hiddenChannels=$hiddenChannels, " +
-            "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, autoSkipIntros=$autoSkipIntros, hideSpoilers=$hideSpoilers, subtitleLook=$subtitleLook, liveBreaks=$liveBreaks, adsDodged=$adsDodged, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
-            "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, trackChoices=${trackChoices.size})"
+        "AppSettings(serverUrl=$serverUrl, apiToken=${if (apiToken.isEmpty()) "unset" else "set"}, " +
+            "favorites=$favorites, " +
+            "lastChannel=$lastChannel, recentChannels=$recentChannels, guideFilter=$guideFilter, " +
+            "captionsEnabled=$captionsEnabled, captionAdvanceMs=$captionAdvanceMs, " +
+            "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, " +
+            "captionStyle=$captionStyle, " +
+            "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, volume=$volume, volumeMuted=$volumeMuted, " +
+            "keyLegendShown=$keyLegendShown, startup=$startup, " +
+            "startupChannel=$startupChannel, lastTab=$lastTab, clockFormat=$clockFormat, guideDensity=$guideDensity, " +
+            "hiddenChannels=$hiddenChannels, " +
+            "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, autoSkipIntros=$autoSkipIntros, " +
+            "hideSpoilers=$hideSpoilers, subtitleLook=$subtitleLook, liveBreaks=$liveBreaks, adsDodged=$adsDodged, " +
+            "favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
+            "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, " +
+            "trackChoices=${trackChoices.size})"
 
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
+
         /** Negative shows captions later, positive earlier; the per-channel values keep the same range. */
         val CAPTION_ADVANCE_RANGE_MS = -8_000..8_000
         const val CAPTION_ADVANCE_STEP_MS = 500
@@ -119,18 +141,25 @@ enum class StartupTarget { RESUME, GUIDE, LIBRARY, CHANNEL }
 enum class TopLevelTab { LIVE, LIBRARY, RECORDINGS }
 
 /** How big a library item's text subtitles are, as a share of the normal size. */
-enum class SubtitleSize(val scale: Float) { SMALL(0.8f), MEDIUM(1f), LARGE(1.3f) }
+enum class SubtitleSize(val scale: Float) { SMALL(scale = 0.8f), MEDIUM(scale = 1f), LARGE(scale = 1.3f) }
 
 /** How high a library item's text subtitles sit: at the bottom, or raised clear of a letterbox's bar or a ticker. */
 enum class SubtitleRaise { NONE, LOW, HIGH }
 
 /** A library item's text subtitles: their [size], how far they are [raise]d, and whether a [box] sits behind them. */
-data class SubtitleLook(val size: SubtitleSize = SubtitleSize.MEDIUM, val raise: SubtitleRaise = SubtitleRaise.NONE, val box: Boolean = true)
+data class SubtitleLook(
+    val size: SubtitleSize = SubtitleSize.MEDIUM,
+    val raise: SubtitleRaise = SubtitleRaise.NONE,
+    val box: Boolean = true,
+)
 
 /** How captions are drawn; SYSTEM defers to the platform's CaptioningManager settings. */
 enum class CaptionStyle { SYSTEM, LARGE_HIGH_CONTRAST }
 
-/** The live player in an ad break: [PLAY] shows it; the others cover it with the break screen, with or without its sound. */
+/**
+ * The live player in an ad break: [PLAY] shows it; the others cover it with the break
+ * screen, with or without its sound.
+ */
 enum class LiveBreaks(val covers: Boolean, val muted: Boolean) {
     PLAY(covers = false, muted = false),
     SCREEN_MUTED(covers = true, muted = true),
@@ -151,9 +180,9 @@ data class AdsDodged(val day: String = "", val ms: Long = 0) {
 
 /** [afterMs] is how long focus rests before the preview opens full screen, or null when it never does. */
 enum class AutoOpenDelay(val afterMs: Long?) {
-    OFF(null),
-    AFTER_10_SECONDS(10_000L),
-    AFTER_30_SECONDS(30_000L),
+    OFF(afterMs = null),
+    AFTER_10_SECONDS(afterMs = 10_000L),
+    AFTER_30_SECONDS(afterMs = 30_000L),
 }
 
 interface SettingsStore {
@@ -240,7 +269,12 @@ interface SettingsStore {
      * starred set and their order, [recent] the recent list (its first entry becomes the last channel when the
      * device has none), and [syncedAt] is remembered as the document taken.
      */
-    suspend fun applyServerPreferences(hidden: Set<String>, favorites: List<String>, recent: List<String>, syncedAt: String)
+    suspend fun applyServerPreferences(
+        hidden: Set<String>,
+        favorites: List<String>,
+        recent: List<String>,
+        syncedAt: String,
+    )
 
     /** Remembers the server document's stamp after this device pushed its preferences. */
     suspend fun setPreferencesSyncedAt(syncedAt: String)

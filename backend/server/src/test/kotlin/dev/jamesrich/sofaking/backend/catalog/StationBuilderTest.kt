@@ -500,6 +500,7 @@ class StationBuilderTest {
         ))
         assertEquals("UK", result.station("pointless").group)
         assertEquals("Lifestyle", result.station("wickedtuna").group, "whale leads, so the regional entry's group does not apply; its genre still votes")
+        assertEquals(listOf("whale" to "unmapped bucket"), result.unmappedCategories.map { it.provider to it.category }, "a station its entry groups lists no unmapped category")
         assertTrue(validatePolicy(regional.copy(providers = listOf(PolicyProvider("whale", group = " "))), setOf("whale")).contains("providers[0]: group must be 1 to 128 characters"))
     }
 

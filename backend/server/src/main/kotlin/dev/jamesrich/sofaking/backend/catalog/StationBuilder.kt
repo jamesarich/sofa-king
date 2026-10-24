@@ -314,8 +314,9 @@ object StationBuilder {
             return elect(cast.filter { !it.third }.map { it.first to it.second }) ?: elect(cast.map { it.first to it.second })
         }
         val groupByKey = HashMap<String, String?>()
+        fun entryGroup(draft: Draft): String? = draft.leading?.entry?.let { policy.providers[it].group }
         fun groupFor(draft: Draft): String? = groupByKey.getOrPut(draft.key) {
-            draft.override?.group ?: nameGroup(draft) ?: draft.leading?.entry?.let { policy.providers[it].group }
+            draft.override?.group ?: nameGroup(draft) ?: entryGroup(draft)
                 ?: votedGroup(draft) ?: policy.groups.default ?: draft.leading?.let(::rawOf)
         }
 
@@ -412,11 +413,12 @@ object StationBuilder {
 
         for ((id, group) in stations.groupBy { it.id }.toSortedMap()) if (group.size > 1) findings += "${group.first().key}: id $id is shared with ${group.drop(1).joinToString { it.key }}"
         // Raw categories of any source that nothing maps and that are not weak, by provider and lowercase category, for
-        // the stations whose group the vote decides.
+        // the stations whose group the vote decides (no override, name pattern or leading entry's group settles it).
         data class Unmapped(val provider: String, val category: String, val key: String, val name: String)
         val unmappedRows = drafts.flatMap { draft ->
             val leading = draft.leading ?: return@flatMap emptyList()
-            if (draft.override?.group != null || nameGroup(draft) != null) return@flatMap emptyList()
+            val settled = draft.override?.group != null || nameGroup(draft) != null || entryGroup(draft) != null
+            if (settled) return@flatMap emptyList()
             val name = draft.override?.name ?: leading.candidate.channel.name
             draft.voters.mapNotNull { member ->
                 val raw = rawOf(member) ?: return@mapNotNull null

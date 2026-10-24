@@ -4,6 +4,8 @@
 Fails on any 5xx, a response that breaks its documented schema or content type, or a server that stops answering.
 The live playback routes may answer their documented 503 SOURCE_UNAVAILABLE: a channel the fuzzer adds to the lineup
 has a made-up stream with no usable source, and only some runs go on to play one.
+Netty answers a request line over its 4096-byte limit with its own plain-text 400 before the application sees it, so
+the run drops the schema and content-type failures of that one answer.
 The routes that save configuration and restart the server are left out, since a restart ends the run. Schemathesis
 runs in the temporary directory, so its example database goes with it.
 """
@@ -29,6 +31,14 @@ CONFIG = '''[[operations]]
 include-path-regex = '^/(api/v1/playback-sessions|media/sessions/|output/stream/|auto/)'
 checks.not_a_server_error.expected-statuses = ["2xx", "3xx", "4xx", "503"]
 '''
+# Schemathesis loads these hooks from the file SCHEMATHESIS_HOOKS names.
+HOOKS = '''import schemathesis
+
+
+@schemathesis.hook
+def filter_failure(context, failure, case, response):
+    return not (response.status_code == 400 and response.content.startswith(b'An HTTP line is larger than'))
+'''
 
 
 def main():
@@ -42,6 +52,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='sofa-api-fuzz-') as temporary:
         directory = Path(temporary)
         (directory / 'schemathesis.toml').write_text(CONFIG)
+        (directory / 'hooks.py').write_text(HOOKS)
         env = dict(os.environ, SOFA_HOST='127.0.0.1', SOFA_PORT=str(port), SOFA_DATA_DIR=str(directory), SOFA_API_TOKEN=TOKEN)
         log_path = directory / 'server.log'
         with log_path.open('w') as log:
@@ -66,7 +77,7 @@ def main():
                     '--checks', 'not_a_server_error,response_schema_conformance,content_type_conformance',
                     '--max-examples', examples,
                     '--exclude-path-regex', RESTARTS,
-                ], cwd=directory)
+                ], cwd=directory, env=dict(os.environ, SCHEMATHESIS_HOOKS=str(directory / 'hooks.py')))
                 if process.poll() is not None:
                     raise SystemExit(f'Server exited during the run: {process.returncode}\n' + log_path.read_text()[-4000:])
                 if result.returncode != 0:

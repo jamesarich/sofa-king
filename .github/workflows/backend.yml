@@ -21,6 +21,7 @@ on:
       - "!build-logic/**/*.md"
       - ".github/workflows/backend.yml"
       - ".github/version.sh"
+      - ".github/actions/apt-install/**"
   pull_request:
     paths:
       - "backend/**"
@@ -33,6 +34,7 @@ on:
       - "!build-logic/**/*.md"
       - ".github/workflows/backend.yml"
       - ".github/version.sh"
+      - ".github/actions/apt-install/**"
   workflow_dispatch:
 
 permissions:
@@ -75,7 +77,9 @@ jobs:
 
       # The tests generate HLS fixtures with FFmpeg and run Comskip on a generated recording.
       - name: Install FFmpeg and Comskip
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg comskip
+        uses: ./.github/actions/apt-install
+        with:
+          packages: ffmpeg comskip
 
       - name: Test and build the distribution
         run: ./gradlew --console=plain test :server:installDist

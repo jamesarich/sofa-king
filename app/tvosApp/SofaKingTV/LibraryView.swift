@@ -158,7 +158,7 @@ struct LibraryGridView: View {
 }
 
 /// A horizontal row of cards that scrolls past the screen's edges, as the Home screen's rows do.
-private struct CardRow<Content: View>: View {
+struct CardRow<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -294,6 +294,7 @@ extension MediaItem {
     /// An episode's number and title, or a movie's year.
     var cardSubtitle: String? {
         if kind == .episode { return [episodeLabel, title].compactMap { $0 }.joined(separator: " · ") }
+        if let extra { return extraLabel(extra) }
         return year.map { String($0.intValue) }
     }
 
@@ -301,5 +302,19 @@ extension MediaItem {
     var runtime: String? {
         guard let ms = durationMs?.int64Value, ms >= 30_000 else { return nil }
         return Duration.milliseconds(ms).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
+    }
+}
+
+/// What kind of extra `kind` is, as a card's second line says it; by name, as `short` is not a name Swift sees.
+func extraLabel(_ kind: ExtraKind) -> String {
+    switch kind.name {
+    case "TRAILER": "Trailer"
+    case "FEATURETTE": "Featurette"
+    case "BEHIND_THE_SCENES": "Behind the scenes"
+    case "DELETED_SCENE": "Deleted scene"
+    case "INTERVIEW": "Interview"
+    case "SCENE": "Scene"
+    case "SHORT": "Short"
+    default: "Extra"
     }
 }

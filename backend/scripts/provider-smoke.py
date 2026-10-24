@@ -32,6 +32,14 @@ def request(base, path, method='GET', body=None, timeout=20):
         return json.loads(content) if content and not content.startswith('#') else content
 
 
+def release(base, session):
+    """Ends a playback session so its slot is free for the next channel; one already gone is fine."""
+    try:
+        request(base, '/api/v1/playback-sessions/' + session['id'], 'DELETE')
+    except (HTTPError, URLError, TimeoutError):
+        pass
+
+
 def free_port():
     with socket.socket() as listener:
         listener.bind(('127.0.0.1', 0))
@@ -97,25 +105,29 @@ def main():
             ordered = [c for name in picks for c in channels if c['name'] == name] + [c for c in channels if c['name'] not in picks]
             resolved = []
             failures = []
+            # A watch session holds one of the server's few playback slots until its lease runs out, so every session
+            # not kept for decoding is released at once; otherwise a run of failed channels fills the server.
             for channel in ordered:
                 if len(resolved) >= args.resolve:
                     break
+                session = None
+                ok = False
                 try:
                     session = request(base, '/api/v1/playback-sessions', 'POST', {'channelId': channel['id'], 'intent': 'watch', 'idempotencyKey': 'smoke-' + channel['id']})
                     master = request(base, session['descriptor']['url'], timeout=30)
                     ok = isinstance(master, str) and master.lstrip().startswith('#EXTM3U')
                     print(f"resolve {channel['displayNumber']} {channel['name']}: {'HLS master' if ok else 'not a master'} ({len(master)} bytes)")
-                    if ok:
-                        resolved.append((channel, session))
-                    else:
-                        failures.append(channel['name'])
                 except HTTPError as error:
                     detail = error.read().decode()[:200]
                     print(f"resolve {channel['displayNumber']} {channel['name']}: HTTP {error.code} {detail}")
-                    failures.append(channel['name'])
                 except (URLError, TimeoutError) as error:
                     print(f"resolve {channel['displayNumber']} {channel['name']}: {error}")
+                if ok:
+                    resolved.append((channel, session))
+                else:
                     failures.append(channel['name'])
+                if session is not None and (not ok or len(resolved) > args.decode):
+                    release(base, session)
             decoded = 0
             for channel, session in resolved[:args.decode]:
                 url = base + session['descriptor']['url']
@@ -128,6 +140,7 @@ def main():
                 decoded += good
                 tail = run.stderr.decode().strip().splitlines()[-1:] if not good else []
                 print(f"decode {channel['name']}: {'ok' if good else 'FAILED'} frames={frames} seconds={micros / 1_000_000:.1f} {' '.join(tail)}")
+                release(base, session)
             print(f"summary service={args.service} channels={status['channels']} resolved={len(resolved)}/{min(args.resolve, len(ordered))} decoded={decoded}/{min(args.decode, len(resolved))} failures={failures}")
             if args.keep_log:
                 print(log_path.read_text())

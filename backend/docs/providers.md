@@ -226,4 +226,4 @@ Fragility: every URL is hard-coded, so a broadcaster that moves or retires a fee
 
 ## Checking a provider
 
-`scripts/provider-smoke.py --service NAME [--option key=value]` starts a disposable server with that one provider, waits for the import and adopts every channel. It then opens sessions on three channels, expecting an HLS master from each, decodes five seconds of two of them with FFmpeg, and prints the counts. It needs the built distribution and network access to the service. See [development](development.md#scripts) for the other scripts.
+`scripts/provider-smoke.py --service NAME [--option key=value]` starts a disposable server with that one provider, waits for the import and adopts every channel. It then opens sessions on three channels, expecting an HLS master from each, decodes five seconds of two of them with FFmpeg, and prints the counts. It releases each session once it is done with it, so a run of failing channels never fills the server's playback slots. It needs the built distribution and network access to the service. See [development](development.md#scripts) for the other scripts.

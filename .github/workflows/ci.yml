@@ -172,11 +172,13 @@ jobs:
           restore-keys: konan-${{ runner.os }}-
       # The device targets cannot run tests here, so they only compile. The UI's iOS tests run only for main: linking
       # their test binary takes about five minutes, and the check job already compiles them for every pull request.
+      # The data layer's watchOS tests run only for main too, since watchOS has no code of its own; pull requests
+      # compile them.
       - name: Test Apple targets, compile the device targets and link the iOS framework
         run: >-
           ./gradlew --continue
           :core:iosSimulatorArm64Test :core:macosArm64Test :core:tvosSimulatorArm64Test
-          :core:watchosSimulatorArm64Test ${{ github.event_name != 'pull_request' && ':ui:iosSimulatorArm64Test' || '' }}
+          ${{ github.event_name != 'pull_request' && ':core:watchosSimulatorArm64Test :ui:iosSimulatorArm64Test' || ':core:compileTestKotlinWatchosSimulatorArm64' }}
           :core:compileKotlinIosArm64 :core:compileKotlinTvosArm64 :core:compileKotlinWatchosArm64
           :ui:compileKotlinIosArm64
           :ui:linkDebugFrameworkIosSimulatorArm64
@@ -208,6 +210,8 @@ jobs:
           done
           set -a; . "$out/server.env"; set +a
           export TEST_RUNNER_SOFAKING_SERVER="$SOFAKING_SERVER" TEST_RUNNER_SOFAKING_TOKEN="$SOFAKING_TOKEN"
+          # A pull request walks 60 touches; main walks the full 150.
+          if [ "${{ github.event_name }}" = pull_request ]; then export TEST_RUNNER_SOFAKING_WALK_STEPS=60; fi
           # The newest iOS runtime's first iPhone.
           device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
           devices = json.load(sys.stdin)["devices"]
@@ -307,6 +311,10 @@ jobs:
           [ -f "$out/server.env" ] || { echo "The fixture server wrote no server.env in 3 minutes"; cat "$out/fixture.log"; exit 1; }
           set -a; . "$out/server.env"; set +a
           export TEST_RUNNER_SOFAKING_SERVER="$SOFAKING_SERVER" TEST_RUNNER_SOFAKING_TOKEN="$SOFAKING_TOKEN"
+          # A pull request presses 60 random keys on the keyboard and 100 in the walk; main presses the full 120 and 200.
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            export TEST_RUNNER_SOFAKING_KEYBOARD_KEYS=60 TEST_RUNNER_SOFAKING_WALK_KEYS=100
+          fi
           # The newest tvOS runtime's first device.
           device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
           devices = json.load(sys.stdin)["devices"]

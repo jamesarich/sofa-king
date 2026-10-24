@@ -34,6 +34,9 @@ import dev.jamesrich.sofaking.ui.LocalClock
 import dev.jamesrich.sofaking.ui.LocalClockFormat
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.LocalTimeZone
+import dev.jamesrich.sofaking.ui.guide.GuideActions
+import dev.jamesrich.sofaking.ui.guide.GuideArrival
+import dev.jamesrich.sofaking.ui.guide.GuidePreview
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.guide.ProgramDetails
 import dev.jamesrich.sofaking.ui.guide.ProgramSheet
@@ -66,21 +69,17 @@ fun GuidePreview(tv: Boolean) = Frame(tv) {
         lineup = Samples.lineup,
         favorites = setOf("c1"),
         recentChannels = listOf("c2"),
-        initialChannelId = "c1",
-        initialFilterKey = null,
-        startAtNow = false,
-        startSearch = false,
-        returnedFrom = null,
-        onPlay = { _, _, _ -> },
-        onToggleFavorite = {},
-        onFilterChange = {},
-        onLoadGuideWindow = {},
-        previewPlayer = remember { UnavailableLivePlayer(CaptionSync(), "PREVIEW") },
-        sessions = remember { PlaybackSessions() },
-        captionsEnabled = false,
-        captionStyle = CaptionStyle.SYSTEM,
-        autoOpenDelay = AutoOpenDelay.OFF,
-        previewSound = false,
+        arrival = GuideArrival(initialChannelId = "c1"),
+        actions = GuideActions(onPlay = { _, _, _ ->
+        }, onToggleFavorite = {}, onFilterChange = {}, onLoadGuideWindow = {}),
+        preview = GuidePreview(
+            player = remember { UnavailableLivePlayer(CaptionSync(), "PREVIEW") },
+            sessions = remember { PlaybackSessions() },
+            captionsEnabled = false,
+            captionStyle = CaptionStyle.SYSTEM,
+            autoOpenDelay = AutoOpenDelay.OFF,
+            sound = false,
+        ),
     )
 }
 

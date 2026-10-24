@@ -609,7 +609,7 @@ class AdminPortal(
                 try {
                     dvr.deleteRule(call.parameters["id"]!!)
                     session.flash.set(Flash("Deleted the rule and its scheduled recordings; what it recorded stays."))
-                } catch (e: ApiFailure) {
+                } catch (_: ApiFailure) {
                     session.flash.set(Flash("That rule is already gone.", Tone.WARN))
                 }
                 seeOther(call, "/admin/recordings#rules")
@@ -632,7 +632,7 @@ class AdminPortal(
                             target = id,
                         ),
                     )
-                } catch (e: ApiFailure) {
+                } catch (_: ApiFailure) {
                     session.flash.set(Flash("That recording is gone.", Tone.WARN))
                 }
                 seeOther(call, "/admin/recordings#recorded")
@@ -655,7 +655,7 @@ class AdminPortal(
                             },
                         ),
                     )
-                } catch (e: ApiFailure) {
+                } catch (_: ApiFailure) {
                     session.flash.set(Flash("That recording is already gone.", Tone.WARN))
                 }
                 seeOther(call, "/admin/recordings")
@@ -1251,7 +1251,8 @@ class AdminPortal(
         }
         val candidate = try {
             parsePolicy(next)
-        } catch (e: Exception) {
+        } catch (_: IllegalArgumentException) {
+            // A SerializationException is one.
             refuse(listOf("The edit does not fit the policy schema"))
             return
         }
@@ -2070,11 +2071,9 @@ internal data class LineupFilter(
 ) {
     fun admits(row: StationRow): Boolean {
         val entry = row.entry
-        if (q.isNotEmpty() && !entry.name.contains(q, ignoreCase = true) && entry.number != q &&
-            row.station?.key?.contains(q, ignoreCase = true) != true
-        ) {
-            return false
-        }
+        val station = row.station?.key?.contains(q, ignoreCase = true) == true
+        val found = entry.name.contains(q, ignoreCase = true) || entry.number == q || station
+        if (q.isNotEmpty() && !found) return false
         if (group.isNotEmpty() && entry.group != group) return false
         if (required && !row.required) return false
         if (override && !row.overridden) return false

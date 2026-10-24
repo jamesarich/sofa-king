@@ -85,11 +85,11 @@ fun ChannelManagerScreen(
     favoritesOrder: List<String>,
     hidden: Set<String>,
     zapSkipsHidden: Boolean,
-    onFavoritesOrderChanged: (List<String>) -> Unit,
-    onChannelHiddenChanged: (guideId: String, hidden: Boolean) -> Unit,
+    onFavoritesOrderChange: (List<String>) -> Unit,
+    onChannelHiddenChange: (guideId: String, hidden: Boolean) -> Unit,
     /** A group's switch: every channel of it hidden or shown in one write. */
-    onChannelsHiddenChanged: (guideIds: Collection<String>, hidden: Boolean) -> Unit,
-    onZapSkipsHiddenChanged: (Boolean) -> Unit,
+    onChannelsHiddenChange: (guideIds: Collection<String>, hidden: Boolean) -> Unit,
+    onZapSkipsHiddenChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -130,7 +130,7 @@ fun ChannelManagerScreen(
                     channel = channel,
                     canMoveUp = index > 0,
                     canMoveDown = index < ordered.lastIndex,
-                    onMove = { step -> onFavoritesOrderChanged(movedFavorite(orderIds, channel.guideId, step)) },
+                    onMove = { step -> onFavoritesOrderChange(movedFavorite(orderIds, channel.guideId, step)) },
                 )
             }
             item { SectionHeader(stringResource(Res.string.channels_section_hidden)) }
@@ -139,7 +139,7 @@ fun ChannelManagerScreen(
                 ToggleRow(
                     label = stringResource(Res.string.channels_zap_skips),
                     checked = zapSkipsHidden,
-                    onCheckedChange = onZapSkipsHiddenChanged,
+                    onCheckedChange = onZapSkipsHiddenChange,
                 )
             }
             for (group in groups) {
@@ -148,7 +148,7 @@ fun ChannelManagerScreen(
                     GroupRow(
                         group = group,
                         expanded = open,
-                        onShownChange = { shown -> onChannelsHiddenChanged(group.channels.map { it.guideId }, !shown) },
+                        onShownChange = { shown -> onChannelsHiddenChange(group.channels.map { it.guideId }, !shown) },
                         onExpandedChange = { if (it) expanded.add(group.name) else expanded.remove(group.name) },
                     )
                 }
@@ -157,7 +157,7 @@ fun ChannelManagerScreen(
                         ToggleRow(
                             label = channel.label(),
                             checked = channel.guideId !in hidden,
-                            onCheckedChange = { shown -> onChannelHiddenChanged(channel.guideId, !shown) },
+                            onCheckedChange = { shown -> onChannelHiddenChange(channel.guideId, !shown) },
                             modifier = Modifier.padding(start = 32.dp),
                         )
                     }

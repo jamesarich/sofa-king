@@ -160,7 +160,7 @@ internal fun ChannelListPanel(
                 previousGuideId = state.previousChannel?.guideId,
                 now = now,
                 onTune = state::tuneChannel,
-                onChipsFocused = { state.miniGuideChipsFocused = it },
+                onChipsFocus = { state.miniGuideChipsFocused = it },
             )
         }
     }
@@ -341,12 +341,12 @@ internal fun BoxScope.InfoBarPanel(
                         state.zapStep(PlayerAction.CHANNEL_UP.zapStep()!!)
                     },
                 )
-                PlayerButtonRow(items, entry, onFocused = { state.buttonsFocused = it }, showLabel = false)
+                PlayerButtonRow(items, entry, onFocus = { state.buttonsFocused = it }, showLabel = false)
                 VolumeControl(onAdjust = state::keepInfo, onDone = control {})
                 FullScreenControl()
             }
         } else {
-            PlayerButtonRow(items, entry, onFocused = { state.buttonsFocused = it }, showLabel = true)
+            PlayerButtonRow(items, entry, onFocus = { state.buttonsFocused = it }, showLabel = true)
         }
     }
 }

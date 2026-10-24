@@ -314,7 +314,7 @@ struct VodPlayerView: View {
         }
         switch request.source {
         case .item(let item): model.core.itemProgress(itemId: item.id, positionMs: positionMs, durationMs: durationMs)
-        case .recording(let recording): model.core.recordingProgress(recordingId: recording.id, positionMs: positionMs, durationMs: durationMs)
+        case .recording(let recording): model.core.recordingProgress(recordingId: recording.id, positionMs: positionMs)
         }
     }
 

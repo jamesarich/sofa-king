@@ -32,7 +32,12 @@ fun Route.hdhrAccessRoutes(access: HdhrAccess, enabled: Boolean) {
         try {
             access.replace(request.allowed)
         } catch (failure: IllegalArgumentException) {
-            throw ApiFailure(400, "INVALID_REQUEST", failure.message ?: "Not an IP address or CIDR block")
+            throw ApiFailure(
+                400,
+                "INVALID_REQUEST",
+                failure.message ?: "Not an IP address or CIDR block",
+                cause = failure,
+            )
         }
         call.respond(access.status(enabled))
     }

@@ -118,9 +118,9 @@ internal fun SettingsLockScreen(
     pinHash: String,
     /** The token the device holds, empty on a server without one; it unlocks and removes the PIN. */
     apiToken: String,
-    onUnlocked: () -> Unit,
+    onUnlock: () -> Unit,
     /** The token matched: remove the PIN; the caller then opens Settings. */
-    onPinRemoved: () -> Unit,
+    onPinRemove: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     lock: SettingsLock = remember { SettingsLock() },
@@ -147,7 +147,7 @@ internal fun SettingsLockScreen(
         if (canUnlock) {
             if (SettingsPin.matches(pinText, pinHash)) {
                 lock.passed()
-                onUnlocked()
+                onUnlock()
             } else {
                 lock.missed()
                 wrongPin = true
@@ -161,7 +161,7 @@ internal fun SettingsLockScreen(
         if (canRemove) {
             if (tokenText == apiToken) {
                 lock.passed()
-                onPinRemoved()
+                onPinRemove()
             } else {
                 wrongToken = true
                 token.clearText()
@@ -253,10 +253,10 @@ internal fun ErrorText(text: String) {
 
 /**
  * The Lock section of Settings: Set a PIN opens two fields that must agree, and with a PIN set, Remove PIN
- * takes it off. [onPinChanged] gets the new digits, or null to remove the lock.
+ * takes it off. [onPinChange] gets the new digits, or null to remove the lock.
  */
 @Composable
-internal fun LockSection(locked: Boolean, onPinChanged: (String?) -> Unit) {
+internal fun LockSection(locked: Boolean, onPinChange: (String?) -> Unit) {
     var setting by remember { mutableStateOf(false) }
     val first = rememberTextFieldState()
     val again = rememberTextFieldState()
@@ -278,7 +278,7 @@ internal fun LockSection(locked: Boolean, onPinChanged: (String?) -> Unit) {
     val canSet = SettingsPin.isValid(firstText) && firstText == againText
     val set = {
         if (canSet) {
-            onPinChanged(firstText)
+            onPinChange(firstText)
             first.clearText()
             again.clearText()
             pressed = true
@@ -292,7 +292,7 @@ internal fun LockSection(locked: Boolean, onPinChanged: (String?) -> Unit) {
                 HelpText(stringResource(Res.string.settings_lock_on))
                 SofaButton(onClick = {
                     pressed = true
-                    onPinChanged(null)
+                    onPinChange(null)
                 }, modifier = Modifier.focusRequester(buttonFocus)) {
                     Text(stringResource(Res.string.settings_lock_remove))
                 }

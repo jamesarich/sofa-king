@@ -48,14 +48,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import org.jetbrains.compose.resources.stringResource
 
-/** What the search's cards do, as on the library's other pages. */
-internal class LibrarySearchActions(
-    val search: suspend (String) -> List<MediaItem>,
-    val onOpenItem: (MediaItem) -> Unit,
-    val onPlayItem: (MediaItem) -> Unit,
-    val menu: CardMenu? = null,
-)
-
 /**
  * Search across every library by title, show or cast: movies and shows as posters, then episodes and videos.
  * [voice] starts the platform's speech input on arrival, falling back to the text field without a recognizer;

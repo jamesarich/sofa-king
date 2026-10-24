@@ -42,6 +42,10 @@ class BreakMatch(val entry: BreakEntry, val queryFrom: Int, val queryTo: Int, va
 
     /** Points of the entry left after the match. */
     val entryLeft: Int get() = entry.points.size - (entryFrom + points)
+
+    /** The longer match wins; a blocked entry wins a tie, since show audio must veto. */
+    fun beats(other: BreakMatch): Boolean =
+        points > other.points || (points == other.points && entry.blocked && !other.entry.blocked)
 }
 
 /** The library's size and how the canary has gone over the last day. */
@@ -313,12 +317,7 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
             for (nudge in -1..1) {
                 val run = longestRun(query, entry.points, shift + nudge, minPoints, skip) ?: continue
                 val match = BreakMatch(entry, run.first, run.last, run.first + shift + nudge)
-                // The longest wins; a blocked entry wins a tie, since show audio must veto.
-                if (best == null || match.points > best.points ||
-                    (match.points == best.points && entry.blocked && !best.entry.blocked)
-                ) {
-                    best = match
-                }
+                if (best == null || match.beats(best)) best = match
             }
         }
         return best
@@ -341,9 +340,8 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
         fun close() {
             if (start < 0) return
             val length = last - start + 1
-            if (length >= minPoints && matches >= MIN_DENSITY * length && (best == null || length > best!!.count())) {
-                best = start..last
-            }
+            val longest = best?.let { length > it.count() } ?: true
+            if (length >= minPoints && matches >= MIN_DENSITY * length && longest) best = start..last
         }
         for (i in from until until) {
             if (skip?.get(i) == true || Integer.bitCount(query[i] xor entry[i + shift]) > MAX_BIT_ERRORS) continue

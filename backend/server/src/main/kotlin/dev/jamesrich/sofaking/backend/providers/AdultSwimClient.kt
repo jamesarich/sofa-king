@@ -109,21 +109,15 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
         val urls = assets.mapNotNull { asset ->
             val candidate = asset.str("url") ?: return@mapNotNull null
             val mime = asset.str("mime_type")?.lowercase()
-            if (httpOrNull(candidate) != null && (
-                    candidate.substringBefore('?').endsWith(".m3u8") || mime == "application/x-mpegurl" ||
-                        mime == "application/vnd.apple.mpegurl"
-                    )
-            ) {
-                candidate
-            } else {
-                null
-            }
+            val hls = candidate.substringBefore('?').endsWith(".m3u8") || mime in HLS_MIME_TYPES
+            candidate.takeIf { hls && httpOrNull(it) != null }
         }
         return urls.firstOrNull { it.contains("/live/") } ?: urls.firstOrNull()
             ?: throw ProviderFailure("Adult Swim video has no HLS asset", transient = false)
     }
 
     companion object {
+        private val HLS_MIME_TYPES = setOf("application/x-mpegurl", "application/vnd.apple.mpegurl")
         private const val SITE_BASE = "https://www.adultswim.com"
         private const val STREAMS = "streams"
         private val HEADERS = mapOf(

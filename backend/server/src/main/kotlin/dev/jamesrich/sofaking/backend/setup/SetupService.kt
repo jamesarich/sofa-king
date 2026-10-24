@@ -105,14 +105,16 @@ class SetupService(
         }
         try {
             validateSources(document, environment)
-        } catch (e: IllegalArgumentException) {
-            throw ApiFailure(400, "INVALID_SOURCES", e.message ?: "The source configuration is not valid")
         } catch (e: kotlinx.serialization.SerializationException) {
+            // First, as a SerializationException is an IllegalArgumentException; its message runs to many lines.
             throw ApiFailure(
                 400,
                 "INVALID_SOURCES",
                 e.message?.lineSequence()?.firstOrNull() ?: "The source configuration is not valid",
+                cause = e,
             )
+        } catch (e: IllegalArgumentException) {
+            throw ApiFailure(400, "INVALID_SOURCES", e.message ?: "The source configuration is not valid", cause = e)
         }
         withContext(Dispatchers.IO) {
             Files.createDirectories(sourcesPath.toAbsolutePath().parent)
@@ -168,13 +170,15 @@ class SetupService(
         try {
             checkTmdb(TmdbConfig(trimmed, tmdbLanguage))
         } catch (e: TmdbFailure) {
-            if (e.code == "TMDB_AUTH") throw ApiFailure(400, "TMDB_REJECTED", "TMDB did not accept the token")
-            throw ApiFailure(502, "TMDB_UNREACHABLE", "TMDB could not be asked (${e.code}); try again")
+            if (e.code == "TMDB_AUTH") {
+                throw ApiFailure(400, "TMDB_REJECTED", "TMDB did not accept the token", cause = e)
+            }
+            throw ApiFailure(502, "TMDB_UNREACHABLE", "TMDB could not be asked (${e.code}); try again", cause = e)
         }
         try {
             withContext(Dispatchers.IO) { SecretsFile(secretsPath).store(SecretsFile.TMDB_TOKEN, trimmed) }
         } catch (e: IllegalArgumentException) {
-            throw ApiFailure(500, "SECRETS_UNWRITABLE", e.message ?: "$secretsPath cannot be written")
+            throw ApiFailure(500, "SECRETS_UNWRITABLE", e.message ?: "$secretsPath cannot be written", cause = e)
         }
         log.info("setup: saved the TMDB token in {}", secretsPath)
         requestRestart()

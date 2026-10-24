@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -69,7 +70,7 @@ internal fun TabPage(
     tabFocus: FocusRequester,
     settingsFocus: FocusRequester,
     headerReturn: HeaderReturn?,
-    onHeaderFocusRequested: () -> Unit,
+    onHeaderFocusRequest: () -> Unit,
     refreshing: Boolean,
     notice: String?,
     onSettings: () -> Unit,
@@ -79,6 +80,7 @@ internal fun TabPage(
 ) {
     val showsTabs = tv
     var pageFocused by remember { mutableStateOf(false) }
+    val currentOnHeaderFocusRequest by rememberUpdatedState(onHeaderFocusRequest)
     // Keyed on nothing, so clearing the flag does not cancel the request; it runs on each return here.
     LaunchedEffect(Unit) {
         val target = headerReturn
@@ -91,7 +93,7 @@ internal fun TabPage(
                 repeat(IDLE_FOCUS_FRAMES) { withFrameNanos { } }
                 if (!pageFocused) requestFocusWhenAttached(button)
             }
-            onHeaderFocusRequested()
+            currentOnHeaderFocusRequest()
         } else if (focusHeaderIfIdle) {
             // A page that takes no focus of its own (Library's home, Recordings with nothing recorded) leaves it on
             // its tab, in the header on a TV and on the rail or bar elsewhere, so something is focused from the start
@@ -283,9 +285,9 @@ private fun Header(
     notice: String?,
     onSettings: (() -> Unit)?,
     settingsFocus: FocusRequester,
+    modifier: Modifier = Modifier,
     tabs: TabsModel? = null,
     tabFocus: FocusRequester = remember { FocusRequester() },
-    modifier: Modifier = Modifier,
 ) {
     Row(
         modifier.fillMaxWidth().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),

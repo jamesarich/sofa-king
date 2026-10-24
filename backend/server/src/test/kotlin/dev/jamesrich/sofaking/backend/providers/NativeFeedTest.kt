@@ -113,7 +113,6 @@ class NativeFeedTest {
 
     private suspend fun runtime(
         dir: java.nio.file.Path,
-        fixture: Fixture,
         fake: FakeClient,
         clock: MutableClock,
         http: io.ktor.client.HttpClient,
@@ -154,7 +153,7 @@ class NativeFeedTest {
                 val clock = MutableClock()
                 val fake = FakeClient(fixture.base, clock)
                 val http = ProviderFixture.httpClient()
-                val runtime = runtime(dir, fixture, fake, clock, http)
+                val runtime = runtime(dir, fake, clock, http)
                 try {
                     runtime.feeds.refresh(config)
                     val status = runtime.feeds.providers().single()
@@ -251,7 +250,7 @@ class NativeFeedTest {
                 val clock = MutableClock()
                 val fake = FakeClient(fixture.base, clock)
                 val http = ProviderFixture.httpClient()
-                val runtime = runtime(dir, fixture, fake, clock, http)
+                val runtime = runtime(dir, fake, clock, http)
                 try {
                     runtime.feeds.refresh(config)
                     val seen = ArrayList<Pair<String, Map<String, String>>>()

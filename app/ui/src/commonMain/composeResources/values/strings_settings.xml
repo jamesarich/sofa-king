@@ -133,6 +133,11 @@
     <string name="settings_update_available">Update available: snapshot %1$s.</string>
     <string name="settings_update_unknown">This is not a snapshot build; the published snapshot is %1$s.</string>
     <string name="settings_update_failed">Couldn't reach GitHub to check for a newer build.</string>
+    <string name="settings_update_whats_new">What's new</string>
+    <plurals name="settings_update_more">
+        <item quantity="one">And %1$d more change on the release page.</item>
+        <item quantity="other">And %1$d more changes on the release page.</item>
+    </plurals>
     <string name="settings_update_get">Get the update</string>
     <string name="settings_update_check">Check again</string>
     <string name="settings_update_install">Install update</string>

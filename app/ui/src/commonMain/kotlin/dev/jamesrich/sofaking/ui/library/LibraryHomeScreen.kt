@@ -32,7 +32,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.LibraryHomeState
-import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.data.MediaShelf
 import dev.jamesrich.sofaking.resources.Res
@@ -53,18 +52,6 @@ import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.theme.SofaChip
 import org.jetbrains.compose.resources.stringResource
 
-/** What the library home's cards do. OK opens an item's page; the remote's Play key plays an item that plays. */
-internal class LibraryHomeActions(
-    val onOpenItem: (MediaItem) -> Unit,
-    val onPlayItem: (MediaItem) -> Unit,
-    val onOpenLibrary: (MediaLibrary) -> Unit,
-    val onRetry: () -> Unit,
-    /** Opens the search; true starts it by voice. */
-    val onSearch: (voice: Boolean) -> Unit = {},
-    /** What a held OK on a card offers. */
-    val menu: CardMenu? = null,
-)
-
 /**
  * The Library tab: Search and a chip for each library, so any library is two presses from the tabs, then Continue
  * watching and each library's recent additions. [returnedFrom] is the item whose page the viewer just left, the
@@ -74,10 +61,10 @@ internal class LibraryHomeActions(
 internal fun LibraryHomeScreen(
     state: LibraryHomeState,
     actions: LibraryHomeActions,
+    modifier: Modifier = Modifier,
     returnedFrom: String? = null,
     /** Whether the header above has focus; the shelves scroll back to the top under it. */
     headerFocused: Boolean = false,
-    modifier: Modifier = Modifier,
 ) {
     when (state) {
         LibraryHomeState.Loading -> MessageScreen(stringResource(Res.string.library_loading), loading = true)
@@ -119,7 +106,7 @@ private fun Shelves(
     actions: LibraryHomeActions,
     returnedFrom: String?,
     headerFocused: Boolean,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     val insets = screenInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).asPaddingValues()
     val returnFocus = remember { FocusRequester() }

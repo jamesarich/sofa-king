@@ -20,6 +20,7 @@ import dev.jamesrich.sofaking.data.WatchNext
 import dev.jamesrich.sofaking.data.describe
 import dev.jamesrich.sofaking.data.episodeAfter
 import dev.jamesrich.sofaking.data.failedLoad
+import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.data.seasonAfter
 import dev.jamesrich.sofaking.data.watchNextItems
 import kotlinx.coroutines.CancellationException
@@ -138,14 +139,8 @@ class LibraryViewModel(
         homeJob = viewModelScope.launch {
             if (_home.value !is LibraryHomeState.Ready) _home.value = LibraryHomeState.Loading
             while (true) {
-                val home = try {
-                    LibraryHomeState.Ready(repository.home())
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: SofaKingException) {
-                    if (e.status == 404) LibraryHomeState.Unavailable else failed(e)
-                } catch (e: Exception) {
-                    failed(e)
+                val home = runCatchingCancellable { LibraryHomeState.Ready(repository.home()) }.getOrElse { e ->
+                    if (e is SofaKingException && e.status == 404) LibraryHomeState.Unavailable else failed(e)
                 }
                 _home.value = home
                 // The Library tab hides while the server has no library, so ask again until one is added.
@@ -155,7 +150,7 @@ class LibraryViewModel(
         }
     }
 
-    private fun failed(e: Exception): LibraryHomeState =
+    private fun failed(e: Throwable): LibraryHomeState =
         failedLoad("library home", e, _home.value as? LibraryHomeState.Ready, LibraryHomeState::Failed)
 
     /**
@@ -182,7 +177,8 @@ class LibraryViewModel(
             )
         // A grid whose next page failed keeps its pages, and loadMore retries that page; only a
         // failed first page loads afresh.
-        if (open != null && open.sameQuery(wanted) && (open.error == null || open.items.isNotEmpty())) return
+        val sameGrid = open?.takeIf { it.sameQuery(wanted) }
+        if (sameGrid != null && (sameGrid.error == null || sameGrid.items.isNotEmpty())) return
         gridJob?.cancel()
         loadTarget = null
         _grid.value = wanted
@@ -217,7 +213,7 @@ class LibraryViewModel(
         val grid = _grid.value ?: return
         _grid.value = grid.copy(loading = true, error = null)
         gridJob = viewModelScope.launch {
-            try {
+            runCatchingCancellable {
                 val target = loadTarget
                 val limit =
                     target?.let {
@@ -245,9 +241,7 @@ class LibraryViewModel(
                 if (target != null && loaded != null && loaded.sameQuery(grid)) {
                     if (loaded.items.size > target || loaded.next == null) loadTarget = null else loadPage(loaded.next)
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.w { "library page failed: ${e.describe()}" }
                 _grid.update { it?.copy(loading = false, error = e.describe()) }
             }
@@ -265,11 +259,9 @@ class LibraryViewModel(
         val repository = repository ?: return
         detailJobs[id]?.cancel()
         detailJobs[id] = viewModelScope.launch {
-            try {
+            runCatchingCancellable {
                 state.value = ItemDetailState.Ready(repository.detail(id))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.w { "library item failed: ${e.describe()}" }
                 // A page on screen stays when a refresh fails.
                 if (state.value !is ItemDetailState.Ready) state.value = ItemDetailState.Failed(e.describe())
@@ -281,11 +273,9 @@ class LibraryViewModel(
     suspend fun search(query: String): List<MediaItem> {
         val repository = repository ?: return emptyList()
         if (query.isBlank()) return emptyList()
-        return try {
+        return runCatchingCancellable {
             repository.search(query.trim())
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+        }.getOrElse { e ->
             log.w { "library search failed: ${e.describe()}" }
             emptyList()
         }
@@ -295,11 +285,9 @@ class LibraryViewModel(
     fun setWatched(item: MediaItem, watched: Boolean) {
         val repository = repository ?: return
         viewModelScope.launch {
-            try {
+            runCatchingCancellable {
                 changed(repository.setWatched(item.id, watched))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.w { "mark watched failed: ${e.describe()}" }
             }
         }
@@ -329,15 +317,13 @@ class LibraryViewModel(
         val repository = repository ?: return null
         if (item.kind != ItemKind.EPISODE) return null
         val parent = item.parentId ?: return null
-        return try {
+        return runCatchingCancellable {
             episodeAfter(repository.detail(parent).children, item.id) ?: run {
                 val show = item.showId?.takeIf { it != parent } ?: return null
                 val season = seasonAfter(repository.detail(show).children, parent) ?: return null
                 repository.detail(season.id).children.firstOrNull { it.kind.playable }
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+        }.getOrElse { e ->
             log.w { "up next failed: ${e.describe()}" }
             null
         }
@@ -359,11 +345,9 @@ class LibraryViewModel(
     /** [itemId]'s text subtitle track [index], or null when the server cannot give it. */
     suspend fun subtitles(itemId: String, index: Int): Subtitles? {
         val repository = repository ?: return null
-        return try {
+        return runCatchingCancellable {
             repository.subtitles(itemId, index)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+        }.getOrElse { e ->
             log.w { "subtitles failed: ${e.describe()}" }
             null
         }
@@ -388,12 +372,10 @@ class LibraryViewModel(
     private fun save(itemId: String, positionMs: Long, durationMs: Long?, refresh: Boolean) {
         val repository = repository ?: return
         viewModelScope.launch {
-            try {
+            runCatchingCancellable {
                 val item = repository.savePosition(itemId, positionMs, durationMs)
                 if (refresh) changed(item)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.w { "saving the position failed: ${e.describe()}" }
             }
         }

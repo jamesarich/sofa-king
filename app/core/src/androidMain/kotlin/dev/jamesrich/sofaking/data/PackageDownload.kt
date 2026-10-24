@@ -22,7 +22,7 @@ private const val DOWNLOAD_TIMEOUT_MS = 10 * 60_000L
  */
 internal suspend fun downloadPackage(http: HttpClient, url: String, file: File, onProgress: (Int?) -> Unit): String =
     withContext(ioDispatcher) {
-        try {
+        runCatching {
             http.prepareGet(url) { timeout { requestTimeoutMillis = DOWNLOAD_TIMEOUT_MS } }.execute { response ->
                 if (!response.status.isSuccess()) throw IOException("HTTP ${response.status.value}")
                 val total = response.contentLength()?.takeIf { it > 0 }
@@ -49,8 +49,5 @@ internal suspend fun downloadPackage(http: HttpClient, url: String, file: File, 
                 if (total != null && received != total) throw IOException("got $received of $total bytes")
                 digest.digest().toHexString()
             }
-        } catch (e: Throwable) {
-            file.delete()
-            throw e
-        }
+        }.onFailure { file.delete() }.getOrThrow()
     }

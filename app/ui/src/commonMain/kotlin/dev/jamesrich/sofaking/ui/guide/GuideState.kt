@@ -134,9 +134,8 @@ internal class GuideState(
     var laterFocused by mutableStateOf<String?>(null)
         private set
 
-    // Read only by the preview band, so a focus move recomposes the band and not the whole grid.
-    val focusedState = mutableStateOf<FocusedCell?>(null)
-    var focused by focusedState
+    // Read only inside the preview band, so a focus move recomposes the band and not the whole grid.
+    var focused by mutableStateOf<FocusedCell?>(null)
     var gridFocused by mutableStateOf(false)
     var chipsFocused by mutableStateOf(false)
 

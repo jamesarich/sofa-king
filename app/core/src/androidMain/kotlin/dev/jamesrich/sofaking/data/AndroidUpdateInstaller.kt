@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.data
 
+import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -14,7 +15,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import androidx.core.content.pm.PackageInfoCompat
 import co.touchlab.kermit.Logger
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -117,51 +117,48 @@ private class AndroidUpdateInstaller(private val app: Context) : UpdateInstaller
             return InstallState.Failed(InstallFailure.DOWNLOAD)
         }
         try {
-            val packageManager = app.packageManager
-            val archive = packageManager.archiveInfo(file.path)
-            val installed = packageManager.installedInfo(app.packageName)
-            val signers = archive?.signingInfo?.apkContentsSigners
-            val sameKey = signers?.takeIf { it.isNotEmpty() }?.let { certificates ->
-                PackageInfoCompat.hasSignatures(
-                    packageManager,
-                    app.packageName,
-                    certificates.associate { it.toByteArray() to PackageManager.CERT_INPUT_RAW_X509 },
-                    true,
-                )
+            return runCatchingCancellable { install(file, sha256, expectedSha256) }.getOrElse { e ->
+                // Besides IOException and SecurityException, the package manager and installer throw
+                // IllegalStateException and kin; nothing here may crash the app.
+                log.w { "update install ${if (e is SecurityException) "refused" else "failed"}: ${e.message}" }
+                InstallState.Failed(InstallFailure.INSTALLER, e.message)
             }
-            val failure = packageVerdict(
-                expectedSha256 = expectedSha256,
-                sha256 = sha256,
-                packageName = archive?.packageName,
-                appPackage = app.packageName,
-                versionCode = archive?.let(PackageInfoCompat::getLongVersionCode) ?: 0,
-                installedVersionCode = installed?.let(PackageInfoCompat::getLongVersionCode) ?: 0,
-                sameKey = sameKey,
-            )
-            if (failure != null) {
-                log.w { "update not installed: $failure" }
-                return InstallState.Failed(failure)
-            }
-            // Before the commit, since the receiver can hear back before it returns.
-            _state.value = InstallState.Installing
-            commit(file)
-            return null
-        } catch (e: IOException) {
-            log.w { "update install failed: ${e.message}" }
-            return InstallState.Failed(InstallFailure.INSTALLER, e.message)
-        } catch (e: SecurityException) {
-            log.w { "update install refused: ${e.message}" }
-            return InstallState.Failed(InstallFailure.INSTALLER, e.message)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: RuntimeException) {
-            // The package manager and installer throw IllegalStateException and kin too;
-            // nothing here may crash the app.
-            log.w { "update install failed: ${e.message}" }
-            return InstallState.Failed(InstallFailure.INSTALLER, e.message)
         } finally {
             file.delete()
         }
+    }
+
+    /** Checks the downloaded [file] is this app, newer and signed with its key, then commits it. */
+    private fun install(file: File, sha256: String, expectedSha256: String?): InstallState? {
+        val packageManager = app.packageManager
+        val archive = packageManager.archiveInfo(file.path)
+        val installed = packageManager.installedInfo(app.packageName)
+        val signers = archive?.signingInfo?.apkContentsSigners
+        val sameKey = signers?.takeIf { it.isNotEmpty() }?.let { certificates ->
+            PackageInfoCompat.hasSignatures(
+                packageManager,
+                app.packageName,
+                certificates.associate { it.toByteArray() to PackageManager.CERT_INPUT_RAW_X509 },
+                true,
+            )
+        }
+        val failure = packageVerdict(
+            expectedSha256 = expectedSha256,
+            sha256 = sha256,
+            packageName = archive?.packageName,
+            appPackage = app.packageName,
+            versionCode = archive?.let(PackageInfoCompat::getLongVersionCode) ?: 0,
+            installedVersionCode = installed?.let(PackageInfoCompat::getLongVersionCode) ?: 0,
+            sameKey = sameKey,
+        )
+        if (failure != null) {
+            log.w { "update not installed: $failure" }
+            return InstallState.Failed(failure)
+        }
+        // Before the commit, since the receiver can hear back before it returns.
+        _state.value = InstallState.Installing
+        commit(file)
+        return null
     }
 
     /** The package file's name, version and signers, or null when it is not a package. */
@@ -197,16 +194,13 @@ private class AndroidUpdateInstaller(private val app: Context) : UpdateInstaller
         }
         val id = installer.createSession(params)
         installer.openSession(id).use { session ->
-            try {
+            runCatching {
                 session.openWrite("base.apk", 0, file.length()).use { out ->
                     file.inputStream().use { it.copyTo(out) }
                     session.fsync(out)
                 }
                 session.commit(statusSender())
-            } catch (e: Exception) {
-                session.abandon()
-                throw e
-            }
+            }.onFailure { session.abandon() }.getOrThrow()
         }
     }
 
@@ -222,12 +216,16 @@ private class AndroidUpdateInstaller(private val app: Context) : UpdateInstaller
                 // The system's confirmation, and the one-time "install unknown apps" grant before it when needed.
                 PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                     val confirm = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_INTENT, Intent::class.java)
-                    try {
-                        checkNotNull(confirm) { "no confirmation intent" }
-                        app.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    } catch (e: RuntimeException) {
-                        log.w { "update confirmation did not open: ${e.message}" }
-                        _state.value = InstallState.Failed(InstallFailure.INSTALLER, e.message)
+                    if (confirm == null) {
+                        confirmationFailed("no confirmation intent")
+                    } else {
+                        try {
+                            app.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        } catch (e: ActivityNotFoundException) {
+                            confirmationFailed(e.message)
+                        } catch (e: SecurityException) {
+                            confirmationFailed(e.message)
+                        }
                     }
                 }
 
@@ -242,6 +240,11 @@ private class AndroidUpdateInstaller(private val app: Context) : UpdateInstaller
                     _state.value = InstallState.Failed(InstallFailure.INSTALLER, message)
                 }
             }
+        }
+
+        private fun confirmationFailed(why: String?) {
+            log.w { "update confirmation did not open: $why" }
+            _state.value = InstallState.Failed(InstallFailure.INSTALLER, why)
         }
     }
 }

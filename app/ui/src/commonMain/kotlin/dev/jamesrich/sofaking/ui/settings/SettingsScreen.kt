@@ -57,6 +57,7 @@ import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.InstallFailure
 import dev.jamesrich.sofaking.data.InstallState
 import dev.jamesrich.sofaking.data.LiveBreaks
+import dev.jamesrich.sofaking.data.ReleaseNote
 import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.StartupTarget
 import dev.jamesrich.sofaking.data.SubtitleLook
@@ -188,8 +189,10 @@ import dev.jamesrich.sofaking.resources.settings_update_failed_version
 import dev.jamesrich.sofaking.resources.settings_update_get
 import dev.jamesrich.sofaking.resources.settings_update_install
 import dev.jamesrich.sofaking.resources.settings_update_installing
+import dev.jamesrich.sofaking.resources.settings_update_more
 import dev.jamesrich.sofaking.resources.settings_update_no_package
 import dev.jamesrich.sofaking.resources.settings_update_unknown
+import dev.jamesrich.sofaking.resources.settings_update_whats_new
 import dev.jamesrich.sofaking.resources.settings_version
 import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.ui.BackHandler
@@ -222,8 +225,8 @@ import kotlin.time.Duration.Companion.minutes
 
 /** The switches and choices Settings applies at once; each lands in the store as it is changed. */
 class SettingsActions(
-    val onCaptionsChanged: (Boolean) -> Unit = {},
-    val onCaptionAdvanceChanged: (Int) -> Unit = {},
+    val onCaptionsChange: (Boolean) -> Unit = {},
+    val onCaptionAdvanceChange: (Int) -> Unit = {},
     val onSmoothCaptionsChanged: (Boolean) -> Unit = {},
     val onCaptionStyleChanged: (CaptionStyle) -> Unit = {},
     val onAutoOpenDelayChanged: (AutoOpenDelay) -> Unit = {},
@@ -758,7 +761,7 @@ fun SettingsScreen(
                     checked = captionsOn,
                     onCheckedChange = {
                         captionsOn = it
-                        actions.onCaptionsChanged(it)
+                        actions.onCaptionsChange(it)
                     },
                 )
             }
@@ -805,7 +808,7 @@ fun SettingsScreen(
                         SofaButton(
                             onClick = {
                                 captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = -1)
-                                actions.onCaptionAdvanceChanged(captionAdvance)
+                                actions.onCaptionAdvanceChange(captionAdvance)
                                 if (captionAdvance <= AppSettings.CAPTION_ADVANCE_RANGE_MS.first) {
                                     moreFocus.requestFocus()
                                 }
@@ -817,7 +820,7 @@ fun SettingsScreen(
                         SofaButton(
                             onClick = {
                                 captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = 1)
-                                actions.onCaptionAdvanceChanged(captionAdvance)
+                                actions.onCaptionAdvanceChange(captionAdvance)
                                 if (captionAdvance >= AppSettings.CAPTION_ADVANCE_RANGE_MS.last) {
                                     lessFocus.requestFocus()
                                 }
@@ -898,7 +901,7 @@ fun SettingsScreen(
             }
             if (!unconfigured) serverSection()
             item { SectionHeader(stringResource(Res.string.settings_section_lock)) }
-            item { LockSection(locked = settings.settingsLocked, onPinChanged = actions.onSettingsPinChanged) }
+            item { LockSection(locked = settings.settingsLocked, onPinChange = actions.onSettingsPinChanged) }
             // About: the app, its version and what is loaded, then where the build stands
             // against the published snapshot.
             item { SectionHeader(stringResource(Res.string.settings_section_about)) }
@@ -1041,6 +1044,7 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit, keepInView
             style = MaterialTheme.typography.bodyMedium,
         )
         // Above the buttons, since a TV scrolls only as far as the focused button and text below it stays off screen.
+        if (update is UpdateState.Available && update.changes.isNotEmpty()) WhatsNew(update.changes)
         if (install != null && install != InstallState.Idle) HelpText(installText(install))
         Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (update is UpdateState.Available) {
@@ -1074,6 +1078,24 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit, keepInView
         }
     }
 }
+
+/**
+ * The published snapshot's new features, then its fixes, for the builds newer than this one, as at most
+ * [WHATS_NEW_LINES] lines and a count of the rest, so the buttons below stay on a TV's screen.
+ */
+@Composable
+private fun WhatsNew(changes: List<ReleaseNote>) {
+    val ordered = changes.sortedBy { it.fix }
+    val shown = ordered.take(WHATS_NEW_LINES)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(stringResource(Res.string.settings_update_whats_new), style = MaterialTheme.typography.titleSmall)
+        shown.forEach { HelpText("• ${it.text}") }
+        val rest = ordered.size - shown.size
+        if (rest > 0) HelpText(pluralStringResource(Res.plurals.settings_update_more, rest, rest))
+    }
+}
+
+private const val WHATS_NEW_LINES = 6
 
 /** What an in-app install is doing, or why it stopped. */
 @Composable

@@ -8,6 +8,7 @@ import com.sun.jna.platform.mac.CoreFoundation.CFStringRef
 import com.sun.jna.platform.win32.Kernel32
 import com.sun.jna.platform.win32.WinBase
 import com.sun.jna.ptr.IntByReference
+import dev.jamesrich.sofaking.data.runCatchingCancellable
 
 private val log = Logger.withTag("SofaKing")
 
@@ -50,14 +51,19 @@ private fun letMacSleep() = guarded {
     macAssertion = null
 }
 
-/** A missing or refusing power API costs only the display staying awake, never playback. */
+/**
+ * A missing or refusing power API costs only the display staying awake, never playback. JNA reports a missing library
+ * or function as a LinkageError, and a failing call as an exception.
+ */
 private inline fun guarded(call: () -> Unit) {
     try {
-        call()
-    } catch (e: Throwable) {
-        log.w(e) { "keeping the display awake failed" }
+        runCatchingCancellable(call).onFailure(::wakeFailed)
+    } catch (e: LinkageError) {
+        wakeFailed(e)
     }
 }
+
+private fun wakeFailed(failure: Throwable) = log.w(failure) { "keeping the display awake failed" }
 
 /** IOKit's power assertions, which the JNA platform library does not map. */
 @Suppress("FunctionName")

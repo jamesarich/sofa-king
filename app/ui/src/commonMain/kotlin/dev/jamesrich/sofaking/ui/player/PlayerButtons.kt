@@ -264,14 +264,14 @@ internal fun sleepButtonItem(sleep: SleepTimer, onClick: () -> Unit): PlayerButt
 
 /**
  * The bar's row of buttons, the same for the D-pad and for a finger or mouse. [entry] focuses the first button,
- * which is where Down from the picture lands; [onFocused] says whether a button holds focus, so the player can send
+ * which is where Down from the picture lands; [onFocus] says whether a button holds focus, so the player can send
  * keys there. With [showLabel] the focused button's name shows under the row, as a remote has no hover.
  */
 @Composable
 internal fun PlayerButtonRow(
     items: List<PlayerButtonItem>,
     entry: FocusRequester,
-    onFocused: (Boolean) -> Unit,
+    onFocus: (Boolean) -> Unit,
     showLabel: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -280,7 +280,7 @@ internal fun PlayerButtonRow(
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
             Modifier.focusGroup().onFocusChanged {
-                onFocused(it.hasFocus)
+                onFocus(it.hasFocus)
                 if (!it.hasFocus) focusedIndex = null
             },
             horizontalArrangement = Arrangement.spacedBy(8.dp),

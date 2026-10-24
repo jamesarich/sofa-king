@@ -134,7 +134,8 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
             // A cross-origin HLS stream that fails before loading may come from a server that sends no CORS headers
             // on media: play it again as a plain element, which needs none. TS fails for its format and reports.
             val current = stream
-            if (drawsInCanvas.value && !loaded && current?.mimeType == HLS_MIME_TYPE && isCrossOrigin(current.url)) {
+            val crossOriginHls = current?.mimeType == HLS_MIME_TYPE && isCrossOrigin(current.url)
+            if (drawsInCanvas.value && !loaded && crossOriginHls) {
                 video.crossOrigin = null
                 useElement()
                 prepare()
@@ -297,6 +298,8 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
                 // A new target starts empty, so the current frame goes in at once, even while paused.
                 while (true) {
                     if (video.readyState >= HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
+                        // A browser's own errors, WebGL's among them, are Throwables but not Exceptions here.
+                        @Suppress("TooGenericExceptionCaught")
                         try {
                             var drawn = false
                             target.render { drawn = frames.draw(video, target) }
@@ -499,11 +502,17 @@ private suspend fun awaitVideoFrame(video: HTMLVideoElement) {
     }
 }
 
+// detekt sees no use of the parameters: the JavaScript in js() reads them by name.
+@Suppress("UnusedParameter")
 private fun hasVideoFrameCallback(video: HTMLVideoElement): Boolean = js("'requestVideoFrameCallback' in video")
 
+// detekt sees no use of the parameters: the JavaScript in js() reads them by name.
+@Suppress("UnusedParameter")
 private fun requestVideoFrame(video: HTMLVideoElement, onFrame: () -> Unit): Int =
     js("video.requestVideoFrameCallback(function () { onFrame(); })")
 
+// detekt sees no use of the parameters: the JavaScript in js() reads them by name.
+@Suppress("UnusedParameter")
 private fun cancelVideoFrame(video: HTMLVideoElement, handle: Int) {
     js("video.cancelVideoFrameCallback(handle);")
 }
@@ -511,24 +520,30 @@ private fun cancelVideoFrame(video: HTMLVideoElement, handle: Int) {
 private val MEDIA_ACTIONS = listOf("play", "pause", "nexttrack", "previoustrack")
 
 /** An action the browser doesn't know throws; it is skipped, as the spec advises. */
+// detekt sees no use of the parameters: the JavaScript in js() reads them by name.
+@Suppress("UnusedParameter")
 private fun setMediaAction(action: String, handler: () -> Unit) {
     js(
-        "if ('mediaSession' in navigator) { try { navigator.mediaSession.setActionHandler(action, function () { " +
-            "handler(); }); } catch (e) {} }",
+        "if ('mediaSession' in navigator) { " +
+            "try { navigator.mediaSession.setActionHandler(action, function () { handler(); }); } catch (e) {} }",
     )
 }
 
+// detekt sees no use of the parameters: the JavaScript in js() reads them by name.
+@Suppress("UnusedParameter")
 private fun clearMediaAction(action: String) {
     js(
-        "if ('mediaSession' in navigator) { try { navigator.mediaSession.setActionHandler(action, null); } catch (e) " +
-            "{} }",
+        "if ('mediaSession' in navigator) { " +
+            "try { navigator.mediaSession.setActionHandler(action, null); } catch (e) {} }",
     )
 }
 
+// detekt sees no use of the parameters: the JavaScript in js() reads them by name.
+@Suppress("UnusedParameter")
 private fun setMediaMetadata(title: String, artist: String, artworkUrl: String?) {
     js(
-        "if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title: title, " +
-            "artist: artist, artwork: artworkUrl ? [{ src: artworkUrl }] : [] }); }",
+        "if ('mediaSession' in navigator) { navigator.mediaSession.metadata = " +
+            "new MediaMetadata({ title: title, artist: artist, artwork: artworkUrl ? [{ src: artworkUrl }] : [] }); }",
     )
 }
 

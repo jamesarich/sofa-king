@@ -179,9 +179,8 @@ data class ScrubTiles(
 ) {
     /** The tile showing [positionMs], or the last one past the end; null when there are none. */
     fun tileAt(positionMs: Long): ScrubTile? {
-        if (intervalMs <= 0 || frames <= 0 || columns <= 0 || rows <= 0 || tileWidth <= 0 || tileHeight <= 0) {
-            return null
-        }
+        val gridless = columns <= 0 || rows <= 0 || tileWidth <= 0 || tileHeight <= 0
+        if (intervalMs <= 0 || frames <= 0 || gridless) return null
         val n = (positionMs.coerceAtLeast(0) / intervalMs).coerceAtMost(frames - 1L).toInt()
         val perSheet = columns * rows
         val sheet = sheets.getOrNull(n / perSheet) ?: return null

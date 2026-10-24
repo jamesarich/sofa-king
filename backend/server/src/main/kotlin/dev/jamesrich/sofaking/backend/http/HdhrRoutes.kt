@@ -200,7 +200,7 @@ fun Route.hdhrRoutes(
                 val stream = try {
                     runtime.feeds.playable(offering)
                 } catch (e: ProviderFailure) {
-                    throw ApiFailure(503, "SOURCE_UNAVAILABLE", "Source could not be resolved", true)
+                    throw ApiFailure(503, "SOURCE_UNAVAILABLE", "Source could not be resolved", true, e)
                 }
                 runtime.feeds.upstream.check(URI(stream.url))
                 val bytes = runtime.sessions.bytesOf(session.id)

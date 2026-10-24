@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -175,7 +176,7 @@ internal class TmdbClient(
     }
 
     private suspend inline fun <reified T> get(path: String, vararg query: Pair<String, String?>): T {
-        val response: HttpResponse = try {
+        val response: HttpResponse = runCatchingCancellable {
             http.get(base + path.split('/').joinToString("/") { it.encodeURLPathPart() }) {
                 if (v3Key) {
                     parameter(
@@ -189,10 +190,9 @@ internal class TmdbClient(
                 parameter("language", config.language)
                 for ((name, value) in query) if (value != null) parameter(name, value)
             }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            throw TmdbFailure("TMDB_UNREACHABLE (${e.javaClass.simpleName})")
+        }.getOrElse {
+            // Only the class goes on: the transport's message can carry the URL, and with it a v3 key.
+            throw TmdbFailure("TMDB_UNREACHABLE (${it.javaClass.simpleName})")
         }
         when (response.status) {
             HttpStatusCode.OK -> {}

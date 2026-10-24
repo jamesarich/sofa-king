@@ -1,12 +1,12 @@
 package dev.jamesrich.sofaking.backend.playback
 
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.upstream.TS_PACKET
 import dev.jamesrich.sofaking.backend.upstream.TS_SYNC
 import dev.jamesrich.sofaking.backend.upstream.sniffProtocol
 import dev.jamesrich.sofaking.backend.upstream.tsSyncOffset
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readAvailable
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -174,63 +174,62 @@ internal class TsFanout(
     private suspend fun produce() {
         var cause: Throwable? = null
         try {
-            try {
-                pump()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                if (!started.isCompleted) throw e
-                log.info("relay upstream failed offering={} class={}", key, e.javaClass.simpleName)
-            }
-            var backoff = 500L
-            while (readersPresent()) {
-                val remaining = lastDataAt + config.graceMillis - now()
-                if (remaining <= 0) {
+            runCatchingCancellable { relay() }.onFailure { e ->
+                cause = e
+                // A body that carries the other protocol is a detection the reader turns into 410
+                // STREAM_CHANGED, not a failure.
+                if (e is UpstreamProtocolException) {
+                    log.info("relay upstream protocol offering={} protocol={}", key, e.protocol)
+                } else {
                     log.warn(
-                        "relay upstream gave up offering={} graceMillis={} reconnects={}",
+                        "relay upstream failed offering={} class={} status={}",
                         key,
-                        config.graceMillis,
-                        reconnects,
-                    )
-                    break
-                }
-                delay(backoff.coerceAtMost(remaining))
-                backoff = (backoff * 2).coerceAtMost(config.maxBackoffMillis)
-                reconnects++
-                val before = chunks
-                try {
-                    pump()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    log.info(
-                        "relay reconnect failed offering={} attempt={} class={} status={}",
-                        key,
-                        reconnects,
                         e.javaClass.simpleName,
                         (e as? UpstreamStatusException)?.status,
                     )
                 }
-                if (chunks != before) backoff = 500
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            cause = e
-            // A body that carries the other protocol is a detection the reader turns into 410
-            // STREAM_CHANGED, not a failure.
-            if (e is UpstreamProtocolException) {
-                log.info("relay upstream protocol offering={} protocol={}", key, e.protocol)
-            } else {
+        } finally {
+            withContext(NonCancellable) { stop(cause) }
+        }
+    }
+
+    /** Reads the upstream, and reconnects with backoff while readers remain and the grace period lasts. */
+    private suspend fun relay() {
+        runCatchingCancellable {
+            pump()
+        }.onFailure { e ->
+            if (!started.isCompleted) throw e
+            log.info("relay upstream failed offering={} class={}", key, e.javaClass.simpleName)
+        }
+        var backoff = 500L
+        while (readersPresent()) {
+            val remaining = lastDataAt + config.graceMillis - now()
+            if (remaining <= 0) {
                 log.warn(
-                    "relay upstream failed offering={} class={} status={}",
+                    "relay upstream gave up offering={} graceMillis={} reconnects={}",
                     key,
+                    config.graceMillis,
+                    reconnects,
+                )
+                break
+            }
+            delay(backoff.coerceAtMost(remaining))
+            backoff = (backoff * 2).coerceAtMost(config.maxBackoffMillis)
+            reconnects++
+            val before = chunks
+            runCatchingCancellable {
+                pump()
+            }.onFailure { e ->
+                log.info(
+                    "relay reconnect failed offering={} attempt={} class={} status={}",
+                    key,
+                    reconnects,
                     e.javaClass.simpleName,
                     (e as? UpstreamStatusException)?.status,
                 )
             }
-        } finally {
-            withContext(NonCancellable) { stop(cause) }
+            if (chunks != before) backoff = 500
         }
     }
 

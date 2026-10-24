@@ -38,6 +38,9 @@ class AddressAllowList(entries: List<String>) {
     }
 
     private companion object {
+        /** An IPv4-mapped IPv6 address's first 12 bytes: ten zeros and two 0xFF (::ffff:0:0/96). */
+        val V4_MAPPED_PREFIX = ByteArray(10) + byteArrayOf(-1, -1)
+
         /** The address bytes of an IP literal (IPv4-mapped IPv6 as IPv4), or null for anything that would need DNS. */
         fun literal(host: String): ByteArray? {
             val bare = host.trim('[', ']')
@@ -46,8 +49,8 @@ class AddressAllowList(entries: List<String>) {
             if (dotted && bare.count { it == '.' } != 3) return null
             if (!dotted && !bare.contains(':')) return null
             val bytes = runCatching { InetAddress.getByName(bare).address }.getOrNull() ?: return null
-            if (bytes.size == 16 && bytes.copyOfRange(0, 10).all { it == 0.toByte() } && bytes[10] == 0xFF.toByte() &&
-                bytes[11] == 0xFF.toByte()
+            if (bytes.size == 16 &&
+                bytes.copyOfRange(0, 12).contentEquals(V4_MAPPED_PREFIX)
             ) {
                 return bytes.copyOfRange(12, 16)
             }

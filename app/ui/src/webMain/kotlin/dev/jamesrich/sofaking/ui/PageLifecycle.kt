@@ -75,9 +75,11 @@ private val SETTLE = 500.milliseconds
 private fun pageVisible(): Boolean = js("document.visibilityState === 'visible'")
 
 /** The answer is not read: a session the server already let go answers 404 or 410, and the lease covers a miss. */
+// detekt sees no use of the parameters: the JavaScript in js() reads them by name.
+@Suppress("UnusedParameter")
 private fun sendRelease(url: String, token: String) {
     js(
-        "fetch(url, { method: 'DELETE', keepalive: true, headers: token ? { 'Authorization': 'Bearer ' + token } : " +
-            "{} }).catch(function () {});",
+        "fetch(url, { method: 'DELETE', keepalive: true, " +
+            "headers: token ? { 'Authorization': 'Bearer ' + token } : {} }).catch(function () {});",
     )
 }

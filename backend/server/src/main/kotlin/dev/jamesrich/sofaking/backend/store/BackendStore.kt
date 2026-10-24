@@ -454,6 +454,7 @@ suspend fun openStore(dataDirectory: Path, clock: Clock = Clock.systemUTC()): Ba
     val readLane = DatabaseLane("sofa-sqlite-read")
     var database: Database? = null
     var store: BackendStore? = null
+    var opened = false
     try {
         database = withContext(writer.dispatcher) { databaseAt(dataDirectory) }
         // The writer creates the file and sets WAL before the read-only connection opens it.
@@ -466,15 +467,20 @@ suspend fun openStore(dataDirectory: Path, clock: Clock = Clock.systemUTC()): Ba
         val reader = withContext(readLane.dispatcher) { databaseAt(dataDirectory, readOnly = true) }
         store = BackendStore(database, writer, reader, readLane, clock)
         store.initialize()
+        opened = true
         return store
-    } catch (failure: Throwable) {
-        if (store != null) {
-            store.close()
-        } else {
-            readLane.stop()
-            writer.stop()
-            database?.let(::closeDatabase)
+    } finally {
+        // A store that failed to open closes what it had.
+        when {
+            opened -> Unit
+
+            store != null -> store.close()
+
+            else -> {
+                readLane.stop()
+                writer.stop()
+                database?.let(::closeDatabase)
+            }
         }
-        throw failure
     }
 }

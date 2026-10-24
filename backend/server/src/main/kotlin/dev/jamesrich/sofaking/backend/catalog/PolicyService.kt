@@ -19,12 +19,12 @@ import dev.jamesrich.sofaking.backend.api.StationOverride
 import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.policyChanges
 import dev.jamesrich.sofaking.backend.store.recordPolicyChanges
 import dev.jamesrich.sofaking.backend.store.saveStationAvailability
 import dev.jamesrich.sofaking.backend.store.stationAvailability
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -318,10 +318,7 @@ class PolicyService(
         store.recordPolicyChanges(changes, now)
 
         val moved = result.renumbered.mapNotNull { (key, number) ->
-            loaded.policy.stations[key]?.number?.let {
-                key to
-                    (it to number)
-            }
+            loaded.policy.stations[key]?.number?.let { key to (it to number) }
         }.toMap()
         val numbers =
             result.assigned.filterKeys { loaded.policy.stations[it]?.number == null } +
@@ -330,7 +327,9 @@ class PolicyService(
         val names = loaded.policy.names
         val blocked = names.learned.filter { (from, to) -> neverMerges(names.never, from, to) }.keys
         var revision = loaded.revision
-        if (numbers.isNotEmpty() || reclaim.isNotEmpty() || result.learned.isNotEmpty() || blocked.isNotEmpty()) {
+        val numbering = numbers.isNotEmpty() || reclaim.isNotEmpty()
+        val aliases = result.learned.isNotEmpty() || blocked.isNotEmpty()
+        if (numbering || aliases) {
             val what = "${numbers.size} assigned numbers, ${reclaim.size} reclaimed numbers and " +
                 "${result.learned.size} learned aliases"
             try {
@@ -531,11 +530,9 @@ class PolicyService(
             // A run the operator asked for starts at once; the rest wait out the debounce so a burst is one run.
             if (cause != "now") delay(debounceMillis)
             val coalesced = trigger.tryReceive().getOrNull()
-            try {
+            runCatchingCancellable {
                 apply(coalesced ?: cause)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.warn("lineup policy run failed class={} message=\"{}\"", e.javaClass.simpleName, redactedMessage(e))
             }
         }

@@ -191,16 +191,15 @@ internal class SpliceReader {
         null
     }
 
+    /** The PES start code prefix, 00 00 01, at [at]. */
+    private fun ByteArray.startCodeAt(at: Int): Boolean = this[at].u == 0 && this[at + 1].u == 0 && this[at + 2].u == 1
+
     /** A 33-bit field in the last bits of the 5 bytes at [at], as in `break_duration()`. */
     private fun ticks(s: ByteArray, at: Int): Long = (s[at].u.toLong() and 1 shl 32) or s.uint(at + 1, 4)
 
     /** The PTS of the PES packet starting at [from], or null when it has none. */
     private fun pesPts(p: ByteArray, from: Int): Long? {
-        if (from + 14 > PACKET || p[from].u != 0 || p[from + 1].u != 0 || p[from + 2].u != 1 ||
-            p[from + 7].u and 0x80 == 0
-        ) {
-            return null
-        }
+        if (from + 14 > PACKET || !p.startCodeAt(from) || p[from + 7].u and 0x80 == 0) return null
         val b = from + 9
         return ((p[b].u.toLong() shr 1 and 7) shl 30) or (p[b + 1].u.toLong() shl 22) or
             ((p[b + 2].u.toLong() shr 1) shl 15) or

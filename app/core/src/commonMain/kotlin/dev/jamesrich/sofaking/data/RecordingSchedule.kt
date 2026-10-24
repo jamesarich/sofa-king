@@ -1,7 +1,6 @@
 package dev.jamesrich.sofaking.data
 
 import co.touchlab.kermit.Logger
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -107,7 +106,7 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
     suspend fun refresh() = mutex.withLock {
         val api = api ?: return@withLock
         if (_state.value !is RecordingsState.Ready) _state.value = RecordingsState.Loading
-        _state.value = try {
+        _state.value = runCatchingCancellable {
             coroutineScope {
                 val list = async { api.recordings() }
                 val rules = async { api.recordingRules().rules.map { it.toModel() } }
@@ -120,17 +119,13 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
                     rules.await(),
                 )
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: SofaKingException) {
-            if (e.status == 404) RecordingsState.Unavailable else failed(e)
-        } catch (e: Exception) {
-            failed(e)
+        }.getOrElse { e ->
+            if (e is SofaKingException && e.status == 404) RecordingsState.Unavailable else failed(e)
         }
         publish()
     }
 
-    private fun failed(e: Exception): RecordingsState =
+    private fun failed(e: Throwable): RecordingsState =
         failedLoad("recordings", e, _state.value as? RecordingsState.Ready, RecordingsState::Failed)
 
     /**
@@ -181,7 +176,7 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
     /** Saves where the household is in [recordingId]; with [show] the list takes the server's answer. */
     internal suspend fun save(recordingId: String, update: UpdateRecordingDto, show: Boolean) {
         val api = api ?: return
-        try {
+        runCatchingCancellable {
             val fresh = api.updateRecording(recordingId, update).toModel()
             if (show && fresh != null) {
                 edit {
@@ -196,9 +191,7 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
                     )
                 }
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+        }.onFailure { e ->
             log.w { "saving the recording position failed: ${e.describe()}" }
         }
     }
@@ -206,12 +199,10 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
     /** Runs [action] on the server, then reads the lists again whether it worked or not. False when it failed. */
     private suspend fun change(what: String, action: suspend SofaKingApi.() -> Unit): Boolean {
         val api = api ?: return false
-        val done = try {
+        val done = runCatchingCancellable {
             api.action()
             true
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+        }.getOrElse { e ->
             log.w { "$what failed: ${e.describe()}" }
             false
         }

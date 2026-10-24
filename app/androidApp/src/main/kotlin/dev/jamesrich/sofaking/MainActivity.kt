@@ -87,9 +87,9 @@ class MainActivity : ComponentActivity() {
                 // Test tags become resource ids, so the Baseline Profile generator can wait for the guide or player.
                 modifier = Modifier.semantics { testTagsAsResourceId = true },
                 pairing = pairing.value,
-                onPairingHandled = { pairing.value = null },
+                onPairingHandle = { pairing.value = null },
                 playItem = playItem.value,
-                onPlayItemHandled = { playItem.value = null },
+                onPlayItemHandle = { playItem.value = null },
             )
         }
     }

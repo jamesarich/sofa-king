@@ -88,8 +88,8 @@ internal fun ToggleRow(
     label: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    help: String? = null,
     modifier: Modifier = Modifier,
+    help: String? = null,
 ) {
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()

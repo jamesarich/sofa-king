@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -146,7 +147,7 @@ internal class PlayerState(
     var streamCardActivity by mutableIntStateOf(0)
         private set
     var streamInfo by mutableStateOf(StreamInfo())
-    var streamBufferedMs by mutableStateOf(0L)
+    var streamBufferedMs by mutableLongStateOf(0L)
 
     var pauseState by mutableStateOf<PauseStatus?>(null)
     var liveToast by mutableStateOf(false)

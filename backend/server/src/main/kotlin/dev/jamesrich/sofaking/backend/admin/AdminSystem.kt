@@ -146,7 +146,7 @@ internal suspend fun ffmpegVersion(ffmpeg: String): String = withContext(Dispatc
         val line = process.inputStream.bufferedReader().use { it.readLine() }
         line?.takeIf { it.startsWith("ffmpeg") }?.removePrefix("ffmpeg version ")?.substringBefore(" Copyright")?.trim()
             ?: "not readable at $ffmpeg"
-    } catch (e: java.io.IOException) {
+    } catch (_: java.io.IOException) {
         "not found at $ffmpeg"
     }
 }

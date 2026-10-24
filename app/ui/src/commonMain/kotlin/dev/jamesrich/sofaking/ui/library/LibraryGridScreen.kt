@@ -46,7 +46,6 @@ import dev.jamesrich.sofaking.LibraryGrid
 import dev.jamesrich.sofaking.data.LetterJump
 import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.LibrarySort
-import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_empty
@@ -68,21 +67,6 @@ import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaChip
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
-
-/** What the library grid's controls and cards do. */
-internal class LibraryGridActions(
-    val onSort: (LibrarySort) -> Unit,
-    val onUnwatched: (Boolean) -> Unit,
-    /** Shows only one genre, or every one when null. */
-    val onGenre: (String?) -> Unit,
-    val onOpenItem: (MediaItem) -> Unit,
-    val onPlayItem: (MediaItem) -> Unit,
-    val onLoadMore: () -> Unit,
-    /** Loads pages until the grid holds the item at the offset given, for a letter jump. */
-    val onLoadThrough: (Int) -> Unit = {},
-    /** What a held OK on a card offers. */
-    val menu: CardMenu? = null,
-)
 
 /**
  * One library as a grid: posters for movies and shows, wide cards for videos, under a row of sort chips and an
@@ -164,7 +148,8 @@ internal fun LibraryGridScreen(
             LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, actions.menu, modifier)
         }
         val g = grid
-        if (g != null && (g.loading || g.error != null || items.isEmpty())) {
+        val unsettled = g != null && (g.loading || g.error != null)
+        if (g != null && (unsettled || items.isEmpty())) {
             item(key = "footer", span = { GridItemSpan(maxLineSpan) }) {
                 Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                     when {

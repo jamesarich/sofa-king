@@ -39,11 +39,8 @@ internal object WatchNextArtwork {
      */
     fun contentUri(context: Context, artworkUrl: String): Uri? {
         val source = artworkUrl.toUri()
-        if ((source.scheme != "http" && source.scheme != "https") || source.encodedAuthority == null ||
-            !valid(source)
-        ) {
-            return null
-        }
+        val web = source.scheme == "http" || source.scheme == "https"
+        if (!web || source.encodedAuthority == null || !valid(source)) return null
         val server = "${source.scheme}://${source.encodedAuthority}"
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getString(SERVER, null) != server) prefs.edit { putString(SERVER, server) }

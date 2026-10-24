@@ -13,6 +13,7 @@ import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.WatchNext
 import dev.jamesrich.sofaking.data.itemLink
+import dev.jamesrich.sofaking.data.runCatchingCancellable
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
 
@@ -35,7 +36,7 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
     }
 
     private fun write(items: List<MediaItem>) {
-        try {
+        runCatchingCancellable {
             val resolver = context.contentResolver
             // The provider answers with this app's own entries only.
             val existing = resolver.query(
@@ -70,9 +71,9 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
                 }
             }
             WatchNextArtwork.keepOnly(context, items.mapNotNull { artwork(it)?.first })
-        } catch (e: RuntimeException) {
+        }.onFailure {
             // A launcher without the TV provider, or one that refuses this app's writes, leaves the row as it was.
-            Log.w(TAG, "watch next: the row was not updated: $e")
+            Log.w(TAG, "watch next: the row was not updated: $it")
         }
     }
 

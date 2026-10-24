@@ -137,7 +137,7 @@ class VodIntroSkipTest {
                             itemId = "e1",
                             open = { sessions.play("e1", player.playbackProfile) },
                             onPosition = { _, _ -> },
-                            onStopped = { _, _ -> },
+                            onStop = { _, _ -> },
                             onExit = {},
                             upNext = { upNext },
                             onPlayNext = onPlayNext,

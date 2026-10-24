@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.providers.NativeServices
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
@@ -16,7 +17,6 @@ import dev.jamesrich.sofaking.contract.Channel
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.utils.io.readBuffer
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -38,8 +38,13 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.channels.Channel as Trigger
 
-class ApiFailure(val status: Int, val code: String, override val message: String, val retryable: Boolean = false) :
-    RuntimeException(message)
+class ApiFailure(
+    val status: Int,
+    val code: String,
+    override val message: String,
+    val retryable: Boolean = false,
+    cause: Throwable? = null,
+) : RuntimeException(message, cause)
 
 /** How long a provider left out of the configuration, or a source no feed lists, keeps its stored data. */
 internal val RETIRED_AFTER: Duration = Duration.ofDays(30)
@@ -184,7 +189,7 @@ class FeedService(
     suspend fun refresh(config: FeedConfig) = importLocks.computeIfAbsent(config.id) { Mutex() }.withLock {
         jobs.record("import:${config.id}") {
             val started = clock.instant()
-            try {
+            runCatchingCancellable {
                 val parsed = if (config.native) {
                     checkNotNull(providers) { "Native providers are configured without a registry" }.channels(config)
                 } else {
@@ -262,9 +267,7 @@ class FeedService(
                     true,
                     "${channels.size} channels, ${offerings.size} sources" + if (unchanged) ", unchanged" else "",
                 )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.getOrElse { e ->
                 statuses.updateAndGet { all ->
                     all.map {
                         if (it.id == config.id) {

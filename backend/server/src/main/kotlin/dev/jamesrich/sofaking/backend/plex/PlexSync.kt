@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.accept
@@ -17,7 +18,6 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.URLBuilder
 import io.ktor.http.encodeURLPathPart
 import io.ktor.http.isSuccess
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -124,11 +124,9 @@ class PlexSync(
                 delay(debounceMillis)
                 trigger.tryReceive()
             }
-            try {
+            runCatchingCancellable {
                 sync(cause)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.warn("plex sync failed class={} message=\"{}\"", e.javaClass.simpleName, message(e))
             }
         }
@@ -161,7 +159,7 @@ class PlexSync(
         val mapped = ArrayList<PlexDeviceStatus>()
         val touched = LinkedHashSet<String>()
         var missing = emptyList<HdhrDevice>()
-        try {
+        runCatchingCancellable {
             val dvrs = dvrs()
             val present = ArrayList<Triple<Dvr, Device, HdhrDevice>>()
             for (dvr in dvrs) {
@@ -177,12 +175,10 @@ class PlexSync(
             val target = present.firstOrNull()?.first
             if (config.tunerBase != null && target != null) {
                 for (device in absent) {
-                    try {
+                    runCatchingCancellable {
                         present += Triple(target, add(target, device), device)
                         added += device
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
+                    }.onFailure { e ->
                         errors +=
                             "device ${device.id}: ${message(e)}"
                     }
@@ -194,29 +190,23 @@ class PlexSync(
                     "plex: device ${device.id} (device ${device.index}) is not added to Plex"
             }
             for ((dvr, device, mine) in present) {
-                try {
+                runCatchingCancellable {
                     val count = map(dvr, device, mine, findings)
                     if (count > 0) touched += dvr.key
                     mapped += PlexDeviceStatus(mine.id, mine.index, device.key, dvr.key, count, mine in added)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
+                }.onFailure { e ->
                     errors +=
                         "device ${mine.id}: ${message(e)}"
                 }
             }
             for (dvr in touched) {
-                try {
+                runCatchingCancellable {
                     send(HttpMethod.Post, "/livetv/dvrs/${dvr.encodeURLPathPart()}/reloadGuide")
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
+                }.onFailure { e ->
                     errors += "DVR $dvr: ${message(e)}"
                 }
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+        }.onFailure { e ->
             errors += message(e)
         }
         val error = errors.takeIf { it.isNotEmpty() }?.joinToString("; ")?.take(1000)
@@ -234,11 +224,9 @@ class PlexSync(
             findings,
         )
         status.set(next)
-        try {
+        runCatchingCancellable {
             persist(next)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
+        }.onFailure { e ->
             log.warn("plex status not stored class={}", e.javaClass.simpleName)
         }
         if (error != null) log.warn("plex sync cause={} error=\"{}\"", cause, error)
@@ -282,11 +270,7 @@ class PlexSync(
                 listOf("uri" to uri),
             ).container("Device").firstNotNullOfOrNull(::deviceOf)
                 ?: throw PlexFailure("Plex added no device at port ${device.port}")
-        if (!created.uuid.endsWith(
-                "/${device.id}",
-                ignoreCase = true,
-            )
-        ) {
+        if (!created.uuid.endsWith("/${device.id}", ignoreCase = true)) {
             throw PlexFailure(
                 "port ${device.port} answers as ${created.uuid.removePrefix(GRABBER)}, not ${device.id}",
             )

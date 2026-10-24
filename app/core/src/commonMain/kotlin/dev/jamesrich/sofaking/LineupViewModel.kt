@@ -40,7 +40,7 @@ import dev.jamesrich.sofaking.data.UpdateChecker
 import dev.jamesrich.sofaking.data.UpdateState
 import dev.jamesrich.sofaking.data.describe
 import dev.jamesrich.sofaking.data.logFailures
-import kotlinx.coroutines.CancellationException
+import dev.jamesrich.sofaking.data.runCatchingCancellable
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -212,25 +212,25 @@ class LineupViewModel(
     private suspend fun claimCode(url: String, code: String): PairingFailure? {
         val server = ServerAddress.normalizeUrl(url) ?: return PairingFailure.INVALID_CODE
         val digits = ServerAddress.normalizeCode(code) ?: return PairingFailure.INVALID_CODE
-        return try {
+        return runCatchingCancellable {
             val clientId = store.ensureClientId()
             val result = connection.newApi(server, "").use {
                 it.pair(PairingClaimDto(digits, clientId, client.deviceName, client.platform))
             }
             store.setServer(server, result.apiToken)
             null
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: SofaKingException) {
-            log.w { "pairing refused: ${e.code}" }
-            when {
-                e.code == Wire.ErrorCode.PAIRING_INVALID -> PairingFailure.INVALID_CODE
-                e.status == 404 || e.status == 401 -> PairingFailure.OLDER_SERVER
-                else -> PairingFailure.UNREACHABLE
+        }.getOrElse { e ->
+            if (e is SofaKingException) {
+                log.w { "pairing refused: ${e.code}" }
+                when {
+                    e.code == Wire.ErrorCode.PAIRING_INVALID -> PairingFailure.INVALID_CODE
+                    e.status == 404 || e.status == 401 -> PairingFailure.OLDER_SERVER
+                    else -> PairingFailure.UNREACHABLE
+                }
+            } else {
+                log.w { "pairing failed: ${e.message}" }
+                PairingFailure.UNREACHABLE
             }
-        } catch (e: Exception) {
-            log.w { "pairing failed: ${e.message}" }
-            PairingFailure.UNREACHABLE
         }
     }
 
@@ -301,18 +301,16 @@ class LineupViewModel(
         val server = extraDaysServer
         viewModelScope.launch {
             try {
-                val started = TimeSource.Monotonic.markNow()
-                val guide = repository.loadGuide(lineup.channels, windowStart)
-                log.i {
-                    "guide: day $windowStart ${guide.programs.values.sumOf { it.size }} programs in " +
-                        "${started.elapsedNow()}"
-                }
-                // A day that arrives after Settings named another server is the old server's, so it is dropped.
-                if (extraDaysServer == server) extraDays.update { it + (windowStart to guide.programs) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                log.w(e) { "guide: day $windowStart failed" }
+                runCatchingCancellable {
+                    val started = TimeSource.Monotonic.markNow()
+                    val guide = repository.loadGuide(lineup.channels, windowStart)
+                    log.i {
+                        "guide: day $windowStart ${guide.programs.values.sumOf { it.size }} programs in " +
+                            "${started.elapsedNow()}"
+                    }
+                    // A day that arrives after Settings named another server is the old server's, so it is dropped.
+                    if (extraDaysServer == server) extraDays.update { it + (windowStart to guide.programs) }
+                }.onFailure { log.w(it) { "guide: day $windowStart failed" } }
             } finally {
                 daysLoading.remove(windowStart)
             }
@@ -354,6 +352,7 @@ class LineupViewModel(
                 emit(LineupState.Ready(full))
             }
         }
+        var failures = 0
         while (true) {
             if (last == null) emit(LineupState.Loading)
             // Cancellation (a server change or refresh while loading) must propagate, not read as a failure.
@@ -361,29 +360,28 @@ class LineupViewModel(
             var lineupMoved = false
             var interim: Lineup? = null
             val result = try {
-                val started = TimeSource.Monotonic.markNow()
-                val channels = repository.loadChannels()
-                log.i { "lineup: ${channels.size} channels in ${started.elapsedNow()}" }
-                // Channels first so the guide is usable while the programs arrive. A cached guide stays in
-                // place for channels it still covers; it is replaced once the new guide is in.
-                if (last?.channels != channels) {
-                    interim = Lineup(channels, last?.guide.orEmpty(), guideLoading = true)
-                    emit(LineupState.Ready(interim))
+                runCatchingCancellable {
+                    val started = TimeSource.Monotonic.markNow()
+                    val channels = repository.loadChannels()
+                    log.i { "lineup: ${channels.size} channels in ${started.elapsedNow()}" }
+                    // Channels first so the guide is usable while the programs arrive. A cached guide stays in
+                    // place for channels it still covers; it is replaced once the new guide is in.
+                    if (last?.channels != channels) {
+                        interim = Lineup(channels, last?.guide.orEmpty(), guideLoading = true)
+                        emit(LineupState.Ready(interim))
+                    }
+                    onCatalog(interim ?: last)
+                    val guide = repository.loadGuide(channels)
+                    log.i {
+                        "guide: ${guide.programs.values.sumOf { it.size }} programs for ${guide.programs.size} " +
+                            "channels in ${started.elapsedNow()}"
+                    }
+                    // The lineup changed between the catalog and the guide: drop what left and read the catalog
+                    // again soon.
+                    lineupMoved = guide.removed.isNotEmpty()
+                    if (lineupMoved) log.i { "guide: ${guide.removed.size} channels left the lineup" }
+                    Lineup(channels.filterNot { it.guideId in guide.removed }, guide.programs)
                 }
-                onCatalog(interim ?: last)
-                val guide = repository.loadGuide(channels)
-                log.i {
-                    "guide: ${guide.programs.values.sumOf { it.size }} programs for ${guide.programs.size} " +
-                        "channels in ${started.elapsedNow()}"
-                }
-                // The lineup changed between the catalog and the guide: drop what left and read the catalog again soon.
-                lineupMoved = guide.removed.isNotEmpty()
-                if (lineupMoved) log.i { "guide: ${guide.removed.size} channels left the lineup" }
-                Result.success(Lineup(channels.filterNot { it.guideId in guide.removed }, guide.programs))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Result.failure(e)
             } finally {
                 // Also on cancellation, or a refresh or server change mid-load leaves the loader spinning.
                 _loading.value = false
@@ -395,11 +393,9 @@ class LineupViewModel(
                 val live = GuideWindow.start(clock.now())
                 extraDays.update { days -> days.filterKeys { start -> start > live } }
                 // A cache write failure must not fail the load or delay the next refresh.
-                try {
+                runCatchingCancellable {
                     cache.write(it)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
+                }.onFailure { e ->
                     log.w(e) { "lineup cache write failed" }
                 }
             }
@@ -425,7 +421,21 @@ class LineupViewModel(
                     }
                 }
             }
-            delay(if (result.isSuccess && !lineupMoved) REFRESH_INTERVAL else RETRY_INTERVAL)
+            // A failed load tries again within seconds, then less often: a server only slow to answer at startup
+            // is back before the viewer reaches for Try again.
+            failures = if (result.isSuccess) 0 else failures + 1
+            delay(
+                when {
+                    result.isFailure -> minOf(
+                        FIRST_RETRY * (1 shl minOf(failures - 1, RETRY_DOUBLINGS)),
+                        RETRY_INTERVAL,
+                    )
+
+                    lineupMoved -> RETRY_INTERVAL
+
+                    else -> REFRESH_INTERVAL
+                },
+            )
         }
     }
 
@@ -582,11 +592,9 @@ class LineupViewModel(
         if (!again && _update.value != null) return
         _update.value = UpdateState.Checking
         viewModelScope.launch {
-            val latest = try {
+            val latest = runCatchingCancellable {
                 updateChecker.latest()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            }.getOrElse { e ->
                 log.w { "update check failed: ${e.message}" }
                 null
             }
@@ -630,6 +638,10 @@ class LineupViewModel(
         val log = Logger.withTag("SofaKing")
         val REFRESH_INTERVAL = 3.hours
         val RETRY_INTERVAL = 1.minutes
+        val FIRST_RETRY = 5.seconds
+
+        /** Doublings of [FIRST_RETRY] past [RETRY_INTERVAL], so the wait stops growing well before it overflows. */
+        const val RETRY_DOUBLINGS = 4
         val RELOAD_WAIT = 30.seconds
     }
 }

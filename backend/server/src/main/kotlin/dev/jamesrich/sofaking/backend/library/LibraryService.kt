@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.deleteLibrary
 import dev.jamesrich.sofaking.backend.store.deleteLibraryItems
@@ -16,7 +17,6 @@ import dev.jamesrich.sofaking.backend.store.markLibraryItemsMissing
 import dev.jamesrich.sofaking.backend.store.recordLibraryScan
 import dev.jamesrich.sofaking.backend.store.renameLibrary
 import dev.jamesrich.sofaking.backend.store.saveLibraryItems
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -265,7 +265,7 @@ class LibraryService(
             while (isActive) {
                 trigger.receive()
                 val wanted = pending.toList().also { pending.removeAll(it.toSet()) }
-                val ids = try {
+                val ids = runCatchingCancellable {
                     if (ALL in
                         wanted
                     ) {
@@ -273,18 +273,14 @@ class LibraryService(
                     } else {
                         wanted
                     }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
+                }.getOrElse { e ->
                     log.warn("library scan failed class={}", e.javaClass.simpleName)
                     emptyList()
                 }
                 for (id in ids) {
-                    try {
+                    runCatchingCancellable {
                         scan(id)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
+                    }.onFailure { e ->
                         log.warn(
                             "library scan failed library={} class={} message=\"{}\"",
                             id,
@@ -313,10 +309,7 @@ class LibraryService(
         if (!Files.isDirectory(candidate)) throw ApiFailure(400, "INVALID_REQUEST", "No folder at that path")
         // A link inside the root must not lead the scan outside it.
         val real = candidate.toRealPath()
-        if (!real.startsWith(
-                root.root.toRealPath(),
-            )
-        ) {
+        if (!real.startsWith(root.root.toRealPath())) {
             throw ApiFailure(400, "INVALID_REQUEST", "That folder links outside ${root.root}")
         }
         return candidate

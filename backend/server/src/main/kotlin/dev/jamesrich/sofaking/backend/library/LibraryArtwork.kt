@@ -4,12 +4,12 @@ import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.logos.LogoCache
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import io.ktor.client.HttpClient
 import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
 import io.ktor.utils.io.readBuffer
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -136,7 +136,7 @@ class LibraryArtwork(
         }
     }
 
-    private suspend fun download(url: String): ByteArray? = try {
+    private suspend fun download(url: String): ByteArray? = runCatchingCancellable {
         http!!.prepareGet(url).execute { response ->
             if (response.status.value != 200) {
                 log.info("artwork fetch failed status={}", response.status.value)
@@ -146,9 +146,7 @@ class LibraryArtwork(
             val bytes = response.bodyAsChannel().readBuffer(maxBytes.toLong() + 1).readByteArray()
             bytes.takeIf { it.size <= maxBytes && LogoCache.rasterType(it) != null }
         }
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
+    }.getOrElse { e ->
         log.info("artwork fetch failed class={}", e.javaClass.simpleName)
         null
     }

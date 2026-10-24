@@ -56,10 +56,7 @@ class MdnsAdvertiser(
         for (address in found - responders.keys) {
             runCatching { responders[address] = responder(address) }
                 .onFailure {
-                    if (failed.add(
-                            address,
-                        )
-                    ) {
+                    if (failed.add(address)) {
                         log.warn("mdns: cannot advertise on {} ({})", address.hostAddress, it.javaClass.simpleName)
                     }
                 }
@@ -115,12 +112,9 @@ class MdnsAdvertiser(
         /** A JmDNS responder on [address] with the service registered; closing it withdraws the service. */
         private fun register(address: InetAddress, name: String, port: Int, version: String): AutoCloseable {
             val jmdns = JmDNS.create(address, HOST_NAME)
-            try {
-                jmdns.registerService(serviceInfo(name, port, version))
-            } catch (e: Exception) {
-                runCatching { jmdns.close() }
-                throw e
-            }
+            runCatching { jmdns.registerService(serviceInfo(name, port, version)) }
+                .onFailure { runCatching { jmdns.close() } }
+                .getOrThrow()
             return AutoCloseable {
                 jmdns.unregisterAllServices()
                 jmdns.close()

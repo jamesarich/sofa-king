@@ -387,8 +387,8 @@ private fun breakLine(corner: Int?, leftMs: Long?, quip: Int): String = when {
 }
 
 /**
- * The countdown, the [line] under it, then fainter, the program on now and the ads dodged today, all in [ink] and each at
- * most [lineWidth] wide.
+ * The countdown, the [line] under it, then fainter, the program on now and the ads dodged today, all in [ink] and
+ * each at most [lineWidth] wide.
  */
 @Composable
 @Suppress("LongParameterList") // One argument per line drawn, plus their look.

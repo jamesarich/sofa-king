@@ -81,7 +81,7 @@ class Dvr(
     /** How many recordings may run at once: the playback slots, `SOFA_MAX_SESSIONS`. */
     private val capacity: () -> Int,
     /** How far ahead the scheduler reads the guide. */
-    private val horizon: () -> Duration = { Duration.ofDays(3) },
+    private val horizon: () -> Duration = { HORIZON },
     /** What the culler keeps: free space and age, `SOFA_RECORDINGS_FREE_GIB` and `SOFA_RECORDINGS_KEEP_DAYS`. */
     private val retention: () -> Retention = { Retention() },
     /** The free space on the recordings folder's disk; a seam for tests. */
@@ -184,11 +184,11 @@ class Dvr(
 
     suspend fun createRule(request: CreateRecordingRule): RecordingRule {
         val title = request.title.trim()
-        if (title.isEmpty() || title.length > 200) {
+        if (title.isEmpty() || title.length > TITLE_LIMIT) {
             throw ApiFailure(
                 HttpStatusCode.BadRequest,
                 "INVALID_REQUEST",
-                "A rule needs a title of 1 to 200 characters",
+                "A rule needs a title of 1 to $TITLE_LIMIT characters",
             )
         }
         request.channelId?.let {
@@ -719,10 +719,19 @@ class Dvr(
 
     private fun notFound() = ApiFailure(HttpStatusCode.NotFound, "RECORDING_NOT_FOUND", "Unknown recording")
 
-    private fun keep(value: Int): Int = value.takeIf { it in 0..1000 }
-        ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "keep must be 0 to 1000")
-    private fun priority(value: Int): Int = value.takeIf { it in -100..100 }
-        ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "priority must be -100 to 100")
+    private fun keep(value: Int): Int = value.takeIf { it in KEEP_RANGE }
+        ?: throw ApiFailure(
+            HttpStatusCode.BadRequest,
+            "INVALID_REQUEST",
+            "keep must be ${KEEP_RANGE.first} to ${KEEP_RANGE.last}",
+        )
+
+    private fun priority(value: Int): Int = value.takeIf { it in PRIORITY_RANGE }
+        ?: throw ApiFailure(
+            HttpStatusCode.BadRequest,
+            "INVALID_REQUEST",
+            "priority must be ${PRIORITY_RANGE.first} to ${PRIORITY_RANGE.last}",
+        )
     private fun padding(seconds: Int?, default: Duration): Duration = seconds?.let {
         if (it in
             0..MAX_PADDING_SECONDS
@@ -746,6 +755,14 @@ class Dvr(
         val DEFAULT_START_PADDING: Duration = Duration.ofMinutes(1)
         val DEFAULT_END_PADDING: Duration = Duration.ofMinutes(2)
         const val MAX_PADDING_SECONDS = 3600
+
+        /** How far ahead the scheduler reads the guide unless a test says otherwise. */
+        private val HORIZON: Duration = Duration.ofDays(3)
+        private const val TITLE_LIMIT = 200
+
+        /** A rule's episodes to keep, 0 for all of them, and its priority over the other rules. */
+        private val KEEP_RANGE = 0..1000
+        private val PRIORITY_RANGE = -100..100
 
         /** The longest window a manual recording may span. */
         val MAX_MANUAL: Duration = Duration.ofHours(12)

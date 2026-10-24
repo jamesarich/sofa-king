@@ -38,6 +38,7 @@ import kotlinx.serialization.json.add
 import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.time.Duration
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.channels.Channel as Trigger
 
@@ -46,6 +47,9 @@ data class HdhrDevice(val index: Int, val id: String, val port: Int)
 
 /** Plex rejects a longer channel-map request line; 35 KB fails where 25 KB saves. */
 internal const val PLEX_URL_LIMIT = 30_000
+
+/** How much of a failed sync's error the Jobs page shows. */
+private const val ERROR_SHOWN = 200
 
 private const val GRABBER = "device://tv.plex.grabbers.hdhomerun/"
 
@@ -69,7 +73,7 @@ class PlexSync(
     private val devices: suspend () -> List<HdhrDevice>,
     /** Quiet time after a lineup change before the sync, so a burst of changes is one sync. */
     private val debounceMillis: Long = 120_000,
-    intervalMillis: Long = config.syncMinutes * 60_000L,
+    intervalMillis: Long = TimeUnit.MINUTES.toMillis(config.syncMinutes.toLong()),
     /** The status a previous run stored, shown until this run's first sync replaces it. */
     initial: PlexStatus? = null,
     /** Stores each sync's status; a failure is logged and the sync still counts. */
@@ -95,8 +99,9 @@ class PlexSync(
 
     /** Syncs every [minutes] from the next sync on; the status and the Jobs page follow. */
     fun setInterval(minutes: Int) {
-        if (minutes * 60_000L == intervalMillis) return
-        intervalMillis = minutes * 60_000L
+        val millis = TimeUnit.MINUTES.toMillis(minutes.toLong())
+        if (millis == intervalMillis) return
+        intervalMillis = millis
         register()
         status.updateAndGet { it.copy(syncMinutes = minutes) }
     }
@@ -139,7 +144,7 @@ class PlexSync(
             val status = syncNow(cause)
             next = status
             if (status.lastError != null) {
-                JobOutcome(false, status.lastError.take(200))
+                JobOutcome(false, status.lastError.take(ERROR_SHOWN))
             } else {
                 JobOutcome(
                     true,

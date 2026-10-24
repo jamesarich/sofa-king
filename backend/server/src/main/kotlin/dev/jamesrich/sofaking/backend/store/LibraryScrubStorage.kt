@@ -12,7 +12,7 @@ import org.jetbrains.exposed.v1.jdbc.upsert
 
 /** The scrub thumbnails made for [itemIds], by item id. */
 suspend fun BackendStore.libraryScrubs(itemIds: Collection<String>): Map<String, ScrubRecord> = read {
-    itemIds.chunked(500).flatMap { chunk ->
+    itemIds.chunked(ROW_CHUNK).flatMap { chunk ->
         LibraryScrubRows.selectAll().where { LibraryScrubRows.itemId inList chunk }.map { it.scrub() }
     }
         .associateBy { it.itemId }

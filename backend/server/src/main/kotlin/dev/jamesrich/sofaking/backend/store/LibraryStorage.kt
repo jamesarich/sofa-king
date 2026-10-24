@@ -53,7 +53,7 @@ suspend fun BackendStore.deleteLibrary(id: String): Boolean = query {
     val itemIds = LibraryItems.select(LibraryItems.id).where {
         LibraryItems.libraryId eq id
     }.map { it[LibraryItems.id] }
-    itemIds.chunked(500).forEach { chunk ->
+    itemIds.chunked(ROW_CHUNK).forEach { chunk ->
         PlayStates.deleteWhere { itemId inList chunk }
         LibraryMetadataRows.deleteWhere { itemId inList chunk }
         LibraryIntroRows.deleteWhere { itemId inList chunk }
@@ -87,12 +87,12 @@ suspend fun BackendStore.libraryItemCounts(): Map<String, Map<String, Int>> = re
 
 /** Writes [items] whole, replacing the stored rows with the same ids. */
 suspend fun BackendStore.saveLibraryItems(items: List<LibraryItemRecord>) = query {
-    items.chunked(500).forEach { chunk -> LibraryItems.batchUpsert(chunk) { item -> write(item) } }
+    items.chunked(ROW_CHUNK).forEach { chunk -> LibraryItems.batchUpsert(chunk) { item -> write(item) } }
 }
 
 /** Marks [ids] missing since [at], leaving those already marked as they are. */
 suspend fun BackendStore.markLibraryItemsMissing(ids: Collection<String>, at: Instant) = query {
-    ids.chunked(500).forEach { chunk ->
+    ids.chunked(ROW_CHUNK).forEach { chunk ->
         LibraryItems.update({ (LibraryItems.id inList chunk) and LibraryItems.missingSince.isNull() }) {
             it[missingSince] =
                 at.toString()
@@ -102,7 +102,7 @@ suspend fun BackendStore.markLibraryItemsMissing(ids: Collection<String>, at: In
 
 /** Deletes [ids], their watch state and their TMDB lookups. */
 suspend fun BackendStore.deleteLibraryItems(ids: Collection<String>) = query {
-    ids.chunked(500).forEach { chunk ->
+    ids.chunked(ROW_CHUNK).forEach { chunk ->
         PlayStates.deleteWhere { itemId inList chunk }
         LibraryMetadataRows.deleteWhere { itemId inList chunk }
         LibraryIntroRows.deleteWhere { itemId inList chunk }
@@ -126,7 +126,7 @@ suspend fun BackendStore.playStates(): Map<String, PlayStateRecord> = read {
 /** Writes [states], and forgets [cleared]: an item back at the start and unwatched keeps no row. */
 suspend fun BackendStore.savePlayStates(states: List<PlayStateRecord>, cleared: Collection<String> = emptyList()) =
     query {
-        states.chunked(500).forEach { chunk ->
+        states.chunked(ROW_CHUNK).forEach { chunk ->
             PlayStates.batchUpsert(chunk) { state ->
                 this[PlayStates.itemId] = state.itemId
                 this[PlayStates.positionMs] = state.positionMs
@@ -135,7 +135,7 @@ suspend fun BackendStore.savePlayStates(states: List<PlayStateRecord>, cleared: 
                 this[PlayStates.updatedAt] = state.updatedAt
             }
         }
-        cleared.chunked(500).forEach { chunk -> PlayStates.deleteWhere { itemId inList chunk } }
+        cleared.chunked(ROW_CHUNK).forEach { chunk -> PlayStates.deleteWhere { itemId inList chunk } }
     }
 
 private fun UpdateBuilder<*>.write(item: LibraryItemRecord) {

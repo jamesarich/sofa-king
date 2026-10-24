@@ -9,6 +9,8 @@ import dev.jamesrich.sofaking.backend.upstream.sniffProtocol
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
@@ -36,8 +38,8 @@ internal class HttpQualifier(
                 requestTimeoutMillis = timeoutMillis,
                 policy = policy,
             ) { response ->
-                val status = response.status.value
-                if (status in 200..299) {
+                val status = response.status
+                if (status.isSuccess()) {
                     val protocol = sniffProtocol(inflateHead(response.bodyAsChannel().readHead(HEAD_BYTES)))
                     if (protocol == null) Qualification(FailureClass.OFFERING) else Qualification(null, protocol)
                 } else {
@@ -60,11 +62,11 @@ internal class HttpQualifier(
     companion object {
         const val HEAD_BYTES = 2048
 
-        fun classifyStatus(status: Int, restream: Boolean): FailureClass = when {
-            status == 401 || status == 403 -> FailureClass.AUTH
-            status == 429 -> FailureClass.RATE_LIMIT
-            status == 502 && restream -> FailureClass.OFFERING
-            status >= 500 -> FailureClass.PROVIDER
+        fun classifyStatus(status: HttpStatusCode, restream: Boolean): FailureClass = when {
+            status == HttpStatusCode.Unauthorized || status == HttpStatusCode.Forbidden -> FailureClass.AUTH
+            status == HttpStatusCode.TooManyRequests -> FailureClass.RATE_LIMIT
+            status == HttpStatusCode.BadGateway && restream -> FailureClass.OFFERING
+            status.value >= HttpStatusCode.InternalServerError.value -> FailureClass.PROVIDER
             else -> FailureClass.OFFERING
         }
 

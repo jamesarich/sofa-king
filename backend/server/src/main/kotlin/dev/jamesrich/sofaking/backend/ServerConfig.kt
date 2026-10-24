@@ -163,7 +163,7 @@ data class ServerConfig(
         internal val PLEX_SYNC_MINUTES_RANGE = 5..1440
 
         /** The shortest token the server accepts, and the shortest Plex token. */
-        private const val TOKEN_MIN_LENGTH = 32
+        internal const val TOKEN_MIN_LENGTH = 32
         private const val PLEX_TOKEN_MIN_LENGTH = 8
 
         /** The longest name Plex shows for a device, and the most devices beside the first. */

@@ -7,8 +7,12 @@ import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
+import io.ktor.http.URLProtocol
 import java.net.InetAddress
 import java.net.URI
+
+/** An unbounded download still fails once the socket stays silent this long. */
+private const val UNBOUNDED_SOCKET_TIMEOUT_MS = 15_000L
 
 /** An upstream address or redirect the relay refuses to follow; answered as 502, never 500. */
 class UpstreamRejectedException(message: String) : RuntimeException(message)
@@ -90,7 +94,7 @@ internal suspend fun <T> HttpClient.withUpstreamResponse(
             if (unbounded) {
                 timeout {
                     this.requestTimeoutMillis = Long.MAX_VALUE
-                    socketTimeoutMillis = 15_000
+                    socketTimeoutMillis = UNBOUNDED_SOCKET_TIMEOUT_MS
                 }
             } else if (requestTimeoutMillis != null) {
                 timeout {
@@ -161,10 +165,12 @@ internal suspend fun <T> followRedirects(
  */
 internal fun rawGitHub(uri: URI): URI {
     if (uri.scheme != "https" || !uri.host.equals("github.com", ignoreCase = true) || uri.rawQuery != null) return uri
-    val parts = uri.rawPath.split('/')
-    if (parts.size < 6 || parts[3] != "raw") return uri
-    return URI("https://raw.githubusercontent.com/${parts[1]}/${parts[2]}/${parts.drop(4).joinToString("/")}")
+    val (owner, repo, file) = GITHUB_RAW_PATH.matchEntire(uri.rawPath)?.destructured ?: return uri
+    return URI("https://raw.githubusercontent.com/$owner/$repo/$file")
 }
+
+/** `/{owner}/{repo}/raw/{ref}/{path}`. */
+private val GITHUB_RAW_PATH = Regex("/([^/]*)/([^/]*)/raw/([^/]*/.*)")
 
 private val portableHeaders = setOf("user-agent", "accept", "accept-language", "origin", "referer")
 
@@ -172,9 +178,9 @@ internal fun sameOrigin(left: URI, right: URI): Boolean {
     fun port(uri: URI) = if (uri.port != -1) {
         uri.port
     } else if (uri.scheme == "https") {
-        443
+        URLProtocol.HTTPS.defaultPort
     } else {
-        80
+        URLProtocol.HTTP.defaultPort
     }
     return left.scheme.equals(right.scheme, true) && left.host.equals(right.host, true) && port(left) == port(right)
 }

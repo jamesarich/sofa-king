@@ -40,7 +40,7 @@ import org.jetbrains.exposed.v1.jdbc.upsert
 import java.time.Instant
 
 /** SQLite binds at most 32,766 variables per statement; multi-row inserts stay well under that. */
-private const val INSERT_CHUNK = 2000
+internal const val INSERT_CHUNK = 2000
 
 /**
  * Rows a guide import writes or deletes per transaction: big enough to keep imports quick, small enough that other

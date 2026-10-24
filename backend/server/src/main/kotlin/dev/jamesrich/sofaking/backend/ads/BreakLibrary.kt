@@ -264,7 +264,7 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
             entries[slot]?.let { (it.lastHitAt ?: it.createdAt).isBefore(before) && lastMarked(it).isBefore(before) } ==
                 true
         }.forEach(::remove)
-        if (deadSlots > entries.size / 4) rebuild()
+        if (deadSlots > entries.size * MAX_DEAD_SHARE) rebuild()
     }
 
     private fun lastMarked(entry: BreakEntry): Instant = entry.days.maxOrNull()?.let {
@@ -277,7 +277,7 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
         val order = entries.indices.filter { entries[it] != null && !entries[it]!!.blocked }
             .sortedBy { slot -> entries[slot]!!.let { maxOf(it.lastHitAt ?: it.createdAt, lastMarked(it)) } }
         for (slot in order) {
-            if (pointCount <= MAX_POINTS * 9 / 10) break
+            if (pointCount <= EVICT_TO) break
             remove(slot)
         }
         rebuild()
@@ -293,6 +293,9 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
         live.forEach(::add)
     }
 
+    /** An entry's slot in the high half and the shift between query and entry, as an unsigned word, in the low half. */
+    private fun voteKey(slot: Int, shift: Int): Long = (slot.toLong() shl Int.SIZE_BITS) or shift.toUInt().toLong()
+
     private fun best(query: IntArray, minPoints: Int, skip: BooleanArray?, exclude: String?): BreakMatch? {
         if (query.size < minPoints || index.isEmpty()) return null
         val votes = HashMap<Long, Int>()
@@ -305,13 +308,13 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
                 val posting = postings.data[k]
                 val slot = posting ushr POSITION_BITS
                 val shift = (posting and POSITION_MASK) - i
-                votes.merge((slot.toLong() shl 32) or (shift.toLong() and 0xFFFFFFFFL), 1, Int::plus)
+                votes.merge(voteKey(slot, shift), 1, Int::plus)
             }
         }
         var best: BreakMatch? = null
         for ((key, count) in votes.entries.sortedByDescending { it.value }.take(CANDIDATES)) {
             if (count < MIN_VOTES) break
-            val entry = entries[(key ushr 32).toInt()] ?: continue
+            val entry = entries[(key ushr Int.SIZE_BITS).toInt()] ?: continue
             if (exclude != null && entry.source.startsWith("$exclude:")) continue
             val shift = key.toInt()
             for (nudge in -1..1) {
@@ -380,6 +383,12 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
 
         /** About 3 days of ads heard without a break; past it the least recently heard go. */
         const val MAX_POINTS = 2_000_000L
+
+        /** Eviction goes on to nine tenths of [MAX_POINTS], so the next few adds do not evict again. */
+        private const val EVICT_TO = MAX_POINTS * 9 / 10
+
+        /** The index is rebuilt once more than this share of its slots hold removed entries. */
+        private const val MAX_DEAD_SHARE = 0.25
         private const val POSITION_BITS = 12
         private const val POSITION_MASK = (1 shl POSITION_BITS) - 1
         private const val COMMON_WORD = 2_000

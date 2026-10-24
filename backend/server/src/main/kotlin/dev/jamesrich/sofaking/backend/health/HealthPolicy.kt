@@ -3,6 +3,18 @@ package dev.jamesrich.sofaking.backend.health
 import java.time.Duration
 import java.time.Instant
 
+/** Evidence older than this says nothing about the offering now; strikes count within it too. */
+private val EVIDENCE_WINDOW: Duration = Duration.ofHours(6)
+
+/** How long a quarantined offering that answers again stays on probation. */
+private val PROBATION: Duration = Duration.ofMinutes(10)
+
+/** The least span of strikes that quarantines, so one bad minute does not. */
+private val STRIKE_SPAN: Duration = Duration.ofMinutes(10)
+
+/** When a newly quarantined offering is first checked again. */
+private val FIRST_RECHECK: Duration = Duration.ofMinutes(15)
+
 /** Offering-local evidence only. Provider-wide diagnosis belongs to the caller. */
 class HealthPolicy {
     fun apply(state: HealthState, observation: Observation, now: Instant): HealthState {
@@ -11,7 +23,7 @@ class HealthPolicy {
         require(observation.qualifiedSuccess == (observation.failureClass == null)) {
             "Observation must be a qualified success or a classified failure"
         }
-        if (observation.observedAt < now.minus(Duration.ofHours(6))) return state
+        if (observation.observedAt < now.minus(EVIDENCE_WINDOW)) return state
         if (state.manuallyDisabled || state.status == HealthStatus.ARCHIVED) return state
         if (state.lastObservationAt?.let { observation.observedAt <= it } == true) return state
         if (!observation.qualifiedSuccess && observation.failureClass != FailureClass.OFFERING) return state
@@ -27,14 +39,14 @@ class HealthPolicy {
                         failures = emptyList(),
                         lastQualifiedAt = at,
                         probationStartedAt = at,
-                        nextCheckAt = at.plus(Duration.ofMinutes(10)),
+                        nextCheckAt = at.plus(PROBATION),
                         lastObservationAt = at,
                     )
                 }
 
                 HealthStatus.PROBATION -> {
                     val began = checkNotNull(state.probationStartedAt)
-                    if (at < began.plus(Duration.ofMinutes(10))) {
+                    if (at < began.plus(PROBATION)) {
                         state.copy(lastObservationAt = at)
                     } else {
                         qualified(state, at)
@@ -64,18 +76,18 @@ class HealthPolicy {
         }
         val window =
             (state.failures + observation)
-                .filter { it.observedAt >= now.minus(Duration.ofHours(6)) }
+                .filter { it.observedAt >= now.minus(EVIDENCE_WINDOW) }
                 .distinctBy { it.incidentId }
                 .sortedBy { it.observedAt }
         // Retain the oldest strike and recent incidents, preserving the qualifying time span.
         val failures = if (window.size <= 128) window else listOf(window.first()) + window.takeLast(127)
         val quarantine =
             failures.size >= 3 &&
-                Duration.between(failures.first().observedAt, failures.last().observedAt) >= Duration.ofMinutes(10)
+                Duration.between(failures.first().observedAt, failures.last().observedAt) >= STRIKE_SPAN
         return state.copy(
             status = if (quarantine) HealthStatus.QUARANTINED else HealthStatus.SUSPECT,
             failures = failures,
-            nextCheckAt = if (quarantine) at.plus(Duration.ofMinutes(15)) else null,
+            nextCheckAt = if (quarantine) at.plus(FIRST_RECHECK) else null,
             quarantineAttempts = 0,
             lastObservationAt = at,
         )

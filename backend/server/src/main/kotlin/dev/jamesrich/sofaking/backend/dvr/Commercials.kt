@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.dvr
 
+import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.contract.RecordingBreak
 import kotlinx.coroutines.Dispatchers
@@ -71,7 +72,7 @@ class Commercials(
             val start = fields[0].toDoubleOrNull() ?: return@mapNotNull null
             val end = fields[1].toDoubleOrNull() ?: return@mapNotNull null
             if (fields.getOrNull(2)?.let { it != "3" } == true || end <= start) return@mapNotNull null
-            RecordingBreak((start * 1000).toLong(), (end * 1000).toLong())
+            RecordingBreak((start * MS_PER_SECOND).toLong(), (end * MS_PER_SECOND).toLong())
         }.sortedBy { it.startMs }.toList()
     }
 }

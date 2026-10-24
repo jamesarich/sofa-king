@@ -17,6 +17,7 @@ import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.readBuffer
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -61,7 +62,7 @@ class LogoCache(
     /** Every logo URL the lineup carries now, resolved the way the catalog resolves a channel's logo. */
     private val wanted: () -> List<String>,
     private val maxBytes: Int = MAX_BYTES,
-    private val refreshAfter: Duration = Duration.ofDays(7),
+    private val refreshAfter: Duration = REFRESH_AFTER,
     private val retryAfter: Duration = Duration.ofHours(1),
     parallelism: Int = 4,
     /** Where each sweep is recorded for the portal's Jobs page. */
@@ -222,7 +223,7 @@ class LogoCache(
             requestTimeoutMillis = 15_000,
             policy = policy,
         ) { response ->
-            require(response.status.value == 200) { "Logo fetch answered ${response.status.value}" }
+            require(response.status == HttpStatusCode.OK) { "Logo fetch answered ${response.status.value}" }
             val declared = response.headers[HttpHeaders.ContentType]?.substringBefore(';')?.trim()?.lowercase()
             require(declared in IMAGE_TYPES) { "Not an image content type" }
             response.headers[HttpHeaders.ContentLength]?.toLongOrNull()?.let {
@@ -253,19 +254,31 @@ class LogoCache(
         const val SVG = "image/svg+xml"
         val IMAGE_TYPES = setOf("image/png", "image/jpeg", "image/webp", "image/gif", SVG)
         val KEY = Regex("[0-9a-f]{64}")
+        private val REFRESH_AFTER: Duration = Duration.ofDays(7)
+
+        /** The file signatures of the raster types. */
+        private val PNG = intArrayOf(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+        private val JPEG = intArrayOf(0xFF, 0xD8, 0xFF)
+        private val GIF = "GIF8".map { it.code }.toIntArray()
+
+        /** A WebP file is a RIFF container whose form type, after the 4-byte size, is `WEBP`. */
+        private val RIFF = "RIFF".map { it.code }.toIntArray()
+        private const val WEBP_FORM = "WEBP"
+        private const val WEBP_FORM_AT = 8
+        private val UTF8_BOM = intArrayOf(0xEF, 0xBB, 0xBF)
 
         fun keyOf(sourceUrl: String): String = hash(sourceUrl)
 
         /** The raster type the file signature names, or null. */
         fun rasterType(bytes: ByteArray): String? = when {
-            bytes.startsWith(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A) -> "image/png"
+            bytes.startsWith(PNG) -> "image/png"
 
-            bytes.startsWith(0xFF, 0xD8, 0xFF) -> "image/jpeg"
+            bytes.startsWith(JPEG) -> "image/jpeg"
 
-            bytes.startsWith('G'.code, 'I'.code, 'F'.code, '8'.code) -> "image/gif"
+            bytes.startsWith(GIF) -> "image/gif"
 
-            bytes.size >= 12 && bytes.startsWith('R'.code, 'I'.code, 'F'.code, 'F'.code) &&
-                String(bytes, 8, 4, Charsets.US_ASCII) == "WEBP" -> "image/webp"
+            bytes.size >= WEBP_FORM_AT + WEBP_FORM.length && bytes.startsWith(RIFF) &&
+                String(bytes, WEBP_FORM_AT, WEBP_FORM.length, Charsets.US_ASCII) == WEBP_FORM -> "image/webp"
 
             else -> null
         }
@@ -273,12 +286,12 @@ class LogoCache(
         /** An XML document start after an optional BOM and whitespace, which is what an SVG looks like. */
         fun looksLikeMarkup(bytes: ByteArray): Boolean {
             var start = 0
-            if (bytes.startsWith(0xEF, 0xBB, 0xBF)) start = 3
+            if (bytes.startsWith(UTF8_BOM)) start = UTF8_BOM.size
             while (start < bytes.size && bytes[start].toInt().toChar().isWhitespace()) start++
             return start < bytes.size && bytes[start] == '<'.code.toByte()
         }
 
-        private fun ByteArray.startsWith(vararg signature: Int): Boolean =
+        private fun ByteArray.startsWith(signature: IntArray): Boolean =
             size >= signature.size && signature.indices.all { this[it] == signature[it].toByte() }
 
         private fun sha256(bytes: ByteArray): String =

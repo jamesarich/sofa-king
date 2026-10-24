@@ -75,6 +75,10 @@ private val runtimeLog = LoggerFactory.getLogger(LiveRuntime::class.java)
 /** How often the break library saves what it learned. */
 private const val LIBRARY_FLUSH_MS = 300_000L
 
+/** How often lapsed playback sessions, and lapsed library playback sessions, are swept. */
+private const val SESSION_EXPIRE_MS = 1_000L
+private const val VOD_EXPIRE_MS = 5_000L
+
 /**
  * The runtime's scope: a background coroutine that fails is logged by its name and exception
  * class, and the others keep running.
@@ -408,8 +412,8 @@ class LiveRuntime(
                 )
                 dvr.start(scope)
                 dvr.requestSchedule("startup")
-                scope.launchEvery("session-expire", 1000) { sessions.expire() }
-                scope.launchEvery("vod-expire", 5000) { vod.expire() }
+                scope.launchEvery("session-expire", SESSION_EXPIRE_MS) { sessions.expire() }
+                scope.launchEvery("vod-expire", VOD_EXPIRE_MS) { vod.expire() }
                 if (worker != null) scope.launch(CoroutineName("probe-worker")) { worker.run() }
                 created = true
                 return runtime

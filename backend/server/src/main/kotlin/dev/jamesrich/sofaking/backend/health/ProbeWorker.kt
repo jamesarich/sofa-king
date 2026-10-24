@@ -27,6 +27,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.seconds
 
 data class ProbeConfig(
@@ -35,7 +36,7 @@ data class ProbeConfig(
     val httpTimeoutMillis: Long = 8000,
     val decodeSeconds: Int = 30,
     val deadlineSeconds: Long = 50,
-    val observationRetention: Duration = Duration.ofDays(7),
+    val observationRetention: Duration = OBSERVATION_RETENTION,
 )
 
 /**
@@ -81,7 +82,7 @@ class ProbeWorker(
     }
 
     private suspend fun worker() {
-        var idle = 1000L
+        var idle = IDLE_MS.first
         while (currentCoroutineContext().isActive) {
             val worked =
                 runCatchingCancellable {
@@ -92,10 +93,10 @@ class ProbeWorker(
                     false
                 }
             if (worked) {
-                idle = 1000
+                idle = IDLE_MS.first
             } else {
                 delay(idle)
-                idle = (idle * 2).coerceAtMost(30_000)
+                idle = (idle * 2).coerceAtMost(IDLE_MS.last)
             }
         }
     }
@@ -176,7 +177,7 @@ class ProbeWorker(
                         ?: Instant.MIN
                 }),
             )
-            .take(config.parallelism * 4)
+            .take(config.parallelism * CLAIMS_PER_WORKER)
             .map { it.first }
             .toList()
     }
@@ -253,7 +254,7 @@ class ProbeWorker(
         if (state.nextCheckAt != null) return now >= state.nextCheckAt
         val last = state.lastObservationAt ?: return true
         return now >=
-            last.plus(if (state.status == HealthStatus.HEALTHY) Duration.ofHours(6) else Duration.ofMinutes(5))
+            last.plus(if (state.status == HealthStatus.HEALTHY) HEALTHY_EVERY else UNHEALTHY_EVERY)
     }
 
     /**
@@ -290,10 +291,14 @@ class ProbeWorker(
                     val micros = OUT_TIME_LINE.findAll(progress).lastOrNull()?.groupValues?.get(1)?.toLongOrNull() ?: 0
                     // FFmpeg 6 reports no frame count when copying, so a recheck stands on the output time alone.
                     val enoughFrames = recheck || frames >= config.decodeSeconds
-                    if (exit == 0 && enoughFrames && micros >= (config.decodeSeconds - 1) * 1_000_000L) {
+                    if (exit == 0 && enoughFrames && micros >= TimeUnit.SECONDS.toMicros(config.decodeSeconds - 1L)) {
                         null
                     } else {
-                        classify(Files.newInputStream(errors).use { it.readNBytes(8192).toString(Charsets.UTF_8) })
+                        classify(
+                            Files.newInputStream(errors).use {
+                                it.readNBytes(ERROR_BYTES).toString(Charsets.UTF_8)
+                            },
+                        )
                     }
                 }
             } catch (_: java.io.IOException) {
@@ -306,6 +311,21 @@ class ProbeWorker(
 }
 
 /** FFmpeg error lines, by the failure they show. */
+private val OBSERVATION_RETENTION: Duration = Duration.ofDays(7)
+
+/** A worker with nothing due waits the shorter time, doubling it up to the longer while nothing comes due. */
+private val IDLE_MS = 1_000L..30_000L
+
+/** How many due offerings one step looks at for each worker. */
+private const val CLAIMS_PER_WORKER = 4
+
+/** How often an offering without a scheduled check is probed again, by whether it is healthy. */
+private val HEALTHY_EVERY: Duration = Duration.ofHours(6)
+private val UNHEALTHY_EVERY: Duration = Duration.ofMinutes(5)
+
+/** How much of FFmpeg's error output a failed decode is classified by. */
+private const val ERROR_BYTES = 8_192
+
 private val AUTH_ERROR = Regex("(?i)(HTTP error |server returned )(401|403)\\b")
 private val RATE_LIMIT_ERROR = Regex("(?i)(HTTP error |server returned )429\\b")
 private val PROVIDER_ERROR =

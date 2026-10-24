@@ -75,7 +75,7 @@ internal class SecretsFile(val path: Path, private val random: SecureRandom = Se
     fun resolve(names: List<String>): Pair<Map<String, String>, Set<String>> {
         val stored = read().toMutableMap()
         val generated = names.filter { it !in stored }.toSet()
-        for (name in generated) stored[name] = HexFormat.of().formatHex(ByteArray(32).also(random::nextBytes))
+        for (name in generated) stored[name] = HexFormat.of().formatHex(ByteArray(TOKEN_BYTES).also(random::nextBytes))
         if (generated.isNotEmpty()) write(stored)
         return names.associateWith { stored.getValue(it) } to generated
     }
@@ -103,7 +103,7 @@ internal class SecretsFile(val path: Path, private val random: SecureRandom = Se
         return json.mapValues { (name, value) ->
             val token = (value as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
             require(
-                token != null && token.length >= 32 && token.none {
+                token != null && token.length >= ServerConfig.TOKEN_MIN_LENGTH && token.none {
                     it.isWhitespace()
                 },
             ) { "$path holds an invalid $name; delete that entry to generate a new one" }
@@ -138,5 +138,8 @@ internal class SecretsFile(val path: Path, private val random: SecureRandom = Se
 
         /** The TMDB token the portal saved; `SOFA_TMDB_TOKEN` wins over it. */
         const val TMDB_TOKEN = "tmdbToken"
+
+        /** A generated token holds 256 random bits. */
+        private const val TOKEN_BYTES = 32
     }
 }

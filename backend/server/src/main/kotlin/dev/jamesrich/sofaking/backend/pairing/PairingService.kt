@@ -7,6 +7,8 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 
+private val CODE_LIFETIME: Duration = Duration.ofMinutes(10)
+
 /** A code the operator can show a viewer, valid until [expiresAt]. */
 class IssuedCode(val code: String, val expiresAt: Instant)
 
@@ -18,7 +20,7 @@ class IssuedCode(val code: String, val expiresAt: Instant)
  */
 class PairingService(
     private val clock: Clock,
-    private val lifetime: Duration = Duration.ofMinutes(10),
+    private val lifetime: Duration = CODE_LIFETIME,
     private val maxAttempts: Int = 5,
     private val random: SecureRandom = SecureRandom(),
 ) {

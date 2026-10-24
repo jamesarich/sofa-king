@@ -176,7 +176,7 @@ class SetupService(
             )
         }
         val trimmed = token.trim()
-        if (trimmed.length < 32 || trimmed.any { it <= ' ' || it == '\u007f' }) {
+        if (trimmed.length < ServerConfig.TOKEN_MIN_LENGTH || trimmed.any { it <= ' ' || it == '\u007f' }) {
             throw ApiFailure(
                 HttpStatusCode.BadRequest,
                 "INVALID_REQUEST",

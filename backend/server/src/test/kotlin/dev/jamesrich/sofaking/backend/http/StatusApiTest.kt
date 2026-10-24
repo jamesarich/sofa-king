@@ -20,6 +20,7 @@ import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
+import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -64,7 +65,51 @@ class StatusApiTest {
         }
     }
 
-    @Test fun `the status sums up the lineup, sources, imports, uptime and revision`() = testApplication {
+    @Test fun `the status names the revision, start time, uptime and schema`() = status { status, _, started ->
+        assertEquals("abc1234", status.revision)
+        assertEquals(started.toString(), status.startedAt)
+        assertEquals(3725, status.uptimeSeconds)
+        assertEquals(209, status.schemaVersion)
+    }
+
+    @Test fun `the status counts the lineup's channels and the sources`() = status { status, runtime, _ ->
+        val lineup = runtime.lineup.entries()
+        assertEquals(
+            StatusChannels(
+                lineup.size,
+                lineup.count { it.enabled },
+                runtime.catalog.catalog().channels.count { it.playbackEligible },
+            ),
+            status.channels,
+        )
+        assertTrue(status.channels.total > 0)
+        val feedSources = runtime.feeds.sources()
+        assertEquals(feedSources.size, status.sources.total)
+        assertEquals(feedSources.size, status.sources.byStatus.values.sum())
+        assertEquals(0, status.sources.manuallyDisabled)
+    }
+
+    @Test fun `the status counts the providers and guides and names the failing ones`() = status { status, runtime, _ ->
+        assertEquals(2, status.providers.total)
+        assertEquals(emptyList(), status.providers.failing)
+        assertNotNull(status.providers.lastImportAt)
+        assertEquals(listOf("broken"), status.guides.failing.map { it.id })
+        assertEquals("IMPORT_FAILED", status.guides.failing.single().errorCode)
+        assertEquals(listOf("broken", "fixture", "gz"), runtime.guides.statuses.map { it.id }.sorted())
+        assertEquals(3, status.guides.total)
+    }
+
+    @Test fun `the status leaves out the policy and Plex when neither is configured`() = status { status, _, _ ->
+        assertNull(status.policy, "no lineup policy is configured")
+        assertNull(status.plex, "Plex sync is not configured")
+        assertEquals(0, status.activeSessions)
+    }
+
+    /**
+     * The status of a server at revision abc1234 over two feeds and two guides, one broken, with the fixture feed
+     * adopted, an hour, two minutes and five seconds after it started.
+     */
+    private fun status(block: suspend (ServerStatus, LiveRuntime, Instant) -> Unit) = testApplication {
         val dir = Files.createTempDirectory("sofa-status-")
         Fixture().use { fixture ->
             val sources = dir.resolve("sources.json")
@@ -101,49 +146,10 @@ class StatusApiTest {
                 assertEquals(HttpStatusCode.OK, adopt.status)
                 val started = clock.now
                 clock.now = started.plusSeconds(3725)
-
                 val status = Json.decodeFromString<ServerStatus>(
-                    client.get("/api/v1/admin/status") {
-                        bearerAuth(admin)
-                    }.bodyAsText(),
+                    client.get("/api/v1/admin/status") { bearerAuth(admin) }.bodyAsText(),
                 )
-                assertEquals("abc1234", status.revision)
-                assertEquals(started.toString(), status.startedAt)
-                assertEquals(3725, status.uptimeSeconds)
-                assertEquals(209, status.schemaVersion)
-                val lineup = runtime.lineup.entries()
-                assertEquals(
-                    StatusChannels(
-                        lineup.size,
-                        lineup.count {
-                            it.enabled
-                        },
-                        runtime.catalog.catalog().channels.count { it.playbackEligible },
-                    ),
-                    status.channels,
-                )
-                assertTrue(status.channels.total > 0)
-                val feedSources = runtime.feeds.sources()
-                assertEquals(feedSources.size, status.sources.total)
-                assertEquals(feedSources.size, status.sources.byStatus.values.sum())
-                assertEquals(0, status.sources.manuallyDisabled)
-
-                assertEquals(2, status.providers.total)
-                assertEquals(emptyList(), status.providers.failing)
-                assertNotNull(status.providers.lastImportAt)
-                assertEquals(listOf("broken"), status.guides.failing.map { it.id })
-                assertEquals("IMPORT_FAILED", status.guides.failing.single().errorCode)
-                assertEquals(
-                    listOf("gz", "broken", "fixture").sorted(),
-                    runtime.guides.statuses.map {
-                        it.id
-                    }.sorted(),
-                )
-                assertEquals(3, status.guides.total)
-
-                assertNull(status.policy, "no lineup policy is configured")
-                assertNull(status.plex, "Plex sync is not configured")
-                assertEquals(0, status.activeSessions)
+                block(status, runtime, started)
             } finally {
                 runtime.close()
                 store.close()

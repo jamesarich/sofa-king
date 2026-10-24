@@ -71,6 +71,8 @@ class PolicyApplyTest {
     private val admin = "curator".repeat(6)
     private val basePolicy = """{"names":{"version":1},"health":{"requireVerified":false},""" +
         """"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"numbering":{"floor":100}}"""
+    private val edited =
+        """{"providers":[{"id":"alt"},{"id":"fixture"}],"stations":{"station":{"number":"7","group":"Local"}}}"""
 
     private class Setup(val dir: Path, val policyFile: Path, val runtime: LiveRuntime, val fixture: Fixture)
 
@@ -134,183 +136,157 @@ class PolicyApplyTest {
         it.jsonPrimitive.content
     }?.toSet().orEmpty()
 
-    @Test fun `apply writes the lineup, availability and change log, then writes assigned numbers back once`() =
-        testApplication {
-            withPolicy {
-                runtime.adoptAll()
-                val legacy = runtime.lineup.entries().map { it.id }.toSet()
-                val first = Json.decodeFromString<PolicyApplyResult>(
-                    client.post("/api/v1/admin/policy/apply") {
-                        asAdmin()
-                    }.bodyAsText(),
-                )
-                assertTrue(first.changed)
-                assertEquals(mapOf("station" to "5", "ts station" to "6", "twin sports" to "12"), first.assigned)
+    private suspend fun ApplicationTestBuilder.applyPolicy(): PolicyApplyResult =
+        Json.decodeFromString(client.post("/api/v1/admin/policy/apply") { asAdmin() }.bodyAsText())
 
-                val entries = runtime.lineup.entries()
-                assertEquals(
-                    listOf("station", "ts station", "twin sports").map(::stationId),
-                    entries.map {
-                        it.id
-                    },
-                    "lineup order is number order",
-                )
-                assertEquals(listOf("5", "6", "12"), entries.map { it.number })
-                assertTrue(entries.all { it.createdBy == "policy" })
-                assertEquals(
-                    listOf("fixture", "alt", "twin"),
-                    entries.first().offeringIds.map {
-                        runtime.feeds.published.offering(it)!!.providerId
-                    },
-                )
-
-                assertEquals(setOf("station", "ts station", "twin sports"), runtime.store.stationAvailability().keys)
-                val changes = Json.decodeFromString<List<PolicyChangeEntry>>(
-                    client.get("/api/v1/admin/policy/changes?limit=100") {
-                        asAdmin()
-                    }.bodyAsText(),
-                )
-                assertTrue(changes.all { it.change.reason == "api" })
-                assertEquals(
-                    setOf("station", "ts station", "twin sports"),
-                    changes.filter {
-                        it.change.field == "station" && it.change.before == null
-                    }.map { it.change.key }.toSet(),
-                )
-                assertEquals(
-                    legacy,
-                    changes.filter {
-                        it.change.field == "station" && it.change.after == null
-                    }.map { it.change.entryId }.toSet(),
-                    "every adopted entry is logged as removed",
-                )
-
-                val written = stationsIn(policyFile)
-                assertEquals(
-                    mapOf("station" to "5", "ts station" to "6", "twin sports" to "12"),
-                    written.mapValues {
-                        it.value.jsonObject["number"]!!.jsonPrimitive.content
-                    },
-                )
-                assertEquals(hash(Files.readString(policyFile)), runtime.policy!!.document().revision)
-                assertEquals(first.revision, runtime.policy.document().revision)
-
-                val second = Json.decodeFromString<PolicyApplyResult>(
-                    client.post("/api/v1/admin/policy/apply") {
-                        asAdmin()
-                    }.bodyAsText(),
-                )
-                assertFalse(second.changed)
-                assertEquals(0, second.changes)
-                assertTrue(second.assigned.isEmpty())
-                assertEquals(first.revision, second.revision, "nothing new to write back")
-
-                // Without the written numbers this policy would number from the floor; the file's numbers hold.
-                val revision = runtime.policy.document().revision
-                val renumbering = Json.parseToJsonElement(Files.readString(policyFile)).jsonObject.toMutableMap()
-                renumbering["numbering"] = Json.parseToJsonElement("""{"floor":500,"keepProviderNumbers":false}""")
-                val put = client.put("/api/v1/admin/policy") {
-                    asAdmin()
-                    header(HttpHeaders.IfMatch, "\"$revision\"")
-                    setBody(JsonObject(renumbering).toString())
-                }
-                assertEquals(HttpStatusCode.OK, put.status, put.bodyAsText())
-                assertEquals(listOf("5", "6", "12"), runtime.lineup.entries().map { it.number })
-            }
+    private suspend fun ApplicationTestBuilder.putPolicy(body: String, ifMatch: String? = null) =
+        client.put("/api/v1/admin/policy") {
+            asAdmin()
+            ifMatch?.let { header(HttpHeaders.IfMatch, it) }
+            setBody(body)
         }
 
-    @Test fun `a write fails with 409 when the file changed on disk, and every write is atomic`() = testApplication {
+    private fun filesBeside(file: Path): List<String> =
+        Files.list(file.parent).use { files -> files.map { it.fileName.toString() }.toList() }
+
+    @Test fun `apply builds the lineup from the policy in number order`() = testApplication {
         withPolicy {
-            val revision = runtime.policy!!.document().revision
-            assertEquals(hash(basePolicy), revision)
+            runtime.adoptAll()
+            val first = applyPolicy()
+            assertTrue(first.changed)
+            assertEquals(mapOf("station" to "5", "ts station" to "6", "twin sports" to "12"), first.assigned)
+            val entries = runtime.lineup.entries()
             assertEquals(
-                HttpStatusCode.fromValue(428),
-                client.put("/api/v1/admin/policy") {
-                    asAdmin()
-                    setBody(basePolicy)
-                }.status,
+                listOf("station", "ts station", "twin sports").map(::stationId),
+                entries.map { it.id },
+                "lineup order is number order",
             )
-            val stale = client.put("/api/v1/admin/policy") {
-                asAdmin()
-                header(HttpHeaders.IfMatch, "nope")
-                setBody(basePolicy)
-            }
+            assertEquals(listOf("5", "6", "12"), entries.map { it.number })
+            assertTrue(entries.all { it.createdBy == "policy" })
+            assertEquals(
+                listOf("fixture", "alt", "twin"),
+                entries.first().offeringIds.map { runtime.feeds.published.offering(it)!!.providerId },
+            )
+            assertEquals(setOf("station", "ts station", "twin sports"), runtime.store.stationAvailability().keys)
+        }
+    }
+
+    @Test fun `apply logs each station it adds and each adopted entry it replaces`() = testApplication {
+        withPolicy {
+            runtime.adoptAll()
+            val legacy = runtime.lineup.entries().map { it.id }.toSet()
+            applyPolicy()
+            val changes = Json.decodeFromString<List<PolicyChangeEntry>>(
+                client.get("/api/v1/admin/policy/changes?limit=100") { asAdmin() }.bodyAsText(),
+            ).map { it.change }
+            assertTrue(changes.all { it.reason == "api" })
+            assertEquals(
+                setOf("station", "ts station", "twin sports"),
+                changes.filter { it.field == "station" && it.before == null }.map { it.key }.toSet(),
+            )
+            assertEquals(
+                legacy,
+                changes.filter { it.field == "station" && it.after == null }.map { it.entryId }.toSet(),
+                "every adopted entry is logged as removed",
+            )
+        }
+    }
+
+    @Test fun `apply writes the numbers it assigns back to the file once`() = testApplication {
+        withPolicy {
+            val first = applyPolicy()
+            assertEquals(
+                mapOf("station" to "5", "ts station" to "6", "twin sports" to "12"),
+                stationsIn(policyFile).mapValues { it.value.jsonObject["number"]!!.jsonPrimitive.content },
+            )
+            assertEquals(hash(Files.readString(policyFile)), runtime.policy!!.document().revision)
+            assertEquals(first.revision, runtime.policy.document().revision)
+            val second = applyPolicy()
+            assertFalse(second.changed)
+            assertEquals(0, second.changes)
+            assertTrue(second.assigned.isEmpty())
+            assertEquals(first.revision, second.revision, "nothing new to write back")
+        }
+    }
+
+    @Test fun `the written-back numbers hold when the numbering rules change`() = testApplication {
+        withPolicy {
+            applyPolicy()
+            // Without the written numbers this policy would number from the floor; the file's numbers hold.
+            val revision = runtime.policy!!.document().revision
+            val renumbering = Json.parseToJsonElement(Files.readString(policyFile)).jsonObject.toMutableMap()
+            renumbering["numbering"] = Json.parseToJsonElement("""{"floor":500,"keepProviderNumbers":false}""")
+            val put = putPolicy(JsonObject(renumbering).toString(), "\"$revision\"")
+            assertEquals(HttpStatusCode.OK, put.status, put.bodyAsText())
+            assertEquals(listOf("5", "6", "12"), runtime.lineup.entries().map { it.number })
+        }
+    }
+
+    @Test fun `a write needs an If-Match, and one for another revision answers 409`() = testApplication {
+        withPolicy {
+            assertEquals(hash(basePolicy), runtime.policy!!.document().revision)
+            assertEquals(HttpStatusCode.fromValue(428), putPolicy(basePolicy).status)
+            val stale = putPolicy(basePolicy, "nope")
             assertEquals(HttpStatusCode.Conflict, stale.status)
             assertTrue(stale.bodyAsText().contains("POLICY_CHANGED"))
+        }
+    }
 
-            val invalid = client.put("/api/v1/admin/policy") {
-                asAdmin()
-                header(HttpHeaders.IfMatch, revision)
-                setBody("""{"providers":[{"id":"nowhere"}]}""")
-            }
+    @Test fun `an invalid policy answers 400 and leaves the file as it was`() = testApplication {
+        withPolicy {
+            val invalid = putPolicy("""{"providers":[{"id":"nowhere"}]}""", runtime.policy!!.document().revision)
             assertEquals(HttpStatusCode.BadRequest, invalid.status)
             assertTrue(invalid.bodyAsText().contains("unknown provider nowhere"))
             assertEquals(basePolicy, Files.readString(policyFile), "a rejected write leaves the file as it was")
-            assertEquals(
-                listOf("policy.json"),
-                Files.list(policyFile.parent).use { files ->
-                    files.map { it.fileName.toString() }.toList()
-                },
-            )
+            assertEquals(listOf("policy.json"), filesBeside(policyFile))
+        }
+    }
 
-            val edited = """{"providers":[{"id":"alt"},{"id":"fixture"}],"stations":{"station":{"number":"7",""" +
-                """"group":"Local"}}}"""
-            val response = client.put("/api/v1/admin/policy") {
-                asAdmin()
-                header(HttpHeaders.IfMatch, "W/\"$revision\"")
-                setBody(edited)
-            }
+    @Test fun `a write is stored as sent, in one step, and applied`() = testApplication {
+        withPolicy {
+            val response = putPolicy(edited, "W/\"${runtime.policy!!.document().revision}\"")
             assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
             val written = Json.decodeFromString<PolicyWriteResult>(response.bodyAsText())
             assertEquals(edited, Files.readString(policyFile), "the body is written as sent, never expanded")
             assertEquals(hash(edited), written.document.revision)
             assertEquals("\"${written.document.revision}\"", response.headers[HttpHeaders.ETag])
-            assertEquals(
-                listOf("policy.json"),
-                Files.list(policyFile.parent).use { files ->
-                    files.map { it.fileName.toString() }.toList()
-                },
-                "no temp file is left behind",
-            )
+            assertEquals(listOf("policy.json"), filesBeside(policyFile), "no temp file is left behind")
             assertEquals("7", runtime.lineup.entries().single { it.id == stationId("station") }.number)
+        }
+    }
 
-            // Another editor changes the file on disk: the next write is refused and the server reloads the file.
+    @Test fun `a file another editor changed refuses the next write and PATCH, and is reloaded`() = testApplication {
+        withPolicy {
+            val written = Json.decodeFromString<PolicyWriteResult>(
+                putPolicy(edited, runtime.policy!!.document().revision).bodyAsText(),
+            ).document.revision
             val external = """{"providers":[{"id":"fixture"}],"stations":{"station":{"number":"8"}}}"""
             Files.writeString(policyFile, external)
-            val conflict = client.put("/api/v1/admin/policy") {
-                asAdmin()
-                header(HttpHeaders.IfMatch, written.document.revision)
-                setBody(edited)
-            }
-            assertEquals(HttpStatusCode.Conflict, conflict.status)
+            assertEquals(HttpStatusCode.Conflict, putPolicy(edited, written).status)
             assertEquals(external, Files.readString(policyFile))
             val reloaded = Json.decodeFromString<PolicyDocument>(
-                client.get("/api/v1/admin/policy") {
-                    asAdmin()
-                }.bodyAsText(),
+                client.get("/api/v1/admin/policy") { asAdmin() }.bodyAsText(),
             )
             assertEquals(hash(external), reloaded.revision)
             val patch = client.patch("/api/v1/admin/lineup/${stationId("station")}") {
                 asAdmin()
-                header(HttpHeaders.IfMatch, written.document.revision)
+                header(HttpHeaders.IfMatch, written)
                 setBody("""{"name":"X"}""")
             }
             assertEquals(HttpStatusCode.Conflict, patch.status, "PATCH goes through the same revision check")
         }
     }
 
-    @Test fun `PATCH and DELETE on a lineup entry write the station override and apply`() = testApplication {
+    @Test fun `PATCH on a lineup entry writes the station override and applies it`() = testApplication {
         withPolicy {
             runtime.policy!!.apply("test")
-            val fixtureOffering = runtime.feeds.published.offeringsOf(
-                runtime.feeds.published.channels("fixture").single().id,
-            ).single().id
+            val published = runtime.feeds.published
+            val fixtureOffering = published.offeringsOf(published.channels("fixture").single().id).single().id
             val patched = client.patch("/api/v1/admin/lineup/${stationId("station")}") {
                 asAdmin()
                 setBody(
-                    """{"name":"Station """ +
-                        """East","group":"Local","logo":"https://logo.test/s.png","enabled":true,"offerings":""" +
-                        """["$fixtureOffering"]}""",
+                    """{"name":"Station East","group":"Local","logo":"https://logo.test/s.png","enabled":true,""" +
+                        """"offerings":["$fixtureOffering"]}""",
                 )
             }
             assertEquals(HttpStatusCode.OK, patched.status, patched.bodyAsText())
@@ -325,40 +301,37 @@ class PolicyApplyTest {
                 Json.parseToJsonElement("""[{"provider":"fixture","tvgId":"station","name":"Station"}]"""),
                 override["sources"],
             )
+        }
+    }
 
-            assertEquals(
-                HttpStatusCode.BadRequest,
-                client.patch("/api/v1/admin/lineup/${stationId("station")}") {
+    @Test fun `PATCH refuses a position, and a number another station holds`() = testApplication {
+        withPolicy {
+            runtime.policy!!.apply("test")
+            for (body in listOf("""{"position":0}""", """{"number":"12"}""")) {
+                val response = client.patch("/api/v1/admin/lineup/${stationId("station")}") {
                     asAdmin()
-                    setBody("""{"position":0}""")
-                }.status,
-            )
-            assertEquals(
-                HttpStatusCode.BadRequest,
-                client.patch("/api/v1/admin/lineup/${stationId("station")}") {
-                    asAdmin()
-                    setBody("""{"number":"12"}""")
-                }.status,
-                "a number another station holds is refused",
-            )
+                    setBody(body)
+                }
+                assertEquals(HttpStatusCode.BadRequest, response.status, body)
+            }
+        }
+    }
 
+    @Test fun `DELETE on a lineup entry disables its station in the policy`() = testApplication {
+        withPolicy {
+            runtime.policy!!.apply("test")
             assertEquals(
                 HttpStatusCode.NoContent,
-                client.delete("/api/v1/admin/lineup/${stationId("twin sports")}") {
-                    asAdmin()
-                }.status,
+                client.delete("/api/v1/admin/lineup/${stationId("twin sports")}") { asAdmin() }.status,
             )
             assertEquals(
                 false,
                 stationsIn(policyFile).getValue("twin sports").jsonObject["enabled"]!!.jsonPrimitive.boolean,
             )
-            val disabled = runtime.lineup.entry(stationId("twin sports"))!!
-            assertFalse(disabled.enabled)
+            assertFalse(runtime.lineup.entry(stationId("twin sports"))!!.enabled)
             assertEquals(
                 HttpStatusCode.NotFound,
-                client.delete("/api/v1/admin/lineup/${stationId("nothing")}") {
-                    asAdmin()
-                }.status,
+                client.delete("/api/v1/admin/lineup/${stationId("nothing")}") { asAdmin() }.status,
             )
         }
     }

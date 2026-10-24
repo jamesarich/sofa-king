@@ -58,7 +58,18 @@ class RecordingApiTest {
     private val token = "secret".repeat(8)
     private val xmltvTime = DateTimeFormatter.ofPattern("yyyyMMddHHmmss Z").withZone(ZoneOffset.UTC)
 
-    private class Api(val runtime: LiveRuntime, val channelId: String, val programStart: Instant, val recordings: Path)
+    private class Api(
+        val runtime: LiveRuntime,
+        val channelId: String,
+        val programStart: Instant,
+        val recordings: Path,
+    ) {
+        /** A day after the program, when the guide has nothing. */
+        val window: Instant = programStart.plusSeconds(86_400)
+
+        fun schedule(startsAt: String, endsAt: String? = null, channelId: String = this.channelId) =
+            Json.encodeToString(ScheduleRecording.serializer(), ScheduleRecording(channelId, startsAt, endsAt))
+    }
 
     /** The live fixture channel with a guide holding one `Movie Night` an hour from now, behind the API token. */
     private suspend fun ApplicationTestBuilder.dvrApi(block: suspend Api.() -> Unit) {
@@ -130,202 +141,179 @@ class RecordingApiTest {
         assertFalse(error.retryable, text)
     }
 
-    @Test fun `recording writes answer 201, 200 and 204, and a bad request answers 400 or 404 with its error code`() =
-        testApplication {
-            dvrApi {
-                val recordings = "/api/v1/recordings"
-                val window = programStart.plusSeconds(86_400)
-                fun schedule(startsAt: String, endsAt: String? = null, channelId: String = this.channelId) =
-                    Json.encodeToString(ScheduleRecording.serializer(), ScheduleRecording(channelId, startsAt, endsAt))
+    private suspend fun ApplicationTestBuilder.scheduleMovie(api: Api): Recording {
+        val created = send(HttpMethod.Post, RECORDINGS, api.schedule(api.programStart.toString()))
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        return json.decodeFromString(created.bodyAsText())
+    }
 
-                assertError(HttpStatusCode.BadRequest, "INVALID_REQUEST", send(HttpMethod.Post, recordings, "not json"))
-                assertError(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    send(HttpMethod.Post, recordings, """{"startsAt":"$window"}"""),
-                )
-                assertError(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    send(HttpMethod.Post, recordings, schedule("tomorrow")),
-                )
-                assertError(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    send(HttpMethod.Post, recordings, schedule(window.toString(), window.minusSeconds(60).toString())),
-                )
-                assertError(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    send(
-                        HttpMethod.Post,
-                        recordings,
-                        schedule(window.toString(), window.plus(Duration.ofHours(13)).toString()),
-                    ),
-                )
-                assertError(
-                    HttpStatusCode.NotFound,
-                    Wire.ErrorCode.CHANNEL_NOT_FOUND,
-                    send(HttpMethod.Post, recordings, schedule(window.toString(), channelId = "nope")),
-                )
-                assertError(
-                    HttpStatusCode.NotFound,
-                    "PROGRAM_NOT_FOUND",
-                    send(HttpMethod.Post, recordings, schedule(programStart.plusSeconds(60).toString())),
-                )
-                val past = Instant.now().minusSeconds(7200)
-                assertError(
-                    HttpStatusCode.Conflict,
-                    "PROGRAM_ENDED",
-                    send(HttpMethod.Post, recordings, schedule(past.toString(), past.plusSeconds(1800).toString())),
-                )
+    private suspend fun ApplicationTestBuilder.createNews(api: Api): RecordingRule {
+        val body = """{"title":"  News  ","channelId":"${api.channelId}","keep":3,"priority":2}"""
+        val created = send(HttpMethod.Post, RULES, body)
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        return json.decodeFromString(created.bodyAsText())
+    }
 
-                val created = send(HttpMethod.Post, recordings, schedule(programStart.toString()))
-                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
-                val movie = json.decodeFromString<Recording>(created.bodyAsText())
-                assertEquals(Wire.RecordingState.SCHEDULED, movie.state)
-                assertEquals("Movie Night", movie.title)
-                assertEquals(60, movie.startPaddingSeconds)
-                assertEquals(120, movie.endPaddingSeconds)
-
-                val read = send(HttpMethod.Get, "$recordings/${movie.id}")
-                assertEquals(HttpStatusCode.OK, read.status)
-                assertEquals(movie, json.decodeFromString<Recording>(read.bodyAsText()))
-                assertError(HttpStatusCode.NotFound, "RECORDING_NOT_FOUND", send(HttpMethod.Get, "$recordings/nope"))
-
-                val patched =
-                    send(
-                        HttpMethod.Patch,
-                        "$recordings/${movie.id}",
-                        """{"protected":true,"positionMs":-5,"watched":true}""",
-                    )
-                assertEquals(HttpStatusCode.OK, patched.status, patched.bodyAsText())
-                val changed = json.decodeFromString<Recording>(patched.bodyAsText())
-                assertTrue(changed.protected)
-                assertTrue(changed.watched)
-                assertEquals(0, changed.positionMs, "a negative position is stored as the start")
-                assertError(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    send(HttpMethod.Patch, "$recordings/${movie.id}", """{"protected":"""),
-                )
-                assertError(
-                    HttpStatusCode.NotFound,
-                    "RECORDING_NOT_FOUND",
-                    send(HttpMethod.Patch, "$recordings/nope", """{"protected":true}"""),
-                )
-
-                assertEquals(HttpStatusCode.NoContent, send(HttpMethod.Delete, "$recordings/${movie.id}").status)
-                assertError(
-                    HttpStatusCode.NotFound,
-                    "RECORDING_NOT_FOUND",
-                    send(HttpMethod.Get, "$recordings/${movie.id}"),
-                )
-                assertError(
-                    HttpStatusCode.NotFound,
-                    "RECORDING_NOT_FOUND",
-                    send(HttpMethod.Delete, "$recordings/${movie.id}"),
-                )
-                assertEquals(
-                    emptyList(),
-                    json.decodeFromString<RecordingList>(send(HttpMethod.Get, recordings).bodyAsText()).recordings,
-                )
+    @Test fun `a malformed or impossible schedule answers 400`() = testApplication {
+        dvrApi {
+            for (body in listOf(
+                "not json",
+                """{"startsAt":"$window"}""",
+                schedule("tomorrow"),
+                schedule(window.toString(), window.minusSeconds(60).toString()),
+                schedule(window.toString(), window.plus(Duration.ofHours(13)).toString()),
+            )) {
+                assertError(HttpStatusCode.BadRequest, "INVALID_REQUEST", send(HttpMethod.Post, RECORDINGS, body))
             }
         }
+    }
 
-    @Test fun `rule writes answer 201, 200 and 204, and a bad rule answers 400 or 404 with its error code`() =
-        testApplication {
-            dvrApi {
-                val rules = "/api/v1/recording-rules"
-                assertError(HttpStatusCode.BadRequest, "INVALID_REQUEST", send(HttpMethod.Post, rules, "[]"))
-                assertError(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    send(HttpMethod.Post, rules, """{"title":"   "}"""),
-                )
-                assertError(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    send(HttpMethod.Post, rules, """{"title":"${"x".repeat(201)}"}"""),
-                )
-                assertError(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    send(HttpMethod.Post, rules, """{"title":"News","keep":1001}"""),
-                )
-                assertError(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    send(HttpMethod.Post, rules, """{"title":"News","priority":101}"""),
-                )
-                assertError(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    send(HttpMethod.Post, rules, """{"title":"News","startPaddingSeconds":3601}"""),
-                )
-                assertError(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    send(HttpMethod.Post, rules, """{"title":"News","endPaddingSeconds":-1}"""),
-                )
-                assertError(
-                    HttpStatusCode.NotFound,
-                    Wire.ErrorCode.CHANNEL_NOT_FOUND,
-                    send(HttpMethod.Post, rules, """{"title":"News","channelId":"nope"}"""),
-                )
-
-                val created =
-                    send(
-                        HttpMethod.Post,
-                        rules,
-                        """{"title":"  News  ","channelId":"$channelId","keep":3,"priority":2}""",
-                    )
-                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
-                val news = json.decodeFromString<RecordingRule>(created.bodyAsText())
-                assertEquals("News", news.title)
-                assertEquals(channelId, news.channelId)
-                assertEquals(60, news.startPaddingSeconds, "unset paddings take the server's defaults")
-                assertEquals(120, news.endPaddingSeconds)
-                val listed = send(HttpMethod.Get, rules)
-                assertEquals(HttpStatusCode.OK, listed.status)
-                assertEquals(listOf(news), json.decodeFromString<RecordingRuleList>(listed.bodyAsText()).rules)
-
-                val patched =
-                    send(
-                        HttpMethod.Patch,
-                        "$rules/${news.id}",
-                        """{"anyChannel":true,"keep":0,"endPaddingSeconds":600}""",
-                    )
-                assertEquals(HttpStatusCode.OK, patched.status, patched.bodyAsText())
-                val any = json.decodeFromString<RecordingRule>(patched.bodyAsText())
-                assertNull(any.channelId)
-                assertEquals(0, any.keep)
-                assertEquals(600, any.endPaddingSeconds)
-                assertEquals(2, any.priority, "an unset field keeps its value")
-                assertError(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    send(HttpMethod.Patch, "$rules/${news.id}", """{"priority":-101}"""),
-                )
-                assertError(
-                    HttpStatusCode.NotFound,
-                    Wire.ErrorCode.CHANNEL_NOT_FOUND,
-                    send(HttpMethod.Patch, "$rules/${news.id}", """{"channelId":"nope"}"""),
-                )
-                assertError(
-                    HttpStatusCode.NotFound,
-                    "RULE_NOT_FOUND",
-                    send(HttpMethod.Patch, "$rules/nope", """{"keep":1}"""),
-                )
-
-                assertEquals(HttpStatusCode.NoContent, send(HttpMethod.Delete, "$rules/${news.id}").status)
-                assertError(HttpStatusCode.NotFound, "RULE_NOT_FOUND", send(HttpMethod.Delete, "$rules/${news.id}"))
-                assertEquals(
-                    emptyList(),
-                    json.decodeFromString<RecordingRuleList>(send(HttpMethod.Get, rules).bodyAsText()).rules,
-                )
-            }
+    @Test fun `a schedule for an unknown channel or program answers 404, and for an ended one 409`() = testApplication {
+        dvrApi {
+            assertError(
+                HttpStatusCode.NotFound,
+                Wire.ErrorCode.CHANNEL_NOT_FOUND,
+                send(HttpMethod.Post, RECORDINGS, schedule(window.toString(), channelId = "nope")),
+            )
+            assertError(
+                HttpStatusCode.NotFound,
+                "PROGRAM_NOT_FOUND",
+                send(HttpMethod.Post, RECORDINGS, schedule(programStart.plusSeconds(60).toString())),
+            )
+            val past = Instant.now().minusSeconds(7200)
+            assertError(
+                HttpStatusCode.Conflict,
+                "PROGRAM_ENDED",
+                send(HttpMethod.Post, RECORDINGS, schedule(past.toString(), past.plusSeconds(1800).toString())),
+            )
         }
+    }
+
+    @Test fun `a scheduled program answers 201 with the guide's title and default paddings`() = testApplication {
+        dvrApi {
+            val movie = scheduleMovie(this)
+            assertEquals(Wire.RecordingState.SCHEDULED, movie.state)
+            assertEquals("Movie Night", movie.title)
+            assertEquals(60, movie.startPaddingSeconds)
+            assertEquals(120, movie.endPaddingSeconds)
+            val read = send(HttpMethod.Get, "$RECORDINGS/${movie.id}")
+            assertEquals(HttpStatusCode.OK, read.status)
+            assertEquals(movie, json.decodeFromString<Recording>(read.bodyAsText()))
+            assertError(HttpStatusCode.NotFound, "RECORDING_NOT_FOUND", send(HttpMethod.Get, "$RECORDINGS/nope"))
+        }
+    }
+
+    @Test fun `a recording PATCH answers 200, a malformed one 400 and an unknown recording 404`() = testApplication {
+        dvrApi {
+            val movie = scheduleMovie(this)
+            val body = """{"protected":true,"positionMs":-5,"watched":true}"""
+            val patched = send(HttpMethod.Patch, "$RECORDINGS/${movie.id}", body)
+            assertEquals(HttpStatusCode.OK, patched.status, patched.bodyAsText())
+            val changed = json.decodeFromString<Recording>(patched.bodyAsText())
+            assertTrue(changed.protected)
+            assertTrue(changed.watched)
+            assertEquals(0, changed.positionMs, "a negative position is stored as the start")
+            assertError(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                send(HttpMethod.Patch, "$RECORDINGS/${movie.id}", """{"protected":"""),
+            )
+            assertError(
+                HttpStatusCode.NotFound,
+                "RECORDING_NOT_FOUND",
+                send(HttpMethod.Patch, "$RECORDINGS/nope", """{"protected":true}"""),
+            )
+        }
+    }
+
+    @Test fun `a deleted recording answers 204 and then 404`() = testApplication {
+        dvrApi {
+            val movie = scheduleMovie(this)
+            assertEquals(HttpStatusCode.NoContent, send(HttpMethod.Delete, "$RECORDINGS/${movie.id}").status)
+            for (method in listOf(HttpMethod.Get, HttpMethod.Delete)) {
+                assertError(HttpStatusCode.NotFound, "RECORDING_NOT_FOUND", send(method, "$RECORDINGS/${movie.id}"))
+            }
+            assertEquals(
+                emptyList(),
+                json.decodeFromString<RecordingList>(send(HttpMethod.Get, RECORDINGS).bodyAsText()).recordings,
+            )
+        }
+    }
+
+    @Test fun `a malformed or out-of-range rule answers 400, and one for an unknown channel 404`() = testApplication {
+        dvrApi {
+            for (body in listOf(
+                "[]",
+                """{"title":"   "}""",
+                """{"title":"${"x".repeat(201)}"}""",
+                """{"title":"News","keep":1001}""",
+                """{"title":"News","priority":101}""",
+                """{"title":"News","startPaddingSeconds":3601}""",
+                """{"title":"News","endPaddingSeconds":-1}""",
+            )) {
+                assertError(HttpStatusCode.BadRequest, "INVALID_REQUEST", send(HttpMethod.Post, RULES, body))
+            }
+            assertError(
+                HttpStatusCode.NotFound,
+                Wire.ErrorCode.CHANNEL_NOT_FOUND,
+                send(HttpMethod.Post, RULES, """{"title":"News","channelId":"nope"}"""),
+            )
+        }
+    }
+
+    @Test fun `a created rule trims its title, takes the default paddings and lists`() = testApplication {
+        dvrApi {
+            val news = createNews(this)
+            assertEquals("News", news.title)
+            assertEquals(channelId, news.channelId)
+            assertEquals(60, news.startPaddingSeconds, "unset paddings take the server's defaults")
+            assertEquals(120, news.endPaddingSeconds)
+            val listed = send(HttpMethod.Get, RULES)
+            assertEquals(HttpStatusCode.OK, listed.status)
+            assertEquals(listOf(news), json.decodeFromString<RecordingRuleList>(listed.bodyAsText()).rules)
+        }
+    }
+
+    @Test fun `a rule PATCH keeps unset fields, and a bad one answers 400 or 404`() = testApplication {
+        dvrApi {
+            val news = createNews(this)
+            val body = """{"anyChannel":true,"keep":0,"endPaddingSeconds":600}"""
+            val patched = send(HttpMethod.Patch, "$RULES/${news.id}", body)
+            assertEquals(HttpStatusCode.OK, patched.status, patched.bodyAsText())
+            val any = json.decodeFromString<RecordingRule>(patched.bodyAsText())
+            assertNull(any.channelId)
+            assertEquals(0, any.keep)
+            assertEquals(600, any.endPaddingSeconds)
+            assertEquals(2, any.priority, "an unset field keeps its value")
+            assertError(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                send(HttpMethod.Patch, "$RULES/${news.id}", """{"priority":-101}"""),
+            )
+            assertError(
+                HttpStatusCode.NotFound,
+                Wire.ErrorCode.CHANNEL_NOT_FOUND,
+                send(HttpMethod.Patch, "$RULES/${news.id}", """{"channelId":"nope"}"""),
+            )
+            assertError(
+                HttpStatusCode.NotFound,
+                "RULE_NOT_FOUND",
+                send(HttpMethod.Patch, "$RULES/nope", """{"keep":1}"""),
+            )
+        }
+    }
+
+    @Test fun `a deleted rule answers 204 and then 404`() = testApplication {
+        dvrApi {
+            val news = createNews(this)
+            assertEquals(HttpStatusCode.NoContent, send(HttpMethod.Delete, "$RULES/${news.id}").status)
+            assertError(HttpStatusCode.NotFound, "RULE_NOT_FOUND", send(HttpMethod.Delete, "$RULES/${news.id}"))
+            assertEquals(
+                emptyList(),
+                json.decodeFromString<RecordingRuleList>(send(HttpMethod.Get, RULES).bodyAsText()).rules,
+            )
+        }
+    }
 
     @Test fun `the recording and rule lists keep every field of their wire fixtures`() = testApplication {
         dvrApi {
@@ -412,5 +400,10 @@ class RecordingApiTest {
             assertFalse(Files.exists(recordings.resolve(path)))
             assertError(HttpStatusCode.NotFound, "RECORDING_NOT_FOUND", send(HttpMethod.Get, "/api/v1/recordings/$id"))
         }
+    }
+
+    private companion object {
+        const val RECORDINGS = "/api/v1/recordings"
+        const val RULES = "/api/v1/recording-rules"
     }
 }

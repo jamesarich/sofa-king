@@ -10,7 +10,6 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.SofaKingException
-import dev.jamesrich.sofaking.ui.secondsUp
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.delay
 
@@ -52,9 +51,16 @@ internal interface VodControls {
  * [back]; what they do to the stream goes through [VodControls].
  */
 @Stable
-internal class VodPlayerState {
+internal class VodPlayerState(
+    private val panels: VodPanelState = VodPanelState(),
+    private val skips: VodSkipState = VodSkipState(panels),
+    private val scrubbing: VodScrubState = VodScrubState(panels),
+) : VodPanels by panels,
+    VodSkips by skips,
+    VodScrubbing by scrubbing {
     /** The position in the item, which the screen's clock moves on about four times a second. */
     var positionMs by mutableLongStateOf(0L)
+
     var durationMs by mutableStateOf<Long?>(null)
 
     /** The failure card's code, while the item has failed. */
@@ -75,66 +81,15 @@ internal class VodPlayerState {
     /** What the Up next card counts down to, once the item has ended and there is one. */
     var next by mutableStateOf<VodUpNext?>(null)
 
-    var overlayVisible by mutableStateOf(true)
-
-    /** Bumped to keep the bar up for another while. */
-    var overlayRequest by mutableIntStateOf(0)
-        private set
-
-    var tracksOpen by mutableStateOf(false)
-        private set
-
-    /**
-     * What a play or pause from the remote's media keys just did while the bar was down, which the center of the
-     * picture confirms for a moment instead of bringing the bar up; [transportPulse] counts each one, so a repeat of
-     * the same one shows again.
-     */
-    var transport by mutableStateOf<TransportHint?>(null)
-        private set
-    var transportPulse by mutableIntStateOf(0)
-        private set
-
-    // True while a button on the bar has focus, so the D-pad moves along the row instead of seeking.
-    var buttonsFocused by mutableStateOf(false)
-
-    /** Where a scrub (Left and Right, or a drag on the slider) would land; null while none is being built. */
-    var scrubTarget by mutableStateOf<Long?>(null)
-        private set
-
-    // Set when playback runs into a break it does not skip, or is in an intro, so Skip break or Skip intro takes
-    // focus and OK skips, as other players' skip pill does.
-    var focusSkip by mutableStateOf(false)
-
-    /**
-     * The starts of the intros the bar has offered to skip, each once, so a viewer who goes back into one stays there.
-     */
-    private val offeredIntros = mutableSetOf<Long>()
-
-    /** Whole seconds until the intro skips itself, counting down on Skip intro; null while it waits for a press. */
-    var autoSkipSeconds by mutableStateOf<Int?>(null)
-        private set
-    private var autoSkipAtMs = 0L
-
-    private val scrub = VodScrub()
-
     // Ends short of the item's end since playback last moved on, and where the last one was.
     private var earlyEnds = 0
     private var earlyEndAtMs = 0L
 
-    fun showInfo() {
-        overlayVisible = true
-        overlayRequest++
-    }
+    private val keys = VodKeyHandler(this, panels, skips, scrubbing)
 
-    /** The track card stands in for the bar, which would otherwise run under it; the next key brings the bar back. */
-    fun openTracks() {
-        tracksOpen = true
-        overlayVisible = false
-    }
-
-    fun closeTracks() {
-        tracksOpen = false
-    }
+    // The countdown changes under its readers, but a delegated val counts as stable, so the compiler would carry a
+    // null check over to later reads of it; a getter of its own makes each read a fresh one.
+    override val autoSkipSeconds: Int? get() = skips.autoSkipSeconds
 
     /** A tap on the picture: the bar toggles. */
     fun tap() {
@@ -160,61 +115,6 @@ internal class VodPlayerState {
         earlyEndAtMs = positionMs
         if (earlyEnds++ < EARLY_END_REOPENS) reopenRequest++ else failure = STREAM_ENDED_EARLY
     }
-
-    /**
-     * Playback ran into a break it does not skip: the bar comes up with Skip break on it, focused for the remote. Not
-     * while the track card is open, which keeps the remote.
-     */
-    fun ranIntoBreak() {
-        if (tracksOpen) return
-        showInfo()
-        focusSkip = true
-    }
-
-    /**
-     * Playback is in [intro], or the credits: the first time, the bar comes up with Skip intro (or Skip credits) on it,
-     * focused for the remote, and with [autoSkip] a countdown of [AUTO_SKIP_MS] starts on it. While the track card is
-     * open the offer waits for it to close.
-     */
-    fun inIntro(intro: VodMarker, autoSkip: Boolean = false, nowMs: Long = uptimeMs()) {
-        if (tracksOpen || !offeredIntros.add(intro.startMs)) return
-        ranIntoBreak()
-        if (autoSkip) {
-            autoSkipAtMs = nowMs + AUTO_SKIP_MS
-            autoSkipSeconds = secondsUntil(autoSkipAtMs, nowMs)
-        }
-    }
-
-    /** Moves the countdown on to [nowMs]; true when it ran out, so the intro is skipped now. */
-    fun autoSkipDue(nowMs: Long): Boolean {
-        if (autoSkipSeconds == null) return false
-        if (nowMs >= autoSkipAtMs) {
-            autoSkipSeconds = null
-            return true
-        }
-        autoSkipSeconds = secondsUntil(autoSkipAtMs, nowMs)
-        return false
-    }
-
-    /** The countdown stops and Skip intro waits for a press: any key or tap, or playback leaving the intro. */
-    fun cancelAutoSkip() {
-        autoSkipSeconds = null
-    }
-
-    private fun secondsUntil(atMs: Long, nowMs: Long): Int = secondsUp(atMs - nowMs)
-
-    /** A finger or a mouse dragging the slider: the times follow [targetMs] until [endScrub]. */
-    fun dragTo(targetMs: Long) {
-        scrubTarget = targetMs
-        showInfo()
-    }
-
-    fun endScrub() {
-        scrubTarget = null
-    }
-
-    /** The scrub to apply once the presses have rested at [nowMs], clearing it; null while they have not. */
-    fun settledScrub(nowMs: Long): Long? = scrub.settled(nowMs)?.also { scrubTarget = null }
 
     /**
      * Runs [open] (the item's open, a restart in a converted file, a track switch), asking again every
@@ -250,13 +150,13 @@ internal class VodPlayerState {
             buttonsFocused -> controls.focusPicture()
 
             tracksOpen -> {
-                tracksOpen = false
+                panels.closeTracks()
                 controls.focusPicture()
             }
 
             scrubTarget != null -> {
-                scrub.cancel()
-                scrubTarget = null
+                scrubbing.scrub.cancel()
+                scrubbing.endScrub()
             }
 
             else -> return true
@@ -278,132 +178,7 @@ internal class VodPlayerState {
         tracksPickable: Boolean,
         repeatCount: Int? = null,
         nowMs: Long = uptimeMs(),
-    ): Boolean {
-        if (type == KeyEventType.KeyDown) cancelAutoSkip()
-        val taken = when {
-            // The card's rows take the D-pad and OK; Back closes it through the BackHandler.
-            tracksOpen -> false
-
-            next != null -> upNextKey(key, type, controls)
-
-            else -> buttonRowKey(key, type, controls)
-        }
-        val action = key.vodAction()
-        if (taken == null && action != null && type == KeyEventType.KeyDown) {
-            act(action, key, controls, paused, hasButtons, tracksPickable, repeatCount, nowMs)
-        }
-        return taken ?: (action != null)
-    }
-
-    /** With the Up next card up, OK and play/pause play it now; Back leaves through the BackHandler. */
-    private fun upNextKey(key: Key, type: KeyEventType, controls: VodControls): Boolean {
-        if (key !in UP_NEXT_PLAY_KEYS) return false
-        if (type == KeyEventType.KeyUp) controls.playNext()
-        return true
-    }
-
-    /** A key while the button row has focus: the row's own keys stay there; null when the key goes on. */
-    private fun buttonRowKey(key: Key, type: KeyEventType, controls: VodControls): Boolean? {
-        if (!buttonsFocused) return null
-        showInfo()
-        return when (key.inButtonRow()) {
-            ButtonRowKey.ROW -> false
-
-            // Up, Back and Escape hand focus back to the picture on key-up, so the key-up cannot act there too.
-            ButtonRowKey.LEAVE -> {
-                if (type == KeyEventType.KeyUp) controls.focusPicture()
-                true
-            }
-
-            ButtonRowKey.PLAYER -> {
-                controls.focusPicture()
-                null
-            }
-        }
-    }
-
-    /** What a key-down of [action] does with the picture in front. */
-    private fun act(
-        action: VodAction,
-        key: Key,
-        controls: VodControls,
-        paused: Boolean,
-        hasButtons: Boolean,
-        tracksPickable: Boolean,
-        repeatCount: Int?,
-        nowMs: Long,
-    ) {
-        when (action) {
-            VodAction.BACK, VodAction.FORWARD -> if (failure == null) scrubStep(action, repeatCount, nowMs)
-
-            VodAction.PLAY_PAUSE -> playPauseKey(key, controls, paused)
-
-            VodAction.PLAY -> if (paused) mediaPlayPause(controls, paused)
-
-            VodAction.PAUSE -> if (!paused) mediaPlayPause(controls, paused)
-
-            VodAction.SHOW_INFO -> if (overlayVisible && !paused && key == Key.Info) {
-                overlayVisible = false
-            } else {
-                showInfo()
-            }
-
-            // Down shows the bar, and on the bar moves into its buttons.
-            VodAction.BUTTONS -> {
-                if (overlayVisible && hasButtons) controls.focusButtons()
-                showInfo()
-            }
-
-            VodAction.CAPTIONS -> controls.toggleCaptions()
-
-            VodAction.TRACKS -> if (tracksPickable && failure == null) openTracks() else showInfo()
-
-            VodAction.ZOOM -> controls.zoom()
-
-            VodAction.STOP -> controls.exit()
-        }
-    }
-
-    /** Back or Forward moves the scrub a step, further the longer the key is held. */
-    private fun scrubStep(action: VodAction, repeatCount: Int?, nowMs: Long) {
-        // With the bar down a scrub builds under a badge instead, so the picture stays clear.
-        if (overlayVisible) showInfo()
-        val direction = if (action == VodAction.BACK) -1 else 1
-        scrubTarget = scrub.press(direction, positionMs, durationMs, repeatCount ?: 0, nowMs)
-    }
-
-    /** Play/pause retries a failed stream, commits a scrub, or plays or pauses. */
-    private fun playPauseKey(key: Key, controls: VodControls, paused: Boolean) {
-        when {
-            failure != null -> controls.retry()
-
-            scrubTarget != null -> {
-                scrubTarget = null
-                scrub.commit()?.let(controls::seek)
-                showInfo()
-            }
-
-            key in QUIET_PLAY_KEYS -> mediaPlayPause(controls, paused)
-
-            else -> playPause(controls)
-        }
-    }
-
-    private fun playPause(controls: VodControls) {
-        controls.playPause()
-        showInfo()
-    }
-
-    /**
-     * A media key's play or pause: with the bar up it stays up for another while, and with it down it stays down and
-     * the picture's center confirms the press.
-     */
-    private fun mediaPlayPause(controls: VodControls, paused: Boolean) {
-        if (overlayVisible) return playPause(controls)
-        controls.playPause()
-        transport = if (paused) TransportHint.PLAY else TransportHint.PAUSE
-        transportPulse++
-    }
+    ): Boolean = keys.onKeyEvent(key, type, controls, paused, hasButtons, tracksPickable, repeatCount, nowMs)
 }
 
 /** How far short of the item's length an end may come and still be the end: a conversion can stop a little short. */
@@ -421,12 +196,3 @@ internal const val CONVERTER_RETRY_MS = 5_000L
 
 /** What [VodPlayerState.transport] confirms. */
 internal enum class TransportHint { PLAY, PAUSE }
-
-/**
- * The play and pause keys that leave the bar down: the remote's media keys, and Space and K on a keyboard. OK still
- * brings the bar up, as Up and Down do.
- */
-private val QUIET_PLAY_KEYS = setOf(Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause, Key.Spacebar, Key.K)
-
-private val UP_NEXT_PLAY_KEYS =
-    setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause, Key.MediaPlay, Key.Spacebar)

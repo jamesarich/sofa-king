@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.io.runFor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -157,7 +158,7 @@ internal fun parseProbe(text: String): MediaInfo? {
     }
     return MediaInfo(
         container = format?.str("format_name") ?: "unknown",
-        durationMs = format?.str("duration")?.toDoubleOrNull()?.let { (it * 1000).toLong() },
+        durationMs = format?.str("duration")?.toDoubleOrNull()?.let { (it * MS_PER_SECOND).toLong() },
         bitrate = format?.str("bit_rate")?.toLongOrNull(),
         video = video,
         audio = audio,

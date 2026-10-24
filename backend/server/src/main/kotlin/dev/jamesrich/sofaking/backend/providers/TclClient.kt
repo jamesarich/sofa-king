@@ -79,7 +79,7 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
         )
     }
 
-    private suspend fun snapshot(): Snapshot = context.cached(SNAPSHOT, Duration.ofMinutes(55)) { fetch() }
+    private suspend fun snapshot(): Snapshot = context.cached(SNAPSHOT, CACHED_FOR) { fetch() }
 
     private suspend fun fetch(): Snapshot {
         val deviceId = URLEncoder.encode(context.deviceId(), Charsets.UTF_8)
@@ -132,6 +132,9 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
         private const val API_BASE = "https://gateway-prod.ideonow.com"
         private const val IMAGE_BASE = "https://tcl-channel-cdn.ideonow.com"
         private const val SNAPSHOT = "snapshot"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(55)
         private val GUIDE_HORIZON = Duration.ofHours(12)
         private val URL_LIFETIME = Duration.ofHours(1)
         private val CURATED = setOf("TCL TOP 15", "Featured", "Bingeable", "TV Favorites")

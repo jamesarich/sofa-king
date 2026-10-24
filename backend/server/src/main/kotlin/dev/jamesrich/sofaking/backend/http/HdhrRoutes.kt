@@ -233,11 +233,14 @@ fun Route.hdhrRoutes(
  * derived from it per extra port.
  */
 fun hdhrDeviceId(config: HdhrConfig, serverId: String, device: Int): String {
-    val first = config.deviceId ?: hash(serverId).take(8).uppercase()
-    return if (device == 0) first else hash("$first:$device").take(8).uppercase()
+    val first = config.deviceId ?: hash(serverId).take(DEVICE_ID_DIGITS).uppercase()
+    return if (device == 0) first else hash("$first:$device").take(DEVICE_ID_DIGITS).uppercase()
 }
 
 private suspend fun tunersBusy(call: ApplicationCall) {
     call.response.header("X-HDHomeRun-Error", "805 All Tuners In Use")
     call.respondText("All tuners in use", status = HttpStatusCode.ServiceUnavailable)
 }
+
+/** An HDHomeRun DeviceID is eight hex digits. */
+private const val DEVICE_ID_DIGITS = 8

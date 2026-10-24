@@ -83,7 +83,7 @@ class PbsClient(private val context: ProviderContext) : ProviderClient {
         return ResolvedStream(listed.feed.url, STREAM_HEADERS, context.clock.instant().plus(Duration.ofHours(1)))
     }
 
-    private suspend fun listed(): List<Listed> = context.cached(STATIONS, Duration.ofMinutes(30)) { fetchStations() }
+    private suspend fun listed(): List<Listed> = context.cached(STATIONS, CACHED_FOR) { fetchStations() }
 
     private suspend fun fetchStations(): List<Listed> {
         val ids = LinkedHashSet<String>()
@@ -149,6 +149,9 @@ class PbsClient(private val context: ProviderContext) : ProviderClient {
         private const val SITE_BASE = "https://www.pbs.org"
         private const val PLAYER_BASE = "https://player.pbs.org"
         private const val STATIONS = "stations"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(30)
         private val STREAM_HEADERS = mapOf(
             "User-Agent" to BROWSER_USER_AGENT,
             "Origin" to SITE_BASE,

@@ -46,7 +46,11 @@ private const val RELATED_SIZE = 12
 private val FRAMED = setOf(ItemKind.MOVIE, ItemKind.EPISODE, ItemKind.VIDEO, ItemKind.EXTRA)
 
 /** Where a frame is taken: a tenth of the way in, past any opening titles, but no later than ten minutes. */
-internal fun frameAt(durationMs: Long?): Long = durationMs?.let { (it / 10).coerceAtMost(600_000) } ?: 0
+internal fun frameAt(durationMs: Long?): Long =
+    durationMs?.let { (it / FRAME_SHARE).coerceAtMost(LATEST_FRAME_MS) } ?: 0
+
+private const val FRAME_SHARE = 10
+private const val LATEST_FRAME_MS = 600_000L
 
 /** Where an item's poster or backdrop comes from: a file in its library folder, or a TMDB image path. */
 sealed interface ArtSource {

@@ -52,7 +52,7 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
         return ResolvedStream(url, HEADERS, now.plus(URL_LIFETIME))
     }
 
-    private suspend fun listed(): List<Listed> = context.cached(CATALOG, Duration.ofMinutes(10)) { fetchCatalog() }
+    private suspend fun listed(): List<Listed> = context.cached(CATALOG, CACHED_FOR) { fetchCatalog() }
 
     private suspend fun fetchCatalog(): List<Listed> {
         val payload = context.http.get(catalogUrl, HEADERS).require("FreeLiveSports catalog").json()
@@ -91,6 +91,9 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
         private const val CATALOG_URL = "https://epg.unreel.me/v2/sites/freelivesports/live-channels/public/" +
             "081f73704b56aaceb6b459804761ec54?__site=freelivesports&__source=web"
         private const val CATALOG = "catalog"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(10)
         private val URL_LIFETIME = Duration.ofHours(1)
         private val HEADERS = mapOf(
             "User-Agent" to BROWSER_USER_AGENT,

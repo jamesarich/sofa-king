@@ -111,7 +111,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
         return ResolvedStream(target, streamHeaders(), context.clock.instant().plus(URL_LIFETIME))
     }
 
-    private suspend fun listed(): List<Listed> = context.cached(CHANNELS, Duration.ofMinutes(30)) { fetchChannels() }
+    private suspend fun listed(): List<Listed> = context.cached(CHANNELS, CACHED_FOR) { fetchChannels() }
 
     private suspend fun fetchChannels(): List<Listed> {
         val payload = authorized { token ->
@@ -171,7 +171,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
         var wait = rateLimitWaitMillis
         repeat(if (patient) RATE_LIMIT_RETRIES else 0) {
             val answer = signedIn(request)
-            if (answer.status != 429) return answer.require("Plex API", gone)
+            if (!answer.throttled) return answer.require("Plex API", gone)
             delay(wait)
             wait *= 2
         }
@@ -180,7 +180,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun signedIn(request: suspend (String) -> Fetched): Fetched {
         val first = request(token())
-        if (first.status != 401 && first.status != 403) return first
+        if (!first.refused) return first
         context.clearState(TOKEN)
         return request(token())
     }
@@ -216,6 +216,9 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
         private const val AUTH_URL = "https://plex.tv/api/v2/users/anonymous"
         private const val PRODUCT = "Plex Mediaverse"
         private const val CHANNELS = "channels"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(30)
         private const val TOKEN = "token"
         private const val GROUPS = "genre_groups"
         private const val MANIFEST_LIMIT = 1024 * 1024

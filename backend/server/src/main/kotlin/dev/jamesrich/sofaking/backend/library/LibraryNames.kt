@@ -66,6 +66,15 @@ internal fun isVideoFile(fileName: String): Boolean {
 internal data class TitleYear(val title: String, val year: Int?)
 
 private val YEAR = Regex("""^(.*?)[\s._]*[(\[](\d{4})[)\]](.*)$""")
+
+/** The years a year in a name may be; outside them, the number is part of the title. */
+private val PLAUSIBLE_YEARS = 1880..2100
+
+/** The year at the start of a date such as `2024-01-15`, or null. */
+internal fun yearOf(date: String?): Int? = date?.take(YEAR_DIGITS)?.toIntOrNull()
+
+private const val YEAR_DIGITS = 4
+
 private val BRACKETED = Regex("""\s*[\[{][^\]}]*[\]}]""")
 private val BARE_YEAR = Regex("""^(.+?)[\s._]+((?:19|20)\d{2})(?:[\s._].*)?$""")
 
@@ -81,7 +90,7 @@ internal fun titleYear(raw: String): TitleYear {
     val name = (if (' ' !in raw) raw.replace('.', ' ').replace('_', ' ') else raw).replace(ORDINAL, "")
     YEAR.matchEntire(name)?.let { match ->
         val year = match.groupValues[2].toInt()
-        if (year in 1880..2100) return TitleYear(clean(match.groupValues[1]), year)
+        if (year in PLAUSIBLE_YEARS) return TitleYear(clean(match.groupValues[1]), year)
     }
     BARE_YEAR.matchEntire(name)?.let { match ->
         return TitleYear(clean(match.groupValues[1]), match.groupValues[2].toInt())
@@ -161,14 +170,16 @@ internal fun episodeName(stem: String): EpisodeName {
     return EpisodeName(null, null)
 }
 
+private const val TITLE_DASH = " - "
+
 private val SAME_DAY_TIME = Regex("""\s*\(\d{2}\.\d{2}\)\s*$""")
 
 /** The text after ` - ` that follows the episode's numbers, without a DVR's same-day ` (HH.MM)` or a bracketed tag. */
 private fun titleAfter(stem: String, from: Int): String? {
     val rest = stem.substring(from.coerceAtMost(stem.length))
-    val dash = rest.indexOf(" - ")
+    val dash = rest.indexOf(TITLE_DASH)
     if (dash < 0) return null
-    return clean(rest.substring(dash + 3).replace(SAME_DAY_TIME, "")).ifEmpty { null }
+    return clean(rest.substring(dash + TITLE_DASH.length).replace(SAME_DAY_TIME, "")).ifEmpty { null }
 }
 
 private val TMDB_TAG = Regex("""(?i)[\[{](?:tmdb|tmdbid)[-=](\d+)[\]}]""")

@@ -100,6 +100,13 @@ private val wireJson = Json { encodeDefaults = true }
 internal val ADMIN_LOGIN_LIMIT = RateLimitName("admin-login")
 internal const val ADMIN_LOGINS_PER_MINUTE = 10
 
+/** How long a browser may keep a CORS preflight's answer. */
+private const val CORS_MAX_AGE_SECONDS = 600L
+private const val DEFLATE_PRIORITY = 0.9
+
+/** How deep in a failure's causes the body limit's exception is looked for. */
+private const val CAUSES_SEARCHED = 4
+
 /**
  * Every request body is capped at [CONTROL_BODY_LIMIT], except the policy writes, which may carry a whole policy file.
  */
@@ -171,7 +178,7 @@ fun Application.backendModule(
             allowHeader(HttpHeaders.XRequestId)
             exposeHeader(HttpHeaders.ETag)
             exposeHeader(HttpHeaders.XRequestId)
-            maxAgeInSeconds = 600
+            maxAgeInSeconds = CORS_MAX_AGE_SECONDS
         }
     }
     install(RequestBodyLimit) { bodyLimit { call -> requestBodyLimit(call.request.httpMethod, call.routedPath) } }
@@ -187,8 +194,9 @@ fun Application.backendModule(
     }
     install(ContentNegotiation) { json(wireJson) }
     install(Compression) {
+        // gzip first, deflate for a client that takes only it.
         gzip { priority = 1.0 }
-        deflate { priority = 0.9 }
+        deflate { priority = DEFLATE_PRIORITY }
         condition { compressible(request.call.routedPath) }
     }
     install(StatusPages) {
@@ -198,7 +206,7 @@ fun Application.backendModule(
         exception<Throwable> { call, cause ->
             // The body limit fails the read, so its exception can arrive wrapped in a closed-channel one.
             if (cause !is CancellationException &&
-                generateSequence(cause) { it.cause }.take(4).any { it is PayloadTooLargeException }
+                generateSequence(cause) { it.cause }.take(CAUSES_SEARCHED).any { it is PayloadTooLargeException }
             ) {
                 val limit = requestBodyLimit(call.request.httpMethod, call.routedPath)
                 call.respond(

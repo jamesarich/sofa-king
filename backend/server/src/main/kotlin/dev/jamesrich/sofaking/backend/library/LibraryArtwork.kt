@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.backend.MIB
 import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.io.runFor
@@ -9,6 +10,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.readBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -30,6 +32,9 @@ private const val FRAME_SECONDS = 30L
 /** How many locks the image fetches share. */
 private const val LOCK_STRIPES = 64
 
+/** The largest picture fetched. */
+private const val ARTWORK_LIMIT = 8 * MIB
+
 /** A TMDB image path as its API returns one: a slash, then letters, digits, `_` or `-`, and an image extension. */
 private val TMDB_IMAGE_PATH = Regex("""/[A-Za-z0-9_-]{1,128}\.(jpg|jpeg|png|webp)""")
 private val TMDB_IMAGE_SIZE = Regex("w[0-9]{2,4}|original")
@@ -45,7 +50,7 @@ class LibraryArtwork(
     private val http: HttpClient?,
     private val directory: Path,
     private val tmdbImages: String = "https://image.tmdb.org/t/p",
-    private val maxBytes: Int = 8 * 1024 * 1024,
+    private val maxBytes: Int = ARTWORK_LIMIT,
     /** FFmpeg, which takes a frame for a file with no picture; null takes none. */
     private val ffmpeg: String? = null,
 ) {
@@ -138,7 +143,7 @@ class LibraryArtwork(
 
     private suspend fun download(url: String): ByteArray? = runCatchingCancellable {
         http!!.prepareGet(url).execute { response ->
-            if (response.status.value != 200) {
+            if (response.status != HttpStatusCode.OK) {
                 log.info("artwork fetch failed status={}", response.status.value)
                 return@execute null
             }

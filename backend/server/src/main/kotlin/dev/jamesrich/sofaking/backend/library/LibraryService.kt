@@ -41,6 +41,9 @@ private val log = LoggerFactory.getLogger(LibraryService::class.java)
 /** The scan job's id on the Jobs page. */
 internal const val LIBRARY_SCAN_JOB = "library-scan"
 
+private val SCAN_EVERY: Duration = Duration.ofHours(6)
+private const val LIBRARY_NAME_LIMIT = 100
+
 /**
  * A folder a library may be added from: [root] is where the operator mounted media, [label] how the portal names it.
  */
@@ -72,7 +75,7 @@ class LibraryService(
     val roots: List<MediaRoot>,
     private val scanner: LibraryScanner,
     private val jobs: Jobs,
-    private val every: Duration = Duration.ofHours(6),
+    private val every: Duration = SCAN_EVERY,
     /** TMDB lookups after each scan, when `SOFA_TMDB_TOKEN` is set. */
     val metadata: LibraryMetadata? = null,
     /** The posters and backdrops `/artwork` serves. */
@@ -164,8 +167,12 @@ class LibraryService(
 
     suspend fun create(name: String, kind: LibraryKind, path: String): LibraryRecord {
         val title = name.trim()
-        if (title.isEmpty() || title.length > 100) {
-            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "A library name has 1 to 100 characters")
+        if (title.isEmpty() || title.length > LIBRARY_NAME_LIMIT) {
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                "A library name has 1 to $LIBRARY_NAME_LIMIT characters",
+            )
         }
         val folder = allowed(path)
         val library =
@@ -186,8 +193,12 @@ class LibraryService(
 
     suspend fun rename(id: String, name: String): LibraryRecord {
         val title = name.trim()
-        if (title.isEmpty() || title.length > 100) {
-            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "A library name has 1 to 100 characters")
+        if (title.isEmpty() || title.length > LIBRARY_NAME_LIMIT) {
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                "A library name has 1 to $LIBRARY_NAME_LIMIT characters",
+            )
         }
         if (!store.renameLibrary(
                 id,

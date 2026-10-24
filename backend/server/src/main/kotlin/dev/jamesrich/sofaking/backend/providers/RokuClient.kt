@@ -62,7 +62,7 @@ class RokuClient(private val context: ProviderContext) : ProviderClient {
         return ResolvedStream(url, STREAM_HEADERS, context.clock.instant().plus(URL_LIFETIME))
     }
 
-    private suspend fun listed(): List<ProviderChannel> = context.cached(CHANNELS, Duration.ofMinutes(30)) {
+    private suspend fun listed(): List<ProviderChannel> = context.cached(CHANNELS, CACHED_FOR) {
         fetchChannels()
     }
 
@@ -87,7 +87,7 @@ class RokuClient(private val context: ProviderContext) : ProviderClient {
     /** Runs [request] in the stored web session; a 401 or 403 boots a new session and tries once more. */
     private suspend fun session(request: suspend (Session) -> Fetched): Fetched {
         val first = request(current())
-        if (first.status != 401 && first.status != 403) return first
+        if (!first.refused) return first
         context.clearState(SESSION)
         return request(current())
     }
@@ -124,6 +124,9 @@ class RokuClient(private val context: ProviderContext) : ProviderClient {
         private const val WEB_BASE = "https://therokuchannel.roku.com"
         private const val CONTENT_BASE = "https://content.sr.roku.com/content/v1/roku-trc/"
         private const val CHANNELS = "channels"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(30)
         private const val SESSION = "session"
         private val SESSION_LIFETIME = Duration.ofMinutes(55)
         private val PLAY_ID_LIFETIME = Duration.ofHours(6)

@@ -64,7 +64,7 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
         return ResolvedStream(url, HEADERS, context.clock.instant().plus(URL_LIFETIME))
     }
 
-    private suspend fun listed(): List<Listed> = context.cached(CHANNELS, Duration.ofMinutes(10)) { fetchChannels() }
+    private suspend fun listed(): List<Listed> = context.cached(CHANNELS, CACHED_FOR) { fetchChannels() }
 
     private suspend fun fetchChannels(): List<Listed> {
         val payload = context.http.get("$apiBase/channels", HEADERS).require("Vizio channels").json()
@@ -113,6 +113,9 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
     companion object {
         private const val API_BASE = "https://watchfreeplus-epg-prod.smartcasttv.com/api"
         private const val CHANNELS = "channels"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(10)
         private val EPG_HORIZON = Duration.ofHours(24)
         private val URL_LIFETIME = Duration.ofHours(1)
         private val TIMESTAMP = DateTimeFormatter.ofPattern(

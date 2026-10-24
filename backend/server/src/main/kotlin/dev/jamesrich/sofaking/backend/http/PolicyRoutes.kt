@@ -17,6 +17,9 @@ import io.ktor.server.routing.route
 
 internal const val POLICY_BODY_LIMIT = 4 * 1024 * 1024L
 
+/** How many change log entries a read returns when it names no limit. */
+private const val CHANGES_SHOWN = 100
+
 /** The `If-Match` revision without quotes or a weak prefix; null when absent. */
 internal fun ApplicationCall.ifMatch(): String? =
     request.headers[HttpHeaders.IfMatch]?.trim()?.removePrefix("W/")?.trim('"')?.takeIf { it.isNotEmpty() }
@@ -54,7 +57,7 @@ fun Route.policyRoutes(policy: PolicyService?) {
     post("/policy/apply") { call.respond(loaded().apply("api")) }
     get("/policy/findings") { call.respond(loaded().findings()) }
     get("/policy/changes") {
-        call.respond(loaded().changes(call.request.queryParameters["limit"]?.toIntOrNull() ?: 100))
+        call.respond(loaded().changes(call.request.queryParameters["limit"]?.toIntOrNull() ?: CHANGES_SHOWN))
     }
     get("/stations/{key}") { call.respond(loaded().explain(call.parameters["key"]!!)) }
 }

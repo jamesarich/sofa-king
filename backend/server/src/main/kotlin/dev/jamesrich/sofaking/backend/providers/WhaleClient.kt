@@ -80,7 +80,7 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
     }
 
     /** The channel list, shared between the import, the guide and resolves within ten minutes. */
-    private suspend fun listed(): List<Listed> = context.cached(CHANNELS, Duration.ofMinutes(10)) { fetchChannels() }
+    private suspend fun listed(): List<Listed> = context.cached(CHANNELS, CACHED_FOR) { fetchChannels() }
 
     private suspend fun fetchChannels(): List<Listed> {
         val payload = authorized { token ->
@@ -124,7 +124,7 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
     /** Runs [request] with the current token; a 401 or 403 drops the stored token and tries once with a new one. */
     private suspend fun authorized(request: suspend (String) -> Fetched): Fetched {
         val first = request(token())
-        if (first.status != 401 && first.status != 403) return first.require("Whale API")
+        if (!first.refused) return first.require("Whale API")
         context.clearState(TOKEN)
         return request(token()).require("Whale API")
     }
@@ -148,6 +148,9 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
         /** The key the public web client at watch.whaletvplus.com sends; it identifies the client, not a user. */
         private const val API_KEY = "4ef13b5f3d2744e3b0a569feb8dde298"
         private const val CHANNELS = "channels"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(10)
         private const val TOKEN = "token"
         private const val EPG_BATCH = 10
         private val EPG_HORIZON = Duration.ofDays(7)

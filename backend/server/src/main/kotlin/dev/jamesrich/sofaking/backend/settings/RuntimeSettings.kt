@@ -27,10 +27,10 @@ data class RuntimeValues(
     val plexSyncMinutes: Int,
     val hdhrTuners: Int,
     val maxSessions: Int,
-    val recordingsFreeGib: Int = 10,
+    val recordingsFreeGib: Int = ServerConfig.DEFAULT_RECORDINGS_FREE_GIB,
     val recordingsKeepDays: Int = 0,
     val learnedBreaks: String = LearnedBreaks.SHADOW.setting,
-    val adListeners: Int = 6,
+    val adListeners: Int = ServerConfig.DEFAULT_AD_LISTENERS,
 ) {
     /** The values by their variable name, as the settings page and the database name them. */
     fun byName(): Map<String, String> = mapOf(
@@ -55,17 +55,20 @@ data class RuntimeValues(
                 LOG_LEVEL, GUIDE_DAYS, PLEX_SYNC_MINUTES, HDHR_TUNERS, MAX_SESSIONS, RECORDINGS_FREE_GIB,
                 RECORDINGS_KEEP_DAYS, LEARNED_BREAKS, AD_LISTENERS,
             )
-        val AD_LISTENERS_RANGE = 0..24
-        val FREE_GIB_RANGE = 0..100_000
-        val KEEP_DAYS_RANGE = 0..3650
 
         /** The server's defaults, for a runtime built without a [ServerConfig]. */
-        val DEFAULT = RuntimeValues("info", 3, 60, 2, 4)
+        val DEFAULT = RuntimeValues(
+            "info",
+            ServerConfig.DEFAULT_GUIDE_DAYS,
+            ServerConfig.DEFAULT_PLEX_SYNC_MINUTES,
+            ServerConfig.DEFAULT_TUNERS,
+            ServerConfig.DEFAULT_MAX_SESSIONS,
+        )
 
         /** What the environment set, the values the server starts with until a saved setting replaces one. */
         fun of(config: ServerConfig) = RuntimeValues(
             config.logging.level, config.outputs.guideDays,
-            config.plex?.syncMinutes ?: 60, config.hdhr.tuners, config.maxSessions, config.recordingsFreeGib,
+            config.plex?.syncMinutes ?: ServerConfig.DEFAULT_PLEX_SYNC_MINUTES, config.hdhr.tuners, config.maxSessions, config.recordingsFreeGib,
             config.recordingsKeepDays, config.learnedBreaks.setting, config.adListeners,
         )
 
@@ -99,8 +102,8 @@ data class RuntimeValues(
                     "$LEARNED_BREAKS must be one of ${LearnedBreaks.entries.joinToString { it.setting }}",
                 )
             }
-            val sessions = int(MAX_SESSIONS, environment.maxSessions, 1..16)
-            val tuners = int(HDHR_TUNERS, environment.hdhrTuners, 1..16)
+            val sessions = int(MAX_SESSIONS, environment.maxSessions, ServerConfig.MAX_SESSIONS_RANGE)
+            val tuners = int(HDHR_TUNERS, environment.hdhrTuners, ServerConfig.MAX_SESSIONS_RANGE)
             // The environment's own pair is the server's to live with (startup validated it); only a
             // saved value is held to the rule.
             if ((HDHR_TUNERS in overrides || MAX_SESSIONS in overrides) && tuners > sessions) {
@@ -111,20 +114,12 @@ data class RuntimeValues(
                 )
             }
             return RuntimeValues(
-                level, int(GUIDE_DAYS, environment.guideDays, 1..14),
-                int(
-                    PLEX_SYNC_MINUTES,
-                    environment.plexSyncMinutes,
-                    5..1440,
-                ),
+                level, int(GUIDE_DAYS, environment.guideDays, ServerConfig.GUIDE_DAYS_RANGE),
+                int(PLEX_SYNC_MINUTES, environment.plexSyncMinutes, ServerConfig.PLEX_SYNC_MINUTES_RANGE),
                 tuners, sessions,
-                int(
-                    RECORDINGS_FREE_GIB,
-                    environment.recordingsFreeGib,
-                    FREE_GIB_RANGE,
-                ),
-                int(RECORDINGS_KEEP_DAYS, environment.recordingsKeepDays, KEEP_DAYS_RANGE),
-                learned, int(AD_LISTENERS, environment.adListeners, AD_LISTENERS_RANGE),
+                int(RECORDINGS_FREE_GIB, environment.recordingsFreeGib, ServerConfig.RECORDINGS_FREE_GIB_RANGE),
+                int(RECORDINGS_KEEP_DAYS, environment.recordingsKeepDays, ServerConfig.RECORDINGS_KEEP_DAYS_RANGE),
+                learned, int(AD_LISTENERS, environment.adListeners, ServerConfig.AD_LISTENERS_RANGE),
             )
         }
     }

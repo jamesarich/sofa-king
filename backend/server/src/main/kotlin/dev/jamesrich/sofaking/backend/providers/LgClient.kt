@@ -55,7 +55,7 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
         return ResolvedStream(url, STREAM_HEADERS, now.plus(URL_LIFETIME))
     }
 
-    private suspend fun listed(): List<Listed> = context.cached(SCHEDULE, Duration.ofMinutes(10)) { fetchSchedule() }
+    private suspend fun listed(): List<Listed> = context.cached(SCHEDULE, CACHED_FOR) { fetchSchedule() }
 
     private suspend fun fetchSchedule(): List<Listed> {
         val fetched = context.http.get("$apiBase/schedulelist", API_HEADERS).require("LG schedulelist")
@@ -95,6 +95,9 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
     companion object {
         private const val API_BASE = "https://api.lgchannels.com/api/v1.0"
         private const val SCHEDULE = "schedulelist"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(10)
         private val URL_LIFETIME = Duration.ofHours(1)
         private val STREAM_HEADERS = mapOf(
             "User-Agent" to BROWSER_USER_AGENT,

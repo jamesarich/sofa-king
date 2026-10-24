@@ -167,6 +167,9 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
         /** The control device the NVIDIA container runtime passes in with a GPU. */
         const val NVIDIA_DEVICE = "/dev/nvidiactl"
 
+        /** How long the encoder check's one-frame encode may take. */
+        private const val CHECK_TIMEOUT_SECONDS = 20L
+
         /** HDR10 or HLG to SDR BT.709 with zimg and the Hable curve, as most media servers do. */
         private const val TONE_MAP = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709," +
             "tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv"
@@ -175,7 +178,7 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
             val process = ProcessBuilder(
                 command,
             ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
-            if (!process.waitFor(20, TimeUnit.SECONDS)) {
+            if (!process.waitFor(CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 process.destroyForcibly()
                 false
             } else {

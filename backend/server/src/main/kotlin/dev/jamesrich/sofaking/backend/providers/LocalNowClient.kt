@@ -64,7 +64,7 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
         return ResolvedStream(url, STREAM_HEADERS, context.clock.instant().plus(URL_LIFETIME))
     }
 
-    private suspend fun snapshot(): Snapshot = context.cached(SNAPSHOT, Duration.ofMinutes(15)) { fetch() }
+    private suspend fun snapshot(): Snapshot = context.cached(SNAPSHOT, CACHED_FOR) { fetch() }
 
     private suspend fun fetch(): Snapshot {
         val query = listOfNotNull(
@@ -117,7 +117,7 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
     /** Runs [request] with the page's runtime config; a 401 or 403 reads the page again and tries once more. */
     private suspend fun authorized(request: suspend (Runtime) -> Fetched): Fetched {
         val first = request(runtime())
-        if (first.status != 401 && first.status != 403) return first.require("Local Now API")
+        if (!first.refused) return first.require("Local Now API")
         context.clearState(RUNTIME)
         return request(runtime()).require("Local Now API")
     }
@@ -154,6 +154,9 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
     companion object {
         private const val PAGE_URL = "https://localnow.com/"
         private const val SNAPSHOT = "snapshot"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(15)
         private const val RUNTIME = "runtime"
         private val RUNTIME_LIFETIME = Duration.ofHours(12)
         private val URL_LIFETIME = Duration.ofHours(1)

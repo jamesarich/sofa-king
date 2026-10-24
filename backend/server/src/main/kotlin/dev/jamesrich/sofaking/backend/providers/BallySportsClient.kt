@@ -44,7 +44,7 @@ class BallySportsClient(private val context: ProviderContext) : ProviderClient {
         return ResolvedStream(url, mapOf("User-Agent" to BROWSER_USER_AGENT))
     }
 
-    private suspend fun page(): Page = context.cached(PAGE, Duration.ofMinutes(10)) { fetchPage() }
+    private suspend fun page(): Page = context.cached(PAGE, CACHED_FOR) { fetchPage() }
 
     private suspend fun fetchPage(): Page {
         val html = context.http.get(pageUrl, HEADERS).require("Bally Sports page").text()
@@ -77,6 +77,9 @@ class BallySportsClient(private val context: ProviderContext) : ProviderClient {
     companion object {
         private const val PAGE_URL = "https://www.ballysports.com/channels/milb"
         private const val PAGE = "page"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(10)
         private val HEADERS = mapOf(
             "User-Agent" to BROWSER_USER_AGENT,
             "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",

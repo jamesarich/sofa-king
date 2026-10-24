@@ -72,7 +72,7 @@ class HdHomeRunClient(private val context: ProviderContext) : ProviderClient {
         return ResolvedStream(stream)
     }
 
-    private suspend fun listed(): List<Listed> = context.cached(LINEUP, Duration.ofMinutes(55)) { fetchLineup() }
+    private suspend fun listed(): List<Listed> = context.cached(LINEUP, CACHED_FOR) { fetchLineup() }
 
     private suspend fun fetchLineup(): List<Listed> {
         val rows = context.http.get("$base/lineup.json").require("HDHomeRun lineup").json().array
@@ -106,6 +106,9 @@ class HdHomeRunClient(private val context: ProviderContext) : ProviderClient {
     companion object {
         private const val GUIDE_API = "https://api.hdhomerun.com/api/xmltv"
         private const val LINEUP = "lineup"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(55)
         private const val GUIDE = "guide"
         private val GUIDE_TTL_MIN = Duration.ofHours(20)
         private val GUIDE_TTL_SPREAD = Duration.ofHours(8)

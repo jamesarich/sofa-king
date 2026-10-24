@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.providers
 
+import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
@@ -40,7 +41,7 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
                 programs += GuideProgram(
                     channel.channel.id,
                     start,
-                    start.plusMillis((seconds * 1000).toLong()),
+                    start.plusMillis((seconds * MS_PER_SECOND).toLong()),
                     title,
                     subTitle = if (series != null) episode else null,
                 )
@@ -56,15 +57,15 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
                 listed().firstOrNull { it.channel.id == channelId }
             }
             ?: throw ProviderFailure("Channel is no longer listed", transient = false)
-        val url = context.cached("asset:${listed.videoId}", Duration.ofHours(6)) { asset(listed.videoId) }
+        val url = context.cached("asset:${listed.videoId}", ASSET_FOR) { asset(listed.videoId) }
         return ResolvedStream(
             url,
             mapOf("User-Agent" to BROWSER_USER_AGENT),
-            context.clock.instant().plus(Duration.ofHours(6)),
+            context.clock.instant().plus(ASSET_FOR),
         )
     }
 
-    private suspend fun listed(): List<Listed> = context.cached(STREAMS, Duration.ofMinutes(10)) { fetchStreams() }
+    private suspend fun listed(): List<Listed> = context.cached(STREAMS, CACHED_FOR) { fetchStreams() }
 
     private suspend fun fetchStreams(): List<Listed> {
         val html = context.http.get(
@@ -120,6 +121,12 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
         private val HLS_MIME_TYPES = setOf("application/x-mpegurl", "application/vnd.apple.mpegurl")
         private const val SITE_BASE = "https://www.adultswim.com"
         private const val STREAMS = "streams"
+
+        /** How long a resolved stream URL is used. */
+        private val ASSET_FOR: Duration = Duration.ofHours(6)
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(10)
         private val HEADERS = mapOf(
             "User-Agent" to BROWSER_USER_AGENT,
             "Accept" to "application/json, text/plain, */*",

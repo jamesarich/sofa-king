@@ -82,7 +82,7 @@ class StirrClient(private val context: ProviderContext) : ProviderClient {
         return ResolvedStream(url, STREAM_HEADERS, context.clock.instant().plus(URL_LIFETIME))
     }
 
-    private suspend fun listed(): List<ProviderChannel> = context.cached(CHANNELS, Duration.ofMinutes(30)) {
+    private suspend fun listed(): List<ProviderChannel> = context.cached(CHANNELS, CACHED_FOR) {
         fetchChannels()
     }
 
@@ -127,6 +127,9 @@ class StirrClient(private val context: ProviderContext) : ProviderClient {
     companion object {
         private const val API_BASE = "https://stirr.com/api"
         private const val CHANNELS = "channels"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(30)
         private val SPACES = Regex("""\s+""")
         private val URL_LIFETIME = Duration.ofHours(1)
         private val STREAM_HEADERS = mapOf(

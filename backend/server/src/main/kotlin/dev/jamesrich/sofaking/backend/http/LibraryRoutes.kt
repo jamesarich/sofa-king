@@ -42,9 +42,9 @@ fun Route.libraryRoutes(libraries: LibraryService) {
     get("/api/v1/library/home") { call.respond(catalog.home()) }
     get("/api/v1/library/search") {
         val query =
-            call.request.queryParameters["q"]?.takeIf { it.length <= 100 }
-                ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "q is 1 to 100 characters")
-        call.respond(catalog.search(query, 50))
+            call.request.queryParameters["q"]?.takeIf { it.length <= QUERY_LIMIT }
+                ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "q is 1 to $QUERY_LIMIT characters")
+        call.respond(catalog.search(query, SEARCH_RESULTS))
     }
     get("/api/v1/library/items/{id}") { call.respond(catalog.item(call.parameters["id"]!!)) }
     put("/api/v1/library/items/{id}/play-state") {
@@ -131,3 +131,6 @@ fun Route.vodRoutes(vod: VodSessions) {
         }
     }
 }
+
+private const val QUERY_LIMIT = 100
+private const val SEARCH_RESULTS = 50

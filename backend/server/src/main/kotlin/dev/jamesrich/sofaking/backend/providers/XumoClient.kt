@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import dev.jamesrich.sofaking.backend.catalog.percentEncode
+import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.json.JsonPrimitive
 import java.net.URI
 import java.time.Duration
@@ -43,7 +44,7 @@ class XumoClient(private val context: ProviderContext) : ProviderClient {
                 val url = "$apiBase/v2/epg/$market/${DATE.format(block)}/${block.hour / 6}.json?f=asset.title&" +
                     "f=asset.descriptions&limit=$PAGE&offset=$offset"
                 val fetched = context.http.get(url, HEADERS)
-                if (fetched.status == 400) break
+                if (fetched.status == HttpStatusCode.BadRequest.value) break
                 val page = fetched.require("Xumo guide").json()
                 val rows = page["channels"].array
                 for (row in rows) {
@@ -161,7 +162,7 @@ class XumoClient(private val context: ProviderContext) : ProviderClient {
         return httpOrNull(target) ?: url
     }
 
-    private suspend fun listed(): List<ProviderChannel> = context.cached(CHANNELS, Duration.ofMinutes(30)) {
+    private suspend fun listed(): List<ProviderChannel> = context.cached(CHANNELS, CACHED_FOR) {
         fetchChannels()
     }
 
@@ -210,6 +211,9 @@ class XumoClient(private val context: ProviderContext) : ProviderClient {
         private const val MARKET = "10006"
         private const val GEO = "2f08a9b3"
         private const val CHANNELS = "channels"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(30)
         private const val PAGE = 50
         private const val MAX_OFFSET = 1000
         private const val GUIDE_BLOCKS = 3

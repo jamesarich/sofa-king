@@ -95,7 +95,7 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
         return ResolvedStream(url, streamHeaders(), context.clock.instant().plus(URL_LIFETIME))
     }
 
-    private suspend fun listed(): List<Listed> = context.cached(CHANNELS, Duration.ofMinutes(30)) { fetchChannels() }
+    private suspend fun listed(): List<Listed> = context.cached(CHANNELS, CACHED_FOR) { fetchChannels() }
 
     private suspend fun fetchChannels(): List<Listed> {
         val payload = authorized { session ->
@@ -134,7 +134,7 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
     /** Runs [request] in the stored session; a 401 or 403 boots a new one and tries once more. */
     private suspend fun authorized(request: suspend (Session) -> Fetched): Fetched {
         val first = request(session())
-        if (first.status != 401 && first.status != 403) return first.require("Pluto API")
+        if (!first.refused) return first.require("Pluto API")
         context.clearState(SESSION)
         return request(session()).require("Pluto API")
     }
@@ -183,6 +183,9 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
         private const val CHANNELS_BASE = "https://service-channels.clusters.pluto.tv"
         private const val APP_VERSION = "8.0.0-111b2b9dc00bd0bea9030b30662159ed9e7c8bc6"
         private const val CHANNELS = "channels"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(30)
         private const val SESSION = "session"
         private const val CATEGORIES = "categories"
         private const val GUIDE_BATCH = 25

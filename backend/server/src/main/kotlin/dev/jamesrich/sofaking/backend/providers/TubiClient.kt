@@ -50,7 +50,7 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
         return ResolvedStream(manifest, STREAM_HEADERS, context.clock.instant().plus(URL_LIFETIME))
     }
 
-    private suspend fun snapshot(): Snapshot = context.cached(SNAPSHOT, Duration.ofMinutes(30)) { fetch() }
+    private suspend fun snapshot(): Snapshot = context.cached(SNAPSHOT, CACHED_FOR) { fetch() }
 
     private suspend fun fetch(): Snapshot {
         val html = context.http.get(pageUrl, PAGE_HEADERS).require("Tubi live page").text()
@@ -116,6 +116,9 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
         private const val EPG_URL = "https://tubitv.com/oz/epg/programming"
         private const val LINEAR_KEY = "tubitv_us_linear"
         private const val SNAPSHOT = "snapshot"
+
+        /** How long the listing is kept before it is fetched again. */
+        private val CACHED_FOR: Duration = Duration.ofMinutes(30)
         private const val BATCH = 50
         private val URL_LIFETIME = Duration.ofHours(1)
         private val CURATED =

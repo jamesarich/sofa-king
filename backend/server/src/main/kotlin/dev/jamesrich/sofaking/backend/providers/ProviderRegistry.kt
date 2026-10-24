@@ -144,7 +144,7 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
             val url = NativeServices.offeringUrl(client.service, item.id)
             channels[id] = Channel(
                 id,
-                item.number?.takeIf { it.isNotBlank() } ?: id.take(8),
+                item.number?.takeIf { it.isNotBlank() } ?: id.take(FALLBACK_NUMBER_LENGTH),
                 item.name.trim(),
                 httpOrNull(item.logo),
                 listOfNotNull(item.group?.takeIf { it.isNotBlank() }) + item.tags,
@@ -153,7 +153,7 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
             offerings +=
                 Offering(stableId("offering:${config.id}:${item.id}:$url"), id, config.id, url, client.protocol)
         }
-        require(channels.size <= 10_000) { "Provider exceeds import limits" }
+        require(channels.size <= CHANNEL_LIMIT) { "Provider exceeds import limits" }
         return ParsedPlaylist(
             channels.values.toList(),
             offerings,
@@ -238,3 +238,8 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
         }
     }
 }
+
+/** A channel with no number of its own is numbered by the start of its ID. */
+private const val FALLBACK_NUMBER_LENGTH = 8
+
+private const val CHANNEL_LIMIT = 10_000

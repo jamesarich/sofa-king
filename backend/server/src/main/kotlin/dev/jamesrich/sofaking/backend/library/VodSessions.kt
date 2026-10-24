@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.io.runFor
@@ -38,13 +39,14 @@ private val log = LoggerFactory.getLogger(VodSessions::class.java)
 
 /** The HLS segment length FFmpeg cuts to, in seconds. */
 private const val SEGMENT_SECONDS = 4
-private const val SEGMENT_MS = SEGMENT_SECONDS * 1000L
+private const val SEGMENT_MS = SEGMENT_SECONDS * MS_PER_SECOND.toLong()
 
 /**
  * How many segments a whole playlist of an item [durationMs] long lists. Less than a second left over joins the last
  * segment, as the stream's last frames can end that much before its audio does.
  */
-internal fun segmentCount(durationMs: Long): Int = maxOf(1, ((durationMs + SEGMENT_MS - 1000) / SEGMENT_MS).toInt())
+internal fun segmentCount(durationMs: Long): Int =
+    maxOf(1, ((durationMs + SEGMENT_MS - MS_PER_SECOND) / SEGMENT_MS).toInt())
 
 /** A VOD playlist of every segment of an item [durationMs] long, the last one as long as what is left. */
 internal fun wholePlaylist(durationMs: Long): String = buildString {
@@ -55,7 +57,7 @@ internal fun wholePlaylist(durationMs: Long): String = buildString {
     val count = segmentCount(durationMs)
     for (i in 0 until count) {
         val length = if (i == count - 1) durationMs - i * SEGMENT_MS else SEGMENT_MS
-        append("#EXTINF:%.3f,\nseg$i.ts\n".format(java.util.Locale.ROOT, length / 1000.0))
+        append("#EXTINF:%.3f,\nseg$i.ts\n".format(java.util.Locale.ROOT, length.toDouble() / MS_PER_SECOND))
     }
     append("#EXT-X-ENDLIST\n")
 }
@@ -95,6 +97,17 @@ private const val SUBTITLE_EXTRACTIONS = 3
 
 /** How long FFmpeg waits for a growing recording to grow before it ends the stream. */
 private const val FOLLOW_TIMEOUT_MICROS = 60_000_000L
+
+/** How long an idle VOD session lasts. */
+private val LEASE: Duration = Duration.ofMinutes(5)
+
+/** How often, and how many times, a request checks for the segment FFmpeg is writing: 20 seconds in all. */
+private const val READY_CHECKS = 200
+private const val READY_CHECK_MS = 100L
+private const val SECRET_BYTES = 16
+
+/** Bits a sample in 8-bit video, which every decoder takes. */
+private const val STANDARD_BIT_DEPTH = 8
 
 /**
  * A recording's file as [VodSessions] plays it. [growing] is true while it records, so its stream follows the file;
@@ -161,7 +174,7 @@ class VodSessions(
     private val ffmpeg: String,
     private val directory: Path,
     private val maxConverting: Int = 2,
-    private val lease: Duration = Duration.ofMinutes(5),
+    private val lease: Duration = LEASE,
     private val recordings: (suspend (String) -> PlayableFile?)? = null,
     private val probe: suspend (Path) -> MediaInfo? = { null },
     private var encoder: VideoEncoder = VideoEncoder(),
@@ -546,13 +559,13 @@ class VodSessions(
     }
 
     private suspend fun waitFor(state: VodState, epoch: Int, ready: () -> Boolean): Unit? {
-        repeat(200) {
+        repeat(READY_CHECKS) {
             if (withContext(Dispatchers.IO) { ready() }) return Unit
             val running = locked {
                 state.epoch == epoch && state.process?.isAlive == true && sessions[state.id] === state
             }
             if (!running) return if (withContext(Dispatchers.IO) { ready() }) Unit else null
-            delay(100)
+            delay(READY_CHECK_MS)
         }
         return null
     }
@@ -629,7 +642,7 @@ class VodSessions(
         return VodSession(id, itemId, mode, descriptor, startMs, durationMs, expires.toString(), recordingId)
     }
 
-    private fun secret(): String = HexFormat.of().formatHex(ByteArray(16).also(random::nextBytes))
+    private fun secret(): String = HexFormat.of().formatHex(ByteArray(SECRET_BYTES).also(random::nextBytes))
 
     private companion object {
         val SEGMENT = Regex("seg([0-9]{1,6})\\.ts")
@@ -739,8 +752,8 @@ private val DEEP_PIXEL_FORMAT = Regex("""(p9|p1[0-6]|p01[0-6])(le|be)?$""")
  * True when [video] has more than 8 bits a sample, as HEVC Main 10 and H.264 High 10 do. Most hardware decoders take
  * 10-bit HEVC, VP9 and AV1, but no phone, TV or browser takes 10-bit H.264.
  */
-internal fun deepColor(video: VideoStream): Boolean =
-    (video.bitDepth ?: 0) > 8 || video.pixelFormat?.let { DEEP_PIXEL_FORMAT.containsMatchIn(it) } == true
+internal fun deepColor(video: VideoStream): Boolean = (video.bitDepth ?: 0) > STANDARD_BIT_DEPTH ||
+    video.pixelFormat?.let { DEEP_PIXEL_FORMAT.containsMatchIn(it) } == true
 
 /**
  * True when the stream is written as fragmented MP4 rather than MPEG-TS: copied HEVC, which AVPlayer plays only in
@@ -809,7 +822,7 @@ internal fun vodCommand(
             addAll(
                 listOf(
                     "-output_ts_offset",
-                    "%.3f".format(java.util.Locale.ROOT, startMs / 1000.0),
+                    "%.3f".format(java.util.Locale.ROOT, startMs.toDouble() / MS_PER_SECOND),
                     "-start_number",
                     "$firstSegment",
                 ),

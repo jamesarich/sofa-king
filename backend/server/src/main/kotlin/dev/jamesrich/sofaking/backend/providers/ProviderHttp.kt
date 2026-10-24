@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.providers
 
+import dev.jamesrich.sofaking.backend.KIB
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.upstream.Hop
 import dev.jamesrich.sofaking.backend.upstream.REDIRECT_STATUSES
@@ -16,7 +17,9 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import io.ktor.utils.io.readBuffer
 import kotlinx.io.readByteArray
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -46,7 +49,13 @@ class Fetched(
     val location: String? = null,
     val cookies: List<String> = emptyList(),
 ) {
-    val ok: Boolean get() = status in 200..299
+    val ok: Boolean get() = HttpStatusCode.fromValue(status).isSuccess()
+
+    /** The service turned the credential down, as it answers an expired session token. */
+    val refused: Boolean get() = status == HttpStatusCode.Unauthorized.value || status == HttpStatusCode.Forbidden.value
+
+    /** The service asks for fewer requests. */
+    val throttled: Boolean get() = status == HttpStatusCode.TooManyRequests.value
 
     fun text(): String = body.toString(Charsets.UTF_8)
 
@@ -64,7 +73,7 @@ class Fetched(
     }
 }
 
-internal val GONE_STATUSES = setOf(404, 410)
+internal val GONE_STATUSES = setOf(HttpStatusCode.NotFound.value, HttpStatusCode.Gone.value)
 
 internal val lenientJson = Json {
     ignoreUnknownKeys = true
@@ -159,7 +168,7 @@ class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPol
                     Hop.Redirect(location)
                 } else {
                     val bytes = response.bodyAsChannel().readBuffer(limit.toLong() + 1).readByteArray()
-                    if (bytes.size > limit) throw ProviderFailure("Provider response exceeds ${limit / 1024} KiB")
+                    if (bytes.size > limit) throw ProviderFailure("Provider response exceeds ${limit / KIB} KiB")
                     Hop.Done(
                         Fetched(
                             status,
@@ -188,7 +197,7 @@ class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPol
             if (bytes.size >= 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()) {
                 val inflated = GZIPInputStream(ByteArrayInputStream(bytes)).use { it.readNBytes(limit + 1) }
                 if (inflated.size > limit) {
-                    throw ProviderFailure("Provider response exceeds ${limit / 1024} KiB once inflated")
+                    throw ProviderFailure("Provider response exceeds ${limit / KIB} KiB once inflated")
                 }
                 inflated
             } else {
@@ -286,4 +295,6 @@ internal fun nextData(html: String, what: String): JsonElement {
 internal fun httpOrNull(value: String?): String? = value?.trim()?.takeIf {
     it.startsWith("https://") ||
         it.startsWith("http://")
-}?.take(2048)
+}?.take(URL_LIMIT)
+
+private const val URL_LIMIT = 2048

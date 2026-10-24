@@ -69,7 +69,10 @@ class AdClock(
     /** Whether segments should be [heard]: learning is not off. */
     val listening: Boolean get() = learning() != LearnedBreaks.OFF
 
-    /** [text] with its ad runs marked (see [AdBreaks.annotate]), after noting its segments for [at]. */
+    /**
+     * [text] with its ad runs marked (see [AdBreaks.annotate]) and the player held further back where the window has
+     * room (see [withHoldBack]), after noting its segments for [at].
+     */
     @Synchronized
     fun annotate(text: String, base: URI): String {
         val read = AdBreaks.parse(text, base) ?: return text
@@ -87,7 +90,9 @@ class AdClock(
             last?.ad == true && parsed.segments.none { it.cueIn } -> timeline.openCue
             else -> null
         }
-        return AdBreaks.annotate(text, runs)
+        val (held, holdBack) = withHoldBack(text, read.segments, timeline.holdBackMs)
+        timeline.holdBackMs = holdBack
+        return AdBreaks.annotate(held, runs)
     }
 
     /**

@@ -29,6 +29,9 @@ internal class AdTimeline(val key: String, private val segmentLimit: Int) {
     var lastServed: Long? = null
     var servedAt = 0L
 
+    /** The hold-back the last refresh was sent with (see [withHoldBack]). */
+    var holdBackMs: Long? = null
+
     /** The first segment of a cue break the last refresh left open. */
     var openCue: Long? = null
 

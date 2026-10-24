@@ -332,4 +332,46 @@ master_5_5535913.ts
         assertTrue(library.frozen())
         assertEquals(listOf(CANARY), found.map { it.rule })
     }
+
+    /** A live window of [count] six-second segments from [first], as most free services serve about a minute. */
+    private fun window(first: Int, count: Int, extra: String = ""): String =
+        "#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:$first\n$extra" +
+            (first until first + count).joinToString("") { "#EXTINF:6,\nseg-$it.ts\n" }
+
+    @Test
+    fun `a minute-long window asks the player to hold 36 seconds back, under the target line`() {
+        assertEquals(
+            window(100, 10).replace(
+                "#EXT-X-TARGETDURATION:6\n",
+                "#EXT-X-TARGETDURATION:6\n#EXT-X-SERVER-CONTROL:HOLD-BACK=36\n",
+            ),
+            AdClock().annotate(window(100, 10), whaleBase),
+        )
+    }
+
+    @Test
+    fun `a window too short to hold the player back further than three target durations goes as it was`() {
+        // Pluto serves five segments; 30 s leaves 12 s behind 18 s, no more than the default.
+        assertEquals(window(100, 5), AdClock().annotate(window(100, 5), whaleBase))
+        assertEquals(window(100, 3), AdClock().annotate(window(100, 3), whaleBase))
+    }
+
+    @Test
+    fun `a playlist that ended or sets its own server control keeps its own`() {
+        val ended = window(100, 10) + "#EXT-X-ENDLIST\n"
+        assertEquals(ended, AdClock().annotate(ended, whaleBase))
+        val own = window(100, 10, "#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES\n")
+        assertEquals(own, AdClock().annotate(own, whaleBase))
+    }
+
+    @Test
+    fun `the hold-back shrinks with a window that no longer fits it and then stays put`() {
+        val clock = AdClock()
+        assertTrue(clock.annotate(window(100, 10), whaleBase).contains("HOLD-BACK=36\n"))
+        // 54 s still leaves 18 s behind 36.
+        assertTrue(clock.annotate(window(101, 9), whaleBase).contains("HOLD-BACK=36\n"))
+        // 48 s leaves room for 30 only.
+        assertTrue(clock.annotate(window(102, 8), whaleBase).contains("HOLD-BACK=30\n"))
+        assertTrue(clock.annotate(window(103, 10), whaleBase).contains("HOLD-BACK=30\n"))
+    }
 }

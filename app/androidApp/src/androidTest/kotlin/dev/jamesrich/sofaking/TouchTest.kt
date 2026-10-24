@@ -80,8 +80,14 @@ class TouchTest {
 
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.startActivity(context.packageManager.getLaunchIntentForPackage(context.packageName)!!.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        // Back sent before the window has input focus again goes to the system, not the player.
-        eventually("the player back full screen") { !inPictureInPicture() && device.hasObject(By.res(PLAYER)) && appFocused() }
+        eventually("the player back full screen") { !inPictureInPicture() && device.hasObject(By.res(PLAYER)) }
+        // Back goes to the window with input focus, and System UI can keep it after picture-in-picture closes; a touch
+        // on the player hands it back, as it does for a viewer.
+        if (!within(FOCUS_MS) { appFocused() }) {
+            println("Back from picture-in-picture, input focus stayed on ${focusedWindow()}; touching the player")
+            device.click(device.displayWidth / 2, device.displayHeight / 4)
+        }
+        check(within(TIMEOUT_MS) { appFocused() }) { "Input focus stayed on ${focusedWindow()}" }
         check(server.watching().size == 1) { "Back from picture-in-picture, the app holds ${server.watching().size} sessions" }
         device.pressBack()
         eventually("the guide, and the channel closed") { device.hasObject(By.res(GUIDE)) && server.watching().isEmpty() }
@@ -169,15 +175,23 @@ class TouchTest {
         return pinned
     }
 
-    private fun appFocused(): Boolean =
-        device.executeShellCommand("dumpsys window").lineSequence().any { "mCurrentFocus" in it && "$PACKAGE/" in it }
+    private fun focusedWindow(): String =
+        device.executeShellCommand("dumpsys window").lineSequence().firstOrNull { "mCurrentFocus" in it }?.trim().orEmpty()
+
+    private fun appFocused(): Boolean = "$PACKAGE/" in focusedWindow()
 
     private fun eventually(what: String, condition: () -> Boolean) {
-        val deadline = System.currentTimeMillis() + TIMEOUT_MS
+        check(within(TIMEOUT_MS, condition)) { "Timed out waiting for $what" }
+    }
+
+    /** Whether the condition holds within the time, checked every [POLL_MS]. */
+    private fun within(ms: Long, condition: () -> Boolean): Boolean {
+        val deadline = System.currentTimeMillis() + ms
         while (!condition()) {
-            check(System.currentTimeMillis() < deadline) { "Timed out waiting for $what" }
+            if (System.currentTimeMillis() >= deadline) return false
             Thread.sleep(POLL_MS)
         }
+        return true
     }
 
     private class Touch(val name: String, val weight: Int, val act: (UiDevice, Random) -> Unit)
@@ -191,6 +205,7 @@ class TouchTest {
         val FIRST_PAGE: Pattern = Pattern.compile("$PLAYER|$GUIDE")
 
         const val TIMEOUT_MS = 30_000L
+        const val FOCUS_MS = 5_000L
         const val POLL_MS = 500L
         const val PLAYBACK_MS = 5_000L
         const val SETTLE_MS = 2_000L

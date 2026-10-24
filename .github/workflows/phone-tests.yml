@@ -59,6 +59,13 @@ jobs:
       - name: Build the debug app and its tests
         working-directory: app
         run: ./gradlew --console=plain :androidApp:assembleDebug :androidApp:assembleDebugAndroidTest
+      # The emulator shares the runner's memory with the fixture server and its FFmpeg relays. It once vanished mid-walk
+      # with no crash of its own, as an out-of-memory kill does; the idle Gradle and Kotlin daemons give that memory back.
+      - name: Stop the build daemons
+        run: |
+          (cd app && ./gradlew --stop)
+          pkill -f KotlinCompileDaemon || true
+          free -m
       # It keeps serving for the rest of the job; the emulator reaches the runner's loopback at 10.0.2.2.
       - name: Start the fixture server
         working-directory: app
@@ -100,6 +107,12 @@ jobs:
             -Pandroid.testInstrumentationRunnerArguments.sofakingToken="$PHONE_TOKEN"
             -Pandroid.testInstrumentationRunnerArguments.sofakingWalkSteps="$PHONE_WALK_STEPS"
             ${PHONE_WALK_SEED:+-Pandroid.testInstrumentationRunnerArguments.sofakingWalkSeed=$PHONE_WALK_SEED}
+      # An emulator that disappears mid-run leaves no log of its own; the kernel says whether it ran out of memory.
+      - name: Show the kernel's memory kills
+        if: failure()
+        run: |
+          free -m
+          sudo dmesg | grep -iE "out of memory|killed process|oom" || echo "No out-of-memory kills"
       - name: Upload the reports and logs
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

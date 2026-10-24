@@ -1,16 +1,18 @@
-# The guide opens the focused channel full screen on OK, and Back brings the guide back.
+# The guide opens the focused channel full screen on its own after a short rest (Settings > Open full screen, 10 s by
+# default), and Back brings the guide back. OK would open it too, but a second OK in the player opens the channel list,
+# so the flow rests rather than pressing it, which keeps it the same whether the guide or the player is already up.
 appId: dev.jamesrich.sofaking
 name: Guide to full screen and back
 ---
 - extendedWaitUntil:
     visible: "Sofa Sports"
     timeout: 30000
-- pressKey: Remote Dpad Center
-# Full screen shows only the channel playing.
+# The rest opens the focused channel full screen, which shows only the channel playing.
 - extendedWaitUntil:
     notVisible: "Sofa Sports"
-    timeout: 15000
+    timeout: 25000
 - pressKey: Back
+# Back returns to the guide, which does not reopen the channel it came from.
 - extendedWaitUntil:
     visible: "Sofa Sports"
     timeout: 15000

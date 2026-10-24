@@ -97,17 +97,19 @@ final class RemoteTests: XCTestCase {
 
     /// Random arrows, Select and Play/Pause on the Server address keyboard, which reopens whenever it closes: tvOS's
     /// keyboard can lose the key under its cursor, and an arrow then threw inside UIKit and stopped the app.
-    /// SOFAKING_WALK_SEED replays the presses.
+    /// SOFAKING_WALK_SEED replays the presses; SOFAKING_KEYBOARD_KEYS sets how many (120 by default).
     @MainActor
     func testKeyboardWithRandomKeys() throws {
-        let seed = ProcessInfo.processInfo.environment["SOFAKING_WALK_SEED"].flatMap(UInt64.init) ?? UInt64(Date().timeIntervalSince1970)
+        let environment = ProcessInfo.processInfo.environment
+        let seed = environment["SOFAKING_WALK_SEED"].flatMap(UInt64.init) ?? UInt64(Date().timeIntervalSince1970)
+        let count = environment["SOFAKING_KEYBOARD_KEYS"].flatMap(Int.init) ?? 120
         try launchToList()
         focus(app.tabBars.buttons["Settings"], by: Array(repeating: XCUIRemote.Button.up, count: 6) + Array(repeating: XCUIRemote.Button.right, count: 3))
         let field = app.textFields.element(boundBy: 0)
         XCTAssertTrue(field.waitForExistence(timeout: 10), "No Server address field\n\(screen)")
         var random = SplitMix64(seed: seed)
         var pressed: [String] = []
-        for _ in 0..<120 {
+        for _ in 0..<count {
             if !app.keyboards.firstMatch.exists {
                 // Up from anywhere in Settings reaches the field; Select there opens its keyboard, never Save.
                 focus(field, by: Array(repeating: XCUIRemote.Button.up, count: 8) + [.down, .down, .down, .down])

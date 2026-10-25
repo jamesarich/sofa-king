@@ -71,6 +71,7 @@ internal fun parseNfo(input: InputStream): Nfo? {
         }
             ?.child("value")?.textContent?.trim()?.toDoubleOrNull()
     val aired = text("aired") ?: text("premiered")
+    val ids = root.providerIds()
     return Nfo(
         title = text("title"),
         sortTitle = text("sorttitle"),
@@ -89,9 +90,19 @@ internal fun parseNfo(input: InputStream): Nfo? {
             it.child("name")?.textContent?.trim()?.ifEmpty { null }
         }.take(CAST_LIMIT),
         directors = all("director"),
-        tmdbId = root.uniqueId("tmdb")?.toIntOrNull() ?: text("tmdbid")?.toIntOrNull(),
-        tvdbId = root.uniqueId("tvdb")?.toIntOrNull() ?: text("tvdbid")?.toIntOrNull(),
-        imdbId = (root.uniqueId("imdb") ?: text("imdbid") ?: text("imdb_id") ?: text("id"))
+        tmdbId = ids.tmdb,
+        tvdbId = ids.tvdb,
+        imdbId = ids.imdb,
+    )
+}
+
+/** The provider ids an nfo names, from `<uniqueid>` first and then the older single tags. */
+private fun Element.providerIds(): ProviderIds {
+    fun text(name: String): String? = child(name)?.textContent?.trim()?.ifEmpty { null }
+    return ProviderIds(
+        tmdb = uniqueId("tmdb")?.toIntOrNull() ?: text("tmdbid")?.toIntOrNull(),
+        tvdb = uniqueId("tvdb")?.toIntOrNull() ?: text("tvdbid")?.toIntOrNull(),
+        imdb = (uniqueId("imdb") ?: text("imdbid") ?: text("imdb_id") ?: text("id"))
             ?.lowercase()?.takeIf { IMDB_ID.matches(it) },
     )
 }

@@ -53,6 +53,8 @@ abstract class WireFixtures : CommandLineArgumentProvider {
 tasks.test {
     // JUnit Jupiter; src/test/resources/junit-platform.properties sets the default timeout.
     useJUnitPlatform()
+    // Logback configures itself from the environment in the test JVM too; no log file in the source tree.
+    environment("SOFA_LOG_DAYS", "0")
     jvmArgumentProviders += objects.newInstance<WireFixtures>().apply {
         dir.set(rootProject.layout.projectDirectory.dir("../contract/src/jvmTest/resources/wire"))
     }

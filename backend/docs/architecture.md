@@ -188,7 +188,7 @@ Health observation history is pruned to `SOFA_OBSERVATION_RETENTION_DAYS` (defau
 
 The channels `ETag` is a hash of `CatalogService.catalogRevision()`, which derives from the lineup, the published channels and sources, each guide's import time, the health table's row count and latest update, and which entries' guides are still current. Logos in the body are server-relative, so the request's `Host` does not enter it. A matching `If-None-Match` is answered without building the body.
 
-Logback is configured from `SOFA_LOG_LEVEL` and `SOFA_LOG_FORMAT` before the first logger is used, with one appender on stderr: a text pattern that ends with the MDC, or logback's JSON encoder. Ktor's `CallId` gives every request a 16-hex-digit ID, put in the MDC as `requestId` and returned as `X-Request-Id`. `CallLogging` writes the access lines. [Logs](operations.md#logs) describes what the server logs and what it never does.
+Logback is configured from `SOFA_LOG_LEVEL` and `SOFA_LOG_FORMAT` before the first logger is used, with one appender on stderr, a text pattern that ends with the MDC or logback's JSON encoder, and the same lines in a rolling file, `logs/server.log` in the data directory, kept `SOFA_LOG_DAYS` days. Ktor's `CallId` gives every request a 16-hex-digit ID, put in the MDC as `requestId` and returned as `X-Request-Id`. `CallLogging` writes the access lines. [Logs](operations.md#logs) describes what the server logs and what it never does.
 
 On SIGTERM Ktor's shutdown hook stops the HTTP server; once it has stopped, the runtime (imports, probes, relay upstreams and sessions) closes and then the store, in that order, and each step is logged.
 

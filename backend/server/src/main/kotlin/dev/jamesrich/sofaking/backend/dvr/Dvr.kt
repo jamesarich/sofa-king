@@ -84,6 +84,7 @@ class Dvr(
 
     /** The recordings folder on disk. */
     val files = RecordingFiles(root, freeSpace)
+    private val alerts = DvrAlerts(store, events, capacity)
 
     /** The series rules; a change reschedules. */
     val rules = DvrRules(store, lineup, clock) { requestSchedule("rule") }
@@ -214,6 +215,8 @@ class Dvr(
             val airing = Airing(entry.id, entry.name, program)
             val recording = airing.scheduled(null, padding.first, padding.second, clock.instant())
             store.addRecording(recording)
+            events.recordingChanged(recording)
+            alerts.checkConflicts()
             recording.toWire()
         }.also { scope.launch { tick() } }
     }
@@ -269,14 +272,20 @@ class Dvr(
     suspend fun refreshSchedule(cause: String) = jobs.record(SCHEDULE_JOB) {
         val now = clock.instant()
         val rules = store.recordingRules()
-        if (rules.isEmpty()) return@record JobOutcome(true, "no rules")
+        if (rules.isEmpty()) {
+            // Still the first look after a start, which learns the conflicts there are without announcing them.
+            alerts.checkConflicts()
+            return@record JobOutcome(true, "no rules")
+        }
         val airings = ruleAirings(lineup, guides, rules, now, now.plus(horizon()))
         mutex.withLock {
             val plan = DvrPlanner.plan(rules, airings, store.recordings(), now)
             plan.drop.forEach { store.deleteRecording(it.id) }
             val added = plan.add.count { (rule, airing) ->
-                store.addRecording(airing.scheduled(rule.id, rule.startPadding, rule.endPadding, clock.instant()))
+                val recording = airing.scheduled(rule.id, rule.startPadding, rule.endPadding, clock.instant())
+                store.addRecording(recording).also { if (it) events.recordingChanged(recording) }
             }
+            alerts.checkConflicts()
             log.info(
                 "recording schedule cause={} rules={} added={} dropped={}",
                 cause,
@@ -316,7 +325,9 @@ class Dvr(
         }) {
             runner.finish(orphan, null)
         }
-        runner.guardSpace(now, retention().freeGib.toLong() * GIB) { cull("space") }
+        val floor = retention().freeGib.toLong() * GIB
+        runner.guardSpace(now, floor) { cull("space") }
+        alerts.space(files.free(), floor)
     }
 
     // Cleanup

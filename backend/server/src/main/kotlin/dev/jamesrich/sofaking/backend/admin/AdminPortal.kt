@@ -109,6 +109,7 @@ class AdminPortal(
             HistoryPages(portal).install(this)
             PlexPages(portal).install(this)
             SettingsPages(portal).install(this)
+            ConnectPages(portal).install(this)
             SystemPages(portal, events).install(this)
         }
     }

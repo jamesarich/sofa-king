@@ -11,6 +11,7 @@ The Sofa King server keeps live TV, recordings and media libraries for the app a
 | [Build a starter lineup](starter-lineup.md) | From an empty server to a grouped lineup of the free services with fallbacks across them, plus your local channels, and a lineup built by hand without a policy |
 | [Admin portal](admin.md) | The web pages at `/admin`: the home page and setup, channel edits, merges, required stations, groups, the sources and provider priority, devices and pairing, Plex, recordings, media libraries, the runtime and effective settings, and the System pages for updates, jobs, events and a support snapshot |
 | [Operations](operations.md) | State and backups, restore, upgrades and rollback, monitoring, logs, native provider failures and token rotation |
+| [Notifications](notifications.md) | Sending recordings, source health, low disk, updates and new library files to ntfy, an Apprise API server or a webhook, such as Home Assistant, and checking a webhook's signature |
 | [Use with Sonarr, Radarr and Bazarr](integrations.md) | The media layout the three share, path mapping, hook tokens, the Webhook and Emby / Jellyfin connections that queue a scan when a file changes, and Bazarr's subtitles |
 | [Troubleshooting and FAQ](troubleshooting.md) | Symptoms and fixes for startup, tokens, sources, the guide, players, Plex, recordings, media libraries and reverse proxies, and common questions |
 

@@ -2,6 +2,8 @@ package dev.jamesrich.sofaking.backend.update
 
 import dev.jamesrich.sofaking.backend.MIB
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
+import dev.jamesrich.sofaking.backend.events.EventType
+import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
@@ -30,8 +32,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.nio.file.Files
@@ -110,6 +114,8 @@ class UpdateChecker(
     private val jobs: Jobs,
     private val firstCheckAfter: Duration = Duration.ofMinutes(2),
     private val every: Duration = CHECK_EVERY,
+    /** Where a newly published build is announced; none without an event stream. */
+    private val events: ServerEvents? = null,
 ) {
     private val log = LoggerFactory.getLogger(UpdateChecker::class.java)
     private val mutex = Mutex()
@@ -120,6 +126,9 @@ class UpdateChecker(
 
     /** The revision this process last asked the updater for, so each published build is asked for once. */
     private val asked = AtomicReference<String?>()
+
+    /** The newer revision last announced, so each published build is announced once. */
+    private val announced = AtomicReference<String?>()
     private val registry = Registry(http)
 
     init {
@@ -148,6 +157,17 @@ class UpdateChecker(
                     error.set(null)
                     checkedAt.set(clock.instant())
                     val requested = requestNewer(build)
+                    if (build.isCurrent(running) == false && announced.getAndSet(build.revision) != build.revision) {
+                        events?.publish(
+                            EventType.UPDATE_AVAILABLE,
+                            buildJsonObject {
+                                put("revision", build.revision)
+                                put("version", build.version)
+                                put("runningRevision", running.revision)
+                                put("runningVersion", running.version)
+                            },
+                        )
+                    }
                     JobOutcome(
                         true,
                         when (build.isCurrent(running)) {

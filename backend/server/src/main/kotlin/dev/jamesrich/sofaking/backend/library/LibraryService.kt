@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
+import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
@@ -72,6 +73,8 @@ class LibraryService(
     val scrub: ScrubSheets? = null,
     /** How Sonarr, Radarr and the like name the media folders, where they see them under another path. */
     private val pathMap: List<PathMapping> = emptyList(),
+    /** Where a scan that adds files publishes `library.added`. */
+    private val events: ServerEvents? = null,
 ) {
     /** Counts changes to what the libraries hold, so [catalog] rebuilds its view only after one. */
     private val revision = AtomicLong()
@@ -174,7 +177,8 @@ class LibraryService(
         jobs.record(LIBRARY_SCAN_JOB) {
             val now = clock.instant()
             // Listing and probing a new library takes minutes, so it runs off the lock too; only the writes hold it.
-            val plan = scanner.scan(library, Path.of(library.path), store.libraryItems(library.id), now)
+            val before = store.libraryItems(library.id)
+            val plan = scanner.scan(library, Path.of(library.path), before, now)
             scanLock.withLock {
                 // Removed since this scan began: it writes nothing.
                 if (store.libraries().none { it.id == library.id }) {
@@ -189,6 +193,7 @@ class LibraryService(
                 }
             }
             val items = store.libraryItems(library.id)
+            events.libraryAdded(library, plan.save, before.mapTo(HashSet()) { it.id }, items)
             // Off the scan lock, so removing a library never waits for TMDB.
             val looked = if (plan.result.unavailable) null else metadata?.refresh(library, items)
             val note = listOfNotNull(plan.result.note, looked?.note).joinToString("; ")

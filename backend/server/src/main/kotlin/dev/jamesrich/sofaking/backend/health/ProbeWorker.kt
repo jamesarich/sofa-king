@@ -2,6 +2,8 @@ package dev.jamesrich.sofaking.backend.health
 
 import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.Offering
+import dev.jamesrich.sofaking.backend.events.EventType
+import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
@@ -27,6 +29,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.time.Clock
@@ -72,6 +76,8 @@ class ProbeWorker(
      */
     private val relay: LoopbackRelay? = null,
     private val qualifier: (suspend (Offering, Map<String, String>) -> FailureClass?)? = null,
+    /** Where a source going into quarantine or recovering from it is published; none without an event stream. */
+    private val events: ServerEvents? = null,
 ) {
     private val log = LoggerFactory.getLogger(ProbeWorker::class.java)
     private val fastTier = http?.let {
@@ -249,6 +255,7 @@ class ProbeWorker(
         onObserved(offering.id)
         if (before != after.status) {
             log.info("source health offering={} from={} to={}", offering.id, before, after.status)
+            events.healthChanged(offering, feeds.published.channel(offering.channelId)?.name, before, after.status)
             onHealthChanged(offering.id)
         }
     }
@@ -402,4 +409,30 @@ internal fun decodeCommand(
     if (copy) command += listOf("-c", "copy")
     command += listOf("-an", "-progress", "pipe:1", "-f", "null", "-")
     return command
+}
+
+/** Publishes a source entering quarantine, or coming back healthy from it or from probation. */
+private fun ServerEvents?.healthChanged(
+    offering: Offering,
+    channelName: String?,
+    before: HealthStatus?,
+    after: HealthStatus,
+) {
+    val type = when {
+        after == HealthStatus.QUARANTINED -> EventType.SOURCE_QUARANTINED
+
+        after == HealthStatus.HEALTHY && (before == HealthStatus.QUARANTINED || before == HealthStatus.PROBATION) ->
+            EventType.SOURCE_RECOVERED
+
+        else -> return
+    }
+    this?.publish(
+        type,
+        buildJsonObject {
+            put("offeringId", offering.id)
+            put("providerId", offering.providerId)
+            put("channelId", offering.channelId)
+            put("channelName", channelName)
+        },
+    )
 }

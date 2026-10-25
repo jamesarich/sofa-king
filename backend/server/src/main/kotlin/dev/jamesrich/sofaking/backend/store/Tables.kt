@@ -435,3 +435,30 @@ internal object VirtualAirings : Table("virtual_airing") {
     val filler = bool("filler")
     override val primaryKey = PrimaryKey(channelId, startsAt)
 }
+
+/** Where the server sends its notifications: a webhook, an ntfy topic or an Apprise API URL. */
+internal object NotificationTargets : Table("notification_target") {
+    val id = text("id")
+    val name = text("name")
+    val kind = text("kind")
+    val url = text("url")
+    val secret = text("secret").nullable()
+    val eventsJson = text("events_json")
+    val enabled = bool("enabled")
+    val createdAt = text("created_at")
+    val updatedAt = text("updated_at")
+    override val primaryKey = PrimaryKey(id)
+}
+
+/** The last deliveries to each target, kept to [NOTIFICATION_DELIVERIES_KEPT] per target. */
+internal object NotificationDeliveries : Table("notification_delivery") {
+    val id = long("id").autoIncrement()
+    val targetId = text("target_id")
+    val event = text("event")
+    val at = text("at")
+    val ok = bool("ok")
+    val status = integer("status").nullable()
+    val error = text("error").nullable()
+    val attempts = integer("attempts")
+    override val primaryKey = PrimaryKey(id)
+}

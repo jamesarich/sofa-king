@@ -69,6 +69,7 @@ nav:
       - Recordings: backend/docs/recordings.md
       - Media libraries: backend/docs/libraries.md
       - Virtual channels: backend/docs/virtual-channels.md
+      - Notifications: backend/docs/notifications.md
       - App troubleshooting: app/docs/troubleshooting.md
       - Server troubleshooting: backend/docs/troubleshooting.md
   - Reference:

@@ -19,6 +19,7 @@ import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.backend.library.WatchlistService
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.multiview.MultiviewSessions
+import dev.jamesrich.sofaking.backend.notify.NotificationTargetsService
 import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
@@ -134,6 +135,8 @@ class LiveRuntime(
     val events: ServerEvents = ServerEvents(Clock.systemUTC()),
     /** The ended playback sessions; null for a runtime built without a config. */
     val history: SessionHistory? = null,
+    /** Where notifications go, `/api/v1/admin/notifications`; null for a runtime built without a config. */
+    val notifications: NotificationTargetsService? = null,
     /** The named player outputs, each a filtered playlist and guide. */
     val namedOutputs: NamedOutputs = NamedOutputs(store),
     /** The household's watchlist of library items and guide titles. */

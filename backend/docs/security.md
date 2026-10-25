@@ -57,6 +57,8 @@ The server makes requests to the playlist, guide, logo and stream hosts that you
 
 Details are in [live TV: upstream addresses and provider headers](live-tv.md#provider-headers).
 
+[Notifications](notifications.md) go only to the targets an admin adds, and the upstream address policy does not apply to them: a target may be a LAN or loopback address, such as Home Assistant or an Apprise API container beside the server. Its URL must be `http` or `https` without user information, redirects are not followed, and its secret is never returned by the API or written to the log, which names a target by its id.
+
 ## Hardening checklist
 
 - Let the server generate the API and admin tokens, or set them to values of at least 32 characters from `openssl rand -hex 32`. Prefer the `_FILE` variables with Docker secrets over plain values in `.env`.

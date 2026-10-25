@@ -381,7 +381,9 @@ class LibraryApiTest {
             episode.resolveSibling("Show - S01E01-E02 - Pilot.nfo"),
             "<episodedetails><title>Pilot</title><season>1</season><episode>1</episode><aired>2020-01-05</aired>\n" +
                 "<plot>Where it starts.</plot><runtime>44</runtime><genre>Drama</genre><mpaa>TV-14</mpaa>" +
-                "<rating>8.1</rating></episodedetails>",
+                "<rating>8.1</rating><uniqueid type=\"tmdb\">62085</uniqueid>" +
+                "<uniqueid type=\"tvdb\">349232</uniqueid>" +
+                "<uniqueid type=\"imdb\">tt0959621</uniqueid></episodedetails>",
         )
     }, LibraryKind.SHOWS, block)
 

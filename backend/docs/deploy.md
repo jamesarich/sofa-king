@@ -77,6 +77,7 @@ printf 'SOFA_MDNS=false\n' >> .env
 | Path | Written by | Contents |
 | --- | --- | --- |
 | `backend.sqlite` (with `-wal` and `-shm` while running) | Server | The lineup, guides, source health, provider session tokens and the server identity |
+| `logs/` | Server | The log: `server.log` for today, gzipped `server.<date>.<n>.log.gz` for earlier days, kept `SOFA_LOG_DAYS` days; see [logs](operations.md#logs) |
 | `logos/` | Server | Cached lineup logos, at most 2 MiB each; a logo the lineup does not name is deleted |
 | `backups/` | The updater and you | Database backups, readable by their owner alone; see [backups](operations.md#backups) |
 | `secrets.json` | Server | The generated API, admin and output tokens and the TMDB token the portal saved, readable by the owner alone |

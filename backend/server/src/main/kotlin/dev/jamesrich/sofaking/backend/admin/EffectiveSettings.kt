@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.SecretsFile
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.catalog.FeedConfig
 import dev.jamesrich.sofaking.backend.catalog.GuideConfig
+import dev.jamesrich.sofaking.backend.logging.DEFAULT_LOG_DAYS
 import dev.jamesrich.sofaking.backend.playback.DEFAULT_HISTORY_DAYS
 import java.time.Duration
 
@@ -39,6 +40,7 @@ private class EffectiveSettings(private val config: ServerConfig) {
             s("SOFA_HISTORY_DAYS", config.historyDays, DEFAULT_HISTORY_DAYS),
             s("SOFA_ALLOW_LOOPBACK_UPSTREAMS", config.allowLoopbackUpstreams, false),
             s("SOFA_LOG_FORMAT", config.logging.format, "text"),
+            s("SOFA_LOG_DAYS", config.logging.days, DEFAULT_LOG_DAYS),
             s("SOFA_CORS_ORIGINS", config.corsOrigins.joinToString(), ""),
             s("SOFA_MEDIA_DIR", config.mediaDirectory, config.dataDirectory.resolve("media")),
             s("SOFA_LIBRARY_PATH_MAP", config.libraryPathMap.joinToString { "${it.from}=${it.to}" }, ""),

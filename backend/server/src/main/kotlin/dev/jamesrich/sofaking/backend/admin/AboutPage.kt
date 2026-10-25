@@ -5,6 +5,8 @@ import kotlinx.html.DL
 import kotlinx.html.FlowContent
 import kotlinx.html.a
 import kotlinx.html.aside
+import kotlinx.html.br
+import kotlinx.html.caption
 import kotlinx.html.classes
 import kotlinx.html.code
 import kotlinx.html.dd
@@ -14,10 +16,18 @@ import kotlinx.html.dt
 import kotlinx.html.id
 import kotlinx.html.label
 import kotlinx.html.p
+import kotlinx.html.progress
 import kotlinx.html.s
 import kotlinx.html.small
 import kotlinx.html.source
+import kotlinx.html.span
+import kotlinx.html.table
+import kotlinx.html.tbody
+import kotlinx.html.td
 import kotlinx.html.textArea
+import kotlinx.html.th
+import kotlinx.html.thead
+import kotlinx.html.tr
 import java.time.Instant
 
 internal fun aboutPage(chrome: Chrome, view: AboutView): String = layout("About", chrome, "/admin/system/about") {
@@ -31,6 +41,7 @@ internal fun aboutPage(chrome: Chrome, view: AboutView): String = layout("About"
         serverPanel(server, now)
         statusPanel(status, now)
     }
+    if (server.folders.isNotEmpty()) diskPanel(server.folders)
     view.encoders?.let { encoderPanel(chrome, it) }
     snapshotPanel(view.snapshot)
     if (view.confirm && view.update != null) updateConfirm(chrome, view.update)
@@ -57,6 +68,14 @@ private fun FlowContent.serverPanel(server: AboutServer, now: Instant) = panel("
         dd { +server.os }
         dt { +"FFmpeg" }
         dd { +server.ffmpeg }
+        server.tools?.let { tools ->
+            dt { +"Comskip" }
+            dd { +tools.comskip }
+            dt { +"Chromaprint" }
+            dd { +tools.chromaprint }
+            dt { +"GPU devices" }
+            dd { +tools.gpu }
+        }
         if (server.dataDirectory != null) {
             dt { +"Data directory" }
             dd { code { +server.dataDirectory } }
@@ -160,3 +179,62 @@ private fun FlowContent.snapshotPanel(snapshot: String) = panel("Support snapsho
         +snapshot
     }
 }
+
+/** Each folder the server keeps files in, with its disk's free space and what the server's own files take there. */
+private fun FlowContent.diskPanel(folders: List<FolderReport>) = panel("Disk", id = "disk") {
+    div("scroll") {
+        table {
+            caption("sr") { +"Disk space by folder" }
+            thead {
+                tr {
+                    col("Folder")
+                    col("Free")
+                    col("Disk", "num")
+                    col("Used by the server", "num")
+                }
+            }
+            tbody {
+                for (folder in folders) {
+                    tr {
+                        th {
+                            attributes["scope"] = "row"
+                            +folder.name
+                            br()
+                            span("muted small mono") { +folder.path }
+                        }
+                        td("nowrap") { freeSpace(folder) }
+                        td("num nowrap") { +(folder.totalBytes?.let(::bytesText) ?: "–") }
+                        td("num nowrap") { +(folder.usedBytes?.let(::bytesText) ?: "–") }
+                    }
+                }
+            }
+        }
+    }
+    p("muted small") {
+        +(
+            "Folders on one disk show the same space. Used by the server counts the recordings; the media folder is " +
+                "yours, and the data folder holds the database, caches and backups."
+            )
+    }
+}
+
+private fun FlowContent.freeSpace(folder: FolderReport) {
+    val free = folder.freeBytes
+    val total = folder.totalBytes
+    if (free == null || total == null || total <= 0) {
+        span("muted") { +"not readable" }
+        return
+    }
+    val usedPercent = ((total - free) * PERCENT / total).toInt()
+    progress {
+        attributes["value"] = usedPercent.toString()
+        attributes["max"] = PERCENT.toString()
+        attributes["aria-label"] = "${folder.name} disk used"
+        +"$usedPercent%"
+    }
+    span("small") { +" ${bytesText(free)} free " }
+    if (free * PERCENT < total * LOW_SPACE_PERCENT) chip("Low", Tone.BAD)
+}
+
+/** Below this share of its disk free, a folder's free space is marked low. */
+private const val LOW_SPACE_PERCENT = 10

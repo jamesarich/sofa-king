@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.http.serverStatus
 import dev.jamesrich.sofaking.backend.logging.EventRing
 import dev.jamesrich.sofaking.backend.logging.logFile
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.AdChannelRecord
 import dev.jamesrich.sofaking.backend.store.adChannels
 import dev.jamesrich.sofaking.backend.store.library
@@ -35,6 +36,7 @@ internal class SystemPages(private val portal: Portal, private val events: Event
     private val config get() = portal.config
     private val overview = OverviewReader(portal)
     private val ffmpeg = AtomicReference<String?>()
+    private val host = HostFacts(portal.config)
 
     fun install(route: Route) = with(portal) {
         route.get("/system/jobs") { call.html(jobsPage(chrome(), JobsView(runtime.jobs.snapshot()))) }
@@ -143,6 +145,8 @@ internal class SystemPages(private val portal: Portal, private val events: Event
             config?.dataDirectory?.toAbsolutePath()?.toString(), runtime.settings.current.logLevel,
             config?.logging?.format ?: "text",
             (memory.totalMemory() - memory.freeMemory()) / MIB, memory.maxMemory() / MIB,
+            host.tools(),
+            host.folders(runCatchingCancellable { runtime.dvr?.recordings()?.storage?.usedBytes }.getOrNull()),
         )
     }
 

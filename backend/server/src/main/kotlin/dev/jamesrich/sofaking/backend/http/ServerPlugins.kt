@@ -277,6 +277,7 @@ private suspend fun ApplicationCall.issuedOpens(
     isHook: Boolean,
 ): Boolean {
     val token = tokens?.resolve(bearer) ?: return false
+    token.clientId?.let { attributes.put(PresentedClientKey, it) }
     return when (token.scope) {
         TokenScope.API -> !isAdmin && !isHook
 

@@ -1,8 +1,18 @@
 package dev.jamesrich.sofaking.backend.http
 
+import dev.jamesrich.sofaking.backend.playback.PlaybackClient
 import io.ktor.http.HttpHeaders
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.plugins.origin
+import io.ktor.util.AttributeKey
 import java.util.Base64
+
+/** The paired device whose token the request presented, which the token guard sets. */
+internal val PresentedClientKey = AttributeKey<String>("PresentedClient")
+
+/** Who is asking for playback: the player's address, and the paired device whose token it presented. */
+internal fun ApplicationCall.playbackClient(): PlaybackClient =
+    PlaybackClient(request.origin.remoteAddress, attributes.getOrNull(PresentedClientKey))
 
 /** The bearer token a request presents, empty without one. */
 internal fun ApplicationCall.bearer(): String =

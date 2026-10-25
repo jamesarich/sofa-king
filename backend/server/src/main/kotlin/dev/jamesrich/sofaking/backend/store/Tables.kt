@@ -364,3 +364,21 @@ internal object ApiTokenRows : Table("api_token") {
     val revokedAt = text("revoked_at").nullable()
     override val primaryKey = PrimaryKey(id)
 }
+
+/** Ended playback sessions, one row each, kept for `SOFA_HISTORY_DAYS`. */
+internal object SessionHistoryRows : Table("session_history") {
+    val id = text("id")
+    val kind = text("kind")
+    val clientId = text("client_id").nullable()
+    val address = text("address").nullable()
+    val channelId = text("channel_id").nullable()
+    val itemId = text("item_id").nullable()
+    val recordingId = text("recording_id").nullable()
+    val providerId = text("provider_id").nullable()
+    val mode = text("mode")
+    val reason = text("reason")
+    val startedAt = text("started_at")
+    val endedAt = text("ended_at")
+    val bytes = long("bytes").nullable()
+    override val primaryKey = PrimaryKey(id)
+}

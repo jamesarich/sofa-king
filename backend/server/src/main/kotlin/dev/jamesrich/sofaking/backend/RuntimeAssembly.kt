@@ -15,6 +15,7 @@ import dev.jamesrich.sofaking.backend.dvr.Commercials
 import dev.jamesrich.sofaking.backend.dvr.Dvr
 import dev.jamesrich.sofaking.backend.dvr.Recorder
 import dev.jamesrich.sofaking.backend.dvr.Retention
+import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.HdhrAccess
@@ -41,6 +42,7 @@ import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.MediaRelay
 import dev.jamesrich.sofaking.backend.playback.SegmentAudio
+import dev.jamesrich.sofaking.backend.playback.SessionHistory
 import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.TsRemux
 import dev.jamesrich.sofaking.backend.plex.HdhrDevice
@@ -83,6 +85,9 @@ private const val CONNECT_TIMEOUT_MS = 5_000L
 private const val SOCKET_TIMEOUT_MS = 15_000L
 private const val MINUTE_MS = 60_000L
 
+/** How often the history drops what is older than `SOFA_HISTORY_DAYS`. */
+private const val HISTORY_PRUNE_MS = 3_600_000L
+
 /** What [LiveRuntime.create] takes beside the store, the config and the clock. */
 internal class RuntimeOptions(
     val policyDebounceMillis: Long,
@@ -118,6 +123,8 @@ internal class RuntimeAssembly(
     private val jobs = Jobs(clock)
     private val settings = RuntimeSettings(store, RuntimeValues.of(config), clock)
     private val upstream = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
+    private val events = ServerEvents(clock)
+    private val history = SessionHistory(store, events, clock, Duration.ofDays(config.historyDays.toLong()))
 
     private lateinit var feeds: FeedService
     private lateinit var guides: GuideService
@@ -176,11 +183,15 @@ internal class RuntimeAssembly(
             listener,
             config.tmdb?.let { ProgramFactsLookup(TmdbClient(http, it), clock) },
             IssuedTokens(store, clock),
+            events,
+            history,
         )
         dvr.start(scope)
         dvr.requestSchedule("startup")
         scope.launchEvery("session-expire", SESSION_EXPIRE_MS) { sessions.expire() }
         scope.launchEvery("vod-expire", VOD_EXPIRE_MS) { vod.expire() }
+        history.start(scope)
+        scope.launchEvery("history-prune", HISTORY_PRUNE_MS) { history.prune() }
         if (worker != null) scope.launch(CoroutineName("probe-worker")) { worker.run() }
         return runtime
     }
@@ -242,6 +253,7 @@ internal class RuntimeAssembly(
     /** The playback sessions and the break library they learn into, both following the settings. */
     private suspend fun playback() {
         sessions = SessionManager(catalog, store, clock, settings.current.maxSessions)
+        sessions.history = history
         library = BreakLibrary(store, clock).also { it.load() }
         sessions.library = library
         scope.launch(CoroutineName("ad-library")) {
@@ -310,6 +322,7 @@ internal class RuntimeAssembly(
         retention = { settings.current.let { Retention(it.recordingsFreeGib, it.recordingsKeepDays) } },
         commercials = config.comskip?.let { Commercials(it, config.dataDirectory.resolve("dvr")) },
         jobs = jobs,
+        events = events,
     )
 
     private fun libraries(): LibraryService = LibraryService(
@@ -338,5 +351,8 @@ internal class RuntimeAssembly(
         recordings = dvr::playable,
         probe = MediaProbe(ffprobeBeside(config.ffmpeg))::probe,
         encoder = config.videoEncoder,
-    ).also { it.start() }
+    ).also {
+        it.history = history
+        it.start()
+    }
 }

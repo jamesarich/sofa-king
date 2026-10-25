@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.playback.HistoryReason
+import dev.jamesrich.sofaking.backend.playback.SessionHistory
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.NonCancellable
@@ -14,6 +16,9 @@ import java.util.concurrent.ConcurrentLinkedQueue
 internal class VodTable(private val clock: Clock, private val runner: VodRunner) {
     val mutex = Mutex()
     val sessions = HashMap<String, VodState>()
+
+    /** Where each session's start and end is recorded; none until the runtime sets it. */
+    @Volatile var history: SessionHistory? = null
 
     /** Sessions taken out under the lock whose FFmpeg and files [dispose] deals with once it is released. */
     val retired = ConcurrentLinkedQueue<VodState>()
@@ -33,12 +38,18 @@ internal class VodTable(private val clock: Clock, private val runner: VodRunner)
         withContext(NonCancellable) { while (true) runner.stop(retired.poll() ?: break) }
     }
 
+    /** Adds [state] to the sessions and reports its start. */
+    fun add(state: VodState) {
+        sessions[state.id] = state
+        history?.started(state.start())
+    }
+
     /**
-     * Takes [state] out of the sessions and signals its FFmpeg; [dispose] finishes it off the lock. Its id is never
-     * reused, so its folder is its own.
+     * Takes [state] out of the sessions for [reason], ending it in the history, and signals its FFmpeg; [dispose]
+     * finishes it off the lock. Its id is never reused, so its folder is its own.
      */
-    fun retire(state: VodState) {
-        sessions.remove(state.id)
+    fun retire(state: VodState, reason: String) {
+        if (sessions.remove(state.id) != null) history?.ended(state.start(), reason)
         state.process?.destroy()
         retired += state
     }
@@ -52,12 +63,12 @@ internal class VodTable(private val clock: Clock, private val runner: VodRunner)
 
     fun reap() {
         val now = clock.instant()
-        sessions.values.filter { it.expires <= now }.forEach(::retire)
+        sessions.values.filter { it.expires <= now }.forEach { retire(it, HistoryReason.EXPIRED) }
     }
 
     /** Launches [state]'s FFmpeg, then retires it at once when the session was released or expired while it started. */
     suspend fun launchOwned(state: VodState) {
         runner.launch(state)
-        locked { if (sessions[state.id] !== state) retire(state) }
+        locked { if (sessions[state.id] !== state) retire(state, HistoryReason.RELEASED) }
     }
 }

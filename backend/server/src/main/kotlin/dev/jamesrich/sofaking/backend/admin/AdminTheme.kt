@@ -94,7 +94,7 @@ internal val NAV: List<Section> = listOf(
     ),
     Section("/admin/providers", "Sources", "sources", listOf("/admin/providers", "/admin/ads")),
     Section("/admin/recordings", "Recordings", "recordings"),
-    Section("/admin/viewers", "Players", "players", listOf("/admin/viewers", "/admin/plex")),
+    Section("/admin/viewers", "Players", "players", listOf("/admin/viewers", "/admin/history", "/admin/plex")),
     Section("/admin/library", "Library"),
     Section("/admin/settings", "Settings"),
     Section(
@@ -115,7 +115,8 @@ internal val CHANNEL_TABS =
         Tab("/admin/groups", "Groups"),
     )
 internal val SOURCE_TABS = listOf(Tab("/admin/providers", "Sources", "sources"), Tab("/admin/ads", "Ads"))
-internal val PLAYER_TABS = listOf(Tab("/admin/viewers", "Devices"), Tab("/admin/plex", "Plex", "plex"))
+internal val PLAYER_TABS =
+    listOf(Tab("/admin/viewers", "Devices"), Tab("/admin/history", "History"), Tab("/admin/plex", "Plex", "plex"))
 internal val SYSTEM_TABS =
     listOf(
         Tab("/admin/system/about", "About"),

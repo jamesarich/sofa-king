@@ -20,6 +20,15 @@ internal class SessionTable(private val clock: Clock, capacity: Int) {
     /** Gets what each app session that played found on its channel, as it ends. */
     @Volatile var onCensus: (String, String, AdCensus) -> Unit = { _, _, _ -> }
 
+    /** Where each session's start and end is recorded; none until the runtime sets it. */
+    @Volatile var history: SessionHistory? = null
+
+    /** Adds [session] to the table and reports its start. */
+    fun add(session: LiveSession) {
+        sessions[session.id] = session
+        history?.started(session.start())
+    }
+
     /** The open session [id], once the expired ones are gone. */
     fun active(id: String): LiveSession {
         reap()
@@ -30,7 +39,9 @@ internal class SessionTable(private val clock: Clock, capacity: Int) {
     /** A player's in-flight request holds its external session; the idle lease only starts once that request ends. */
     fun reap() {
         val now = clock.instant()
-        sessions.values.filter { it.expires <= now && !(it.external && it.busy) }.forEach(::end)
+        sessions.values.filter {
+            it.expires <= now && !(it.external && it.busy)
+        }.forEach { end(it, HistoryReason.EXPIRED) }
     }
 
     /**
@@ -48,13 +59,17 @@ internal class SessionTable(private val clock: Clock, capacity: Int) {
                 "Playback capacity exhausted",
                 true,
             )
-        end(victim)
+        end(victim, HistoryReason.EVICTED)
     }
 
-    /** Ends [session]: its requests stop, it leaves the table, and what it found is logged as `ADCENSUS`. */
-    fun end(session: LiveSession) {
+    /**
+     * Ends [session] for [reason]: its requests stop, it leaves the table and the history, and what it found is logged
+     * as `ADCENSUS`.
+     */
+    fun end(session: LiveSession, reason: String) {
         session.cancel()
-        sessions.remove(session.id)
+        if (sessions.remove(session.id) == null) return
+        history?.ended(session.start(), reason, session.mode(), session.bytes.get())
         val census = session.ads?.census()?.takeIf { it.playedMs > 0 } ?: return
         learnedLog.info(
             "ADCENSUS channel={} provider={} playedMs={} marked={} breaks={} learned={} session={}",

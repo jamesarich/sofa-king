@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.dvr
 
+import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.recording
 import dev.jamesrich.sofaking.backend.store.recordings
@@ -44,6 +45,8 @@ internal class RecordingRunner(
     private val zone: ZoneId,
     private val mutex: Mutex,
     private val scan: ((String) -> Unit)?,
+    /** Where each start and finish is published; none without an event stream. */
+    private val events: ServerEvents?,
     private val finished: () -> Unit,
 ) {
     private val running = ConcurrentHashMap<String, Job>()
@@ -96,7 +99,10 @@ internal class RecordingRunner(
                         path = relative.toString(),
                         updatedAt = clock.instant(),
                     )
-                        .also { store.saveRecording(it) }
+                        .also {
+                            store.saveRecording(it)
+                            events.recordingChanged(it)
+                        }
                 }
                 log.info(
                     "recording started id={} channel={} title=\"{}\"",
@@ -136,9 +142,10 @@ internal class RecordingRunner(
 
     private suspend fun fail(latest: StoredRecording, partial: Path?, reason: String, now: Instant) {
         withContext(Dispatchers.IO) { partial?.let(Files::deleteIfExists) }
-        store.saveRecording(
-            latest.copy(state = Wire.RecordingState.FAILED, reason = reason, path = null, bytes = 0, updatedAt = now),
-        )
+        val failed =
+            latest.copy(state = Wire.RecordingState.FAILED, reason = reason, path = null, bytes = 0, updatedAt = now)
+        store.saveRecording(failed)
+        events.recordingChanged(failed)
         log.warn("recording failed id={} title=\"{}\" reason={}", latest.id, latest.title, reason)
     }
 
@@ -149,16 +156,16 @@ internal class RecordingRunner(
         // A recording cut short by a stop or a source that never came back is still kept; the reason says why.
         val short = now < latest.recordUntil.minusSeconds(5)
         val commercials = if (scan != null) Wire.CommercialScan.SCANNING else null
-        store.saveRecording(
-            latest.copy(
-                state = Wire.RecordingState.COMPLETED,
-                reason = if (short) reason ?: "STOPPED" else null,
-                path = final.toString(),
-                bytes = bytes,
-                commercials = commercials,
-                updatedAt = now,
-            ),
+        val completed = latest.copy(
+            state = Wire.RecordingState.COMPLETED,
+            reason = if (short) reason ?: "STOPPED" else null,
+            path = final.toString(),
+            bytes = bytes,
+            commercials = commercials,
+            updatedAt = now,
         )
+        store.saveRecording(completed)
+        events.recordingChanged(completed)
         scan?.invoke(latest.id)
         log.info("recording finished id={} title=\"{}\" bytes={} path=\"{}\"", latest.id, latest.title, bytes, final)
     }

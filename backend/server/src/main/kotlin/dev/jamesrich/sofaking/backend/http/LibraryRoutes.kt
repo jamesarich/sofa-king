@@ -116,7 +116,9 @@ fun Route.artworkRoutes(libraries: LibraryService) {
  * `/media/vod/{id}/{epoch}/{secret}/{name}`, which takes no token: the secret in the path is the session's own.
  */
 fun Route.vodRoutes(vod: VodSessions) {
-    post("/api/v1/vod-sessions") { call.respond(HttpStatusCode.Created, vod.open(call.appBody<OpenVodPlayback>())) }
+    post("/api/v1/vod-sessions") {
+        call.respond(HttpStatusCode.Created, vod.open(call.appBody<OpenVodPlayback>(), call.playbackClient()))
+    }
     get("/api/v1/vod-sessions/{id}") { call.respond(vod.get(call.parameters["id"]!!)) }
     patch("/api/v1/vod-sessions/{id}") {
         call.respond(vod.update(call.parameters["id"]!!, call.appBody<UpdateVodPlayback>()))

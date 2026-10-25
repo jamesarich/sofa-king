@@ -142,7 +142,7 @@ private fun StartupChoice(
     )
 }
 
-/** The guide's rows: the auto-open delay, the preview's sound, live ad breaks, the row density and the channel manager. */
+/** The guide's rows: the auto-open delay, the preview's sound, live ad breaks, the row density, the channel manager. */
 private fun LazyListScope.guideRows(
     settings: AppSettings,
     actions: SettingsActions,

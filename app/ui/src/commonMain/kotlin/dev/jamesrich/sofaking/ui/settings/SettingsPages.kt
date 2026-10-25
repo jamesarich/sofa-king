@@ -72,11 +72,7 @@ enum class SettingsPage {
 }
 
 /** What the server offers and the platform takes, which decides the pages Settings lists and what they hold. */
-internal class SettingsOffer(
-    val library: Boolean,
-    val recordings: Boolean,
-    val playback: Boolean,
-) {
+internal class SettingsOffer(val library: Boolean, val recordings: Boolean, val playback: Boolean) {
     val pages: List<SettingsPage>
         get() = SettingsPage.entries.filter {
             when (it) {
@@ -92,17 +88,21 @@ internal class SettingsOffer(
 internal fun SettingsPage.title(offer: SettingsOffer): String = stringResource(
     when (this) {
         SettingsPage.LIVE_TV -> Res.string.settings_page_live_tv
+
         SettingsPage.LIBRARY -> when {
             offer.library && offer.recordings -> Res.string.settings_page_library_dvr
             offer.library -> Res.string.settings_page_library
             else -> Res.string.settings_page_dvr
         }
+
         SettingsPage.CAPTIONS -> if (offer.library) {
             Res.string.settings_page_captions_subtitles
         } else {
             Res.string.settings_page_captions
         }
+
         SettingsPage.PLAYBACK -> Res.string.settings_page_playback
+
         SettingsPage.LOCK -> Res.string.settings_page_lock
     },
 )
@@ -112,13 +112,17 @@ internal fun SettingsPage.title(offer: SettingsOffer): String = stringResource(
 private fun SettingsPage.summary(settings: AppSettings): String = stringResource(
     when (this) {
         SettingsPage.LIVE_TV -> Res.string.settings_page_live_tv_summary
+
         SettingsPage.LIBRARY -> Res.string.settings_page_library_summary
+
         SettingsPage.CAPTIONS -> if (settings.captionsEnabled) Res.string.captions_on else Res.string.captions_off
+
         SettingsPage.PLAYBACK -> if (supportsPlaybackPreferences) {
             Res.string.settings_page_playback_summary
         } else {
             Res.string.settings_page_playback_night
         }
+
         SettingsPage.LOCK -> when {
             settings.kidsMode -> Res.string.settings_page_lock_kids
             settings.settingsLocked -> Res.string.settings_page_lock_on

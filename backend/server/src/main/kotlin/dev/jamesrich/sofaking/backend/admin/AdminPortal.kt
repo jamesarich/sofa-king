@@ -104,6 +104,7 @@ class AdminPortal(
             VirtualPages(portal).install(this)
             SourcePages(portal, editor).install(this)
             RecordingPages(portal).install(this)
+            WantedPages(portal).install(this)
             LibraryPages(portal).install(this)
             ViewerPages(portal).install(this)
             HistoryPages(portal).install(this)

@@ -28,6 +28,8 @@ internal data class Nfo(
     val cast: List<String> = emptyList(),
     val directors: List<String> = emptyList(),
     val tmdbId: Int? = null,
+    val tvdbId: Int? = null,
+    val imdbId: String? = null,
 )
 
 /** The largest sidecar a scan reads; a real one is a few kilobytes. */
@@ -69,6 +71,7 @@ internal fun parseNfo(input: InputStream): Nfo? {
         }
             ?.child("value")?.textContent?.trim()?.toDoubleOrNull()
     val aired = text("aired") ?: text("premiered")
+    val ids = root.providerIds()
     return Nfo(
         title = text("title"),
         sortTitle = text("sorttitle"),
@@ -87,13 +90,30 @@ internal fun parseNfo(input: InputStream): Nfo? {
             it.child("name")?.textContent?.trim()?.ifEmpty { null }
         }.take(CAST_LIMIT),
         directors = all("director"),
-        tmdbId =
-        root.children("uniqueid").firstOrNull {
-            it.getAttribute("type").equals("tmdb", ignoreCase = true)
-        }?.textContent?.trim()?.toIntOrNull()
-            ?: text("tmdbid")?.toIntOrNull(),
+        tmdbId = ids.tmdb,
+        tvdbId = ids.tvdb,
+        imdbId = ids.imdb,
     )
 }
+
+/** The provider ids an nfo names, from `<uniqueid>` first and then the older single tags. */
+private fun Element.providerIds(): ProviderIds {
+    fun text(name: String): String? = child(name)?.textContent?.trim()?.ifEmpty { null }
+    return ProviderIds(
+        tmdb = uniqueId("tmdb")?.toIntOrNull() ?: text("tmdbid")?.toIntOrNull(),
+        tvdb = uniqueId("tvdb")?.toIntOrNull() ?: text("tvdbid")?.toIntOrNull(),
+        imdb = (uniqueId("imdb") ?: text("imdbid") ?: text("imdb_id") ?: text("id"))
+            ?.lowercase()?.takeIf { IMDB_ID.matches(it) },
+    )
+}
+
+/** An IMDb title id: `tt` and digits. Kodi writes it in `<id>` too, where other scrapers write their own ids. */
+internal val IMDB_ID = Regex("tt\\d{5,10}")
+
+/** The text of the `<uniqueid type="...">` of [type], ignoring case. */
+private fun Element.uniqueId(type: String): String? = children("uniqueid").firstOrNull {
+    it.getAttribute("type").equals(type, ignoreCase = true)
+}?.textContent?.trim()?.ifEmpty { null }
 
 private fun Element.children(name: String): List<Element> {
     val nodes = childNodes

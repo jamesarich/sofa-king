@@ -184,6 +184,62 @@ class LibraryMetadataTest {
         assertEquals(listOf("/tv/2316", "/tv/2316/season/2", "/tv/2316/season/2"), calls)
     }
 
+    @Test fun `a show named by its TheTVDB id is found through TMDB and keeps both ids`() = runBlocking {
+        val root = Files.createTempDirectory("sofa-media-")
+        root.file("tv/Breaking Bad (2008) {tvdb-81189}/Season 01/Breaking Bad - S01E01.mkv")
+        val calls = mutableListOf<String>()
+        val http = tmdb(
+            calls,
+            routes = mapOf(
+                "/find/81189" to """{"movie_results":[],"tv_results":[{"id":1396,"name":"Breaking Bad"}]}""",
+                "/tv/1396" to
+                    """{"id":1396,"name":"Breaking Bad","first_air_date":"2008-01-20",""" +
+                    """"external_ids":{"imdb_id":"tt0903747","tvdb_id":81189}}""",
+                "/tv/1396/season/1" to """{"name":"Season 1","episodes":[{"episode_number":1,"name":"Pilot"}]}""",
+            ),
+        )
+        val (store, service) = service(root, http)
+        val library = service.create("TV", LibraryKind.SHOWS, root.resolve("tv").toString())
+        service.scan(library.id)
+        assertEquals(listOf("/find/81189", "/tv/1396", "/tv/1396/season/1"), calls, "no title search")
+        val show = store.libraryItems(library.id).single { it.kind == ItemKind.SHOW }
+        val row = store.libraryMetadata(listOf(show.id)).getValue(show.id)
+        assertEquals(1396, row.tmdbId)
+        assertEquals(81189, row.tvdbId)
+        assertEquals("tt0903747", row.imdbId)
+        service.scan(library.id)
+        assertEquals(3, calls.size, "a fresh lookup by the same id is not repeated")
+    }
+
+    @Test fun `a movie tagged with an IMDb id is found through TMDB, an unknown one by search`() = runBlocking {
+        val root = Files.createTempDirectory("sofa-media-")
+        root.file("movies/Alien (1979) {imdb-tt0078748}/Alien (1979) {imdb-tt0078748}.mkv")
+        root.file("movies/Heat (1995) {imdb-tt0113277}/Heat (1995) {imdb-tt0113277}.mkv")
+        val calls = mutableListOf<String>()
+        val http = tmdb(
+            calls,
+            routes = mapOf(
+                "/find/tt0078748" to """{"movie_results":[{"id":348,"title":"Alien"}],"tv_results":[]}""",
+                "/find/tt0113277" to """{"movie_results":[],"tv_results":[]}""",
+                "/movie/348" to """{"id":348,"title":"Alien","imdb_id":"tt0078748"}""",
+                "/search/movie" to """{"results":[{"id":949,"title":"Heat","release_date":"1995-12-15"}]}""",
+                "/movie/949" to """{"id":949,"title":"Heat","imdb_id":"tt0113277"}""",
+            ),
+        )
+        val (store, service) = service(root, http)
+        val library = service.create("Movies", LibraryKind.MOVIES, root.resolve("movies").toString())
+        service.scan(library.id)
+        assertTrue(calls.containsAll(listOf("/find/tt0078748", "/movie/348")), calls.toString())
+        assertTrue(
+            calls.containsAll(listOf("/find/tt0113277", "/search/movie?Heat", "/movie/949")),
+            calls.toString(),
+        )
+        val movies = store.libraryItems(library.id)
+        val rows = store.libraryMetadata(movies.map { it.id })
+        assertEquals(setOf(348, 949), rows.values.map { it.tmdbId }.toSet())
+        assertEquals(setOf("tt0078748", "tt0113277"), rows.values.map { it.imdbId }.toSet())
+    }
+
     @Test fun `a refused token stops the run and never shows in the note`() = runBlocking {
         val root = Files.createTempDirectory("sofa-media-")
         root.file("movies/Alien (1979).mkv")

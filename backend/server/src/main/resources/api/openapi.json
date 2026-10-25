@@ -169,7 +169,10 @@
           "children": { "type": "integer", "description": "A show's seasons (or episodes when it has no season folders), or a season's episodes." },
           "unwatched": { "type": "integer", "description": "A show's or season's unwatched episodes." },
           "playState": { "oneOf": [{ "$ref": "#/components/schemas/PlayState" }, { "type": "null" }], "description": "A movie's, episode's or video's watch state; null before it is started." },
-          "extra": { "type": ["string", "null"], "enum": ["trailer", "featurette", "behind_the_scenes", "deleted_scene", "interview", "scene", "short", "other", null], "description": "An extra's kind; null for anything else. A client shows a kind it does not know as other." }
+          "extra": { "type": ["string", "null"], "enum": ["trailer", "featurette", "behind_the_scenes", "deleted_scene", "interview", "scene", "short", "other", null], "description": "An extra's kind; null for anything else. A client shows a kind it does not know as other." },
+          "tmdbId": { "type": ["integer", "null"], "description": "A movie's or show's TMDB id, from its name, its .nfo or the TMDB match." },
+          "tvdbId": { "type": ["integer", "null"], "description": "The TheTVDB id, from the name, the .nfo or TMDB's record of a show." },
+          "imdbId": { "type": ["string", "null"], "description": "The IMDb id, tt and digits, from the name, the .nfo or TMDB's record." }
         }
       },
       "LibraryPage": {
@@ -765,6 +768,15 @@
     "/api/v1/library/home": {
       "get": { "tags": ["Library"], "summary": "Continue watching, Recently added per library, and the libraries", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryHome" } } } } } }
+    },
+    "/api/v1/library/lookup": {
+      "get": { "tags": ["Library"], "summary": "The movies and shows an id names", "description": "Every movie and show whose TMDB, TheTVDB or IMDb id is one of those given, in title order. At least one id; 400 for none or a malformed one.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "parameters": [
+          { "name": "tmdb", "in": "query", "schema": { "type": "integer", "minimum": 1 } },
+          { "name": "tvdb", "in": "query", "schema": { "type": "integer", "minimum": 1 } },
+          { "name": "imdb", "in": "query", "schema": { "type": "string", "pattern": "^[Tt][Tt][0-9]{5,10}$" } }
+        ],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/library/search": {
       "get": { "tags": ["Library"], "summary": "Titles holding q: movies, shows and videos, then episodes", "description": "Movies, shows and videos whose title holds q, then those with a cast member or director whose name holds it, then episodes by title. At most 50.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],

@@ -189,6 +189,27 @@ class LibraryApiTest {
         assertEquals(listOf("Bravo", "Charlie", "Alpha"), page("sort=watched").items.map { it.title })
     }
 
+    @Test fun `a lookup finds a movie by any id its name, its nfo or TMDB gives`() = libraryServer(
+        "sofa-library-lookup-",
+        { movies ->
+            movie(movies, "Alien (1979) {tmdb-348}", "<uniqueid type=\"imdb\">tt0078748</uniqueid>")
+            movie(movies, "Heat (1995) [imdbid-tt0113277]", "")
+        },
+    ) {
+        suspend fun lookup(query: String) =
+            json.decodeFromString<LibraryPage>(text("/api/v1/library/lookup?$query")).items.map { it.title }
+        assertEquals(listOf("Alien"), lookup("tmdb=348"))
+        assertEquals(listOf("Alien"), lookup("imdb=TT0078748"))
+        assertEquals(listOf("Alien", "Heat"), lookup("tmdb=348&imdb=tt0113277"))
+        assertEquals(emptyList(), lookup("tvdb=81189"))
+        val alien = json.decodeFromString<LibraryPage>(text("/api/v1/library/lookup?tmdb=348")).items.single()
+        assertEquals(348, alien.tmdbId)
+        assertEquals("tt0078748", alien.imdbId)
+        for (bad in listOf("", "tmdb=x", "tmdb=0", "imdb=0078748")) {
+            assertEquals(HttpStatusCode.BadRequest, get("/api/v1/library/lookup?$bad").status, bad)
+        }
+    }
+
     @Test fun `a movie's page lists its extras and the movies sharing the most genres`() = alienMovies {
         val page = json.decodeFromString<LibraryPage>(text("/api/v1/libraries/${library.id}/items"))
         val body = text("/api/v1/library/items/${page.items.first().id}")
@@ -360,7 +381,9 @@ class LibraryApiTest {
             episode.resolveSibling("Show - S01E01-E02 - Pilot.nfo"),
             "<episodedetails><title>Pilot</title><season>1</season><episode>1</episode><aired>2020-01-05</aired>\n" +
                 "<plot>Where it starts.</plot><runtime>44</runtime><genre>Drama</genre><mpaa>TV-14</mpaa>" +
-                "<rating>8.1</rating></episodedetails>",
+                "<rating>8.1</rating><uniqueid type=\"tmdb\">62085</uniqueid>" +
+                "<uniqueid type=\"tvdb\">349232</uniqueid>" +
+                "<uniqueid type=\"imdb\">tt0959621</uniqueid></episodedetails>",
         )
     }, LibraryKind.SHOWS, block)
 

@@ -18,6 +18,24 @@ class LibraryNamesTest {
         assertEquals(TitleYear("Home movie", null), titleYear("Home movie"))
     }
 
+    @Test fun `names carry TMDB, TheTVDB and IMDb ids in the Plex, Jellyfin and TRaSH forms`() {
+        assertEquals(ProviderIds(tmdb = 348), providerIdsIn("Alien (1979) {tmdb-348}"))
+        assertEquals(ProviderIds(tmdb = 348), providerIdsIn("Alien (1979) [tmdbid-348]"))
+        assertEquals(ProviderIds(tvdb = 81189), providerIdsIn("Breaking Bad (2008) {tvdb-81189}"))
+        assertEquals(ProviderIds(tvdb = 81189), providerIdsIn("Breaking Bad (2008) [tvdbid-81189]"))
+        assertEquals(
+            ProviderIds(imdb = "tt0078748"),
+            providerIdsIn("Alien (1979) {imdb-tt0078748} [Bluray-1080p][x264]-GROUP"),
+        )
+        assertEquals(
+            ProviderIds(tmdb = 348, imdb = "tt0078748"),
+            providerIdsIn("Alien (1979) [imdbid-tt0078748] [tmdbid-348]"),
+        )
+        assertTrue(providerIdsIn("Alien (1979) [1080p]").isEmpty)
+        assertEquals(TitleYear("Alien", 1979), titleYear("Alien (1979) {imdb-tt0078748}"))
+        assertEquals(TitleYear("Breaking Bad", 2008), titleYear("Breaking Bad (2008) [tvdbid-81189]"))
+    }
+
     @Test fun `title runs count each first letter, articles aside, with digits and symbols under #`() {
         assertEquals(
             listOf(LetterCount("#", 2), LetterCount("A", 2), LetterCount("B", 1)),

@@ -25,6 +25,22 @@ class NfoTest {
         assertEquals(listOf("Sigourney Weaver"), nfo.cast)
     }
 
+    @Test fun `an nfo gives its TMDB, TheTVDB and IMDb ids from uniqueid or the older tags`() {
+        val show = parseNfo(
+            (
+                """<tvshow><uniqueid type="tvdb" default="true">81189</uniqueid>""" +
+                    """<uniqueid type="imdb">tt0903747</uniqueid><uniqueid type="tmdb">1396</uniqueid></tvshow>"""
+                ).byteInputStream(),
+        )!!
+        assertEquals(1396, show.tmdbId)
+        assertEquals(81189, show.tvdbId)
+        assertEquals("tt0903747", show.imdbId)
+        val movie = parseNfo("<movie><id>tt0078748</id><tmdbid>348</tmdbid></movie>".byteInputStream())!!
+        assertEquals("tt0078748", movie.imdbId)
+        assertEquals(348, movie.tmdbId)
+        assertNull(parseNfo("<movie><id>12345</id></movie>".byteInputStream())!!.imdbId, "another scraper's id")
+    }
+
     @Test fun `an episode nfo gives its numbers and air date`() {
         val nfo = parseNfo(
             (

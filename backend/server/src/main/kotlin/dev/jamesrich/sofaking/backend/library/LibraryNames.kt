@@ -107,9 +107,27 @@ internal fun cleanTitle(title: String): String =
     title.replace(RELEASE_GROUP, "").replace(BRACKETED, "").trim().replace(QUALITY, "").trimEnd('-', '.', '_').trim()
 
 private val TMDB_TAG = Regex("""(?i)[\[{](?:tmdb|tmdbid)[-=](\d+)[\]}]""")
+private val TVDB_TAG = Regex("""(?i)[\[{](?:tvdb|tvdbid)[-=](\d+)[\]}]""")
+private val IMDB_TAG = Regex("""(?i)[\[{](?:imdb|imdbid)[-=](tt\d{5,10})[\]}]""")
 
-/** The TMDB id a name carries as `{tmdb-348}` or `[tmdbid-348]`, as Plex and Jellyfin read it. */
-internal fun tmdbIdIn(name: String): Int? = TMDB_TAG.find(name)?.groupValues?.get(1)?.toIntOrNull()
+/** The ids of TMDB, TheTVDB and IMDb that name an item, any of them null. */
+data class ProviderIds(val tmdb: Int? = null, val tvdb: Int? = null, val imdb: String? = null) {
+    val isEmpty: Boolean get() = tmdb == null && tvdb == null && imdb == null
+
+    /** These ids, each filled from [other] where this has none. */
+    fun or(other: ProviderIds?): ProviderIds =
+        if (other == null) this else ProviderIds(tmdb ?: other.tmdb, tvdb ?: other.tvdb, imdb ?: other.imdb)
+}
+
+/**
+ * The ids a name carries as `{tmdb-348}`, `[tmdbid-348]`, `{tvdb-81189}`, `[tvdbid-81189]`, `{imdb-tt0078748}` or
+ * `[imdbid-tt0078748]`, as Plex, Jellyfin and the TRaSH naming schemes for Sonarr and Radarr write them.
+ */
+internal fun providerIdsIn(name: String): ProviderIds = ProviderIds(
+    TMDB_TAG.find(name)?.groupValues?.get(1)?.toIntOrNull(),
+    TVDB_TAG.find(name)?.groupValues?.get(1)?.toIntOrNull(),
+    IMDB_TAG.find(name)?.groupValues?.get(1)?.lowercase(),
+)
 
 /**
  * How many of [titles], in title order, start with each letter in turn: the first letter of each [sortTitle] in upper

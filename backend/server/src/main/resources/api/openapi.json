@@ -1046,7 +1046,7 @@
     "/api/v1/admin/events/stream": {
       "get": { "tags": ["Admin"], "summary": "The server's events as they happen", "description": "Server-sent events, each named for its type with a JSON object of type, at and data: ready once the stream listens, session.started and session.ended (the data of a history entry), recording.state (a recording's id, title, channel, state and reason) and attention.changed (the home page's attention items raised and cleared). A comment line every 15 seconds keeps an idle stream open. Nothing is replayed: a client that reconnects reads the history for what it missed.", "security": [{ "adminToken": [] }],
         "parameters": [{ "name": "types", "in": "query", "schema": { "type": "string" }, "description": "Comma-separated event types to send; all of them without it" }],
-        "responses": { "200": { "description": "", "content": { "text/event-stream": { "schema": { "type": "string" } } } } } }
+        "responses": { "200": { "description": "", "content": { "text/event-stream": { "schema": { "description": "One event; data is a JSON object of type, at and data", "type": "object", "required": ["data"], "properties": { "event": { "type": "string" }, "data": { "type": "string", "contentMediaType": "application/json" }, "id": { "type": "string" }, "retry": { "type": "integer" } } } } } } } }
     },
     "/api/v1/admin/candidates": {
       "get": { "tags": ["Admin"], "summary": "Provider channels with their sources and the entries using them", "security": [{ "adminToken": [] }],

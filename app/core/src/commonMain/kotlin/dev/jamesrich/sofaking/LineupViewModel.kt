@@ -21,6 +21,7 @@ import dev.jamesrich.sofaking.data.SettingsStore
 import dev.jamesrich.sofaking.data.SofaKingRepository
 import dev.jamesrich.sofaking.data.UpdateChecker
 import dev.jamesrich.sofaking.data.UpdateState
+import dev.jamesrich.sofaking.data.WatchlistBook
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
@@ -120,6 +121,9 @@ class LineupViewModel(
 
     /** Recording from the guide, on a server that records. */
     val recordings: RecordingSchedule get() = connection.recordings
+
+    /** The household's watchlist, which the guide's program details add titles to. */
+    val watchlist: WatchlistBook get() = connection.watchlist
 
     /** What TMDB says about [program], through the server, for the break screen; null when nothing is known. */
     suspend fun programFacts(program: Program): ProgramFacts? = connection.programFacts.of(program)

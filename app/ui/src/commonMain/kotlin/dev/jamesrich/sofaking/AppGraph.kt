@@ -47,7 +47,7 @@ internal class AppGraph(
     )
 
     fun libraryViewModel(): LibraryViewModel =
-        LibraryViewModel(connection.api, connection.sessions, watchNext = watchNext)
+        LibraryViewModel(connection.api, connection.sessions, watchNext = watchNext, watchlist = connection.watchlist)
 
     /** The Recordings tab reads the same list as the guide's record marks, from the connection. */
     fun recordingsViewModel(): RecordingsViewModel = RecordingsViewModel(connection.recordings, connection.sessions)

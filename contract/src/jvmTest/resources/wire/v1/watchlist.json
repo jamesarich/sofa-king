@@ -1,0 +1,27 @@
+{
+    "entries": [
+        {
+            "id": "5b0e2c55-6d0f-4b39-9a6e-1f3f6f5b7d21",
+            "kind": "title",
+            "title": "Movie Night",
+            "itemId": null,
+            "channelId": "e765525a-42b9-46cf-821d-d2b5c131c6ba",
+            "addedAt": "2026-10-25T03:00:00Z",
+            "item": null,
+            "next": {
+                "id": "f29e21f6-585b-34a7-a5e1-4c5d92bb2428",
+                "channelId": "e765525a-42b9-46cf-821d-d2b5c131c6ba",
+                "startsAt": "2026-10-25T04:00:00Z",
+                "endsAt": "2026-10-25T06:00:00Z",
+                "title": "Movie Night",
+                "description": null,
+                "subTitle": null,
+                "episode": null,
+                "isNew": false,
+                "rating": null,
+                "icon": null,
+                "categories": []
+            }
+        }
+    ]
+}

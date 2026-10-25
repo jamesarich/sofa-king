@@ -91,6 +91,9 @@ class ServerConnection(
     /** Recording from the guide, on a server that records. */
     val recordings = RecordingSchedule(work, api, capabilities.map { it.recordings })
 
+    /** The household's watchlist, on a server that keeps one. */
+    val watchlist = WatchlistBook(work, api, capabilities.map { it.watchlist })
+
     /** What TMDB says about live programs, for the break screen. */
     val programFacts = ProgramFactsBook(api)
 
@@ -100,7 +103,7 @@ class ServerConnection(
         while (true) {
             runCatchingCancellable {
                 return api.bootstrap().capabilities.let {
-                    ServerCapabilities(recordings = it.recordings, library = it.library)
+                    ServerCapabilities(recordings = it.recordings, library = it.library, watchlist = it.watchlist)
                 }
             }.onFailure { e ->
                 if (e is SofaKingException) {

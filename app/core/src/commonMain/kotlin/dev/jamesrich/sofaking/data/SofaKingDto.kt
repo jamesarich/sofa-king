@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.data
 
 import dev.jamesrich.sofaking.contract.AdBreakState
+import dev.jamesrich.sofaking.contract.AddWatchlistEntry
 import dev.jamesrich.sofaking.contract.ApiError
 import dev.jamesrich.sofaking.contract.Bootstrap
 import dev.jamesrich.sofaking.contract.Capabilities
@@ -39,6 +40,8 @@ import dev.jamesrich.sofaking.contract.UpdateRecordingRule
 import dev.jamesrich.sofaking.contract.UpdateVodPlayback
 import dev.jamesrich.sofaking.contract.ViewerPreferences
 import dev.jamesrich.sofaking.contract.VodSession
+import dev.jamesrich.sofaking.contract.Watchlist
+import dev.jamesrich.sofaking.contract.WatchlistEntry
 import kotlinx.serialization.json.Json
 
 /** Reads the server's `/api/v1` resources; fields the app does not know are ignored. */
@@ -78,6 +81,9 @@ internal typealias UpdateVodPlaybackDto = UpdateVodPlayback
 internal typealias VodSessionDto = VodSession
 internal typealias ClientProfileDto = ClientProfile
 internal typealias BootstrapDto = Bootstrap
+internal typealias WatchlistDto = Watchlist
+internal typealias WatchlistEntryDto = WatchlistEntry
+internal typealias AddWatchlistEntryDto = AddWatchlistEntry
 internal typealias CapabilitiesDto = Capabilities
 internal typealias RecordingDto = Recording
 internal typealias RecordingListDto = RecordingList

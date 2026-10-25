@@ -72,4 +72,6 @@ data class ServerCapabilities(
     val recordings: Boolean = false,
     /** It serves media libraries. */
     val library: Boolean = false,
+    /** It keeps the household's watchlist. */
+    val watchlist: Boolean = false,
 )

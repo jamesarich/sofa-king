@@ -161,6 +161,7 @@ internal fun LibraryItemDestination(
     var pickedSeason by rememberSaveable(route.itemId) { mutableStateOf<String?>(null) }
     val seasonId = pickedSeason ?: ready?.let(::initialSeasonId)
     val season = seasonId?.let { id -> remember(id) { libraryVm.detail(id) }.collectAsStateWithLifecycle().value }
+    val watchlist by libraryVm.watchlistMarks.collectAsStateWithLifecycle()
     ItemDetailsScreen(
         state = detail,
         season = season,
@@ -173,6 +174,8 @@ internal fun LibraryItemDestination(
             onPerson = { shell.push(Route.LibrarySearch(query = it)) },
             onOpenShow = { shell.push(Route.LibraryItem(it)) },
             onOpenItem = { shell.push(Route.LibraryItem(it.id)) },
+            onToggleWatchlist = libraryVm::toggleWatchlist,
+            watchlisted = { item -> watchlist.has(item).takeIf { watchlist.offered } },
         ),
         returnedFrom = arrival.returnedFrom,
         hideSpoilers = hideSpoilers,

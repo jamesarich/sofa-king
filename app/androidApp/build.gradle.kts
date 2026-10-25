@@ -50,7 +50,9 @@ android {
                 storePassword = signingValue("sofaking.keystore.password").get()
                 keyAlias = signingValue("sofaking.key.alias").get()
                 // A PKCS12 keystore, keytool's default, has one password for the store and the key.
-                keyPassword = signingValue("sofaking.key.password").orElse(signingValue("sofaking.keystore.password")).get()
+                keyPassword = signingValue("sofaking.key.password")
+                    .orElse(signingValue("sofaking.keystore.password"))
+                    .get()
             }
         }
     }

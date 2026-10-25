@@ -31,6 +31,7 @@ internal fun aboutPage(chrome: Chrome, view: AboutView): String = layout("About"
         serverPanel(server, now)
         statusPanel(status, now)
     }
+    view.encoders?.let { encoderPanel(chrome, it) }
     snapshotPanel(view.snapshot)
     if (view.confirm && view.update != null) updateConfirm(chrome, view.update)
 }

@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.api.ServerStatus
 import dev.jamesrich.sofaking.backend.jobs.JobStatus
+import dev.jamesrich.sofaking.backend.library.EncoderChecks
 import dev.jamesrich.sofaking.backend.logging.LogEvent
 import dev.jamesrich.sofaking.backend.update.UpdateState
 import kotlinx.coroutines.Dispatchers
@@ -88,8 +89,11 @@ internal class AboutView(
     val snapshot: String,
     val update: UpdateState? = null,
     val confirm: Boolean = false,
+    /** The video encoder checks; null without library playback. */
+    val encoders: EncoderChecks? = null,
 ) {
-    constructor(view: AboutView, confirm: Boolean) : this(view.server, view.status, view.snapshot, view.update, confirm)
+    constructor(view: AboutView, confirm: Boolean) :
+        this(view.server, view.status, view.snapshot, view.update, confirm, view.encoders)
 }
 
 /** The first line of `ffmpeg -version`, or why it could not be read; [ffmpeg] is the configured path. */

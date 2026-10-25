@@ -25,7 +25,7 @@ internal fun WatchlistButton(program: Program, listed: Boolean, onToggle: suspen
             busy = true
             scope.launch {
                 try {
-                    onToggle(program)
+                    val _ = onToggle(program)
                 } finally {
                     busy = false
                 }

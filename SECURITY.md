@@ -11,7 +11,7 @@ Leave out live tokens, provider URLs with credentials and private addresses; a r
 
 ## Supported versions
 
-Fixes land on `main` and reach the snapshot channel first, then the next release.
+Fixes land on `main` and reach the snapshot channel first, then the next release. Until the first release is tagged, `main` is the only supported version.
 
 | Version | Supported |
 | --- | --- |

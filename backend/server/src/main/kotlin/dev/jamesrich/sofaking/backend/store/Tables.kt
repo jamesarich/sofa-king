@@ -391,3 +391,29 @@ internal object ApiTokenRows : Table("api_token") {
 
 /** The scope of household rows: the one value until profiles exist. */
 internal const val HOUSEHOLD = "household"
+internal object VirtualChannels : Table("virtual_channel") {
+    val id = text("id")
+    val name = text("name")
+    val number = text("number").nullable()
+    val settingsJson = text("settings_json")
+    val createdAt = text("created_at")
+    val updatedAt = text("updated_at")
+    override val primaryKey = PrimaryKey(id)
+}
+internal object VirtualSlots : Table("virtual_slot") {
+    val channelId = text("channel_id")
+    val position = integer("position")
+    val sourceJson = text("source_json")
+    val shuffle = bool("shuffle")
+    val startMinute = integer("start_minute").nullable()
+    override val primaryKey = PrimaryKey(channelId, position)
+}
+internal object VirtualAirings : Table("virtual_airing") {
+    val channelId = text("channel_id")
+    val startsAt = text("starts_at")
+    val endsAt = text("ends_at")
+    val itemId = text("item_id").nullable()
+    val slot = integer("slot").nullable()
+    val filler = bool("filler")
+    override val primaryKey = PrimaryKey(channelId, startsAt)
+}

@@ -68,6 +68,7 @@ nav:
       - Live TV and settings: backend/docs/live-tv.md
       - Recordings: backend/docs/recordings.md
       - Media libraries: backend/docs/libraries.md
+      - Virtual channels: backend/docs/virtual-channels.md
       - App troubleshooting: app/docs/troubleshooting.md
       - Server troubleshooting: backend/docs/troubleshooting.md
   - Reference:

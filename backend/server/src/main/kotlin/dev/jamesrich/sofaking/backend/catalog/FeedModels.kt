@@ -52,6 +52,9 @@ private fun validateHeaders(headers: Map<String, String>) {
 
     val native: Boolean get() = type == "native"
 
+    /** Whether an import may list no channels: when allowed, and always for the virtual channels, which start none. */
+    val mayBeEmpty: Boolean get() = allowEmpty || service == "virtual"
+
     /** Seconds between imports. */
     val refreshInterval: Long get() = refreshSeconds ?: if (native) 3600 else 900
 

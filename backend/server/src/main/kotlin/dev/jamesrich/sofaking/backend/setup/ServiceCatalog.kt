@@ -101,6 +101,12 @@ object ServiceCatalog {
             "Your antenna's broadcast stations, from an HDHomeRun on the LAN",
             listOf(url),
         ),
+        ServiceInfo(
+            "virtual",
+            "Virtual channels",
+            "Channels you schedule from your own libraries, on the Channels page's Virtual tab",
+            startsOn = false,
+        ),
     )
 
     fun byService(service: String): ServiceInfo? = all.firstOrNull { it.service == service }

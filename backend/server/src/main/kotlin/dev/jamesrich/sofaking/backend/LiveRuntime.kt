@@ -29,6 +29,8 @@ import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.setup.SetupService
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
+import dev.jamesrich.sofaking.backend.virtual.VirtualChannelService
+import dev.jamesrich.sofaking.backend.virtual.VirtualStreams
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
@@ -131,11 +133,16 @@ class LiveRuntime(
     val watchlist: WatchlistService = WatchlistService(store, lineup, guides, libraries?.catalog, Clock.systemUTC()),
     /** On Later: the movies, sports, kids' programs and premieres coming up on the enabled channels. */
     val onLater: OnLaterService = OnLaterService(lineup, guides, Clock.systemUTC()),
+    /** The virtual channels; null for a runtime built without a config. */
+    val virtual: VirtualChannelService? = null,
+    /** The virtual channels' streams, which the loopback relay serves. */
+    val virtualStreams: VirtualStreams? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
         sessions.close()
         vod?.close()
+        virtualStreams?.close()
         remux.close()
         loopback.close()
         http.close()

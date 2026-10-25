@@ -18,11 +18,22 @@ private const val UNBOUNDED_SOCKET_TIMEOUT_MS = 15_000L
 class UpstreamRejectedException(message: String) : RuntimeException(message)
 
 /**
+ * The loopback route where the server serves streams it makes itself, such as virtual channels: [prefix] is set when
+ * its listener starts, and only URLs under it are admitted.
+ */
+class LocalOrigin {
+    @Volatile var prefix: String? = null
+
+    fun admits(target: URI): Boolean = prefix?.let { target.normalize().toString().startsWith(it) } == true
+}
+
+/**
  * Which upstream hosts the server will fetch. RFC1918 LAN hosts are always allowed because the
  * household's sources live there; loopback, link-local and unspecified literals are refused unless
- * [allowLoopback] is set for a development fixture. Hostnames are not resolved before the request.
+ * [allowLoopback] is set for a development fixture, or the URL is on the server's own [local] route. Hostnames are not
+ * resolved before the request.
  */
-data class UpstreamPolicy(val allowLoopback: Boolean = false) {
+data class UpstreamPolicy(val allowLoopback: Boolean = false, val local: LocalOrigin = LocalOrigin()) {
     fun check(target: URI) {
         rejection(target)?.let { throw UpstreamRejectedException(it) }
     }
@@ -38,7 +49,7 @@ data class UpstreamPolicy(val allowLoopback: Boolean = false) {
         val loopback = literal?.isLoopbackAddress ?: (host == "localhost" || host.endsWith(".localhost"))
         return when {
             literal != null && literal.unroutable -> "Unroutable upstream address"
-            loopback && !allowLoopback -> "Loopback upstream address"
+            loopback && !allowLoopback && !local.admits(target) -> "Loopback upstream address"
             else -> null
         }
     }

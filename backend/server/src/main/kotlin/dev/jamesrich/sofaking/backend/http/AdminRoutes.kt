@@ -62,6 +62,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
         viewerAdminRoutes(runtime)
         tokenAdminRoutes(runtime.tokens)
         libraryAdminRoutes(runtime.libraries)
+        virtualChannelRoutes(runtime.virtual, clock)
     }
 }
 

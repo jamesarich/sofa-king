@@ -90,7 +90,14 @@ internal val NAV: List<Section> = listOf(
         "/admin/lineup",
         "Channels",
         "channels",
-        listOf("/admin/lineup", "/admin/required", "/admin/merges", "/admin/guide-matches", "/admin/groups"),
+        listOf(
+            "/admin/lineup",
+            "/admin/required",
+            "/admin/merges",
+            "/admin/guide-matches",
+            "/admin/groups",
+            "/admin/virtual",
+        ),
     ),
     Section("/admin/providers", "Sources", "sources", listOf("/admin/providers", "/admin/ads")),
     Section("/admin/recordings", "Recordings", "recordings"),
@@ -105,7 +112,7 @@ internal val NAV: List<Section> = listOf(
     ),
 )
 
-/** The Channels section's tabs; all but Channels exist only under a lineup policy. */
+/** The Channels section's tabs; all but Channels and Virtual exist only under a lineup policy. */
 internal val CHANNEL_TABS =
     listOf(
         Tab("/admin/lineup", "Channels"),
@@ -113,7 +120,13 @@ internal val CHANNEL_TABS =
         Tab("/admin/merges", "Merges", "merges"),
         Tab("/admin/guide-matches", "Guide matches"),
         Tab("/admin/groups", "Groups"),
+        Tab("/admin/virtual", "Virtual"),
     )
+
+/** The Channels section's tabs there are: all of them under a policy, else Channels and Virtual. */
+internal fun channelTabs(policy: Boolean): List<Tab> =
+    if (policy) CHANNEL_TABS else CHANNEL_TABS.filter { it.href == "/admin/lineup" || it.href == "/admin/virtual" }
+
 internal val SOURCE_TABS = listOf(Tab("/admin/providers", "Sources", "sources"), Tab("/admin/ads", "Ads"))
 internal val PLAYER_TABS = listOf(Tab("/admin/viewers", "Devices"), Tab("/admin/plex", "Plex", "plex"))
 internal val SYSTEM_TABS =

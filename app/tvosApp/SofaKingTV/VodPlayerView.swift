@@ -12,15 +12,19 @@ struct VodRequest: Identifiable, Hashable {
 
     let source: Source
     let fromStart: Bool
+    /// Where a `sofaking://vod?t=` link starts the item, in milliseconds; negative for none.
+    let startMs: Int64
 
-    init(item: MediaItem, fromStart: Bool) {
+    init(item: MediaItem, fromStart: Bool, startMs: Int64 = -1) {
         source = .item(item)
         self.fromStart = fromStart
+        self.startMs = startMs
     }
 
     init(recording: DvrRecording, fromStart: Bool) {
         source = .recording(recording)
         self.fromStart = fromStart
+        startMs = -1
     }
 
     /// The library item, or nil for a recording.
@@ -212,7 +216,7 @@ struct VodPlayerView: View {
             let s: PlaybackStream
             switch request.source {
             case .item(let item):
-                s = try await waitForConverter { try await model.core.playItem(item: item, fromStart: request.fromStart) }
+                s = try await waitForConverter { try await model.core.playItem(item: item, fromStart: request.fromStart, startMs: request.startMs) }
             case .recording(let recording):
                 s = try await waitForConverter { try await model.core.playRecording(recording: recording, fromStart: request.fromStart) }
             }

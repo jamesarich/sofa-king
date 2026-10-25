@@ -65,11 +65,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="sofaking" android:host="pair" />
             </intent-filter>
-            <!-- A Watch Next entry on the home screen plays its item: sofaking://vod/ID. Not BROWSABLE, so web pages cannot. -->
+            <!-- A Watch Next entry on the home screen plays its item, sofaking://vod/ID?t=SECONDS, and a home automation's
+                 am start a channel, sofaking://live/NUMBER. Not BROWSABLE, so web pages cannot. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="sofaking" android:host="vod" />
+                <data android:scheme="sofaking" android:host="live" />
             </intent-filter>
         </activity>
 

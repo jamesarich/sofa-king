@@ -84,6 +84,19 @@ Info held, or Stream info on the bar, opens the stream card: the stream's audio 
 
 Pause shows how many seconds the picture is behind live and that resuming after 30 seconds paused rejoins live; when it does, "Live" shows for a moment. A failed stream's card counts down to the next automatic reconnect, and a channel the server has no working source for says so.
 
+## Links
+
+The app opens `sofaking://` links on Android, Android TV, iOS and Apple TV, so a home automation, a shortcut or another app can start something:
+
+| Link | Opens |
+| --- | --- |
+| `sofaking://live/NUMBER` | The channel with that number full screen on Live, such as `sofaking://live/5.1`; a channel's name works in place of its number. Back lands on the guide. |
+| `sofaking://vod/ID` | The library item with that id in the player, from where the household stopped. Back lands on the Library tab. |
+| `sofaking://vod/ID?t=SECONDS` | The same item, that many seconds in. |
+| `sofaking://pair?server=URL&code=CODE` | Pairs with that server, as the admin portal's QR code does. |
+
+On Android and Android TV only `pair` opens from a web page; `live` and `vod` open from another app, from the home screen's Watch Next row, or from `adb shell am start -a android.intent.action.VIEW -d sofaking://live/5.1`, the way Home Assistant's Android TV integration starts an app. A channel or item the server does not have leaves the app where it was. The Apple TV's Top Shelf uses the same `vod` links, and its older `sofaking://channel/ID` links still open the channel.
+
 ## Captions
 
 Enable captions with the CC key, the Captions button on the player's bar or in Settings. They show in the guide's preview as well as the player. Recordings show them too, and their player has the same CC key and Captions button; a library item shows only the subtitles picked in its Audio and subtitles card, which CC turns off and on.

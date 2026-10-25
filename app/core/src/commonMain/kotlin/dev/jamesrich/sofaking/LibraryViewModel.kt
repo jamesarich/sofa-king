@@ -113,8 +113,8 @@ interface LibraryBrowsing {
 /** Playing library items: opening one, what comes next, its tracks and subtitles, and the household's place in it. */
 interface LibraryPlayback {
     /**
-     * Opens [item] on the app's one session, releasing whatever was held: from the start with [fromStart], else
-     * where the household stopped in it. [profile] is what the player plays as it is.
+     * Opens [item] on the app's one session, releasing whatever was held: at [startMs] when a link names it, from the
+     * start with [fromStart], else where the household stopped in it. [profile] is what the player plays as it is.
      */
     suspend fun play(
         item: MediaItem,
@@ -122,6 +122,7 @@ interface LibraryPlayback {
         fromStart: Boolean = false,
         audioIndex: Int? = null,
         subtitleIndex: Int? = null,
+        startMs: Long? = null,
     ): PlaybackStream
 
     /**
@@ -298,8 +299,9 @@ internal class LibraryPlayer(
         fromStart: Boolean,
         audioIndex: Int?,
         subtitleIndex: Int?,
+        startMs: Long?,
     ): PlaybackStream {
-        val start = item.progress?.takeIf { !fromStart && it.inProgress }?.positionMs ?: 0
+        val start = startMs ?: item.progress?.takeIf { !fromStart && it.inProgress }?.positionMs ?: 0
         positions.reset(item.id)
         return sessions.play(item.id, profile, start, audioIndex, subtitleIndex)
     }

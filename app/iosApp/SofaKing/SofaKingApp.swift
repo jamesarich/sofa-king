@@ -20,7 +20,8 @@ struct SofaKingApp: App {
         WindowGroup {
             ComposeView()
                 .ignoresSafeArea()
-                // A `sofaking://pair` link, from the admin portal's QR code, pairs the app with that server.
+                // A `sofaking://pair` link, from the admin portal's QR code, pairs the app with that server; a `sofaking://vod`
+                // or `sofaking://live` link plays that item or channel.
                 .onOpenURL { MainViewControllerKt.openSofaKingLink(link: $0.absoluteString) }
         }
     }

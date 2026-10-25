@@ -113,15 +113,28 @@ internal class AppShellState(
     }
 
     /**
-     * A `sofaking://vod` link, from the home screen's Watch Next row, plays [itemId] over the Library tab, so Back
-     * leaves for the Library, and takes the place of an item already playing there. On a cold start it is the
-     * start's page, in place of the channel last watched.
+     * A `sofaking://vod` link, from the home screen's Watch Next row or a shortcut, plays [itemId] over the Library
+     * tab, from [startMs] when the link names it, so Back leaves for the Library, and takes the place of an item
+     * already playing there. On a cold start it is the start's page, in place of the channel last watched.
      */
-    fun playItem(itemId: String) {
+    fun playItem(itemId: String, startMs: Long? = null) {
         val from = if (launchDecided) nav.closeSettings() else Navigation()
         launchDecided = true
         val library = if (from.tab == Tab.LIBRARY) from else from.open(Tab.LIBRARY)
-        nav = if (library.top is Route.Vod) library.replaceTop(Route.Vod(itemId)) else library.push(Route.Vod(itemId))
+        val route = Route.Vod(itemId, startMs = startMs)
+        nav = if (library.top is Route.Vod) library.replaceTop(route) else library.push(route)
+    }
+
+    /**
+     * A `sofaking://live` link plays [guideId] full screen on the Live tab, in place of a channel already playing
+     * there, so Back lands on the guide. On a cold start it is the start's page, in place of the channel last watched.
+     */
+    fun playChannel(guideId: String) {
+        val from = if (launchDecided) nav.closeSettings() else Navigation()
+        launchDecided = true
+        val live = if (from.tab == Tab.LIVE) from else from.open(Tab.LIVE)
+        val route = Route.Player(guideId)
+        nav = if (live.top is Route.Player) live.replaceTop(route) else live.push(route)
     }
 
     /** The guide and the player lock Settings again; the pages behind Settings keep it open. */

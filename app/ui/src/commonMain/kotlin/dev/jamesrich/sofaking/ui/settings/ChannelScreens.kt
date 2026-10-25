@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui.settings
 
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -360,11 +361,14 @@ internal fun showsBackButton(): Boolean =
 @Composable
 private fun ChannelRow(channel: Channel, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val shapes = settingRowShapes()
+    val interactions = remember { MutableInteractionSource() }
     ListItem(
         selected = selected,
         onClick = onClick,
         modifier = modifier.width(FIELD_WIDTH).tvFocus(shapes.shape, focusedScale = 1f),
         leadingContent = { ChannelLogo(channel, 64.dp, 40.dp) },
         shapes = shapes,
+        colors = settingRowColors(interactions),
+        interactionSource = interactions,
     ) { Text(channel.label(), style = MaterialTheme.typography.titleSmall) }
 }

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.settings
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
@@ -10,6 +11,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -164,6 +166,7 @@ internal fun LinkRow(
     modifier: Modifier = Modifier,
 ) {
     val shapes = settingRowShapes()
+    val interactions = remember { MutableInteractionSource() }
     ListItem(
         onClick = onClick,
         modifier = modifier.width(FIELD_WIDTH).tvFocus(shapes.shape, focusedScale = 1f),
@@ -171,5 +174,7 @@ internal fun LinkRow(
         trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
         supportingContent = { Text(summary, style = MaterialTheme.typography.bodySmall) },
         shapes = shapes,
+        colors = settingRowColors(interactions),
+        interactionSource = interactions,
     ) { Text(label, style = MaterialTheme.typography.titleSmall) }
 }

@@ -1,8 +1,6 @@
 package dev.jamesrich.sofaking.ui.settings
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
@@ -10,19 +8,14 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.Role
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.captions_off
@@ -161,8 +154,8 @@ internal fun LazyListScope.pageRows(
 }
 
 /**
- * A row that opens another page: an icon, the label with a [summary] under it and an arrow, the whole row the focus
- * and touch target.
+ * A row that opens another page, Material's clickable list item: an icon, the label with a [summary] under it and an
+ * arrow, the whole row the focus and touch target.
  */
 @Composable
 internal fun LinkRow(
@@ -172,24 +165,16 @@ internal fun LinkRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val shapes = settingRowShapes()
     val interactions = remember { MutableInteractionSource() }
-    val focused by interactions.collectIsFocusedAsState()
-    val shape = MaterialTheme.shapes.medium
     ListItem(
-        modifier = modifier
-            .width(FIELD_WIDTH)
-            .tvFocus(shape, focusedScale = 1f)
-            .clip(shape)
-            .clickable(interactionSource = interactions, indication = ripple(), role = Role.Button, onClick = onClick),
+        onClick = onClick,
+        modifier = modifier.width(FIELD_WIDTH).tvFocus(shapes.shape, focusedScale = 1f),
         leadingContent = { Icon(icon, contentDescription = null) },
         trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
         supportingContent = { Text(summary, style = MaterialTheme.typography.bodySmall) },
-        colors = ListItemDefaults.colors(
-            containerColor = if (focused) {
-                MaterialTheme.colorScheme.surfaceVariant
-            } else {
-                MaterialTheme.colorScheme.surface
-            },
-        ),
+        shapes = shapes,
+        colors = settingRowColors(interactions),
+        interactionSource = interactions,
     ) { Text(label, style = MaterialTheme.typography.titleSmall) }
 }

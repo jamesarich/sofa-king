@@ -1,9 +1,7 @@
 package dev.jamesrich.sofaking.ui.settings
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,10 +15,8 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,12 +27,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -363,25 +357,18 @@ internal fun ScreenTitle(title: String, onBack: () -> Unit, backFocus: FocusRequ
 internal fun showsBackButton(): Boolean =
     !LocalLayoutProfile.current.tv || LocalLastInput.current.kind == InputKind.POINTER
 
-/** A channel as one focusable list row: logo, number and name, tinted while selected. */
+/** A channel as one row, Material's single-selection list item: logo, number and name, tinted while selected. */
 @Composable
 private fun ChannelRow(channel: Channel, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val shapes = settingRowShapes()
     val interactions = remember { MutableInteractionSource() }
-    val focused by interactions.collectIsFocusedAsState()
-    val shape = MaterialTheme.shapes.medium
     ListItem(
-        modifier = modifier
-            .width(FIELD_WIDTH)
-            .tvFocus(shape, focusedScale = 1f)
-            .clip(shape)
-            .clickable(interactionSource = interactions, indication = ripple(), role = Role.Button, onClick = onClick),
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier.width(FIELD_WIDTH).tvFocus(shapes.shape, focusedScale = 1f),
         leadingContent = { ChannelLogo(channel, 64.dp, 40.dp) },
-        colors = ListItemDefaults.colors(
-            containerColor = when {
-                focused -> MaterialTheme.colorScheme.surfaceVariant
-                selected -> MaterialTheme.colorScheme.secondaryContainer
-                else -> MaterialTheme.colorScheme.surface
-            },
-        ),
+        shapes = shapes,
+        colors = settingRowColors(interactions),
+        interactionSource = interactions,
     ) { Text(channel.label(), style = MaterialTheme.typography.titleSmall) }
 }

@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui.settings
 
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -12,16 +13,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemColors
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -30,11 +31,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -83,8 +83,8 @@ internal fun SettingRow(label: String, controls: @Composable () -> Unit) {
 }
 
 /**
- * A switch setting as one list row: the whole row is the focus and touch target and OK flips it, so the D-pad never
- * stops on a bare switch. [help] reads beneath the label and with it.
+ * A switch setting as one list row, Material's toggleable list item: the whole row is the focus and touch target and
+ * OK flips it, so the D-pad never stops on a bare switch. [help] reads beneath the label and with it.
  */
 @Composable
 internal fun ToggleRow(
@@ -94,31 +94,48 @@ internal fun ToggleRow(
     modifier: Modifier = Modifier,
     help: String? = null,
 ) {
+    val shapes = settingRowShapes()
     val interactions = remember { MutableInteractionSource() }
-    val focused by interactions.collectIsFocusedAsState()
-    val shape = MaterialTheme.shapes.medium
     ListItem(
-        modifier = modifier
-            .width(FIELD_WIDTH)
-            .tvFocus(shape, focusedScale = 1f)
-            .clip(shape)
-            .toggleable(
-                value = checked,
-                interactionSource = interactions,
-                indication = ripple(),
-                role = Role.Switch,
-                onValueChange = onCheckedChange,
-            ),
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier.width(FIELD_WIDTH).tvFocus(shapes.shape, focusedScale = 1f),
         trailingContent = { Switch(checked = checked, onCheckedChange = null) },
         supportingContent = help?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
-        colors = ListItemDefaults.colors(
-            containerColor = if (focused) {
-                MaterialTheme.colorScheme.surfaceVariant
-            } else {
-                MaterialTheme.colorScheme.surface
-            },
-        ),
+        shapes = shapes,
+        // The switch shows the state, so an on row keeps the plain container.
+        colors = settingRowColors(interactions, tintSelected = false),
+        interactionSource = interactions,
     ) { Text(label, style = MaterialTheme.typography.titleSmall) }
+}
+
+/**
+ * Material's list item colors for a settings row, with the focused row's container raised to `surfaceVariant`:
+ * Material's focus state layer alone is too faint to read from the sofa. A selected row keeps Material's selected
+ * container when [tintSelected], else it looks like any other row.
+ */
+@Composable
+internal fun settingRowColors(interactions: InteractionSource, tintSelected: Boolean = true): ListItemColors {
+    val focused by interactions.collectIsFocusedAsState()
+    val container = if (focused) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+    return ListItemDefaults.colors(
+        containerColor = container,
+        selectedContainerColor = if (tintSelected) Color.Unspecified else container,
+    )
+}
+
+/** One shape for a settings row in every state, so the D-pad's focus ring keeps the row's outline. */
+@Composable
+internal fun settingRowShapes(): ListItemShapes {
+    val shape = MaterialTheme.shapes.medium
+    return ListItemDefaults.shapes(
+        shape = shape,
+        selectedShape = shape,
+        pressedShape = shape,
+        focusedShape = shape,
+        hoveredShape = shape,
+        draggedShape = shape,
+    )
 }
 
 /**

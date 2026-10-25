@@ -22,7 +22,7 @@ internal fun movieItem(libraryId: String, root: Path, file: FoundFile): LibraryI
     val named = folder?.let { titleYear(it.fileName.toString()) }?.takeIf { it.year != null } ?: titleYear(stem)
     val nfo = readNfo(path.resolveSibling("$stem.nfo")) ?: folder?.let { readNfo(it.resolve("movie.nfo")) }
     val title = nfo?.title ?: named.title
-    val tag = tmdbIdIn(stem) ?: folder?.let { tmdbIdIn(it.fileName.toString()) }
+    val tag = providerIdsIn(stem).or(folder?.let { providerIdsIn(it.fileName.toString()) })
     return LibraryItemRecord(
         id = itemId(libraryId, "file:${file.relative}"),
         libraryId = libraryId, kind = ItemKind.MOVIE, path = file.relative,
@@ -110,7 +110,7 @@ internal class ShowItems(private val libraryId: String, private val root: Path) 
         val nfo = folder?.let { readNfo(it.resolve("tvshow.nfo")) }
         val named = titleYear(key)
         val title = nfo?.title ?: named.title
-        val tag = tmdbIdIn(key)
+        val tag = providerIdsIn(key)
         return LibraryItemRecord(
             id = itemId(libraryId, "show:$key"), libraryId = libraryId, kind = ItemKind.SHOW, title = title,
             sortTitle = sortTitle(nfo?.sortTitle ?: title),
@@ -196,10 +196,11 @@ private fun art(root: Path, vararg bases: Path?): String? {
     return null
 }
 
-private fun Nfo.details(tagged: Int? = null): ItemDetails = ItemDetails(
+private fun Nfo.details(tagged: ProviderIds = ProviderIds()): ItemDetails = ItemDetails(
     tagline, genres, studio, contentRating, rating, cast, directors,
-    tmdbId ?: tagged, nfo = true,
+    tmdbId ?: tagged.tmdb, tvdbId ?: tagged.tvdb, imdbId ?: tagged.imdb, nfo = true,
 )
 
-/** No `.nfo`, but maybe a TMDB id in the name. */
-private fun tagged(id: Int?): ItemDetails? = id?.let { ItemDetails(tmdbId = it) }
+/** No `.nfo`, but maybe ids in the name. */
+private fun tagged(ids: ProviderIds): ItemDetails? =
+    ids.takeUnless { it.isEmpty }?.let { ItemDetails(tmdbId = it.tmdb, tvdbId = it.tvdb, imdbId = it.imdb) }

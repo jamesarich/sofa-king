@@ -52,6 +52,12 @@ import kotlinx.serialization.Serializable
     val playState: PlayState? = null,
     /** For an [Wire.ItemKind.EXTRA], its [Wire.ExtraKind] value. */
     val extra: String? = null,
+    /** The movie's or show's TMDB id, from its file name, its `.nfo` or the TMDB match; null when none is known. */
+    val tmdbId: Int? = null,
+    /** The TheTVDB id, from the name, the `.nfo` or TMDB's record of a show. */
+    val tvdbId: Int? = null,
+    /** The IMDb id (`tt…`), from the name, the `.nfo` or TMDB's record. */
+    val imdbId: String? = null,
 )
 
 /**

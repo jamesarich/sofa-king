@@ -89,7 +89,7 @@ class LibraryMetadata internal constructor(
         suspend fun lookUp(item: LibraryItemRecord): Boolean {
             val hint = item.details?.tmdbId
             val row = known[item.id]?.takeIf { row ->
-                (hint == null || row.tmdbId == hint) &&
+                (hint == null || row.tmdbId == hint) && pinnedAs(item, row) &&
                     Instant.parse(row.checkedAt).plus(if (row.tmdbId == null) UNMATCHED_FOR else MATCHED_FOR) > now
             }
             if (row != null && !hasNewEpisodes(item, row)) return true
@@ -104,16 +104,43 @@ class LibraryMetadata internal constructor(
             }
         }
 
+        /** Whether [row] was looked up by the TheTVDB and IMDb ids [item] names now, when it names any. */
+        private fun pinnedAs(item: LibraryItemRecord, row: MetadataRecord): Boolean {
+            val details = item.details ?: return true
+            val tvdb = details.tvdbId.takeIf { item.kind == ItemKind.SHOW }
+            return (tvdb == null || row.tvdbId == tvdb) && (details.imdbId == null || row.imdbId == details.imdbId)
+        }
+
+        /**
+         * The TMDB id of the TheTVDB or IMDb id [item] names, from TMDB's `/find`: a show's TheTVDB id first, as Sonarr
+         * names shows by it; null when it names neither or TMDB knows neither.
+         */
+        private suspend fun found(item: LibraryItemRecord): Int? {
+            val details = item.details ?: return null
+            val show = item.kind == ItemKind.SHOW
+            val asked = listOfNotNull(
+                details.tvdbId?.takeIf { show }?.let { it.toString() to "tvdb_id" },
+                details.imdbId?.let { it to "imdb_id" },
+            )
+            for ((id, source) in asked) {
+                val found = client.find(id, source).also { pause() }
+                val match = if (show) found.shows.firstOrNull()?.id else found.movies.firstOrNull()?.id
+                if (match != null) return match
+            }
+            return null
+        }
+
         /** A show that is fresh still fetches the seasons of episodes it has not looked up yet. */
         private fun hasNewEpisodes(item: LibraryItemRecord, row: MetadataRecord): Boolean =
             item.kind == ItemKind.SHOW && row.tmdbId != null &&
                 descendants(item.id).any { it.kind == ItemKind.EPISODE && it.episode != null && it.id !in known }
 
         private suspend fun movie(item: LibraryItemRecord, hint: Int?): List<MetadataRecord> {
-            val id = hint ?: pickMovie(client.searchMovies(item.title, item.year).also { pause() }, item)
+            val id = hint ?: found(item) ?: pickMovie(client.searchMovies(item.title, item.year).also { pause() }, item)
             val movie = id?.let { client.movie(it).also { pause() } }
             if (movie != null) matched++ else unmatched++
-            return listOf(MetadataRecord(item.id, movie?.id, now.toString(), movie?.facts(region)))
+            val imdb = item.details?.imdbId ?: movie?.imdbId?.ifEmpty { null }
+            return listOf(MetadataRecord(item.id, movie?.id, now.toString(), movie?.facts(region), imdbId = imdb))
         }
 
         /** The show [item] and its seasons; with a [fresh] row only the seasons it has not looked up yet. */
@@ -122,11 +149,13 @@ class LibraryMetadata internal constructor(
             val id = if (fresh != null) {
                 fresh.tmdbId
             } else {
-                hint ?: pickShow(client.searchShows(item.title, item.year).also { pause() }, item)
+                hint ?: found(item) ?: pickShow(client.searchShows(item.title, item.year).also { pause() }, item)
             }
             if (fresh == null) {
                 val show = id?.let { client.show(it).also { pause() } }
-                records += MetadataRecord(item.id, show?.id, now.toString(), show?.facts(region))
+                val tvdb = item.details?.tvdbId ?: show?.externalIds?.tvdbId
+                val imdb = item.details?.imdbId ?: show?.externalIds?.imdbId?.ifEmpty { null }
+                records += MetadataRecord(item.id, show?.id, now.toString(), show?.facts(region), tvdb, imdb)
             }
             if (id != null) {
                 matched++

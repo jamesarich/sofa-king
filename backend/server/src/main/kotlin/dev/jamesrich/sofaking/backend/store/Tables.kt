@@ -222,6 +222,8 @@ internal object LibraryMetadataRows : Table("library_metadata") {
     val tmdbId = integer("tmdb_id").nullable()
     val checkedAt = text("checked_at")
     val factsJson = text("facts_json").nullable()
+    val tvdbId = integer("tvdb_id").nullable()
+    val imdbId = text("imdb_id").nullable()
     override val primaryKey = PrimaryKey(itemId)
 }
 

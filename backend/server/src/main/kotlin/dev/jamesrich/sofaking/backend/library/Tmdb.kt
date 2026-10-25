@@ -57,6 +57,17 @@ private val tmdbJson = Json {
     val popularity: Double = 0.0,
 )
 
+/** What `/find/{id}` answers for a TheTVDB or IMDb id. */
+@Serializable internal data class TmdbFound(
+    @SerialName("movie_results") val movies: List<TmdbMovieResult> = emptyList(),
+    @SerialName("tv_results") val shows: List<TmdbShowResult> = emptyList(),
+)
+
+@Serializable internal data class TmdbExternalIds(
+    @SerialName("imdb_id") val imdbId: String? = null,
+    @SerialName("tvdb_id") val tvdbId: Int? = null,
+)
+
 @Serializable internal data class TmdbGenre(val name: String = "")
 
 @Serializable internal data class TmdbCompany(val name: String = "")
@@ -98,6 +109,7 @@ internal data class TmdbCredits(val cast: List<TmdbPerson> = emptyList(), val cr
     @SerialName("backdrop_path") val backdropPath: String? = null,
     val credits: TmdbCredits? = null,
     @SerialName("release_dates") val releaseDates: TmdbReleases? = null,
+    @SerialName("imdb_id") val imdbId: String? = null,
 )
 
 @Serializable internal data class TmdbShow(
@@ -120,6 +132,7 @@ internal data class TmdbCredits(val cast: List<TmdbPerson> = emptyList(), val cr
     @SerialName("number_of_seasons") val seasonCount: Int? = null,
     @SerialName("number_of_episodes") val episodeCount: Int? = null,
     @SerialName("created_by") val createdBy: List<TmdbPerson> = emptyList(),
+    @SerialName("external_ids") val externalIds: TmdbExternalIds? = null,
 )
 
 @Serializable internal data class TmdbEpisode(
@@ -167,7 +180,11 @@ internal class TmdbClient(
 
     suspend fun movie(id: Int): TmdbMovie = get("/movie/$id", "append_to_response" to "credits,release_dates")
 
-    suspend fun show(id: Int): TmdbShow = get("/tv/$id", "append_to_response" to "credits,content_ratings")
+    suspend fun show(id: Int): TmdbShow =
+        get("/tv/$id", "append_to_response" to "credits,content_ratings,external_ids")
+
+    /** The movies and shows TMDB files under the TheTVDB id [id] (`tvdb_id`) or IMDb id (`imdb_id`). */
+    suspend fun find(id: String, source: String): TmdbFound = get("/find/$id", "external_source" to source)
 
     /** Asks TMDB whether it takes the token: fails with `TMDB_AUTH` when it refuses it. */
     suspend fun check() {

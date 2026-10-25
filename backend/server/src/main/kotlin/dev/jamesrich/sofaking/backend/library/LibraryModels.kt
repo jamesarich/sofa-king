@@ -71,6 +71,10 @@ data class ItemDetails(
     val directors: List<String> = emptyList(),
     /** The TMDB id a `.nfo` or a `{tmdb-N}` tag in the name gives; it pins the TMDB match. */
     val tmdbId: Int? = null,
+    /** The TheTVDB id a `.nfo` or a `{tvdb-N}` tag gives; for a show without a TMDB id, TMDB is asked for its own. */
+    val tvdbId: Int? = null,
+    /** The IMDb id (`tt…`) a `.nfo` or an `{imdb-tt…}` tag gives, used as [tvdbId] is. */
+    val imdbId: String? = null,
     /** Whether a `.nfo` supplied these facts, so they win over TMDB's. */
     val nfo: Boolean = false,
     /** An extra's [ExtraKind] wire value. */
@@ -146,7 +150,15 @@ data class MetadataFacts(
 )
 
 /** One item's stored TMDB lookup. */
-data class MetadataRecord(val itemId: String, val tmdbId: Int?, val checkedAt: String, val facts: MetadataFacts?)
+data class MetadataRecord(
+    val itemId: String,
+    val tmdbId: Int?,
+    val checkedAt: String,
+    val facts: MetadataFacts?,
+    /** For a movie or show, the TheTVDB and IMDb ids TMDB lists for it, or the ones it was looked up by. */
+    val tvdbId: Int? = null,
+    val imdbId: String? = null,
+)
 
 /** The household's place in one movie, episode or video. */
 data class PlayStateRecord(

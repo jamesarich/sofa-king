@@ -27,6 +27,8 @@ suspend fun BackendStore.saveLibraryMetadata(records: List<MetadataRecord>) = qu
             this[LibraryMetadataRows.itemId] = record.itemId
             this[LibraryMetadataRows.tmdbId] = record.tmdbId
             this[LibraryMetadataRows.checkedAt] = record.checkedAt
+            this[LibraryMetadataRows.tvdbId] = record.tvdbId
+            this[LibraryMetadataRows.imdbId] = record.imdbId
             this[LibraryMetadataRows.factsJson] =
                 record.facts?.let { factsJson.encodeToString(MetadataFacts.serializer(), it) }
         }
@@ -40,4 +42,6 @@ private fun ResultRow.metadata() = MetadataRecord(
     this[LibraryMetadataRows.factsJson]?.let {
         runCatching { factsJson.decodeFromString(MetadataFacts.serializer(), it) }.getOrNull()
     },
+    this[LibraryMetadataRows.tvdbId],
+    this[LibraryMetadataRows.imdbId],
 )

@@ -30,7 +30,7 @@ internal suspend fun buildSnapshot(store: BackendStore, revision: Long): Snapsho
     // Shows first, so a season or episode can borrow its show's artwork.
     for ((library, record) in records.sortedBy { if (it.second.kind == ItemKind.SHOW) 0 else 1 }) {
         val show = shows[record.id]?.takeIf { it.id != record.id }
-        views[record.id] = itemView(library, record, facts[record.id]?.facts, show, show?.let { views[it.id] })
+        views[record.id] = itemView(library, record, facts[record.id], show, show?.let { views[it.id] })
     }
     return arranged(revision, libraries, views, shows)
 }
@@ -88,15 +88,19 @@ private fun arranged(
     )
 }
 
-/** [record] of [library] as clients read it, with what TMDB found ([facts]) and, for an episode or season, its show. */
+/**
+ * [record] of [library] as clients read it, with what TMDB found ([lookup]) and, for an episode or season, its show.
+ */
 private fun itemView(
     library: LibraryRecord,
     record: LibraryItemRecord,
-    facts: MetadataFacts?,
+    lookup: MetadataRecord?,
     show: LibraryItemRecord?,
     showView: View?,
 ): View {
+    val facts = lookup?.facts
     val text = ItemText(record, facts)
+    val ids = providerIds(record, lookup)
     val art = ItemArt(Path.of(library.path), record, facts, showView)
     val video = record.media?.video
     val item = LibraryItem(
@@ -113,8 +117,20 @@ private fun itemView(
         genres = text.genres, contentRating = text.contentRating, rating = text.rating,
         videoHeight = video?.height, hdr = video?.transfer != null,
         extra = record.details?.extra?.takeIf { record.kind == ItemKind.EXTRA },
+        tmdbId = ids.tmdb, tvdbId = ids.tvdb, imdbId = ids.imdb,
     )
     return View(record, item, text.tagline, text.studio, text.cast, text.directors, art.poster, art.backdrop)
+}
+
+/**
+ * The ids that name [record]: its own from the name or the `.nfo`, then, for a movie or show, the ones its TMDB
+ * [lookup] found. A season's or episode's lookup holds its show's TMDB id, so it lends none.
+ */
+private fun providerIds(record: LibraryItemRecord, lookup: MetadataRecord?): ProviderIds {
+    val own = record.details?.let { ProviderIds(it.tmdbId, it.tvdbId, it.imdbId) } ?: ProviderIds()
+    val found = lookup?.takeIf { record.kind == ItemKind.MOVIE || record.kind == ItemKind.SHOW }
+        ?.let { ProviderIds(it.tmdbId, it.tvdbId, it.imdbId) }
+    return own.or(found)
 }
 
 /** An item's text: with a `.nfo` beside its file, what the `.nfo` says wins; else TMDB's, else the file's own. */

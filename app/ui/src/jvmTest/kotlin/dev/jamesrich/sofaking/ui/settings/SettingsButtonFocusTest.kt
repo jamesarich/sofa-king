@@ -30,6 +30,7 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.Density
+import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
@@ -85,7 +86,13 @@ class SettingsButtonFocusTest {
     @Test
     fun `setting a PIN focuses Remove the PIN`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
         var locked by mutableStateOf(false)
-        show { LockSection(locked = locked, onPinChange = { locked = it != null }) }
+        show {
+            LockSection(
+                AppSettings(settingsPin = if (locked) "hash" else ""),
+                onPinChange = { locked = it != null },
+                onKidsModeChange = {},
+            )
+        }
         onNodeWithText("Set a PIN").requestFocus()
         waitForIdle()
         pressOk()

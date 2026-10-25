@@ -197,4 +197,16 @@ class AppShellStateTest {
             ).recordings,
         )
     }
+
+    @Test
+    fun `kids mode hides the Recordings tab`() {
+        val offered = tabsOffered(
+            ServerCapabilities(recordings = true),
+            Tab.LIVE,
+            LibraryHomeState.Loading,
+            RecordingsState.Loading,
+            kids = true,
+        )
+        assertFalse(offered.recordings)
+    }
 }

@@ -24,6 +24,7 @@ import dev.jamesrich.sofaking.data.SettingsKeys.GUIDE_FILTER
 import dev.jamesrich.sofaking.data.SettingsKeys.HIDDEN_CHANNELS
 import dev.jamesrich.sofaking.data.SettingsKeys.HIDE_SPOILERS
 import dev.jamesrich.sofaking.data.SettingsKeys.KEY_LEGEND_SHOWN
+import dev.jamesrich.sofaking.data.SettingsKeys.KIDS_MODE
 import dev.jamesrich.sofaking.data.SettingsKeys.LAST_CHANNEL
 import dev.jamesrich.sofaking.data.SettingsKeys.LAST_TAB
 import dev.jamesrich.sofaking.data.SettingsKeys.LIVE_BREAKS
@@ -305,6 +306,25 @@ internal class DataStoreDeviceSettings(private val dataStore: DataStore<Preferen
     }
 
     override suspend fun setSettingsPin(hash: String?) {
-        dataStore.edit { prefs -> if (hash.isNullOrEmpty()) prefs -= SETTINGS_PIN else prefs[SETTINGS_PIN] = hash }
+        dataStore.edit { prefs ->
+            if (hash.isNullOrEmpty()) {
+                prefs -= SETTINGS_PIN
+                prefs -= KIDS_MODE
+            } else {
+                prefs[SETTINGS_PIN] = hash
+            }
+        }
+    }
+
+    override suspend fun setKidsMode(on: Boolean) {
+        dataStore.edit { prefs ->
+            if (on &&
+                prefs[SETTINGS_PIN] != null
+            ) {
+                prefs[KIDS_MODE] = true
+            } else {
+                prefs -= KIDS_MODE
+            }
+        }
     }
 }

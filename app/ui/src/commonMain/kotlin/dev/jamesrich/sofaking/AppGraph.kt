@@ -11,7 +11,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * The app's objects over a platform's [storage]: one settings store per file and one connection to the server it
@@ -25,6 +29,14 @@ internal class AppGraph(
 ) {
     private val settings: SettingsStore = DataStoreSettingsStore(storage.settings)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    /** Kids mode empties the platform's row, and keeps it empty until it is off and the shelves load again. */
+    private val kidsMode = settings.settings.map { it.kidsMode }.stateIn(scope, SharingStarted.Eagerly, false)
+    private val shownWatchNext = WatchNext { items -> watchNext.publish(if (kidsMode.value) emptyList() else items) }
+
+    init {
+        scope.launch { kidsMode.collect { kids -> if (kids) watchNext.publish(emptyList()) } }
+    }
 
     /**
      * Started by the first ViewModel rather than with the process, so a process woken for anything else does not call
@@ -46,8 +58,12 @@ internal class AppGraph(
         discovery = discovery,
     )
 
-    fun libraryViewModel(): LibraryViewModel =
-        LibraryViewModel(connection.api, connection.sessions, watchNext = watchNext, watchlist = connection.watchlist)
+    fun libraryViewModel(): LibraryViewModel = LibraryViewModel(
+        connection.api,
+        connection.sessions,
+        watchNext = shownWatchNext,
+        watchlist = connection.watchlist,
+    )
 
     /** The Recordings tab reads the same list as the guide's record marks, from the connection. */
     fun recordingsViewModel(): RecordingsViewModel = RecordingsViewModel(connection.recordings, connection.sessions)

@@ -12,6 +12,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.IntroSpan
 import dev.jamesrich.sofaking.data.ItemKind
+import dev.jamesrich.sofaking.data.KidsMode
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
@@ -33,6 +34,7 @@ import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.resources.retry
 import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.BackHandler
+import dev.jamesrich.sofaking.ui.LocalKidsMode
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.library.CardMenu
 import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
@@ -70,9 +72,12 @@ internal fun LibraryHomeDestination(
     headerFocused: Boolean,
 ) {
     val home by libraryVm.home.collectAsStateWithLifecycle()
+    val kids = LocalKidsMode.current
     BackHandler(onBack = tabBack)
     LibraryHomeScreen(
-        state = home,
+        state = home.let { shown ->
+            if (kids && shown is LibraryHomeState.Ready) LibraryHomeState.Ready(KidsMode.home(shown.home)) else shown
+        },
         actions = LibraryHomeActions(
             onOpenItem = { shell.push(Route.LibraryItem(it.id)) },
             onPlayItem = { shell.push(Route.Vod(it.id)) },
@@ -95,9 +100,12 @@ internal fun LibrarySearchDestination(
     shell: AppShellState,
     libraryVm: LibraryViewModel,
 ) {
+    val kids = LocalKidsMode.current
     LibrarySearchScreen(
         actions = LibrarySearchActions(
-            search = libraryVm::search,
+            search = { query ->
+                libraryVm.search(query).let { found -> if (kids) found.filter(KidsMode::allows) else found }
+            },
             onOpenItem = { shell.push(Route.LibraryItem(it.id)) },
             onPlayItem = { shell.push(Route.Vod(it.id)) },
             menu = cardMenu(shell, libraryVm),
@@ -127,7 +135,12 @@ internal fun LibraryGridDestination(
             open?.takeIf { it.libraryId == route.libraryId }?.genre,
         )
     }
-    val shown = grid?.takeIf { it.libraryId == route.libraryId }
+    val kids = LocalKidsMode.current
+    val shown = grid?.takeIf { it.libraryId == route.libraryId }?.let { if (kids) kidsGrid(it) else it }
+    // Kids mode leaves some pages thin, so the next loads until the grid fills a screen or the library ends.
+    LaunchedEffect(kids, shown?.items?.size, shown?.next, shown?.loading) {
+        if (kids && shown != null && kidsGridThin(shown)) libraryVm.loadMore()
+    }
     LibraryGridScreen(
         library = (home as? LibraryHomeState.Ready)?.home?.libraries?.firstOrNull { it.id == route.libraryId },
         grid = shown,
@@ -146,6 +159,22 @@ internal fun LibraryGridDestination(
         returnedFrom = arrival.returnedFrom,
     )
 }
+
+/**
+ * [grid] down to the titles kids mode shows. Its letters go, since they jump to places in the whole library, and
+ * its total counts what is shown so far.
+ */
+private fun kidsGrid(grid: LibraryGrid): LibraryGrid {
+    val items = grid.items.filter(KidsMode::allows)
+    return grid.copy(items = items, letters = emptyList(), total = items.size)
+}
+
+/** Whether a kids mode [grid] has fewer titles than fill a screen and more pages to load. */
+private fun kidsGridThin(grid: LibraryGrid): Boolean =
+    !grid.loading && grid.next != null && grid.items.size < KIDS_GRID_FILL
+
+/** How many titles kids mode loads into a grid before it waits for the viewer to scroll. */
+private const val KIDS_GRID_FILL = 24
 
 /** A movie, show, season or episode's page; a show lists the season picked, else the one with the next episode. */
 @Composable

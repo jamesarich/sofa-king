@@ -153,4 +153,12 @@ private fun settingsActions(shell: AppShellState, vm: LineupViewModel, libraryVm
             // The page that set the PIN stays open; the lock takes effect on the next visit.
             shell.settingsUnlocked = true
         },
+        onKidsModeChanged = { on ->
+            vm.setKidsMode(on)
+            // Kids mode starts behind the lock, on the guide.
+            if (on) {
+                shell.settingsUnlocked = false
+                shell.leaveSettings()
+            }
+        },
     )

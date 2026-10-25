@@ -83,6 +83,8 @@ data class AppSettings(
     val settingsPin: String = "",
     /** The tracks picked in each show, by show id, most recent first; never synced. */
     val trackChoices: Map<String, TrackChoice> = emptyMap(),
+    /** Whether [KidsMode] is on; it is only while [settingsPin] is set, which leaves it. Never synced. */
+    val kidsMode: Boolean = false,
 ) {
     /** True while Settings asks for a PIN before it opens. */
     val settingsLocked: Boolean get() = settingsPin.isNotEmpty()
@@ -107,7 +109,7 @@ data class AppSettings(
             "hideSpoilers=$hideSpoilers, subtitleLook=$subtitleLook, liveBreaks=$liveBreaks, adsDodged=$adsDodged, " +
             "favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
             "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, " +
-            "trackChoices=${trackChoices.size})"
+            "trackChoices=${trackChoices.size}, kidsMode=$kidsMode)"
 
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
@@ -322,7 +324,7 @@ interface DisplaySettings {
     suspend fun setHideSpoilers(enabled: Boolean)
 }
 
-/** This device's own: the server it pairs with, its client id, the preferences sync and the Settings PIN. */
+/** This device's own: the server it pairs with, its client id, the preferences sync, the Settings PIN and kids mode. */
 interface DeviceSettings {
     suspend fun setServer(serverUrl: String, apiToken: String)
 
@@ -344,6 +346,9 @@ interface DeviceSettings {
     /** Remembers the server document's stamp after this device pushed its preferences. */
     suspend fun setPreferencesSyncedAt(syncedAt: String)
 
-    /** Locks Settings behind [hash], a [SettingsPin.hash], or removes the lock for null. */
+    /** Locks Settings behind [hash], a [SettingsPin.hash], or removes the lock, and kids mode with it, for null. */
     suspend fun setSettingsPin(hash: String?)
+
+    /** Turns [AppSettings.kidsMode] on, which takes a PIN already set, or off. */
+    suspend fun setKidsMode(on: Boolean)
 }

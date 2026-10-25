@@ -158,18 +158,20 @@ internal data class TabsOffered(val library: Boolean, val recordings: Boolean)
 
 /**
  * The Library tab shows when the server's bootstrap says it serves libraries and it has at least one, and the
- * Recordings tab when it records. A start on either shows its tab before the bootstrap answers.
+ * Recordings tab when it records, except in [kids] mode. A start on either shows its tab before the bootstrap answers.
  */
 internal fun tabsOffered(
     capabilities: ServerCapabilities,
     open: Tab,
     libraryHome: LibraryHomeState,
     recordings: RecordingsState,
+    kids: Boolean = false,
 ): TabsOffered = TabsOffered(
     library = (capabilities.library || open == Tab.LIBRARY) && when (libraryHome) {
         LibraryHomeState.Unavailable -> false
         is LibraryHomeState.Ready -> libraryHome.home.libraries.isNotEmpty()
         else -> true
     },
-    recordings = capabilities.recordings || (open == Tab.RECORDINGS && recordings != RecordingsState.Unavailable),
+    recordings = !kids &&
+        (capabilities.recordings || (open == Tab.RECORDINGS && recordings != RecordingsState.Unavailable)),
 )

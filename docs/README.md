@@ -24,4 +24,5 @@ Terms both parts use. Each part's docs index defines the rest.
 | Playback session | The server's lease on one live stream, opened as a preview or a watch. The app holds one at a time and promotes its preview to watch when the channel goes full screen |
 | Recording | One program the server records from a channel into the recordings folder, scheduled by hand or by a series rule |
 | Media library | A folder of movies, TV shows or other videos under the server's media folder or its recordings folder, which the server scans. Its movies, shows, seasons, episodes and videos are library items |
+| Watchlist | The household's list of library items to watch and guide titles to watch for, kept on the server, with the next airing of each title |
 | Library playback session | The server's lease on playing one library item or recording, under `/api/v1/vod-sessions`: the file as it is, or its streams copied or converted to HLS. While it plays, it is the app's one session |

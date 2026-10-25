@@ -24,7 +24,7 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | --- | --- | --- |
 | GET | `/healthz` | Public liveness check |
 | GET | `/readyz` | Public database readiness check |
-| GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`, `recordings`) |
+| GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`, `recordings`, `watchlist`) |
 | POST | `/api/v1/pair` | Exchange a pairing code for a token of the device's own, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429` |
 | GET | `/api/v1/preferences/{clientId}` | The preferences the client with that id last saved, see [viewer preferences](#viewer-preferences); `404 VIEWER_NOT_FOUND` before its first save |
 | PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt` |
@@ -48,6 +48,9 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | POST | `/api/v1/recording-rules` | Add a series rule, by title or with a `match` for a team or keywords ([recordings](recordings.md#record-a-series)); `201` |
 | PATCH | `/api/v1/recording-rules/{id}` | Change `channelId` (`anyChannel: true` clears it), `newOnly`, `keep`, the paddings or `priority`; `404 RULE_NOT_FOUND` |
 | DELETE | `/api/v1/recording-rules/{id}` | Delete a rule and its scheduled recordings; what it recorded stays. Returns 204 |
+| GET | `/api/v1/watchlist` | The household's [watchlist](#watchlist), newest first |
+| POST | `/api/v1/watchlist` | Add a library item or a guide title; `201`, or the entry the list already holds. `404 ITEM_NOT_FOUND`, `409 WATCHLIST_FULL` |
+| DELETE | `/api/v1/watchlist/{id}` | Take an entry off the list; returns 204, or `404 WATCHLIST_ENTRY_NOT_FOUND` |
 | GET | `/media/sessions/{id}/{epoch}/{token}` | Session-authorized HLS or MPEG-TS media. `{epoch}` is the descriptor's epoch and `{token}` a random token for one playlist, segment or key |
 | GET | `/output/playlist.m3u` | The enabled lineup as an M3U playlist for third-party players, see [player outputs](#player-outputs) |
 | GET | `/output/guide.xml?days=` | The lineup's programs as XMLTV |
@@ -56,7 +59,7 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | GET | `/logos/{key}` | A cached lineup logo, public, see [logos](#logos) |
 | GET | `/api/v1/libraries` | Every [media library](#media-libraries) with its count of movies, shows or videos |
 | GET | `/api/v1/libraries/{id}/items?sort=&unwatched=&genre=&cursor=&limit=` | One page of a library's movies, shows or videos |
-| GET | `/api/v1/library/home` | Continue watching, then Recently added for each library, and the libraries |
+| GET | `/api/v1/library/home` | Continue watching, the Watchlist, then Recently added for each library, and the libraries |
 | GET | `/api/v1/library/items/{id}` | An item with its seasons or episodes, the next episode of a show, and a file's tracks |
 | GET | `/api/v1/library/lookup?tmdb=&tvdb=&imdb=` | The movies and shows whose TMDB, TheTVDB or IMDb (`tt…`) id is one of those given, as a `LibraryPage` in title order. 400 without an id or with a malformed one |
 | GET | `/api/v1/library/search?q=` | Movies, shows and videos whose title holds `q`, then those with a cast member or director whose name holds it, then episodes by title; at most 50 |
@@ -231,6 +234,10 @@ A rule has a `title`, an optional `channelId`, `newOnly`, `keep` (0 keeps all), 
 ```
 
 `channels` counts the lineup's entries, those turned on, and those with a source that can play. `sessions` counts live and library playback open now. `recordings.conflicts` counts the scheduled recordings that conflict, and `next` is the next to start. `updateAvailable` is null until the update check has an answer, and `recordings` and `libraries` are null on a server without them.
+
+## Watchlist
+
+`watchlist` in the bootstrap capabilities says the server has these routes. The watchlist belongs to the household, not one device, and holds up to 500 entries. An entry's `kind` is `item`, a library movie, show or video with its `itemId` and the `item` as the library has it now (`null` once the library no longer holds it), or `title`, a guide title to watch for, on `channelId` only when set. A title matches a program's title ignoring case and outer spaces, as a [series rule](recordings.md#record-a-series) does, and its `next` is the soonest airing of it the guide holds in the coming week that has not ended, which may be on now, or `null`. `POST` takes `kind` with `itemId`, or with `title` (1 to 200 characters) and an optional `channelId`; adding what the list already holds, a title in any case, answers that entry. The library home's Watchlist shelf lists the item entries the library holds, newest first, after Continue watching.
 
 ## Player outputs
 

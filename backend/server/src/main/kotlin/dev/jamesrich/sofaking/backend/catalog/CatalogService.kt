@@ -156,18 +156,7 @@ class CatalogService(
     }
 
     private fun channelGuide(entry: LineupEntryRecord, programs: List<GuideProgram>): ChannelGuide {
-        val rows = programs.map { program ->
-            val start = program.startsAt.toString()
-            val end = program.endsAt.toString()
-            Program(
-                stableId("programme:${entry.id}:$start:$end:${program.title}"),
-                entry.id, start, end, program.title, program.description,
-                program.subTitle,
-                episodeLabel(program.episodeNumbers),
-                program.isNew, program.rating?.value, program.icon,
-                program.categories.map(String::trim).filter(String::isNotEmpty).distinct(),
-            )
-        }
+        val rows = programs.map { it.toWire(entry.id) }
         val status = when {
             entry.guide == null -> Wire.GuideStatus.UNASSIGNED
             rows.isEmpty() -> Wire.GuideStatus.EMPTY
@@ -175,6 +164,20 @@ class CatalogService(
         }
         return ChannelGuide(entry.id, status, rows)
     }
+}
+
+/** The program as the app reads it, on the lineup entry [entryId]. */
+internal fun GuideProgram.toWire(entryId: String): Program {
+    val start = startsAt.toString()
+    val end = endsAt.toString()
+    return Program(
+        stableId("programme:$entryId:$start:$end:$title"),
+        entryId, start, end, title, description,
+        subTitle,
+        episodeLabel(episodeNumbers),
+        isNew, rating?.value, icon,
+        categories.map(String::trim).filter(String::isNotEmpty).distinct(),
+    )
 }
 
 /** The counts from 0 an `xmltv_ns` episode number may hold. */

@@ -63,6 +63,7 @@ internal fun GuideDestination(
     val settings by vm.settings.collectAsStateWithLifecycle()
     val capabilities by vm.capabilities.collectAsStateWithLifecycle()
     val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
+    val watchlist by vm.watchlist.marks.collectAsStateWithLifecycle()
     // With no server to talk to, Settings is the only thing to do, so it takes focus.
     val homeFocus = homeFocusFor(state)
     LaunchedEffect(homeFocus) {
@@ -104,6 +105,8 @@ internal fun GuideDestination(
                 onRecordSeries = vm.recordings::toggleSeries,
                 onRecordTeam = vm.recordings::toggleTeam,
                 onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
+                onToggleWatchlist = vm.watchlist::toggleTitle,
+                watchlisted = { program -> watchlist.has(program).takeIf { watchlist.offered } },
             ),
             preview = GuidePreview(
                 player = player,

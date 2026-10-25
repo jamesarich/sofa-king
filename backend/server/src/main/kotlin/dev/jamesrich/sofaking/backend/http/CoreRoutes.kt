@@ -50,6 +50,7 @@ internal fun Route.healthRoutes(store: IdentityStore, clock: Clock, runtime: Liv
                         viewers = runtime != null,
                         library = runtime?.libraries != null,
                         recordings = runtime?.dvr != null,
+                        watchlist = runtime != null,
                     ),
                 ),
             )

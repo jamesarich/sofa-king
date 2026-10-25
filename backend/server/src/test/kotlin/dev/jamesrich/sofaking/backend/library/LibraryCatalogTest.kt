@@ -4,9 +4,12 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.store.StoredWatchlistEntry
+import dev.jamesrich.sofaking.backend.store.addWatchlistEntry
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.saveLibraryMetadata
+import dev.jamesrich.sofaking.backend.store.watchlist
 import dev.jamesrich.sofaking.contract.LetterCount
 import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.Wire
@@ -220,6 +223,29 @@ class LibraryCatalogTest {
         )
         assertNull(catalog.updatePlayState(second.id, UpdatePlayState(dismissed = false)).playState)
         assertEquals(listOf(second.id), continuing(), "putting it back leaves no row behind")
+    }
+
+    @Test fun `the watchlist's items make a shelf after Continue watching, newest first`() = runBlocking<Unit> {
+        val s = setup()
+        val library = s.shows()
+        val catalog = s.service.catalog
+        val show = catalog.items(library.id, null, false, null, 10).items.single()
+        suspend fun listed() = catalog.home().shelves.firstOrNull {
+            it.id == Wire.ShelfId.WATCHLIST
+        }?.items?.map { it.id }
+
+        assertNull(listed())
+        s.store.addWatchlistEntry(
+            StoredWatchlistEntry("a", Wire.WatchlistKind.TITLE, null, "Evening News", null, "2026-10-25T01:00:00Z"),
+        )
+        s.store.addWatchlistEntry(
+            StoredWatchlistEntry("b", Wire.WatchlistKind.ITEM, show.id, show.title, null, "2026-10-25T02:00:00Z"),
+        )
+        s.store.addWatchlistEntry(
+            StoredWatchlistEntry("c", Wire.WatchlistKind.ITEM, "gone", "Gone", null, "2026-10-25T03:00:00Z"),
+        )
+        assertEquals(listOf(show.id), listed(), "titles and items the library no longer holds stay off the shelf")
+        assertEquals(listOf("c", "b", "a"), s.store.watchlist().map { it.id })
     }
 
     /**

@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.libraries
 import dev.jamesrich.sofaking.backend.store.playStates
 import dev.jamesrich.sofaking.backend.store.savePlayStates
+import dev.jamesrich.sofaking.backend.store.watchlist
 import dev.jamesrich.sofaking.contract.Library
 import dev.jamesrich.sofaking.contract.LibraryHome
 import dev.jamesrich.sofaking.contract.LibraryItem
@@ -138,7 +139,7 @@ class LibraryCatalog internal constructor(
         }
     }
 
-    private suspend fun playStates(): Map<String, PlayStateRecord> {
+    internal suspend fun playStates(): Map<String, PlayStateRecord> {
         // Taken before the read, so a write while it runs leaves this copy stale for the next caller to replace.
         val wanted = revision() to stateWrites.get()
         states?.takeIf { it.first == wanted }?.let { return it.second }
@@ -158,6 +159,10 @@ class LibraryCatalog internal constructor(
         if (continuing.isNotEmpty()) {
             shelves +=
                 LibraryShelf(Wire.ShelfId.CONTINUE, "Continue watching", continuing.map { it.out(snapshot, states) })
+        }
+        val listed = store.watchlist().mapNotNull { it.itemId?.let(snapshot.views::get) }.take(SHELF_SIZE)
+        if (listed.isNotEmpty()) {
+            shelves += LibraryShelf(Wire.ShelfId.WATCHLIST, "Watchlist", listed.map { it.out(snapshot, states) })
         }
         for (library in snapshot.libraries) {
             val recent = snapshot.tops[library.id].orEmpty().sortedWith(snapshot.byAdded).take(SHELF_SIZE)

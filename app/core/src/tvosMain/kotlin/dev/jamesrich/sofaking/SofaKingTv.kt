@@ -38,6 +38,7 @@ class SofaKingTv private constructor(private val parts: TvParts) :
     TvItemPlayback by TvItemCalls(parts),
     TvRecordings by TvRecordingCalls(parts),
     TvRecordingMarks by TvRecordingMarkCalls(parts),
+    TvWatchlist by TvWatchlistCalls(parts),
     TvSettings by TvSettingCalls(parts),
     TvText by TvTextCalls {
     constructor() : this(TvParts())
@@ -84,7 +85,7 @@ internal class TvParts {
             client = storage.client,
         )
 
-    val library = LibraryViewModel(connection.api, connection.sessions)
+    val library = LibraryViewModel(connection.api, connection.sessions, watchlist = connection.watchlist)
 
     val recordings = RecordingsViewModel(connection.recordings, connection.sessions)
 

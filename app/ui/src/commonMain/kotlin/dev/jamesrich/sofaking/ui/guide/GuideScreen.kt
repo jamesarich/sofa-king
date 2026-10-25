@@ -377,5 +377,7 @@ private fun GuideDetails(
             shown.program?.let { lineup.airingsOf(it, now) }.orEmpty()
         },
         onShowAiring = { airing -> state.details = ProgramDetails(airing.channel, airing.program) },
+        watchlisted = shown.program?.let(actions.watchlisted),
+        onToggleWatchlist = actions.onToggleWatchlist,
     )
 }

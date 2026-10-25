@@ -45,9 +45,13 @@ data class GuideActions(
     val onRecordTeam: suspend (String) -> Boolean = { false },
     /** Plays a recording still being written from the start of its program. */
     val onWatchFromStart: (recordingId: String) -> Unit = {},
+    /** Adds the program's title to the household's watchlist or takes it off; false when the server did not take it. */
+    val onToggleWatchlist: suspend (Program) -> Boolean = notRecorded,
+    /** Whether the program's title is on the watchlist; null on a server without one, which hides the button. */
+    val watchlisted: (Program) -> Boolean? = { null },
 )
 
-/** A server that does not record takes nothing. */
+/** A server that does not record, or keeps no watchlist, takes nothing. */
 private val notRecorded: suspend (Program) -> Boolean = { false }
 
 /** The preview band's player and how it plays: captions, when it opens full screen, and whether it has sound. */

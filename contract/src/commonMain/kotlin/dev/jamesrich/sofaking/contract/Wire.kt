@@ -117,6 +117,15 @@ object Wire {
     object ShelfId {
         const val CONTINUE = "continue"
         const val RECENT = "recent"
+
+        /** The library items on the household's watchlist, newest first. */
+        const val WATCHLIST = "watchlist"
+    }
+
+    /** What a [WatchlistEntry] holds. */
+    object WatchlistKind {
+        const val ITEM = "item"
+        const val TITLE = "title"
     }
 
     /**

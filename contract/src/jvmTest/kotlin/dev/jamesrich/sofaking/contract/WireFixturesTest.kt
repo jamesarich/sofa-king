@@ -92,6 +92,13 @@ class WireFixturesTest {
         assertEquals(406, facts.episodes)
     }
 
+    @Test
+    fun `the watchlist fixture decodes with a client's settings`() {
+        val watchlist = client.decodeFromString<Watchlist>(fixture("v1/watchlist.json")).entries.single()
+        assertEquals(Wire.WatchlistKind.TITLE, watchlist.kind)
+        assertEquals("Movie Night", watchlist.next?.title)
+    }
+
     /**
      * The full fixtures hold a value in every field, so the server's check types each one rather than only finding it
      * present; they decode with no unknown field. A field added later is absent from them, which the rules allow.
@@ -153,6 +160,9 @@ class WireFixturesTest {
         assertEquals(0, item.unwatched)
         assertNull(item.playState)
         assertEquals(emptyList(), client.decodeFromString<LibraryHome>("""{"shelves":[]}""").libraries)
+        val entry = client.decodeFromString<WatchlistEntry>("""{"id":"w","kind":"item","title":"Alien"}""")
+        assertNull(entry.item)
+        assertNull(entry.next)
     }
 
     @Test

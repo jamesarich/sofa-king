@@ -14,6 +14,8 @@ import kotlinx.serialization.Serializable
     val viewers: Boolean = false,
     val library: Boolean = false,
     val recordings: Boolean = false,
+    /** `/api/v1/watchlist`, and the Watchlist shelf on a server with libraries. */
+    val watchlist: Boolean = false,
 )
 
 @Serializable data class Bootstrap(

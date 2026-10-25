@@ -25,6 +25,8 @@ final class AppModel {
     private(set) var recordings: RecordingsState = RecordingsStateLoading.shared
     /// Which guide programs are set to record; empty on a server that does not record.
     private(set) var recordingMarks: RecordingMarks?
+    /// What the household's watchlist holds; `offered` is false on a server without one.
+    private(set) var watchlist: WatchlistMarks?
     /// The library item the player shows, from whichever library page asked for it.
     var vod: VodRequest?
     /// The players' sleep timer, which lasts through Up next until the viewer leaves the player.
@@ -73,6 +75,7 @@ final class AppModel {
         })
         watches.append(core.watchRecordings { [weak self] in self?.recordings = $0 })
         watches.append(core.watchRecordingMarks { [weak self] in self?.recordingMarks = $0 })
+        watches.append(core.watchWatchlist { [weak self] in self?.watchlist = $0 })
     }
 
     var lineup: Lineup? { (state as? LineupStateReady)?.lineup }

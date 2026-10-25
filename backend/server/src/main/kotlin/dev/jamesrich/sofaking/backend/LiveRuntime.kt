@@ -14,6 +14,7 @@ import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.library.ProgramFactsLookup
 import dev.jamesrich.sofaking.backend.library.VodSessions
+import dev.jamesrich.sofaking.backend.library.WatchlistService
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.pairing.PairingService
@@ -125,6 +126,8 @@ class LiveRuntime(
     val tokens: IssuedTokens = IssuedTokens(store, Clock.systemUTC()),
     /** The named player outputs, each a filtered playlist and guide. */
     val namedOutputs: NamedOutputs = NamedOutputs(store),
+    /** The household's watchlist of library items and guide titles. */
+    val watchlist: WatchlistService = WatchlistService(store, lineup, guides, libraries?.catalog, Clock.systemUTC()),
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()

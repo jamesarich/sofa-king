@@ -96,10 +96,11 @@ private val SHEET_TEXT_MAX_HEIGHT = 360.dp
 
 /**
  * The program's details with Watch and Favorite, and Record and Record series when [recording] says how the
- * program is set (null on a server that does not record), with Record for each team a sports program names: a side
- * panel over the guide on a TV, where a window of its own would not take D-pad focus, and a Material bottom sheet
- * elsewhere. Back and Close dismiss it. With other
- * [airings] of the program, More airings lists them in its place; Back returns from the list to the details.
+ * program is set (null on a server that does not record), with Record for each team a sports program names, and Add
+ * to watchlist when [watchlisted] says whether its title is on the household's watchlist (null on a server without
+ * one): a side panel over the guide on a TV, where a window of its own would not take D-pad focus, and a Material
+ * bottom sheet elsewhere. Back and Close dismiss it. With other [airings] of the program, More airings lists them in
+ * its place; Back returns from the list to the details.
  */
 @Composable
 internal fun ProgramSheet(
@@ -117,6 +118,8 @@ internal fun ProgramSheet(
     onWatchFromStart: (recordingId: String) -> Unit = {},
     airings: List<Airing> = emptyList(),
     onShowAiring: (Airing) -> Unit = {},
+    watchlisted: Boolean? = null,
+    onToggleWatchlist: suspend (Program) -> Boolean = { false },
 ) {
     val watchFocus = remember { FocusRequester() }
     val airingsFocus = remember { FocusRequester() }
@@ -131,6 +134,8 @@ internal fun ProgramSheet(
         if (recordable != null && recording != null) {
             RecordButtons(recordable, recording, RecordActions(onRecord, onRecordSeries, onRecordTeam))
         }
+        val program = details.program
+        if (program != null && watchlisted != null) WatchlistButton(program, watchlisted, onToggleWatchlist)
         if (airings.isNotEmpty()) {
             SofaButton(onClick = { showAirings = true }, modifier = Modifier.focusRequester(airingsFocus)) {
                 Text(stringResource(Res.string.guide_details_more_airings, airings.size), maxLines = 1)

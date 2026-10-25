@@ -12,4 +12,8 @@ internal class ItemDetailsActions(
     val onOpenShow: (String) -> Unit = {},
     /** Opens another item's page: an episode from its row's menu, or a title from More like this. */
     val onOpenItem: (MediaItem) -> Unit = {},
+    /** Adds a movie, show or video to the household's watchlist, or takes it off. */
+    val onToggleWatchlist: (MediaItem) -> Unit = {},
+    /** Whether an item is on the household's watchlist; null on a server without one, which hides the button. */
+    val watchlisted: (MediaItem) -> Boolean? = { null },
 )

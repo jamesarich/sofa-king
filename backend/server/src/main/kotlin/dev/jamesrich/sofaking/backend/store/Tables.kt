@@ -218,7 +218,7 @@ internal object PlayStates : Table("play_state") {
     val dismissed = bool("dismissed").default(false)
 
     /** Whose state it is; every row is the household's until profiles exist. */
-    val scope = text("scope").default("household")
+    val scope = text("scope").default(HOUSEHOLD)
     override val primaryKey = PrimaryKey(itemId)
 }
 
@@ -266,6 +266,18 @@ internal object LibraryScrubRows : Table("library_scrub") {
     override val primaryKey = PrimaryKey(itemId)
 }
 
+internal object WatchlistEntries : Table("watchlist") {
+    val id = text("id")
+
+    /** Whose list it is; every row is the household's until profiles exist. */
+    val scope = text("scope").default(HOUSEHOLD)
+    val kind = text("kind")
+    val itemId = text("item_id").nullable()
+    val title = text("title")
+    val channelId = text("channel_id").nullable()
+    val addedAt = text("added_at")
+    override val primaryKey = PrimaryKey(id)
+}
 internal object RecordingRules : Table("recording_rule") {
     val id = text("id")
     val title = text("title")
@@ -367,3 +379,6 @@ internal object ApiTokenRows : Table("api_token") {
     val revokedAt = text("revoked_at").nullable()
     override val primaryKey = PrimaryKey(id)
 }
+
+/** The scope of household rows: the one value until profiles exist. */
+internal const val HOUSEHOLD = "household"

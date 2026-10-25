@@ -20,15 +20,16 @@ runs:
       with:
         path: ~/apt-archives
         key: ${{ steps.key.outputs.key }}
-    # Installing the cached archives needs neither the package index nor the mirror; if they no longer fit the image,
-    # the install falls back to the mirror.
+    # The cached archives install with dpkg, which reads only the files: apt-get given the same files still fetched
+    # every package again from the mirror when the image's index named them (2026-10-25, 12 minutes at 84 kB/s). If
+    # they no longer fit the image, the install falls back to the mirror.
     - shell: bash
       env:
         PACKAGES: ${{ inputs.packages }}
         CACHED: ${{ steps.cache.outputs.cache-hit }}
       run: |
         archives="$HOME/apt-archives"
-        if [ "$CACHED" = true ] && sudo apt-get install -y --no-install-recommends "$archives"/*.deb; then
+        if [ "$CACHED" = true ] && sudo dpkg -i "$archives"/*.deb; then
           exit 0
         fi
         mkdir -p "$archives/partial"

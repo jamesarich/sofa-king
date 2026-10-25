@@ -14,7 +14,6 @@ import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.StartupTarget
@@ -37,8 +36,6 @@ import dev.jamesrich.sofaking.resources.settings_live_breaks_screen_muted
 import dev.jamesrich.sofaking.resources.settings_preview_sound
 import dev.jamesrich.sofaking.resources.settings_rows_comfortable
 import dev.jamesrich.sofaking.resources.settings_rows_compact
-import dev.jamesrich.sofaking.resources.settings_section_general
-import dev.jamesrich.sofaking.resources.settings_section_guide
 import dev.jamesrich.sofaking.resources.settings_startup
 import dev.jamesrich.sofaking.resources.settings_startup_channel
 import dev.jamesrich.sofaking.resources.settings_startup_channel_none
@@ -47,10 +44,6 @@ import dev.jamesrich.sofaking.resources.settings_startup_guide
 import dev.jamesrich.sofaking.resources.settings_startup_help
 import dev.jamesrich.sofaking.resources.settings_startup_library
 import dev.jamesrich.sofaking.resources.settings_startup_resume
-import dev.jamesrich.sofaking.resources.settings_time_12
-import dev.jamesrich.sofaking.resources.settings_time_24
-import dev.jamesrich.sofaking.resources.settings_time_auto
-import dev.jamesrich.sofaking.resources.settings_time_format
 import dev.jamesrich.sofaking.ui.hoursAndMinutes
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.localDay
@@ -60,10 +53,10 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 
 /**
- * General: what the app opens on ([startup], shown at once through [onStartup]), the startup channel when that is the
- * choice, and the time format.
+ * The Live TV page: what the app opens on ([startup], shown at once through [onStartup]), the startup channel when that
+ * is the choice, then the guide's rows.
  */
-internal fun LazyListScope.generalSection(
+internal fun LazyListScope.liveTvPage(
     settings: AppSettings,
     actions: SettingsActions,
     startup: StartupTarget,
@@ -71,8 +64,8 @@ internal fun LazyListScope.generalSection(
     channels: List<Channel>,
     libraryOffered: Boolean,
     startupFocus: FocusRequester,
+    channelsFocus: FocusRequester,
 ) {
-    item { SectionHeader(stringResource(Res.string.settings_section_general)) }
     item { StartupChoice(settings, startup, libraryOffered, actions, onStartup) }
     if (startup == StartupTarget.CHANNEL) {
         item {
@@ -87,23 +80,7 @@ internal fun LazyListScope.generalSection(
             }
         }
     }
-    item {
-        SettingChoice(
-            label = stringResource(Res.string.settings_time_format),
-            stored = settings.clockFormat,
-            choices = ClockFormat.entries,
-            choiceLabel = {
-                stringResource(
-                    when (it) {
-                        ClockFormat.AUTO -> Res.string.settings_time_auto
-                        ClockFormat.TWELVE_HOUR -> Res.string.settings_time_12
-                        ClockFormat.TWENTY_FOUR_HOUR -> Res.string.settings_time_24
-                    },
-                )
-            },
-            onChange = actions.onClockFormatChanged,
-        )
-    }
+    guideRows(settings, actions, channels, channelsFocus)
 }
 
 /** What the app opens on. Picking a channel with none chosen opens the channel picker at once. */
@@ -143,14 +120,13 @@ private fun StartupChoice(
     )
 }
 
-/** Guide: the auto-open delay, the preview's sound, live ad breaks, the row density and the channel manager. */
-internal fun LazyListScope.guideSection(
+/** The guide's rows: the auto-open delay, the preview's sound, live ad breaks, the row density, the channel manager. */
+private fun LazyListScope.guideRows(
     settings: AppSettings,
     actions: SettingsActions,
     channels: List<Channel>,
     channelsFocus: FocusRequester,
 ) {
-    item { SectionHeader(stringResource(Res.string.settings_section_guide)) }
     item {
         SettingChoice(
             label = stringResource(Res.string.settings_auto_open),

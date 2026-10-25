@@ -44,7 +44,6 @@ data class AppSettings(
     val startupChannel: String? = null,
     /** The top-level tab the app was last on, which [StartupTarget.RESUME] reopens; never synced. */
     val lastTab: TopLevelTab = TopLevelTab.LIVE,
-    val clockFormat: ClockFormat = ClockFormat.AUTO,
     val guideDensity: GuideDensity = GuideDensity.COMFORTABLE,
     /** [Channel.guideId]s the guide and channel list leave out on this device; the server's lineup is untouched. */
     val hiddenChannels: Set<String> = emptySet(),
@@ -107,7 +106,7 @@ data class AppSettings(
             "captionStyle=$captionStyle, " +
             "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, volume=$volume, volumeMuted=$volumeMuted, " +
             "keyLegendShown=$keyLegendShown, startup=$startup, " +
-            "startupChannel=$startupChannel, lastTab=$lastTab, clockFormat=$clockFormat, guideDensity=$guideDensity, " +
+            "startupChannel=$startupChannel, lastTab=$lastTab, guideDensity=$guideDensity, " +
             "hiddenChannels=$hiddenChannels, " +
             "zapSkipsHidden=$zapSkipsHidden, skips=$skips, seekSteps=$seekSteps, " +
             "hideSpoilers=$hideSpoilers, subtitleLook=$subtitleLook, liveBreaks=$liveBreaks, adsDodged=$adsDodged, " +
@@ -323,8 +322,6 @@ interface DisplaySettings {
     suspend fun setPreviewSound(enabled: Boolean)
 
     suspend fun setKeyLegendShown(count: Int)
-
-    suspend fun setClockFormat(format: ClockFormat)
 
     suspend fun setGuideDensity(density: GuideDensity)
 

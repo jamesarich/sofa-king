@@ -58,7 +58,7 @@ Each takes up to 20 terms and 20 categories of up to 100 characters. The rule's 
 
 A recording takes one playback slot (`SOFA_MAX_SESSIONS`) for its whole window and shows as `DVR` on the portal's Watching now. It opens the channel the way a player does, so the session picks the channel's healthiest source. An MPEG-TS source is read through the same upstream connection players of it share, so recording a channel someone watches opens no second connection; an HLS source is stream-copied by FFmpeg. Either way nothing is transcoded, and the file is written into `.inprogress/` under the recordings folder. When the source drops or goes bad, the recording reopens the channel, on the next source when that one is no longer eligible, five seconds later, and appends to the same file. At the end the file moves to its place in the layout.
 
-A recording that finds every slot taken retries until its window closes, and a recording can take the slot of a preview or an idle player but never of someone watching. The list marks a scheduled recording as `conflict` when it overlaps more recordings than there are slots: a running recording keeps its slot, a one-off outranks every rule, and then rule priority and the earlier-made recording win.
+A recording that finds every slot taken retries until its window closes, and a recording can take the slot of a preview or an idle player but never of someone watching. The list marks a scheduled recording as `conflict` when it overlaps more recordings than there are slots: a running recording keeps its slot, a one-off outranks every rule, and then rule priority and the earlier-made recording win. The portal's [Wanted](admin.md#pages) tab lists the conflicts and the recordings that failed in the last 14 days, and puts a conflict's rule first in one step.
 
 A server restart in the middle of a window resumes the recording into the same file. One whose whole window passed while the server was down is marked `failed` with reason `MISSED`.
 
@@ -97,7 +97,7 @@ While a recording runs, the DVR checks the free space every five seconds. Below 
 
 ## Subscribe in a calendar
 
-`/output/recordings.ics` lists the scheduled and running recordings as calendar events, so a calendar app shows when the DVR records. Make a read token on the portal's Settings page, under Access tokens, and subscribe to `http://SERVER_HOST:9193/output/recordings.ics?token=TOKEN` (Google Calendar: Other calendars, From URL; Apple Calendar: File, New Calendar Subscription). The output token works there too. Each event covers the recording's window, paddings included, and a recording in a conflict carries `X-SOFA-KING-CONFLICT:TRUE`. The feed asks to be refreshed every 15 minutes; how often an app does is up to it.
+`/output/recordings.ics` lists the scheduled and running recordings as calendar events, so a calendar app shows when the DVR records. Make a read token on the portal's Settings page, under Access tokens, and subscribe to `http://SERVER_HOST:9193/output/recordings.ics?token=TOKEN` (Google Calendar: Other calendars, From URL; Apple Calendar: File, New Calendar Subscription). The output token works there too. Each event covers the recording's window, paddings included, and a recording in a conflict carries `X-SOFA-KING-CONFLICT:TRUE`. The feed asks to be refreshed every 15 minutes; how often an app does is up to it. The portal's Recordings section shows the same schedule, and the recordings done, on its [Calendar](admin.md#pages) tab.
 
 ## Limitations
 

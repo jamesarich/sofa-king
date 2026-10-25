@@ -32,6 +32,8 @@ import java.util.concurrent.TimeUnit
     val logFormat: String,
     val memoryUsedMb: Long,
     val memoryMaxMb: Long,
+    val tools: ToolReport? = null,
+    val folders: List<FolderReport> = emptyList(),
 )
 
 /** One job's state for the support snapshot. */
@@ -77,6 +79,12 @@ internal class EventsView(
     val capacity: Int,
     val level: String,
     val q: String,
+    /** Whether the server writes a log file the page can offer for download. */
+    val logFile: Boolean = false,
+    /** When the spell of DEBUG logging ends; null while there is none. */
+    val debugUntil: java.time.Instant? = null,
+    /** How long a spell of DEBUG logging lasts, in minutes; null when the server cannot start one. */
+    val debugMinutes: Long? = null,
 )
 
 /**

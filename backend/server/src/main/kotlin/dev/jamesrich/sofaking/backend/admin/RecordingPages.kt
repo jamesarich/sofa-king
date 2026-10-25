@@ -35,6 +35,10 @@ internal class RecordingPages(private val portal: Portal) {
             val dvr = runtime.dvr
             if (dvr == null) seeOther(call, "/admin") else call.html(recordingsPage(chrome(), recordingsView(dvr)))
         }
+        route.get("/recordings/calendar") {
+            val dvr = runtime.dvr
+            if (dvr == null) seeOther(call, "/admin") else call.html(calendarPage(chrome(), calendarView(dvr, call)))
+        }
         route.recording("/recordings/rules") { dvr, session, form ->
             try {
                 val rule = dvr.rules.create(
@@ -172,6 +176,15 @@ internal class RecordingPages(private val portal: Portal) {
         }
         seeOther(call, "/admin/recordings")
     }
+
+    /** The calendar the request asks for, with each recording's rule by its title. */
+    private suspend fun calendarView(dvr: Dvr, call: ApplicationCall): CalendarView = CalendarView.of(
+        call.request.queryParameters,
+        dvr.recordings().recordings,
+        dvr.rules.list().associate { it.id to it.title },
+        portal.clock.instant(),
+        ZoneId.systemDefault(),
+    )
 
     /** The recordings and rules, with the channels a rule may name and what cleanup keeps. */
     private suspend fun recordingsView(dvr: Dvr): RecordingsView {

@@ -35,6 +35,7 @@ import dev.jamesrich.sofaking.backend.library.ScrubSheets
 import dev.jamesrich.sofaking.backend.library.TmdbClient
 import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.backend.library.ffprobeBeside
+import dev.jamesrich.sofaking.backend.logging.DebugWindow
 import dev.jamesrich.sofaking.backend.logging.applyLogLevel
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.multiview.MultiviewSessions
@@ -60,6 +61,7 @@ import dev.jamesrich.sofaking.backend.settings.RuntimeSettings
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.setup.SetupService
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.store.DatabaseBackups
 import dev.jamesrich.sofaking.backend.store.plexStatus
 import dev.jamesrich.sofaking.backend.store.recordAdChannel
 import dev.jamesrich.sofaking.backend.store.savePlexStatus
@@ -76,6 +78,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
 import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -136,6 +139,7 @@ internal class RuntimeAssembly(
     val scope = backgroundScope()
     private val jobs = Jobs(clock)
     private val settings = RuntimeSettings(store, RuntimeValues.of(config), clock)
+    private val debugWindow = DebugWindow(clock, scope, { settings.current.logLevel })
     private val upstream = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
     private val events = ServerEvents(clock)
     private val history = SessionHistory(store, events, clock, Duration.ofDays(config.historyDays.toLong()))
@@ -162,7 +166,7 @@ internal class RuntimeAssembly(
         for (problem in settings.load()) assemblyLog.warn("runtime settings: dropped a saved value: {}", problem)
         // The level the operator saved outranks the environment's from here on; logback
         // read the environment's at start.
-        settings.onChange { applyLogLevel(it.logLevel) }
+        settings.onChange { applyLogLevel(debugWindow.level(it.logLevel)) }
         val libraries = libraries()
         liveCatalog(libraries)
         plex = plexSync()
@@ -208,6 +212,8 @@ internal class RuntimeAssembly(
             virtual = virtual,
             virtualStreams = streams,
             multiview = multiview,
+            backups = databaseBackups(config, clock, jobs, options.restart, store, scope),
+            debugWindow = debugWindow,
         )
         dvr.start(scope)
         dvr.requestSchedule("startup")
@@ -439,3 +445,13 @@ internal class RuntimeAssembly(
     /** What [playback] makes. */
     private data class Converters(val vod: VodSessions, val streams: VirtualStreams, val multiview: MultiviewSessions)
 }
+
+/** The database backups: the daily one starts here, and a restore restarts the way setup does. */
+private fun databaseBackups(
+    config: ServerConfig,
+    clock: Clock,
+    jobs: Jobs,
+    restart: () -> Unit,
+    store: BackendStore,
+    scope: CoroutineScope,
+) = DatabaseBackups(config.dataDirectory, clock, jobs, restart, store::schemaVersion).also { it.start(scope) }

@@ -123,16 +123,11 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
-    fun `clock format and guide density round trip and fall back to their defaults`() = runTest {
+    fun `guide density round trips and falls back to its default`() = runTest {
         val store = newStore()
-        assertEquals(ClockFormat.AUTO, store.settings.first().clockFormat)
         assertEquals(GuideDensity.COMFORTABLE, store.settings.first().guideDensity)
-        store.setClockFormat(ClockFormat.TWENTY_FOUR_HOUR)
         store.setGuideDensity(GuideDensity.COMPACT)
-        assertEquals(ClockFormat.TWENTY_FOUR_HOUR, store.settings.first().clockFormat)
         assertEquals(GuideDensity.COMPACT, store.settings.first().guideDensity)
-        dataStore.edit { it[stringPreferencesKey("clock_format")] = "FORTNIGHT" }
-        assertEquals(ClockFormat.AUTO, store.settings.first().clockFormat)
     }
 
     @Test

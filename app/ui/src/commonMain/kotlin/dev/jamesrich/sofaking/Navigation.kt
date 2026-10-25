@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.settings.CHANNELS_FOCUS_KEY
 import dev.jamesrich.sofaking.ui.settings.LICENSES_FOCUS_KEY
 import dev.jamesrich.sofaking.ui.settings.STARTUP_FOCUS_KEY
+import dev.jamesrich.sofaking.ui.settings.SettingsPage
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
@@ -106,6 +107,12 @@ internal sealed interface Route : NavKey {
         override val id: String get() = "settings"
     }
 
+    /** One of Settings' pages, opened from its list. */
+    @Serializable
+    data class SettingsSection(val page: SettingsPage) : Route {
+        override val id: String get() = page.focusKey
+    }
+
     /** The channel manager behind Settings. */
     @Serializable
     data object Channels : Route {
@@ -125,7 +132,8 @@ internal sealed interface Route : NavKey {
     }
 
     /** Settings and the pages behind it, where no stream plays. */
-    val isSettings: Boolean get() = this is Settings || this is Channels || this is StartupChannel || this is Licenses
+    val isSettings: Boolean get() = this is Settings || this is SettingsSection || this is Channels ||
+        this is StartupChannel || this is Licenses
 
     /** The guide, the live player and multiview, which hold a live stream. */
     val playsLive: Boolean get() = this is Guide || this is Player || this is Multiview
@@ -145,6 +153,7 @@ internal sealed interface Route : NavKey {
             is Recording -> recordingId
             is LibraryGrid -> libraryFocusKey(libraryId)
             is LibrarySearch -> SEARCH_FOCUS_KEY
+            is SettingsSection -> page.focusKey
             Channels -> CHANNELS_FOCUS_KEY
             StartupChannel -> STARTUP_FOCUS_KEY
             Licenses -> LICENSES_FOCUS_KEY

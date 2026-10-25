@@ -68,7 +68,7 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | No captions on this channel | The stream carries no CEA-608 or CEA-708 captions. |
 | Captions run behind the speech | Live captions are typed after the words are spoken. On Android, press CC, then Right within a few seconds to show them earlier on that channel. |
 | Captions run ahead of the speech | Some relays carry captions early. On Android, press CC, then Left within a few seconds to show them later on that channel, up to 8 seconds. |
-| Captions appear letter by letter | On Android, turn on Smooth live captions in Settings. |
+| Captions appear letter by letter | On Android, turn on Settings → Captions → Smooth live captions. |
 | The caption style setting changes nothing | On a desktop and on iOS the player draws captions itself, and in a browser so does the browser's video element when the app falls back to it. [Captions](usage.md#captions) lists where the style applies. |
 
 ## Desktop, iOS and web

@@ -100,7 +100,12 @@ internal val NAV: List<Section> = listOf(
         ),
     ),
     Section("/admin/providers", "Sources", "sources", listOf("/admin/providers", "/admin/ads")),
-    Section("/admin/recordings", "Recordings", "recordings"),
+    Section(
+        "/admin/recordings",
+        "Recordings",
+        "recordings",
+        listOf("/admin/recordings", "/admin/recordings/calendar", "/admin/recordings/wanted"),
+    ),
     Section("/admin/viewers", "Players", "players", listOf("/admin/viewers", "/admin/history", "/admin/plex")),
     Section("/admin/library", "Library"),
     Section("/admin/settings", "Settings", pages = listOf("/admin/settings", "/admin/connect")),
@@ -113,6 +118,7 @@ internal val NAV: List<Section> = listOf(
             "/admin/system/activity",
             "/admin/system/changes",
             "/admin/system/jobs",
+            "/admin/system/backup",
             "/admin/system/events",
             "/admin/api",
         ),
@@ -137,6 +143,12 @@ internal fun channelTabs(policy: Boolean): List<Tab> =
 internal val SOURCE_TABS = listOf(Tab("/admin/providers", "Sources", "sources"), Tab("/admin/ads", "Ads"))
 internal val PLAYER_TABS =
     listOf(Tab("/admin/viewers", "Devices"), Tab("/admin/history", "History"), Tab("/admin/plex", "Plex", "plex"))
+internal val RECORDING_TABS =
+    listOf(
+        Tab("/admin/recordings", "Recordings", "recordings"),
+        Tab("/admin/recordings/calendar", "Calendar"),
+        Tab("/admin/recordings/wanted", "Wanted"),
+    )
 internal val SETTINGS_TABS = listOf(Tab("/admin/settings", "Settings"), Tab("/admin/connect", "Connect"))
 internal val SYSTEM_TABS =
     listOf(
@@ -144,6 +156,7 @@ internal val SYSTEM_TABS =
         Tab("/admin/system/activity", "Activity"),
         Tab("/admin/system/changes", "Changes"),
         Tab("/admin/system/jobs", "Jobs", "jobs"),
+        Tab("/admin/system/backup", "Backup"),
         Tab("/admin/system/events", "Events"),
         Tab("/admin/api", "API"),
     )

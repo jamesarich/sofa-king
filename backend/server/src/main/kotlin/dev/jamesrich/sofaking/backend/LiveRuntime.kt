@@ -17,6 +17,7 @@ import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.library.ProgramFactsLookup
 import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.backend.library.WatchlistService
+import dev.jamesrich.sofaking.backend.logging.DebugWindow
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.multiview.MultiviewSessions
 import dev.jamesrich.sofaking.backend.notify.NotificationTargetsService
@@ -32,6 +33,7 @@ import dev.jamesrich.sofaking.backend.settings.RuntimeSettings
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.setup.SetupService
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.store.DatabaseBackups
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
 import dev.jamesrich.sofaking.backend.virtual.VirtualChannelService
 import dev.jamesrich.sofaking.backend.virtual.VirtualStreams
@@ -149,6 +151,10 @@ class LiveRuntime(
     val virtualStreams: VirtualStreams? = null,
     /** Multiview sessions, offered when [MultiviewSessions.canvas] says the server can draw them. */
     val multiview: MultiviewSessions? = null,
+    /** The database backups and restore; null for a runtime built without a config. */
+    val backups: DatabaseBackups? = null,
+    /** The portal's spell of DEBUG logging; null for a runtime built without a config. */
+    val debugWindow: DebugWindow? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()

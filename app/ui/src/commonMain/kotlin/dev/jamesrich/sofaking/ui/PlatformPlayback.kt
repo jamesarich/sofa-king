@@ -10,9 +10,6 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 @Composable
 internal expect fun rememberSystemCaptionSettings(): (() -> Unit)?
 
-/** The engine that draws captions on this platform, named for the Settings help text. */
-internal expect fun captionEngineName(): String
-
 /**
  * True where the engine honors [dev.jamesrich.sofaking.data.PlaybackPreferences] (Android's Media3); Settings hides
  * the Playback section elsewhere.

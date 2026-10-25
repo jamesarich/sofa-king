@@ -15,7 +15,6 @@ import dev.jamesrich.sofaking.data.SettingsKeys.CAPTION_STYLE
 import dev.jamesrich.sofaking.data.SettingsKeys.CHANNEL_CAPTION_ADVANCE_MS
 import dev.jamesrich.sofaking.data.SettingsKeys.CHANNEL_DECODER
 import dev.jamesrich.sofaking.data.SettingsKeys.CLIENT_ID
-import dev.jamesrich.sofaking.data.SettingsKeys.CLOCK_FORMAT
 import dev.jamesrich.sofaking.data.SettingsKeys.DECODER
 import dev.jamesrich.sofaking.data.SettingsKeys.FAVORITES
 import dev.jamesrich.sofaking.data.SettingsKeys.FAVORITES_ORDER
@@ -256,10 +255,6 @@ internal class DataStoreDisplaySettings(private val dataStore: DataStore<Prefere
         dataStore.edit { prefs -> prefs[KEY_LEGEND_SHOWN] = count }
     }
 
-    override suspend fun setClockFormat(format: ClockFormat) {
-        dataStore.edit { prefs -> prefs[CLOCK_FORMAT] = format.name }
-    }
-
     override suspend fun setGuideDensity(density: GuideDensity) {
         dataStore.edit { prefs -> prefs[GUIDE_DENSITY] = density.name }
     }
@@ -283,12 +278,11 @@ internal class DataStoreDeviceSettings(private val dataStore: DataStore<Preferen
     override suspend fun ensureClientId(): String {
         val stored = dataStore.data.first()[CLIENT_ID]
         if (!stored.isNullOrEmpty()) return stored
-        return dataStore.edit { prefs ->
-            if (prefs[CLIENT_ID].isNullOrEmpty()) {
-                prefs[CLIENT_ID] =
-                    Uuid.random().toString()
-            }
-        }[CLIENT_ID]!!
+        var id = ""
+        dataStore.edit { prefs ->
+            id = prefs[CLIENT_ID]?.takeIf { it.isNotEmpty() } ?: Uuid.random().toString().also { prefs[CLIENT_ID] = it }
+        }
+        return id
     }
 
     override suspend fun applyServerPreferences(

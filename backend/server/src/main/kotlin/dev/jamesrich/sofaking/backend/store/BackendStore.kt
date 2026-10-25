@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.health.HealthState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
@@ -232,6 +233,8 @@ private fun DatabaseLane.stop(): Boolean {
 }
 
 suspend fun openStore(dataDirectory: Path, clock: Clock = Clock.systemUTC()): BackendStore {
+    // A restore the portal staged replaces the database before anything opens it.
+    withContext(Dispatchers.IO) { applyPendingRestore(dataDirectory, clock) }
     val writer = DatabaseLane("sofa-sqlite")
     val readLane = DatabaseLane("sofa-sqlite-read")
     var database: Database? = null

@@ -10,11 +10,13 @@ import dev.jamesrich.sofaking.ui.settings.ChannelPickerScreen
 import dev.jamesrich.sofaking.ui.settings.PairingUi
 import dev.jamesrich.sofaking.ui.settings.SettingsActions
 import dev.jamesrich.sofaking.ui.settings.SettingsLockScreen
+import dev.jamesrich.sofaking.ui.settings.SettingsPage
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
 
-/** Settings, behind the PIN when one is set. */
+/** Settings' list, or one of its pages ([page]), behind the PIN when one is set. */
 @Composable
 internal fun SettingsDestination(
+    page: SettingsPage?,
     arrival: Arrival,
     shell: AppShellState,
     vm: LineupViewModel,
@@ -30,13 +32,14 @@ internal fun SettingsDestination(
     val lineup = (state as? LineupState.Ready)?.lineup
     SettingsLockGate(s, shell, onPinRemove = { vm.setSettingsPin(null) }) {
         SettingsScreen(
+            page = page,
             settings = s,
             onSave = { url, token ->
                 vm.saveServer(url, token)
                 shell.startOver()
             },
             discoveredServers = vm.discoveredServers,
-            onBack = shell::leaveSettings,
+            onBack = if (page == null) shell::leaveSettings else shell::back,
             channelCount = lineup?.channels?.size ?: 0,
             channels = lineup?.channels.orEmpty(),
             libraryOffered = offered.library,
@@ -135,9 +138,9 @@ private fun settingsActions(shell: AppShellState, vm: LineupViewModel, libraryVm
         onPreviewSoundChanged = vm::setPreviewSound,
         onStartupChanged = vm::setStartup,
         onChooseStartupChannel = { shell.push(Route.StartupChannel) },
-        onClockFormatChanged = vm::setClockFormat,
         onGuideDensityChanged = vm::setGuideDensity,
         onManageChannels = { shell.push(Route.Channels) },
+        onOpenPage = { shell.push(Route.SettingsSection(it)) },
         onOpenLicenses = { shell.push(Route.Licenses) },
         onMatchFrameRateChanged = vm::setMatchFrameRate,
         onNightListeningChanged = vm::setNightListening,

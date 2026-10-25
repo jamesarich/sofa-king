@@ -4,6 +4,8 @@ import dev.jamesrich.sofaking.backend.MIB
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.http.serverStatus
 import dev.jamesrich.sofaking.backend.logging.EventRing
+import dev.jamesrich.sofaking.backend.logging.logFile
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.AdChannelRecord
 import dev.jamesrich.sofaking.backend.store.adChannels
 import dev.jamesrich.sofaking.backend.store.library
@@ -24,6 +26,7 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.header
 import io.ktor.server.routing.host
 import io.ktor.server.routing.route
+import java.nio.file.Files
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicReference
 
@@ -33,6 +36,7 @@ internal class SystemPages(private val portal: Portal, private val events: Event
     private val config get() = portal.config
     private val overview = OverviewReader(portal)
     private val ffmpeg = AtomicReference<String?>()
+    private val host = HostFacts(portal.config)
 
     fun install(route: Route) = with(portal) {
         route.get("/system/jobs") { call.html(jobsPage(chrome(), JobsView(runtime.jobs.snapshot()))) }
@@ -115,7 +119,17 @@ internal class SystemPages(private val portal: Portal, private val events: Event
                         event.logger.contains(q, ignoreCase = true)
                     )
         }
-        return EventsView(shown, all.size, events.capacity, level, q)
+        val debug = runtime.debugWindow
+        return EventsView(
+            shown,
+            all.size,
+            events.capacity,
+            level,
+            q,
+            config?.let { Files.isRegularFile(logFile(it.dataDirectory)) } ?: false,
+            debug?.until,
+            debug?.length?.toMinutes(),
+        )
     }
 
     private suspend fun aboutServer(): AboutServer {
@@ -131,6 +145,8 @@ internal class SystemPages(private val portal: Portal, private val events: Event
             config?.dataDirectory?.toAbsolutePath()?.toString(), runtime.settings.current.logLevel,
             config?.logging?.format ?: "text",
             (memory.totalMemory() - memory.freeMemory()) / MIB, memory.maxMemory() / MIB,
+            host.tools(),
+            host.folders(runCatchingCancellable { runtime.dvr?.recordings()?.storage?.usedBytes }.getOrNull()),
         )
     }
 

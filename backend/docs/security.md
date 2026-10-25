@@ -37,7 +37,7 @@ Notes on the table:
 
 ## Request limits
 
-- Request bodies are capped at 64 KiB, and at 4 MiB for a whole policy written through `PUT /api/v1/admin/policy` or the portal's group and provider edits. A larger body answers `413 REQUEST_TOO_LARGE` before any token is checked.
+- Request bodies are capped at 64 KiB, at 4 MiB for a whole policy written through `PUT /api/v1/admin/policy` or the portal's group and provider edits, and at 8 GiB for a database uploaded to the portal's Backup page, which writes it to the data directory as it arrives. A larger body answers `413 REQUEST_TOO_LARGE` before any token is checked.
 - The web app under `/app/` takes no token: it is the public bundle the snapshot release publishes, and asks for its token itself. Its page shares the server's origin with the admin portal, so its policy allows scripts and connections only from that origin (and fetches and images from HTTPS hosts, for the guide's program images), and frames from none. The app draws to a canvas and renders no markup from server data.
 - `POST /api/v1/pair` is the one `/api/v1/*` route that takes no token. It accepts 10 attempts a minute from each client address, like the login, and a six-digit code with a 10-minute life leaves at most 50 guesses against one million codes.
 - `POST /admin/login` accepts 10 attempts a minute from each client address and answers `429 Too Many Requests` beyond that, even for the right token. Behind a reverse proxy every sign-in comes from the proxy's address and shares that budget.

@@ -14,7 +14,9 @@ import dev.jamesrich.sofaking.data.ScrubTile
 import dev.jamesrich.sofaking.data.SofaKingApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -44,14 +46,55 @@ class LibraryViewModelTest {
     private suspend fun TestScope.viewModel(
         server: RouteServer,
         api: SofaKingApi? = server.http.api(),
+        kidsMode: Flow<Boolean> = flowOf(false),
     ): LibraryViewModel = fixture.started(
         LibraryViewModel(
             MutableStateFlow(api),
             fixture.sessions(this, api),
             timeSource = testScheduler.timeSource,
             saveInterval = 10.seconds,
+            kidsMode = kidsMode,
         ),
     )
+
+    private fun rated(id: String, rating: String) = item(id, extra = ""","contentRating":"$rating"""")
+
+    @Test
+    fun `kids mode shows only titles for kids on the home in the grid and in search`() = fixture.viewModelTest {
+        val kids = MutableStateFlow(true)
+        val items = "${rated("g", "G")},${rated("r", "R")}"
+        val server = RouteServer(this) { _, path, _ ->
+            when (path) {
+                "/api/v1/library/home" ->
+                    200 to
+                        """{"shelves":[{"id":"recent","title":"New","libraryId":"lib","items":[$items]},
+                    {"id":"grown","title":"Grown-ups","items":[${rated("r2", "R")}]}],
+                    "libraries":[{"id":"lib","name":"Movies","kind":"movies"}]}"""
+
+                "/api/v1/libraries/lib/items" -> 200 to """{"items":[$items],"total":2}"""
+
+                "/api/v1/library/search" -> 200 to """{"items":[$items],"total":2}"""
+
+                else -> null
+            }
+        }
+        val model = viewModel(server, kidsMode = kids)
+        runCurrent()
+        model.openGrid("lib")
+        runCurrent()
+
+        val shelves = assertIs<LibraryHomeState.Ready>(model.home.value).home.shelves
+        assertEquals(listOf(listOf("g")), shelves.map { shelf -> shelf.items.map { it.id } }, "empty shelves go")
+        assertEquals(listOf("g"), assertNotNull(model.grid.value).items.map { it.id })
+        assertEquals(1, assertNotNull(model.grid.value).total)
+        assertEquals(listOf("g"), model.search("film").map { it.id })
+
+        kids.value = false
+        runCurrent()
+        assertEquals(listOf("g", "r"), assertNotNull(model.grid.value).items.map { it.id })
+        assertEquals(2, assertIs<LibraryHomeState.Ready>(model.home.value).home.shelves.size)
+        assertEquals(listOf("g", "r"), model.search("film").map { it.id })
+    }
 
     @Test
     fun `the home maps shelves and libraries and resolves artwork against the server`() = fixture.viewModelTest {

@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.admin.AdminPortal
 import dev.jamesrich.sofaking.backend.admin.PlexStatusSource
+import dev.jamesrich.sofaking.backend.admin.RESTORE_UPLOAD_LIMIT
 import dev.jamesrich.sofaking.backend.store.IdentityStore
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -33,6 +34,7 @@ internal fun requestBodyLimit(method: HttpMethod, path: String?): Long = when {
     method == HttpMethod.Put && path == "/api/v1/admin/policy" -> POLICY_BODY_LIMIT
     method == HttpMethod.Post && (path == "/admin/providers/edit" || path == "/admin/groups/edit") -> POLICY_BODY_LIMIT
     method == HttpMethod.Post && path != null && isHookPath(path) -> HOOK_BODY_LIMIT
+    method == HttpMethod.Post && path == "/admin/system/backup/upload" -> RESTORE_UPLOAD_LIMIT
     else -> CONTROL_BODY_LIMIT
 }
 

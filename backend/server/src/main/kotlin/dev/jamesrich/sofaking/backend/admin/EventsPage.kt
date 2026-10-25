@@ -40,6 +40,7 @@ internal fun eventsPage(chrome: Chrome, view: EventsView): String = layout("Even
             "The same lines go to the container's log.",
     )
     tabs(chrome, "/admin/system/events", SYSTEM_TABS)
+    logPanel(chrome, view)
     eventFilters(view)
     val query = listOf("level" to view.level, "q" to view.q).filter { it.second.isNotEmpty() }
         .takeIf { it.isNotEmpty() }?.let { "?" + it.formUrlEncode() }.orEmpty()

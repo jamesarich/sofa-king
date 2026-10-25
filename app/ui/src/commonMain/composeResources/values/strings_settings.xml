@@ -6,7 +6,6 @@
     <string name="settings_section_server">Server</string>
     <string name="settings_server_reload">Reload</string>
     <string name="settings_server_reloading">Reloading</string>
-    <string name="settings_section_captions">Captions</string>
     <string name="settings_server_connected">Connected to %1$s</string>
     <string name="settings_server_unreachable">Couldn't reach %1$s</string>
     <string name="settings_server_use_page">Use this page's address</string>
@@ -29,7 +28,6 @@
     <string name="settings_pairing_failed_unreachable">No Sofa King server answered at that address.</string>
     <string name="settings_caption_timing_less">Show captions later</string>
     <string name="settings_caption_timing_more">Show captions earlier</string>
-    <string name="settings_section_guide">Live TV</string>
     <string name="settings_auto_open">Open focused channel automatically</string>
     <string name="settings_auto_open_off">Off</string>
     <string name="settings_auto_open_10">After 10 seconds</string>
@@ -44,7 +42,6 @@
     <string name="settings_ads_dodged">Ads dodged today: %1$s.</string>
     <string name="settings_version">Version %1$s</string>
     <string name="settings_tmdb_notice">Movie and show details and images can come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</string>
-    <string name="settings_section_general">General</string>
     <string name="settings_startup">Open on start</string>
     <string name="settings_startup_resume">Where I left off</string>
     <string name="settings_startup_guide">Guide</string>
@@ -54,10 +51,6 @@
     <string name="settings_startup_channel_none">No channel chosen yet</string>
     <string name="settings_startup_choose">Choose</string>
     <string name="settings_startup_pick_help">Select the channel the app opens on.</string>
-    <string name="settings_time_format">Time format</string>
-    <string name="settings_time_auto">Auto</string>
-    <string name="settings_time_12">12-hour</string>
-    <string name="settings_time_24">24-hour</string>
     <string name="settings_guide_rows">Guide rows</string>
     <string name="settings_rows_comfortable">Comfortable</string>
     <string name="settings_rows_compact">Compact</string>
@@ -76,9 +69,6 @@
     <string name="channels_group_collapse">Close the channels of %1$s</string>
     <string name="channels_zap_skips">Skip hidden channels with Channel Up and Down</string>
     <string name="settings_caption_system">Open system caption settings</string>
-    <string name="settings_caption_engine">Captions on this device are drawn by %1$s.</string>
-    <string name="settings_section_playback">Playback</string>
-    <string name="settings_section_library">Library</string>
     <string name="settings_skip_intros">Skip intros</string>
     <string name="settings_skip_credits">Skip credits</string>
     <string name="settings_seek_back">Step back</string>
@@ -94,7 +84,7 @@
     <string name="settings_subtitle_size_small">Small</string>
     <string name="settings_subtitle_size_medium">Medium</string>
     <string name="settings_subtitle_size_large">Large</string>
-    <string name="settings_subtitle_look_help">For movies and shows from the library. Live TV and recordings follow the caption style below.</string>
+    <string name="settings_subtitle_look_help">For movies and shows from the library. Live TV and recordings follow the caption style above.</string>
     <string name="settings_subtitle_raise">Subtitle position</string>
     <string name="settings_subtitle_raise_none">Bottom</string>
     <string name="settings_subtitle_raise_low">Raised</string>
@@ -114,7 +104,6 @@
     <string name="settings_buffer_standard">Standard</string>
     <string name="settings_buffer_smooth">Smoother</string>
     <string name="settings_buffer_help">How much of a stream downloads before it plays: less starts sooner, more rides out network hiccups.</string>
-    <string name="settings_section_lock">Lock</string>
     <string name="settings_lock_help">A PIN keeps Settings closed until it is entered. Watching, zapping and the CC key are not affected.</string>
     <string name="settings_lock_set">Set a PIN</string>
     <string name="settings_lock_pin">PIN</string>
@@ -141,6 +130,22 @@
     <string name="lock_forgot_wrong">That's not the server's API token.</string>
     <string name="lock_remove">Remove the PIN</string>
     <string name="settings_section_about">About</string>
+    <string name="settings_page_live_tv">Live TV</string>
+    <string name="settings_page_live_tv_summary">Startup, guide preview, ads and channels</string>
+    <string name="settings_page_library">Library</string>
+    <string name="settings_page_dvr">DVR</string>
+    <string name="settings_page_library_dvr">Library and DVR</string>
+    <string name="settings_page_library_summary">Skipping intros, credits and commercials, seek steps and spoilers</string>
+    <string name="settings_page_captions">Captions</string>
+    <string name="settings_page_captions_subtitles">Captions and subtitles</string>
+    <string name="settings_page_playback">Playback</string>
+    <string name="settings_page_playback_summary">Night listening, frame rate, decoder and buffer</string>
+    <string name="settings_page_playback_night">Night listening</string>
+    <string name="settings_page_lock">Parental controls</string>
+    <string name="settings_page_lock_off">No PIN</string>
+    <string name="settings_page_lock_on">Settings locked with a PIN</string>
+    <string name="settings_page_lock_kids">Kids mode on</string>
+    <string name="settings_section_subtitles">Library subtitles</string>
     <string name="settings_update_checking">Checking for a newer build…</string>
     <string name="settings_update_current">Sofa King fresh: this is the latest snapshot.</string>
     <string name="settings_update_available">Update available: snapshot %1$s.</string>

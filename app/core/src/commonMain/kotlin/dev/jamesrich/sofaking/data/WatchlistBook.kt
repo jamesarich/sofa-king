@@ -43,8 +43,9 @@ private fun titleKey(title: String, channelId: String?) = title.trim().lowercase
 
 private fun WatchlistDto.marks() = WatchlistMarks(
     offered = true,
-    items = entries.filter { it.kind == Wire.WatchlistKind.ITEM && it.itemId != null }
-        .associate { it.itemId!! to it.id },
+    items = entries.filter { it.kind == Wire.WatchlistKind.ITEM }
+        .mapNotNull { entry -> entry.itemId?.let { it to entry.id } }
+        .toMap(),
     titles = entries.filter { it.kind == Wire.WatchlistKind.TITLE }.associate {
         titleKey(it.title, it.channelId) to
             it.id

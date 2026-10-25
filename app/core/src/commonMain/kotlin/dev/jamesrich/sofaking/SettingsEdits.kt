@@ -5,7 +5,6 @@ import dev.jamesrich.sofaking.data.BufferPreference
 import dev.jamesrich.sofaking.data.CaptionSettings
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.ChannelSettings
-import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.DecoderPreference
 import dev.jamesrich.sofaking.data.DisplaySettings
 import dev.jamesrich.sofaking.data.GuideDensity
@@ -98,8 +97,6 @@ interface DisplayEdits {
 
     fun setKeyLegendShown(count: Int)
 
-    fun setClockFormat(format: ClockFormat)
-
     fun setGuideDensity(density: GuideDensity)
 
     fun setHideSpoilers(enabled: Boolean)
@@ -184,8 +181,6 @@ internal class StoreDisplayEdits(private val store: DisplaySettings, private val
     override fun setPreviewSound(enabled: Boolean) = scope.save { store.setPreviewSound(enabled) }
 
     override fun setKeyLegendShown(count: Int) = scope.save { store.setKeyLegendShown(count) }
-
-    override fun setClockFormat(format: ClockFormat) = scope.save { store.setClockFormat(format) }
 
     override fun setGuideDensity(density: GuideDensity) = scope.save { store.setGuideDensity(density) }
 

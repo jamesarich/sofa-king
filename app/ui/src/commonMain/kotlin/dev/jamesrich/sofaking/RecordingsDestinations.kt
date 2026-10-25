@@ -5,12 +5,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.jamesrich.sofaking.data.CaptionStyle
+import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.DvrRecording
 import dev.jamesrich.sofaking.data.RecordingState
 import dev.jamesrich.sofaking.data.RecordingsState
-import dev.jamesrich.sofaking.data.SeekSteps
-import dev.jamesrich.sofaking.data.Skips
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.resources.recordings_loading
@@ -63,6 +61,7 @@ internal fun RecordingDestination(
     player: LivePlayer,
 ) {
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val prefs = settings ?: AppSettings()
     val recordings by recordingsVm.state.collectAsStateWithLifecycle()
     // Kept once found, so a list reload while it plays never swaps the title or markers under the player.
     val recording =
@@ -77,11 +76,11 @@ internal fun RecordingDestination(
             onPosition = { position, _ -> recordingsVm.progress(recording.id, position) },
             onStop = { position, duration -> recordingsVm.stopped(recording.id, position, duration) },
             onExit = shell::back,
-            skips = settings?.skips ?: Skips(),
-            seekSteps = settings?.seekSteps ?: SeekSteps(),
-            captionsOn = settings?.captionsEnabled ?: false,
-            onToggleCaptions = { vm.setCaptionsEnabled(settings?.captionsEnabled != true) },
-            captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
+            skips = prefs.skips,
+            seekSteps = prefs.seekSteps,
+            captionsOn = prefs.captionsEnabled,
+            onToggleCaptions = { vm.setCaptionsEnabled(!prefs.captionsEnabled) },
+            captionStyle = prefs.captionStyle,
             zoom = shell.videoZoom,
             onZoom = { shell.videoZoom = it },
             sleep = shell.sleep,

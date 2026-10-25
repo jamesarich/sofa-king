@@ -48,6 +48,7 @@ internal fun recordingsPage(chrome: Chrome, view: RecordingsView): String =
             "What the server records from the guide: series rules, the schedule they make, and the recordings on " +
                 "disk with the space they take.",
         )
+        tabs(chrome, "/admin/recordings", RECORDING_TABS)
         storagePanel(view)
         val upcoming = view.list.recordings.filter {
             it.state == Wire.RecordingState.SCHEDULED || it.state == Wire.RecordingState.RECORDING
@@ -275,7 +276,8 @@ private fun TBODY.recordingRow(chrome: Chrome, recording: Recording, actions: TD
         td("nowrap") { actions() }
     }
 
-private fun stateChip(recording: Recording): Pair<String, Tone> = when (recording.state) {
+/** A recording's state as the portal words and colors it. */
+internal fun stateChip(recording: Recording): Pair<String, Tone> = when (recording.state) {
     Wire.RecordingState.RECORDING -> "Recording" to Tone.OK
     Wire.RecordingState.SCHEDULED -> if (recording.conflict) "Conflict" to Tone.WARN else "Scheduled" to Tone.OFF
     Wire.RecordingState.COMPLETED -> if (recording.reason != null) "Partial" to Tone.WARN else "Recorded" to Tone.OK

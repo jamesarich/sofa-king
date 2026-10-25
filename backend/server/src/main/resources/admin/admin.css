@@ -316,3 +316,13 @@ details>summary{cursor:pointer;color:var(--accent);font-weight:600;min-height:32
 .pairing-code{font-size:2rem;font-weight:600;letter-spacing:.12em;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 fieldset.slot{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0;display:flex;flex-wrap:wrap;gap:12px;align-items:end}
 fieldset.slot legend{font-weight:600;padding:0 4px}
+.calendar-nav{margin:0 0 12px;align-items:center}
+.calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-bottom:16px}
+.calendar .day{border:1px solid var(--line);border-radius:var(--radius);padding:8px;background:var(--plum-raised);min-width:0}
+.calendar .day.today{border-color:var(--accent)}
+.calendar h3,.agenda-day h3{font-size:.9rem;margin:0 0 6px}
+.agenda-day+.agenda-day{margin-top:14px}
+ul.events{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.event{border-left:3px solid var(--outline);padding:4px 8px;background:var(--plum);border-radius:6px;overflow-wrap:anywhere}
+.event.ok{border-left-color:var(--lavender)}.event.warn{border-left-color:var(--amber)}.event.bad{border-left-color:var(--error)}
+@media (max-width:900px){.calendar{grid-template-columns:1fr}}

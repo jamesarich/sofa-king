@@ -15,7 +15,6 @@ import dev.jamesrich.sofaking.data.SettingsKeys.CAPTION_STYLE
 import dev.jamesrich.sofaking.data.SettingsKeys.CHANNEL_CAPTION_ADVANCE_MS
 import dev.jamesrich.sofaking.data.SettingsKeys.CHANNEL_DECODER
 import dev.jamesrich.sofaking.data.SettingsKeys.CLIENT_ID
-import dev.jamesrich.sofaking.data.SettingsKeys.CLOCK_FORMAT
 import dev.jamesrich.sofaking.data.SettingsKeys.DECODER
 import dev.jamesrich.sofaking.data.SettingsKeys.FAVORITES
 import dev.jamesrich.sofaking.data.SettingsKeys.FAVORITES_ORDER
@@ -254,10 +253,6 @@ internal class DataStoreDisplaySettings(private val dataStore: DataStore<Prefere
 
     override suspend fun setKeyLegendShown(count: Int) {
         dataStore.edit { prefs -> prefs[KEY_LEGEND_SHOWN] = count }
-    }
-
-    override suspend fun setClockFormat(format: ClockFormat) {
-        dataStore.edit { prefs -> prefs[CLOCK_FORMAT] = format.name }
     }
 
     override suspend fun setGuideDensity(density: GuideDensity) {

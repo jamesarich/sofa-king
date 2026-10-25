@@ -51,10 +51,6 @@
     <string name="settings_startup_channel_none">No channel chosen yet</string>
     <string name="settings_startup_choose">Choose</string>
     <string name="settings_startup_pick_help">Select the channel the app opens on.</string>
-    <string name="settings_time_format">Time format</string>
-    <string name="settings_time_auto">Auto</string>
-    <string name="settings_time_12">12-hour</string>
-    <string name="settings_time_24">24-hour</string>
     <string name="settings_guide_rows">Guide rows</string>
     <string name="settings_rows_comfortable">Comfortable</string>
     <string name="settings_rows_compact">Compact</string>
@@ -73,7 +69,6 @@
     <string name="channels_group_collapse">Close the channels of %1$s</string>
     <string name="channels_zap_skips">Skip hidden channels with Channel Up and Down</string>
     <string name="settings_caption_system">Open system caption settings</string>
-    <string name="settings_caption_engine">Captions on this device are drawn by %1$s.</string>
     <string name="settings_skip_intros">Skip intros</string>
     <string name="settings_skip_credits">Skip credits</string>
     <string name="settings_seek_back">Step back</string>

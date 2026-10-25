@@ -29,8 +29,6 @@ internal actual fun rememberSystemCaptionSettings(): (() -> Unit)? {
     }
 }
 
-internal actual fun captionEngineName(): String = "Media3"
-
 internal actual val supportsPlaybackPreferences: Boolean = true
 
 internal actual val supportsNightListening: Boolean = true

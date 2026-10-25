@@ -1,8 +1,5 @@
 package dev.jamesrich.sofaking.ui.settings
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -18,7 +15,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.BufferPreference
 import dev.jamesrich.sofaking.data.CaptionStyle
@@ -46,7 +42,6 @@ import dev.jamesrich.sofaking.resources.settings_buffer_fast
 import dev.jamesrich.sofaking.resources.settings_buffer_help
 import dev.jamesrich.sofaking.resources.settings_buffer_smooth
 import dev.jamesrich.sofaking.resources.settings_buffer_standard
-import dev.jamesrich.sofaking.resources.settings_caption_engine
 import dev.jamesrich.sofaking.resources.settings_caption_system
 import dev.jamesrich.sofaking.resources.settings_caption_timing_less
 import dev.jamesrich.sofaking.resources.settings_caption_timing_more
@@ -83,7 +78,6 @@ import dev.jamesrich.sofaking.resources.settings_subtitle_size
 import dev.jamesrich.sofaking.resources.settings_subtitle_size_large
 import dev.jamesrich.sofaking.resources.settings_subtitle_size_medium
 import dev.jamesrich.sofaking.resources.settings_subtitle_size_small
-import dev.jamesrich.sofaking.ui.captionEngineName
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.player.CaptionPolicy
 import dev.jamesrich.sofaking.ui.player.captionTimingText
@@ -297,15 +291,12 @@ internal fun LazyListScope.captionsPage(
         item { HelpText(stringResource(Res.string.caption_timing_help)) }
     }
     item {
-        // The platform draws the captions and keeps its own style page; the row opens it where there is one.
+        // The platform draws the captions and keeps its own style page; the button opens it where there is one.
         val openSystemCaptions = rememberSystemCaptionSettings()
-        Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (openSystemCaptions != null) {
-                SofaButton(onClick = openSystemCaptions) {
-                    Text(stringResource(Res.string.settings_caption_system))
-                }
+        if (openSystemCaptions != null) {
+            SofaButton(onClick = openSystemCaptions) {
+                Text(stringResource(Res.string.settings_caption_system))
             }
-            HelpText(stringResource(Res.string.settings_caption_engine, captionEngineName()))
         }
     }
     if (subtitleLook != null) subtitleRows(subtitleLook, onLook)

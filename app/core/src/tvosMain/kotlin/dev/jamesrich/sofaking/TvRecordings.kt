@@ -89,7 +89,7 @@ internal class TvRecordingCalls(private val parts: TvParts) : TvRecordings {
 }
 
 internal class TvRecordingMarkCalls(private val parts: TvParts) : TvRecordingMarks {
-    private val marks = parts.viewModel.recordings
+    private val marks = parts.connection.recordings
 
     override fun watchRecordingMarks(onChange: (RecordingMarks) -> Unit): Watch = parts.watch(marks.marks, onChange)
 

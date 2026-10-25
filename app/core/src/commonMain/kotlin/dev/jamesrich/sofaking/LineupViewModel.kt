@@ -9,11 +9,7 @@ import dev.jamesrich.sofaking.data.CachedLineup
 import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.DiscoveredServer
 import dev.jamesrich.sofaking.data.Lineup
-import dev.jamesrich.sofaking.data.OnLaterBook
 import dev.jamesrich.sofaking.data.PlaybackSessions
-import dev.jamesrich.sofaking.data.Program
-import dev.jamesrich.sofaking.data.ProgramFacts
-import dev.jamesrich.sofaking.data.RecordingSchedule
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.ServerConnection
 import dev.jamesrich.sofaking.data.ServerDiscovery
@@ -22,7 +18,6 @@ import dev.jamesrich.sofaking.data.SettingsStore
 import dev.jamesrich.sofaking.data.SofaKingRepository
 import dev.jamesrich.sofaking.data.UpdateChecker
 import dev.jamesrich.sofaking.data.UpdateState
-import dev.jamesrich.sofaking.data.WatchlistBook
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.data.visibleLineup
 import kotlinx.coroutines.CompletableDeferred
@@ -108,7 +103,8 @@ class LineupViewModel(
     ChannelEdits by StoreChannelEdits(store, scope),
     CaptionEdits by StoreCaptionEdits(store, scope),
     PlayerEdits by StorePlayerEdits(store, scope),
-    DisplayEdits by StoreDisplayEdits(store, scope) {
+    DisplayEdits by StoreDisplayEdits(store, scope),
+    ProgramActions by ConnectionProgramActions(connection) {
     private val _update = MutableStateFlow<UpdateState?>(null)
 
     /** Where the running build stands against the published snapshot; null until [checkForUpdate] has run. */
@@ -129,18 +125,6 @@ class LineupViewModel(
 
     /** What the server offers beyond live TV, from its bootstrap. */
     val capabilities: StateFlow<ServerCapabilities> get() = connection.capabilities
-
-    /** Recording from the guide, on a server that records. */
-    val recordings: RecordingSchedule get() = connection.recordings
-
-    /** The household's watchlist, which the guide's program details add titles to. */
-    val watchlist: WatchlistBook get() = connection.watchlist
-
-    /** On Later: what is coming up on the lineup's channels, on a server that offers it. */
-    val onLater: OnLaterBook get() = connection.onLater
-
-    /** What TMDB says about [program], through the server, for the break screen; null when nothing is known. */
-    suspend fun programFacts(program: Program): ProgramFacts? = connection.programFacts.of(program)
 
     /** Each reload request; one from [reloadLineup] carries the deferred its caller waits on. */
     private val reloads = MutableSharedFlow<CompletableDeferred<Lineup?>?>(extraBufferCapacity = 1)

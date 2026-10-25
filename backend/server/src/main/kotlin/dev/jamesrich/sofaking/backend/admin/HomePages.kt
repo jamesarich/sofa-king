@@ -57,6 +57,7 @@ internal class HomePages(private val portal: Portal, private val sessions: Admin
         }
         route.action("/theme") { _, form -> pickTheme(call, form) }
         route.action("/sessions/{id}/stop") { session, form -> stopSession(call, session, form) }
+        route.action("/sessions/{id}/switch") { session, _ -> switchSource(call, session) }
         route.action("/vod/{id}/stop") { session, _ ->
             val id = call.parameters["id"]!!
             val row = overview.playingRows().firstOrNull { it.activity.id == id }
@@ -134,6 +135,23 @@ internal class HomePages(private val portal: Portal, private val sessions: Admin
                 seeOther(call, "/admin#watching")
             }
         }
+    }
+
+    private suspend fun switchSource(call: ApplicationCall, session: AdminSession) {
+        val id = call.parameters["id"]!!
+        val row = overview.read().sessions.firstOrNull { it.active.id == id }
+        val flash = if (row == null) {
+            Flash("That session already ended.", Tone.WARN)
+        } else {
+            try {
+                val switched = runtime.sessions.media.switchSource(id)
+                Flash("Switched ${row.channel ?: row.active.channelId} to ${switched.providerId}.", Tone.OK, id)
+            } catch (e: ApiFailure) {
+                Flash("Not switched: ${e.message}", Tone.WARN, id)
+            }
+        }
+        session.flash.set(flash)
+        seeOther(call, "/admin#watching")
     }
 
     private suspend fun starter(call: ApplicationCall, session: AdminSession, form: Parameters) {

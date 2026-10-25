@@ -264,7 +264,8 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | --- | --- | --- |
 | GET | `/api/v1/admin/status` | One summary of the server, described [below](#server-status) |
 | GET | `/api/v1/admin/candidates?q=&provider=&limit=&offset=` | Candidates with their sources (`id`, `protocol`, `status`, `manuallyDisabled`) and the lineup entries using them; `q` matches name, exact number or `tvg-id`, case-insensitively; `limit` 1-1000 (default 100) |
-| GET | `/api/v1/admin/sessions` | Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`, `startedAt`, `client` (the player's address, once it made a request) and `bytes` sent to the player so far. An empty list means nothing is playing |
+| GET | `/api/v1/admin/sessions` | Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`, `startedAt`, `client` (the player's address, once it made a request), `bytes` sent to the player so far, `offeringId` of the source playing, `bitrateKbps` (the rate over the last 10 seconds or so), `stalls` (media requests the upstream refused or dropped before anything was answered), `segmentsServed` (HLS segments relayed) and `sourceSwitches` (moves to another source, on a failure or by hand). An empty list means nothing is playing |
+| POST | `/api/v1/admin/sessions/{id}/switch-source` | Move a live session to its channel's next source, see [source selection](source-health.md#source-selection); answers the session, or `409 NO_OTHER_SOURCE` |
 | GET | `/api/v1/admin/guides` | Guide import status: `lastSuccessAt`, `errorCode`, `channels`, retained `programs` |
 | GET | `/api/v1/admin/guides/{id}/channels?q=&limit=` | XMLTV channels of a guide (`channelId`, `displayName`, `icon`) |
 | GET | `/api/v1/admin/lineup` | Every entry in lineup order |
@@ -378,6 +379,7 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | POST | `/admin/lineup/{id}/sources/{offeringId}/disable`, `/admin/lineup/{id}/sources/{offeringId}/probe` | Disable (`disabled=true`, after `confirm=yes`) or enable a source; queue a probe of it now |
 | POST | `/admin/lineup/bulk` | Hide, show or regroup the selected channels (`op` of `hide`, `show` or `group`, `id` for each, `target` for the group), after `confirm=yes` |
 | POST | `/admin/sessions/{id}/stop` | End a playback session, after `confirm=yes` |
+| POST | `/admin/sessions/{id}/switch` | Move a playback session to its channel's next source |
 | GET | `/admin/merges` | Suggested and learned aliases |
 | POST | `/admin/merges/accept`, `/admin/merges/dismiss`, `/admin/merges/never` | Accept a suggestion, dismiss it, or keep a learned pair apart |
 | GET | `/admin/required` | Required stations |

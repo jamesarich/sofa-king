@@ -51,9 +51,12 @@ internal fun FlowContent.watchingPanel(chrome: Chrome, view: OverviewView) = pan
     if (view.playing.isNotEmpty()) playing(chrome, view.playing)
     p("muted small") {
         +(
-            "Sent counts the bytes relayed to the player over a live session. Direct play serves the file as it " +
-                "is; remux and transcode run FFmpeg, and transcodes count toward the conversion limit. Stop " +
-                "ends the session; the player sees its stream end and may open a new one."
+            "Sent counts the bytes relayed to the player over a live session, at the rate of the last 10 seconds " +
+                "or so. Stalls are media requests the source refused or dropped; switches are moves to another " +
+                "source. Switch moves the session to the channel's next source now: the app follows at once, " +
+                "another player sees its stream end once. Direct play serves the file as it is; remux and " +
+                "transcode run FFmpeg, and transcodes count toward the conversion limit. Stop ends the session; " +
+                "the player sees its stream end and may open a new one."
             )
     }
 }
@@ -69,8 +72,9 @@ private fun DIV.liveSessions(chrome: Chrome, sessions: List<SessionRow>) = div("
                 col("Player")
                 col("Watching for")
                 col("Sent", "num")
+                col("Source")
                 col("Lease ends")
-                col("Action", "sr")
+                col("Actions", "sr")
             }
         }
         tbody {
@@ -99,14 +103,18 @@ private fun DIV.liveSessions(chrome: Chrome, sessions: List<SessionRow>) = div("
                         }
                     }
                     td("nowrap") { +since(active.startedAt, now) }
-                    td("num nowrap") { +bytesText(active.bytes) }
+                    td("num nowrap") {
+                        +bytesText(active.bytes)
+                        br()
+                        span("muted small") { +rateText(active.bitrateKbps) }
+                    }
+                    td("nowrap") { sourceHealth(active) }
                     td("nowrap") { ago(active.expiresAt, now) }
-                    td {
-                        stopButton(
-                            "/admin/sessions/${active.id}/stop",
-                            chrome,
-                            "Stop the session on ${row.channel ?: active.channelId}",
-                        )
+                    td("nowrap") {
+                        val channel = row.channel ?: active.channelId
+                        switchButton("/admin/sessions/${active.id}/switch", chrome, "Switch the source of $channel")
+                        +" "
+                        stopButton("/admin/sessions/${active.id}/stop", chrome, "Stop the session on $channel")
                     }
                 }
             }
@@ -155,6 +163,40 @@ private fun DIV.playing(chrome: Chrome, playing: List<PlayingRow>) = div("scroll
         }
     }
 }
+
+/** The session's stalls and source switches, a warning tone once it has stalled. */
+private fun FlowContent.sourceHealth(active: ActiveSession) {
+    if (active.stalls == 0L) {
+        span("muted") { +"no stalls" }
+    } else {
+        chip(plural(active.stalls.toInt(), "stall"), Tone.WARN)
+    }
+    if (active.sourceSwitches > 0) {
+        br()
+        span("muted small") { +plural(active.sourceSwitches, "switch", "switches") }
+    }
+    if (active.segmentsServed > 0) {
+        br()
+        span("muted small") { +plural(active.segmentsServed.toInt(), "segment") }
+    }
+}
+
+/** A rate in kilobits a second, as kb/s or Mb/s. */
+internal fun rateText(kbps: Int): String = when {
+    kbps <= 0 -> "idle"
+    kbps < KBPS_PER_MBPS -> "$kbps kb/s"
+    else -> "%.1f Mb/s".format(java.util.Locale.US, kbps.toDouble() / KBPS_PER_MBPS)
+}
+
+private const val KBPS_PER_MBPS = 1000
+
+private fun FlowContent.switchButton(action: String, chrome: Chrome, label: String) =
+    postForm(action, chrome.session, keepScroll = true) {
+        button(type = ButtonType.submit, classes = "small quiet") {
+            attributes["aria-label"] = label
+            +"Switch"
+        }
+    }
 
 private fun FlowContent.stopButton(action: String, chrome: Chrome, label: String) =
     postForm(action, chrome.session, keepScroll = true) {

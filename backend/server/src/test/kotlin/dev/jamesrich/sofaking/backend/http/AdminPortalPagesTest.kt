@@ -117,6 +117,32 @@ class AdminPortalPagesTest : AdminPortalCase() {
         }
     }
 
+    @Test fun `Switch on a channel with one source leaves the session on it`() = testApplication {
+        portal {
+            runtime.adoptAll()
+            browser.signIn()
+            val station = runtime.lineup.entries().first { it.name == "Station" }
+            val opened = browser.post("/api/v1/playback-sessions") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"channelId":"${station.id}","intent":"watch","idempotencyKey":"portal-switch"}""")
+            }
+            val sessionId = Json.parseToJsonElement(opened.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
+            val overview = browser.get("/admin").bodyAsText()
+            assertTrue(overview.contains("/admin/sessions/$sessionId/switch"), "each session has a Switch")
+            assertTrue(overview.contains("no stalls"), "and its stalls")
+            val switched = browser.post("/admin/sessions/$sessionId/switch", "csrf" to field(overview, "csrf"))
+            assertEquals(HttpStatusCode.SeeOther, switched.status)
+            assertTrue(
+                browser.get("/admin").bodyAsText().contains("Not switched: The channel has no other eligible"),
+                "a channel with one source stays on it",
+            )
+            val refused = browser.post("/api/v1/admin/sessions/$sessionId/switch-source") { bearerAuth(admin) }
+            assertEquals(HttpStatusCode.Conflict, refused.status)
+            assertEquals(1, runtime.sessions.count(), "the session plays on")
+        }
+    }
+
     @Test fun `the API page renders the OpenAPI document behind the session`() = testApplication {
         portal {
             assertEquals(HttpStatusCode.SeeOther, browser.get("/admin/api").status)

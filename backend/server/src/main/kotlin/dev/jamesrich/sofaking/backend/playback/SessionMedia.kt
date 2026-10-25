@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.catalog.eligible
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.allHealth
 import dev.jamesrich.sofaking.backend.store.health
+import dev.jamesrich.sofaking.contract.PlaybackSession
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Job
@@ -62,7 +63,7 @@ class SessionMedia internal constructor(
             }
             session.requests += job
             if (session.external) session.expires = clock.instant().plus(SessionManager.EXTERNAL_IDLE)
-            MediaResource(session.offering, url, shared, session.bytes, session.ads, session.playlists)
+            MediaResource(session.offering, url, shared, session.stats, session.ads, session.playlists)
         }
 
     /** The media request [job] of session [id] ended; an external session's idle lease starts again. */
@@ -119,6 +120,7 @@ class SessionMedia internal constructor(
         val next = candidates?.let { sources.choose(it, store.allHealth()) } ?: return@withLock false
         session.restart(except = job)
         session.offering = next
+        session.stats.switches.incrementAndGet()
         true
     }
 
@@ -135,6 +137,27 @@ class SessionMedia internal constructor(
             session.offering.id
         }
         catalog.feeds.recordProtocol(offeringId, protocol)
+    }
+
+    /**
+     * Moves session [id] to the channel's next eligible source, passing over the one it plays and those it was
+     * switched away from (all of them again once none is left), and to a new epoch, so the app re-reads the session
+     * and another player's next media request answers 410. Refused with 409 when the channel has no other source.
+     */
+    suspend fun switchSource(id: String): PlaybackSession = table.mutex.withLock {
+        val session = table.active(id)
+        val current = session.offering.id
+        val candidates = catalog.offeringsFor(session.request.channelId).orEmpty()
+            .filter { it.id != current && it.id !in session.failed }
+        val states = store.allHealth()
+        val next = sources.choose(candidates.filter { it.id !in session.switchedFrom }, states)
+            ?: sources.choose(candidates, states)?.also { session.switchedFrom.clear() }
+            ?: throw ApiFailure(HttpStatusCode.Conflict, "NO_OTHER_SOURCE", "The channel has no other eligible source")
+        session.switchedFrom += current
+        session.restart()
+        session.offering = next
+        session.stats.switches.incrementAndGet()
+        session.descriptor()
     }
 
     private companion object {

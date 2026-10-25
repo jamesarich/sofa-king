@@ -49,6 +49,8 @@ internal actual val KeyEvent.isLongPress: Boolean get() = false
 
 internal actual val platformMovesFocusOnArrows: Boolean = false
 
+internal actual val licenseTargets: Set<String> = setOf("jvm")
+
 /** The window goes full screen through [WindowFullScreen], from the players; desktops have no picture-in-picture. */
 @Composable
 internal actual fun rememberPlayerWindow(player: LivePlayer, active: Boolean): Boolean = false

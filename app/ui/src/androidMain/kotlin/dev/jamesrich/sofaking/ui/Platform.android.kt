@@ -102,5 +102,7 @@ internal actual val KeyEvent.isLongPress: Boolean get() = nativeKeyEvent.isLongP
 
 internal actual val platformMovesFocusOnArrows: Boolean = true
 
+internal actual val licenseTargets: Set<String> = setOf("android")
+
 @Composable
 internal actual fun rememberAppLifecycleOwner(host: LifecycleOwner): LifecycleOwner = host

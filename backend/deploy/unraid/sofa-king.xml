@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!-- The Unraid template for the Sofa King server: docs/deploy.md#unraid. -->
+<Container version="2">
+  <Name>sofa-king</Name>
+  <Repository>ghcr.io/jamesarich/sofa-king:main</Repository>
+  <Registry>https://github.com/jamesarich/sofa-king/pkgs/container/sofa-king</Registry>
+  <Network>host</Network>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/jamesarich/sofa-king/blob/main/SUPPORT.md</Support>
+  <Project>https://github.com/jamesarich/sofa-king</Project>
+  <Overview>Self-hosted media center server: live TV from free streaming services, tuners and M3U/XMLTV playlists in one lineup, a DVR with commercial detection, and movie and TV libraries, for the Sofa King app on Android TV, phones, desktops, iOS, Apple TV and the web. It also serves the lineup to Plex as an HDHomeRun tuner. The admin token is adminToken in secrets.json in the config folder.</Overview>
+  <Category>MediaServer:Video MediaApp:Video</Category>
+  <WebUI>http://[IP]:[PORT:9193]/admin</WebUI>
+  <Icon>https://raw.githubusercontent.com/jamesarich/sofa-king/main/backend/server/src/main/resources/admin/icon.svg</Icon>
+  <ExtraParams>--user 99:100 --read-only --tmpfs /tmp:size=64m,exec --cap-drop ALL --security-opt no-new-privileges:true --memory 4g --pids-limit 1024 --stop-timeout 20</ExtraParams>
+  <Config Name="Config" Target="/config" Default="/mnt/user/appdata/sofa-king" Mode="rw" Description="The database, the logo cache, the generated tokens, and sources.json and policy.json when you add them." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/sofa-king</Config>
+  <Config Name="Recordings" Target="/recordings" Default="/mnt/user/recordings" Mode="rw" Description="Where the DVR writes recordings, in the layout Plex, Jellyfin and Emby scan." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/recordings</Config>
+  <Config Name="Media" Target="/media" Default="/mnt/user/media" Mode="ro" Description="Your movies and shows, read only, for the media libraries." Type="Path" Display="always" Required="false" Mask="false">/mnt/user/media</Config>
+  <Config Name="Port" Target="SOFA_PORT" Default="9193" Mode="" Description="The port the server listens on, on the host's network." Type="Variable" Display="always" Required="true" Mask="false">9193</Config>
+  <Config Name="Time zone" Target="TZ" Default="America/Chicago" Mode="" Description="The container's time zone, such as America/Chicago." Type="Variable" Display="always" Required="false" Mask="false">America/Chicago</Config>
+  <Config Name="Recordings folder" Target="SOFA_RECORDINGS_DIR" Default="/recordings" Mode="" Description="Leave as /recordings." Type="Variable" Display="advanced" Required="true" Mask="false">/recordings</Config>
+  <Config Name="Media folder" Target="SOFA_MEDIA_DIR" Default="/media" Mode="" Description="Leave as /media." Type="Variable" Display="advanced" Required="true" Mask="false">/media</Config>
+  <Config Name="Hardware acceleration" Target="SOFA_HWACCEL" Default="auto" Mode="" Description="auto uses the first GPU encoder that works once /dev/dri is passed through, else the CPU." Type="Variable" Display="advanced" Required="false" Mask="false">auto</Config>
+  <Config Name="GPU" Target="/dev/dri" Default="" Mode="" Description="An Intel or AMD GPU for converting library files: set it to /dev/dri and add --group-add with the render group's id to Extra Parameters." Type="Device" Display="advanced" Required="false" Mask="false"></Config>
+</Container>

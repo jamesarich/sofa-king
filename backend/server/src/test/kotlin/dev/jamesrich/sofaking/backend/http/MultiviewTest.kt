@@ -76,6 +76,8 @@ class MultiviewTest {
 
             val gone = app.client.delete("/api/v1/multiview-sessions/${session.id}") { bearerAuth(token) }
             assertEquals(HttpStatusCode.NoContent, gone.status)
+            val ended = app.client.get("/api/v1/multiview-sessions/${session.id}") { bearerAuth(token) }
+            assertEquals(HttpStatusCode.Gone, ended.status)
             assertEquals(HttpStatusCode.NotFound, app.client.get(update.descriptor.url).status)
         }
     }

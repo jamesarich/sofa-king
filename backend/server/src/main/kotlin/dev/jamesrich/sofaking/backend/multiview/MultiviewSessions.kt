@@ -304,7 +304,8 @@ class MultiviewSessions(
 
         fun secret(): String = HexFormat.of().formatHex(ByteArray(SECRET_BYTES).also(SecureRandom()::nextBytes))
 
-        fun missing() = ApiFailure(HttpStatusCode.NotFound, "SESSION_NOT_FOUND", "No such multiview session")
+        fun missing() =
+            ApiFailure(HttpStatusCode.Gone, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
 
         fun invalid(message: String): Nothing = throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", message)
     }

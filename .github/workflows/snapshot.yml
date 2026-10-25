@@ -245,6 +245,8 @@ jobs:
     needs: [version, linux, web, desktop]
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/publish-snapshot.yml
     with:
       version: ${{ needs.version.outputs.version }}

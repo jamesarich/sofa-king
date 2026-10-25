@@ -1,0 +1,38 @@
+name: CodeQL
+
+# Scans the workflows with GitHub's CodeQL every week and on a manual run, and a pull request that changes this file.
+# Findings appear under the repository's Security tab. The Kotlin code waits: CodeQL's Kotlin extractor stops the build
+# for a Kotlin newer than it supports (below 2.4.30 in October 2026), and the catalog's Kotlin is newer; add
+# `java-kotlin` with a manual `./gradlew --no-daemon --no-build-cache --no-configuration-cache :server:compileKotlin`
+# build in `backend/` once it catches up.
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/codeql.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: actions
+          build-mode: none
+
+      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: /language:actions

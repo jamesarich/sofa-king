@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.contract.PlaybackSession
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
@@ -79,6 +80,14 @@ internal suspend fun remux(call: ApplicationCall, runtime: LiveRuntime, sessionI
     }
     runtime.feeds.upstream.check(URI(stream.url))
     val bytes = media.bytesOf(sessionId)
-    runtime.remux.stream(call, stream) { bytes.addAndGet(it.toLong()) }
+    val job = coroutineContext.job
+    runtime.remux.stream(call, stream, { bytes.addAndGet(it.toLong()) }) { reason ->
+        // A source that stalls or falls below a floor gives way to the channel's next one, in the same response.
+        media.failover(sessionId, null, job, reason)?.let { next ->
+            runCatchingCancellable {
+                runtime.feeds.playable(next).also { runtime.feeds.upstream.check(URI(it.url)) }
+            }.getOrNull()
+        }
+    }
     return false
 }

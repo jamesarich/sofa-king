@@ -29,6 +29,9 @@ class Fixture : AutoCloseable {
     /** A second provider carrying the same station, for lineup failover. */
     val altFeed = FeedConfig("alt", "$base/alt-feed.m3u", probe = false)
 
+    /** A provider carrying the same station as a live playlist that never adds a segment, for stall failover. */
+    val frozenFeed = FeedConfig("frozen", "$base/frozen-feed.m3u", probe = false)
+
     /** The same guide as the provider's, gzip-compressed and with a channel block. */
     val gzipGuide = GuideConfig("gz", "$base/guide.xml.gz")
 
@@ -263,6 +266,14 @@ class Fixture : AutoCloseable {
                         "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" " +
                             "group-title=\"News\",Station\n$base/master.m3u8\n"
                     }
+
+                "/frozen-feed.m3u" ->
+                    "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" " +
+                        "group-title=\"News\",Station\n$base/frozen.m3u8\n"
+
+                "/frozen.m3u8" ->
+                    "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:3\n#EXTINF:2,\nsegment.ts\n" +
+                        "#EXTINF:2,\nsegment.ts?n=4\n"
 
                 "/alt-feed.m3u" ->
                     "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" " +

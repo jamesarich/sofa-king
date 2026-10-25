@@ -12,6 +12,8 @@ import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.sync.withLock
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.util.concurrent.atomic.AtomicLong
 
@@ -63,7 +65,7 @@ class SessionMedia internal constructor(
             }
             session.requests += job
             if (session.external) session.expires = clock.instant().plus(SessionManager.EXTERNAL_IDLE)
-            MediaResource(session.offering, url, shared, session.stats, session.ads, session.playlists)
+            MediaResource(session.offering, url, shared, session.stats, session.ads, session.playlists, session.stalls)
         }
 
     /** The media request [job] of session [id] ended; an external session's idle lease starts again. */
@@ -160,7 +162,38 @@ class SessionMedia internal constructor(
         session.descriptor()
     }
 
+    /**
+     * The source of session [id] stalled or fell below a quality floor ([reason]), so the session moves to the
+     * channel's next eligible source it has not played, cancelling its requests but [except], and the source it left
+     * comes back. Null when no such source is left, and the session stays. At an [epoch] other than the session's, it
+     * has moved on already, and its current source comes back.
+     */
+    suspend fun failover(id: String, epoch: Int?, except: Job?, reason: String): Offering? = table.mutex.withLock {
+        val session = table.active(id)
+        if (epoch != null && session.epoch != epoch) return@withLock session.offering
+        val current = session.offering
+        val candidates = catalog.offeringsFor(session.request.channelId).orEmpty().filter {
+            it.id != current.id && it.id !in session.failed && it.id !in session.switchedFrom
+        }
+        val next = sources.choose(candidates, store.allHealth()) ?: return@withLock null
+        session.switchedFrom += current.id
+        session.restart(except = except)
+        session.offering = next
+        session.stats.switches.incrementAndGet()
+        log.info(
+            "playback failover session={} channel={} reason={} from={} to={}",
+            id,
+            session.request.channelId,
+            reason,
+            current.providerId,
+            next.providerId,
+        )
+        next
+    }
+
     private companion object {
+        val log: Logger = LoggerFactory.getLogger(SessionMedia::class.java)
+
         /** How many media requests one session may have in flight. */
         const val MAX_REQUESTS = 12
     }

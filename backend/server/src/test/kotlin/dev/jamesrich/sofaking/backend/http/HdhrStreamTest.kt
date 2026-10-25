@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.backend.catalog.FeedConfig
 import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.MediaFixture
@@ -120,6 +121,39 @@ class HdhrStreamTest {
                             stack.runtime.remux.active() == 0 && stack.runtime.sessions.count() == 0 &&
                                 ffmpegChildren() == 0
                         }
+                    }
+                }
+            }
+            dir.toFile().deleteRecursively()
+        }
+
+    @Test fun `a remuxed source that stalls gives way to the channel's next source in the same response`() =
+        runBlocking<Unit> {
+            val dir = Files.createTempDirectory("sofa-remux-failover-")
+            MediaFixture().use { media ->
+                stack(dir, listOf(media.frozenFeed, media.feed), HdhrConfig(tuners = 2)).use { stack ->
+                    val offerings = stack.runtime.feeds.published.offerings
+                    val frozen = offerings.single { it.providerId == "media-frozen" }
+                    val live = offerings.single { it.url.endsWith("/live.m3u8") }
+                    val entry = stack.runtime.lineup.entries().single { frozen.id in it.offeringIds }
+                    stack.runtime.lineup.update(entry.id, UpdateLineupEntry(offerings = listOf(frozen.id, live.id)))
+                    HttpClient(CIO).use { http ->
+                        val url = "${stack.server.base}/output/stream/${entry.id}.ts?format=ts"
+                        val after = withTimeout(60_000) {
+                            http.prepareGet(url) { bearerAuth(token) }.execute { response ->
+                                assertEquals(HttpStatusCode.OK, response.status)
+                                val body = response.bodyAsChannel()
+                                // The frozen playlist's two segments play, then nothing comes until the stall
+                                // moves the session to the live source, whose FFmpeg goes on in this response.
+                                while (stack.runtime.sessions.snapshot().single().sourceSwitches == 0) {
+                                    body.readHead(188)
+                                }
+                                body.readHead(188 * 50)
+                            }
+                        }
+                        assertEquals(188 * 50, after.size)
+                        assertTrue(media.liveRequests.get() >= 1, "the live source was read")
+                        pollUntil(15_000, 50) { stack.runtime.sessions.count() == 0 && ffmpegChildren() == 0 }
                     }
                 }
             }

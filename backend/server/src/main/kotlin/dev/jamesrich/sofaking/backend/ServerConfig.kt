@@ -136,6 +136,11 @@ data class ServerConfig(
     val mdns: Boolean = false,
     /** `SOFA_LIBRARY_PATH_MAP`: how Sonarr, Radarr and the like name the media folders, when they see other paths. */
     val libraryPathMap: List<PathMapping> = emptyList(),
+    /**
+     * `SOFA_QUALITY_FLOORS`: a remuxed stream also moves to the channel's next source on a black picture or too low a
+     * rate, not only on a stall; off by default.
+     */
+    val qualityFloors: Boolean = false,
 ) {
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
@@ -266,6 +271,7 @@ data class ServerConfig(
                 comskip = comskip(env),
                 mdns = env.flag("SOFA_MDNS", !isLoopback(host)),
                 libraryPathMap = pathMappings(environment["SOFA_LIBRARY_PATH_MAP"]),
+                qualityFloors = env.flag("SOFA_QUALITY_FLOORS", false),
             )
         }
 

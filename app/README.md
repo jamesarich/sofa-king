@@ -40,7 +40,7 @@ Every platform needs a Sofa King server it can reach over the network.
 
 ## Quick start
 
-With a Sofa King server on your network, download the APK from the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot) and install it on the TV over `adb`:
+With a Sofa King server on your network, install the APK from the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot) on the TV: in the Downloader app from Google Play, open `https://github.com/jamesarich/sofa-king/releases/download/snapshot/sofa-king-snapshot.apk` and choose Install. From a computer, `adb` installs it too:
 
 ```sh
 adb connect TV_IP:DEBUG_PORT

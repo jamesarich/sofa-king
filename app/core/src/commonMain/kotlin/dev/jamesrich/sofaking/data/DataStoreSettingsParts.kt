@@ -30,6 +30,7 @@ import dev.jamesrich.sofaking.data.SettingsKeys.LAST_CHANNEL
 import dev.jamesrich.sofaking.data.SettingsKeys.LAST_TAB
 import dev.jamesrich.sofaking.data.SettingsKeys.LIVE_BREAKS
 import dev.jamesrich.sofaking.data.SettingsKeys.MATCH_FRAME_RATE
+import dev.jamesrich.sofaking.data.SettingsKeys.NIGHT_LISTENING
 import dev.jamesrich.sofaking.data.SettingsKeys.PREFERENCES_SYNCED_AT
 import dev.jamesrich.sofaking.data.SettingsKeys.PREVIEW_SOUND
 import dev.jamesrich.sofaking.data.SettingsKeys.RECENT_CHANNELS
@@ -177,6 +178,10 @@ internal class DataStorePlayerSettings(private val dataStore: DataStore<Preferen
 
     override suspend fun setMatchFrameRate(enabled: Boolean) {
         dataStore.edit { prefs -> prefs[MATCH_FRAME_RATE] = enabled }
+    }
+
+    override suspend fun setNightListening(enabled: Boolean) {
+        dataStore.edit { prefs -> prefs[NIGHT_LISTENING] = enabled }
     }
 
     override suspend fun setDecoder(decoder: DecoderPreference) {

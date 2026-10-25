@@ -296,6 +296,8 @@ interface PlayerSettings {
 
     suspend fun setMatchFrameRate(enabled: Boolean)
 
+    suspend fun setNightListening(enabled: Boolean)
+
     suspend fun setDecoder(decoder: DecoderPreference)
 
     /** A per-channel decoder, or null to follow the default again. */

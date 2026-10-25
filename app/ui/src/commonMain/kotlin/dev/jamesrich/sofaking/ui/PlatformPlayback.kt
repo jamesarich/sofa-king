@@ -19,6 +19,9 @@ internal expect fun captionEngineName(): String
  */
 internal expect val supportsPlaybackPreferences: Boolean
 
+/** True where the player honors PlaybackPreferences.nightListening; Settings hides the switch elsewhere. */
+internal expect val supportsNightListening: Boolean
+
 /**
  * True where captions are drawn through `CaptionSync` (Android's Media3), so smoothing and timing apply;
  * Settings hides those rows elsewhere.

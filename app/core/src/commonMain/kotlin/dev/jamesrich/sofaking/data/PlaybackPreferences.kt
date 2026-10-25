@@ -13,6 +13,8 @@ data class PlaybackPreferences(
      */
     val decoderByChannel: Map<String, DecoderPreference> = emptyMap(),
     val buffer: BufferPreference = BufferPreference.STANDARD,
+    /** Night listening: quiet passages come up and loud ones down, on audio the device decodes itself. */
+    val nightListening: Boolean = false,
 ) {
     fun decoderFor(guideId: String): DecoderPreference = decoderByChannel[guideId] ?: decoder
 }

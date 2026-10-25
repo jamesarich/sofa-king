@@ -139,6 +139,7 @@ private fun settingsActions(shell: AppShellState, vm: LineupViewModel, libraryVm
         onGuideDensityChanged = vm::setGuideDensity,
         onManageChannels = { shell.push(Route.Channels) },
         onMatchFrameRateChanged = vm::setMatchFrameRate,
+        onNightListeningChanged = vm::setNightListening,
         onDecoderChanged = vm::setDecoder,
         onBufferChanged = vm::setBuffer,
         onCheckForUpdate = vm::checkForUpdate,

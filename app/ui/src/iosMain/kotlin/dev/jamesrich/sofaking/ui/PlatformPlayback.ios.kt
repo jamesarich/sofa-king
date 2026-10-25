@@ -23,6 +23,8 @@ internal actual fun captionEngineName(): String = "AVPlayer"
 
 internal actual val supportsPlaybackPreferences: Boolean = false
 
+internal actual val supportsNightListening: Boolean = false
+
 internal actual val supportsCaptionSync: Boolean = false
 
 @Composable

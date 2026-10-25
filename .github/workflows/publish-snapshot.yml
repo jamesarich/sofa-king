@@ -22,6 +22,9 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      # The packages' build attestations take the run's OpenID Connect identity.
+      id-token: write
+      attestations: write
     env:
       # A step's condition cannot read a secret, only whether the job has one.
       SIGN_APT: ${{ secrets.APT_SIGNING_KEY != '' }}

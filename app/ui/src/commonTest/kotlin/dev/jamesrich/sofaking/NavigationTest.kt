@@ -76,6 +76,22 @@ class NavigationTest {
     }
 
     @Test
+    fun `back to live from a recording watched from the start takes the live player's place`() {
+        val nav = start.push(Route.Player("c1")).push(Route.Recording("r1", fromStart = true)).toLive("c1")
+        assertEquals(listOf(Route.Guide, Route.Player("c1")), nav.stack(Tab.LIVE))
+        assertEquals(Tab.LIVE, nav.tab)
+    }
+
+    @Test
+    fun `back to live from a recording in the DVR tab opens its channel on Live`() {
+        val nav = start.open(Tab.RECORDINGS).push(Route.Recording("r1")).toLive("c4")
+        assertEquals(Tab.LIVE, nav.tab)
+        assertEquals(listOf(Route.Guide, Route.Player("c4")), nav.stack(Tab.LIVE))
+        assertEquals(listOf<Route>(Route.Recordings), nav.stack(Tab.RECORDINGS))
+        assertEquals(listOf(Route.Guide), nav.pop(returnedFrom = "c4").stack(Tab.LIVE))
+    }
+
+    @Test
     fun `a tab opens again where it was left`() {
         val nav = start.open(Tab.LIBRARY).push(Route.LibraryGrid("movies")).open(Tab.LIVE).open(Tab.LIBRARY)
         assertEquals(Route.LibraryGrid("movies"), nav.top)

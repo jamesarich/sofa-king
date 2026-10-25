@@ -37,6 +37,7 @@ import dev.jamesrich.sofaking.resources.captions_on
 import dev.jamesrich.sofaking.resources.player_control_captions
 import dev.jamesrich.sofaking.resources.retry
 import dev.jamesrich.sofaking.resources.vod_control_back
+import dev.jamesrich.sofaking.resources.vod_control_back_to_live
 import dev.jamesrich.sofaking.resources.vod_control_forward
 import dev.jamesrich.sofaking.resources.vod_control_next
 import dev.jamesrich.sofaking.resources.vod_control_skip_break
@@ -155,6 +156,12 @@ internal fun vodButtonItem(
     )
 
     VodButton.NEXT -> PlayerButtonItem(SofaIcons.SkipNext, stringResource(Res.string.vod_control_next), onClick)
+
+    VodButton.BACK_TO_LIVE -> PlayerButtonItem(
+        SofaIcons.LiveTv,
+        stringResource(Res.string.vod_control_back_to_live),
+        onClick,
+    )
 }
 
 @Composable
@@ -352,6 +359,7 @@ internal fun VodParts.press(
         VodButton.SPEED -> vod.speed = nextSpeed(vod.speed)
         VodButton.START_OVER -> vod.seek(0)
         VodButton.NEXT -> controls.playNext()
+        VodButton.BACK_TO_LIVE -> controls.backToLive()
     }
     state.showInfo()
     if (button !in STAYING_BUTTONS) focus.picture.requestFocus()

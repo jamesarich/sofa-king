@@ -86,6 +86,11 @@ internal class AppShellState(
         nav = nav.pop(history.watching).let { it.copy(arrival = arrival.copy(returnedFrom = it.arrival.returnedFrom)) }
     }
 
+    /** From a recording still being written to its channel, live; the player decides what it is watching. */
+    fun toLive(guideId: String) {
+        nav = nav.toLive(guideId)
+    }
+
     /** The next episode replaces the one that ended, so Back still leaves for the page the first was opened from. */
     fun replaceTop(route: Route) {
         nav = nav.replaceTop(route)

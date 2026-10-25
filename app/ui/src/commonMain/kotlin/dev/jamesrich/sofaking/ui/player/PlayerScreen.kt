@@ -123,6 +123,8 @@ fun PlayerScreen(
     recordingMarks: RecordingMarks? = null,
     /** Records the program, or cancels its recording; false when the server did not take it. */
     onRecord: suspend (Program) -> Boolean = { false },
+    /** Plays a recording still being written from its start; null hides Watch from start. */
+    onWatchFromStart: ((recordingId: String) -> Unit)? = null,
     /** How the picture meets the screen, and the next one picked from the bar or the Zoom key. */
     zoom: VideoZoom = VideoZoom.FIT,
     onZoom: (VideoZoom) -> Unit = {},
@@ -191,7 +193,7 @@ fun PlayerScreen(
             sessions = sessions,
             captionAdvanceMs = channelAdvance.takeIf { player.supportsCaptionLead },
             choices = ChannelChoices(favorites, favoritesOrder, recentGuideIds, onToggleFavorite),
-            record = { program -> parts.notice.recordFor(program, recordingMarks, onRecord) },
+            record = { program -> parts.notice.recordFor(program, recordingMarks, onRecord, onWatchFromStart) },
             sleep = sleep,
             zoom = zoom,
             onExit = onExit,

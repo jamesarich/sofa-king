@@ -49,6 +49,9 @@ interface TvRecordingMarks {
     /** True until [program] ends: only then can it still be recorded. */
     fun recordable(program: Program): Boolean
 
+    /** The recording of [program] being written now, by [marks], which plays from the program's start; else null. */
+    fun runningRecording(marks: RecordingMarks, program: Program): DvrRecording?
+
     /** Records [program], or cancels its recording; false when the server refused or could not be reached. */
     @Throws(Exception::class)
     suspend fun toggleRecording(program: Program): Boolean
@@ -93,6 +96,9 @@ internal class TvRecordingMarkCalls(private val parts: TvParts) : TvRecordingMar
     override fun recordingMark(marks: RecordingMarks, program: Program): RecordingMark = marks.of(program)
 
     override fun recordable(program: Program): Boolean = program.stop > Clock.System.now()
+
+    override fun runningRecording(marks: RecordingMarks, program: Program): DvrRecording? =
+        marks.of(program).runningId?.let(parts.recordings::recording)
 
     @Throws(Exception::class)
     override suspend fun toggleRecording(program: Program): Boolean = marks.toggle(program)

@@ -41,6 +41,8 @@ data class GuideActions(
     val onRecord: suspend (Program) -> Boolean = notRecorded,
     /** Records the program's series or stops it; false when the server did not take it. */
     val onRecordSeries: suspend (Program) -> Boolean = notRecorded,
+    /** Plays a recording still being written from the start of its program. */
+    val onWatchFromStart: (recordingId: String) -> Unit = {},
 )
 
 /** A server that does not record takes nothing. */

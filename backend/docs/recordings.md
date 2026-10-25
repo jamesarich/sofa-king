@@ -55,7 +55,7 @@ A server restart in the middle of a window resumes the recording into the same f
 
 ## Play a recording
 
-A running or finished recording plays through the same [library playback sessions](api.md#play-library-files) as a library file, so the player chooses direct play, a copy into HLS or a conversion by what it can play. A recording still being made always plays as HLS that grows with the file, from its start or wherever the player seeks; it ends a minute after the file stops growing, so when the recording finishes the player reaches the end like any other file.
+A running or finished recording plays through the same [library playback sessions](api.md#play-library-files) as a library file, so the player chooses direct play, a copy into HLS or a conversion by what it can play. A recording still being made always plays as HLS that grows with the file, from its start or wherever the player seeks; it ends a minute after the file stops growing, so when the recording finishes the player reaches the end like any other file. The apps offer Watch from start on a program being recorded, from the live player and the program's details, and Back to live from the recording.
 
 ## Commercial breaks
 

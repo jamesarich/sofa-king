@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.DvrRecording
+import dev.jamesrich.sofaking.data.RecordingState
 import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.loading
@@ -81,6 +82,7 @@ internal fun RecordingDestination(
             zoom = shell.videoZoom,
             onZoom = { shell.videoZoom = it },
             sleep = shell.sleep,
+            onBackToLive = { shell.toLive(recording.channelId) }.takeIf { recording.state == RecordingState.RECORDING },
         )
 
         recordings is RecordingsState.Ready || recordings is RecordingsState.Failed -> LaunchedEffect(Unit) {

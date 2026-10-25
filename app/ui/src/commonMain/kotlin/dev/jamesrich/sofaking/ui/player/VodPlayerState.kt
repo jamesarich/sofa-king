@@ -42,6 +42,9 @@ internal interface VodControls {
 
     /** The Stop key: leaves the player, as Back does. */
     fun exit()
+
+    /** Back to live: the channel a recording still being written comes from. */
+    fun backToLive() = Unit
 }
 
 /**

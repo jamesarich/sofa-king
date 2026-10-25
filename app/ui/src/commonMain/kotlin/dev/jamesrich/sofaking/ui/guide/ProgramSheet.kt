@@ -62,6 +62,7 @@ import dev.jamesrich.sofaking.resources.guide_details_watch
 import dev.jamesrich.sofaking.resources.guide_ended
 import dev.jamesrich.sofaking.resources.guide_starts_in
 import dev.jamesrich.sofaking.resources.guide_time_left
+import dev.jamesrich.sofaking.resources.player_control_from_start
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.ProgramBadges
@@ -108,6 +109,7 @@ internal fun ProgramSheet(
     recording: RecordingMark? = null,
     onRecord: suspend (Program) -> Boolean = { false },
     onRecordSeries: suspend (Program) -> Boolean = { false },
+    onWatchFromStart: (recordingId: String) -> Unit = {},
     airings: List<Airing> = emptyList(),
     onShowAiring: (Airing) -> Unit = {},
 ) {
@@ -118,7 +120,9 @@ internal fun ProgramSheet(
     val back: () -> Unit = { if (showAirings) showAirings = false else onDismiss() }
     val recordable = details.program?.takeIf { recording != null && programTiming(it, now) != ProgramTiming.Ended }
     val buttons: @Composable () -> Unit = {
-        SheetButtons(details.channel, isFavorite, watchFocus, onWatch, onToggleFavorite, onDismiss)
+        // A recording being written plays from the program's start, while the program is still on.
+        val fromStart = recording?.runningId?.takeIf { recordable != null }?.let { id -> { onWatchFromStart(id) } }
+        SheetButtons(details.channel, isFavorite, watchFocus, onWatch, fromStart, onToggleFavorite, onDismiss)
         if (recordable != null && recording != null) RecordButtons(recordable, recording, onRecord, onRecordSeries)
         if (airings.isNotEmpty()) {
             SofaButton(onClick = { showAirings = true }, modifier = Modifier.focusRequester(airingsFocus)) {
@@ -350,19 +354,28 @@ private fun Heading(details: ProgramDetails, now: Instant, guideLoading: Boolean
     }
 }
 
-/** Watch, the favorite toggle and Close; a line too narrow for all three wraps rather than squeezing one. */
+/**
+ * Watch, Watch from start where [fromStart] is given, the favorite toggle and Close; a line too narrow for all of them
+ * wraps rather than squeezing one.
+ */
 @Composable
 private fun SheetButtons(
     channel: Channel,
     isFavorite: Boolean,
     watchFocus: FocusRequester,
     onWatch: (Channel) -> Unit,
+    fromStart: (() -> Unit)?,
     onToggleFavorite: (Channel) -> Unit,
     onDismiss: () -> Unit,
 ) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SofaButton(onClick = { onWatch(channel) }, modifier = Modifier.focusRequester(watchFocus)) {
             Text(stringResource(Res.string.guide_details_watch), maxLines = 1)
+        }
+        if (fromStart != null) {
+            SofaButton(onClick = fromStart) {
+                Text(stringResource(Res.string.player_control_from_start), maxLines = 1)
+            }
         }
         SofaButton(onClick = { onToggleFavorite(channel) }) {
             Text(

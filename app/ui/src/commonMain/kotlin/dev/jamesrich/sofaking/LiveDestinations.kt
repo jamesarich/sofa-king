@@ -101,6 +101,7 @@ internal fun GuideDestination(
                 onLoadGuideWindow = vm::loadGuideWindow,
                 onRecord = vm.recordings::toggle,
                 onRecordSeries = vm.recordings::toggleSeries,
+                onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
             ),
             preview = GuidePreview(
                 player = player,
@@ -177,6 +178,7 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
         onKeyLegendShow = vm::setKeyLegendShown,
         recordingMarks = recordingMarks.takeIf { capabilities.recordings },
         onRecord = vm.recordings::toggle,
+        onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
         zoom = shell.videoZoom,
         onZoom = { shell.videoZoom = it },
         liveBreaks = settings?.liveBreaks ?: LiveBreaks.PLAY,

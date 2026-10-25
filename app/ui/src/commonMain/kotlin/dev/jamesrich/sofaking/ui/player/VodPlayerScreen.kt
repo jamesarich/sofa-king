@@ -109,6 +109,8 @@ fun VodPlayerScreen(
     onZoom: (VideoZoom) -> Unit = {},
     sleep: SleepTimer = remember { SleepTimer() },
     autoplays: AutoplayRun = remember { AutoplayRun() },
+    /** Leaves a recording still being written for its channel, live; null hides Back to live. */
+    onBackToLive: (() -> Unit)? = null,
 ) {
     val held by sessions.current.collectAsStateWithLifecycle()
     val stream = held?.takeIf { it.itemId == itemId }
@@ -138,9 +140,10 @@ fun VodPlayerScreen(
         inCredits = spots.credits != null,
         creditsToNext = creditsToNext,
         speedAdjustable = player.speedAdjustable,
+        toLive = onBackToLive != null,
     )
     val captions = VodCaptions(captionsOn, onToggleCaptions, captionStyle, subtitleLook)
-    val controls = vodControls(parts, tracks, captions, zoom, onZoom, onPlayNext, onExit)
+    val controls = vodControls(parts, tracks, captions, zoom, onZoom, onPlayNext, onExit, onBackToLive)
     VodFocusEffects(state, parts.focus, buttons, LocalLastInput.current.kind == InputKind.POINTER)
     BackHandler { if (state.back(controls)) onExit() }
     VodSurface(parts, controls, title, zoom, captions, hasButtons = buttons.isNotEmpty(), tracks.pickable, modifier) {
@@ -173,6 +176,7 @@ private fun vodControls(
     onZoom: (VideoZoom) -> Unit,
     onPlayNext: () -> Unit,
     onExit: () -> Unit,
+    onBackToLive: (() -> Unit)?,
 ): VodControls = object : VodControls {
     override fun seek(targetMs: Long) = parts.vod.seek(targetMs)
 
@@ -199,6 +203,10 @@ private fun vodControls(
     override fun playNext() = onPlayNext()
 
     override fun exit() = onExit()
+
+    override fun backToLive() {
+        onBackToLive?.invoke()
+    }
 }
 
 /**

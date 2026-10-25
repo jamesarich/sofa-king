@@ -51,6 +51,28 @@ class RecordingScheduleTest {
     }
 
     @Test
+    fun `a recording being written names itself for watching from the start`() = runTest {
+        val http = FakeHttp(this) { seen ->
+            when (seen.path) {
+                "/api/v1/recordings" -> json(
+                    """{"recordings":[
+                    {"id":"r2","channelId":"c1","title":"Evening News","startsAt":"2026-10-18T18:00:00Z","endsAt":"2026-10-18T18:30:00Z","state":"recording"},
+                    {"id":"r3","channelId":"c1","title":"Film","startsAt":"2026-10-18T20:00:00Z","endsAt":"2026-10-18T22:00:00Z","state":"completed"}
+                ]}""",
+                )
+
+                else -> json("""{"rules":[]}""")
+            }
+        }
+        val schedule = RecordingSchedule(backgroundScope, flowOf(http.api()), flowOf(true))
+        runCurrent()
+
+        assertEquals(RecordingMark(recording = true, runningId = "r2"), schedule.marks.value.of(news))
+        assertEquals(RecordingMark(), schedule.marks.value.of(film), "a finished recording is not running")
+        assertEquals(null, schedule.marks.value.of(news.copy(channelId = "c2")).runningId, "another channel")
+    }
+
+    @Test
     fun `one read of both lists serves the Recordings tab and the guide`() = runTest {
         val http = FakeHttp(this) { seen ->
             when (seen.path) {

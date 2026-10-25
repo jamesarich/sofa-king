@@ -7,7 +7,8 @@ import SofaKingCore
 /// Menu dismisses it; leaving releases the session, and backgrounding releases it until the app returns.
 /// A stream that fails or stalls is reopened through the same session after a growing pause, as the Compose app does.
 /// The transport bar's menu records the program on now, stars the channel and switches to another: recent, favorites
-/// or any channel. With Settings › During ads on a logo, the break screen covers the ads a streaming channel marks, as
+/// or any channel. While the program on now is recording, Watch from start plays the recording from its start over the
+/// live player, and Menu from it comes back to the channel live. With Settings › During ads on a logo, the break screen covers the ads a streaming channel marks, as
 /// the server places them from the segments AVPlayer fetched; Show picture over it brings the picture back for that break.
 /// The menu's Sleep timer leaves the player when it runs out, a number of minutes on or at the end of the program on now.
 struct PlayerView: View {
@@ -35,6 +36,8 @@ struct PlayerView: View {
     /// What TMDB says about the program titled `factsTitle`, for the break screen; nil when nothing is known.
     @State private var programFacts: ProgramFacts?
     @State private var factsTitle: String?
+    /// The recording of the program on now, played from its start over the live player; the channel waits under it.
+    @State private var fromStart: VodRequest?
 
     init(channel: Channel) {
         _channel = State(initialValue: channel)
@@ -46,6 +49,9 @@ struct PlayerView: View {
             if let failure {
                 Text(failure).padding().background(.thinMaterial, in: .rect(cornerRadius: 16))
             }
+        }
+        .fullScreenCover(item: $fromStart, onDismiss: { Task { await tune() } }) { request in
+            VodPlayerView(request: request)
         }
         .task { await tune() }
         .task {
@@ -258,7 +264,7 @@ struct PlayerView: View {
             Date(timeIntervalSince1970: Double(model.core.endEpochMs(program: $0)) / 1000)
         }
         let sleep = model.sleepMenu(endTitle: programEnd == nil ? nil : "End of this program", endsAt: programEnd)
-        let items: [UIMenuElement?] = [recordAction, star, channels, sleep]
+        let items: [UIMenuElement?] = [fromStartAction, recordAction, star, channels, sleep]
         return items.compactMap { $0 }
     }
 
@@ -274,6 +280,22 @@ struct PlayerView: View {
             image: UIImage(systemName: recording ? "xmark.circle" : "record.circle")
         ) { _ in
             Task { _ = try? await model.core.toggleRecording(program: now) }
+        }
+    }
+
+    /// Watch from start, while the program on now is being recorded: the live stream stops and the recording plays.
+    private var fromStartAction: UIAction? {
+        guard model.recordingsShown, let marks = model.recordingMarks, let lineup = model.lineup,
+              let now = model.core.nowAndNext(lineup: lineup, channel: channel).now,
+              let recording = model.core.runningRecording(marks: marks, program: now)
+        else { return nil }
+        return UIAction(title: "Watch from start", image: UIImage(systemName: "backward.end")) { _ in
+            reconnect?.cancel()
+            reconnect = nil
+            stopCovering()
+            itemObservers.removeAll()
+            player.replaceCurrentItem(with: nil)
+            fromStart = VodRequest(recording: recording, fromStart: true)
         }
     }
 
@@ -308,7 +330,7 @@ struct PlayerView: View {
             let stream = try await model.core.watchChannel(channelId: channel.guideId)
             // Left while the session opened: the view is gone, and leaving released the session. A switch or a
             // reconnect runs in a task of its own that leaving does not cancel, so the view's presence decides too.
-            guard !Task.isCancelled, shown else { return }
+            guard !Task.isCancelled, shown, fromStart == nil else { return }
             play(stream)
         } catch {
             guard !Task.isCancelled, shown else { return }
@@ -319,7 +341,8 @@ struct PlayerView: View {
 
     /// Plays `stream` and watches its item: a failure or a stall reopens the channel.
     private func play(_ stream: PlaybackStream) {
-        guard let url = URL(string: stream.url) else { return }
+        // The recording played from its start holds the session; the channel tunes again when it closes.
+        guard fromStart == nil, let url = URL(string: stream.url) else { return }
         let item = AVPlayerItem(url: url)
         itemObservers = [
             item.publisher(for: \.status).filter { $0 == .failed }.sink { _ in scheduleReconnect() },
@@ -337,7 +360,7 @@ struct PlayerView: View {
     /// Reopens the channel after 2, 4, 8 … seconds, up to a minute between tries; the server hands back the held session
     /// or a new one when the old stream is gone.
     private func scheduleReconnect() {
-        guard shown, reconnect == nil || reconnect?.isCancelled == true else { return }
+        guard shown, fromStart == nil, reconnect == nil || reconnect?.isCancelled == true else { return }
         let delay = min(60, 2 << min(attempts, 5))
         attempts += 1
         reconnect = Task {

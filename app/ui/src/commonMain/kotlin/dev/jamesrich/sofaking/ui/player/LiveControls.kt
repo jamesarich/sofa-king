@@ -49,12 +49,20 @@ internal class PlayerNotice(private val scope: CoroutineScope, private val texts
 
     /**
      * Record on the bar for [program], which [onRecord] records or cancels; null where the server does not record
-     * ([marks] is null) or nothing is on. A press while the last change is on its way does nothing.
+     * ([marks] is null) or nothing is on. A press while the last change is on its way does nothing. While the program
+     * is being recorded, [onWatchFromStart] plays that recording from its start.
      */
-    fun recordFor(program: Program?, marks: RecordingMarks?, onRecord: suspend (Program) -> Boolean): LiveRecord? {
+    fun recordFor(
+        program: Program?,
+        marks: RecordingMarks?,
+        onRecord: suspend (Program) -> Boolean,
+        onWatchFromStart: ((recordingId: String) -> Unit)? = null,
+    ): LiveRecord? {
         if (marks == null || program == null) return null
-        val recording = marks.of(program).recording
-        return LiveRecord(recording) {
+        val mark = marks.of(program)
+        val recording = mark.recording
+        val fromStart = mark.runningId?.let { id -> onWatchFromStart?.let { watch -> { watch(id) } } }
+        return LiveRecord(recording, fromStart) {
             if (recordBusy) return@LiveRecord
             recordBusy = true
             scope.launch {

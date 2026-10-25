@@ -97,6 +97,28 @@ class PlayerButtonsTest {
     }
 
     @Test
+    fun `a recording still being written ends the bar with Back to live`() {
+        assertEquals(
+            listOf(VodButton.CAPTIONS, VodButton.ZOOM, VodButton.SLEEP, VodButton.START_OVER, VodButton.BACK_TO_LIVE),
+            vodButtons(
+                failed = false,
+                inBreak = false,
+                tracksPickable = false,
+                captions = true,
+                pastStart = true,
+                hasNext = false,
+                toLive = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `the live bar offers Watch from start before Record while the program on now records`() {
+        val buttons = liveButtons(pointer = false, canRecord = true, canFavorite = false, canWatchFromStart = true)
+        assertEquals(listOf(LiveButton.SLEEP, LiveButton.FROM_START, LiveButton.RECORD), buttons.subList(5, 8))
+    }
+
+    @Test
     fun `a failed stream offers no buttons`() {
         assertEquals(
             emptyList(),

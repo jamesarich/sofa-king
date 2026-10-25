@@ -42,6 +42,7 @@ import dev.jamesrich.sofaking.resources.player_control_captions
 import dev.jamesrich.sofaking.resources.player_control_channel_down
 import dev.jamesrich.sofaking.resources.player_control_channel_up
 import dev.jamesrich.sofaking.resources.player_control_channels
+import dev.jamesrich.sofaking.resources.player_control_from_start
 import dev.jamesrich.sofaking.resources.player_control_guide
 import dev.jamesrich.sofaking.resources.player_control_pause
 import dev.jamesrich.sofaking.resources.player_control_play
@@ -166,8 +167,11 @@ internal fun ChannelListPanel(
     }
 }
 
-/** A live program to record from the bar: whether it is [recording] already, and the press that changes that. */
-internal class LiveRecord(val recording: Boolean, val onClick: () -> Unit)
+/**
+ * A live program to record from the bar: whether it is [recording] already, [fromStart], which plays the recording
+ * being written from the program's start (null when none is), and the press that records or cancels.
+ */
+internal class LiveRecord(val recording: Boolean, val fromStart: (() -> Unit)? = null, val onClick: () -> Unit)
 
 /**
  * The info bar over the bottom of the picture with its buttons ([liveButtons]): the D-pad reaches them with Left or
@@ -219,6 +223,7 @@ internal fun BoxScope.InfoBarPanel(
         canRecord = record != null,
         canFavorite = favorite != null,
         hasPrevious = state.previousIndex != null,
+        canWatchFromStart = record?.fromStart != null,
     ).map { buttons.item(it) }
 
     InfoBar(state.overlayVisible && !state.miniGuideOpen && !state.streamCardOpen) {
@@ -301,6 +306,12 @@ private class LiveBarButtons(
             sleep.step(Clock.System.now().toEpochMilliseconds(), programEndMs = programEnd?.toEpochMilliseconds())
             state.keepInfo()
         }
+
+        LiveButton.FROM_START -> PlayerButtonItem(
+            SofaIcons.Replay,
+            stringResource(Res.string.player_control_from_start),
+            bar.control(toPicture = true) { record?.fromStart?.invoke() },
+        )
 
         LiveButton.RECORD -> record()
 

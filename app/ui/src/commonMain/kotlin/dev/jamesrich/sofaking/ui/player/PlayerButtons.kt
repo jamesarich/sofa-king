@@ -67,13 +67,17 @@ internal enum class VodButton {
 
     /** The next episode, without waiting for this one to end. */
     NEXT,
+
+    /** The channel a recording still being written comes from, live. */
+    BACK_TO_LIVE,
 }
 
 /**
  * The library and recordings player's buttons, in the bar's order. A break, an intro or the credits being played
  * leads, so Down and OK skip it; a library item with tracks to pick offers them and a recording its captions; then
- * Zoom and the sleep timer; Start over once [pastStart]; and the next episode when there is one, unless the credits
- * button already leads to it ([creditsToNext]). A failed stream offers none: OK retries it.
+ * Zoom and the sleep timer; Start over once [pastStart]; the next episode when there is one, unless the credits
+ * button already leads to it ([creditsToNext]); and Back to live for a recording still being written ([toLive]). A
+ * failed stream offers none: OK retries it.
  */
 internal fun vodButtons(
     failed: Boolean,
@@ -86,6 +90,7 @@ internal fun vodButtons(
     inCredits: Boolean = false,
     creditsToNext: Boolean = false,
     speedAdjustable: Boolean = false,
+    toLive: Boolean = false,
 ): List<VodButton> = if (failed) {
     emptyList()
 } else {
@@ -100,6 +105,7 @@ internal fun vodButtons(
         if (speedAdjustable) add(VodButton.SPEED)
         if (pastStart) add(VodButton.START_OVER)
         if (hasNext && !(inCredits && creditsToNext)) add(VodButton.NEXT)
+        if (toLive) add(VodButton.BACK_TO_LIVE)
     }
 }
 
@@ -123,6 +129,9 @@ internal enum class LiveButton {
     /** The [SleepTimer], one step on. */
     SLEEP,
 
+    /** Plays the recording of the program on now from its start, while it is still being written. */
+    FROM_START,
+
     /** Records the program on now, or cancels its recording. */
     RECORD,
     FAVORITE,
@@ -131,8 +140,9 @@ internal enum class LiveButton {
 
 /**
  * The live player's buttons, in the bar's order: the channel list first, the previous channel once there is one
- * ([hasPrevious]), then what the CC, Play/Pause, Info and Zoom keys do, the sleep timer, Record where the server
- * records and there is a program on, the star where favorites can change, and the guide. A finger or a mouse has play
+ * ([hasPrevious]), then what the CC, Play/Pause, Info and Zoom keys do, the sleep timer, Watch from start while the
+ * program on now is recording ([canWatchFromStart]), Record where the server records and there is a program on, the
+ * star where favorites can change, and the guide. A finger or a mouse has play
  * and pause beside the channel buttons instead ([pointer]).
  */
 internal fun liveButtons(
@@ -140,6 +150,7 @@ internal fun liveButtons(
     canRecord: Boolean,
     canFavorite: Boolean,
     hasPrevious: Boolean = false,
+    canWatchFromStart: Boolean = false,
 ): List<LiveButton> = buildList {
     add(LiveButton.CHANNELS)
     if (hasPrevious) add(LiveButton.PREVIOUS)
@@ -148,6 +159,7 @@ internal fun liveButtons(
     add(LiveButton.STREAM_INFO)
     add(LiveButton.ZOOM)
     add(LiveButton.SLEEP)
+    if (canWatchFromStart) add(LiveButton.FROM_START)
     if (canRecord) add(LiveButton.RECORD)
     if (canFavorite) add(LiveButton.FAVORITE)
     add(LiveButton.GUIDE)

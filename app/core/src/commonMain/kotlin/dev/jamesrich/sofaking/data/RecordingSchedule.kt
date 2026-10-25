@@ -39,8 +39,11 @@ sealed interface RecordingsState {
     data class Failed(val message: String) : RecordingsState
 }
 
-/** Whether a program is set to record, on its own or through a series rule for its title. */
-data class RecordingMark(val recording: Boolean = false, val series: Boolean = false)
+/**
+ * Whether a program is set to record, on its own or through a series rule for its title, and [runningId], the
+ * recording of it that is being written now, which plays from the program's start as it grows.
+ */
+data class RecordingMark(val recording: Boolean = false, val series: Boolean = false, val runningId: String? = null)
 
 /** The server's scheduled recordings and series rules, as the guide marks programs with them. */
 data class RecordingMarks(
@@ -48,11 +51,17 @@ data class RecordingMarks(
     internal val recordings: Map<String, String> = emptyMap(),
     /** Series rules by [ruleKey], to their ids; a rule for any channel has no channel in its key. */
     internal val rules: Map<String, String> = emptyMap(),
+    /** The recordings being written now, by [recordingKey], to their ids. */
+    internal val running: Map<String, String> = emptyMap(),
 ) {
-    fun of(program: Program) = RecordingMark(
-        recording = recordingKey(program.channelId, program.start) in recordings,
-        series = ruleId(program) != null,
-    )
+    fun of(program: Program): RecordingMark {
+        val key = recordingKey(program.channelId, program.start)
+        return RecordingMark(
+            recording = key in recordings,
+            series = ruleId(program) != null,
+            runningId = running[key],
+        )
+    }
 
     internal fun ruleId(program: Program): String? =
         rules[ruleKey(program.title, program.channelId)] ?: rules[ruleKey(program.title, null)]
@@ -67,6 +76,8 @@ private fun RecordingsState.Ready.marks() = RecordingMarks(
     recordings = recordings.filter { it.state == RecordingState.SCHEDULED || it.state == RecordingState.RECORDING }
         .associate { recordingKey(it.channelId, it.startsAt) to it.id },
     rules = rules.associate { ruleKey(it.title, it.channelId) to it.id },
+    running = recordings.filter { it.state == RecordingState.RECORDING }
+        .associate { recordingKey(it.channelId, it.startsAt) to it.id },
 )
 
 /**

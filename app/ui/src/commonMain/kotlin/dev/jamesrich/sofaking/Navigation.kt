@@ -204,6 +204,16 @@ internal data class Navigation(
     }
 
     /**
+     * Leaves the page on top, a recording still being written, for [guideId] live on the Live tab, in place of a
+     * channel already playing there, so Back from it lands on the guide.
+     */
+    fun toLive(guideId: String): Navigation {
+        val left = pop(returnedFrom = null)
+        val live = if (left.tab == Tab.LIVE) left else left.copy(tab = Tab.LIVE)
+        return live.push(Route.Player(guideId))
+    }
+
+    /**
      * Opens [tab] where the viewer left it. Picking the open tab again closes its pages back to its first one, as
      * Material's navigation bar does.
      */

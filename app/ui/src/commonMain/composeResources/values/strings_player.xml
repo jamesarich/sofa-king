@@ -133,4 +133,6 @@
     <string name="break_fact_rating">Rated %1$s out of 10 on TMDB</string>
     <string name="break_fact_next">Next at %2$s: %1$s</string>
     <string name="break_fact_and">%1$s and %2$s</string>
+    <string name="player_control_from_start">Watch from start</string>
+    <string name="vod_control_back_to_live">Back to live</string>
 </resources>

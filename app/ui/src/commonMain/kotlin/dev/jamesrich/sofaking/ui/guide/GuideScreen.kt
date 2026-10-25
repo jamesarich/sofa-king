@@ -368,6 +368,10 @@ private fun GuideDetails(
         recording = recordingMarks?.let { marks -> shown.program?.let(marks::of) ?: RecordingMark() },
         onRecord = actions.onRecord,
         onRecordSeries = actions.onRecordSeries,
+        onWatchFromStart = { recordingId ->
+            state.details = null
+            actions.onWatchFromStart(recordingId)
+        },
         airings = remember(lineup, shown.program, channels.onNowSlot) {
             shown.program?.let { lineup.airingsOf(it, now) }.orEmpty()
         },

@@ -178,6 +178,7 @@ class AdminPortalPagesTest : AdminPortalCase() {
                 "/api/v1/bootstrap",
                 "/api/v1/playback-sessions/{id}",
                 "/api/v1/admin/policy/apply",
+                "/api/v1/admin/virtual-channels/{id}/schedule",
                 "/auto/v{number}",
             )) {
                 assertTrue(path in paths, path)

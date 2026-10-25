@@ -135,8 +135,14 @@ class VodSessions(
     private val recordings: (suspend (String) -> PlayableFile?)? = null,
     private val probe: suspend (Path) -> MediaInfo? = { null },
     encoder: VideoEncoder = VideoEncoder(),
+    /** Conversions running elsewhere that count toward [maxConverting], such as virtual channels. */
+    private val others: () -> Int = { 0 },
 ) {
     private val runner = VodRunner(ffmpeg, directory, encoder)
+
+    /** The encoder conversions use, once [start] has checked it. */
+    val encoder: VideoEncoder get() = runner.encoder
+
     private val table = VodTable(clock, runner)
     private val random = SecureRandom()
 
@@ -237,7 +243,7 @@ class VodSessions(
             request.wholePlaylist && mode == Wire.VodMode.TRANSCODE && !growing && durationMs != null && durationMs > 0
         return table.locked {
             table.reap()
-            val converting = table.sessions.values.count { it.mode != Wire.VodMode.DIRECT }
+            val converting = table.sessions.values.count { it.mode != Wire.VodMode.DIRECT } + others()
             if (mode != Wire.VodMode.DIRECT && converting >= maxConverting) {
                 throw ApiFailure(
                     HttpStatusCode.ServiceUnavailable,

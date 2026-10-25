@@ -95,6 +95,7 @@ class AdminPortal(
             HomePages(portal, sessions, secret).install(this)
             LineupPages(portal, editor).install(this)
             PolicyPages(portal, editor).install(this)
+            VirtualPages(portal).install(this)
             SourcePages(portal, editor).install(this)
             RecordingPages(portal).install(this)
             LibraryPages(portal).install(this)

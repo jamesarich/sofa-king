@@ -48,7 +48,7 @@ internal fun lineupPage(chrome: Chrome, view: LineupView): String = layout("Chan
                 "Edits change the lineup directly."
             },
     )
-    if (view.revision != null) tabs(chrome, "/admin/lineup", CHANNEL_TABS)
+    tabs(chrome, "/admin/lineup", channelTabs(view.revision != null))
     lineupFilters(view)
     lineupSummary(view)
     if (view.rows.isEmpty()) {

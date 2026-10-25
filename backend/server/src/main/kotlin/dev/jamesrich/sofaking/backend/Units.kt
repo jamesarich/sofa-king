@@ -5,6 +5,7 @@ package dev.jamesrich.sofaking.backend
 internal const val MS_PER_SECOND = 1_000
 internal const val NS_PER_MS = 1_000_000L
 internal const val SECONDS_PER_MINUTE = 60
+internal const val MINUTES_PER_HOUR = 60
 internal const val SECONDS_PER_HOUR = 3_600
 internal const val KIB = 1_024
 internal const val MIB = KIB * KIB

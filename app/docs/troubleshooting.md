@@ -99,7 +99,7 @@ It records: on a server that records, the program details offer Record and Recor
 
 ### Why will a snapshot APK not install over my build?
 
-Android refuses an update signed with another key. A snapshot and a build from your machine can be signed with different debug keys, so uninstall one before installing the other. Install update in Settings checks the key first and says so, rather than handing Android a package it would refuse.
+Android refuses an update signed with another key. A snapshot and a build from your machine can be signed with different keys, so uninstall one before installing the other. The same goes once for every device that installed a snapshot signed with the debug key, when snapshots move to the release key ([signing](development.md#signing)): uninstall the app, then install the new snapshot. Install update in Settings checks the key first and says so, rather than handing Android a package it would refuse.
 
 ### Does a TV need the Play Store?
 

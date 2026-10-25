@@ -97,7 +97,7 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           {
-            echo "Built from ${GITHUB_SHA} by ${RUN_URL}. Unsigned desktop packages; the APK uses a debug key."
+            echo "Built from ${GITHUB_SHA} by ${RUN_URL}. The desktop packages are unsigned."
             if [ -s "$RUNNER_TEMP/changes.md" ]; then
               printf '\n## %s\n' "$VERSION"
               cat "$RUNNER_TEMP/changes.md"

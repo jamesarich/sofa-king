@@ -220,7 +220,30 @@ The device needs Android 13 or later, or root. The run installs the generator's 
 
 ## Signing
 
-Release APKs are minified with R8 and signed with the local debug key, so they are for testing. Distributing one needs a release signing configuration.
+Release APKs are minified with R8. With a release key they are signed with it; without one they are signed with the local debug key, so a local `assembleRelease` still works and its APK is for testing. The build reads the key from Gradle properties or the matching environment variables:
+
+| Gradle property | Environment variable | Value |
+| --- | --- | --- |
+| `sofaking.keystore.path` | `SOFAKING_KEYSTORE_PATH` | The keystore file |
+| `sofaking.keystore.password` | `SOFAKING_KEYSTORE_PASSWORD` | Its password |
+| `sofaking.key.alias` | `SOFAKING_KEY_ALIAS` | The key's alias |
+| `sofaking.key.password` | `SOFAKING_KEY_PASSWORD` | The key's password, when it differs from the keystore's |
+
+Make the key once and keep a copy somewhere other than the machine that made it: Android installs an update only when it carries the same key, so a lost key strands every installed app.
+
+```sh
+keytool -genkeypair -keystore sofa-king-release.p12 -alias sofa-king -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Sofa King"
+```
+
+Snapshots sign with it once the repository has three secrets: `ANDROID_RELEASE_KEYSTORE` (the keystore in base64), `ANDROID_RELEASE_KEYSTORE_PASSWORD` and `ANDROID_RELEASE_KEY_ALIAS`:
+
+```sh
+base64 -w0 sofa-king-release.p12 | gh secret set ANDROID_RELEASE_KEYSTORE --repo jamesarich/sofa-king
+gh secret set ANDROID_RELEASE_KEYSTORE_PASSWORD --repo jamesarich/sofa-king
+gh secret set ANDROID_RELEASE_KEY_ALIAS --repo jamesarich/sofa-king --body sofa-king
+```
+
+The snapshot job prints the APK's signer and fails when the release key is set but the APK carries the debug key. Devices that installed a debug-signed snapshot refuse the first release-signed one, so uninstall the app on each of them once, as [troubleshooting](troubleshooting.md#why-will-a-snapshot-apk-not-install-over-my-build) describes.
 
 ## CI and snapshots
 
@@ -228,7 +251,7 @@ Release APKs are minified with R8 and signed with the local debug key, so they a
 
 The app version is `sofaking` in [the version catalog](../../gradle/libs.versions.toml). Snapshots build every package with `-Psofaking.versionCode` (the build number) and `-Psofaking.versionSuffix` (`-dev.BUILD+COMMIT`, the build number and the short commit), which [`.github/version.sh`](../../.github/version.sh) prints. The build number is the count of commits behind the build, so it grows with every merge to `main`, and the server image built from the same commit carries the same version. A rerun on a commit already published takes one more than the published build, so it still installs over it. Android's `versionName` and the About row of every snapshot build append the suffix. Only the catalog version is compiled in; the suffix is written to `files/version-suffix.txt` among the UI module's Compose resources and read at runtime, so a snapshot reuses the compile outputs the CI run just cached. The desktop packages carry the catalog version too: a snapshot's `.deb` is 0.1.0 plus the suffix and its MSI is 0.1.BUILD, so each installs over the last. jpackage refuses a macOS version whose first number is 0, so the macOS app is built as 1.1.0 and its `Info.plist` repeats `CFBundleShortVersionString` as 0.1.0; macOS reads the later key, so Finder and About This Mac show 0.1.0, with 1.1.BUILD as the build version.
 
-Set the `ANDROID_DEBUG_KEYSTORE` repository secret to a base64 debug keystore so every snapshot APK installs over the last:
+Without the release key, set the `ANDROID_DEBUG_KEYSTORE` repository secret to a base64 debug keystore so every snapshot APK installs over the last:
 
 ```sh
 base64 -w0 ~/.android/debug.keystore | gh secret set ANDROID_DEBUG_KEYSTORE --repo jamesarich/sofa-king

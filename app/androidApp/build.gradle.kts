@@ -38,13 +38,32 @@ android {
         }
     }
 
+    // The release key, from Gradle properties or the environment (docs/development.md#signing). Without it, release
+    // builds keep the debug key so a local assembleRelease still works.
+    fun signingValue(name: String) =
+        providers.gradleProperty(name).orElse(providers.environmentVariable(name.uppercase().replace('.', '_')))
+    val releaseKeystore = signingValue("sofaking.keystore.path").orNull?.takeIf { it.isNotBlank() }
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = signingValue("sofaking.keystore.password").get()
+                keyAlias = signingValue("sofaking.key.alias").get()
+                // A PKCS12 keystore, keytool's default, has one password for the store and the key.
+                keyPassword = signingValue("sofaking.key.password")
+                    .orElse(signingValue("sofaking.keystore.password"))
+                    .get()
+            }
+        }
+    }
+
     buildTypes {
         release {
             // Debug builds compose an 8 s first guide frame on a Chromecast; R8 + non-debuggable is the TV build.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (releaseKeystore != null) "release" else "debug")
         }
     }
 }

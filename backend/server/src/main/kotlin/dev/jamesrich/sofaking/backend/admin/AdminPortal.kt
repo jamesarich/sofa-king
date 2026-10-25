@@ -111,6 +111,7 @@ class AdminPortal(
             SettingsPages(portal).install(this)
             ConnectPages(portal).install(this)
             SystemPages(portal, events).install(this)
+            ActivityPages(portal).install(this)
         }
     }
 }

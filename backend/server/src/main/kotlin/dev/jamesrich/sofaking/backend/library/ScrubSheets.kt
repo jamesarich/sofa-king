@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.library
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
+import dev.jamesrich.sofaking.backend.jobs.JobProgress
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
@@ -155,7 +156,8 @@ class ScrubSheets(
                 }
             val known = store.libraryScrubs(items.map { it.id })
             val root = Path.of(library.path).normalize()
-            for (item in items) {
+            for ((done, item) in items.withIndex()) {
+                jobs.progress(SCRUB_JOB, JobProgress(done, items.size, library.name))
                 val file = unmade(item, known[item.id], root) ?: continue
                 if (sheets(item, file)) made++ else failed++
             }

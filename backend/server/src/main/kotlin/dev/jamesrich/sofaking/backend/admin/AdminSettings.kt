@@ -2,7 +2,6 @@ package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.api.LineupPolicy
 import dev.jamesrich.sofaking.backend.api.PolicyApplyResult
-import dev.jamesrich.sofaking.backend.api.PolicyChangeEntry
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import kotlinx.html.A
 import kotlinx.html.ButtonType
@@ -85,8 +84,6 @@ internal class RuntimeSettingsView(
 internal class SettingsView(
     val groups: List<SettingGroup>,
     val policy: PolicySummary?,
-    val changes: List<PolicyChangeEntry>,
-    val changeLimit: Int,
     val apiTokenSet: Boolean = false,
     /** The API token, only on the page answering the reveal action. */
     val revealedApiToken: String? = null,
@@ -104,8 +101,6 @@ internal class SettingsView(
     ) : this(
         view.groups,
         view.policy,
-        view.changes,
-        view.changeLimit,
         view.apiTokenSet,
         view.revealedApiToken,
         runtime,
@@ -226,7 +221,13 @@ internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("
                 }
             }
         }
-        if (view.policy != null) changeLogPanel(view, now)
+        if (view.policy != null) {
+            p("muted small") {
+                +"The policy change log is on "
+                a("/admin/system/changes") { +"System, Changes" }
+                +"."
+            }
+        }
     }
 }
 
@@ -321,59 +322,5 @@ private fun FlowContent.policyPanel(chrome: Chrome, policy: PolicySummary?, now:
         }
     }
 
-private fun FlowContent.changeLogPanel(view: SettingsView, now: java.time.Instant) =
-    panel("Change log", id = "changes", aside = {
-        if (view.changeLimit < CHANGES_LIMIT) {
-            val more = minOf(CHANGES_LIMIT, view.changeLimit * CHANGES_GROWTH)
-            a("/admin/settings?changes=$more&advanced=1#changes") { +"Show more" }
-        }
-    }) {
-        if (view.changes.isEmpty()) {
-            p("muted") { +"No policy run has changed the lineup yet." }
-            return@panel
-        }
-        div("scroll") {
-            table {
-                caption("sr") { +"Policy change log" }
-                thead {
-                    tr {
-                        col("When")
-                        col("Station")
-                        col("Field")
-                        col("Before")
-                        col("After")
-                        col("Cause")
-                    }
-                }
-                tbody {
-                    for (entry in view.changes) {
-                        tr {
-                            val change = entry.change
-                            td("nowrap") { ago(entry.appliedAt, now) }
-                            td {
-                                if (change.entryId != null) {
-                                    a("/admin/lineup/${change.entryId}", classes = "rowlink") { +change.entryName }
-                                } else {
-                                    +change.entryName
-                                }
-                                change.key?.let {
-                                    br()
-                                    span("muted small mono") { +it }
-                                }
-                            }
-                            td { +(change.field ?: "station") }
-                            td("muted") { +(change.before ?: "–") }
-                            td { +(change.after ?: "–") }
-                            td("muted small") { +change.reason }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
 /** How many characters of a policy revision the page shows; the rest is in its title. */
 private const val SHORT_REVISION = 12
-
-/** How many times more change log entries each "Show more" asks for. */
-private const val CHANGES_GROWTH = 4

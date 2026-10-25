@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
+import dev.jamesrich.sofaking.backend.jobs.JobProgress
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
@@ -177,6 +178,7 @@ class LibraryService(
         jobs.record(LIBRARY_SCAN_JOB) {
             val now = clock.instant()
             // Listing and probing a new library takes minutes, so it runs off the lock too; only the writes hold it.
+            jobs.progress(LIBRARY_SCAN_JOB, JobProgress(0, 0, library.name))
             val before = store.libraryItems(library.id)
             val plan = scanner.scan(library, Path.of(library.path), before, now)
             scanLock.withLock {

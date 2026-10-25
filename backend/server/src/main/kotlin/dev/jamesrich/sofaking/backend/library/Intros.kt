@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.library
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
+import dev.jamesrich.sofaking.backend.jobs.JobProgress
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
@@ -178,7 +179,10 @@ class IntroDetector(
         val byId = items.associateBy { it.id }
         val shows = items.filter { it.kind == ItemKind.EPISODE && it.path != null }.groupBy { showOf(it, byId) }
         val pass = Pass(Path.of(library.path).normalize())
-        for (episodes in shows.values) pass.show(episodes)
+        for ((done, episodes) in shows.values.withIndex()) {
+            jobs.progress(INTRO_JOB, JobProgress(done, shows.size, library.name))
+            pass.show(episodes)
+        }
         // Episodes of a library removed while this pass ran.
         store.deleteOrphanLibraryIntros()
         return IntroResult(pass.read, pass.failed, shows.size, pass.intros, pass.credits)

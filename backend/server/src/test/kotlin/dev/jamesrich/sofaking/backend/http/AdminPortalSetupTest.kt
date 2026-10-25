@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.backend.http
 
+import dev.jamesrich.sofaking.backend.jobs.JobOutcome
+import dev.jamesrich.sofaking.backend.jobs.JobProgress
 import dev.jamesrich.sofaking.backend.main
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
@@ -12,6 +14,11 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -298,6 +305,36 @@ class AdminPortalSetupTest : AdminPortalCase() {
             assertTrue(browser.get("/admin/system/jobs").bodyAsText().contains("No such job to run."))
         }
     }
+
+    @Test fun `the activity page shows who watches, what records and the jobs running with their progress`() =
+        testApplication {
+            portal {
+                browser.signIn()
+                val idle = browser.get("/admin/system/activity").bodyAsText()
+                assertTrue(
+                    idle.contains("Nobody is watching") && idle.contains("Nothing is recording") &&
+                        idle.contains("No background job is running"),
+                    idle,
+                )
+                assertTrue(idle.contains("http-equiv=\"refresh\""), "the page reloads itself")
+                val gate = CompletableDeferred<Unit>()
+                val run = CoroutineScope(Dispatchers.Default).launch(start = CoroutineStart.UNDISPATCHED) {
+                    runtime.jobs.record("activity-test") {
+                        runtime.jobs.progress("activity-test", JobProgress(3, 4, "Shows"))
+                        gate.await()
+                        JobOutcome(true)
+                    }
+                }
+                val busy = browser.get("/admin/system/activity").bodyAsText()
+                gate.complete(Unit)
+                run.join()
+                assertTrue(
+                    busy.contains("activity-test") && busy.contains("75%") && busy.contains("3 of 4") &&
+                        busy.contains("Shows"),
+                    busy,
+                )
+            }
+        }
 
     @Test fun `the events page lists what the server logged, filtered by level`() = testApplication {
         portal {

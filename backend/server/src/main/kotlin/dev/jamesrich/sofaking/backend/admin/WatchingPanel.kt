@@ -38,17 +38,18 @@ internal class PlayingRow(val activity: VodActivity, val title: String)
 /** A session the operator asked to stop, waiting for the confirmation. */
 internal class StopConfirm(val row: SessionRow)
 
-internal fun FlowContent.watchingPanel(chrome: Chrome, view: OverviewView) = panel(
+/** Home's and Activity's Watching now: the live sessions, then the library files and recordings playing. */
+internal fun FlowContent.watchingPanel(chrome: Chrome, sessions: List<SessionRow>, playing: List<PlayingRow>) = panel(
     "Watching now",
     id = "watching",
-    aside = { span("muted") { +plural(view.sessions.size + view.playing.size, "session") } },
+    aside = { span("muted") { +plural(sessions.size + playing.size, "session") } },
 ) {
-    if (view.sessions.isEmpty() && view.playing.isEmpty()) {
+    if (sessions.isEmpty() && playing.isEmpty()) {
         p("muted") { +"Nobody is watching. The sofa is all yours." }
-    } else if (view.sessions.isNotEmpty()) {
-        liveSessions(chrome, view.sessions)
+    } else if (sessions.isNotEmpty()) {
+        liveSessions(chrome, sessions)
     }
-    if (view.playing.isNotEmpty()) playing(chrome, view.playing)
+    if (playing.isNotEmpty()) playing(chrome, playing)
     p("muted small") {
         +(
             "Sent counts the bytes relayed to the player over a live session, at the rate of the last 10 seconds " +

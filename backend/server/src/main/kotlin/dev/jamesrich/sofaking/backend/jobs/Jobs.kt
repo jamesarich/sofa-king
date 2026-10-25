@@ -13,6 +13,19 @@ import java.util.concurrent.atomic.AtomicInteger
 class JobOutcome(val ok: Boolean, val note: String? = null)
 
 /**
+ * How far a running job has come: [done] of [total] steps, or only [step] when it cannot count them ([total] is 0),
+ * such as the library a pass is on.
+ */
+class JobProgress(val done: Int, val total: Int, val step: String? = null) {
+    /** Whole percent done; null when the job cannot count its steps. */
+    val percent: Int? get() = if (total <= 0) null else (done.coerceIn(0, total) * PERCENT / total)
+
+    private companion object {
+        const val PERCENT = 100
+    }
+}
+
+/**
  * One background job as the admin portal lists it: what it is, whether it is running, its
  * last run and when it is next due.
  */
@@ -30,6 +43,8 @@ class JobStatus(
     val nextDueAt: Instant?,
     /** Whether the portal can start it now. */
     val canRunNow: Boolean,
+    /** How far it has come while it runs; null when it is not running or says nothing. */
+    val progress: JobProgress? = null,
 ) {
     val running: Boolean get() = runningSince != null
 }
@@ -56,6 +71,8 @@ class Jobs(private val clock: Clock) {
         @Volatile var lastOk: Boolean? = null
 
         @Volatile var lastNote: String? = null
+
+        @Volatile var progress: JobProgress? = null
     }
 
     private val entries = ConcurrentHashMap<String, Entry>()
@@ -80,6 +97,7 @@ class Jobs(private val clock: Clock) {
         val entry = entry(id)
         val started = clock.instant()
         entry.runningSince = started
+        entry.progress = null
         val outcome = runCatching { block() }
             .onFailure { finish(entry, started, JobOutcome(false, it.javaClass.simpleName)) }
             .getOrThrow()
@@ -92,6 +110,13 @@ class Jobs(private val clock: Clock) {
         entry.lastOk = outcome.ok
         entry.lastNote = outcome.note
         entry.runningSince = null
+        entry.progress = null
+    }
+
+    /** Says how far the running job [id] has come; the Activity page shows it until the run ends. */
+    fun progress(id: String, progress: JobProgress) {
+        val entry = entries[id] ?: return
+        if (entry.runningSince != null) entry.progress = progress
     }
 
     /** Starts [id] now through its service's kick; false when no such job can be started. */
@@ -112,6 +137,7 @@ class Jobs(private val clock: Clock) {
             entry.lastOk, entry.lastNote,
             if (running == null && ended != null) entry.every?.let(ended::plus) else null,
             entry.runNow != null,
+            if (running != null) entry.progress else null,
         )
     }
 }

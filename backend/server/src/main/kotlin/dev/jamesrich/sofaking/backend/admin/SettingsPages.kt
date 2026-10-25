@@ -23,12 +23,10 @@ internal class SettingsPages(private val portal: Portal) {
     fun install(route: Route) = with(portal) {
         route.get("/settings") {
             val query = call.request.queryParameters
-            val limit = query["changes"]?.toIntOrNull()?.coerceIn(1, CHANGES_LIMIT) ?: CHANGES_SHOWN
-            val advanced = query["advanced"] == "1" || query.contains("changes")
-            call.html(settingsPage(chrome(), settingsView(limit, openAdvanced = advanced)))
+            call.html(settingsPage(chrome(), settingsView(openAdvanced = query["advanced"] == "1")))
         }
         route.action("/settings/reveal-api-token") { session, _ ->
-            val view = settingsView(CHANGES_SHOWN, revealApiToken = true, openAdvanced = true)
+            val view = settingsView(revealApiToken = true, openAdvanced = true)
             call.html(settingsPage(chrome(call, session), view))
         }
         route.action("/settings/tokens/create") { session, form -> createToken(call, session, form) }
@@ -66,7 +64,7 @@ internal class SettingsPages(private val portal: Portal) {
             session.flash.set(Flash(message))
             seeOther(call, "/admin/settings#runtime")
         } catch (e: ApiFailure) {
-            val view = settingsView(CHANGES_SHOWN)
+            val view = settingsView()
             val refused = view.runtime!!.let {
                 RuntimeSettingsView(it.current, it.environment, it.saved, it.plex, listOf(e.message), proposed)
             }
@@ -87,14 +85,14 @@ internal class SettingsPages(private val portal: Portal) {
             call.html(
                 settingsPage(
                     portal.chrome(call, session, Flash("Give the token a label and say what it opens.", Tone.BAD)),
-                    settingsView(CHANGES_SHOWN),
+                    settingsView(),
                 ),
                 HttpStatusCode.BadRequest,
             )
             return
         }
         val (token, secret) = runtime.tokens.create(label, scope)
-        val view = settingsView(CHANGES_SHOWN, created = CreatedApiToken(token, secret))
+        val view = settingsView(created = CreatedApiToken(token, secret))
         call.html(settingsPage(portal.chrome(call, session), view))
     }
 
@@ -104,7 +102,7 @@ internal class SettingsPages(private val portal: Portal) {
             call.html(
                 settingsPage(
                     portal.chrome(call, session, Flash("No lineup policy is configured.", Tone.BAD)),
-                    settingsView(CHANGES_SHOWN, openAdvanced = true),
+                    settingsView(openAdvanced = true),
                 ),
                 HttpStatusCode.Conflict,
             )
@@ -120,7 +118,6 @@ internal class SettingsPages(private val portal: Portal) {
     }
 
     private suspend fun settingsView(
-        changeLimit: Int,
         revealApiToken: Boolean = false,
         openAdvanced: Boolean = false,
         created: CreatedApiToken? = null,
@@ -130,8 +127,6 @@ internal class SettingsPages(private val portal: Portal) {
         return SettingsView(
             config?.let(::effectiveSettings).orEmpty(),
             document?.let { PolicySummary(it.path, it.revision, it.policy, policy.lastApplied()?.result) },
-            policy?.changes(changeLimit).orEmpty(),
-            changeLimit,
             apiTokenSet = config?.apiToken != null,
             revealedApiToken = config?.apiToken?.takeIf { revealApiToken },
             runtime = RuntimeSettingsView(
@@ -146,7 +141,5 @@ internal class SettingsPages(private val portal: Portal) {
     }
 }
 
-/** The change log entries the settings page shows at first, and the most it shows. */
-private const val CHANGES_SHOWN = 50
 private const val MAX_TOKEN_LABEL = 80
 internal const val CHANGES_LIMIT = 1000

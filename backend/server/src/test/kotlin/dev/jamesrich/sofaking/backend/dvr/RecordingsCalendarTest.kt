@@ -65,7 +65,7 @@ class RecordingsCalendarTest {
             assertTrue(line.toByteArray().size <= 75, "${line.toByteArray().size} octets: $line")
         }
         val lines = unfolded(calendar)
-        assertTrue("SUMMARY:Café\\, Bar\; and \\\\ more\\nnews " + "é".repeat(60) in lines, calendar)
+        assertTrue("SUMMARY:Café\\, Bar\\; and \\\\ more\\nnews " + "é".repeat(60) in lines, calendar)
         assertTrue("DESCRIPTION:" + "x".repeat(200) in lines, calendar)
     }
 

@@ -24,7 +24,9 @@ Playback sessions, library playback sessions, the live pairing code and resolved
 
 ## Backups
 
-Back up the whole config folder. The database needs a consistent copy, either from SQLite's backup API while the server runs or from a stopped server; a plain copy of a running database can miss what is still in its write-ahead log. The logo cache is a cache: a restore without `logos/` fetches the logos again on the first sweep. `artwork/`, `scrub/` and `transcode/` can be left out the same way. The recordings folder sits outside the config folder in Compose, so back it up on its own if you keep recordings; the media folder is yours and the server never writes to it.
+Back up the whole config folder, or the database alone from the portal: System, Backup takes a consistent copy while the server runs, once a day on its own and whenever you ask, keeps them in `config/backups/` and downloads any of them (see [Backup](admin.md#pages)). The rest of this section copies the whole folder by hand.
+
+The database needs a consistent copy, either from SQLite's backup API while the server runs or from a stopped server; a plain copy of a running database can miss what is still in its write-ahead log. The logo cache is a cache: a restore without `logos/` fetches the logos again on the first sweep. `artwork/`, `scrub/` and `transcode/` can be left out the same way. The recordings folder sits outside the config folder in Compose, so back it up on its own if you keep recordings; the media folder is yours and the server never writes to it.
 
 Online, without stopping the server. The image includes `sqlite3`, so one line copies the database into `config/backups/`:
 
@@ -52,7 +54,9 @@ Keep backups private and out of version control. They contain the generated toke
 
 ## Restore
 
-Stop the service, then put the files back. Remove the `-wal` and `-shm` files that belong to the old database so SQLite does not replay them into the restored copy:
+To restore the database alone, use System, Backup in the portal: restore one of the backups listed there or upload a database file. The server checks it, sets the running database aside in `config/backups/` as a `before-restore-` backup and restarts on the restored one, which needs a restart policy such as Compose's `restart: unless-stopped`.
+
+To restore the whole folder, stop the service, then put the files back. Remove the `-wal` and `-shm` files that belong to the old database so SQLite does not replay them into the restored copy:
 
 ```sh
 cd deploy
@@ -113,7 +117,7 @@ Use `Authorization: Bearer $SOFA_API_TOKEN` for the `/api/v1` checks, and `Autho
 
 ## Logs
 
-The server logs to stderr, which `docker compose logs` shows, and to `logs/server.log` in `SOFA_DATA_DIR` (the config folder in Docker), so the log outlives a container the updater replaces. The file rolls at midnight UTC, or early at 20 MB, into gzipped `server.<date>.<n>.log.gz` files; `SOFA_LOG_DAYS` keeps 14 days of them by default, at most 250 MB in all, and `0` writes no file. The file has the same level and format as stderr. The admin portal's [Events page](admin.md#pages) shows the newest 500 lines at INFO and above since the server started, whatever the level, and its Jobs page the last run of each import, policy run, Plex sync, logo sweep, recording schedule, recording cleanup, library scan and update check. `SOFA_LOG_LEVEL` sets the level (`info` by default); the portal's [runtime settings](admin.md#settings) change it without a restart and take precedence, as they do for the XMLTV days, the Plex sync interval, the streams per HDHomeRun device and the sessions at once. `SOFA_LOG_FORMAT` sets the format:
+The server logs to stderr, which `docker compose logs` shows, and to `logs/server.log` in `SOFA_DATA_DIR` (the config folder in Docker), so the log outlives a container the updater replaces. The file rolls at midnight UTC, or early at 20 MB, into gzipped `server.<date>.<n>.log.gz` files; `SOFA_LOG_DAYS` keeps 14 days of them by default, at most 250 MB in all, and `0` writes no file. The file has the same level and format as stderr. The admin portal's [Events page](admin.md#pages) shows the newest 500 lines at INFO and above since the server started, whatever the level, and its Jobs page the last run of each import, policy run, Plex sync, logo sweep, recording schedule, recording cleanup, library scan, update check and database backup. `SOFA_LOG_LEVEL` sets the level (`info` by default); the portal's [runtime settings](admin.md#settings) change it without a restart and take precedence, as they do for the XMLTV days, the Plex sync interval, the streams per HDHomeRun device and the sessions at once. `SOFA_LOG_FORMAT` sets the format:
 
 - `text`, the default: one line per event with the time in UTC, the level, the thread and the logger, then the message. A line written while handling a request ends with `requestId=...`.
 - `json`: one JSON object per line from logback's JSON encoder, with the level, the logger, the formatted message and the request id. Use it when a log collector parses the output.
@@ -175,4 +179,4 @@ The output token goes in URLs, so changing it means editing every player and Ple
 
 ## Restarts and shutdown
 
-On `SIGTERM` the server stops accepting connections, closes the imports, probes and relays, and then closes the database. The Compose file allows 20 seconds for this. In-memory playback sessions end with the process, so schedule restarts outside viewing hours when possible. A [setup write](admin.md#setup) from the portal or the admin API ends the process the same way once it has answered, and the Compose file's `restart: unless-stopped` starts it again; a server run some other way needs starting again by hand.
+On `SIGTERM` the server stops accepting connections, closes the imports, probes and relays, and then closes the database. The Compose file allows 20 seconds for this. In-memory playback sessions end with the process, so schedule restarts outside viewing hours when possible. A [setup write](admin.md#setup) or a [restore](#restore) from the portal, or a setup write from the admin API, ends the process the same way once it has answered, and the Compose file's `restart: unless-stopped` starts it again; a server run some other way needs starting again by hand.

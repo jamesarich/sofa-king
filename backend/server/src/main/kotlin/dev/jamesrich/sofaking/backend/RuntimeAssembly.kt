@@ -60,6 +60,7 @@ import dev.jamesrich.sofaking.backend.settings.RuntimeSettings
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.setup.SetupService
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.store.DatabaseBackups
 import dev.jamesrich.sofaking.backend.store.plexStatus
 import dev.jamesrich.sofaking.backend.store.recordAdChannel
 import dev.jamesrich.sofaking.backend.store.savePlexStatus
@@ -76,6 +77,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
 import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -208,6 +210,7 @@ internal class RuntimeAssembly(
             virtual = virtual,
             virtualStreams = streams,
             multiview = multiview,
+            backups = databaseBackups(config, clock, jobs, options.restart, store, scope),
         )
         dvr.start(scope)
         dvr.requestSchedule("startup")
@@ -439,3 +442,13 @@ internal class RuntimeAssembly(
     /** What [playback] makes. */
     private data class Converters(val vod: VodSessions, val streams: VirtualStreams, val multiview: MultiviewSessions)
 }
+
+/** The database backups: the daily one starts here, and a restore restarts the way setup does. */
+private fun databaseBackups(
+    config: ServerConfig,
+    clock: Clock,
+    jobs: Jobs,
+    restart: () -> Unit,
+    store: BackendStore,
+    scope: CoroutineScope,
+) = DatabaseBackups(config.dataDirectory, clock, jobs, restart, store::schemaVersion).also { it.start(scope) }

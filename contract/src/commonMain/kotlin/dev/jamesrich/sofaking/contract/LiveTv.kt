@@ -48,6 +48,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class GuideQuery(val channelIds: List<String>, val from: String, val to: String, val revision: String? = null)
 
+/** What `GET /api/v1/guide/on-later` found: [programs] on the enabled channels, soonest first. */
+@Serializable data class UpcomingPrograms(val programs: List<Program> = emptyList())
+
 @Serializable data class ChannelGuide(val channelId: String, val status: String = "", val programs: List<Program>)
 
 @Serializable data class GuideWindow(

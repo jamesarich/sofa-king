@@ -33,6 +33,7 @@ import dev.jamesrich.sofaking.contract.RecordingList
 import dev.jamesrich.sofaking.contract.RecordingRule
 import dev.jamesrich.sofaking.contract.RecordingRuleList
 import dev.jamesrich.sofaking.contract.ScheduleRecording
+import dev.jamesrich.sofaking.contract.UpcomingPrograms
 import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.UpdatePlayback
 import dev.jamesrich.sofaking.contract.UpdateRecording
@@ -82,6 +83,7 @@ internal typealias VodSessionDto = VodSession
 internal typealias ClientProfileDto = ClientProfile
 internal typealias BootstrapDto = Bootstrap
 internal typealias WatchlistDto = Watchlist
+internal typealias UpcomingProgramsDto = UpcomingPrograms
 internal typealias WatchlistEntryDto = WatchlistEntry
 internal typealias AddWatchlistEntryDto = AddWatchlistEntry
 internal typealias CapabilitiesDto = Capabilities

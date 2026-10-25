@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.data.CachedLineup
 import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.DiscoveredServer
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.OnLaterBook
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.ProgramFacts
@@ -124,6 +125,9 @@ class LineupViewModel(
 
     /** The household's watchlist, which the guide's program details add titles to. */
     val watchlist: WatchlistBook get() = connection.watchlist
+
+    /** On Later: what is coming up on the lineup's channels, on a server that offers it. */
+    val onLater: OnLaterBook get() = connection.onLater
 
     /** What TMDB says about [program], through the server, for the break screen; null when nothing is known. */
     suspend fun programFacts(program: Program): ProgramFacts? = connection.programFacts.of(program)

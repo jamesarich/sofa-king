@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.catalog.CatalogService
 import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.GuideService
 import dev.jamesrich.sofaking.backend.catalog.LineupService
+import dev.jamesrich.sofaking.backend.catalog.OnLaterService
 import dev.jamesrich.sofaking.backend.catalog.PolicyService
 import dev.jamesrich.sofaking.backend.dvr.Dvr
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
@@ -128,6 +129,8 @@ class LiveRuntime(
     val namedOutputs: NamedOutputs = NamedOutputs(store),
     /** The household's watchlist of library items and guide titles. */
     val watchlist: WatchlistService = WatchlistService(store, lineup, guides, libraries?.catalog, Clock.systemUTC()),
+    /** On Later: the movies, sports, kids' programs and premieres coming up on the enabled channels. */
+    val onLater: OnLaterService = OnLaterService(lineup, guides, Clock.systemUTC()),
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()

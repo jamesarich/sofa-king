@@ -74,4 +74,6 @@ data class ServerCapabilities(
     val library: Boolean = false,
     /** It keeps the household's watchlist. */
     val watchlist: Boolean = false,
+    /** It lists the movies, sports, kids' programs and premieres coming up. */
+    val onLater: Boolean = false,
 )

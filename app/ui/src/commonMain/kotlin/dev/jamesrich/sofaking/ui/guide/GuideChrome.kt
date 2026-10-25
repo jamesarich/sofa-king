@@ -44,6 +44,7 @@ import dev.jamesrich.sofaking.resources.filter_sports_now
 import dev.jamesrich.sofaking.resources.guide_filter_count
 import dev.jamesrich.sofaking.resources.guide_now
 import dev.jamesrich.sofaking.resources.guide_search
+import dev.jamesrich.sofaking.resources.on_later
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.formatTemplate
@@ -112,6 +113,7 @@ internal fun FilterChipRow(
     onSearch: () -> Unit,
     onSelect: (GuideFilter) -> Unit,
     modifier: Modifier = Modifier,
+    onOnLater: (() -> Unit)? = null,
 ) {
     LazyRow(
         state = listState,
@@ -137,6 +139,12 @@ internal fun FilterChipRow(
                 label = stringResource(Res.string.guide_filter_count, option.label(), counts[option] ?: 0),
                 modifier = if (selected) Modifier.focusRequester(selectedChip) else Modifier,
             )
+        }
+        // Last, so the fixed chips before the filters keep their places.
+        if (onOnLater != null) {
+            item(key = "on-later") {
+                SofaChip(selected = false, onClick = onOnLater, label = stringResource(Res.string.on_later))
+            }
         }
     }
 }

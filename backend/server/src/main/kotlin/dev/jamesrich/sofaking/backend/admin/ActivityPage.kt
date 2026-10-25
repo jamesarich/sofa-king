@@ -198,8 +198,6 @@ private fun FlowContent.percentBar(percent: Int, label: String) {
     span("small") { +" $percent%" }
 }
 
-private const val PERCENT = 100
-
 internal fun changesPage(chrome: Chrome, view: ChangesView): String =
     layout("Changes", chrome, "/admin/system/changes") {
         pageHead(

@@ -83,6 +83,7 @@
     <string name="vod_control_speed">Speed %1$s×</string>
     <string name="vod_control_skip_credits">Skip credits</string>
     <string name="vod_control_skip_intro_countdown">Skip intro (%1$d)</string>
+    <string name="vod_control_skip_credits_countdown">Skip credits (%1$d)</string>
     <string name="vod_subtitles_on">Subtitles on</string>
     <string name="vod_subtitles_off">Subtitles off</string>
     <string name="vod_no_subtitles">No subtitles for this</string>

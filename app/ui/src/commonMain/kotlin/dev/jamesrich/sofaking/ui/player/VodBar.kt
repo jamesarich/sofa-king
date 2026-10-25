@@ -42,6 +42,7 @@ import dev.jamesrich.sofaking.resources.vod_control_forward
 import dev.jamesrich.sofaking.resources.vod_control_next
 import dev.jamesrich.sofaking.resources.vod_control_skip_break
 import dev.jamesrich.sofaking.resources.vod_control_skip_credits
+import dev.jamesrich.sofaking.resources.vod_control_skip_credits_countdown
 import dev.jamesrich.sofaking.resources.vod_control_skip_intro
 import dev.jamesrich.sofaking.resources.vod_control_skip_intro_countdown
 import dev.jamesrich.sofaking.resources.vod_control_start_over
@@ -131,7 +132,12 @@ internal fun vodButtonItem(
         if (creditsToNext) {
             PlayerButtonItem(SofaIcons.SkipNext, stringResource(Res.string.vod_control_next), onClick)
         } else {
-            PlayerButtonItem(SofaIcons.FastForward, stringResource(Res.string.vod_control_skip_credits), onClick)
+            PlayerButtonItem(
+                SofaIcons.FastForward,
+                autoSkipSeconds?.let { stringResource(Res.string.vod_control_skip_credits_countdown, it) }
+                    ?: stringResource(Res.string.vod_control_skip_credits),
+                onClick,
+            )
         }
 
     VodButton.TRACKS -> PlayerButtonItem(SofaIcons.Subtitles, stringResource(Res.string.vod_tracks_title), onClick)

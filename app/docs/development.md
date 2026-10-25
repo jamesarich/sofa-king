@@ -155,7 +155,7 @@ The journeys and the fuzz walk focus in the TV layout on the JVM, but not Androi
 - [ ] CC then Left/Right moves the channel's caption timing both ways and the toast follows; Info held opens the stream card, and Up/Down and OK pick an audio track on a channel with several.
 - [ ] Settings → Open on start set to Guide opens the guide on a cold start, Library opens the Library tab, and A channel with one chosen opens that channel; Save & reload is off until the server fields change.
 - [ ] Settings → Manage channels: a group switched off empties its chip in the guide and its channels leave the channel list; the arrow opens the group's channels and one switched back on returns alone; hidden channels leave Channel Up/Down only once Skip hidden channels is on; the move buttons reorder the Favorites filter.
-- [ ] Settings opens on its first setting with no Back button drawn and Down walks General, Live TV, Recordings, Library, Captions, Playback, Server; the header shows only the tabs and Settings. Settings → Server → Reload shows Reloading while the lineup loads. Settings → Recordings → Skip commercials jumps a recording's breaks.
+- [ ] Settings opens on its first setting with no Back button drawn and Down walks General, Live TV, Recordings, Library, Captions, Playback, Server; the header shows only the tabs and Settings. Settings → Server → Reload shows Reloading while the lineup loads. Settings → Recordings → Skip commercials set to Automatically jumps a recording's breaks.
 - [ ] Settings → Time format 24-hour and Guide rows Compact change the guide at once; Open system caption settings opens the TV's captioning page.
 - [ ] Settings → Lock → Set a PIN, Back, open Settings: the lock page focuses the PIN field; a wrong PIN says so and the fifth starts a 30 s wait; the right PIN opens Settings; Forgot the PIN with the server's API token removes it.
 - [ ] Settings → Match frame rate on: a 29.97 or 25 fps channel switches the TV's refresh rate (the panel may blank for a moment) and the launcher's rate returns on Back, with playback still running after the switch (logcat shows "ignored a media-session pause" on a box that sends one); Decoder Software and Buffer Smoother still play the channel.
@@ -177,7 +177,7 @@ On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app re
 - [ ] The library player resumes where the item stopped, scrubs in the transport bar, returns to the page at the end, and after Home and back picks up where it was.
 - [ ] Holding the touch surface on a channel opens its program details, and Watch plays it.
 - [ ] The player's transport bar menu records the program on now on a server that records (Cancel recording once set), toggles the favorite and switches channels from Recent, Favorites and All channels.
-- [ ] In a recording with Skip commercials off, Skip break shows over the picture inside a commercial break and jumps to its end.
+- [ ] In a recording with Skip commercials set to With a button, Skip break shows over the picture inside a commercial break and jumps to its end.
 - [ ] In an episode whose intro the server found, Skip intro shows over the picture inside the intro and jumps to its end.
 - [ ] After watching a few channels, the Top Shelf shows them newest first, and selecting one opens the app on it; the app and the extension must be signed with the `group.dev.jamesrich.sofaking` app group for the list to reach the extension.
 

@@ -50,10 +50,8 @@ data class AppSettings(
     val hiddenChannels: Set<String> = emptySet(),
     /** Whether Channel Up and Down and the D-pad skip [hiddenChannels] too, or only the lists leave them out. */
     val zapSkipsHidden: Boolean = false,
-    /** Whether a recording's playback jumps over the commercial breaks the server found. */
-    val skipCommercials: Boolean = false,
-    /** Whether an episode's intro skips itself after a few seconds' countdown on Skip intro; off waits for a press. */
-    val autoSkipIntros: Boolean = false,
+    /** How the players skip intros, end credits and a recording's commercial breaks. */
+    val skips: Skips = Skips(),
     /** Whether an episode not started yet keeps its overview back and its still blurred ([hidesSpoilers]). */
     val hideSpoilers: Boolean = false,
     /** How a library item's text subtitles look; live and recording captions follow [captionStyle]. */
@@ -103,7 +101,7 @@ data class AppSettings(
             "keyLegendShown=$keyLegendShown, startup=$startup, " +
             "startupChannel=$startupChannel, lastTab=$lastTab, clockFormat=$clockFormat, guideDensity=$guideDensity, " +
             "hiddenChannels=$hiddenChannels, " +
-            "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, autoSkipIntros=$autoSkipIntros, " +
+            "zapSkipsHidden=$zapSkipsHidden, skips=$skips, " +
             "hideSpoilers=$hideSpoilers, subtitleLook=$subtitleLook, liveBreaks=$liveBreaks, adsDodged=$adsDodged, " +
             "favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
             "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, " +
@@ -155,6 +153,28 @@ data class SubtitleLook(
 
 /** How captions are drawn; SYSTEM defers to the platform's CaptioningManager settings. */
 enum class CaptionStyle { SYSTEM, LARGE_HIGH_CONTRAST }
+
+/**
+ * How a player meets a part it can skip: [AUTO] skips it after a countdown on its button, [BUTTON] offers the button
+ * and waits for a press, [OFF] offers nothing.
+ */
+enum class SkipMode { AUTO, BUTTON, OFF }
+
+/** What can be skipped: an episode's intro, its end credits, and a recording's commercial breaks. */
+enum class SkipKind { INTROS, CREDITS, COMMERCIAL_BREAKS }
+
+/** The [SkipMode] for each [SkipKind]. */
+data class Skips(
+    val intros: SkipMode = SkipMode.BUTTON,
+    val credits: SkipMode = SkipMode.BUTTON,
+    val commercialBreaks: SkipMode = SkipMode.BUTTON,
+) {
+    fun of(kind: SkipKind): SkipMode = when (kind) {
+        SkipKind.INTROS -> intros
+        SkipKind.CREDITS -> credits
+        SkipKind.COMMERCIAL_BREAKS -> commercialBreaks
+    }
+}
 
 /**
  * The live player in an ad break: [PLAY] shows it; the others cover it with the break
@@ -259,9 +279,8 @@ interface PlayerSettings {
 
     suspend fun setBuffer(buffer: BufferPreference)
 
-    suspend fun setSkipCommercials(enabled: Boolean)
-
-    suspend fun setAutoSkipIntros(enabled: Boolean)
+    /** How the players skip [kind]. */
+    suspend fun setSkip(kind: SkipKind, mode: SkipMode)
 
     suspend fun setLiveBreaks(mode: LiveBreaks)
 

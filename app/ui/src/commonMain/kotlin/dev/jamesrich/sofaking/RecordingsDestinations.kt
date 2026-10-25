@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.DvrRecording
 import dev.jamesrich.sofaking.data.RecordingState
 import dev.jamesrich.sofaking.data.RecordingsState
+import dev.jamesrich.sofaking.data.Skips
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.resources.recordings_loading
@@ -75,7 +76,7 @@ internal fun RecordingDestination(
             onPosition = { position, _ -> recordingsVm.progress(recording.id, position) },
             onStop = { position, duration -> recordingsVm.stopped(recording.id, position, duration) },
             onExit = shell::back,
-            autoSkipBreaks = settings?.skipCommercials ?: false,
+            skips = settings?.skips ?: Skips(),
             captionsOn = settings?.captionsEnabled ?: false,
             onToggleCaptions = { vm.setCaptionsEnabled(settings?.captionsEnabled != true) },
             captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,

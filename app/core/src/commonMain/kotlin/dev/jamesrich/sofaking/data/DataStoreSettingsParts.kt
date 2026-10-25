@@ -35,6 +35,9 @@ import dev.jamesrich.sofaking.data.SettingsKeys.SEPARATOR
 import dev.jamesrich.sofaking.data.SettingsKeys.SERVER_URL
 import dev.jamesrich.sofaking.data.SettingsKeys.SETTINGS_PIN
 import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_COMMERCIALS
+import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_COMMERCIAL_BREAKS
+import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_CREDITS
+import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_INTROS
 import dev.jamesrich.sofaking.data.SettingsKeys.SMOOTH_CAPTIONS
 import dev.jamesrich.sofaking.data.SettingsKeys.STARTUP
 import dev.jamesrich.sofaking.data.SettingsKeys.STARTUP_CHANNEL
@@ -190,12 +193,23 @@ internal class DataStorePlayerSettings(private val dataStore: DataStore<Preferen
         dataStore.edit { prefs -> prefs[BUFFER] = buffer.name }
     }
 
-    override suspend fun setSkipCommercials(enabled: Boolean) {
-        dataStore.edit { prefs -> prefs[SKIP_COMMERCIALS] = enabled }
-    }
+    override suspend fun setSkip(kind: SkipKind, mode: SkipMode) {
+        dataStore.edit { prefs ->
+            // An older build on the same device reads its switch, on for automatic.
+            when (kind) {
+                SkipKind.INTROS -> {
+                    prefs[SKIP_INTROS] = mode.name
+                    prefs[AUTO_SKIP_INTROS] = mode == SkipMode.AUTO
+                }
 
-    override suspend fun setAutoSkipIntros(enabled: Boolean) {
-        dataStore.edit { prefs -> prefs[AUTO_SKIP_INTROS] = enabled }
+                SkipKind.CREDITS -> prefs[SKIP_CREDITS] = mode.name
+
+                SkipKind.COMMERCIAL_BREAKS -> {
+                    prefs[SKIP_COMMERCIAL_BREAKS] = mode.name
+                    prefs[SKIP_COMMERCIALS] = mode == SkipMode.AUTO
+                }
+            }
+        }
     }
 
     override suspend fun setLiveBreaks(mode: LiveBreaks) {

@@ -38,6 +38,9 @@ import dev.jamesrich.sofaking.data.SettingsKeys.SEPARATOR
 import dev.jamesrich.sofaking.data.SettingsKeys.SERVER_URL
 import dev.jamesrich.sofaking.data.SettingsKeys.SETTINGS_PIN
 import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_COMMERCIALS
+import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_COMMERCIAL_BREAKS
+import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_CREDITS
+import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_INTROS
 import dev.jamesrich.sofaking.data.SettingsKeys.SMOOTH_CAPTIONS
 import dev.jamesrich.sofaking.data.SettingsKeys.STARTUP
 import dev.jamesrich.sofaking.data.SettingsKeys.STARTUP_CHANNEL
@@ -76,8 +79,15 @@ internal object SettingsKeys {
     val GUIDE_DENSITY = stringPreferencesKey("guide_density")
     val HIDDEN_CHANNELS = stringSetPreferencesKey("hidden_channels")
     val ZAP_SKIPS_HIDDEN = booleanPreferencesKey("zap_skips_hidden")
+
+    /** Before [SKIP_COMMERCIAL_BREAKS]; still written for an older build on the same device. */
     val SKIP_COMMERCIALS = booleanPreferencesKey("skip_commercials")
+
+    /** Before [SKIP_INTROS]; still written for an older build on the same device. */
     val AUTO_SKIP_INTROS = booleanPreferencesKey("auto_skip_intros")
+    val SKIP_INTROS = stringPreferencesKey("skip_intros")
+    val SKIP_CREDITS = stringPreferencesKey("skip_credits")
+    val SKIP_COMMERCIAL_BREAKS = stringPreferencesKey("skip_commercial_breaks")
     val HIDE_SPOILERS = booleanPreferencesKey("hide_spoilers")
     val SUBTITLE_SIZE = stringPreferencesKey("subtitle_size")
     val SUBTITLE_RAISE = stringPreferencesKey("subtitle_raise")
@@ -123,8 +133,7 @@ internal fun readSettings(prefs: Preferences): AppSettings = AppSettings(
     guideDensity = prefs[GUIDE_DENSITY].toEnum(GuideDensity.COMFORTABLE),
     hiddenChannels = prefs[HIDDEN_CHANNELS] ?: emptySet(),
     zapSkipsHidden = prefs[ZAP_SKIPS_HIDDEN] ?: false,
-    skipCommercials = prefs[SKIP_COMMERCIALS] ?: false,
-    autoSkipIntros = prefs[AUTO_SKIP_INTROS] ?: false,
+    skips = readSkips(prefs),
     hideSpoilers = prefs[HIDE_SPOILERS] ?: false,
     subtitleLook = readSubtitleLook(prefs),
     liveBreaks = prefs[LIVE_BREAKS].toEnum(LiveBreaks.PLAY),
@@ -136,6 +145,16 @@ internal fun readSettings(prefs: Preferences): AppSettings = AppSettings(
     preferencesSyncedAt = prefs[PREFERENCES_SYNCED_AT].orEmpty(),
     settingsPin = prefs[SETTINGS_PIN].orEmpty(),
 )
+
+/** The skip modes; until one is set, the switch an older build kept stands in for it (on is automatic). */
+internal fun readSkips(prefs: Preferences): Skips {
+    fun fromSwitch(on: Boolean?) = if (on == true) SkipMode.AUTO else SkipMode.BUTTON
+    return Skips(
+        intros = prefs[SKIP_INTROS].toEnum(fromSwitch(prefs[AUTO_SKIP_INTROS])),
+        credits = prefs[SKIP_CREDITS].toEnum(SkipMode.BUTTON),
+        commercialBreaks = prefs[SKIP_COMMERCIAL_BREAKS].toEnum(fromSwitch(prefs[SKIP_COMMERCIALS])),
+    )
+}
 
 internal fun readSubtitleLook(prefs: Preferences): SubtitleLook = SubtitleLook(
     size = prefs[SUBTITLE_SIZE].toEnum(SubtitleSize.MEDIUM),

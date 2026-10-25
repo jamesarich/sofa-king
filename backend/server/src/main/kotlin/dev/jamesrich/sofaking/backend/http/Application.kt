@@ -73,10 +73,12 @@ fun Application.backendModule(
         if (runtime != null) {
             liveRoutes(runtime)
             adminRoutes(runtime, clock, config?.revision ?: "unknown", hdhr.enabled)
+            statusSummaryRoutes(runtime, clock, config?.revision ?: "unknown")
             viewerRoutes(runtime, clock, apiToken)
             runtime.dvr?.let { recordingRoutes(it) }
             playbackRoutes(runtime)
             outputRoutes(runtime, clock, outputs, apiToken)
+            calendarRoutes(runtime, clock, outputs, apiToken)
             logoRoutes(runtime.logos)
             runtime.libraries?.let {
                 libraryRoutes(it)

@@ -193,6 +193,24 @@ A [Homepage](https://gethomepage.dev/configs/docker/) instance with access to th
       homepage.description: Live TV
 ```
 
+Homepage's [Custom API widget](https://gethomepage.dev/widgets/services/customapi/) shows the [dashboard summary](api.md#dashboard-summary) on that card. Make a read token on the portal's Settings page, under Access tokens, and add to the labels:
+
+```yaml
+      homepage.widget.type: customapi
+      homepage.widget.url: http://sofa-king:9193/api/v1/status
+      homepage.widget.headers.Authorization: Bearer READ_TOKEN
+      homepage.widget.mappings[0].label: Channels
+      homepage.widget.mappings[0].field: channels.enabled
+      homepage.widget.mappings[1].label: Watching
+      homepage.widget.mappings[1].field: sessions
+      homepage.widget.mappings[2].label: Recording
+      homepage.widget.mappings[2].field: recordings.running
+      homepage.widget.mappings[3].label: Scheduled
+      homepage.widget.mappings[3].field: recordings.scheduled
+```
+
+`sofa-king` is the service's name on a Docker network both containers share; use the server's address otherwise. A read token opens only the summary, the recordings calendar and the admin API's reads, so a leaked one changes nothing.
+
 ## Files
 
 | File | Purpose |

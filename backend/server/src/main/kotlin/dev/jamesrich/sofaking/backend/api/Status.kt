@@ -46,3 +46,31 @@ data class StatusPolicy(val revision: String, val lastRunAt: String? = null, val
 
 /** The last Plex sync: when, the channels it mapped across all devices, and its error. */
 @Serializable data class StatusPlex(val lastSyncAt: String? = null, val mapped: Int = 0, val lastError: String? = null)
+
+/**
+ * `GET /api/v1/status`: what a dashboard such as Homepage shows, for a `read` token. [recordings] is null without the
+ * DVR and [libraries] without media libraries; [updateAvailable] is null until the update check has an answer.
+ */
+@Serializable data class StatusSummary(
+    val revision: String,
+    val uptimeSeconds: Long,
+    val channels: StatusChannels,
+    val sessions: Int,
+    val recordings: StatusRecordings? = null,
+    val libraries: StatusLibraries? = null,
+    val updateAvailable: Boolean? = null,
+)
+
+/** Recordings running and scheduled, the scheduled ones in a conflict, and the next to start. */
+@Serializable data class StatusRecordings(
+    val running: Int,
+    val scheduled: Int,
+    val conflicts: Int,
+    val next: StatusNextRecording? = null,
+)
+
+@Serializable data class StatusNextRecording(val title: String, val channelName: String, val startsAt: String)
+
+/** The libraries and their present items by kind. */
+@Serializable
+data class StatusLibraries(val libraries: Int, val movies: Int, val shows: Int, val episodes: Int, val videos: Int)

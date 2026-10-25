@@ -167,8 +167,9 @@ class RouteGuardTest {
 
     private fun Endpoint.isHook() = isHookPath(path)
 
-    /** Whether a read token opens this route: a GET of the admin reads a dashboard needs. */
+    /** Whether a read token opens this route: a GET of the summary and the admin reads a dashboard needs. */
     private fun Endpoint.readScope() = method == HttpMethod.Get && listOf(
+        "/api/v1/status",
         "/api/v1/admin/status",
         "/api/v1/admin/sessions",
         "/api/v1/admin/guides",
@@ -251,22 +252,27 @@ class RouteGuardTest {
         }
     }
 
-    @Test fun `a device token opens every other API route, and a read or hook token none`() = testApplication {
-        routes {
-            val device = runtime.tokens.pair("tv-1", "TV")
-            val read = runtime.tokens.create("Homepage", TokenScope.READ).second
-            val hook = runtime.tokens.create("Sonarr", TokenScope.HOOK).second
-            val violations = buildList {
-                val app = endpoints.filter { it.isApi() && !it.isAdminApi() && !it.isHook() && it.path != PAIR_PATH }
-                for (endpoint in app) {
-                    if (refused(call(endpoint, device)) == null) add("$endpoint refused a device token")
-                    refused(call(endpoint, read))?.let { add("$endpoint with a read token: $it") }
-                    refused(call(endpoint, hook))?.let { add("$endpoint with a hook token: $it") }
+    @Test fun `a device token opens every other API route, a read token only the summary, a hook token none`() =
+        testApplication {
+            routes {
+                val device = runtime.tokens.pair("tv-1", "TV")
+                val read = runtime.tokens.create("Homepage", TokenScope.READ).second
+                val hook = runtime.tokens.create("Sonarr", TokenScope.HOOK).second
+                val violations = buildList {
+                    val app =
+                        endpoints.filter { it.isApi() && !it.isAdminApi() && !it.isHook() && it.path != PAIR_PATH }
+                    for (endpoint in app) {
+                        if (refused(call(endpoint, device)) == null) add("$endpoint refused a device token")
+                        val readRefusal = refused(call(endpoint, read))
+                        if (endpoint.readScope() == (readRefusal == null)) {
+                            add("$endpoint with a read token: ${readRefusal ?: "401"}")
+                        }
+                        refused(call(endpoint, hook))?.let { add("$endpoint with a hook token: $it") }
+                    }
                 }
+                assertTrue(violations.isEmpty(), violations.joinToString("\n"))
             }
-            assertTrue(violations.isEmpty(), violations.joinToString("\n"))
         }
-    }
 
     @Test fun `every hook opens to a hook token or the API token and to no other`() = testApplication {
         routes {

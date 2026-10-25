@@ -204,8 +204,12 @@ private suspend fun ApplicationCall.refused(
     }
 }
 
-/** The admin API's reads a `read` token opens: status, sessions, guides, the lineup, policy findings, libraries. */
+/**
+ * The reads a `read` token opens: the dashboard summary, and the admin API's status, sessions, guides, the lineup,
+ * policy findings and libraries.
+ */
 private val READ_SCOPE_PATHS = listOf(
+    STATUS_SUMMARY_PATH,
     "/api/v1/admin/status",
     "/api/v1/admin/sessions",
     "/api/v1/admin/guides",

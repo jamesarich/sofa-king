@@ -339,6 +339,24 @@
           "updateAvailable": { "type": ["boolean", "null"], "description": "Whether a newer image is published; null until the update check has an answer." }
         }
       },
+      "HistoryEntry": {
+        "type": "object",
+        "required": ["id", "kind", "mode", "reason", "startedAt", "endedAt"],
+        "properties": {
+          "id": { "type": "string", "description": "The session's id while it played." },
+          "kind": { "type": "string", "enum": ["live", "vod"] },
+          "clientId": { "type": ["string", "null"], "description": "The paired device whose token opened it; null for the shared token and for players outside the app." },
+          "address": { "type": ["string", "null"], "description": "The player's address" },
+          "channelId": { "type": ["string", "null"], "description": "A live session's channel" },
+          "itemId": { "type": ["string", "null"], "description": "A VOD session's library item" },
+          "recordingId": { "type": ["string", "null"], "description": "A VOD session's recording" },
+          "providerId": { "type": ["string", "null"], "description": "The provider a live session played from" },
+          "mode": { "type": "string", "description": "watch, preview, external or recording for live TV; direct, remux or transcode for VOD." },
+          "reason": { "type": "string", "enum": ["released", "expired", "evicted", "stopped"] },
+          "startedAt": { "type": "string", "format": "date-time" }, "endedAt": { "type": "string", "format": "date-time" },
+          "bytes": { "type": ["integer", "null"], "description": "Bytes relayed to a live player; null for VOD." }
+        }
+      },
       "StatusImports": {
         "type": "object",
         "properties": {
@@ -1014,6 +1032,21 @@
       "post": { "tags": ["Admin"], "summary": "Move a live session to its channel's next source", "description": "Passes over the source playing and those the session was switched away from, all of them again once none is left. The session keeps its id and moves to a new epoch: the app re-reads it, and another player's next media request answers 410.", "security": [{ "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "The session on its new source", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ActiveSession" } } } }, "409": { "$ref": "#/components/responses/Error" }, "410": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/history": {
+      "get": { "tags": ["Admin"], "summary": "Ended playback sessions, the newest end first", "description": "Live TV, library files and recordings, one row per session once it ends, kept for SOFA_HISTORY_DAYS days (90 by default).", "security": [{ "adminToken": [] }],
+        "parameters": [
+          { "name": "since", "in": "query", "schema": { "type": "string", "format": "date-time" }, "description": "Only sessions that ended at or after this instant" },
+          { "name": "kind", "in": "query", "schema": { "type": "string", "enum": ["live", "vod"] } },
+          { "name": "client", "in": "query", "schema": { "type": "string" }, "description": "A paired device's client id or a player's address" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 200 } }
+        ],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/HistoryEntry" } } } } }, "400": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/events/stream": {
+      "get": { "tags": ["Admin"], "summary": "The server's events as they happen", "description": "Server-sent events, each named for its type with a JSON object of type, at and data: ready once the stream listens, session.started and session.ended (the data of a history entry), recording.state (a recording's id, title, channel, state and reason) and attention.changed (the home page's attention items raised and cleared). A comment line every 15 seconds keeps an idle stream open. Nothing is replayed: a client that reconnects reads the history for what it missed.", "security": [{ "adminToken": [] }],
+        "parameters": [{ "name": "types", "in": "query", "schema": { "type": "string" }, "description": "Comma-separated event types to send; all of them without it" }],
+        "responses": { "200": { "description": "", "content": { "text/event-stream": { "schema": { "description": "One event; data is a JSON object of type, at and data", "type": "object", "required": ["data"], "properties": { "event": { "type": "string" }, "data": { "type": "string", "contentMediaType": "application/json" }, "id": { "type": "string" }, "retry": { "type": "integer" } } } } } } } }
     },
     "/api/v1/admin/candidates": {
       "get": { "tags": ["Admin"], "summary": "Provider channels with their sources and the entries using them", "security": [{ "adminToken": [] }],

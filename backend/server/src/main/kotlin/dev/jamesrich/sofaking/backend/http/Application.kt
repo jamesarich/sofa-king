@@ -14,9 +14,11 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.ApplicationCallPipeline
 import io.ktor.server.application.call
+import io.ktor.server.application.install
 import io.ktor.server.request.ApplicationRequest
 import io.ktor.server.request.path
 import io.ktor.server.routing.routing
+import io.ktor.server.sse.SSE
 import io.ktor.util.AttributeKey
 import io.ktor.util.cio.ChannelIOException
 import io.ktor.utils.io.ClosedByteChannelException
@@ -67,13 +69,16 @@ fun Application.backendModule(
     config?.corsOrigins?.takeIf { it.isNotEmpty() }?.let { installCors(it) }
     installLimits()
     installStatusPages()
+    install(SSE)
     guardTokens(portal, apiToken, adminToken, runtime?.tokens)
+    portal?.watchAttention(this)
     routing {
         healthRoutes(store, clock, runtime)
         if (runtime != null) {
             liveRoutes(runtime)
             adminRoutes(runtime, clock, config?.revision ?: "unknown", hdhr.enabled)
             statusSummaryRoutes(runtime, clock, config?.revision ?: "unknown")
+            historyRoutes(runtime, clock)
             viewerRoutes(runtime, clock, apiToken)
             runtime.dvr?.let { recordingRoutes(it) }
             watchlistRoutes(runtime.watchlist)
@@ -140,7 +145,7 @@ internal fun isLoopbackName(raw: String): Boolean {
 internal val ApplicationCall.routedPath: String? get() = attributes.getOrNull(RoutedPathKey)
 
 /** Responses worth compressing: API documents, the portal, the playlist and the guide. Media and logos never are. */
-internal fun compressible(path: String?): Boolean = path != null && (
+internal fun compressible(path: String?): Boolean = path != null && path != EVENT_STREAM_PATH && (
     path.startsWith("/api/") || path == "/admin" || path.startsWith("/admin/") ||
         path == "/output/playlist.m3u" || path == "/output/guide.xml" || path == "/lineup.json"
     )

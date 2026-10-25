@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.catalog.LineupService
 import dev.jamesrich.sofaking.backend.catalog.OnLaterService
 import dev.jamesrich.sofaking.backend.catalog.PolicyService
 import dev.jamesrich.sofaking.backend.dvr.Dvr
+import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.HdhrAccess
 import dev.jamesrich.sofaking.backend.http.NamedOutputs
@@ -22,6 +23,7 @@ import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.MediaRelay
+import dev.jamesrich.sofaking.backend.playback.SessionHistory
 import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.TsRemux
 import dev.jamesrich.sofaking.backend.plex.PlexSync
@@ -128,6 +130,10 @@ class LiveRuntime(
     val programFacts: ProgramFactsLookup? = null,
     /** The tokens issued to paired devices, dashboards and hooks. */
     val tokens: IssuedTokens = IssuedTokens(store, Clock.systemUTC()),
+    /** What happens as it happens, for the event stream. */
+    val events: ServerEvents = ServerEvents(Clock.systemUTC()),
+    /** The ended playback sessions; null for a runtime built without a config. */
+    val history: SessionHistory? = null,
     /** The named player outputs, each a filtered playlist and guide. */
     val namedOutputs: NamedOutputs = NamedOutputs(store),
     /** The household's watchlist of library items and guide titles. */
@@ -147,6 +153,11 @@ class LiveRuntime(
         vod?.close()
         virtualStreams?.close()
         multiview?.close()
+        // The sessions just closed are the history's last rows.
+        history?.let { history ->
+            runCatchingCancellable { history.flush() }
+                .onFailure { runtimeLog.warn("session history save failed class={}", it.javaClass.simpleName) }
+        }
         remux.close()
         loopback.close()
         http.close()

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.playback
 
+import dev.jamesrich.sofaking.backend.api.HistoryQuery
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.CatalogService
 import dev.jamesrich.sofaking.backend.catalog.FeedConfig
@@ -9,6 +10,7 @@ import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.Offering
 import dev.jamesrich.sofaking.backend.catalog.lineupStack
+import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.health.FailureClass
 import dev.jamesrich.sofaking.backend.health.Observation
 import dev.jamesrich.sofaking.backend.store.BackendStore
@@ -180,6 +182,52 @@ class SessionManagerTest {
         sessions.expire()
         assertEquals(watching.id, sessions.get(watching.id).id)
         sessions.close()
+    }
+
+    @Test fun `each ended session is a history row and an evicted preview says so`() = withChannel("sofa-history-") {
+            catalog,
+            store,
+            clock,
+            channel,
+        ->
+        val history = SessionHistory(store, ServerEvents(clock), clock)
+        val sessions = SessionManager(catalog, store, clock, 2)
+        sessions.history = history
+        val tv = PlaybackClient("192.0.2.5", "tv-1")
+        val preview = sessions.open(OpenPlayback(channel, "preview", "preview"), tv)
+        val watching = sessions.open(OpenPlayback(channel, "watch", "watching"))
+        val third = sessions.open(OpenPlayback(channel, "preview", "third"), tv)
+        sessions.update(third.id, UpdatePlayback("watch"))
+        sessions.release(watching.id)
+        clock.now = clock.now.plusSeconds(91)
+        sessions.expire()
+        val player = sessions.external.open(channel, "192.0.2.9")
+        sessions.close()
+        val rows = history.list(HistoryQuery()).associateBy { it.id }
+        assertEquals(4, rows.size)
+        val evicted = rows.getValue(preview.id)
+        assertEquals(HistoryReason.EVICTED, evicted.reason)
+        assertEquals(HistoryKind.LIVE, evicted.kind)
+        assertEquals("tv-1", evicted.clientId)
+        assertEquals("192.0.2.5", evicted.address)
+        assertEquals(channel, evicted.channelId)
+        assertEquals("fixture", evicted.providerId)
+        assertEquals("preview", evicted.mode)
+        assertEquals(HistoryReason.RELEASED, rows.getValue(watching.id).reason)
+        assertNull(rows.getValue(watching.id).clientId)
+        val expired = rows.getValue(third.id)
+        assertEquals(HistoryReason.EXPIRED, expired.reason)
+        assertEquals("watch", expired.mode, "the mode it ended in")
+        assertEquals(
+            Instant.parse(expired.startedAt).plusSeconds(91),
+            Instant.parse(expired.endedAt),
+        )
+        val external = rows.getValue(player.id)
+        assertEquals(HistoryReason.STOPPED, external.reason)
+        assertEquals("external", external.mode)
+        assertEquals("192.0.2.9", external.address)
+        assertEquals(listOf(third.id, preview.id), history.list(HistoryQuery(client = "tv-1")).map { it.id })
+        assertEquals(listOf(player.id), history.list(HistoryQuery(client = "192.0.2.9")).map { it.id })
     }
 
     @Test fun `manual disable immediately blocks media and cancels its upstream request`() = runBlocking<Unit> {

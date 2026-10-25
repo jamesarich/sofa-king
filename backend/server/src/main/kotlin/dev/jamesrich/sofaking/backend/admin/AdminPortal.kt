@@ -25,6 +25,8 @@ import io.ktor.server.routing.path
 import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import java.time.Clock
 
 /** Supplies the last Plex sync's status; without a source the portal treats Plex sync as not set up. */
@@ -89,6 +91,10 @@ class AdminPortal(
         return admitted
     }
 
+    /** Publishes the home page's attention changes to the event stream until [scope] ends. */
+    fun watchAttention(scope: CoroutineScope): Job =
+        AttentionWatch(OverviewReader(portal), portal.runtime.events).start(scope)
+
     fun install(root: Route) {
         val editor = PolicyEditor(portal)
         root.route("/admin") {
@@ -100,6 +106,7 @@ class AdminPortal(
             RecordingPages(portal).install(this)
             LibraryPages(portal).install(this)
             ViewerPages(portal).install(this)
+            HistoryPages(portal).install(this)
             PlexPages(portal).install(this)
             SettingsPages(portal).install(this)
             SystemPages(portal, events).install(this)

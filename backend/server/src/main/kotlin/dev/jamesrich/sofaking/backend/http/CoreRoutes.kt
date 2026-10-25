@@ -14,7 +14,6 @@ import dev.jamesrich.sofaking.contract.ProgramFacts
 import dev.jamesrich.sofaking.contract.UpdatePlayback
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.plugins.origin
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
@@ -118,7 +117,7 @@ internal fun Route.playbackRoutes(runtime: LiveRuntime) {
     post("/api/v1/playback-sessions") {
         call.respond(
             HttpStatusCode.Created,
-            runtime.sessions.open(call.appBody<OpenPlayback>(), call.request.origin.remoteAddress),
+            runtime.sessions.open(call.appBody<OpenPlayback>(), call.playbackClient()),
         )
     }
     get("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.get(call.parameters["id"]!!)) }

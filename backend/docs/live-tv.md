@@ -37,6 +37,7 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_PROBE_PARALLELISM` | `6` | Concurrent source probes, 1-32 |
 | `SOFA_RESTREAM_ORIGINS` | Unset | Comma-separated `host[:port]` list of LAN restream proxies whose 502 counts as source evidence, for example `RESTREAM_HOST:3000` |
 | `SOFA_OBSERVATION_RETENTION_DAYS` | `7` | Days of health observation history to keep, 1-3650 |
+| `SOFA_HISTORY_DAYS` | `90` | Days of [playback history](api.md#playback-history) to keep, 1-3650: one row per live, library or recording session once it ends |
 | `SOFA_ALLOW_LOOPBACK_UPSTREAMS` | `false` | Allow playlist, guide and stream URLs on loopback (`127.0.0.1`, `::1`, `localhost`); for local fixtures only |
 | `SOFA_OUTPUT_TOKEN` | Generated on a non-loopback bind | Token for the [player outputs](#third-party-players) under `/output/*`, at least 32 letters, digits, hyphens or underscores. It goes in the URL, so it is separate from the API token. On a non-loopback bind, an unset token is generated at the first start, stored in `SOFA_DATA_DIR/secrets.json` and reused; the admin portal's Plex page reveals it. On loopback, unset leaves only the API token (as a bearer) to open them |
 | `SOFA_XMLTV_DAYS` | `3` | Days ahead the XMLTV output carries, 1-14. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |

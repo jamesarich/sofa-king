@@ -32,7 +32,7 @@ class ExternalSessions internal constructor(
                     startedAt = now,
                     client = client,
                 )
-            table.sessions[id] = session
+            table.add(session)
             session.descriptor()
         }
 

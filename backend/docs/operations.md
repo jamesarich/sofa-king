@@ -101,6 +101,8 @@ The tag `compose.yaml` runs now holds the previous image until `docker compose p
 | `GET /api/v1/admin/guides` | The same for each guide, with the retained `programs` count. An `IMPORT_FAILED` guide keeps the previous data |
 | `GET /api/v1/sources` | Health state of every source (`HEALTHY`, `UNVERIFIED`, `SUSPECT`, `QUARANTINED`, `PROBATION`) |
 | `GET /api/v1/admin/sessions` | Live playback sessions. An empty list means nothing is playing |
+| `GET /api/v1/admin/history` | Ended playback sessions, newest first, with who played what, for how long and why it ended. See [playback history](api.md#playback-history) |
+| `GET /api/v1/admin/events/stream` | Session starts and ends, recording state changes and attention changes as server-sent events, for a script or a dashboard to follow. See [event stream](api.md#event-stream) |
 | `GET /api/v1/admin/policy/changes` | What lineup policy runs changed, newest first |
 | `GET /api/v1/admin/policy/findings` | Open findings of the lineup policy, such as missing required sources |
 | `GET /api/v1/recordings` | Every recording with its `state`, `reason` and `conflict`, and the recordings folder's free space in `storage` |

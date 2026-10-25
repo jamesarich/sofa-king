@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.GuideService
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.LineupService
+import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.PlayableFile
@@ -74,6 +75,8 @@ class Dvr(
     private val commercials: Commercials? = null,
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val jobs: Jobs = Jobs(clock),
+    /** Where recordings' state changes are published; none without an event stream. */
+    private val events: ServerEvents? = null,
 ) {
     private val mutex = Mutex()
     private val trigger = Channel<String>(Channel.CONFLATED)
@@ -85,7 +88,16 @@ class Dvr(
     /** The series rules; a change reschedules. */
     val rules = DvrRules(store, lineup, clock) { requestSchedule("rule") }
     private val scanner = commercials?.let { CommercialScanner(store, files, it, mutex, clock) }
-    private val runner = RecordingRunner(store, recorder, files, clock, zone, mutex, scanner?.let { it::request }) {
+    private val runner = RecordingRunner(
+        store,
+        recorder,
+        files,
+        clock,
+        zone,
+        mutex,
+        scanner?.let { it::request },
+        events,
+    ) {
         if (::scope.isInitialized) scope.launch { cull("finished") }
     }
 
@@ -231,7 +243,9 @@ class Dvr(
 
                 Wire.RecordingState.SCHEDULED -> {
                     if (recording.ruleId != null) {
-                        store.saveRecording(recording.copy(state = CANCELED, updatedAt = clock.instant()))
+                        val canceled = recording.copy(state = CANCELED, updatedAt = clock.instant())
+                        store.saveRecording(canceled)
+                        events.recordingChanged(canceled)
                     } else {
                         store.deleteRecording(id)
                     }
@@ -285,7 +299,9 @@ class Dvr(
         mutex.withLock {
             val all = store.recordings()
             for (missed in all.filter { it.state == Wire.RecordingState.SCHEDULED && it.recordUntil <= now }) {
-                store.saveRecording(missed.copy(state = Wire.RecordingState.FAILED, reason = "MISSED", updatedAt = now))
+                val failed = missed.copy(state = Wire.RecordingState.FAILED, reason = "MISSED", updatedAt = now)
+                store.saveRecording(failed)
+                events.recordingChanged(failed)
                 log.warn("recording missed id={} title=\"{}\"", missed.id, missed.title)
             }
             val due = all.filter {

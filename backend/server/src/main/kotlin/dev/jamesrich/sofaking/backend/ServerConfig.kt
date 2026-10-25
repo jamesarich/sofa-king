@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.library.VideoEncoder
 import dev.jamesrich.sofaking.backend.library.pathMappings
 import dev.jamesrich.sofaking.backend.logging.LogSettings
 import dev.jamesrich.sofaking.backend.multiview.MultiviewMode
+import dev.jamesrich.sofaking.backend.playback.DEFAULT_HISTORY_DAYS
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import java.nio.file.Files
 import java.nio.file.Path
@@ -139,6 +140,8 @@ data class ServerConfig(
     val mdns: Boolean = false,
     /** `SOFA_LIBRARY_PATH_MAP`: how Sonarr, Radarr and the like name the media folders, when they see other paths. */
     val libraryPathMap: List<PathMapping> = emptyList(),
+    /** How many days of ended playback sessions the history keeps, `SOFA_HISTORY_DAYS`. */
+    val historyDays: Int = DEFAULT_HISTORY_DAYS,
     /**
      * `SOFA_QUALITY_FLOORS`: a remuxed stream also moves to the channel's next source on a black picture or too low a
      * rate, not only on a stall; off by default.
@@ -275,6 +278,7 @@ data class ServerConfig(
                 comskip = comskip(env),
                 mdns = env.flag("SOFA_MDNS", !isLoopback(host)),
                 libraryPathMap = pathMappings(environment["SOFA_LIBRARY_PATH_MAP"]),
+                historyDays = env.number("SOFA_HISTORY_DAYS", DEFAULT_HISTORY_DAYS, RETENTION_DAYS_RANGE),
                 qualityFloors = env.flag("SOFA_QUALITY_FLOORS", false),
             )
         }

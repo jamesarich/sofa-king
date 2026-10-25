@@ -1,7 +1,12 @@
 package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.backend.MS_PER_SECOND
+import dev.jamesrich.sofaking.backend.api.SessionStart
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.playback.HistoryKind
+import dev.jamesrich.sofaking.backend.playback.HistoryReason
+import dev.jamesrich.sofaking.backend.playback.PlaybackClient
+import dev.jamesrich.sofaking.backend.playback.SessionHistory
 import dev.jamesrich.sofaking.contract.OpenVodPlayback
 import dev.jamesrich.sofaking.contract.PlaybackDescriptor
 import dev.jamesrich.sofaking.contract.UpdateVodPlayback
@@ -101,9 +106,23 @@ internal class VodState(
      */
     val whole: Boolean = false,
     var runStart: Int = 0,
+    /** Who opened it, for the history. */
+    val client: PlaybackClient? = null,
 ) {
     /** Held while this session's FFmpeg is stopped and started again, off the sessions' lock. */
     val restarting = Mutex()
+
+    /** The session as the history records its start. */
+    fun start(): SessionStart = SessionStart(
+        id,
+        HistoryKind.VOD,
+        client?.clientId,
+        client?.address,
+        itemId = itemId.ifEmpty { null },
+        recordingId = recordingId,
+        mode = mode,
+        startedAt = startedAt.toString(),
+    )
 }
 
 /** A library file or recording being played, as the portal's Watching now lists it. */
@@ -144,6 +163,13 @@ class VodSessions(
     val encoder: VideoEncoder get() = runner.encoder
 
     private val table = VodTable(clock, runner)
+
+    /** Where each session's start and end is recorded; none until the runtime sets it. */
+    var history: SessionHistory?
+        get() = table.history
+        set(value) {
+            table.history = value
+        }
     private val random = SecureRandom()
 
     /** The items that play, and their text subtitles as WebVTT. */
@@ -158,11 +184,12 @@ class VodSessions(
         runner.encoder = runner.encoder.verified(ffmpeg)
     }
 
-    suspend fun open(request: OpenVodPlayback): VodSession {
+    /** [from] is the player opening the session, for the history. */
+    suspend fun open(request: OpenVodPlayback, from: PlaybackClient? = null): VodSession {
         if (request.startMs < 0) {
             throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "startMs is not negative")
         }
-        request.recordingId?.let { return openRecording(it, request) }
+        request.recordingId?.let { return openRecording(it, request, from) }
         val (item, file) = subtitles.itemFile(request.itemId)
         val burn = request.subtitleIndex?.let { index ->
             subtitles.sourceOf(item, file, index).also {
@@ -184,11 +211,12 @@ class VodSessions(
             item.record.media,
             item.item.durationMs,
             burn,
+            from,
         )
     }
 
     /** Plays a recording; one still recording is never played directly, as its stream has to follow the file. */
-    private suspend fun openRecording(id: String, request: OpenVodPlayback): VodSession {
+    private suspend fun openRecording(id: String, request: OpenVodPlayback, from: PlaybackClient?): VodSession {
         if (request.subtitleIndex != null) {
             throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "A recording has no subtitle tracks to draw")
         }
@@ -219,7 +247,8 @@ class VodSessions(
             )
         }
         val media = probe(playable.file)
-        return begin(request, "", id, playable.file, playable.growing, media, playable.durationMs ?: media?.durationMs)
+        val duration = playable.durationMs ?: media?.durationMs
+        return begin(request, "", id, playable.file, playable.growing, media, duration, from = from)
     }
 
     private suspend fun begin(
@@ -231,6 +260,7 @@ class VodSessions(
         media: MediaInfo?,
         durationMs: Long?,
         burn: SubtitleSource? = null,
+        from: PlaybackClient? = null,
     ): VodSession {
         val audio = request.audioIndex?.let { index ->
             media?.audio?.firstOrNull { it.index == index }
@@ -257,13 +287,13 @@ class VodSessions(
                 media, secret(), epoch = 1,
                 startMs = if (mode == Wire.VodMode.DIRECT || whole) 0 else request.startMs,
                 expires = clock.instant().plus(lease), startedAt = clock.instant(),
-                whole = whole, runStart = if (whole) (request.startMs / SEGMENT_MS).toInt() else 0,
+                whole = whole, runStart = if (whole) (request.startMs / SEGMENT_MS).toInt() else 0, client = from,
             )
             // A conversion that fails to start leaves its folder, and maybe its FFmpeg, to dispose.
             if (mode != Wire.VodMode.DIRECT) {
                 runCatching { runner.launch(state) }.onFailure { table.retired += state }.getOrThrow()
             }
-            table.sessions[state.id] = state
+            table.add(state)
             state.wire()
         }
     }
@@ -307,12 +337,17 @@ class VodSessions(
         return table.locked { table.live(id).wire() }
     }
 
-    suspend fun release(id: String): Boolean = table.locked { table.sessions[id]?.also(table::retire) != null }
+    suspend fun release(id: String): Boolean = table.locked {
+        table.sessions[id]?.also { table.retire(it, HistoryReason.RELEASED) } !=
+            null
+    }
 
     suspend fun expire() = table.locked { table.reap() }
 
     /** Stops every session, as the server shuts down. */
-    suspend fun close() = table.locked { table.sessions.values.toList().forEach(table::retire) }
+    suspend fun close() = table.locked {
+        table.sessions.values.toList().forEach { table.retire(it, HistoryReason.STOPPED) }
+    }
 
     private fun secret(): String = HexFormat.of().formatHex(ByteArray(SECRET_BYTES).also(random::nextBytes))
 }

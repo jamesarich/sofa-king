@@ -336,6 +336,8 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | GET | `/api/v1/admin/candidates?q=&provider=&limit=&offset=` | Candidates with their sources (`id`, `protocol`, `status`, `manuallyDisabled`) and the lineup entries using them; `q` matches name, exact number or `tvg-id`, case-insensitively; `limit` 1-1000 (default 100) |
 | GET | `/api/v1/admin/sessions` | Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`, `startedAt`, `client` (the player's address, once it made a request), `bytes` sent to the player so far, `offeringId` of the source playing, `bitrateKbps` (the rate over the last 10 seconds or so), `stalls` (media requests the upstream refused or dropped before anything was answered), `segmentsServed` (HLS segments relayed) and `sourceSwitches` (moves to another source, on a failure or by hand). An empty list means nothing is playing |
 | POST | `/api/v1/admin/sessions/{id}/switch-source` | Move a live session to its channel's next source, see [source selection](source-health.md#source-selection); answers the session, or `409 NO_OTHER_SOURCE` |
+| GET | `/api/v1/admin/history?since=&kind=&client=&limit=` | Ended playback sessions, the newest end first, described [below](#playback-history) |
+| GET | `/api/v1/admin/events/stream?types=` | The server's events as server-sent events, described [below](#event-stream) |
 | GET | `/api/v1/admin/guides` | Guide import status: `lastSuccessAt`, `errorCode`, `channels`, retained `programs` |
 | GET | `/api/v1/admin/guides/{id}/channels?q=&limit=` | XMLTV channels of a guide (`channelId`, `displayName`, `icon`) |
 | GET | `/api/v1/admin/lineup` | Every entry in lineup order |
@@ -408,6 +410,47 @@ While a lineup policy is in use, `POST /lineup`, `PUT /lineup/order` and `POST /
 
 ```sh
 curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://SERVER_HOST:9193/api/v1/admin/status
+```
+
+### Playback history
+
+`GET /api/v1/admin/history` lists each live, library or recording session once it ends, kept for `SOFA_HISTORY_DAYS` days (90 by default), the newest end first:
+
+| Field | Contents |
+| --- | --- |
+| `id` | The session's id while it played |
+| `kind` | `live` or `vod` |
+| `clientId` | The paired device whose token opened it; null for `SOFA_API_TOKEN` and for players outside the app |
+| `address` | The player's address |
+| `channelId`, `providerId` | A live session's channel and the provider it played from |
+| `itemId`, `recordingId` | A VOD session's library item or recording |
+| `mode` | `watch` or `preview` (the app's intent at the end), `external` (an M3U or HDHomeRun player) or `recording` for live TV; `direct`, `remux` or `transcode` for VOD |
+| `reason` | `released` by the player, `expired` with no renewal or media request, `evicted` for another session when the slots ran out, or `stopped` with the server |
+| `startedAt`, `endedAt` | To the second |
+| `bytes` | Bytes relayed to a live player; null for VOD |
+
+`since` takes an instant and keeps the sessions that ended at or after it, `kind` takes `live` or `vod`, `client` a client id or an address, and `limit` 1-1000 (default 200); any other value answers 400 `INVALID_REQUEST`.
+
+```sh
+curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" "http://SERVER_HOST:9193/api/v1/admin/history?kind=live&since=2026-10-24T00:00:00Z"
+```
+
+### Event stream
+
+`GET /api/v1/admin/events/stream` answers `text/event-stream` and keeps the connection open. Each event is named for its type, and its data is a JSON object with `type`, `at` and `data`:
+
+| Event | `data` |
+| --- | --- |
+| `ready` | Empty; sent once the stream listens, so nothing after it is missed |
+| `session.started` | The session as a [history entry](#playback-history) has it, without `reason`, `endedAt` and `bytes` |
+| `session.ended` | The session's history entry |
+| `recording.state` | A recording that started, finished, failed, was missed or was canceled: `id`, `title`, `episodeTitle`, `channelId`, `channelName`, `state`, `reason` and `bytes` |
+| `attention.changed` | The home page's attention items that appeared or changed tone (`raised`) and went (`cleared`), each with `key`, `tone`, `title`, `detail` and `href`; read once a minute |
+
+`?types=session.ended,recording.state` sends only those types. A comment line every 15 seconds keeps an idle stream open through proxies. Nothing is replayed: a client that reconnects reads the history for what it missed.
+
+```sh
+curl --no-buffer -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://SERVER_HOST:9193/api/v1/admin/events/stream
 ```
 
 ### Policy results

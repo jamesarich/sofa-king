@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.playback
 
 import dev.jamesrich.sofaking.backend.ads.BreakLibrary
 import dev.jamesrich.sofaking.backend.api.ActiveSession
+import dev.jamesrich.sofaking.backend.api.SessionStart
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.CatalogService
 import dev.jamesrich.sofaking.backend.catalog.Offering
@@ -42,6 +43,8 @@ internal class LiveSession(
     val startedAt: Instant = expires,
     /** The address of the player that opened it, or of its last media request. */
     @Volatile var client: String? = null,
+    /** The paired device whose token opened it; null for the shared token and players outside the app. */
+    val clientId: String? = null,
     /**
      * The app's own sessions mark the ads in their playlists and say where the player is among them; players outside
      * the app get the source's playlists as they are.
@@ -100,6 +103,26 @@ internal class LiveSession(
             offering.providerId,
         )
     }
+
+    /** How the history names its mode: the app's intent, or a player outside the app's, or a recording's. */
+    fun mode(): String = when {
+        !external -> intent
+        shareable -> "external"
+        else -> "recording"
+    }
+
+    /** The session as the history records its start. */
+    fun start(): SessionStart = SessionStart(
+        id,
+        HistoryKind.LIVE,
+        clientId,
+        client,
+        channelId = request.channelId,
+        providerId = offering.providerId,
+        mode = mode(),
+        startedAt = startedAt.toString(),
+    )
+
     fun cancel(except: Job? = null) {
         requests.filter { it != except }.forEach { it.cancel() }
         requests.retainAll { it == except }
@@ -209,11 +232,18 @@ class SessionManager(
             table.onCensus = value
         }
 
+    /** Where each session's start and end is recorded; none until the runtime sets it. */
+    var history: SessionHistory?
+        get() = table.history
+        set(value) {
+            table.history = value
+        }
+
     private val sessions get() = table.sessions
     private val keys = linkedMapOf<String, Pair<OpenPlayback, String>>()
 
-    /** [client] is the address of the player opening the session, shown to the operator. */
-    suspend fun open(request: OpenPlayback, client: String? = null): PlaybackSession = table.mutex.withLock {
+    /** [from] is the player opening the session: its address, shown to the operator, and its paired device. */
+    suspend fun open(request: OpenPlayback, from: PlaybackClient? = null): PlaybackSession = table.mutex.withLock {
         table.reap()
         if (request.intent !in INTENTS || request.idempotencyKey.length !in 1..MAX_KEY_LENGTH) {
             throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Invalid playback intent or idempotency key")
@@ -258,10 +288,11 @@ class SessionManager(
                 offering,
                 now.plus(lease(request.intent)),
                 startedAt = now,
-                client = client,
+                client = from?.address,
+                clientId = from?.clientId,
                 ads = ads,
             )
-        sessions[session.id] = session
+        table.add(session)
         keys[request.idempotencyKey] = request to session.id
         while (keys.size > REMEMBERED_KEYS) keys.remove(keys.keys.first())
         session.descriptor()
@@ -320,7 +351,10 @@ class SessionManager(
         table.mutex.withLock { table.active(id) }.ads?.at(aheadMs) ?: AdBreakState()
 
     /** Ends the session; true when it was open. */
-    suspend fun release(id: String): Boolean = table.mutex.withLock { sessions[id]?.also(table::end) != null }
+    suspend fun release(id: String): Boolean = table.mutex.withLock {
+        sessions[id]?.also { table.end(it, HistoryReason.RELEASED) } !=
+            null
+    }
 
     suspend fun healthChanged(offeringId: String) = table.mutex.withLock {
         if (store.health(offeringId)?.let(::eligible) != true) {
@@ -330,7 +364,9 @@ class SessionManager(
 
     suspend fun expire() = table.mutex.withLock { table.reap() }
 
-    suspend fun close() = table.mutex.withLock { sessions.values.toList().forEach(table::end) }
+    suspend fun close() = table.mutex.withLock {
+        sessions.values.toList().forEach { table.end(it, HistoryReason.STOPPED) }
+    }
 
     /** The channels sessions are playing now. */
     suspend fun watching(): Set<String> = table.mutex.withLock {

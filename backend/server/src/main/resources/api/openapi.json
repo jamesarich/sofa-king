@@ -309,6 +309,19 @@
       },
       "CreateApiToken": { "type": "object", "required": ["label", "scope"], "properties": { "label": { "type": "string", "minLength": 1, "maxLength": 80 }, "scope": { "type": "string", "enum": ["read", "hook"] } } },
       "CreatedApiToken": { "type": "object", "required": ["token", "secret"], "properties": { "token": { "$ref": "#/components/schemas/ApiTokenInfo" }, "secret": { "type": "string", "description": "Shown this once; the server keeps only a hash.", "example": "sk_..." } } },
+      "NotificationEvent": { "type": "string", "enum": ["recording.scheduled", "recording.started", "recording.finished", "recording.failed", "recording.conflict", "source.quarantined", "source.recovered", "disk.low", "update.available", "library.added", "attention.raised", "attention.cleared"] },
+      "NotificationDelivery": { "type": "object", "required": ["event", "at", "ok"], "properties": { "event": { "type": "string", "description": "A notification event, or test." }, "at": { "type": "string", "format": "date-time" }, "ok": { "type": "boolean", "description": "Whether the target answered 2xx." }, "status": { "type": ["integer", "null"], "description": "The last HTTP status; null when the target never answered." }, "error": { "type": ["string", "null"] }, "attempts": { "type": "integer", "minimum": 1, "maximum": 3 } } },
+      "NotificationTarget": {
+        "type": "object", "required": ["id", "name", "kind", "url", "hasSecret", "events", "enabled", "createdAt", "updatedAt"],
+        "properties": {
+          "id": { "type": "string" }, "name": { "type": "string" }, "kind": { "type": "string", "enum": ["webhook", "ntfy", "apprise"] }, "url": { "type": "string", "format": "uri" },
+          "hasSecret": { "type": "boolean", "description": "Whether a webhook signing key or ntfy access token is set; the API never returns it." },
+          "events": { "type": "array", "items": { "$ref": "#/components/schemas/NotificationEvent" } }, "enabled": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" },
+          "lastDelivery": { "oneOf": [{ "$ref": "#/components/schemas/NotificationDelivery" }, { "type": "null" }], "description": "Null before the first." }
+        }
+      },
+      "SaveNotificationTarget": { "type": "object", "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 80 }, "kind": { "type": "string", "enum": ["webhook", "ntfy", "apprise"] }, "url": { "type": "string", "format": "uri", "maxLength": 2048, "description": "http or https, with a host and no user name." }, "secret": { "type": "string", "maxLength": 512, "description": "Signs a webhook's body as X-SofaKing-Signature, or is ntfy's bearer token. Empty clears it." }, "events": { "type": "array", "items": { "$ref": "#/components/schemas/NotificationEvent" } }, "enabled": { "type": "boolean" } } },
       "PairingCode": { "type": "object", "required": ["code", "expiresAt"], "properties": { "code": { "type": "string", "example": "123456" }, "expiresAt": { "type": "string", "format": "date-time" } } },
       "VirtualSource": { "type": "object", "required": ["kind", "value"], "properties": { "kind": { "type": "string", "enum": ["library", "show", "genre", "channel"] }, "value": { "type": "string", "description": "A library ID, a show's item ID, a genre name or a lineup entry ID, by kind. A channel plays in timed slots only." } } },
       "VirtualSlot": { "type": "object", "required": ["source"], "properties": { "source": { "$ref": "#/components/schemas/VirtualSource" }, "shuffle": { "type": "boolean", "default": false }, "start": { "type": ["string", "null"], "description": "HH:MM in the server's time zone, on every slot or none.", "example": "18:00" } } },
@@ -1044,7 +1057,7 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/HistoryEntry" } } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/events/stream": {
-      "get": { "tags": ["Admin"], "summary": "The server's events as they happen", "description": "Server-sent events, each named for its type with a JSON object of type, at and data: ready once the stream listens, session.started and session.ended (the data of a history entry), recording.state (a recording's id, title, channel, state and reason) and attention.changed (the home page's attention items raised and cleared). A comment line every 15 seconds keeps an idle stream open. Nothing is replayed: a client that reconnects reads the history for what it missed.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "The server's events as they happen", "description": "Server-sent events, each named for its type with a JSON object of type, at and data: ready once the stream listens, session.started and session.ended (the data of a history entry), recording.state (a recording's id, title, channel, state and reason), recording.conflict (a recording that newly has no free slot), source.quarantined and source.recovered (an offering's provider and channel), disk.low (free and floor bytes on the recordings disk), update.available (the newer build), library.added (the files a scan added) and attention.changed (the home page's attention items raised and cleared). A comment line every 15 seconds keeps an idle stream open. Nothing is replayed: a client that reconnects reads the history for what it missed.", "security": [{ "adminToken": [] }],
         "parameters": [{ "name": "types", "in": "query", "schema": { "type": "string" }, "description": "Comma-separated event types to send; all of them without it" }],
         "responses": { "200": { "description": "", "content": { "text/event-stream": { "schema": { "description": "One event; data is a JSON object of type, at and data", "type": "object", "required": ["data"], "properties": { "event": { "type": "string" }, "data": { "type": "string", "contentMediaType": "application/json" }, "id": { "type": "string" }, "retry": { "type": "integer" } } } } } } } }
     },
@@ -1207,6 +1220,30 @@
     "/api/v1/admin/tokens/{id}": {
       "delete": { "tags": ["Admin"], "summary": "Revoke a token", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "204": { "description": "Revoked" }, "404": { "description": "TOKEN_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/api/v1/admin/notifications": {
+      "get": { "tags": ["Admin"], "summary": "Where the server sends notifications", "description": "Every notification target in the order it was added, with its newest delivery and without its secret.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/NotificationTarget" } } } } } } },
+      "post": { "tags": ["Admin"], "summary": "Add a notification target", "description": "Needs name, kind and url; events defaults to all but the attention items, enabled to true. The URL may be a LAN or loopback address. 400 INVALID_REQUEST names what is wrong.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveNotificationTarget" } } } },
+        "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationTarget" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/notifications/{id}": {
+      "get": { "tags": ["Admin"], "summary": "One notification target", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationTarget" } } } }, "404": { "$ref": "#/components/responses/Error" } } },
+      "patch": { "tags": ["Admin"], "summary": "Change a notification target", "description": "Changes the fields the body gives; an empty secret clears it.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveNotificationTarget" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationTarget" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } },
+      "delete": { "tags": ["Admin"], "summary": "Remove a notification target and its deliveries", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "204": { "description": "Removed" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/notifications/{id}/test": {
+      "post": { "tags": ["Admin"], "summary": "Send a target a test notification", "description": "Sends the test event once, without retries, and answers how it went; a target that fails still answers 200 with ok false.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationDelivery" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/notifications/{id}/deliveries": {
+      "get": { "tags": ["Admin"], "summary": "A target's recent deliveries", "description": "The newest first; the server keeps 200 per target.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/NotificationDelivery" } } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/pairing-codes": {
       "post": { "tags": ["Admin"], "summary": "Issue a pairing code", "description": "Replaces the live code. The code is six digits, live for ten minutes, and spent by the claim that matches it.", "security": [{ "adminToken": [] }],

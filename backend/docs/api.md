@@ -338,6 +338,10 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | POST | `/api/v1/admin/sessions/{id}/switch-source` | Move a live session to its channel's next source, see [source selection](source-health.md#source-selection); answers the session, or `409 NO_OTHER_SOURCE` |
 | GET | `/api/v1/admin/history?since=&kind=&client=&limit=` | Ended playback sessions, the newest end first, described [below](#playback-history) |
 | GET | `/api/v1/admin/events/stream?types=` | The server's events as server-sent events, described [below](#event-stream) |
+| GET, POST | `/api/v1/admin/notifications` | The notification targets; add one, described [below](#notifications) |
+| GET, PATCH, DELETE | `/api/v1/admin/notifications/{id}` | One target; change or remove it |
+| POST | `/api/v1/admin/notifications/{id}/test` | Send the target a test notification and answer how it went |
+| GET | `/api/v1/admin/notifications/{id}/deliveries` | The target's newest deliveries, up to 200 |
 | GET | `/api/v1/admin/guides` | Guide import status: `lastSuccessAt`, `errorCode`, `channels`, retained `programs` |
 | GET | `/api/v1/admin/guides/{id}/channels?q=&limit=` | XMLTV channels of a guide (`channelId`, `displayName`, `icon`) |
 | GET | `/api/v1/admin/lineup` | Every entry in lineup order |
@@ -445,12 +449,27 @@ curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" "http://SERVER_HOST:919
 | `session.started` | The session as a [history entry](#playback-history) has it, without `reason`, `endedAt` and `bytes` |
 | `session.ended` | The session's history entry |
 | `recording.state` | A recording that started, finished, failed, was missed or was canceled: `id`, `title`, `episodeTitle`, `channelId`, `channelName`, `state`, `reason` and `bytes` |
+| `recording.conflict` | A scheduled or running recording that newly has no free slot, with the fields of `recording.state` |
+| `source.quarantined`, `source.recovered` | A source set aside by its probes, or back to healthy: `offeringId`, `providerId`, `channelId` and `channelName` |
+| `disk.low` | The recordings disk dropped under the cleanup floor: `freeBytes`, `floorBytes`, `freeGib` and `floorGib`; once until it is back over |
+| `update.available` | A newer image is published: `revision`, `version`, `runningRevision` and `runningVersion`; once per build |
+| `library.added` | A scan added files: `libraryId`, `library`, `added` (how many) and `titles` (up to ten) |
 | `attention.changed` | The home page's attention items that appeared or changed tone (`raised`) and went (`cleared`), each with `key`, `tone`, `title`, `detail` and `href`; read once a minute |
 
 `?types=session.ended,recording.state` sends only those types. A comment line every 15 seconds keeps an idle stream open through proxies. Nothing is replayed: a client that reconnects reads the history for what it missed.
 
 ```sh
 curl --no-buffer -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://SERVER_HOST:9193/api/v1/admin/events/stream
+```
+
+### Notifications
+
+The [notification](notifications.md) targets, which the Connect page edits too. A target is `id`, `name`, `kind` (`webhook`, `ntfy` or `apprise`), `url`, `hasSecret`, `events`, `enabled`, `createdAt`, `updatedAt` and `lastDelivery`; the secret itself is never returned. `POST` takes `name`, `kind` and `url`, and optionally `secret`, `events` (all but `attention.raised` and `attention.cleared` without it) and `enabled`; `PATCH` takes any of them, and an empty `secret` clears it. The URL is `http` or `https` with a host and no user name, and may be a LAN or loopback address. A delivery is `event`, `at`, `ok`, `status` (null when the target never answered), `error` and `attempts`. A bad field is `400 INVALID_REQUEST`, an unknown id `404 NOTIFICATION_TARGET_NOT_FOUND`.
+
+```sh
+curl -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"Phone","kind":"ntfy","url":"https://ntfy.sh/your-topic","events":["recording.failed","disk.low"]}' \
+  http://SERVER_HOST:9193/api/v1/admin/notifications
 ```
 
 ### Policy results
@@ -528,6 +547,9 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | POST | `/admin/library/tmdb` | Check and save the TMDB token, then restart |
 | GET | `/admin/settings?advanced=&changes=` | Settings; `advanced=1` opens Advanced, and `changes` sets how many of the newest policy changes it lists, 50 by default |
 | POST | `/admin/settings/reveal-api-token` | Reveal the API token |
+| GET | `/admin/connect` | The notification targets |
+| POST | `/admin/connect/targets`, `/admin/connect/targets/{id}` | Add a target, or change one (`name`, `kind`, `url`, `secret`, one `event` per event); a blank secret keeps the one set |
+| POST | `/admin/connect/targets/{id}/test`, `/admin/connect/targets/{id}/enabled`, `/admin/connect/targets/{id}/delete` | Send a test; turn a target on or off (`enabled` of `1` or `0`); remove it |
 | POST | `/admin/settings/runtime`, `/admin/settings/runtime/check` | Save the runtime settings (`op` of `save` or `reset`); say whether the form holds a change |
 | POST | `/admin/policy/apply` | Apply the lineup policy now |
 | POST | `/admin/sources/services` | Save the services form (`svc` for each service on, `opt.SERVICE.KEY` for its options), after `confirm=yes`; writes the source file and restarts |

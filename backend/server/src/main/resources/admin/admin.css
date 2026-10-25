@@ -198,6 +198,8 @@ th.sel,td.sel{width:1%;padding-right:4px}
 td.sel input{width:18px;height:18px;margin:0}
 .runtime{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px 18px;align-items:start}
 .runtime .field input,.runtime .field select{max-width:12em}
+.connect .checks{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 16px}
+.connect .field input[name=url]{max-width:none}
 .api-op{display:grid;grid-template-columns:5.5em 1fr;gap:4px 12px;align-items:baseline;padding:10px 0;border-top:1px solid var(--line)}
 .api-op:first-of-type{border-top:0}
 .api-op .method{font-weight:700;font-size:.8rem;letter-spacing:.04em}

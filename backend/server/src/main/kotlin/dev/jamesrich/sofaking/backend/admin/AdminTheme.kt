@@ -103,7 +103,7 @@ internal val NAV: List<Section> = listOf(
     Section("/admin/recordings", "Recordings", "recordings"),
     Section("/admin/viewers", "Players", "players", listOf("/admin/viewers", "/admin/history", "/admin/plex")),
     Section("/admin/library", "Library"),
-    Section("/admin/settings", "Settings"),
+    Section("/admin/settings", "Settings", pages = listOf("/admin/settings", "/admin/connect")),
     Section(
         "/admin/system/about",
         "System",
@@ -130,6 +130,7 @@ internal fun channelTabs(policy: Boolean): List<Tab> =
 internal val SOURCE_TABS = listOf(Tab("/admin/providers", "Sources", "sources"), Tab("/admin/ads", "Ads"))
 internal val PLAYER_TABS =
     listOf(Tab("/admin/viewers", "Devices"), Tab("/admin/history", "History"), Tab("/admin/plex", "Plex", "plex"))
+internal val SETTINGS_TABS = listOf(Tab("/admin/settings", "Settings"), Tab("/admin/connect", "Connect"))
 internal val SYSTEM_TABS =
     listOf(
         Tab("/admin/system/about", "About"),

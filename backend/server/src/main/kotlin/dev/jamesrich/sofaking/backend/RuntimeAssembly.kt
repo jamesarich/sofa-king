@@ -38,6 +38,9 @@ import dev.jamesrich.sofaking.backend.library.ffprobeBeside
 import dev.jamesrich.sofaking.backend.logging.applyLogLevel
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.multiview.MultiviewSessions
+import dev.jamesrich.sofaking.backend.notify.NotificationTargetsService
+import dev.jamesrich.sofaking.backend.notify.Notifier
+import dev.jamesrich.sofaking.backend.notify.NotifyIdentity
 import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.ChannelTap
@@ -136,6 +139,10 @@ internal class RuntimeAssembly(
     private val upstream = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
     private val events = ServerEvents(clock)
     private val history = SessionHistory(store, events, clock, Duration.ofDays(config.historyDays.toLong()))
+    private val notifier = Notifier(store, http, clock, {
+        NotifyIdentity(config.hdhr.friendlyName, store.serverId(), config.version)
+    })
+    private val notifications = NotificationTargetsService(store, clock, notifier)
 
     private lateinit var feeds: FeedService
     private lateinit var guides: GuideService
@@ -184,15 +191,12 @@ internal class RuntimeAssembly(
             config.updateImage,
             RunningBuild(config.revision, config.version),
             jobs,
+            events = events,
         ).also { it.start(scope) }
         val (vod, streams, multiview) = playback(dvr, libraries)
         val runtime = LiveRuntime(
             store, feeds, guides, lineup, catalog, sessions, relay,
-            TsRemux(
-                config.ffmpeg,
-                loopback,
-                config.qualityFloors,
-            ),
+            TsRemux(config.ffmpeg, loopback, config.qualityFloors),
             logos, http,
             scope, policy, plex, started, jobs, settings, worker, PairingService(clock), updates,
             SetupService(config, options.restart, checkTmdb = { TmdbClient(http, it).check() }),
@@ -200,7 +204,7 @@ internal class RuntimeAssembly(
             HdhrAccess(config.hdhr.allow, ServerConfig.isLoopback(config.host), store, clock).also { it.load() },
             listener,
             config.tmdb?.let { ProgramFactsLookup(TmdbClient(http, it), clock) },
-            IssuedTokens(store, clock), events, history,
+            IssuedTokens(store, clock), events, history, notifications,
             virtual = virtual,
             virtualStreams = streams,
             multiview = multiview,
@@ -284,6 +288,7 @@ internal class RuntimeAssembly(
         sessions = SessionManager(catalog, store, clock, settings.current.maxSessions)
         sessions.history = history
         history.start(scope)
+        notifier.start(scope, events.events)
         scope.launchEvery("history-prune", HISTORY_PRUNE_MS) { history.prune() }
         library = BreakLibrary(store, clock).also { it.load() }
         sessions.library = library
@@ -342,6 +347,7 @@ internal class RuntimeAssembly(
             onHealthChanged = { service?.requestRun("health") },
             targets = service?.let { { it.probeTargets() } },
             relay = loopback,
+            events = events,
         )
     }
 
@@ -371,6 +377,7 @@ internal class RuntimeAssembly(
         scrub = ScrubSheets(store, clock, jobs, FfmpegSheetMaker(config.ffmpeg), config.dataDirectory.resolve("scrub"))
             .also { it.start(scope) },
         pathMap = config.libraryPathMap,
+        events = events,
     ).also { it.start(scope) }
 
     /**

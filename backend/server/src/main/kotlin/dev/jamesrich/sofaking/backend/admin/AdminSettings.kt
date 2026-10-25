@@ -197,6 +197,7 @@ internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("
         "The settings that change at once. Everything else the server runs with, and the lineup policy's file, is " +
             "under Advanced.",
     )
+    tabs(chrome, "/admin/settings", SETTINGS_TABS)
     view.runtime?.let { runtimePanel(chrome, it) }
     view.tokens?.let { tokensPanel(chrome, it) }
     details("advanced") {

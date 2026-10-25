@@ -14,14 +14,21 @@ object EventType {
     const val SESSION_ENDED = "session.ended"
     const val RECORDING_STATE = "recording.state"
     const val ATTENTION_CHANGED = "attention.changed"
+    const val RECORDING_CONFLICT = "recording.conflict"
+    const val SOURCE_QUARANTINED = "source.quarantined"
+    const val SOURCE_RECOVERED = "source.recovered"
+    const val DISK_LOW = "disk.low"
+    const val UPDATE_AVAILABLE = "update.available"
+    const val LIBRARY_ADDED = "library.added"
 }
 
 /** How many events a slow listener may fall behind before it misses the oldest. */
 private const val BUFFERED_EVENTS = 256
 
 /**
- * What happens on the server as it happens, for the event stream and whatever else listens: sessions starting and
- * ending, recordings changing state, and attention items coming and going. Nothing is kept; a listener sees what is
+ * What happens on the server as it happens, for the event stream and the notifications: sessions starting and
+ * ending, recordings changing state or conflicting, sources set aside and back, a low disk, a published update,
+ * library files added, and attention items coming and going. Nothing is kept; a listener sees what is
  * published while it listens, and one that falls [BUFFERED_EVENTS] behind loses the oldest, never holding up a
  * publisher.
  */

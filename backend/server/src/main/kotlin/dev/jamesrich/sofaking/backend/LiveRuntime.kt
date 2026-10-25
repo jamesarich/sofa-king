@@ -10,6 +10,7 @@ import dev.jamesrich.sofaking.backend.dvr.Dvr
 import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.HdhrAccess
+import dev.jamesrich.sofaking.backend.http.NamedOutputs
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.library.ProgramFactsLookup
@@ -128,6 +129,8 @@ class LiveRuntime(
     val events: ServerEvents = ServerEvents(Clock.systemUTC()),
     /** The ended playback sessions; null for a runtime built without a config. */
     val history: SessionHistory? = null,
+    /** The named player outputs, each a filtered playlist and guide. */
+    val namedOutputs: NamedOutputs = NamedOutputs(store),
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()

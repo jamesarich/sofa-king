@@ -7,13 +7,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.Density
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.data.ProgramKind
 import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlin.test.Test
@@ -75,5 +78,41 @@ class ProgramSheetRecordTest {
             press(Key.Tab)
             press(Key.Enter)
             assertEquals(listOf("one Evening News", "series Evening News"), recorded)
+        }
+
+    @Test
+    fun `a sports program offers Record for each team and Stop recording for one already recorded`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            val teams = mutableListOf<String>()
+            val game = program.copy(
+                title = "NFL Football",
+                subTitle = "Bears at Packers",
+                kinds = setOf(ProgramKind.SPORTS),
+            )
+            setContent {
+                SofaKingTheme {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        ProgramSheet(
+                            details = ProgramDetails(channel, game),
+                            now = now,
+                            isFavorite = false,
+                            guideLoading = false,
+                            onWatch = {},
+                            onToggleFavorite = {},
+                            onDismiss = {},
+                            recording = RecordingMark(teams = setOf("packers")),
+                            onRecordTeam = {
+                                teams += it
+                                true
+                            },
+                        )
+                    }
+                }
+            }
+            waitForIdle()
+            onNodeWithText("Record Bears").assertExists()
+            onNodeWithText("Stop recording Packers").performClick()
+            waitForIdle()
+            assertEquals(listOf("Packers"), teams)
         }
 }

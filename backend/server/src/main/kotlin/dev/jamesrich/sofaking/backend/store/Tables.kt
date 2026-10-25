@@ -276,6 +276,9 @@ internal object RecordingRules : Table("recording_rule") {
     val endPadding = integer("end_padding_seconds")
     val priority = integer("priority")
     val createdAt = text("created_at")
+    val matchKind = text("match_kind")
+    val termsJson = text("terms_json")
+    val categoriesJson = text("categories_json")
     override val primaryKey = PrimaryKey(id)
 }
 internal object Recordings : Table("recording") {

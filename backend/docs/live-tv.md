@@ -171,6 +171,17 @@ To set up a player:
 
 Players that accept a single URL can open a stream URL directly, without the playlist.
 
+### Named outputs
+
+A named output is a playlist and guide of part of the lineup, for a player that should see only some channels, such as a kids' room TV. Add one under Named outputs on the admin portal's Plex page: give it a name, the groups it holds and any channel numbers or IDs. A channel is in the output when its group is one of those named, ignoring case, or its number or ID is listed. The output has its own URLs, with the same token:
+
+```text
+http://SERVER_HOST:9193/output/NAME/playlist.m3u?token=OUTPUT_TOKEN
+http://SERVER_HOST:9193/output/NAME/guide.xml?token=OUTPUT_TOKEN
+```
+
+The playlist names its own guide, and its streams stay at `/output/stream/CHANNEL_ID`. Saving a name that exists replaces that output, so a player keeps its URLs while you change what it holds. A named output does not add HDHomeRun devices: Plex adds a tuner by address and port only, so Plex keeps the whole lineup ([API detail](api.md#named-outputs)).
+
 ### Channels DVR
 
 Channels DVR takes the playlist as a custom channels source, with one stream format for the whole source, so use the playlist with `format=ts`, which serves every channel as MPEG-TS (an HLS source is remuxed on the server, as for Plex):

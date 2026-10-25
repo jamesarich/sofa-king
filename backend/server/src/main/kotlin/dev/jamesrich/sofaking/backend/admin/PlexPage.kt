@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.api.HdhrAccessStatus
+import dev.jamesrich.sofaking.backend.api.NamedOutput
 import dev.jamesrich.sofaking.backend.api.PlexStatus
 import kotlinx.html.A
 import kotlinx.html.ButtonType
@@ -42,6 +43,9 @@ import java.time.Instant
 
 internal class HdhrDevice(val name: String, val address: String, val channels: Int)
 
+/** One named output as the Plex page lists it, its URLs carrying the token as the player outputs show it. */
+internal class NamedOutputRow(val output: NamedOutput, val playlist: String, val guide: String)
+
 internal class PlexView(
     val playlist: String,
     val guide: String,
@@ -55,6 +59,7 @@ internal class PlexView(
     val status: PlexStatus?,
     /** Who may use the tuners; null while the emulation is off. */
     val access: HdhrAccessStatus? = null,
+    val namedOutputs: List<NamedOutputRow> = emptyList(),
 )
 
 internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex", chrome, "/admin/plex") {
@@ -86,6 +91,7 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex", c
     }
     view.access?.let { access -> panel("Tuner access", id = "access") { tunerAccess(access, chrome) } }
     playerOutputs(chrome, view)
+    namedOutputs(chrome, view.namedOutputs)
     plexSetup(view)
 }
 

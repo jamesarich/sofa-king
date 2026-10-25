@@ -17,6 +17,7 @@ import dev.jamesrich.sofaking.contract.RecordingBreak
 import dev.jamesrich.sofaking.contract.RecordingList
 import dev.jamesrich.sofaking.contract.RecordingRule
 import dev.jamesrich.sofaking.contract.RecordingRuleList
+import dev.jamesrich.sofaking.contract.RuleMatch
 import dev.jamesrich.sofaking.contract.ScheduleRecording
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.request.bearerAuth
@@ -269,6 +270,9 @@ class RecordingApiTest {
                 """{"title":"News","priority":101}""",
                 """{"title":"News","startPaddingSeconds":3601}""",
                 """{"title":"News","endPaddingSeconds":-1}""",
+                """{"title":"News","match":{"kind":"genre"}}""",
+                """{"title":"News","match":{"kind":"keyword"}}""",
+                """{"title":"News","match":{"kind":"team","terms":["${"x".repeat(101)}"]}}""",
             )) {
                 assertError(HttpStatusCode.BadRequest, "INVALID_REQUEST", send(HttpMethod.Post, RULES, body))
             }
@@ -290,6 +294,19 @@ class RecordingApiTest {
             val listed = send(HttpMethod.Get, RULES)
             assertEquals(HttpStatusCode.OK, listed.status)
             assertEquals(listOf(news), json.decodeFromString<RecordingRuleList>(listed.bodyAsText()).rules)
+        }
+    }
+
+    @Test fun `a team rule takes its title and Sports when it names neither, and lists its match`() = testApplication {
+        dvrApi {
+            val team = json.decodeFromString<RecordingRule>(
+                send(HttpMethod.Post, RULES, """{"title":" Packers ","match":{"kind":"team"}}""").bodyAsText(),
+            )
+            assertEquals(RuleMatch(Wire.RuleMatchKind.TEAM, listOf("Packers"), listOf("Sports")), team.match)
+            val news = createNews(this)
+            assertEquals(null, news.match, "a title rule sends no match")
+            val listed = json.decodeFromString<RecordingRuleList>(send(HttpMethod.Get, RULES).bodyAsText()).rules
+            assertEquals(listOf(team, news), listed, "the match survives the store")
         }
     }
 

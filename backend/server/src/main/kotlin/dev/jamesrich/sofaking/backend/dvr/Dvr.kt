@@ -409,13 +409,13 @@ private suspend fun ruleAirings(
 ): List<Airing> {
     val anyChannel = rules.any { it.channelId == null }
     val wanted = rules.mapNotNullTo(HashSet()) { it.channelId }
-    val titles = rules.mapTo(HashSet()) { it.title.trim().lowercase() }
+    val matchers = rules.map(::RuleMatcher)
     val entries = lineup.entries().filter { it.enabled && it.guide != null && (anyChannel || it.id in wanted) }
     return entries.groupBy { it.guide!!.guideId }.flatMap { (guideId, group) ->
         val rows = guides.programs(guideId, group.map { it.guide!!.channelId }.distinct(), from, to)
         group.flatMap { entry ->
-            rows[entry.guide!!.channelId].orEmpty().filter {
-                it.title.trim().lowercase() in titles
+            rows[entry.guide!!.channelId].orEmpty().filter { program ->
+                matchers.any { it.takes(program) }
             }.map { Airing(entry.id, entry.name, it) }
         }
     }

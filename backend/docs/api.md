@@ -45,12 +45,13 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | PATCH | `/api/v1/recordings/{id}` | Set `protected`, `positionMs` or `watched` |
 | DELETE | `/api/v1/recordings/{id}` | Cancel a scheduled recording, stop a running one, or delete a finished one and its file; returns 204 |
 | GET | `/api/v1/recording-rules` | Every series rule, oldest first |
-| POST | `/api/v1/recording-rules` | Add a series rule; `201` |
+| POST | `/api/v1/recording-rules` | Add a series rule, by title or with a `match` for a team or keywords ([recordings](recordings.md#record-a-series)); `201` |
 | PATCH | `/api/v1/recording-rules/{id}` | Change `channelId` (`anyChannel: true` clears it), `newOnly`, `keep`, the paddings or `priority`; `404 RULE_NOT_FOUND` |
 | DELETE | `/api/v1/recording-rules/{id}` | Delete a rule and its scheduled recordings; what it recorded stays. Returns 204 |
 | GET | `/media/sessions/{id}/{epoch}/{token}` | Session-authorized HLS or MPEG-TS media. `{epoch}` is the descriptor's epoch and `{token}` a random token for one playlist, segment or key |
 | GET | `/output/playlist.m3u` | The enabled lineup as an M3U playlist for third-party players, see [player outputs](#player-outputs) |
 | GET | `/output/guide.xml?days=` | The lineup's programs as XMLTV |
+| GET | `/output/{name}/playlist.m3u`, `/output/{name}/guide.xml` | A [named output](#named-outputs)'s channels only |
 | GET | `/output/stream/{channelId}.m3u8` or `.ts` | Opens a player session for the channel and streams it |
 | GET | `/logos/{key}` | A cached lineup logo, public, see [logos](#logos) |
 | GET | `/api/v1/libraries` | Every [media library](#media-libraries) with its count of movies, shows or videos |
@@ -264,6 +265,16 @@ A program that is not a movie and has no episode numbering from its source gets 
 When an unprobed source's descriptor says MPEG-TS and the body is HLS, the request switches to the redirect itself instead of answering `410`. The reverse, an HLS descriptor with an MPEG-TS body, reaches the player as `410` on the media URL once; after that the stored protocol is right. A disabled or unknown channel answers `404 CHANNEL_NOT_FOUND`, and a channel with no eligible source `503 SOURCE_UNAVAILABLE`.
 
 `GET /output/recordings.ics` is the scheduled and running recordings as an iCalendar feed for a calendar app to subscribe to, `text/calendar`: one event per recording over the window the DVR records, paddings included, with the channel as its location. It takes the output token or a `read` token as `?token=`, or either or the API token as a bearer; the [recordings page](recordings.md#subscribe-in-a-calendar) has the setup.
+
+### Named outputs
+
+A named output serves part of the lineup at `/output/{name}/playlist.m3u` and `/output/{name}/guide.xml`, with the same token and query parameters as the full ones. A channel is held when its group is one of the output's `groups`, ignoring case, or its number or ID is one of its `channels`. The playlist's `url-tvg` names the output's own guide, and its stream URLs are the usual `/output/stream/{channelId}` ones. An unknown name answers `404 OUTPUT_NOT_FOUND` once the token is accepted. The outputs are kept in the database, at most 32.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/api/v1/admin/outputs` | Every named output in name order: `name`, `groups` and `channels` |
+| PUT | `/api/v1/admin/outputs/{name}` | `{"groups": ["Kids"], "channels": ["702"]}` saves the output, replacing one of that name, and returns it. The name is lowercased; `400 INVALID_REQUEST` for a name that is not 1 to 32 letters, digits and hyphens, for `stream`, for an output holding no group or channel, or past 32 outputs |
+| DELETE | `/api/v1/admin/outputs/{name}` | Deletes the output; 204, or `404 OUTPUT_NOT_FOUND` |
 
 ## Logos
 

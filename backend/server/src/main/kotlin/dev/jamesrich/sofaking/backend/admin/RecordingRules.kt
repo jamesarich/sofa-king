@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.dvr.Dvr
 import dev.jamesrich.sofaking.backend.dvr.KEEP_RANGE
 import dev.jamesrich.sofaking.backend.dvr.PRIORITY_RANGE
 import dev.jamesrich.sofaking.contract.RecordingRule
+import dev.jamesrich.sofaking.contract.Wire
 import kotlinx.html.A
 import kotlinx.html.ButtonType
 import kotlinx.html.FORM
@@ -66,7 +67,8 @@ internal fun FlowContent.rulesPanel(chrome: Chrome, view: RecordingsView) = pane
     addRuleForm(chrome, view)
     p("muted small") {
         +(
-            "A rule records every guide airing whose title matches, ignoring case, and skips an episode it " +
+            "A rule records every guide airing whose title matches, ignoring case, or that names its team or " +
+                "keywords as whole words, and skips an episode it " +
                 "already holds. Keep deletes the rule's oldest recordings beyond that count. Padding starts " +
                 "early and runs late, in minutes; when recordings conflict, the higher priority gets the slot."
             )
@@ -78,6 +80,7 @@ private fun TR.ruleRow(chrome: Chrome, view: RecordingsView, rule: RecordingRule
     th {
         attributes["scope"] = "row"
         +rule.title
+        matchText(rule)?.let { small("muted") { +" $it" } }
     }
     td { +(rule.channelId?.let { view.channels[it] ?: it } ?: "Any channel") }
     td { +(if (rule.newOnly) "New only" else "All airings") }
@@ -139,9 +142,63 @@ private fun FlowContent.addRuleForm(chrome: Chrome, view: RecordingsView) =
                     "As the guide names it"
             }
         }
+        matchFields()
         ruleFields("rule", view, null)
         div("actions") { button(type = ButtonType.submit, classes = "primary") { +"Add the rule" } }
     }
+
+/** What a team or keyword rule matches, as one line; null for a title rule. */
+private fun matchText(rule: RecordingRule): String? {
+    val match = rule.match ?: return null
+    val categories = match.categories.takeIf { it.isNotEmpty() }?.let { " in ${it.joinToString()}" }.orEmpty()
+    return when (match.kind) {
+        Wire.RuleMatchKind.TEAM -> "Team: ${match.terms.joinToString()}$categories"
+        Wire.RuleMatchKind.KEYWORD -> "Keyword: ${match.terms.joinToString()}$categories"
+        else -> null
+    }
+}
+
+/** How a new rule matches: by title, by a team, or by keywords, with its terms and categories. */
+private fun FORM.matchFields() {
+    div("field") {
+        label {
+            htmlFor = "rule-match"
+            +"Match"
+        }
+        select {
+            id = "rule-match"
+            name = "match"
+            option {
+                value = Wire.RuleMatchKind.TITLE
+                +"The title"
+            }
+            option {
+                value = Wire.RuleMatchKind.TEAM
+                +"A team, in the title or episode title of a sports program"
+            }
+            option {
+                value = Wire.RuleMatchKind.KEYWORD
+                +"Keywords, anywhere in the title, episode title or description"
+            }
+        }
+    }
+    for ((name, text, hint) in listOf(
+        Triple("terms", "Teams or keywords, comma-separated", "Blank for a team takes the title"),
+        Triple("categories", "Categories, comma-separated", "Blank for a team takes Sports"),
+    )) {
+        div("field") {
+            label {
+                htmlFor = "rule-$name"
+                +text
+            }
+            textInput(name = name) {
+                id = "rule-$name"
+                maxLength = "500"
+                placeholder = hint
+            }
+        }
+    }
+}
 
 /**
  * A rule's channel, episodes, keep, padding and priority fields; [rule] fills them for an edit,

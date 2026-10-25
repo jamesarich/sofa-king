@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.SecretOrigin
+import dev.jamesrich.sofaking.backend.admin.HIDDEN_TOKEN
 import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.main
 import io.ktor.client.request.get
@@ -73,6 +74,26 @@ class AdminPortalSettingsTest : AdminPortalCase() {
             )
             browser.post("/admin/plex/disallow", "csrf" to csrf, "address" to "10.0.0.0/8")
             assertEquals(listOf("127.0.0.1"), runtime.hdhrAccess.allowed)
+        }
+    }
+
+    @Test fun `the Plex page saves and deletes named outputs with the token hidden`() = testApplication {
+        portal {
+            browser.signIn()
+            val csrf = field(browser.get("/admin/plex").bodyAsText(), "csrf")
+            val save = arrayOf("csrf" to csrf, "name" to "Kids", "groups" to "Kids, Cartoons", "channels" to "702")
+            assertEquals(HttpStatusCode.SeeOther, browser.post("/admin/plex/outputs/save", *save).status)
+            val page = browser.get("/admin/plex").bodyAsText()
+            assertTrue(page.contains("Saved the kids output."))
+            assertTrue(page.contains("/output/kids/playlist.m3u?token=$HIDDEN_TOKEN"))
+            assertTrue(page.contains("group Kids, group Cartoons, 702"))
+            assertFalse(page.contains(outputToken))
+
+            browser.post("/admin/plex/outputs/save", "csrf" to csrf, "name" to "stream", "channels" to "1")
+            assertTrue(browser.get("/admin/plex").bodyAsText().contains("Not saved: An output name is 1 to 32"))
+
+            browser.post("/admin/plex/outputs/delete", "csrf" to csrf, "name" to "kids")
+            assertTrue(runtime.namedOutputs.list().isEmpty())
         }
     }
 

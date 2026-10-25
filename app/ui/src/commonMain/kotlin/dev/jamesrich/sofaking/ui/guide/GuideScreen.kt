@@ -368,6 +368,7 @@ private fun GuideDetails(
         recording = recordingMarks?.let { marks -> shown.program?.let(marks::of) ?: RecordingMark() },
         onRecord = actions.onRecord,
         onRecordSeries = actions.onRecordSeries,
+        onRecordTeam = actions.onRecordTeam,
         onWatchFromStart = { recordingId ->
             state.details = null
             actions.onWatchFromStart(recordingId)

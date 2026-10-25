@@ -57,6 +57,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
         policyRoutes(runtime.policy)
         plexRoutes(runtime.plex)
         hdhrAccessRoutes(runtime.hdhrAccess, hdhrEnabled)
+        namedOutputRoutes(runtime.namedOutputs)
         setupRoutes(runtime.setup)
         viewerAdminRoutes(runtime)
         tokenAdminRoutes(runtime.tokens)

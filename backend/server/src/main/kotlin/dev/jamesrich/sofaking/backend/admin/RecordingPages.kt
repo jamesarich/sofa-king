@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.dvr.Dvr
 import dev.jamesrich.sofaking.backend.dvr.Retention
 import dev.jamesrich.sofaking.contract.CreateRecordingRule
+import dev.jamesrich.sofaking.contract.RuleMatch
 import dev.jamesrich.sofaking.contract.ScheduleRecording
 import dev.jamesrich.sofaking.contract.UpdateRecording
 import dev.jamesrich.sofaking.contract.UpdateRecordingRule
@@ -45,6 +46,11 @@ internal class RecordingPages(private val portal: Portal) {
                         formInt(form, "startPadding", "Start early", 1) * 60,
                         formInt(form, "endPadding", "Run late", 2) * 60,
                         formInt(form, "priority", "Priority", 0),
+                        RuleMatch(
+                            form["match"]?.takeIf { it.isNotBlank() } ?: Wire.RuleMatchKind.TITLE,
+                            commaList(form["terms"]),
+                            commaList(form["categories"]),
+                        ),
                     ),
                 )
                 session.flash.set(
@@ -185,3 +191,7 @@ internal class RecordingPages(private val portal: Portal) {
 
 /** A manual recording's length, up to 12 hours. */
 internal val MANUAL_MINUTES = 1..720
+
+/** The comma-separated entries of a form field, trimmed, without blanks. */
+internal fun commaList(value: String?): List<String> =
+    value.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }

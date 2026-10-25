@@ -12,7 +12,7 @@ The server also issues tokens of its own, each starting `sk_`, stored only as a 
 | --- | --- | --- |
 | `api` | A device [pairing](#pair-a-client), one per `clientId`; forgetting the device revokes it | What `SOFA_API_TOKEN` opens, except `/api/v1/admin` and `/api/v1/hooks` |
 | `read` | The portal's Settings page or `POST /api/v1/admin/tokens`, for a dashboard | `GET` of `/api/v1/admin/status`, `/sessions`, `/guides`, `/lineup`, `/policy/preview`, `/policy/findings`, `/policy/changes` and `/libraries`, with what lies under each |
-| `hook` | The same, for Sonarr, Radarr or Bazarr | `/api/v1/hooks` only |
+| `hook` | The same, for Sonarr and Radarr | The [hooks](#hooks) only: `/api/v1/hooks` and the Emby-style routes |
 
 `SOFA_API_TOKEN` stays valid beside them, for scripts and devices set up by hand, and opens the hooks too.
 
@@ -194,6 +194,19 @@ An item's `subtitles` list the subtitle streams of its file by stream index, the
 
 A [recording](recordings.md#play-a-recording) plays the same way: send its `recordingId` instead of `itemId`, and the session echoes `recordingId` with an empty `itemId`. A finished recording's `durationMs` is the file's length. One still recording is never played directly: it gets HLS that follows the file as it grows, with `durationMs` the length its window will have, and the stream ends a minute after the file stops growing. A recording with nothing written yet answers `409 RECORDING_NOT_READY` (retryable), and one that is only scheduled, failed or unknown `404 RECORDING_NOT_FOUND`.
 
+## Hooks
+
+Sonarr, Radarr and other tools call these when they add, rename or delete a file, so the library shows it without waiting for the six-hourly scan. Each takes a `hook` [token](#tokens), or `SOFA_API_TOKEN`, and answers `202` with `{"libraries"}`, the ids of the libraries whose scan it queued: none when no library holds the path or the event changes no file. [Use with Sonarr, Radarr and Bazarr](integrations.md) has the setup.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| POST | `/api/v1/hooks/servarr` | The Webhook connection's payload. `Download`, `Rename`, `EpisodeFileDelete`, `MovieFileDelete`, `SeriesDelete` and `MovieDelete` queue a scan of the library holding `series.path` or `movie.folderPath`; `Test` and the other events queue nothing. The token goes as a bearer or as the Basic password |
+| POST | `/Library/Media/Updated` | The Emby / Jellyfin connection's refresh, `{"Updates": [{"Path", "UpdateType"}]}`: queues a scan of the libraries holding each `Path`. The token goes in `X-MediaBrowser-Token`, as that connection sends it, or `X-Emby-Token` |
+| GET | `/System/Configuration`, `/Items` | What the same connection reads first: its Test button checks the token on `/System/Configuration`, which answers `{}`, and a refresh looks the series or movie up in `/Items`, which is always empty, so the connection sends the folder it knows |
+| POST | `/Notifications/Admin` | The same connection's Send Notifications option; answers `204` and does nothing |
+
+The Emby-style routes answer under `/emby` and `/mediabrowser` too. Paths are mapped through `SOFA_LIBRARY_PATH_MAP` when Sonarr or Radarr sees the media under another folder than the server.
+
 ## Recordings
 
 [Recordings](recordings.md) describes the schedule and what a recording does while it runs. A recording carries the guide's `title`, `episodeTitle`, `description`, `season`, `episode`, `movie`, `year` and `image` as they were when it was scheduled; `startsAt` and `endsAt` are the program's times, and the recording runs `startPaddingSeconds` before and `endPaddingSeconds` after them. `state` is `scheduled`, `recording`, `completed` or `failed`, with `reason` when one failed or was cut short. `path` is relative to the recordings folder and `bytes` is the file's size. `conflict` marks a scheduled recording that overlaps more recordings than the server has playback slots. `commercials` is `scanning`, `done` or `failed` once the server looks for [commercial breaks](recordings.md#commercial-breaks), and `breaks` lists the ones it found as `startMs` and `endMs` from the start of the file. `storage` in the list holds the folder's disk `freeBytes` and `totalBytes`, and the `usedBytes` of running and kept recordings.
@@ -305,6 +318,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | GET | `/api/v1/admin/libraries/folders` | `{"roots", "folders"}`: `SOFA_MEDIA_DIR` and the folders under it, two levels down, that no library uses |
 | POST | `/api/v1/admin/libraries` | Add a library from `{"name", "kind", "path"}`; 201 with the library, and its first scan starts. 400 when the folder is outside `SOFA_MEDIA_DIR`, links outside it or does not exist; 409 `LIBRARY_EXISTS` when another library uses it |
 | GET, PATCH, DELETE | `/api/v1/admin/libraries/{id}` | One library; rename it with `{"name"}`; remove it (204), forgetting its items and their watch progress but never touching its files |
+| POST | `/api/v1/admin/libraries/scan` | Queue a scan of the library whose folder holds `{"path"}`, a file or folder, or of every library inside it when it names a folder above them; 202 with `{"libraries"}`, their ids, at once. The path is mapped through `SOFA_LIBRARY_PATH_MAP` first. 404 `LIBRARY_NOT_FOUND` when no library holds it |
 | POST | `/api/v1/admin/libraries/{id}/scan` | Scan now and answer when done: `files`, `added`, `updated`, `missing`, `removed`, and `unavailable` when the folder was missing or empty, in which case nothing changed |
 
 While a lineup policy is in use, `POST /lineup`, `PUT /lineup/order` and `POST /lineup/adopt` answer `410 Gone` with code `POLICY_MANAGED`; see [lineup policy](lineup-policy.md#api). Without it, the `/policy/*` routes answer `404 POLICY_NOT_CONFIGURED`.

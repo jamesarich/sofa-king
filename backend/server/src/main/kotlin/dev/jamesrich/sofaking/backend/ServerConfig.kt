@@ -1,8 +1,10 @@
 package dev.jamesrich.sofaking.backend
 
 import dev.jamesrich.sofaking.backend.library.HardwareAccel
+import dev.jamesrich.sofaking.backend.library.PathMapping
 import dev.jamesrich.sofaking.backend.library.TmdbConfig
 import dev.jamesrich.sofaking.backend.library.VideoEncoder
+import dev.jamesrich.sofaking.backend.library.pathMappings
 import dev.jamesrich.sofaking.backend.logging.LogSettings
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import java.nio.file.Files
@@ -132,6 +134,8 @@ data class ServerConfig(
     val comskip: String? = "comskip",
     /** `SOFA_MDNS`: advertise the server on the LAN over mDNS, so apps find it; on by default off loopback. */
     val mdns: Boolean = false,
+    /** `SOFA_LIBRARY_PATH_MAP`: how Sonarr, Radarr and the like name the media folders, when they see other paths. */
+    val libraryPathMap: List<PathMapping> = emptyList(),
 ) {
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
@@ -261,6 +265,7 @@ data class ServerConfig(
                 adListeners = env.number("SOFA_AD_LISTENERS", DEFAULT_AD_LISTENERS, AD_LISTENERS_RANGE),
                 comskip = comskip(env),
                 mdns = env.flag("SOFA_MDNS", !isLoopback(host)),
+                libraryPathMap = pathMappings(environment["SOFA_LIBRARY_PATH_MAP"]),
             )
         }
 

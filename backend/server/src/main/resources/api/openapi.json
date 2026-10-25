@@ -22,7 +22,8 @@
     {
       "name": "Recordings",
       "description": "The DVR: recordings and the series rules that schedule them. Bearer: the API token."
-    }
+    },
+    { "name": "Hooks", "description": "Calls from Sonarr, Radarr and other tools when files change, each queuing a library scan. A hook token from POST /api/v1/admin/tokens, or the API token, as a bearer, a Basic password or the X-MediaBrowser-Token or X-Emby-Token header." }
   ],
   "components": {
     "securitySchemes": {
@@ -30,7 +31,9 @@
       "adminToken": { "type": "http", "scheme": "bearer", "description": "SOFA_ADMIN_TOKEN, or SOFA_API_TOKEN when no admin token is set" },
       "outputToken": { "type": "apiKey", "in": "query", "name": "token", "description": "SOFA_OUTPUT_TOKEN; also accepted as a bearer" },
       "deviceToken": { "type": "http", "scheme": "bearer", "description": "A paired device's own token from POST /api/v1/pair; it opens what SOFA_API_TOKEN opens outside /api/v1/admin and /api/v1/hooks" },
-      "readToken": { "type": "http", "scheme": "bearer", "description": "A read token from POST /api/v1/admin/tokens; it opens the admin reads listed with it" }
+      "readToken": { "type": "http", "scheme": "bearer", "description": "A read token from POST /api/v1/admin/tokens; it opens the admin reads listed with it" },
+      "hookToken": { "type": "http", "scheme": "bearer", "description": "A hook token from POST /api/v1/admin/tokens; it opens the hooks and nothing else. Also accepted as a Basic password" },
+      "mediaBrowserToken": { "type": "apiKey", "in": "header", "name": "X-MediaBrowser-Token", "description": "A hook token or SOFA_API_TOKEN, as Sonarr's and Radarr's Emby / Jellyfin connection sends its API key; X-Emby-Token works too" }
     },
     "parameters": {
       "id": { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
@@ -481,6 +484,23 @@
           "files": { "type": "integer" }, "added": { "type": "integer" }, "updated": { "type": "integer" }, "missing": { "type": "integer" }, "removed": { "type": "integer" },
           "unavailable": { "type": "boolean", "description": "The folder was missing or empty, so nothing changed." }
         }
+      },
+      "ScanPath": { "type": "object", "required": ["path"], "properties": { "path": { "type": "string", "description": "A file or folder, as the server names it or as SOFA_LIBRARY_PATH_MAP maps it." } } },
+      "ScanQueued": { "type": "object", "required": ["libraries"], "properties": { "libraries": { "type": "array", "items": { "type": "string" }, "description": "The ids of the libraries whose scan was queued; empty when no library holds the path or the event changes no file." } } },
+      "ServarrEvent": {
+        "type": "object",
+        "description": "The fields read from the Webhook connection's payload; the rest is ignored.",
+        "properties": {
+          "eventType": { "type": "string", "example": "Download", "description": "Download, Rename, EpisodeFileDelete, MovieFileDelete, SeriesDelete and MovieDelete queue a scan; any other event, Test included, queues nothing." },
+          "series": { "type": "object", "properties": { "path": { "type": "string" } } },
+          "movie": { "type": "object", "properties": { "folderPath": { "type": "string" }, "path": { "type": "string" } } },
+          "episodeFile": { "type": "object", "properties": { "relativePath": { "type": "string" } } },
+          "movieFile": { "type": "object", "properties": { "relativePath": { "type": "string" } } }
+        }
+      },
+      "MediaUpdates": {
+        "type": "object",
+        "properties": { "Updates": { "type": "array", "items": { "type": "object", "properties": { "Path": { "type": "string" }, "UpdateType": { "type": "string", "enum": ["Created", "Modified", "Deleted"] } } } } }
       },
       "LibraryFolders": { "type": "object", "required": ["roots", "folders"], "properties": { "roots": { "type": "array", "items": { "type": "string" } }, "folders": { "type": "array", "items": { "type": "string" } } } },
       "Recording": {
@@ -1013,6 +1033,11 @@
       "get": { "tags": ["Library"], "summary": "The folders a new library can use", "description": "SOFA_MEDIA_DIR and its subfolders two levels down, without hidden folders and those a library already uses.", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryFolders" } } } } } }
     },
+    "/api/v1/admin/libraries/scan": {
+      "post": { "tags": ["Library"], "summary": "Scan the libraries holding a path", "description": "Queues a scan of the library whose folder holds the path, or of every library inside it when it names a folder above them, and answers at once; requests for one library coalesce until its scan starts. 404 LIBRARY_NOT_FOUND when no library holds it.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanPath" } } } },
+        "responses": { "202": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
     "/api/v1/admin/libraries/{id}": {
       "get": { "tags": ["Library"], "summary": "One library", "security": [{ "adminToken": [] }, { "readToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryInfo" } } } }, "404": { "$ref": "#/components/responses/Error" } } },
@@ -1025,6 +1050,62 @@
     "/api/v1/admin/libraries/{id}/scan": {
       "post": { "tags": ["Library"], "summary": "Scan a library now", "description": "Answers when the scan ends. A folder that is missing, or empty while the library held files, reads as unmounted: unavailable is true and nothing changes.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryScanInfo" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/hooks/servarr": {
+      "post": { "tags": ["Hooks"], "summary": "Sonarr's or Radarr's Webhook connection", "description": "Queues a scan of the library holding the event's series or movie folder.", "security": [{ "hookToken": [] }, { "apiToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServarrEvent" } } } },
+        "responses": { "202": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/Library/Media/Updated": {
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh", "description": "What Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MediaUpdates" } } } },
+        "responses": { "202": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/System/Configuration": {
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration", "description": "The connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object" } } } } } }
+    },
+    "/Items": {
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items", "description": "The connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object", "required": ["Items", "TotalRecordCount"], "properties": { "Items": { "type": "array", "maxItems": 0, "items": { "type": "object" } }, "TotalRecordCount": { "type": "integer" } } } } } } } }
+    },
+    "/Notifications/Admin": {
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice", "description": "The connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+        "responses": { "204": { "description": "Taken" } } }
+    },
+    "/emby/Library/Media/Updated": {
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh, under /emby", "description": "What Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MediaUpdates" } } } },
+        "responses": { "202": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/emby/System/Configuration": {
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration, under /emby", "description": "The connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object" } } } } } }
+    },
+    "/emby/Items": {
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items, under /emby", "description": "The connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object", "required": ["Items", "TotalRecordCount"], "properties": { "Items": { "type": "array", "maxItems": 0, "items": { "type": "object" } }, "TotalRecordCount": { "type": "integer" } } } } } } } }
+    },
+    "/emby/Notifications/Admin": {
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice, under /emby", "description": "The connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+        "responses": { "204": { "description": "Taken" } } }
+    },
+    "/mediabrowser/Library/Media/Updated": {
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh, under /mediabrowser", "description": "What Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MediaUpdates" } } } },
+        "responses": { "202": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/mediabrowser/System/Configuration": {
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration, under /mediabrowser", "description": "The connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object" } } } } } }
+    },
+    "/mediabrowser/Items": {
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items, under /mediabrowser", "description": "The connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object", "required": ["Items", "TotalRecordCount"], "properties": { "Items": { "type": "array", "maxItems": 0, "items": { "type": "object" } }, "TotalRecordCount": { "type": "integer" } } } } } } } }
+    },
+    "/mediabrowser/Notifications/Admin": {
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice, under /mediabrowser", "description": "The connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+        "responses": { "204": { "description": "Taken" } } }
     },
     "/api/v1/recordings": {
       "get": {

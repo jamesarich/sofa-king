@@ -63,7 +63,7 @@ This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 ## Scans
 
-A library is scanned when it is added, every six hours, and when Scan now is pressed in the portal or `POST /api/v1/admin/libraries/{id}/scan` is called. The Jobs page lists the scan as Library scan. FFprobe reads each new or changed file's container, length and video, audio and subtitle streams; an unchanged file (same size and change time) keeps what the last scan read.
+A library is scanned when it is added, every six hours, when Scan now is pressed in the portal or `POST /api/v1/admin/libraries/{id}/scan` is called, and when Sonarr, Radarr or another tool reports a changed file through `POST /api/v1/admin/libraries/scan` or a [hook](integrations.md). A request names a path, and the server queues a scan of the library whose folder holds it; requests for one library coalesce until its scan starts. The Jobs page lists the scan as Library scan. FFprobe reads each new or changed file's container, length and video, audio and subtitle streams; an unchanged file (same size and change time) keeps what the last scan read.
 
 Every file keeps one id for as long as its path is the same, even across a removed and re-added library, so watch progress survives a rescan. A file that disappears is marked missing and is removed after seven days unless it comes back. A library folder that is gone, or empty while the library held files, reads as an unmounted disk: the scan changes nothing, and the portal shows Folder unavailable until the folder is back.
 

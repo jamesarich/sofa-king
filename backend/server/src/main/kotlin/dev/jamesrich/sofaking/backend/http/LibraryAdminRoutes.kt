@@ -4,6 +4,8 @@ import dev.jamesrich.sofaking.backend.api.CreateLibrary
 import dev.jamesrich.sofaking.backend.api.LibraryFolders
 import dev.jamesrich.sofaking.backend.api.LibraryInfo
 import dev.jamesrich.sofaking.backend.api.LibraryScanInfo
+import dev.jamesrich.sofaking.backend.api.ScanPath
+import dev.jamesrich.sofaking.backend.api.ScanQueued
 import dev.jamesrich.sofaking.backend.api.UpdateLibrary
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.library.LibraryKind
@@ -17,7 +19,7 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 
-/** The media libraries under the admin route: list, add, rename, remove and scan. */
+/** The media libraries under the admin route: list, add, rename, remove, and scan one or the ones holding a path. */
 internal fun Route.libraryAdminRoutes(libraries: LibraryService?) {
     fun loaded(): LibraryService = libraries
         ?: throw ApiFailure(
@@ -61,6 +63,13 @@ internal fun Route.libraryAdminRoutes(libraries: LibraryService?) {
     delete("/libraries/{id}") {
         loaded().delete(call.parameters["id"]!!)
         call.respond(HttpStatusCode.NoContent)
+    }
+    post("/libraries/scan") {
+        val queued = loaded().requestScanAt(call.body<ScanPath>().path)
+        if (queued.isEmpty()) {
+            throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No library holds that path")
+        }
+        call.respond(HttpStatusCode.Accepted, ScanQueued(queued.map { it.id }))
     }
     post("/libraries/{id}/scan") {
         val result = loaded().scan(call.parameters["id"]!!)

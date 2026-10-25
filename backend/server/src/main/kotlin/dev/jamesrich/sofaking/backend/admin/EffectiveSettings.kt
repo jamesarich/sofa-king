@@ -38,6 +38,7 @@ private class EffectiveSettings(private val config: ServerConfig) {
             s("SOFA_LOG_FORMAT", config.logging.format, "text"),
             s("SOFA_CORS_ORIGINS", config.corsOrigins.joinToString(), ""),
             s("SOFA_MEDIA_DIR", config.mediaDirectory, config.dataDirectory.resolve("media")),
+            s("SOFA_LIBRARY_PATH_MAP", config.libraryPathMap.joinToString { "${it.from}=${it.to}" }, ""),
             s("SOFA_TMDB_LANGUAGE", config.tmdb?.language ?: "en-US", "en-US"),
         ),
     )

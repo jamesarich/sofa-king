@@ -46,6 +46,7 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
+import java.util.Base64
 import kotlin.time.Duration.Companion.minutes
 
 private val wireJson = Json { encodeDefaults = true }
@@ -216,7 +217,7 @@ private val READ_SCOPE_PATHS = listOf(
     "/api/v1/admin/libraries",
 )
 
-/** The inbound hooks, which a `hook` token opens and nothing else does but the API token. */
+/** The inbound hooks under `/api`, which a `hook` token opens and nothing else does but the API token. */
 internal const val HOOKS_PATH = "/api/v1/hooks"
 
 private fun under(path: String, root: String) = path == root || path.startsWith("$root/")
@@ -232,10 +233,11 @@ private suspend fun ApplicationCall.refusedApi(
     val isAdmin = under(path, "/api/v1/admin") ||
         (request.httpMethod == HttpMethod.Patch && path.startsWith("/api/v1/sources/"))
     val expected = if (isAdmin && adminToken != null) adminToken else apiToken
-    if (!under(path, "/api")) return false
-    val bearer = bearer()
+    val isHook = isHookPath(path)
+    if (!under(path, "/api") && !isHook) return false
+    val bearer = presentedToken(isHook)
     val refusal = when {
-        issuedOpens(tokens, bearer, path, isAdmin) -> null
+        issuedOpens(tokens, bearer, path, isAdmin, isHook) -> null
 
         // Without a token the API is open, so only this machine may use it: no other site's page, no rebound
         // name, no proxy.
@@ -261,16 +263,17 @@ private suspend fun ApplicationCall.refusedApi(
 
 /**
  * Whether [bearer] is a token the server issued that opens [path]: a device's `api` token the app's routes, a `read`
- * token the admin reads in [READ_SCOPE_PATHS], a `hook` token the hooks. None opens the rest of the admin API.
+ * token the admin reads in [READ_SCOPE_PATHS], a `hook` token the hooks ([isHook]). None opens the rest of the admin
+ * API.
  */
 private suspend fun ApplicationCall.issuedOpens(
     tokens: IssuedTokens?,
     bearer: String,
     path: String,
     isAdmin: Boolean,
+    isHook: Boolean,
 ): Boolean {
     val token = tokens?.resolve(bearer) ?: return false
-    val isHook = under(path, HOOKS_PATH)
     return when (token.scope) {
         TokenScope.API -> !isAdmin && !isHook
 
@@ -283,3 +286,22 @@ private suspend fun ApplicationCall.issuedOpens(
 
 private fun ApplicationCall.bearer(): String =
     request.headers[HttpHeaders.Authorization]?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ").orEmpty()
+
+/**
+ * The token a request presents: its bearer token, and on a hook the other places Sonarr, Radarr and the tools that
+ * call Emby put one: the `X-MediaBrowser-Token` or `X-Emby-Token` header, or a Basic password.
+ */
+private fun ApplicationCall.presentedToken(isHook: Boolean): String {
+    val bearer = bearer()
+    if (bearer.isNotEmpty() || !isHook) return bearer
+    val headers = request.headers
+    return headers[MEDIA_BROWSER_TOKEN] ?: headers[EMBY_TOKEN] ?: basicPassword().orEmpty()
+}
+
+private const val MEDIA_BROWSER_TOKEN = "X-MediaBrowser-Token"
+private const val EMBY_TOKEN = "X-Emby-Token"
+
+private fun ApplicationCall.basicPassword(): String? =
+    request.headers[HttpHeaders.Authorization]?.takeIf { it.startsWith("Basic ") }?.let { header ->
+        runCatching { String(Base64.getDecoder().decode(header.removePrefix("Basic ").trim())) }.getOrNull()
+    }?.substringAfter(':', "")?.ifEmpty { null }

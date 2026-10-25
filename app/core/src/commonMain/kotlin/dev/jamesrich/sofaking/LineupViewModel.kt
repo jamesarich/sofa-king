@@ -220,8 +220,8 @@ class LineupViewModel(
     }
 
     /**
-     * Compares [runningVersion] with the published build of its channel, once per process unless [again] is set, since GitHub
-     * limits anonymous calls; the answer lands in [update].
+     * Compares [runningVersion] with the published build of its channel, once per process unless [again] is set, since
+     * GitHub limits anonymous calls; the answer lands in [update].
      */
     fun checkForUpdate(runningVersion: String, again: Boolean = false) {
         if (!again && _update.value != null) return

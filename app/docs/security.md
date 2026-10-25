@@ -2,6 +2,8 @@
 
 This page covers what the app stores, where it sends the API token, and its cleartext HTTP. To report a vulnerability, follow the [repository's security policy](../../SECURITY.md#reporting-a-vulnerability). The [server's security page](../../backend/docs/security.md) covers its tokens, routes and limits.
 
+The app collects no telemetry, analytics or crash reports. It talks only to the server you set and, for the update check, to GitHub, as the next sections describe.
+
 ## What the app stores
 
 The server address and API token are saved with the other settings: in DataStore in the app's private storage on Android, desktops and iOS, in `NSUserDefaults` on Apple TV, and in the browser's localStorage for the web app's origin. They are not encrypted at rest. A Settings PIN is stored beside them as a salted SHA-256 hash, never the digits, and is never sent to the server. [Storage](architecture.md#storage) lists the files on each platform. On Android, app backup and device-to-device transfer exclude them (`allowBackup` is off and `data_extraction_rules.xml` excludes all data).

@@ -136,6 +136,16 @@ tv.example.com {
 
 Point Plex's HDHomeRun tuner at port 9193, not the proxy: the tuners admit clients by address, and behind a proxy every request comes from the proxy. Keep the proxy on your LAN or VPN, as [security](security.md#intended-deployment) describes.
 
+## Remote access
+
+The server has no relay and no cloud account, and never opens a port on your router. To watch away from home, join the devices to a private network of your own. [Tailscale](https://tailscale.com/kb/1017/install) is the shortest route:
+
+1. Install Tailscale on the Docker host and sign in. The container runs on the host's network, so it is reachable on the host's tailnet address and MagicDNS name at port 9193 with no change to `compose.yaml`.
+2. Install Tailscale on the phone, tablet or laptop that travels, signed in to the same tailnet.
+3. In the app's Settings, enter the host's MagicDNS name, such as `sofa-host` or `sofa-host.tailnet-name.ts.net`; the app adds port 9193. Discovery does not search the tailnet (the server's [mDNS advertisement](live-tv.md#server-settings) skips VPN interfaces), so type the name once.
+
+Traffic between tailnet devices is encrypted by WireGuard. For HTTPS as well, run `tailscale serve --bg 9193` on the host and enter `https://sofa-host.tailnet-name.ts.net` instead; see [Tailscale serve](https://tailscale.com/kb/1312/serve). WireGuard, ZeroTier or any VPN you already run works the same way: the app needs only an address that reaches port 9193. Keep the tuners' [allowed addresses](live-tv.md#plex-live-tv) to the LAN.
+
 ## Serve the web app
 
 The Sofa King app's web build is a static site. Unzip `sofa-king-snapshot-web-wasm.zip` from the [snapshot release](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), or `sofa-king-snapshot-web-js.zip` for browsers without WebAssembly GC. It holds `index.html`, `sofaking.js`, two `.wasm` files, `composeResources/`, the web app manifest with its icons, and `sw.js`. The web app plays HLS channels only.

@@ -55,6 +55,8 @@ nav:
   - Home: README.md
   - Start:
       - Documentation index: docs/README.md
+      - How Sofa King compares: docs/comparison.md
+      - Coming from Plex or Jellyfin: docs/migrating.md
       - Run the server: backend/docs/getting-started.md
       - Install the app: app/docs/getting-started.md
       - Build a starter lineup: backend/docs/starter-lineup.md

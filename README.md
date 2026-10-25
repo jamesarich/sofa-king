@@ -24,6 +24,7 @@ A self-hosted media center for a home network. One server keeps live TV, a DVR a
 - **Your own library.** Movies, shows and other videos from a folder, with details and artwork from their `.nfo` files or TMDB, Continue watching, Up next and Skip intro, converted on the fly for a device that cannot play the file.
 - **Made for the couch.** The guide previews the focused channel muted and opens it full screen on the same stream, every screen works with a TV remote's D-pad, and the app reopens where you left it.
 - **Plays well with others.** The same lineup goes to Plex as an HDHomeRun tuner and to M3U and XMLTV players.
+- **No account, no telemetry.** Nothing signs in to a cloud, and neither the server nor the app reports anything about you. [How Sofa King compares](docs/comparison.md) lists what is included and what is not, and [coming from Plex or Jellyfin](docs/migrating.md) keeps your folders.
 
 <p align="center">
   <img src="docs/images/desktop-player.webp" alt="The player in the desktop app: a channel full screen with the info bar showing its number, name, program, rating, time and what is next, over the bar's buttons" width="800">

@@ -9,17 +9,6 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.Instant
 
-/** A token row that is not revoked; [secretHash] is the hex SHA-256 of the secret. */
-data class StoredApiToken(
-    val id: String,
-    val label: String,
-    val secretHash: String,
-    val scope: TokenScope,
-    val clientId: String?,
-    val createdAt: Instant,
-    val lastUsedAt: Instant?,
-)
-
 /** Every token that is not revoked, oldest first. A row with a scope this server does not know is left out. */
 suspend fun BackendStore.activeApiTokens(): List<StoredApiToken> = read {
     ApiTokenRows.selectAll().where { ApiTokenRows.revokedAt.isNull() }.mapNotNull { row ->

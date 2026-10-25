@@ -117,16 +117,13 @@ internal fun Route.tokenAdminRoutes(tokens: IssuedTokens) {
     get("/tokens") { call.respond(tokens.all()) }
     post("/tokens") {
         val body = call.appBody<CreateApiToken>()
-        val label = label(body.label).ifEmpty {
-            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "A token needs a label")
+        val label = label(body.label)
+        val refusal = when {
+            label.isEmpty() -> "A token needs a label"
+            body.scope == TokenScope.API -> "API tokens come from pairing; make a read or hook token"
+            else -> null
         }
-        if (body.scope == TokenScope.API) {
-            throw ApiFailure(
-                HttpStatusCode.BadRequest,
-                "INVALID_REQUEST",
-                "API tokens come from pairing; make a read or hook token",
-            )
-        }
+        if (refusal != null) throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", refusal)
         val (token, secret) = tokens.create(label, body.scope)
         call.respond(HttpStatusCode.Created, CreatedApiToken(token, secret))
     }

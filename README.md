@@ -101,6 +101,6 @@ The server image is public on GitHub Container Registry; anyone can pull it or b
 | [`app/`](app/README.md) | The Kotlin Multiplatform client and its [documentation](app/docs/README.md) |
 | [`contract/`](contract/README.md) | The wire types the server and the app share |
 
-The [documentation index](docs/README.md) links every page and the shared glossary. [CONTRIBUTING](CONTRIBUTING.md) covers the repository's layout, the conventions both parts share and CI, and [SECURITY](SECURITY.md) covers reporting a vulnerability.
+The [documentation index](docs/README.md) links every page and the shared glossary, and the [documentation site](https://jamesarich.github.io/sofa-king/) has the same pages with search. [CONTRIBUTING](CONTRIBUTING.md) covers the repository's layout, the conventions both parts share and CI, and [SECURITY](SECURITY.md) covers reporting a vulnerability.
 
 Licensed under the [GNU General Public License v3.0](LICENSE). Now put your feet up; it is Sofa King relaxing.

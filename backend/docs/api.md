@@ -474,7 +474,7 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | GET | `/admin/system/about` | Whether an update is available, the server, the status and the support snapshot |
 | POST | `/admin/system/update/check`, `/admin/system/update/request` | Check the registry for a newer image now; ask the host's updater to update, after `confirm=yes`, by writing `update-requested` in the data directory |
 | GET | `/admin/system/snapshot.json` | The support snapshot as a JSON download |
-| GET | `/admin/api`, `/admin/api/openapi.json` | The API reference, and the OpenAPI 3.1 document it is rendered from |
+| GET | `/admin/api`, `/admin/api/openapi.json` | The API reference, and the OpenAPI 3.1 document it is rendered from; the [documentation site](https://jamesarich.github.io/sofa-king/api/index.html) renders the same document |
 
 ## Discovery
 

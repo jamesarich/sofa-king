@@ -50,12 +50,21 @@ services:
       - ./recordings:/recordings
       # Your movies and shows, read only: the server never writes to them.
       # - /mnt/disk/media:/media:ro
-    # An Intel or AMD GPU for converting library files; see docs/libraries.md#hardware-transcoding. Uncomment these and
+    # An Intel or AMD GPU for converting library files and drawing multiview; see docs/libraries.md#hardware-transcoding. Uncomment these and
     # store the render group's id first: printf 'RENDER_GID=%s\n' "$(stat -c %g /dev/dri/renderD128)" >> .env
     # devices:
     #   - /dev/dri:/dev/dri
     # group_add:
     #   - "${RENDER_GID:?set RENDER_GID in .env}"
+    # An NVIDIA GPU, once the host has the NVIDIA driver and Container Toolkit: uncomment these, and add
+    # NVIDIA_DRIVER_CAPABILITIES: compute,video,utility under environment above.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu, compute, video, utility]
     extra_hosts:
       # Lets sources.json reach a playlist or guide served by this Docker host as http://host.docker.internal:PORT/...
       - "host.docker.internal:host-gateway"

@@ -11,6 +11,9 @@
   <a href="app/README.md"><img alt="App: Kotlin Multiplatform" src="https://img.shields.io/badge/app-Kotlin_Multiplatform-C9B8FF?labelColor=14111F"></a>
   <a href="backend/README.md"><img alt="Server: Ktor in Docker" src="https://img.shields.io/badge/server-Ktor_in_Docker-C9B8FF?labelColor=14111F"></a>
   <a href="app/README.md#platforms"><img alt="Platforms: Android TV, Android, desktop, iOS, Apple TV, web" src="https://img.shields.io/badge/platforms-Android_TV_·_Android_·_desktop_·_iOS_·_Apple_TV_·_web-C9B8FF?labelColor=14111F"></a>
+  <a href="https://github.com/jamesarich/sofa-king/actions/workflows/ci.yml?query=branch%3Amain"><img alt="App CI" src="https://img.shields.io/github/actions/workflow/status/jamesarich/sofa-king/ci.yml?branch=main&label=app%20CI&labelColor=14111F"></a>
+  <a href="https://github.com/jamesarich/sofa-king/actions/workflows/backend.yml?query=branch%3Amain"><img alt="Server CI" src="https://img.shields.io/github/actions/workflow/status/jamesarich/sofa-king/backend.yml?branch=main&label=server%20CI&labelColor=14111F"></a>
+  <a href="https://jamesarich.github.io/sofa-king/"><img alt="Documentation" src="https://img.shields.io/badge/docs-jamesarich.github.io-C9B8FF?labelColor=14111F"></a>
 </p>
 
 <p align="center">
@@ -106,6 +109,6 @@ The app is published for Android, Linux, macOS, Windows and the web. [Getting st
 | [`app/`](app/README.md) | The Kotlin Multiplatform client and its [documentation](app/docs/README.md) |
 | [`contract/`](contract/README.md) | The wire types the server and the app share |
 
-The [documentation index](docs/README.md) links every page and the shared glossary, and the [documentation site](https://jamesarich.github.io/sofa-king/) has the same pages with search. [CONTRIBUTING](CONTRIBUTING.md) covers the repository's layout, the conventions both parts share and CI, and [SECURITY](SECURITY.md) covers reporting a vulnerability.
+The [documentation index](docs/README.md) links every page and the shared glossary, and the [documentation site](https://jamesarich.github.io/sofa-king/) has the same pages with search. [CONTRIBUTING](CONTRIBUTING.md) covers the repository's layout, the conventions both parts share and CI, [SECURITY](SECURITY.md) covers reporting a vulnerability, and [SUPPORT](SUPPORT.md) covers getting help. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
 Licensed under the [GNU General Public License v3.0](LICENSE). Now put your feet up; it is Sofa King relaxing.

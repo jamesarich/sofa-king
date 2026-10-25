@@ -88,6 +88,8 @@ nav:
   - Contributing:
       - Contributing: CONTRIBUTING.md
       - Security reporting: SECURITY.md
+      - Support: SUPPORT.md
+      - Code of conduct: CODE_OF_CONDUCT.md
       - Server development: backend/docs/development.md
       - App development: app/docs/development.md
       - Server dependencies: backend/docs/dependencies.md

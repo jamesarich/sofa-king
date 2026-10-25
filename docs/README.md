@@ -7,7 +7,7 @@ Sofa King is a self-hosted media center: a server that keeps live TV, recordings
 - [Contract](../contract/README.md): the wire types the server and the app share, and the rules for changing them.
 - [How Sofa King compares](comparison.md) with Plex, Jellyfin, Emby and Channels DVR, and [coming from Plex or Jellyfin](migrating.md).
 
-[CONTRIBUTING](../CONTRIBUTING.md) covers the repository's layout, the shared conventions and CI, and [SECURITY](../SECURITY.md) how to report a vulnerability. Each part keeps its build in its development page ([app](../app/docs/development.md), [server](../backend/docs/development.md)) and its security notes in its security page ([app](../app/docs/security.md), [server](../backend/docs/security.md)).
+[CONTRIBUTING](../CONTRIBUTING.md) covers the repository's layout, the shared conventions and CI, [SECURITY](../SECURITY.md) how to report a vulnerability, [SUPPORT](../SUPPORT.md) where to get help, and the [code of conduct](../CODE_OF_CONDUCT.md) how everyone taking part behaves. Each part keeps its build in its development page ([app](../app/docs/development.md), [server](../backend/docs/development.md)) and its security notes in its security page ([app](../app/docs/security.md), [server](../backend/docs/security.md)).
 
 ## Glossary
 

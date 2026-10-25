@@ -327,8 +327,8 @@ struct VodPlayerView: View {
     /// Skips the intro, or the credits, after 5 seconds' countdown on its button, once each, while it plays and the
     /// viewer chose to skip it automatically; a pause stops it.
     private func countDownSkip(in s: PlaybackStream) {
-        let intro = introEndMs.flatMap { skips.intros == .auto ? $0 : nil }
-        let credits = creditsEndMs.flatMap { skips.credits == .auto ? $0 : nil }
+        let intro = introEndMs.flatMap { skips.intros == .auto_ ? $0 : nil }
+        let credits = creditsEndMs.flatMap { skips.credits == .auto_ ? $0 : nil }
         guard let end = intro ?? credits else {
             autoSkipSeconds = nil
             return
@@ -359,7 +359,7 @@ struct VodPlayerView: View {
     /// With Skip commercials automatic, jumps to the end of a break that playback ran into between two ticks; a seek into
     /// a break stays there. A break end past what the server has converted restarts the conversion there.
     private func skipBreak(from previousMs: Int64, to nowMs: Int64, in s: PlaybackStream) {
-        guard skips.commercialBreaks == .auto, player.rate > 0,
+        guard skips.commercialBreaks == .auto_, player.rate > 0,
               let b = breaks.first(where: { previousMs < $0.startMs && nowMs >= $0.startMs && nowMs < $0.endMs })
         else { return }
         jump(to: b.endMs, in: s)

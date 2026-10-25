@@ -109,7 +109,7 @@ struct SkipModePicker: View {
             get: { model.settings?.skips.of(kind: kind) ?? .button },
             set: { model.core.setSkip(kind: kind, mode: $0) }
         )) {
-            Text("Automatically").tag(SkipMode.auto)
+            Text("Automatically").tag(SkipMode.auto_)
             Text("With a button").tag(SkipMode.button)
             Text("Off").tag(SkipMode.off)
         }

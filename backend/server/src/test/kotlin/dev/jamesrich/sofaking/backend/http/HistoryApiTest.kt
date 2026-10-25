@@ -27,13 +27,21 @@ import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import io.ktor.sse.ServerSentEvent
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonPrimitive
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.fail
+import kotlin.time.Duration.Companion.seconds
+
+private val STREAM_WAIT = 10.seconds
 
 class HistoryApiTest {
     private val json = Json { ignoreUnknownKeys = true }
@@ -43,11 +51,19 @@ class HistoryApiTest {
     @Test fun `the event stream sends ready, then each session's start and end, to the admin token only`() = history {
         val sse = app.createClient { install(SSE) }
         val received = mutableListOf<ServerSentEvent>()
-        sse.sse(EVENT_STREAM_PATH, request = { bearerAuth(admin) }) {
-            incoming.filter { it.event != null }.take(3).collect { event ->
-                received += event
-                if (event.event == READY_EVENT) watchAndStop()
+        val ready = CompletableDeferred<Unit>()
+        coroutineScope {
+            val stream = launch {
+                sse.sse(EVENT_STREAM_PATH, request = { bearerAuth(admin) }) {
+                    incoming.filter { it.event != null }.take(3).collect { event ->
+                        received += event
+                        if (event.event == READY_EVENT) ready.complete(Unit)
+                    }
+                }
             }
+            withTimeoutOrNull(STREAM_WAIT) { ready.await() } ?: fail("no ready event; received $received")
+            watchAndStop()
+            withTimeoutOrNull(STREAM_WAIT) { stream.join() } ?: fail("no start and end; received $received")
         }
         assertEquals(
             listOf(READY_EVENT, EventType.SESSION_STARTED, EventType.SESSION_ENDED),

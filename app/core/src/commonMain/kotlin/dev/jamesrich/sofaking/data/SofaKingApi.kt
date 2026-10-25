@@ -74,8 +74,7 @@ class SofaKingApi(
     internal val closed: Boolean get() = !http.isActive
 
     /** The DELETE that frees the session [id], a library item's when [vod], for a closing page that sends it itself. */
-    internal fun releaseRequest(id: String, vod: Boolean) =
-        SessionRelease(url = "$base/api/v1/" + (if (vod) vodPath(id) else sessionPath(id)), token = token)
+    internal fun releaseRequest(path: String) = SessionRelease(url = "$base/api/v1/$path", token = token)
 
     /** The absolute media URL for a descriptor, whose [PlaybackDescriptorDto.url] is relative to the server. */
     internal fun mediaUrl(descriptor: PlaybackDescriptorDto): String =
@@ -141,6 +140,8 @@ class SofaKingApi(
 internal fun sessionPath(id: String) = "playback-sessions/" + id.encodeURLPathPart()
 
 internal fun vodPath(id: String) = "vod-sessions/" + id.encodeURLPathPart()
+
+internal fun multiviewPath(id: String) = "multiview-sessions/" + id.encodeURLPathPart()
 
 /**
  * The MIME type to give the player. Media3 recognizes HLS only by its own constant, so the server's

@@ -118,6 +118,7 @@ class ServerConnection(
                         watchlist = it.watchlist,
                         onLater = it.onLater,
                         household = it.household,
+                        multiview = it.multiview,
                     )
                 }
             }.onFailure { e ->

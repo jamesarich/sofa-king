@@ -3,7 +3,8 @@
 
 Fails on any 5xx, a response that breaks its documented schema or content type, or a server that stops answering.
 The live playback routes may answer their documented 503 SOURCE_UNAVAILABLE: a channel the fuzzer adds to the lineup
-has a made-up stream with no usable source, and only some runs go on to play one.
+has a made-up stream with no usable source, and only some runs go on to play one. The multiview routes may answer
+their documented 503 MULTIVIEW_UNAVAILABLE, since a runner has no GPU encoder.
 Netty answers a request line over its 4096-byte limit with its own plain-text 400 before the application sees it, so
 the run drops the schema and content-type failures of that one answer.
 The routes that save configuration and restart the server are left out, since a restart ends the run. Schemathesis
@@ -28,7 +29,7 @@ TOKEN = 'local-fuzz-token-' + 'x' * 40
 RESTARTS = r'/admin/(source-file|tmdb-token|policy/starter)$'
 # Schemathesis reads schemathesis.toml from the directory it runs in.
 CONFIG = '''[[operations]]
-include-path-regex = '^/(api/v1/playback-sessions|media/sessions/|output/stream/|auto/)'
+include-path-regex = '^/(api/v1/(playback|multiview)-sessions|media/(sessions|multiview)/|output/stream/|auto/)'
 checks.not_a_server_error.expected-statuses = ["2xx", "3xx", "4xx", "503"]
 '''
 # Schemathesis loads these hooks from the file SCHEMATHESIS_HOOKS names.

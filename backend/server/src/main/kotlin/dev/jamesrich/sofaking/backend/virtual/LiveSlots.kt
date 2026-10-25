@@ -6,13 +6,9 @@ import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.GuideService
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.LineupService
-import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
-import dev.jamesrich.sofaking.backend.playback.SessionManager
+import dev.jamesrich.sofaking.backend.playback.ChannelTap
 import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import io.ktor.http.HttpStatusCode
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.withContext
-import java.net.URI
 import java.time.Instant
 
 /** The lineup's live channels as a virtual channel's slots play them. */
@@ -30,13 +26,12 @@ interface LiveLineup {
     suspend fun <T> reading(id: String, block: suspend (FfmpegSource) -> T): T
 }
 
-/** [LiveLineup] over the server's lineup, guides and playback sessions. */
+/** [LiveLineup] over the server's lineup and guides, read through [tap]. */
 internal class LineupSlots(
     private val lineup: LineupService,
     private val guides: GuideService,
     private val feeds: FeedService,
-    private val sessions: SessionManager,
-    private val relay: LoopbackRelay,
+    private val tap: ChannelTap,
 ) : LiveLineup {
     private val virtualProviders = feeds.configs.filter { it.service == VirtualClient.SERVICE }.map { it.id }.toSet()
 
@@ -52,15 +47,7 @@ internal class LineupSlots(
     override suspend fun <T> reading(id: String, block: suspend (FfmpegSource) -> T): T {
         // A virtual channel playing a virtual channel could end up reading itself.
         if (id !in choices()) throw ApiFailure(HttpStatusCode.NotFound, "CHANNEL_NOT_FOUND", "No such live channel")
-        val session = sessions.external.open(id, CLIENT, shareable = false)
-        try {
-            val offering = sessions.media.offeringOf(session.id)
-            val stream = feeds.playable(offering)
-            feeds.upstream.check(URI(stream.url))
-            return relay.reading(stream, offering.protocol, block = block)
-        } finally {
-            withContext(NonCancellable) { sessions.release(session.id) }
-        }
+        return tap.reading(id, CLIENT, block)
     }
 
     private fun playsVirtual(entry: LineupEntryRecord): Boolean =

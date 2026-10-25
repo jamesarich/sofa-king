@@ -53,6 +53,7 @@ internal fun Route.healthRoutes(store: IdentityStore, clock: Clock, runtime: Liv
                         watchlist = runtime != null,
                         onLater = runtime != null,
                         household = runtime != null,
+                        multiview = runtime?.multiview?.canvas != null,
                     ),
                 ),
             )

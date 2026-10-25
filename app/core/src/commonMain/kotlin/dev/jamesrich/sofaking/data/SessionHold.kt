@@ -109,7 +109,11 @@ internal class SessionHold(
         withContext(NonCancellable) {
             runCatching {
                 withTimeout(RELEASE_TIMEOUT_MS) {
-                    if (item) api.releaseVod(held.sessionId) else api.releaseSession(held.sessionId)
+                    when {
+                        held.isMultiview -> api.releaseMultiview(held.sessionId)
+                        item -> api.releaseVod(held.sessionId)
+                        else -> api.releaseSession(held.sessionId)
+                    }
                 }
             }
         }
@@ -213,6 +217,19 @@ internal class ItemSessionKind(val request: ItemRequest, private val startMs: Lo
     override fun reopening(held: PlaybackStream, positionMs: Long): SessionKind = ItemSessionKind(request, positionMs)
 }
 
+/** A multiview of [channelIds] with the sound of tile [audio]; a reopen keeps the tile the sound was last moved to. */
+internal class MultiviewSessionKind(private val channelIds: List<String>, private val audio: Int) : SessionKind {
+    override suspend fun open(api: SofaKingApi) = multiviewStream(api, api.openMultiview(channelIds, audio))
+
+    override suspend fun renew(api: SofaKingApi, held: PlaybackStream) =
+        multiviewStream(api, api.updateMultiview(held.sessionId, null))
+
+    override suspend fun release(api: SofaKingApi, sessionId: String) = api.releaseMultiview(sessionId)
+
+    override fun reopening(held: PlaybackStream, positionMs: Long): SessionKind =
+        MultiviewSessionKind(held.tiles, held.audioTile)
+}
+
 /** A library item or a [recording] as it was asked for: the same item, profile and tracks reopen it. */
 internal data class ItemRequest(
     val itemId: String,
@@ -243,6 +260,7 @@ internal data class ItemRequest(
 internal sealed interface Resumable {
     data class Live(val channelId: String, val intent: PlaybackIntent) : Resumable
     data class Item(val request: ItemRequest) : Resumable
+    data class Multiview(val channelIds: List<String>, val audio: Int) : Resumable
 }
 
 private fun liveStream(api: SofaKingApi, session: PlaybackSessionDto, intent: PlaybackIntent) = PlaybackStream(
@@ -268,4 +286,15 @@ private fun itemStream(api: SofaKingApi, session: VodSessionDto, itemId: String,
     offsetMs = session.startMs,
     startAtMs = startAtMs,
     itemDurationMs = session.durationMs,
+)
+
+internal fun multiviewStream(api: SofaKingApi, session: MultiviewSessionDto) = PlaybackStream(
+    channelId = session.channelIds.getOrElse(session.audio) { session.channelIds.first() },
+    sessionId = session.id,
+    url = api.mediaUrl(session.descriptor),
+    mimeType = mediaMimeType(session.descriptor),
+    epoch = session.descriptor.epoch,
+    intent = PlaybackIntent.WATCH,
+    tiles = session.channelIds,
+    audioTile = session.audio,
 )

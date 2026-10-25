@@ -17,6 +17,8 @@ import dev.jamesrich.sofaking.contract.LibraryItem
 import dev.jamesrich.sofaking.contract.LibraryItemDetail
 import dev.jamesrich.sofaking.contract.LibraryPage
 import dev.jamesrich.sofaking.contract.LibraryShelf
+import dev.jamesrich.sofaking.contract.MultiviewSession
+import dev.jamesrich.sofaking.contract.OpenMultiview
 import dev.jamesrich.sofaking.contract.OpenPlayback
 import dev.jamesrich.sofaking.contract.OpenVodPlayback
 import dev.jamesrich.sofaking.contract.PairingResult
@@ -28,6 +30,7 @@ import dev.jamesrich.sofaking.contract.Recording
 import dev.jamesrich.sofaking.contract.RecordingBreak
 import dev.jamesrich.sofaking.contract.RecordingList
 import dev.jamesrich.sofaking.contract.RecordingRuleList
+import dev.jamesrich.sofaking.contract.UpdateMultiview
 import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.UpdatePlayback
 import dev.jamesrich.sofaking.contract.VodSession
@@ -49,7 +52,7 @@ import kotlin.time.Instant
  * false, a few finished recordings. Its playback sessions, live and library, point at streams that go nowhere, since
  * the tests have no decoder; it counts the guide queries and the sessions the app holds open.
  */
-internal class FakeServer(private val recordings: Boolean = true) {
+internal class FakeServer(private val recordings: Boolean = true, private val multiview: Boolean = false) {
     private val http = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
     val url = "http://127.0.0.1:${http.address.port}"
     val guideQueries = AtomicInteger()
@@ -58,6 +61,9 @@ internal class FakeServer(private val recordings: Boolean = true) {
     /** Each open live session's channel and intent, so a re-read or a renewal answers with what the app opened. */
     private val liveSessions: MutableMap<String, Pair<String, String>> = Collections.synchronizedMap(mutableMapOf())
     private val vodSessions: MutableMap<String, String> = Collections.synchronizedMap(mutableMapOf())
+
+    /** Each open multiview's channels and the tile whose sound plays. */
+    val multiviews: MutableMap<String, Pair<List<String>, Int>> = Collections.synchronizedMap(mutableMapOf())
 
     /** The live and library sessions the app holds open now. */
     val openSessions: Int get() = liveSessions.size + vodSessions.size
@@ -203,6 +209,8 @@ internal class FakeServer(private val recordings: Boolean = true) {
 
             path.endsWith("/ad-break") -> exchange.json(200, AdBreakState())
 
+            path.startsWith("multiview-sessions") && multiview -> multiviewSession(exchange, path, request)
+
             path.startsWith("playback-sessions/") ->
                 liveSession(exchange, path.removePrefix("playback-sessions/"), request)
 
@@ -221,7 +229,43 @@ internal class FakeServer(private val recordings: Boolean = true) {
             viewers = true,
             library = true,
             recordings = true,
+            multiview = multiview,
         ),
+    )
+
+    /** Opens, renews, moves the sound of or releases a multiview, each move under a new epoch. */
+    private fun multiviewSession(exchange: HttpExchange, path: String, request: Request) {
+        val id = path.removePrefix("multiview-sessions").removePrefix("/")
+        val held = multiviews[id]
+        when {
+            id.isEmpty() -> {
+                val open = JSON.decodeFromString<OpenMultiview>(request.body)
+                val created = UUID.randomUUID().toString()
+                multiviews[created] = open.channelIds to open.audio
+                exchange.json(201, multiviewOf(created, open.channelIds, open.audio, epoch = 1))
+            }
+
+            request.method == "DELETE" -> {
+                multiviews -= id
+                exchange.sendResponseHeaders(204, -1)
+            }
+
+            held == null -> exchange.json(410, ApiError(Wire.ErrorCode.SESSION_EXPIRED, "gone"))
+
+            else -> {
+                val audio = JSON.decodeFromString<UpdateMultiview>(request.body.ifEmpty { "{}" }).audio ?: held.second
+                multiviews[id] = held.first to audio
+                exchange.json(200, multiviewOf(id, held.first, audio, epoch = audio + 1))
+            }
+        }
+    }
+
+    private fun multiviewOf(id: String, channels: List<String>, audio: Int, epoch: Int) = MultiviewSession(
+        id = id,
+        channelIds = channels,
+        audio = audio,
+        descriptor = PlaybackDescriptor("hls", HLS, "/media/multiview/$id/$epoch/x/index.m3u8", epoch),
+        expiresAt = (Clock.System.now() + 1.minutes).toString(),
     )
 
     /** Renews, retargets or releases the live session [id]. */

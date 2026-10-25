@@ -67,7 +67,7 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
             add("setsar=1")
             add("fps=$CHANNEL_FPS")
             add("tpad=stop=-1:stop_mode=add:color=black")
-            addAll(format())
+            addAll(formatFilters())
         }
         return listOf("-vf", filters.joinToString(",")) + codecArgs(keyFrameSeconds)
     }
@@ -120,10 +120,10 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
     }
 
     /** At most 1080 lines, in the pixel format the encoder takes. */
-    private fun sizeAndFormat(): List<String> = listOf("scale=-2:'min(1080,ih)'") + format()
+    private fun sizeAndFormat(): List<String> = listOf("scale=-2:'min(1080,ih)'") + formatFilters()
 
-    /** The pixel format the encoder takes, uploaded to the GPU for VA-API. */
-    private fun format(): List<String> = buildList {
+    /** The pixel format the encoder takes, uploaded to the GPU for VA-API: the end of any filter graph before it. */
+    fun formatFilters(): List<String> = buildList {
         when (accel) {
             HardwareAccel.NONE, HardwareAccel.AUTO, HardwareAccel.NVENC -> add("format=yuv420p")
             HardwareAccel.QSV -> add("format=nv12")

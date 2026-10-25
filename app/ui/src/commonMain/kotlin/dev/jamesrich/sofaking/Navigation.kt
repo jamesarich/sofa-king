@@ -47,6 +47,15 @@ internal sealed interface Route : NavKey {
     }
 
     /**
+     * Multiview, opened from the live player on [guideIds]' first channel: a picker of two to four channels, then
+     * the one picture the server draws them into.
+     */
+    @Serializable
+    data class Multiview(val guideIds: List<String>) : Route {
+        override val id: String get() = "multiview"
+    }
+
+    /**
      * A library item full screen; [fromStart] plays it from the beginning even when it is in progress, and [startMs],
      * from a link, from that point.
      */
@@ -111,11 +120,11 @@ internal sealed interface Route : NavKey {
     /** Settings and the pages behind it, where no stream plays. */
     val isSettings: Boolean get() = this is Settings || this is Channels || this is StartupChannel
 
-    /** The guide and the live player, which hold a live channel's stream. */
-    val playsLive: Boolean get() = this is Guide || this is Player
+    /** The guide, the live player and multiview, which hold a live stream. */
+    val playsLive: Boolean get() = this is Guide || this is Player || this is Multiview
 
     /** The full screen players, the only pages that ask the display for a frame rate. */
-    val playsFullScreen: Boolean get() = this is Player || this is Vod || this is Recording
+    val playsFullScreen: Boolean get() = this is Player || this is Multiview || this is Vod || this is Recording
 
     /** The pages under the tabs: the header (or, away from a TV, the navigation bar or rail) shows above them. */
     val hasTabs: Boolean get() = this is Guide || this is OnLater || this is Library || this is LibrarySearch ||

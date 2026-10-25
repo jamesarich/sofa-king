@@ -17,6 +17,7 @@ import dev.jamesrich.sofaking.backend.library.ProgramFactsLookup
 import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.backend.library.WatchlistService
 import dev.jamesrich.sofaking.backend.logos.LogoCache
+import dev.jamesrich.sofaking.backend.multiview.MultiviewSessions
 import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
@@ -137,12 +138,15 @@ class LiveRuntime(
     val virtual: VirtualChannelService? = null,
     /** The virtual channels' streams, which the loopback relay serves. */
     val virtualStreams: VirtualStreams? = null,
+    /** Multiview sessions, offered when [MultiviewSessions.canvas] says the server can draw them. */
+    val multiview: MultiviewSessions? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
         sessions.close()
         vod?.close()
         virtualStreams?.close()
+        multiview?.close()
         remux.close()
         loopback.close()
         http.close()

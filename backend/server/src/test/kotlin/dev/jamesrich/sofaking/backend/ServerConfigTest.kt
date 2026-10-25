@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend
 
+import dev.jamesrich.sofaking.backend.multiview.MultiviewMode
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -51,6 +52,13 @@ class ServerConfigTest {
         assertEquals("unknown", ServerConfig.fromEnvironment(emptyMap()).revision)
         assertEquals("unknown", ServerConfig.fromEnvironment(mapOf("SOFA_REVISION" to " ")).revision)
         assertEquals("abc1234", ServerConfig.fromEnvironment(mapOf("SOFA_REVISION" to "abc1234")).revision)
+    }
+
+    @Test fun `multiview is auto unless SOFA_MULTIVIEW names another mode`() {
+        assertEquals(MultiviewMode.AUTO, ServerConfig.fromEnvironment(emptyMap()).multiview)
+        assertEquals(MultiviewMode.ON, ServerConfig.fromEnvironment(mapOf("SOFA_MULTIVIEW" to " On ")).multiview)
+        assertEquals(MultiviewMode.OFF, ServerConfig.fromEnvironment(mapOf("SOFA_MULTIVIEW" to "off")).multiview)
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_MULTIVIEW" to "yes")) }
     }
 
     @Test fun `LAN binding requires token and capacity is bounded`() {

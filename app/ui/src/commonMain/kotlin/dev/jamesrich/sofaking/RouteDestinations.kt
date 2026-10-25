@@ -29,6 +29,8 @@ internal fun RouteDestination(
 
         is Route.Player -> PlayerDestination(route, shell, vm, player)
 
+        is Route.Multiview -> MultiviewDestination(route, shell, vm, player)
+
         is Route.Vod -> VodDestination(route, shell, vm, libraryVm, player)
 
         is Route.Recording -> RecordingDestination(route, shell, vm, recordingsVm, player)

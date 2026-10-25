@@ -87,6 +87,7 @@ fun Application.backendModule(
             }
             hookRoutes(runtime.libraries)
             runtime.vod?.let { vodRoutes(it) }
+            runtime.multiview?.let { multiviewRoutes(it) }
             if (hdhr.enabled) hdhrRoutes(runtime, hdhr, store)
             portal?.install(this)
         }

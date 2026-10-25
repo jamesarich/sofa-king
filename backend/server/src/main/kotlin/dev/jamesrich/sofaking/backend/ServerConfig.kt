@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.library.TmdbConfig
 import dev.jamesrich.sofaking.backend.library.VideoEncoder
 import dev.jamesrich.sofaking.backend.library.pathMappings
 import dev.jamesrich.sofaking.backend.logging.LogSettings
+import dev.jamesrich.sofaking.backend.multiview.MultiviewMode
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import java.nio.file.Files
 import java.nio.file.Path
@@ -116,6 +117,8 @@ data class ServerConfig(
     val maxTranscodes: Int = DEFAULT_MAX_TRANSCODES,
     /** `SOFA_HWACCEL` and `SOFA_HWACCEL_DEVICE`: the GPU encoder library conversions use; software when unset. */
     val videoEncoder: VideoEncoder = VideoEncoder(),
+    /** `SOFA_MULTIVIEW`: composite multiview only with a GPU encoder (auto), in software too (on), or never (off). */
+    val multiview: MultiviewMode = MultiviewMode.AUTO,
     /**
      * `SOFA_RECORDINGS_FREE_GIB`: the space the DVR keeps free on the recordings folder's disk by
      * deleting the oldest recordings.
@@ -262,6 +265,7 @@ data class ServerConfig(
                     HardwareAccel.parse(environment["SOFA_HWACCEL"]),
                     env.text("SOFA_HWACCEL_DEVICE") ?: VideoEncoder.DEFAULT_DEVICE,
                 ),
+                multiview = MultiviewMode.parse(environment["SOFA_MULTIVIEW"]),
                 recordingsFreeGib =
                 env.number("SOFA_RECORDINGS_FREE_GIB", DEFAULT_RECORDINGS_FREE_GIB, RECORDINGS_FREE_GIB_RANGE),
                 recordingsKeepDays = env.number("SOFA_RECORDINGS_KEEP_DAYS", 0, RECORDINGS_KEEP_DAYS_RANGE),

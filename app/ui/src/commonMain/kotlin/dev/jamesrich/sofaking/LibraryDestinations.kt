@@ -219,7 +219,9 @@ internal fun VodDestination(
                 player = player,
                 sessions = vm.sessions,
                 itemId = item.id,
-                open = { libraryVm.play(item, player.playbackProfile, route.fromStart, audio, pictureSubtitle) },
+                open = {
+                    libraryVm.play(item, player.playbackProfile, route.fromStart, audio, pictureSubtitle, route.startMs)
+                },
                 onPosition = { position, duration -> libraryVm.progress(item.id, position, duration) },
                 onStop = { position, duration -> libraryVm.stopped(item.id, position, duration) },
                 onExit = shell::back,

@@ -35,9 +35,13 @@ final class AppModel {
     var launchDecided = false
     /// A channel a `sofaking://channel/<guideId>` link (the Top Shelf) asked for; the list or the player takes it and clears it.
     var requestedChannel: String?
-    /// A library item a `sofaking://vod/<id>` link (the Top Shelf's Continue watching) asked for; the Library tab
-    /// plays it once its home lists it.
+    /// A library item a `sofaking://vod/<id>` link (the Top Shelf's Continue watching, or a shortcut) asked for; the
+    /// Library tab plays it once its home lists it.
     var requestedItem: String?
+    /// Where that link starts the item, in milliseconds; negative to resume where the household stopped.
+    var requestedItemStartMs: Int64 = -1
+    /// A channel number or name a `sofaking://live/<number>` link asked for, until the lineup is in to find it.
+    private(set) var requestedLive: String?
     /// Why the last `sofaking://pair` link failed to pair; an alert shows it once.
     var pairingFailure: String?
     private var watches: [Watch] = []
@@ -56,6 +60,7 @@ final class AppModel {
         watches.append(core.watchState { [weak self] in
             self?.state = $0
             self?.publishTopShelf()
+            self?.openRequestedLive()
         })
         watches.append(core.watchSettings { [weak self] in
             self?.settings = $0
@@ -162,7 +167,29 @@ final class AppModel {
         guard let id = requestedItem, let ready = libraryHome as? LibraryHomeStateReady else { return }
         requestedItem = nil
         let item = ready.home.shelves.lazy.flatMap { $0.items }.first { $0.id == id }
-        if let item, item.kind.playable { vod = VodRequest(item: item, fromStart: false) }
+        if let item, item.kind.playable { vod = VodRequest(item: item, fromStart: false, startMs: requestedItemStartMs) }
+    }
+
+    /// Follows a `sofaking://` link: an item plays from the Library tab, a channel from Live once the lineup lists it.
+    func open(_ link: AppLink) {
+        switch link {
+        case let item as AppLinkItem:
+            requestedItemStartMs = item.startMs?.int64Value ?? -1
+            requestedItem = item.itemId
+        case let live as AppLinkLive:
+            requestedLive = live.channel
+            openRequestedLive()
+        default:
+            break
+        }
+    }
+
+    /// Plays the channel a `sofaking://live` link named, by number and then by name, once the lineup is in; a channel
+    /// it does not list is let go.
+    private func openRequestedLive() {
+        guard let target = requestedLive, let lineup else { return }
+        requestedLive = nil
+        if let channel = AppLinkKt.linkedChannel(lineup: lineup, target: target) { requestedChannel = channel.guideId }
     }
 }
 
@@ -201,7 +228,7 @@ struct ContentView: View {
                 // A cold start from a Top Shelf item opens on the Library tab, which plays it.
                 tab = .library
                 restored = .library
-            } else if let start = model.startTab, model.requestedChannel == nil {
+            } else if let start = model.startTab, model.requestedChannel == nil, model.requestedLive == nil {
                 tab = start
                 restored = start
             }
@@ -210,8 +237,9 @@ struct ContentView: View {
         .onOpenURL { url in
             if let guideId = TopShelfContent.guideId(from: url) {
                 model.requestedChannel = guideId
-            } else if let itemId = TopShelfContent.itemId(from: url) {
-                model.requestedItem = itemId
+            } else if let link = AppLinkKt.parseAppLink(link: url.absoluteString) {
+                // A Top Shelf item, or a shortcut's sofaking://vod/<id>?t=<seconds> or sofaking://live/<number>.
+                model.open(link)
             } else if let request = PairingRequestKt.parsePairingLink(link: url.absoluteString) {
                 model.pair(request)
             }

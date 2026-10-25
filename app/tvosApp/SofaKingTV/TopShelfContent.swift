@@ -56,10 +56,6 @@ enum TopShelfContent {
         link(host: "vod", id: itemId)
     }
 
-    static func itemId(from url: URL) -> String? {
-        id(in: url, host: "vod")
-    }
-
     private static func link(host: String, id: String) -> URL? {
         var components = URLComponents()
         components.scheme = scheme

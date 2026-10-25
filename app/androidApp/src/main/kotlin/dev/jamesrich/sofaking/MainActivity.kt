@@ -15,13 +15,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.core.view.WindowCompat
+import dev.jamesrich.sofaking.data.AppLink
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.NsdServerDiscovery
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.WatchNext
 import dev.jamesrich.sofaking.data.inDirectory
-import dev.jamesrich.sofaking.data.parseItemLink
+import dev.jamesrich.sofaking.data.parseAppLink
 import dev.jamesrich.sofaking.data.parsePairingLink
 import dev.jamesrich.sofaking.ui.isTelevision
 
@@ -60,8 +61,11 @@ class MainActivity : ComponentActivity() {
     /** A `sofaking://pair` link this activity was opened with, until the app has claimed it. */
     private val pairing = mutableStateOf<PairingRequest?>(null)
 
-    /** The item a `sofaking://vod` link from the Watch Next row asked to play, until the app has opened it. */
-    private val playItem = mutableStateOf<String?>(null)
+    /**
+     * The item or channel a `sofaking://vod` or `sofaking://live` link asked to play (from the Watch Next row, or
+     * `am start` from a home automation), until the app has opened it.
+     */
+    private val link = mutableStateOf<AppLink?>(null)
 
     // A denial leaves the app as it was: the server cannot be reached until the permission is given in system settings.
     private val localNetwork = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -88,8 +92,8 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.semantics { testTagsAsResourceId = true },
                 pairing = pairing.value,
                 onPairingHandle = { pairing.value = null },
-                playItem = playItem.value,
-                onPlayItemHandle = { playItem.value = null },
+                link = link.value,
+                onLinkHandle = { link.value = null },
             )
         }
     }
@@ -100,9 +104,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun takeLink(intent: Intent?) {
-        val link = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.dataString ?: return
-        parsePairingLink(link)?.let { pairing.value = it }
-        parseItemLink(link)?.let { playItem.value = it }
+        val uri = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.dataString ?: return
+        parsePairingLink(uri)?.let { pairing.value = it }
+        parseAppLink(uri)?.let { link.value = it }
     }
 }
 

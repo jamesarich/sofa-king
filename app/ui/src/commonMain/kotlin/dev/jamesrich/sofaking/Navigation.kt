@@ -40,9 +40,12 @@ internal sealed interface Route : NavKey {
         override val id: String get() = "player"
     }
 
-    /** A library item full screen; [fromStart] plays it from the beginning even when it is in progress. */
+    /**
+     * A library item full screen; [fromStart] plays it from the beginning even when it is in progress, and [startMs],
+     * from a link, from that point.
+     */
     @Serializable
-    data class Vod(val itemId: String, val fromStart: Boolean = false) : Route {
+    data class Vod(val itemId: String, val fromStart: Boolean = false, val startMs: Long? = null) : Route {
         override val id: String get() = "vod:$itemId"
     }
 

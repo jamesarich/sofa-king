@@ -165,3 +165,13 @@ import kotlinx.serialization.Serializable
 
 /** A new token and its [secret], which the server shows this once and keeps only as a hash. */
 @Serializable data class CreatedApiToken(val token: ApiTokenInfo, val secret: String)
+
+/**
+ * A named player output: its own `/output/{name}/playlist.m3u` and `/output/{name}/guide.xml` holding the lineup's
+ * channels in one of [groups] (ignoring case) or listed in [channels] by number or entry ID.
+ */
+@Serializable data class NamedOutput(
+    val name: String = "",
+    val groups: List<String> = emptyList(),
+    val channels: List<String> = emptyList(),
+)

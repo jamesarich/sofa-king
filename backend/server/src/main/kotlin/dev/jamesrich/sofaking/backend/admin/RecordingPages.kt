@@ -193,5 +193,5 @@ internal class RecordingPages(private val portal: Portal) {
 internal val MANUAL_MINUTES = 1..720
 
 /** The comma-separated entries of a form field, trimmed, without blanks. */
-private fun commaList(value: String?): List<String> =
+internal fun commaList(value: String?): List<String> =
     value.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }

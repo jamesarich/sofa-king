@@ -1,11 +1,13 @@
 package dev.jamesrich.sofaking.backend.http
 
+import dev.jamesrich.sofaking.backend.api.NamedOutput
 import dev.jamesrich.sofaking.backend.api.UpdateHdhrAccess
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.plex.PlexSync
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
@@ -41,5 +43,20 @@ fun Route.hdhrAccessRoutes(access: HdhrAccess, enabled: Boolean) {
             )
         }
         call.respond(access.status(enabled))
+    }
+}
+
+/** The named player outputs: list them, save one by name, delete one. */
+fun Route.namedOutputRoutes(outputs: NamedOutputs) {
+    get("/outputs") { call.respond(outputs.list()) }
+    put("/outputs/{name}") {
+        val request = call.body<NamedOutput>()
+        call.respond(outputs.put(request.copy(name = call.parameters["name"]!!)))
+    }
+    delete("/outputs/{name}") {
+        if (!outputs.delete(call.parameters["name"]!!)) {
+            throw ApiFailure(HttpStatusCode.NotFound, "OUTPUT_NOT_FOUND", "Unknown output")
+        }
+        call.respond(HttpStatusCode.NoContent)
     }
 }

@@ -107,6 +107,8 @@ It reports each token as generated (stored in `secrets.json`), saved from the po
 
 Device addresses on the Plex page use the host the page was reached by; extra devices use their own ports from `SOFA_HDHR_EXTRA_PORTS`.
 
+Named outputs on the Plex page lists each [named output](live-tv.md#named-outputs) with its playlist and guide URLs, the token hidden as in Player outputs, and a Delete for each. Save output takes a name, comma-separated groups and comma-separated channel numbers or IDs; a name that exists is replaced.
+
 ## Security
 
 - The portal is meant for the LAN, like the rest of the server. Reach it through a TLS-terminating proxy if the token crosses a network you do not control. Behind a proxy that sends `X-Forwarded-Proto: https`, the session cookie is marked `Secure`.

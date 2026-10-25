@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.api.NamedOutput
+import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.http.deviceShare
 import dev.jamesrich.sofaking.backend.http.hdhrChannels
@@ -45,6 +47,26 @@ internal class PlexPages(private val portal: Portal) {
             session.flash.set(Flash("Removed $address. It can no longer use the tuners."))
             seeOther(call, "/admin/plex#access")
         }
+        route.action("/plex/outputs/save") { session, form ->
+            val output = NamedOutput(
+                form["name"].orEmpty(),
+                commaList(form["groups"]),
+                commaList(form["channels"]),
+            )
+            val flash = try {
+                Flash("Saved the ${runtime.namedOutputs.put(output).name} output.")
+            } catch (e: ApiFailure) {
+                Flash("Not saved: ${e.message}", Tone.BAD)
+            }
+            session.flash.set(flash)
+            seeOther(call, "/admin/plex#named-outputs")
+        }
+        route.action("/plex/outputs/delete") { session, form ->
+            val name = form["name"].orEmpty()
+            runtime.namedOutputs.delete(name)
+            session.flash.set(Flash("Deleted the $name output."))
+            seeOther(call, "/admin/plex#named-outputs")
+        }
     }
 
     private suspend fun plexView(call: ApplicationCall, reveal: Boolean): PlexView {
@@ -75,6 +97,10 @@ internal class PlexPages(private val portal: Portal) {
             tuners = hdhr.tuners,
             status = portal.plexStatus?.status(),
             access = if (hdhr.enabled) runtime.hdhrAccess.status(true) else null,
+            namedOutputs = runtime.namedOutputs.list().map { output ->
+                val path = "$base/output/${output.name}"
+                NamedOutputRow(output, "$path/playlist.m3u$shown", "$path/guide.xml$shown")
+            },
         )
     }
 

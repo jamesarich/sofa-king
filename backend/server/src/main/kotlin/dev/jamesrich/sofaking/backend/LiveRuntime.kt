@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.catalog.PolicyService
 import dev.jamesrich.sofaking.backend.dvr.Dvr
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.HdhrAccess
+import dev.jamesrich.sofaking.backend.http.NamedOutputs
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.library.ProgramFactsLookup
@@ -122,6 +123,8 @@ class LiveRuntime(
     val programFacts: ProgramFactsLookup? = null,
     /** The tokens issued to paired devices, dashboards and hooks. */
     val tokens: IssuedTokens = IssuedTokens(store, Clock.systemUTC()),
+    /** The named player outputs, each a filtered playlist and guide. */
+    val namedOutputs: NamedOutputs = NamedOutputs(store),
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()

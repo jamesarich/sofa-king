@@ -37,7 +37,8 @@
     },
     "parameters": {
       "id": { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
-      "clientId": { "name": "clientId", "in": "path", "required": true, "description": "The client's own stable id: 1 to 64 letters, digits, dots, dashes or underscores.", "schema": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" } }
+      "clientId": { "name": "clientId", "in": "path", "required": true, "description": "The client's own stable id: 1 to 64 letters, digits, dots, dashes or underscores.", "schema": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" } },
+      "outputName": { "name": "name", "in": "path", "required": true, "description": "A named output: 1 to 32 lowercase letters, digits and hyphens.", "schema": { "type": "string" } }
     },
     "responses": {
       "Error": {
@@ -433,6 +434,9 @@
           "missingDevices": { "type": "array", "items": { "type": "string" } }, "findings": { "type": "array", "items": { "type": "string" } }
         }
       },
+      "NamedOutput": {
+        "type": "object", "description": "A playlist and guide of some of the lineup: a channel is held when its group is one of groups, ignoring case, or its number or ID is one of channels.",
+        "properties": { "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,31}$" }, "groups": { "type": "array", "items": { "type": "string" } }, "channels": { "type": "array", "items": { "type": "string" } } } },
       "HdhrAccessStatus": {
         "type": "object", "description": "Who may reach the HDHomeRun emulation. open is true when every address is admitted (a loopback bind with no address configured or allowed).",
         "properties": {
@@ -793,6 +797,16 @@
         "parameters": [{ "name": "days", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 14 } }],
         "responses": { "200": { "description": "application/xml" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" } } }
     },
+    "/output/{name}/playlist.m3u": {
+      "get": { "tags": ["Outputs"], "summary": "A named output's channels as an M3U playlist", "description": "As /output/playlist.m3u, holding only the output's groups and channels; url-tvg names the output's own guide. Stream URLs stay under /output/stream/.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/outputName" }, { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
+        "responses": { "200": { "description": "" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" }, "404": { "description": "OUTPUT_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/output/{name}/guide.xml": {
+      "get": { "tags": ["Outputs"], "summary": "A named output's programs as XMLTV", "description": "As /output/guide.xml, holding only the output's groups and channels.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/outputName" }, { "name": "days", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 14 } }],
+        "responses": { "200": { "description": "application/xml" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" }, "404": { "description": "OUTPUT_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
     "/output/stream/{channelId}.{suffix}": {
       "get": { "tags": ["Outputs"], "summary": "Open a player session for the channel and stream it", "description": "An HLS source answers 302 to the session's playlist; an MPEG-TS source streams video/mp2t here, and with format=ts so does an HLS source, remuxed. The session is released 60 s after the last media request.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
         "parameters": [{ "name": "channelId", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "suffix", "in": "path", "required": true, "schema": { "type": "string", "enum": ["m3u8", "ts"] } }, { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
@@ -1029,6 +1043,19 @@
       "put": { "tags": ["HDHomeRun"], "summary": "Replace the addresses allowed at run time", "description": "Applies at once with no restart and is kept in the database. SOFA_HDHR_ALLOW still applies beside it. 400 INVALID_REQUEST names an entry that is not an IP literal or CIDR block; nothing changes then.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateHdhrAccess" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HdhrAccessStatus" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/outputs": {
+      "get": { "tags": ["Outputs"], "summary": "The named player outputs", "description": "In name order.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/NamedOutput" } } } } } } }
+    },
+    "/api/v1/admin/outputs/{name}": {
+      "put": { "tags": ["Outputs"], "summary": "Save a named output", "description": "Creates the output or replaces the one of that name. The name is lowercased; 400 INVALID_REQUEST for a name that is not 1 to 32 letters, digits and hyphens, for stream, for an output holding no group or channel, or past 32 outputs. A name in the body is ignored.", "security": [{ "adminToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/outputName" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NamedOutput" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NamedOutput" } } } }, "400": { "$ref": "#/components/responses/Error" } } },
+      "delete": { "tags": ["Outputs"], "summary": "Delete a named output", "security": [{ "adminToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/outputName" }],
+        "responses": { "204": { "description": "Deleted" }, "404": { "description": "OUTPUT_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/admin/viewers": {
       "get": { "tags": ["Admin"], "summary": "Every client that paired or saved preferences", "description": "Most recently seen first.", "security": [{ "adminToken": [] }],

@@ -138,7 +138,9 @@ Point Plex's HDHomeRun tuner at port 9193, not the proxy: the tuners admit clien
 
 ## Serve the web app
 
-The Sofa King app's web build is a static site. Unzip `sofa-king-snapshot-web-wasm.zip` from the [snapshot release](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), or `sofa-king-snapshot-web-js.zip` for browsers without WebAssembly GC. It holds `index.html`, `sofaking.js`, two `.wasm` files and `composeResources/`. The web app plays HLS channels only.
+The Sofa King app's web build is a static site. Unzip `sofa-king-snapshot-web-wasm.zip` from the [snapshot release](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), or `sofa-king-snapshot-web-js.zip` for browsers without WebAssembly GC. It holds `index.html`, `sofaking.js`, two `.wasm` files, `composeResources/`, the web app manifest with its icons, and `sw.js`. The web app plays HLS channels only.
+
+Served over HTTPS (or from `localhost`), the web app is installable: Chrome and Edge offer Install in the address bar, and Safari on iOS has Add to Home Screen. It then opens in its own window, in landscape. Its service worker, `sw.js`, keeps a copy of the app's own files, fetched from the network first so a new bundle shows on the next load, and never touches `/api/`, `/media/` or `/logos/`. Over plain HTTP the browser runs no service worker and offers no install; the app works the same in a tab.
 
 To serve it from the same origin as the API, the proxy forwards exactly `/api/`, `/media/` and `/logos/` at the origin root to the server and serves everything else from the bundle. It must serve `.wasm` files as `application/wasm`, which Caddy's `file_server` and nginx's stock `mime.types` do. The server cannot be served under a sub-path, so neither can the web app.
 

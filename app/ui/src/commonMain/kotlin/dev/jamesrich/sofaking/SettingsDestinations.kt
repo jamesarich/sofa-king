@@ -138,6 +138,7 @@ private fun settingsActions(shell: AppShellState, vm: LineupViewModel, libraryVm
         onClockFormatChanged = vm::setClockFormat,
         onGuideDensityChanged = vm::setGuideDensity,
         onManageChannels = { shell.push(Route.Channels) },
+        onOpenLicenses = { shell.push(Route.Licenses) },
         onMatchFrameRateChanged = vm::setMatchFrameRate,
         onNightListeningChanged = vm::setNightListening,
         onDecoderChanged = vm::setDecoder,

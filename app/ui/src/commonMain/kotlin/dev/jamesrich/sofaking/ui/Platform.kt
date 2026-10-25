@@ -34,6 +34,9 @@ internal expect fun rememberSystem24HourClock(): Boolean
  */
 internal expect val platformMovesFocusOnArrows: Boolean
 
+/** The Kotlin targets this platform builds, by the names the open-source licenses list tags each library with. */
+internal expect val licenseTargets: Set<String>
+
 /** True while a screen reader explores by touch (TalkBack), which a channel opening full screen would cut off. */
 @Composable
 internal expect fun rememberScreenReaderActive(): Boolean

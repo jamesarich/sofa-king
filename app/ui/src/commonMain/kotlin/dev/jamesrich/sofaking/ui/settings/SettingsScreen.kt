@@ -53,6 +53,7 @@ import dev.jamesrich.sofaking.data.UpdateInstaller
 import dev.jamesrich.sofaking.data.UpdateState
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
+import dev.jamesrich.sofaking.resources.licenses_title
 import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.resources.settings_channels_loaded
 import dev.jamesrich.sofaking.resources.settings_section_about
@@ -132,6 +133,8 @@ class SettingsActions(
     val onLiveBreaksChanged: (LiveBreaks) -> Unit = {},
     /** Loads the lineup and the library home again from the server. */
     val onReload: () -> Unit = {},
+    /** Opens the open-source licenses page. */
+    val onOpenLicenses: () -> Unit = {},
 )
 
 /** The pairing flow as Settings shows it: whether a claim is running, and why the last one failed. */
@@ -167,7 +170,7 @@ fun SettingsScreen(
     update: UpdateState? = null,
     /**
      * The page behind Settings the viewer just came back from ([CHANNELS_FOCUS_KEY],
-     * [STARTUP_FOCUS_KEY]); its button takes focus.
+     * [STARTUP_FOCUS_KEY], [LICENSES_FOCUS_KEY]); its button takes focus.
      */
     returnedFrom: String? = null,
     /** The servers on the network, collected (and so browsed for) only while the server fields are open. */
@@ -231,7 +234,7 @@ fun SettingsScreen(
             // About: the app, its version and what is loaded, then where the build stands
             // against the published snapshot.
             item { SectionHeader(stringResource(Res.string.settings_section_about)) }
-            item { AboutBlock(channelCount, update, actions.onCheckForUpdate) }
+            item { AboutBlock(channelCount, update, actions, focus.licenses) }
         }
     }
 }
@@ -242,6 +245,7 @@ private class SettingsFocus {
     val content = FocusRequester()
     val channels = FocusRequester()
     val startup = FocusRequester()
+    val licenses = FocusRequester()
 
     /** Back, or where no Back button is drawn, the first setting. */
     @Composable
@@ -255,6 +259,7 @@ private fun ArrivalFocus(returnedFrom: String?, focus: SettingsFocus, initial: F
         val returnTo = when (returnedFrom) {
             CHANNELS_FOCUS_KEY -> focus.channels
             STARTUP_FOCUS_KEY -> focus.startup
+            LICENSES_FOCUS_KEY -> focus.licenses
             else -> null
         }
         if (returnTo != null && requestFocusWhenAttached(returnTo)) return@LaunchedEffect
@@ -263,15 +268,17 @@ private fun ArrivalFocus(returnedFrom: String?, focus: SettingsFocus, initial: F
 }
 
 /**
- * About: the app, its version and the channels loaded, the TMDB notice and the update check, which runs once the
- * version is known.
+ * About: the app, its version and the channels loaded, the TMDB notice, the way to the open-source licenses and the
+ * update check, which runs once the version is known.
  */
 @Composable
 private fun AboutBlock(
     channelCount: Int,
     update: UpdateState?,
-    onCheckForUpdate: (version: String, again: Boolean) -> Unit,
+    actions: SettingsActions,
+    licensesFocus: FocusRequester,
 ) {
+    val onCheckForUpdate = actions.onCheckForUpdate
     val suffix = versionSuffix()
     val version = BuildInfo.VERSION + suffix.orEmpty()
     val currentOnCheckForUpdate by rememberUpdatedState(onCheckForUpdate)
@@ -303,6 +310,9 @@ private fun AboutBlock(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        SofaButton(onClick = actions.onOpenLicenses, modifier = Modifier.focusRequester(licensesFocus)) {
+            Text(stringResource(Res.string.licenses_title))
+        }
         UpdateRow(update = update, onCheckAgain = { onCheckForUpdate(version, true) }, keepInView = about)
     }
 }

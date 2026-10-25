@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.aboutlibraries)
     id("sofaking.kotlin")
     id("sofaking.android")
     id("sofaking.lint")
@@ -112,6 +113,7 @@ kotlin {
                 implementation(libs.navigationevent.compose)
                 implementation(libs.navigation3.ui)
                 implementation(libs.compose.components.resources)
+                implementation(libs.aboutlibraries.compose.m3)
                 implementation(libs.coil.compose)
                 implementation(libs.coil.network.ktor3)
                 implementation(libs.lifecycle.viewmodel.compose)
@@ -163,10 +165,21 @@ val generateVersionSuffix = tasks.register("generateVersionSuffix") {
         file.writeText(suffix)
     }
 }
+// The open-source licenses screen's list: every library each target ships, with the targets that ship it, so a
+// platform lists only its own. The license texts come from SPDX at build time, and the build cache keeps the result.
+aboutLibraries {
+    collect { includeTargets = true }
+    export {
+        excludeFields.addAll("funding")
+        prettyPrint = false
+    }
+}
+
 val commonComposeResources = layout.buildDirectory.dir("generated/composeResources/commonMain")
 val syncCommonComposeResources = tasks.register<Sync>("syncCommonComposeResources") {
     from(layout.projectDirectory.dir("src/commonMain/composeResources"))
     from(generateVersionSuffix)
+    from(tasks.named("exportLibraryDefinitions")) { into("files") }
     into(commonComposeResources)
 }
 

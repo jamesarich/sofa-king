@@ -43,6 +43,8 @@ internal actual val KeyEvent.isLongPress: Boolean get() = false
 
 internal actual val platformMovesFocusOnArrows: Boolean = false
 
+internal actual val licenseTargets: Set<String> = setOf("js", "wasmJs")
+
 /** The page goes full screen through [WindowFullScreen], from the players; the canvas has no picture-in-picture. */
 @Composable
 internal actual fun rememberPlayerWindow(player: LivePlayer, active: Boolean): Boolean = false

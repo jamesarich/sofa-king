@@ -154,7 +154,7 @@ internal fun RouteStreamEffects(
             }
 
             // Reached from Settings, which already stopped the stream.
-            Route.Channels, Route.StartupChannel -> Unit
+            is Route.SettingsSection, Route.Channels, Route.StartupChannel -> Unit
         }
     }
 }

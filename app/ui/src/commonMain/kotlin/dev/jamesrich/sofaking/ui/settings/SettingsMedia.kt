@@ -40,7 +40,6 @@ import dev.jamesrich.sofaking.resources.caption_timing_help
 import dev.jamesrich.sofaking.resources.captions_setting
 import dev.jamesrich.sofaking.resources.recordings_skip_commercials
 import dev.jamesrich.sofaking.resources.recordings_skip_commercials_help
-import dev.jamesrich.sofaking.resources.recordings_title
 import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.resources.settings_buffer
 import dev.jamesrich.sofaking.resources.settings_buffer_fast
@@ -61,9 +60,7 @@ import dev.jamesrich.sofaking.resources.settings_match_frame_rate
 import dev.jamesrich.sofaking.resources.settings_match_frame_rate_help
 import dev.jamesrich.sofaking.resources.settings_night_listening
 import dev.jamesrich.sofaking.resources.settings_night_listening_help
-import dev.jamesrich.sofaking.resources.settings_section_captions
-import dev.jamesrich.sofaking.resources.settings_section_library
-import dev.jamesrich.sofaking.resources.settings_section_playback
+import dev.jamesrich.sofaking.resources.settings_section_subtitles
 import dev.jamesrich.sofaking.resources.settings_seek_back
 import dev.jamesrich.sofaking.resources.settings_seek_forward
 import dev.jamesrich.sofaking.resources.settings_seek_help
@@ -99,21 +96,57 @@ import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * Recordings, on a server that records: skipping commercials, and the seek steps [withSeekSteps] (when there is no
- * Library section to hold them).
+ * The Library and DVR page: skipping intros and credits on a server with a [library], commercials on one with
+ * [recordings], the seek steps both use, and hiding spoilers.
  */
-internal fun LazyListScope.recordingsSection(settings: AppSettings, actions: SettingsActions, withSeekSteps: Boolean) {
-    item { SectionHeader(stringResource(Res.string.recordings_title)) }
-    item {
-        SkipChoice(
-            SkipKind.COMMERCIAL_BREAKS,
-            stringResource(Res.string.recordings_skip_commercials),
-            stringResource(Res.string.recordings_skip_commercials_help),
-            settings,
-            actions,
-        )
+internal fun LazyListScope.libraryPage(
+    settings: AppSettings,
+    actions: SettingsActions,
+    library: Boolean,
+    recordings: Boolean,
+) {
+    if (library) {
+        item {
+            SkipChoice(
+                SkipKind.INTROS,
+                stringResource(Res.string.settings_skip_intros),
+                stringResource(Res.string.settings_skip_intros_help),
+                settings,
+                actions,
+            )
+        }
+        item {
+            SkipChoice(
+                SkipKind.CREDITS,
+                stringResource(Res.string.settings_skip_credits),
+                stringResource(Res.string.settings_skip_credits_help),
+                settings,
+                actions,
+            )
+        }
     }
-    if (withSeekSteps) seekStepRows(settings, actions)
+    if (recordings) {
+        item {
+            SkipChoice(
+                SkipKind.COMMERCIAL_BREAKS,
+                stringResource(Res.string.recordings_skip_commercials),
+                stringResource(Res.string.recordings_skip_commercials_help),
+                settings,
+                actions,
+            )
+        }
+    }
+    seekStepRows(settings, actions)
+    if (library) {
+        item {
+            SettingToggle(
+                label = stringResource(Res.string.settings_hide_spoilers),
+                help = stringResource(Res.string.settings_hide_spoilers_help),
+                stored = settings.hideSpoilers,
+                onChange = actions.onHideSpoilersChanged,
+            )
+        }
+    }
 }
 
 /** How far one press back and one press forward move a library item or a recording. */
@@ -162,43 +195,11 @@ private fun SkipChoice(kind: SkipKind, label: String, help: String, settings: Ap
 }
 
 /**
- * Library, on a server that has one: skipping intros and credits, the seek steps, hiding spoilers, and the subtitles'
- * look ([subtitleLook], shown at once through [onLook]), which its three rows change a part of each.
+ * The library subtitles' look ([subtitleLook], shown at once through [onLook]) under their own header, which its three
+ * rows change a part of each.
  */
-internal fun LazyListScope.librarySection(
-    settings: AppSettings,
-    actions: SettingsActions,
-    subtitleLook: SubtitleLook,
-    onLook: (SubtitleLook) -> Unit,
-) {
-    item { SectionHeader(stringResource(Res.string.settings_section_library)) }
-    item {
-        SkipChoice(
-            SkipKind.INTROS,
-            stringResource(Res.string.settings_skip_intros),
-            stringResource(Res.string.settings_skip_intros_help),
-            settings,
-            actions,
-        )
-    }
-    item {
-        SkipChoice(
-            SkipKind.CREDITS,
-            stringResource(Res.string.settings_skip_credits),
-            stringResource(Res.string.settings_skip_credits_help),
-            settings,
-            actions,
-        )
-    }
-    seekStepRows(settings, actions)
-    item {
-        SettingToggle(
-            label = stringResource(Res.string.settings_hide_spoilers),
-            help = stringResource(Res.string.settings_hide_spoilers_help),
-            stored = settings.hideSpoilers,
-            onChange = actions.onHideSpoilersChanged,
-        )
-    }
+private fun LazyListScope.subtitleRows(subtitleLook: SubtitleLook, onLook: (SubtitleLook) -> Unit) {
+    item { SectionHeader(stringResource(Res.string.settings_section_subtitles)) }
     item { SubtitleSizeChoice(subtitleLook, onLook) }
     item {
         ChoiceRow(
@@ -249,11 +250,15 @@ private fun SubtitleSizeChoice(look: SubtitleLook, onLook: (SubtitleLook) -> Uni
 }
 
 /**
- * Captions: on or off, smoothing and timing where the engine can move them, the style, and the platform's own
- * caption settings.
+ * The Captions page: on or off, smoothing and timing where the engine can move them, the style, and the platform's
+ * own caption settings; then, given a [subtitleLook] (a server with a library), the library subtitles' look.
  */
-internal fun LazyListScope.captionsSection(settings: AppSettings, actions: SettingsActions) {
-    item { SectionHeader(stringResource(Res.string.settings_section_captions)) }
+internal fun LazyListScope.captionsPage(
+    settings: AppSettings,
+    actions: SettingsActions,
+    subtitleLook: SubtitleLook?,
+    onLook: (SubtitleLook) -> Unit,
+) {
     item {
         SettingToggle(
             label = stringResource(Res.string.captions_setting),
@@ -303,6 +308,7 @@ internal fun LazyListScope.captionsSection(settings: AppSettings, actions: Setti
             HelpText(stringResource(Res.string.settings_caption_engine, captionEngineName()))
         }
     }
+    if (subtitleLook != null) subtitleRows(subtitleLook, onLook)
 }
 
 /** The caption timing, stepped earlier or later; a button that reaches its end of the range hands focus across. */
@@ -339,10 +345,10 @@ private fun CaptionTimingRow(stored: Int, onChange: (Int) -> Unit) {
 }
 
 /**
- * Playback, where the platform takes these: night listening, matching the frame rate, the decoder and the buffer.
+ * The Playback page, where the platform takes these: night listening, matching the frame rate, the decoder and the
+ * buffer.
  */
-internal fun LazyListScope.playbackSection(settings: AppSettings, actions: SettingsActions) {
-    item { SectionHeader(stringResource(Res.string.settings_section_playback)) }
+internal fun LazyListScope.playbackPage(settings: AppSettings, actions: SettingsActions) {
     if (supportsNightListening) {
         item {
             SettingToggle(

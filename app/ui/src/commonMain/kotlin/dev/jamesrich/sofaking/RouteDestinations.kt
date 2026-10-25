@@ -23,7 +23,9 @@ internal fun RouteDestination(
 ) {
     val arrival = if (route == shell.nav.top) shell.nav.arrival else Arrival()
     when (route) {
-        Route.Settings -> SettingsDestination(arrival, shell, vm, libraryVm, offered)
+        Route.Settings -> SettingsDestination(null, arrival, shell, vm, libraryVm, offered)
+
+        is Route.SettingsSection -> SettingsDestination(route.page, arrival, shell, vm, libraryVm, offered)
 
         Route.Channels, Route.StartupChannel -> ChannelsDestination(route, shell, vm)
 

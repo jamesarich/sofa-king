@@ -352,8 +352,11 @@ jobs:
   # until every check and every package is green.
   snapshot:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # snapshot.yml's publish job, skipped here, still needs every permission it asks for granted.
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/snapshot.yml
     with:
       publish: false

@@ -102,14 +102,20 @@ printf 'RENDER_GID=%s\n' "$(stat -c %g /dev/dri/renderD128)" >> .env
       - "${RENDER_GID:?set RENDER_GID in .env}"
 ```
 
-The image carries Mesa's VA-API driver for AMD and, on amd64, Intel's media driver and Quick Sync runtime. For `nvenc`, install the NVIDIA Container Toolkit on the host and give the service the GPU:
+The image carries Mesa's VA-API driver for AMD and, on amd64, Intel's media driver and Quick Sync runtime. For `nvenc`, install the NVIDIA driver and the NVIDIA Container Toolkit on the host (`nvidia-smi` works there, and `docker info` lists the `nvidia` runtime), then give the service the GPU, by uncommenting the NVIDIA lines in `compose.yaml` or with these in `compose.override.yaml`, which `docker compose` and `sofa-king-update` read beside it:
 
 ```yaml
+services:
+  sofa-king-backend:
+    environment:
+      NVIDIA_DRIVER_CAPABILITIES: compute,video,utility
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [gpu, video]
+              capabilities: [gpu, compute, video, utility]
 ```
+
+The capabilities decide which driver libraries the runtime mounts. FFmpeg's NVENC encoder needs `video` (the encoder library) and `compute` (the CUDA library it opens first), and `utility` puts `nvidia-smi` in the container. Docker turns the listed capabilities into `NVIDIA_DRIVER_CAPABILITIES`, so `[gpu, video]` alone mounts no CUDA library and the test frame fails. Check the GPU from inside with `docker exec sofa-king-backend nvidia-smi`. GeForce drivers limit how many NVENC encodes run at once (8 on current drivers), so set `SOFA_MAX_TRANSCODES` below that. NVENC also draws [multiview](api.md#multiview) at 1080p, since `SOFA_MULTIVIEW=auto` offers it only when this encoder works.

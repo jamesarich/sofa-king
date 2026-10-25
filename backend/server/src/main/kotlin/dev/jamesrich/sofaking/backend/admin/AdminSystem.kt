@@ -32,6 +32,8 @@ import java.util.concurrent.TimeUnit
     val logFormat: String,
     val memoryUsedMb: Long,
     val memoryMaxMb: Long,
+    val tools: ToolReport? = null,
+    val folders: List<FolderReport> = emptyList(),
 )
 
 /** One job's state for the support snapshot. */

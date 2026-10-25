@@ -95,9 +95,14 @@ private fun validateHeaders(headers: Map<String, String>) {
     val headers: Map<String, String> = emptyMap(),
     val refreshSeconds: Long = 21_600,
     val provider: String? = null,
+    /** Minutes added to every program's start and end at import, for a guide that writes the wrong offset. */
+    val offsetMinutes: Int = 0,
 ) {
     fun validate() {
         require(id.matches(idPattern)) { "Invalid guide ID" }
+        require(offsetMinutes in -MAX_GUIDE_OFFSET_MINUTES..MAX_GUIDE_OFFSET_MINUTES) {
+            "Guide offsetMinutes must be between -$MAX_GUIDE_OFFSET_MINUTES and $MAX_GUIDE_OFFSET_MINUTES"
+        }
         require((url == null) != (provider == null)) { "A guide needs a url" }
         url?.let(::httpUri)
         require(refreshSeconds >= MIN_GUIDE_REFRESH_SECONDS) {
@@ -131,6 +136,9 @@ const val NATIVE_GUIDE_REFRESH: Long = 3600
 
 private const val MIN_REFRESH_SECONDS = 60
 private const val MIN_GUIDE_REFRESH_SECONDS = 300
+
+/** A day either way: more than that is a wrong guide, not a wrong offset. */
+private const val MAX_GUIDE_OFFSET_MINUTES = 1440
 
 /** The source file as written: providers and guides, with `${NAME}` references left as they are. */
 @Serializable

@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.catalog.Offering
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
+import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
 import dev.jamesrich.sofaking.backend.upstream.inflateHead
 import dev.jamesrich.sofaking.backend.upstream.isGzip
 import dev.jamesrich.sofaking.backend.upstream.readHead
@@ -42,6 +43,7 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.io.readByteArray
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.net.URI
 import kotlin.coroutines.coroutineContext
 
@@ -156,13 +158,14 @@ class MediaRelay(
                 // The session let this request go before the stream started (released, retuned, or replaced by the
                 // player's next request); that cancels the wait, and is not the upstream's failure.
                 if (!job.isActive) throw withContext(NonCancellable) { sessions.media.letGo(id) }
+                resource.stats.stalls.incrementAndGet()
                 throw ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
             }
             call.response.header(HttpHeaders.CacheControl, "no-store")
             call.respondBytesWriter(contentType = ContentType.parse("video/mp2t")) {
                 for (chunk in reader.chunks) {
                     writeFully(chunk)
-                    resource.bytes.addAndGet(chunk.size.toLong())
+                    resource.stats.bytes.addAndGet(chunk.size.toLong())
                     flush()
                 }
             }
@@ -185,18 +188,23 @@ class MediaRelay(
         val url = if (root) stream.url else resource.url
         val ads = resource.ads
         var tapped: TappedSegment? = null
-        permits.withPermit {
-            relayResource(
-                http, feeds.upstream, call, withDeliveryDirectives(url, call), stream,
-                path = { sessions.media.resourcePath(id, epoch, it) },
-                sent = { resource.bytes.addAndGet(it) },
-                manifest = { text, source ->
-                    resource.playlists.steady(text, source).let { ads?.annotate(it, source) ?: it }
-                },
-                sniffed = { protocol -> if (root && protocol == "mpegts") protocolMismatch(id, epoch, job, "mpegts") },
-                tap = ads?.let { { found -> tapped = found } },
-                keepBytes = audio != null && ads?.listening == true,
-            )
+        countStalls(call, job, resource.stats) {
+            permits.withPermit {
+                relayResource(
+                    http, feeds.upstream, call, withDeliveryDirectives(url, call), stream,
+                    path = { sessions.media.resourcePath(id, epoch, it) },
+                    sent = { resource.stats.bytes.addAndGet(it) },
+                    manifest = { text, source ->
+                        resource.playlists.steady(text, source).let { ads?.annotate(it, source) ?: it }
+                    },
+                    sniffed = { protocol ->
+                        if (root && protocol == "mpegts") protocolMismatch(id, epoch, job, "mpegts")
+                    },
+                    tap = ads?.let { { found -> tapped = found } },
+                    keepBytes = audio != null && ads?.listening == true,
+                    streamed = { resource.stats.segments.incrementAndGet() },
+                )
+            }
         }
         ads?.served(url, tapped?.cues)
         val bytes = tapped?.bytes
@@ -207,6 +215,26 @@ class MediaRelay(
         }
     }
 }
+
+/**
+ * Runs [block], a media request, and counts a stall in [stats] when the upstream refused or dropped it before the
+ * player was answered anything, while the request was still wanted and its stream had not moved on.
+ */
+private inline fun <T> countStalls(call: ApplicationCall, job: Job, stats: SessionStats, block: () -> T): T = try {
+    block()
+} catch (e: ApiFailure) {
+    if (e.code != Wire.ErrorCode.STREAM_CHANGED && stalled(call, job)) stats.stalls.incrementAndGet()
+    throw e
+} catch (e: IOException) {
+    if (stalled(call, job)) stats.stalls.incrementAndGet()
+    throw e
+} catch (e: UpstreamRejectedException) {
+    if (stalled(call, job)) stats.stalls.incrementAndGet()
+    throw e
+}
+
+/** Whether a media request that failed was still wanted and had answered nothing yet. */
+private fun stalled(call: ApplicationCall, job: Job): Boolean = job.isActive && !call.response.isCommitted
 
 /** How much of a segment read for cues passes through at a time. */
 private const val SEGMENT_READ = 64 * 1024
@@ -235,7 +263,8 @@ private const val ENCODED_LIMIT = 8 * 1024 * 1024
  * the protocol of the body's head before anything is answered, [sent] each count of bytes answered, and [refused]
  * an upstream status other than 200 or 206. Given [tap], a transport stream segment is read for SCTE-35 cues as it
  * streams (see [SpliceReader]), and [tap] gets what it carried once all of it is answered, with its bytes when
- * [keepBytes].
+ * [keepBytes]. [streamed] hears of each resource streamed as the upstream sent it, a segment rather than a
+ * manifest.
  */
 internal suspend fun relayResource(
     http: HttpClient,
@@ -252,6 +281,7 @@ internal suspend fun relayResource(
     manifest: (String, URI) -> String = { text, _ -> text },
     tap: ((TappedSegment) -> Unit)? = null,
     keepBytes: Boolean = false,
+    streamed: () -> Unit = {},
 ) {
     http.withUpstreamResponse(
         url,
@@ -271,8 +301,13 @@ internal suspend fun relayResource(
         call.response.header(HttpHeaders.CacheControl, "no-store")
         when {
             relayed.isManifest(protocol) -> relayed.manifest(manifest, path)
+
             relayed.isEncoded() -> relayed.encoded()
-            else -> relayed.streamed(tap?.takeIf { protocol == "mpegts" }, keepBytes)
+
+            else -> {
+                relayed.streamed(tap?.takeIf { protocol == "mpegts" }, keepBytes)
+                streamed()
+            }
         }
     }
 }

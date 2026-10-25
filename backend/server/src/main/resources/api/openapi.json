@@ -169,7 +169,10 @@
           "children": { "type": "integer", "description": "A show's seasons (or episodes when it has no season folders), or a season's episodes." },
           "unwatched": { "type": "integer", "description": "A show's or season's unwatched episodes." },
           "playState": { "oneOf": [{ "$ref": "#/components/schemas/PlayState" }, { "type": "null" }], "description": "A movie's, episode's or video's watch state; null before it is started." },
-          "extra": { "type": ["string", "null"], "enum": ["trailer", "featurette", "behind_the_scenes", "deleted_scene", "interview", "scene", "short", "other", null], "description": "An extra's kind; null for anything else. A client shows a kind it does not know as other." }
+          "extra": { "type": ["string", "null"], "enum": ["trailer", "featurette", "behind_the_scenes", "deleted_scene", "interview", "scene", "short", "other", null], "description": "An extra's kind; null for anything else. A client shows a kind it does not know as other." },
+          "tmdbId": { "type": ["integer", "null"], "description": "A movie's or show's TMDB id, from its name, its .nfo or the TMDB match." },
+          "tvdbId": { "type": ["integer", "null"], "description": "The TheTVDB id, from the name, the .nfo or TMDB's record of a show." },
+          "imdbId": { "type": ["string", "null"], "description": "The IMDb id, tt and digits, from the name, the .nfo or TMDB's record." }
         }
       },
       "LibraryPage": {
@@ -295,7 +298,10 @@
         "properties": {
           "id": { "type": "string" }, "channelId": { "type": "string" }, "intent": { "type": "string" }, "external": { "type": "boolean", "description": "An M3U or HDHomeRun player" },
           "busy": { "type": "boolean", "description": "A media request in flight" }, "providerId": { "type": "string" }, "expiresAt": { "type": "string", "format": "date-time" },
-          "startedAt": { "type": "string", "format": "date-time" }, "client": { "type": ["string", "null"], "description": "The player's address" }, "bytes": { "type": "integer", "description": "Bytes relayed to the player" }
+          "startedAt": { "type": "string", "format": "date-time" }, "client": { "type": ["string", "null"], "description": "The player's address" }, "bytes": { "type": "integer", "description": "Bytes relayed to the player" },
+          "offeringId": { "type": "string", "description": "The source playing" }, "bitrateKbps": { "type": "integer", "description": "The rate media went to the player over the last 10 seconds or so" },
+          "stalls": { "type": "integer", "description": "Media requests the upstream refused or dropped before anything was answered" }, "segmentsServed": { "type": "integer", "description": "HLS segments relayed" },
+          "sourceSwitches": { "type": "integer", "description": "Moves to another source, on a failure or by hand" }
         }
       },
       "CandidatePage": {
@@ -329,7 +335,8 @@
             "id": { "type": "string" }, "providerId": { "type": ["string", "null"] }, "channelName": { "type": ["string", "null"] }, "protocol": { "type": ["string", "null"] },
             "status": { "type": "string", "description": "A health status, or WITHDRAWN when no provider lists the source now" }, "manuallyDisabled": { "type": "boolean" } } } },
           "guideStatus": { "type": "string", "enum": ["unassigned", "empty", "available", "stale"] }, "createdBy": { "type": "string", "enum": ["policy", "manual"] },
-          "autoDisabledAt": { "type": ["string", "null"] }, "autoDisabledReason": { "type": ["string", "null"] }
+          "autoDisabledAt": { "type": ["string", "null"] }, "autoDisabledReason": { "type": ["string", "null"] },
+          "gracenoteId": { "type": ["string", "null"], "description": "The policy's Gracenote station id for the station" }
         }
       },
       "CreateLineupEntry": {
@@ -348,7 +355,8 @@
           "number": { "type": ["string", "null"] }, "name": { "type": ["string", "null"] }, "group": { "type": ["string", "null"] }, "logo": { "type": ["string", "null"] },
           "enabled": { "type": ["boolean", "null"] }, "offerings": { "type": ["array", "null"], "items": { "type": "string" } },
           "guide": { "oneOf": [{ "$ref": "#/components/schemas/GuideMapping" }, { "type": "null" }] }, "position": { "type": ["integer", "null"], "description": "Not with a policy" },
-          "clearGroup": { "type": "boolean" }, "clearLogo": { "type": "boolean" }, "clearGuide": { "type": "boolean" }
+          "clearGroup": { "type": "boolean" }, "clearLogo": { "type": "boolean" }, "clearGuide": { "type": "boolean" },
+          "gracenoteId": { "type": ["string", "null"], "pattern": "^[0-9]{1,10}$", "description": "Only with a policy" }, "clearGracenoteId": { "type": "boolean" }
         }
       },
       "ReorderLineup": { "type": "object", "required": ["ids"], "properties": { "ids": { "type": "array", "items": { "type": "string" }, "description": "Every entry once" } } },
@@ -419,6 +427,21 @@
           "refused": { "type": "array", "description": "Up to 10 addresses refused since the start that are still refused, newest first", "items": { "type": "object", "properties": { "address": { "type": "string" }, "lastAt": { "type": "string" }, "path": { "type": "string" } }, "required": ["address", "lastAt", "path"] } }
         },
         "required": ["enabled", "open", "configured", "allowed"]
+      },
+      "GuideMatch": {
+        "type": "object", "description": "A guide channel proposed for a station by name. confidence is 1 when the cleaned names are equal, less as they differ; proposals start at 0.6.",
+        "properties": {
+          "station": { "type": "string", "description": "The station key" }, "stationId": { "type": "string" }, "stationName": { "type": "string" }, "number": { "type": "string" },
+          "guideId": { "type": "string" }, "channelId": { "type": "string" }, "channelName": { "type": "string" }, "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "required": ["station", "stationId", "stationName", "number", "guideId", "channelId", "channelName", "confidence"]
+      },
+      "GuideMatchChoice": {
+        "type": "object", "properties": { "station": { "type": "string", "description": "The station key" }, "guideId": { "type": "string" }, "channelId": { "type": "string" } }, "required": ["station", "guideId", "channelId"]
+      },
+      "AcceptGuideMatches": { "type": "object", "properties": { "minConfidence": { "type": "number", "minimum": 0, "maximum": 1 } } },
+      "GuideMatchResult": {
+        "type": "object", "properties": { "accepted": { "type": "integer" }, "applied": { "oneOf": [{ "$ref": "#/components/schemas/PolicyApplyResult" }, { "type": "null" }] } }, "required": ["accepted"]
       },
       "UpdateHdhrAccess": {
         "type": "object", "properties": { "allowed": { "type": "array", "maxItems": 64, "items": { "type": "string", "description": "An IP literal or CIDR block" } } }, "required": ["allowed"]
@@ -714,8 +737,9 @@
         "responses": { "200": { "description": "application/vnd.apple.mpegurl, video/mp2t or the resource's own type" }, "206": { "description": "A range of the resource" }, "404": { "$ref": "#/components/responses/Error" }, "410": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "502": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
     },
     "/output/playlist.m3u": {
-      "get": { "tags": ["Outputs"], "summary": "The enabled lineup as an M3U playlist", "description": "audio/x-mpegurl; tvg-id is the channel id, URLs use the request's Host. The stream suffix follows the protocol of the source the channel would play now.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
-        "responses": { "200": { "description": "" }, "401": { "$ref": "#/components/responses/Error" } } }
+      "get": { "tags": ["Outputs"], "summary": "The enabled lineup as an M3U playlist", "description": "audio/x-mpegurl; tvg-id is the channel id, URLs use the request's Host. The stream suffix follows the protocol of the source the channel would play now; format=ts lists every stream as MPEG-TS. A channel with a Gracenote id in the policy carries tvc-guide-stationid, any other with a logo tvc-guide-art.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+        "parameters": [{ "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
+        "responses": { "200": { "description": "" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" } } }
     },
     "/output/guide.xml": {
       "get": { "tags": ["Outputs"], "summary": "The lineup's programs as XMLTV", "description": "From three hours ago to days ahead; the server's runtime setting applies when days is absent.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
@@ -723,8 +747,8 @@
         "responses": { "200": { "description": "application/xml" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" } } }
     },
     "/output/stream/{channelId}.{suffix}": {
-      "get": { "tags": ["Outputs"], "summary": "Open a player session for the channel and stream it", "description": "An HLS source answers 302 to the session's playlist; an MPEG-TS source streams video/mp2t here. The session is released 60 s after the last media request.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
-        "parameters": [{ "name": "channelId", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "suffix", "in": "path", "required": true, "schema": { "type": "string", "enum": ["m3u8", "ts"] } }],
+      "get": { "tags": ["Outputs"], "summary": "Open a player session for the channel and stream it", "description": "An HLS source answers 302 to the session's playlist; an MPEG-TS source streams video/mp2t here, and with format=ts so does an HLS source, remuxed. The session is released 60 s after the last media request.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+        "parameters": [{ "name": "channelId", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "suffix", "in": "path", "required": true, "schema": { "type": "string", "enum": ["m3u8", "ts"] } }, { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
         "responses": { "200": { "description": "video/mp2t" }, "302": { "description": "To the session's playlist under /media/sessions/" }, "404": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
     },
     "/logos/{key}": {
@@ -744,6 +768,15 @@
     "/api/v1/library/home": {
       "get": { "tags": ["Library"], "summary": "Continue watching, Recently added per library, and the libraries", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryHome" } } } } } }
+    },
+    "/api/v1/library/lookup": {
+      "get": { "tags": ["Library"], "summary": "The movies and shows an id names", "description": "Every movie and show whose TMDB, TheTVDB or IMDb id is one of those given, in title order. At least one id; 400 for none or a malformed one.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "parameters": [
+          { "name": "tmdb", "in": "query", "schema": { "type": "integer", "minimum": 1 } },
+          { "name": "tvdb", "in": "query", "schema": { "type": "integer", "minimum": 1 } },
+          { "name": "imdb", "in": "query", "schema": { "type": "string", "pattern": "^[Tt][Tt][0-9]{5,10}$" } }
+        ],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/library/search": {
       "get": { "tags": ["Library"], "summary": "Titles holding q: movies, shows and videos, then episodes", "description": "Movies, shows and videos whose title holds q, then those with a cast member or director whose name holds it, then episodes by title. At most 50.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
@@ -812,6 +845,11 @@
     "/api/v1/admin/sessions": {
       "get": { "tags": ["Admin"], "summary": "Live playback sessions", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ActiveSession" } } } } } } }
+    },
+    "/api/v1/admin/sessions/{id}/switch-source": {
+      "post": { "tags": ["Admin"], "summary": "Move a live session to its channel's next source", "description": "Passes over the source playing and those the session was switched away from, all of them again once none is left. The session keeps its id and moves to a new epoch: the app re-reads it, and another player's next media request answers 410.", "security": [{ "adminToken": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "The session on its new source", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ActiveSession" } } } }, "409": { "$ref": "#/components/responses/Error" }, "410": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/candidates": {
       "get": { "tags": ["Admin"], "summary": "Provider channels with their sources and the entries using them", "security": [{ "adminToken": [] }],
@@ -893,6 +931,25 @@
       "get": { "tags": ["Policy"], "summary": "Why a station key is what it is", "security": [{ "adminToken": [] }],
         "parameters": [{ "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StationExplanation" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/policy/guide-matches": {
+      "get": { "tags": ["Policy"], "summary": "Guide channels proposed by name", "description": "For each station no guide lists by tvg-id, up to three guide channels whose names match its own, best first, in lineup order. Both names lose the policy's guideMatches prefixes and suffixes first. Empty before the first apply.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/GuideMatch" } } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/policy/guide-matches/accept": {
+      "post": { "tags": ["Policy"], "summary": "Accept a proposed guide channel", "description": "Writes the channel as the station's guide override, then applies. 404 GUIDE_CHANNEL_NOT_FOUND when the guide does not list the channel.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideMatchChoice" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyApplyResult" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/policy/guide-matches/accept-all": {
+      "post": { "tags": ["Policy"], "summary": "Accept every station's best proposal", "description": "Accepts each station's best proposal at minConfidence or more, else at the policy's guideMatches.acceptAbove, in one write, then applies once. A station whose best two proposals tie on different channels is skipped.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AcceptGuideMatches" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideMatchResult" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/policy/guide-matches/dismiss": {
+      "post": { "tags": ["Policy"], "summary": "Dismiss a proposed guide channel", "description": "Adds the proposal to the policy's guideMatches.dismissed, so it is never proposed again, then applies.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideMatchChoice" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyApplyResult" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/source-file": {
       "get": { "tags": ["Admin"], "summary": "The source file as written", "description": "Providers and guides as the file holds them, ${NAME} references unexpanded; an empty document when the server has no source file.", "security": [{ "adminToken": [] }],

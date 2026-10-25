@@ -90,7 +90,7 @@ internal val NAV: List<Section> = listOf(
         "/admin/lineup",
         "Channels",
         "channels",
-        listOf("/admin/lineup", "/admin/required", "/admin/merges", "/admin/groups"),
+        listOf("/admin/lineup", "/admin/required", "/admin/merges", "/admin/guide-matches", "/admin/groups"),
     ),
     Section("/admin/providers", "Sources", "sources", listOf("/admin/providers", "/admin/ads")),
     Section("/admin/recordings", "Recordings", "recordings"),
@@ -105,12 +105,13 @@ internal val NAV: List<Section> = listOf(
     ),
 )
 
-/** The Channels section's tabs; Required, Merges and Groups exist only under a lineup policy. */
+/** The Channels section's tabs; all but Channels exist only under a lineup policy. */
 internal val CHANNEL_TABS =
     listOf(
         Tab("/admin/lineup", "Channels"),
         Tab("/admin/required", "Required", "required"),
         Tab("/admin/merges", "Merges", "merges"),
+        Tab("/admin/guide-matches", "Guide matches"),
         Tab("/admin/groups", "Groups"),
     )
 internal val SOURCE_TABS = listOf(Tab("/admin/providers", "Sources", "sources"), Tab("/admin/ads", "Ads"))

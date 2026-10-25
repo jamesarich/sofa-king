@@ -144,7 +144,7 @@ class GuideService(
             val started = clock.instant()
             runCatchingCancellable {
                 val wantedIds = wanted()[config.id].orEmpty()
-                val parsed = fetcher.fetch(config, wantedIds)
+                val parsed = fetcher.fetch(config, wantedIds).shifted(config.offsetMinutes)
                 val importedAt = clock.instant()
                 store.saveGuide(config.id, importedAt, parsed.channels, parsed.programs)
                 val ends = parsed.programs.groupBy { it.channelId }.mapValues { (_, rows) -> rows.maxOf { it.endsAt } }
@@ -203,6 +203,14 @@ class GuideService(
             }
         }
     }
+}
+
+/** This guide with every program moved by [minutes]; itself when that is 0. */
+internal fun ParsedGuide.shifted(minutes: Int): ParsedGuide = if (minutes == 0) {
+    this
+} else {
+    val by = Duration.ofMinutes(minutes.toLong())
+    copy(programs = programs.map { it.copy(startsAt = it.startsAt.plus(by), endsAt = it.endsAt.plus(by)) })
 }
 
 /** This list with the status of guide [id] replaced by what [update] makes of it. */

@@ -145,6 +145,7 @@ private fun FlowContent.stationEdit(chrome: Chrome, view: StationView, back: Str
                 }
             }
             groupField(view)
+            if (view.revision != null) gracenoteField(view)
         }
         if (view.revision != null) {
             p("muted small") {
@@ -159,6 +160,21 @@ private fun FlowContent.stationEdit(chrome: Chrome, view: StationView, back: Str
             a(back, classes = "btn quiet") { +"Cancel" }
         }
     }
+}
+
+private fun DIV.gracenoteField(view: StationView) = div("field") {
+    label {
+        htmlFor = "s-gracenote"
+        +"Gracenote station id"
+    }
+    textInput(name = "gracenoteId") {
+        id = "s-gracenote"
+        value = view.row.station?.gracenoteId.orEmpty()
+        maxLength = "10"
+        pattern = "[0-9]*"
+        attributes["inputmode"] = "numeric"
+    }
+    small("muted") { +"Channels DVR takes this channel's guide from Gracenote." }
 }
 
 private fun DIV.groupField(view: StationView) = div("field") {

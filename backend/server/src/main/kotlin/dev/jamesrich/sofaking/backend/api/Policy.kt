@@ -15,7 +15,44 @@ import kotlinx.serialization.Serializable
     val health: PolicyHealth = PolicyHealth(),
     val maxSourcesPerStation: Int = 16,
     val stations: Map<String, StationOverride> = emptyMap(),
+    val guideMatches: PolicyGuideMatches = PolicyGuideMatches(),
 )
+
+/**
+ * How guide channels are proposed by name for a station no guide lists: [ignorePrefixes] and [ignoreSuffixes] come
+ * off both names first, compared case-insensitively (`US:`, `FHD`); Accept all takes each station's best proposal at
+ * [acceptAbove] or more; [dismissed] lists the proposals a person turned down, never proposed again.
+ */
+@Serializable data class PolicyGuideMatches(
+    val ignorePrefixes: List<String> = emptyList(),
+    val ignoreSuffixes: List<String> = emptyList(),
+    val acceptAbove: Double = 0.9,
+    val dismissed: List<GuideMatchChoice> = emptyList(),
+)
+
+/** One station key and the guide channel proposed for it. */
+@Serializable data class GuideMatchChoice(val station: String, val guideId: String, val channelId: String)
+
+/**
+ * A guide channel proposed for station [station] (its key), whose name matches the station's with [confidence] from 0
+ * to 1: 1 when the two are equal once cleaned, less as they differ.
+ */
+@Serializable data class GuideMatch(
+    val station: String,
+    val stationId: String,
+    val stationName: String,
+    val number: String,
+    val guideId: String,
+    val channelId: String,
+    val channelName: String,
+    val confidence: Double,
+)
+
+/** Accepts each station's best proposal at [minConfidence] or more, else at the policy's `guideMatches.acceptAbove`. */
+@Serializable data class AcceptGuideMatches(val minConfidence: Double? = null)
+
+/** How many proposals were written as station guides, and the apply that followed. */
+@Serializable data class GuideMatchResult(val accepted: Int, val applied: PolicyApplyResult? = null)
 
 /**
  * [version] selects the name normalization (1 or 2); [aliases] map one normalized name onto another station's key.
@@ -100,7 +137,10 @@ import kotlinx.serialization.Serializable
     val requireVerified: Boolean = true,
 )
 
-/** Overrides for one station. [prefer] orders and [exclude] removes unpinned sources by provider ID. */
+/**
+ * Overrides for one station. [prefer] orders and [exclude] removes unpinned sources by provider ID. [gracenoteId] is
+ * the station's Gracenote (TMS) station id, which the M3U output passes to Channels DVR for its guide.
+ */
 @Serializable data class StationOverride(
     val id: String? = null,
     val number: String? = null,
@@ -108,6 +148,7 @@ import kotlinx.serialization.Serializable
     val group: String? = null,
     val logo: String? = null,
     val guide: GuideMapping? = null,
+    val gracenoteId: String? = null,
     val enabled: Boolean? = null,
     val required: Boolean = false,
     val sources: List<SourcePin> = emptyList(),
@@ -139,6 +180,7 @@ import kotlinx.serialization.Serializable
     val offeringIds: List<String> = emptyList(),
     val disabledReason: String? = null,
     val guideCandidates: List<GuideMapping> = emptyList(),
+    val gracenoteId: String? = null,
 )
 
 /**

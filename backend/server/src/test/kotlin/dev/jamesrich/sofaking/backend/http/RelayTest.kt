@@ -320,6 +320,10 @@ class RelayTest {
                 val refused = client.get(variants[1])
                 assertEquals(HttpStatusCode.BadGateway, refused.status)
                 assertEquals("UPSTREAM_REJECTED", Json.decodeFromString<ApiError>(refused.bodyAsText()).code)
+                assertEquals(1, runtime.sessions.snapshot().single().stalls, "the refusal counts as a stall")
+                val segment = client.get(variants[0]).bodyAsText().lineSequence().first { it.startsWith("/media/") }
+                assertEquals(HttpStatusCode.OK, client.get(segment).status)
+                assertEquals(1, runtime.sessions.snapshot().single().segmentsServed, "playlists are not segments")
             } finally {
                 runtime.close()
                 store.close()

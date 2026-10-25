@@ -6,7 +6,6 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.catalog.stableId
-import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.store.IdentityStore
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -19,12 +18,9 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
-import kotlinx.coroutines.job
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import java.net.URI
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.coroutines.coroutineContext
 
 @Serializable
 internal data class Discover(
@@ -188,7 +184,7 @@ private class HdhrDevices(
             if (tuners.incrementAndGet() > runtime.settings.current.hdhrTuners) {
                 tunersBusy(call)
             } else {
-                serveExternal(call, runtime, entry.id, shareHls = false) { session -> remux(call, session.id) }
+                serveExternal(call, runtime, entry.id, shareHls = false) { session -> remux(call, runtime, session.id) }
             }
         } catch (e: ApiFailure) {
             // Plex understands a tuner that is busy; a session slot or a source that is gone looks the same to it.
@@ -197,28 +193,6 @@ private class HdhrDevices(
         } finally {
             tuners.decrementAndGet()
         }
-    }
-
-    private suspend fun remux(call: ApplicationCall, sessionId: String): Boolean {
-        // FFmpeg reads the source through the loopback relay, not the session, so this request is what holds the
-        // session.
-        val media = runtime.sessions.media
-        media.attach(sessionId, coroutineContext.job)
-        val stream = try {
-            runtime.feeds.playable(media.offeringOf(sessionId))
-        } catch (e: ProviderFailure) {
-            throw ApiFailure(
-                HttpStatusCode.ServiceUnavailable,
-                "SOURCE_UNAVAILABLE",
-                "Source could not be resolved",
-                true,
-                e,
-            )
-        }
-        runtime.feeds.upstream.check(URI(stream.url))
-        val bytes = media.bytesOf(sessionId)
-        runtime.remux.stream(call, stream) { bytes.addAndGet(it.toLong()) }
-        return false
     }
 
     private companion object {

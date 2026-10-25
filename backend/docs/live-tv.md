@@ -112,8 +112,9 @@ Each guide object configures one XMLTV source, independent of any provider:
 | `url` | Required | HTTP(S) XMLTV URL, plain or gzip (detected by content, not by extension) |
 | `headers` | `{}` | Request headers for the guide |
 | `refreshSeconds` | `21600` | Import interval; minimum 300 seconds |
+| `offsetMinutes` | `0` | Minutes added to every program's start and end at import, -1440 to 1440, for a guide that writes the wrong time zone offset |
 
-The server keeps every guide's channel index for guide mapping, and programs only for the channels the lineup maps onto that guide. Adding or changing a mapping triggers a refresh of that guide, so a newly mapped channel has programs within one fetch. Each guide fails on its own: `/api/v1/admin/guides` reports `IMPORT_FAILED` for the failing one, and the others keep refreshing. [Guide imports](architecture.md#guide-imports) describes the parser, its redirects and timeouts, and the XML it accepts.
+The server keeps every guide's channel index for guide mapping, and programs only for the channels the lineup maps onto that guide. Adding or changing a mapping triggers a refresh of that guide, so a newly mapped channel has programs within one fetch. A station whose sources no guide lists by `tvg-id` gets guide channels proposed by name on the portal's Guide matches tab ([guide matches](lineup-policy.md#guide-matches)). Each guide fails on its own: `/api/v1/admin/guides` reports `IMPORT_FAILED` for the failing one, and the others keep refreshing. [Guide imports](architecture.md#guide-imports) describes the parser, its redirects and timeouts, and the XML it accepts.
 
 ### Import limits
 
@@ -167,6 +168,27 @@ To set up a player:
 4. To change the token, [rotate it](operations.md#rotating-tokens), then update the playlist and guide URLs in each player.
 
 Players that accept a single URL can open a stream URL directly, without the playlist.
+
+### Channels DVR
+
+Channels DVR takes the playlist as a custom channels source, with one stream format for the whole source, so use the playlist with `format=ts`, which serves every channel as MPEG-TS (an HLS source is remuxed on the server, as for Plex):
+
+1. In Channels DVR's web settings, add a source and choose Custom Channels.
+2. Name it, set Stream Format to MPEG-TS, and add it by URL: `http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN&format=ts`.
+3. For the guide, set the source's XMLTV guide data to `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN`. A channel with a Gracenote station id takes its guide from Gracenote instead.
+
+Each Channels stream is a player session and counts against `SOFA_MAX_SESSIONS`.
+
+For a channel that broadcasts over the air or on cable, set its Gracenote (TMS) station id on its [Channel page](admin.md#pages) or as `gracenoteId` in the [lineup policy](lineup-policy.md#station-overrides); `scripts/generate-policy.py --station-ids` takes a CSV of them. The playlist then carries `tvc-guide-stationid`, and Channels shows Gracenote's programs, artwork and series ids for it. Any other channel with a logo carries `tvc-guide-art`, which Channels shows as the art of programs the guide has no image for.
+
+### Jellyfin
+
+Jellyfin takes the lineup either as an HDHomeRun tuner or as an M3U tuner, and the guide as XMLTV:
+
+1. In the Jellyfin dashboard, open Live TV and add a tuner device. For HDHomeRun, enter `http://SERVER_HOST:9193` and allow the Jellyfin server's address in `SOFA_HDHR_ALLOW` (or on the portal's Plex page), as for [Plex](#plex-live-tv); it plays every channel as MPEG-TS. For M3U Tuner, enter the playlist URL with the token.
+2. Add a TV guide data provider of type XMLTV with the guide URL with the token.
+3. Map channels by `tvg-id` if Jellyfin asks; the playlist and the guide use the same channel IDs.
+4. Run the Refresh Guide scheduled task after a lineup change, or wait for its daily run.
 
 ## Plex Live TV
 

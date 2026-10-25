@@ -269,6 +269,24 @@ class LibraryCatalog internal constructor(
     }
 
     /**
+     * The movies and shows named by any of [ids], in title order: the answer to "is this one in the library", as a
+     * request tool or a webhook asks it.
+     */
+    suspend fun lookup(ids: ProviderIds): LibraryPage {
+        val snapshot = snapshot()
+        val states = playStates()
+        val found = snapshot.views.values.filter { view ->
+            val item = view.item
+            (item.kind == ItemKind.MOVIE || item.kind == ItemKind.SHOW) && (
+                (ids.tmdb != null && item.tmdbId == ids.tmdb) ||
+                    (ids.tvdb != null && item.tvdbId == ids.tvdb) ||
+                    (ids.imdb != null && item.imdbId == ids.imdb)
+                )
+        }.sortedBy { sortTitle(it.item.title) }
+        return LibraryPage(found.map { it.out(snapshot, states) }, found.size)
+    }
+
+    /**
      * Records where playback of [id] stopped. A stop in the first 5% leaves the item where it was; one past 90% marks
      * it watched. Marking a show or season watched or unwatched marks every episode in it.
      */

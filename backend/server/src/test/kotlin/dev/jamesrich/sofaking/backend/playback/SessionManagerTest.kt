@@ -338,6 +338,61 @@ class SessionManagerTest {
         }
     }
 
+    @Test fun `switch source keeps the session id and turns through every source`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-switch-")
+        try {
+            HttpClient(CIO).use { http ->
+                openStore(dir).use { store ->
+                    val clock = MutableClock()
+                    val config = FeedConfig("p", "http://example.test/feed.m3u", probe = false)
+                    val offerings = listOf("first", "second", "third").map {
+                        Offering(it, "c", "p", "http://example.test/$it.ts", "mpegts")
+                    }
+                    store.saveSnapshot(
+                        FeedSnapshot("p", listOf(Channel("c", "1", "Station")), offerings, clock.now.toString()),
+                    )
+                    for (offering in offerings) {
+                        store.recordObservation(
+                            offering.id,
+                            Observation("ok-${offering.id}", clock.now, true),
+                            clock.now,
+                        )
+                    }
+                    val feeds = FeedService(listOf(config), store, http, clock)
+                    feeds.initialize()
+                    val catalog = lineupStack(feeds, store, clock, http).catalog
+                    val sessions = SessionManager(catalog, store, clock)
+                    val opened = sessions.open(OpenPlayback(catalog.catalog().channels.single().id, "watch", "k"))
+                    val held = Job()
+                    sessions.media.acquire(opened.id, 1, opened.descriptor.url.substringAfterLast('/'), held)
+
+                    val switched = sessions.media.switchSource(opened.id)
+                    assertEquals(opened.id, switched.id)
+                    assertEquals(2, switched.descriptor.epoch)
+                    assertTrue(held.isCancelled, "the old source's request stops")
+                    val played = mutableListOf(sessions.media.offeringOf(opened.id).id)
+                    repeat(3) {
+                        sessions.media.switchSource(opened.id)
+                        played += sessions.media.offeringOf(opened.id).id
+                    }
+                    assertEquals(listOf("second", "third", "first", "second"), played)
+                    val stats = sessions.snapshot().single()
+                    assertEquals(4, stats.sourceSwitches)
+                    assertEquals("second", stats.offeringId)
+
+                    store.setManuallyDisabled("first", true)
+                    store.setManuallyDisabled("third", true)
+                    val refused = assertFailsWith<ApiFailure> { sessions.media.switchSource(opened.id) }
+                    assertEquals("NO_OTHER_SOURCE", refused.code)
+                    assertEquals("second", sessions.media.offeringOf(opened.id).id, "a refused switch stays put")
+                    sessions.close()
+                }
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
     @Test fun `re-acquiring a live MPEG-TS stream cancels the previous media request but HLS requests coexist`() =
         runBlocking<Unit> {
             val dir = Files.createTempDirectory("sofa-reacquire-")

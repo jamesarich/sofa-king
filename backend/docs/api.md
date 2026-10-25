@@ -57,6 +57,7 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | GET | `/api/v1/libraries/{id}/items?sort=&unwatched=&genre=&cursor=&limit=` | One page of a library's movies, shows or videos |
 | GET | `/api/v1/library/home` | Continue watching, then Recently added for each library, and the libraries |
 | GET | `/api/v1/library/items/{id}` | An item with its seasons or episodes, the next episode of a show, and a file's tracks |
+| GET | `/api/v1/library/lookup?tmdb=&tvdb=&imdb=` | The movies and shows whose TMDB, TheTVDB or IMDb (`tt…`) id is one of those given, as a `LibraryPage` in title order. 400 without an id or with a malformed one |
 | GET | `/api/v1/library/search?q=` | Movies, shows and videos whose title holds `q`, then those with a cast member or director whose name holds it, then episodes by title; at most 50 |
 | PUT | `/api/v1/library/items/{id}/play-state` | Record where playback stopped, or mark an item, season or show watched or unwatched |
 | GET | `/api/v1/library/items/{id}/subtitles/{index}` | A text subtitle track as WebVTT, see [play library files](#play-library-files) |
@@ -213,6 +214,10 @@ http://HOST/output/stream/CHANNEL_UUID.m3u8?token=TOKEN
 
 `tvg-id` is the channel ID, the same value the XMLTV uses, so players match guide and channel without a name lookup. `HOST` is the `Host` header of the request, so the URLs work through a port mapping; `X-Forwarded-Proto: https` switches the scheme. The stream suffix follows the protocol of the source the channel would play now: `.m3u8` for HLS, `.ts` for MPEG-TS and for a channel without an eligible source, which lists but fails at play time. After a source's protocol is detected (a probe or a fetch), the suffix changes on the player's next playlist refresh.
 
+For a player that takes one stream format for the whole playlist, such as Channels DVR, `?format=ts` lists every stream as `.ts` with `&format=ts`, and such a stream URL serves MPEG-TS whatever the source: an HLS source is remuxed through FFmpeg in the request, as the [HDHomeRun emulation](#hdhomerun-emulation) does, and the session ends when the player disconnects.
+
+Two attributes are for Channels DVR, and other players ignore them: a station with a `gracenoteId` in the lineup policy carries `tvc-guide-stationid="ID"`, so Channels takes its guide from Gracenote, and any other channel with a logo carries `tvc-guide-art` with the logo URL, the artwork Channels shows for its programs.
+
 `GET /output/guide.xml` is XMLTV: one `<channel id="CHANNEL_UUID">` per enabled channel with the name and the number as `<display-name>` values and the logo as `<icon>`, then `<programme>` elements from three hours ago to `days` ahead (`SOFA_XMLTV_DAYS`, default 3, or the value saved in the portal's [runtime settings](admin.md#settings); `?days=1`-`14` overrides). Times are `YYYYMMDDHHMMSS +0000`.
 
 Each program carries the metadata its guide source provides, in XMLTV order: `<title>`, `<sub-title>`, `<desc>`, `<date>`, `<category>`, `<icon>`, every `<episode-num>` the source gave with its own `system` (`xmltv_ns`, `onscreen`, `dd_progid` and others), `<previously-shown>` with its `start` when known, `<new/>` and `<rating>` with its `system` when known. `<title>`, `<sub-title>`, `<desc>` and the source's categories carry `lang` when the source named the title's language. `<icon>` is the source's own image URL, not one served from this server. A source XMLTV keeps at most 8 categories, 8 episode numbers and the first rating per program.
@@ -260,7 +265,8 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | --- | --- | --- |
 | GET | `/api/v1/admin/status` | One summary of the server, described [below](#server-status) |
 | GET | `/api/v1/admin/candidates?q=&provider=&limit=&offset=` | Candidates with their sources (`id`, `protocol`, `status`, `manuallyDisabled`) and the lineup entries using them; `q` matches name, exact number or `tvg-id`, case-insensitively; `limit` 1-1000 (default 100) |
-| GET | `/api/v1/admin/sessions` | Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`, `startedAt`, `client` (the player's address, once it made a request) and `bytes` sent to the player so far. An empty list means nothing is playing |
+| GET | `/api/v1/admin/sessions` | Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`, `startedAt`, `client` (the player's address, once it made a request), `bytes` sent to the player so far, `offeringId` of the source playing, `bitrateKbps` (the rate over the last 10 seconds or so), `stalls` (media requests the upstream refused or dropped before anything was answered), `segmentsServed` (HLS segments relayed) and `sourceSwitches` (moves to another source, on a failure or by hand). An empty list means nothing is playing |
+| POST | `/api/v1/admin/sessions/{id}/switch-source` | Move a live session to its channel's next source, see [source selection](source-health.md#source-selection); answers the session, or `409 NO_OTHER_SOURCE` |
 | GET | `/api/v1/admin/guides` | Guide import status: `lastSuccessAt`, `errorCode`, `channels`, retained `programs` |
 | GET | `/api/v1/admin/guides/{id}/channels?q=&limit=` | XMLTV channels of a guide (`channelId`, `displayName`, `icon`) |
 | GET | `/api/v1/admin/lineup` | Every entry in lineup order |
@@ -280,6 +286,10 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | POST | `/api/v1/admin/policy/apply` | Run the policy now: writes the lineup when it differs, logs each change, and writes assigned numbers and learned aliases back to the file. Fields are [below](#policy-results) |
 | GET | `/api/v1/admin/policy/findings` | Open findings of a run over the current candidates. Fields are [below](#policy-results) |
 | GET | `/api/v1/admin/policy/changes?limit=` | What policy runs changed, newest first, as `{"id", "appliedAt", "change"}`: `change` has the station `key`, `entryId`, `entryName`, `field`, `before`, `after` and the run's cause in `reason`. `limit` 1-1000 (default 100); the server keeps the newest 10,000 |
+| GET | `/api/v1/admin/policy/guide-matches` | Guide channels proposed by name for each station no guide lists, with a `confidence` from 0 to 1 ([guide matches](lineup-policy.md#guide-matches)) |
+| POST | `/api/v1/admin/policy/guide-matches/accept` | `{"station", "guideId", "channelId"}`: writes the channel as the station's guide and applies; returns the apply result. 404 `GUIDE_CHANNEL_NOT_FOUND` |
+| POST | `/api/v1/admin/policy/guide-matches/accept-all` | `{"minConfidence"}` (optional): accepts each station's best proposal at that confidence or more, else at `guideMatches.acceptAbove`, and applies once; returns `{"accepted", "applied"}` |
+| POST | `/api/v1/admin/policy/guide-matches/dismiss` | `{"station", "guideId", "channelId"}`: never proposes the channel for the station again, and applies |
 | GET | `/api/v1/admin/stations/{key}` | One station key: the station the policy builds, its pins, and every candidate that names the key or joins it, each `taken`, `skipped` or `claimed` with a `reason` |
 | GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `interval` or `api`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`. It survives a restart; before any sync, `lastSyncAt` is null. 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
 | POST | `/api/v1/admin/plex/sync` | Sync Plex now; returns the same status. A failure is reported in `lastError`, not as an error response |
@@ -336,7 +346,7 @@ The [server's policy models](../server/src/main/kotlin/dev/jamesrich/sofaking/ba
 - `devicesNeeded` and `devicesConfigured` are set with HDHomeRun range devices, and null otherwise.
 - `unmappedCategories` lists the raw categories no group mapping names, each as `{"provider", "category", "stations", "example"}`.
 
-An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings`, `guideStatus` and `createdBy` (`policy` for an entry the policy built, else `manual`). `offerings` lists the entry's sources in failover order, each with `id`, `providerId`, `channelName`, `protocol`, `status` and `manuallyDisabled`. `status` is a health state, or `WITHDRAWN` when no provider lists the source now. While the policy holds a station off for want of an eligible source, the entry also has `autoDisabledAt` and `autoDisabledReason` (`unavailable`).
+An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings`, `guideStatus` and `createdBy` (`policy` for an entry the policy built, else `manual`). `offerings` lists the entry's sources in failover order, each with `id`, `providerId`, `channelName`, `protocol`, `status` and `manuallyDisabled`. `status` is a health state, or `WITHDRAWN` when no provider lists the source now. While the policy holds a station off for want of an eligible source, the entry also has `autoDisabledAt` and `autoDisabledReason` (`unavailable`). With a policy, `gracenoteId` is the station's [Gracenote station id](lineup-policy.md#station-overrides).
 
 Create from a candidate, copying its number, name, logo, group, sources and (when its `tvg-id` is listed by a configured guide) guide mapping:
 
@@ -348,7 +358,7 @@ curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://SERVER_HOST:9193
 
 Any field in the body overrides the copied value: `id` (a UUID), `number`, `name`, `group`, `logo`, `enabled` (true when absent), `offerings` (source IDs in failover order), `guide`, `position` (insertion index). Without `channelId`, `number` and `name` are required.
 
-Update fields with `PATCH`; absent fields keep their value, `clearGroup`, `clearLogo` and `clearGuide` remove optional values, `position` moves the entry. Sending `enabled` clears `autoDisabledAt` and `autoDisabledReason`.
+Update fields with `PATCH`; absent fields keep their value, `clearGroup`, `clearLogo` and `clearGuide` remove optional values, `position` moves the entry. With a policy, `gracenoteId` sets the station's Gracenote station id and `clearGracenoteId` removes it; without one they answer `400`. Sending `enabled` clears `autoDisabledAt` and `autoDisabledReason`.
 
 ```sh
 curl --fail -X PATCH -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://SERVER_HOST:9193/api/v1/admin/lineup/ENTRY_ID \
@@ -374,6 +384,7 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | POST | `/admin/lineup/{id}/sources/{offeringId}/disable`, `/admin/lineup/{id}/sources/{offeringId}/probe` | Disable (`disabled=true`, after `confirm=yes`) or enable a source; queue a probe of it now |
 | POST | `/admin/lineup/bulk` | Hide, show or regroup the selected channels (`op` of `hide`, `show` or `group`, `id` for each, `target` for the group), after `confirm=yes` |
 | POST | `/admin/sessions/{id}/stop` | End a playback session, after `confirm=yes` |
+| POST | `/admin/sessions/{id}/switch` | Move a playback session to its channel's next source |
 | GET | `/admin/merges` | Suggested and learned aliases |
 | POST | `/admin/merges/accept`, `/admin/merges/dismiss`, `/admin/merges/never` | Accept a suggestion, dismiss it, or keep a learned pair apart |
 | GET | `/admin/required` | Required stations |

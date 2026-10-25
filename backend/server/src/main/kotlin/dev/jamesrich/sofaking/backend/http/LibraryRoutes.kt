@@ -1,7 +1,9 @@
 package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.library.IMDB_ID
 import dev.jamesrich.sofaking.backend.library.LibraryService
+import dev.jamesrich.sofaking.backend.library.ProviderIds
 import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.contract.OpenVodPlayback
 import dev.jamesrich.sofaking.contract.UpdatePlayState
@@ -9,6 +11,7 @@ import dev.jamesrich.sofaking.contract.UpdateVodPlayback
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.Parameters
 import io.ktor.server.application.install
 import io.ktor.server.http.content.LocalPathContent
 import io.ktor.server.plugins.partialcontent.PartialContent
@@ -46,11 +49,28 @@ fun Route.libraryRoutes(libraries: LibraryService) {
                 ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "q is 1 to $QUERY_LIMIT characters")
         call.respond(catalog.search(query, SEARCH_RESULTS))
     }
+    get("/api/v1/library/lookup") { call.respond(catalog.lookup(lookupIds(call.request.queryParameters))) }
     get("/api/v1/library/items/{id}") { call.respond(catalog.item(call.parameters["id"]!!)) }
     put("/api/v1/library/items/{id}/play-state") {
         call.respond(catalog.updatePlayState(call.parameters["id"]!!, call.appBody<UpdatePlayState>()))
     }
 }
+
+/** The ids `GET /api/v1/library/lookup` asks for: at least one of `tmdb`, `tvdb` and `imdb`, each well formed. */
+private fun lookupIds(query: Parameters): ProviderIds {
+    val ids = ProviderIds(
+        query["tmdb"]?.let { it.toIntOrNull()?.takeIf { id -> id > 0 } ?: badLookup() },
+        query["tvdb"]?.let { it.toIntOrNull()?.takeIf { id -> id > 0 } ?: badLookup() },
+        query["imdb"]?.lowercase()?.let { it.takeIf(IMDB_ID::matches) ?: badLookup() },
+    )
+    return if (ids.isEmpty) badLookup() else ids
+}
+
+private fun badLookup(): Nothing = throw ApiFailure(
+    HttpStatusCode.BadRequest,
+    "INVALID_REQUEST",
+    "Give tmdb or tvdb as a number, or imdb as tt and digits",
+)
 
 /**
  * Posters and backdrops under `/artwork/{item}/{poster|backdrop}`, and scrub thumbnail sheets under

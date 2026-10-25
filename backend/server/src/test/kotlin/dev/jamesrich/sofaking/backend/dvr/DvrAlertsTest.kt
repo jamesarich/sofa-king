@@ -23,8 +23,9 @@ import kotlin.test.assertEquals
 class DvrAlertsTest {
     private val start = Instant.parse("2026-10-17T20:00:00Z")
 
+    /** One airing per channel at [start], since the store keeps one recording per channel and start. */
     private fun recording(id: String, created: Long) = StoredRecording(
-        id, null, "c", "Channel C", start, start.plusSeconds(1800),
+        id, null, "channel-$id", "Channel $id", start, start.plusSeconds(1800),
         Duration.ofSeconds(60), Duration.ofSeconds(120), "News $id",
         state = Wire.RecordingState.SCHEDULED, createdAt = start.minusSeconds(10_000 - created),
         updatedAt = start.minusSeconds(10_000 - created),

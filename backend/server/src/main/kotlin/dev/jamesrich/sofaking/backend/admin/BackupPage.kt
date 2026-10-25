@@ -6,10 +6,12 @@ import dev.jamesrich.sofaking.backend.store.BackupKind
 import dev.jamesrich.sofaking.backend.store.DatabaseBackups
 import dev.jamesrich.sofaking.backend.store.RestoreRefused
 import io.ktor.http.ContentDisposition
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
+import io.ktor.server.request.contentType
 import io.ktor.server.request.receiveMultipart
 import io.ktor.server.response.header
 import io.ktor.server.response.respondFile
@@ -89,6 +91,11 @@ internal class BackupPages(private val portal: Portal) {
     private suspend fun RoutingContext.upload() {
         val session = call.session()
         val backups = backups()
+        // A body that is not a form upload carries no token, so it fails the token check like any other form.
+        if (!call.request.contentType().match(ContentType.MultiPart.FormData)) {
+            call.respondText("The form expired; reload the page and try again", status = HttpStatusCode.Forbidden)
+            return
+        }
         var csrf: String? = null
         var confirmed = false
         var sent = false

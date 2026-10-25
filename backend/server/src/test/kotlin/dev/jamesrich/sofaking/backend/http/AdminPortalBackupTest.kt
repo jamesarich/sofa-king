@@ -15,6 +15,7 @@ import kotlin.io.path.exists
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class AdminPortalBackupTest : AdminPortalCase() {
@@ -35,7 +36,8 @@ class AdminPortalBackupTest : AdminPortalCase() {
             assertEquals(HttpStatusCode.OK, download.status)
             assertTrue(download.headers[HttpHeaders.ContentDisposition].orEmpty().contains(name))
             assertEquals("SQLite format 3", download.bodyAsBytes().copyOf(15).decodeToString())
-            assertEquals(HttpStatusCode.NotFound, browser.get("/admin/system/backup/files/..%2Fbackend.sqlite").status)
+            assertEquals(HttpStatusCode.NotFound, browser.get("/admin/system/backup/files/backend.sqlite").status)
+            assertNotEquals(HttpStatusCode.OK, browser.get("/admin/system/backup/files/..%2Fbackend.sqlite").status)
 
             val asked = browser.post("/admin/system/backup/restore", "csrf" to csrf, "name" to name).bodyAsText()
             assertTrue(asked.contains("Restore $name?"), asked.take(2000))

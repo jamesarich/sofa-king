@@ -30,7 +30,9 @@ internal fun View.out(snapshot: Snapshot, states: Map<String, PlayStateRecord>):
     }
 
     else -> item.copy(
-        playState = states[record.id]?.let { PlayState(it.positionMs, it.durationMs, it.watched, it.updatedAt) },
+        playState = states[record.id]?.let {
+            PlayState(it.positionMs, it.durationMs, it.watched, it.updatedAt, it.dismissed)
+        },
     )
 }
 
@@ -96,19 +98,22 @@ internal fun related(snapshot: Snapshot, view: View): List<View> {
 
 /**
  * The items stopped part way, rewatches included, newest first, with the next episode of each show whose
- * last-played episode was finished.
+ * last-played episode was finished; an item the household dismissed stays off until it is played again.
  */
 internal fun continueWatching(snapshot: Snapshot, states: Map<String, PlayStateRecord>): List<View> {
     val picks = LinkedHashMap<String, Pair<View, String>>()
     for (state in states.values) {
+        if (state.positionMs == 0L || state.dismissed) continue
         val view = snapshot.views[state.itemId]
-        if (view != null && view.record.kind != ItemKind.EXTRA && state.positionMs > 0) {
+        if (view != null && view.record.kind != ItemKind.EXTRA) {
             picks[view.record.id] = view to state.updatedAt
         }
     }
     for (episodes in snapshot.episodes.values) {
         val (next, playedAt) = upNext(episodes, states) ?: continue
-        if (next.record.id !in picks) picks[next.record.id] = next to playedAt
+        if (next.record.id !in picks && states[next.record.id]?.dismissed != true) {
+            picks[next.record.id] = next to playedAt
+        }
     }
     // One entry per show: its in-progress or next episode, whichever was touched last.
     return picks.values.sortedByDescending { it.second }.map { it.first }
@@ -117,7 +122,8 @@ internal fun continueWatching(snapshot: Snapshot, states: Map<String, PlayStateR
 
 /** The next episode of a show whose last-played episode was finished, and when that one was played. */
 private fun upNext(episodes: List<View>, states: Map<String, PlayStateRecord>): Pair<View, String>? {
-    val last = episodes.mapNotNull { states[it.record.id] }.maxByOrNull { it.updatedAt }
+    val last = episodes.mapNotNull { states[it.record.id]?.takeIf(PlayStateRecord::played) }
+        .maxByOrNull { it.updatedAt }
     if (last == null || !last.watched) return null
     return nextEpisode(episodes, states)?.let { it to last.updatedAt }
 }
@@ -129,7 +135,7 @@ private fun upNext(episodes: List<View>, states: Map<String, PlayStateRecord>): 
 internal fun nextEpisode(episodes: List<View>, states: Map<String, PlayStateRecord>): View? {
     val regular = episodes.filter { it.record.season != 0 }
     val last = regular.withIndex().mapNotNull { (index, episode) ->
-        states[episode.record.id]?.let { Triple(index, episode, it) }
+        states[episode.record.id]?.takeIf(PlayStateRecord::played)?.let { Triple(index, episode, it) }
     }.maxByOrNull { it.third.updatedAt }
     if (last != null && (!last.third.watched || last.third.positionMs > 0)) return last.second
     val unwatched = { episode: View -> states[episode.record.id]?.watched != true }

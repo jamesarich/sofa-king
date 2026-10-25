@@ -205,6 +205,7 @@ private fun Shelf(
     focusRequester: FocusRequester,
 ) {
     val style = cardStyleFor(shelf)
+    val menu = actions.menuFor(shelf)
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionTitle(shelf.title, insets)
         // Up and Down come back to the card last focused in the shelf; focus requested inside it enters through
@@ -216,7 +217,7 @@ private fun Shelf(
         ) {
             items(shelf.items, key = { it.id }) { item ->
                 val focus = if (item.id == focusItem) Modifier.focusRequester(focusRequester) else Modifier
-                LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, actions.menu, focus)
+                LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, menu, focus)
             }
         }
     }

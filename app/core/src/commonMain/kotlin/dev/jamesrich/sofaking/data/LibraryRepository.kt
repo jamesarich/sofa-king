@@ -74,6 +74,10 @@ class LibraryRepository(private val api: SofaKingApi) {
     suspend fun setWatched(id: String, watched: Boolean): MediaItem =
         api.mediaItem(api.updatePlayState(id, UpdatePlayStateDto(watched = watched)))
 
+    /** Takes [id] off Continue watching for the household until it is played again. */
+    suspend fun removeFromContinue(id: String): MediaItem =
+        api.mediaItem(api.updatePlayState(id, UpdatePlayStateDto(dismissed = true)))
+
     companion object {
         /** Items per grid page: a few screens of posters. */
         const val PAGE_SIZE = 60

@@ -15,6 +15,7 @@ import dev.jamesrich.sofaking.resources.library_details
 import dev.jamesrich.sofaking.resources.library_mark_unwatched
 import dev.jamesrich.sofaking.resources.library_mark_watched
 import dev.jamesrich.sofaking.resources.library_play_from_start
+import dev.jamesrich.sofaking.resources.library_remove_from_continue
 import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import org.jetbrains.compose.resources.StringResource
@@ -22,12 +23,13 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * What a card's menu does: open its page (null where OK already does), play from the start (null when that is not
- * offered) and mark watched or unwatched.
+ * offered), mark watched or unwatched, and take it off Continue watching (null off that shelf).
  */
 internal class CardMenu(
     val onOpen: ((MediaItem) -> Unit)? = null,
     val onPlayFromStart: ((MediaItem) -> Unit)?,
     val onSetWatched: (MediaItem, Boolean) -> Unit,
+    val onRemoveFromContinue: ((MediaItem) -> Unit)? = null,
 )
 
 /** [menu]'s entries for [item] while [expanded], the first focused; picking one or dismissing it calls [onClose]. */
@@ -35,7 +37,12 @@ internal class CardMenu(
 internal fun CardMenuDropdown(item: MediaItem, menu: CardMenu, expanded: Boolean, onClose: () -> Unit) {
     val first = remember { FocusRequester() }
     DropdownMenu(expanded = expanded, onDismissRequest = onClose, modifier = Modifier.arrowKeysMoveFocus()) {
-        val entries = cardMenuEntries(item, playFromStart = menu.onPlayFromStart != null, details = menu.onOpen != null)
+        val entries = cardMenuEntries(
+            item,
+            playFromStart = menu.onPlayFromStart != null,
+            details = menu.onOpen != null,
+            removeFromContinue = menu.onRemoveFromContinue != null,
+        )
         entries.forEachIndexed { index, entry ->
             DropdownMenuItem(
                 text = { Text(stringResource(entry.label)) },
@@ -46,6 +53,7 @@ internal fun CardMenuDropdown(item: MediaItem, menu: CardMenu, expanded: Boolean
                         CardMenuEntry.PLAY_FROM_START -> menu.onPlayFromStart?.invoke(item)
                         CardMenuEntry.MARK_WATCHED -> menu.onSetWatched(item, true)
                         CardMenuEntry.MARK_UNWATCHED -> menu.onSetWatched(item, false)
+                        CardMenuEntry.REMOVE_FROM_CONTINUE -> menu.onRemoveFromContinue?.invoke(item)
                     }
                 },
                 modifier = if (index == 0) Modifier.focusRequester(first) else Modifier,
@@ -61,4 +69,5 @@ private val CardMenuEntry.label: StringResource
         CardMenuEntry.PLAY_FROM_START -> Res.string.library_play_from_start
         CardMenuEntry.MARK_WATCHED -> Res.string.library_mark_watched
         CardMenuEntry.MARK_UNWATCHED -> Res.string.library_mark_unwatched
+        CardMenuEntry.REMOVE_FROM_CONTINUE -> Res.string.library_remove_from_continue
     }

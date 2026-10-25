@@ -16,6 +16,7 @@ suspend fun BackendStore.playStates(): Map<String, PlayStateRecord> = read {
             it[PlayStates.durationMs],
             it[PlayStates.watched],
             it[PlayStates.updatedAt],
+            it[PlayStates.dismissed],
         )
     }.associateBy { it.itemId }
 }
@@ -30,6 +31,7 @@ suspend fun BackendStore.savePlayStates(states: List<PlayStateRecord>, cleared: 
                 this[PlayStates.durationMs] = state.durationMs
                 this[PlayStates.watched] = state.watched
                 this[PlayStates.updatedAt] = state.updatedAt
+                this[PlayStates.dismissed] = state.dismissed
             }
         }
         cleared.chunked(ROW_CHUNK).forEach { chunk -> PlayStates.deleteWhere { itemId inList chunk } }

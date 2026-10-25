@@ -157,7 +157,7 @@
       },
       "PlayState": {
         "type": "object",
-        "properties": { "positionMs": { "type": "integer" }, "durationMs": { "type": ["integer", "null"] }, "watched": { "type": "boolean" }, "updatedAt": { "type": "string", "format": "date-time" } }
+        "properties": { "positionMs": { "type": "integer" }, "durationMs": { "type": ["integer", "null"] }, "watched": { "type": "boolean" }, "updatedAt": { "type": "string", "format": "date-time" }, "dismissed": { "type": "boolean", "description": "Taken off Continue watching by hand; the next play clears it." } }
       },
       "LibraryItem": {
         "type": "object", "required": ["id", "libraryId", "kind", "title"],
@@ -218,7 +218,7 @@
       },
       "UpdatePlayState": {
         "type": "object",
-        "properties": { "positionMs": { "type": "integer", "minimum": 0 }, "durationMs": { "type": ["integer", "null"], "minimum": 0 }, "watched": { "type": ["boolean", "null"], "description": "Set by hand; wins over the position. The only field a show or season takes." } }
+        "properties": { "positionMs": { "type": "integer", "minimum": 0 }, "durationMs": { "type": ["integer", "null"], "minimum": 0 }, "watched": { "type": ["boolean", "null"], "description": "Set by hand; wins over the position. The only field a show or season takes." }, "dismissed": { "type": ["boolean", "null"], "description": "True takes a movie, video or episode off Continue watching, false puts it back; either leaves its position and watched flag." } }
       },
       "ClientProfile": {
         "type": "object", "description": "What the player decodes as is.",

@@ -26,6 +26,9 @@ interface TvLibrary {
 
     fun setWatched(item: MediaItem, watched: Boolean)
 
+    /** Takes [item] off Continue watching until it is played again. */
+    fun removeFromContinue(item: MediaItem)
+
     /** [itemId]'s text subtitle track [index], or null when the server cannot give it. */
     @Throws(Exception::class)
     suspend fun subtitles(itemId: String, index: Int): Subtitles?
@@ -57,6 +60,8 @@ internal class TvLibraryCalls(private val parts: TvParts) : TvLibrary {
     override fun loadMore() = library.loadMore()
 
     override fun setWatched(item: MediaItem, watched: Boolean) = library.setWatched(item, watched)
+
+    override fun removeFromContinue(item: MediaItem) = library.removeFromContinue(item)
 
     @Throws(Exception::class)
     override suspend fun subtitles(itemId: String, index: Int): Subtitles? = library.subtitles(itemId, index)

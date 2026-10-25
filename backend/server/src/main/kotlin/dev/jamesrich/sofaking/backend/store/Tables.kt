@@ -213,6 +213,12 @@ internal object PlayStates : Table("play_state") {
     val durationMs = long("duration_ms").nullable()
     val watched = bool("watched")
     val updatedAt = text("updated_at")
+
+    /** Taken off Continue watching until it is played again. */
+    val dismissed = bool("dismissed").default(false)
+
+    /** Whose state it is; every row is the household's until profiles exist. */
+    val scope = text("scope").default("household")
     override val primaryKey = PrimaryKey(itemId)
 }
 

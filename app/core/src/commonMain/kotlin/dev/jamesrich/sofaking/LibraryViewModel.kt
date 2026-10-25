@@ -105,6 +105,9 @@ interface LibraryBrowsing {
 
     /** Marks [item] watched or not; a show or season marks every episode in it. The screens that show it reload. */
     fun setWatched(item: MediaItem, watched: Boolean)
+
+    /** Takes [item] off Continue watching until it is played again; the home reloads without it. */
+    fun removeFromContinue(item: MediaItem)
 }
 
 /** Playing library items: opening one, what comes next, its tracks and subtitles, and the household's place in it. */
@@ -252,6 +255,18 @@ internal class LibraryBrowser(
                 changed(repository.setWatched(item.id, watched))
             }.onFailure { e ->
                 log.w { "mark watched failed: ${e.describe()}" }
+            }
+        }
+    }
+
+    override fun removeFromContinue(item: MediaItem) {
+        val repository = repository() ?: return
+        scope.launch {
+            runCatchingCancellable {
+                repository.removeFromContinue(item.id)
+                shelves.refresh()
+            }.onFailure { e ->
+                log.w { "remove from Continue watching failed: ${e.describe()}" }
             }
         }
     }

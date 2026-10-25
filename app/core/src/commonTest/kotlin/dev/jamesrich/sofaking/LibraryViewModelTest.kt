@@ -505,6 +505,28 @@ class LibraryViewModelTest {
         }
 
     @Test
+    fun `removing an item from Continue watching tells the server and reloads the home`() = fixture.viewModelTest {
+        val server = RouteServer(this) { method, path, _ ->
+            when {
+                path == "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+                method == "PUT" && path == "/api/v1/library/items/m1/play-state" -> 200 to item("m1")
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+
+        model.removeFromContinue(MediaItem("m1", "lib", ItemKind.MOVIE, "Title m1"))
+        runCurrent()
+
+        assertEquals(
+            """PUT /api/v1/library/items/m1/play-state {"dismissed":true}""",
+            server.requests.first { it.startsWith("PUT") },
+        )
+        assertEquals(2, server.requests.count { it == "GET /api/v1/library/home" }, "the home reloads")
+    }
+
+    @Test
     fun `search trims the query and finds nothing for a blank one or when the server fails`() = fixture.viewModelTest {
         var fail = false
         val server = RouteServer(this) { _, path, _ ->

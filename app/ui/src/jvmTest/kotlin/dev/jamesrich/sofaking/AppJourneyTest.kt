@@ -92,7 +92,9 @@ class AppJourneyTest {
     fun `a held OK on a Library card opens its menu and the next OK opens the card on a desktop`() =
         journey(tv = false) {
             guideCell()
-            keys("Up", "Up", "Down", "OK", "Right", "Down", "Down")
+            keys("Up", "Up", "Down", "OK", "Right")
+            // Right from the rail lands on the nearest row, which moves with the text size; step down to the movies.
+            repeat(MAX_ROWS_TO_MOVIES) { if (focusedLabel() != MOVIE_CARD) keys("Down") }
             heldOkOpensCardMenu(back = "Escape")
         }
 
@@ -154,5 +156,6 @@ class AppJourneyTest {
         const val FAVORITES_CHIP = "Favorites 0"
         const val CONTINUE_CARD = "Show 1, S1 E2 · Episode 2"
         const val MOVIE_CARD = "Movie 1, 1990"
+        const val MAX_ROWS_TO_MOVIES = 3
     }
 }

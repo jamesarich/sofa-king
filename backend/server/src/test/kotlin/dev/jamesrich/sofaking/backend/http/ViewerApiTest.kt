@@ -14,6 +14,7 @@ import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.ApiError
 import dev.jamesrich.sofaking.contract.Bootstrap
+import dev.jamesrich.sofaking.contract.HouseholdPreferences
 import dev.jamesrich.sofaking.contract.PairingClaim
 import dev.jamesrich.sofaking.contract.PairingResult
 import dev.jamesrich.sofaking.contract.ViewerPreferences
@@ -225,6 +226,34 @@ class ViewerApiTest {
     }
 
     /** A server over the fixture's feed with an API and an admin token, on a clock the test moves. */
+    @Test fun `the household's shared preferences start empty and read back as the last device saved them`() = viewers {
+        val bootstrap = client.get("/api/v1/bootstrap") { bearerAuth(token) }
+        assertTrue(Json.decodeFromString<Bootstrap>(bootstrap.bodyAsText()).capabilities.household)
+        val empty = client.get(HOUSEHOLD) { bearerAuth(token) }
+        assertEquals(HouseholdPreferences(), Json.decodeFromString<HouseholdPreferences>(empty.bodyAsText()))
+        val body = json.encodeToString(HouseholdPreferences(listOf("f2", "f1", "f2"), listOf("h1")))
+        assertEquals(HttpStatusCode.Unauthorized, client.put(HOUSEHOLD) { setBody(body) }.status)
+        clock.now = clock.now.plusSeconds(60)
+        val saved = client.put(HOUSEHOLD) {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+        assertEquals(HttpStatusCode.OK, saved.status, saved.bodyAsText())
+        assertKeepsWireFixture("v1/household-preferences.json", saved.bodyAsText())
+        val stored = Json.decodeFromString<HouseholdPreferences>(saved.bodyAsText())
+        assertEquals(HouseholdPreferences(listOf("f2", "f1"), listOf("h1"), clock.now.toString()), stored)
+        val read = client.get(HOUSEHOLD) { bearerAuth(token) }.bodyAsText()
+        assertEquals(stored, Json.decodeFromString<HouseholdPreferences>(read))
+        val tooMany = json.encodeToString(HouseholdPreferences(favorites = List(1001) { "c$it" }))
+        val refused = client.put(HOUSEHOLD) {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(tooMany)
+        }
+        assertEquals(HttpStatusCode.BadRequest, refused.status)
+    }
+
     private inner class Viewers(val app: ApplicationTestBuilder, val clock: MutableClock, val store: BackendStore) {
         val client get() = app.client
 
@@ -345,3 +374,5 @@ class ViewerApiTest {
         }
     }
 }
+
+private const val HOUSEHOLD = "/api/v1/household/preferences"

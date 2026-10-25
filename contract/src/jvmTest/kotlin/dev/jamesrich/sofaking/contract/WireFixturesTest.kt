@@ -93,6 +93,13 @@ class WireFixturesTest {
     }
 
     @Test
+    fun `the household preferences fixture decodes with a client's settings`() {
+        val household = client.decodeFromString<HouseholdPreferences>(fixture("v1/household-preferences.json"))
+        assertEquals(2, household.favorites.size)
+        assertEquals("2026-10-16T00:30:00Z", household.updatedAt)
+    }
+
+    @Test
     fun `the watchlist fixture decodes with a client's settings`() {
         val watchlist = client.decodeFromString<Watchlist>(fixture("v1/watchlist.json")).entries.single()
         assertEquals(Wire.WatchlistKind.TITLE, watchlist.kind)
@@ -155,6 +162,7 @@ class WireFixturesTest {
         )
         assertEquals("", client.decodeFromString<PairingResult>("""{"apiToken":"t"}""").serverId)
         assertEquals(ViewerPreferences(), client.decodeFromString<ViewerPreferences>("{}"))
+        assertEquals(HouseholdPreferences(), client.decodeFromString<HouseholdPreferences>("{}"))
         assertEquals(PlayState(), client.decodeFromString<PlayState>("{}"))
         val item = client.decodeFromString<LibraryItem>("""{"id":"i","libraryId":"l","kind":"movie","title":"Alien"}""")
         assertEquals(0, item.unwatched)

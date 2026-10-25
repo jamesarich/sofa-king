@@ -23,6 +23,7 @@ import dev.jamesrich.sofaking.data.SettingsKeys.GUIDE_DENSITY
 import dev.jamesrich.sofaking.data.SettingsKeys.GUIDE_FILTER
 import dev.jamesrich.sofaking.data.SettingsKeys.HIDDEN_CHANNELS
 import dev.jamesrich.sofaking.data.SettingsKeys.HIDE_SPOILERS
+import dev.jamesrich.sofaking.data.SettingsKeys.HOUSEHOLD_SYNCED_AT
 import dev.jamesrich.sofaking.data.SettingsKeys.KEY_LEGEND_SHOWN
 import dev.jamesrich.sofaking.data.SettingsKeys.KIDS_MODE
 import dev.jamesrich.sofaking.data.SettingsKeys.LAST_CHANNEL
@@ -37,6 +38,7 @@ import dev.jamesrich.sofaking.data.SettingsKeys.SEEK_FORWARD_SECONDS
 import dev.jamesrich.sofaking.data.SettingsKeys.SEPARATOR
 import dev.jamesrich.sofaking.data.SettingsKeys.SERVER_URL
 import dev.jamesrich.sofaking.data.SettingsKeys.SETTINGS_PIN
+import dev.jamesrich.sofaking.data.SettingsKeys.SHARE_FAVORITES
 import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_COMMERCIALS
 import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_COMMERCIAL_BREAKS
 import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_CREDITS
@@ -314,6 +316,23 @@ internal class DataStoreDeviceSettings(private val dataStore: DataStore<Preferen
                 prefs[SETTINGS_PIN] = hash
             }
         }
+    }
+
+    override suspend fun setShareFavorites(on: Boolean) {
+        dataStore.edit { prefs -> prefs[SHARE_FAVORITES] = on }
+    }
+
+    override suspend fun applyHouseholdPreferences(hidden: Set<String>, favorites: List<String>, syncedAt: String) {
+        dataStore.edit { prefs ->
+            prefs[HIDDEN_CHANNELS] = hidden
+            prefs[FAVORITES] = favorites.toSet()
+            prefs[FAVORITES_ORDER] = favorites.distinct().joinToString(SEPARATOR.toString())
+            prefs[HOUSEHOLD_SYNCED_AT] = syncedAt
+        }
+    }
+
+    override suspend fun setHouseholdSyncedAt(syncedAt: String) {
+        dataStore.edit { prefs -> prefs[HOUSEHOLD_SYNCED_AT] = syncedAt }
     }
 
     override suspend fun setKidsMode(on: Boolean) {

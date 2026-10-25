@@ -28,6 +28,8 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | POST | `/api/v1/pair` | Exchange a pairing code for a token of the device's own, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429` |
 | GET | `/api/v1/preferences/{clientId}` | The preferences the client with that id last saved, see [viewer preferences](#viewer-preferences); `404 VIEWER_NOT_FOUND` before its first save |
 | PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt` |
+| GET | `/api/v1/household/preferences` | The household's shared favorites and hidden channels, see [viewer preferences](#viewer-preferences); an empty document with an empty `updatedAt` before the first save |
+| PUT | `/api/v1/household/preferences` | Replace the household's shared favorites and hidden channels; answers the stored document with the server's `updatedAt` |
 | GET | `/api/v1/channels` | Catalog revision and the enabled lineup entries as channels; supports ETag/If-None-Match |
 | GET | `/api/v1/providers` | Provider import status and channel counts |
 | GET | `/api/v1/sources` | Health and manual-disable flag of every source |
@@ -171,6 +173,8 @@ Each client keeps one document under its own id, so a reinstall or a second devi
 | `name`, `platform` | How the device calls itself; an empty value keeps the stored one |
 
 Each list holds at most 1,000 distinct ids. The server sets `updatedAt` and answers the stored document; a client compares that stamp to the one it last synced to decide whether the server's copy is newer than its own. The app pushes a change a few seconds after it settles and takes the server's copy over at start when another device wrote it since.
+
+The household keeps one more document under `/api/v1/household/preferences`, with `favorites` and `hidden` as above and the same limits, which every device that shares favorites keeps in step the same way. Each device still keeps its own document too, with its recent list. A server that offers it says `household` in the bootstrap's capabilities.
 
 ## Media libraries
 

@@ -76,4 +76,6 @@ data class ServerCapabilities(
     val watchlist: Boolean = false,
     /** It lists the movies, sports, kids' programs and premieres coming up. */
     val onLater: Boolean = false,
+    /** It keeps the household's shared favorites and hidden channels. */
+    val household: Boolean = false,
 )

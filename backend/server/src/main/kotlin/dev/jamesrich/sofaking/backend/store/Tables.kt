@@ -266,6 +266,15 @@ internal object LibraryScrubRows : Table("library_scrub") {
     override val primaryKey = PrimaryKey(itemId)
 }
 
+/** The household's shared favorites and hidden channels, one JSON document per scope. */
+internal object HouseholdPreferencesTable : Table("household_preferences") {
+    /** Whose document it is; the household's until profiles exist. */
+    val scope = text("scope").default(HOUSEHOLD)
+    val preferencesJson = text("preferences_json")
+    val updatedAt = text("updated_at")
+    override val primaryKey = PrimaryKey(scope)
+}
+
 internal object WatchlistEntries : Table("watchlist") {
     val id = text("id")
 

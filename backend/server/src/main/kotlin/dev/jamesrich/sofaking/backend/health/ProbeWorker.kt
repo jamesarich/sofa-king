@@ -75,9 +75,9 @@ class ProbeWorker(
      * fails as [FailureClass.LOCAL].
      */
     private val relay: LoopbackRelay? = null,
-    private val qualifier: (suspend (Offering, Map<String, String>) -> FailureClass?)? = null,
     /** Where a source going into quarantine or recovering from it is published; none without an event stream. */
     private val events: ServerEvents? = null,
+    private val qualifier: (suspend (Offering, Map<String, String>) -> FailureClass?)? = null,
 ) {
     private val log = LoggerFactory.getLogger(ProbeWorker::class.java)
     private val fastTier = http?.let {

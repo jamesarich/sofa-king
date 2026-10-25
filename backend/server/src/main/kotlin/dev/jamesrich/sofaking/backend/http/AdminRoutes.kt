@@ -122,14 +122,19 @@ private class LineupApi(val runtime: LiveRuntime, private val clock: Clock) {
 
     suspend fun info(entry: LineupEntryRecord): LineupEntry {
         val states = runtime.store.allHealth()
-        return entry.info(runtime, states, lineup.entries().indexOfFirst { it.id == entry.id }, clock.instant())
+        val position = lineup.entries().indexOfFirst { it.id == entry.id }
+        return entry.info(runtime, states, position, clock.instant(), gracenoteIds())
     }
 
     suspend fun all(): List<LineupEntry> {
         val states = runtime.store.allHealth()
         val now = clock.instant()
-        return lineup.entries().mapIndexed { index, entry -> entry.info(runtime, states, index, now) }
+        val gracenoteIds = gracenoteIds()
+        return lineup.entries().mapIndexed { index, entry -> entry.info(runtime, states, index, now, gracenoteIds) }
     }
+
+    private fun gracenoteIds(): Map<String, String> =
+        policy?.lastApplied()?.stations.orEmpty().mapNotNull { s -> s.gracenoteId?.let { s.id to it } }.toMap()
 
     /** Refuses an edit the lineup policy owns while one is configured. */
     fun manual() {
@@ -189,6 +194,7 @@ private fun LineupEntryRecord.info(
     states: Map<String, HealthState>,
     position: Int,
     now: Instant,
+    gracenoteIds: Map<String, String>,
 ): LineupEntry {
     val coverage = guide?.let { runtime.guides.coverage[it.guideId]?.get(it.channelId) }
     return LineupEntry(
@@ -218,5 +224,6 @@ private fun LineupEntryRecord.info(
             else -> "stale"
         },
         createdBy, autoDisabledAt?.toString(), autoDisabledReason,
+        gracenoteIds[id],
     )
 }

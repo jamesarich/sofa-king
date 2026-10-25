@@ -45,11 +45,16 @@ internal class LineupPages(private val portal: Portal, editor: PolicyEditor) {
                 val name = form["name"]?.trim().orEmpty()
                 val number = form["number"]?.trim().orEmpty()
                 val group = form["group"]?.trim()
+                // Only a station page with a policy sends the field.
+                val gracenote = form["gracenoteId"]?.trim()
+                val current = runtime.policy?.lastApplied()?.stations?.firstOrNull { it.id == entry.id }?.gracenoteId
                 UpdateLineupEntry(
                     name = name.takeIf { it.isNotEmpty() && it != entry.name },
                     number = number.takeIf { it.isNotEmpty() && it != entry.number },
                     group = group?.takeIf { it.isNotEmpty() && it != entry.group },
                     clearGroup = group != null && group.isEmpty() && entry.group != null,
+                    gracenoteId = gracenote?.takeIf { it.isNotEmpty() && it != current },
+                    clearGracenoteId = gracenote != null && gracenote.isEmpty() && current != null,
                 )
             }
         }

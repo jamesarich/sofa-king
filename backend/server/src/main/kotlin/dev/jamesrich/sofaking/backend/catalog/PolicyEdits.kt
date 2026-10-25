@@ -127,6 +127,7 @@ private fun MutableMap<String, JsonElement>.update(request: UpdateLineupEntry, p
         },
         request.clearGuide,
     )
+    setOrClear("gracenoteId", request.gracenoteId?.let(::JsonPrimitive), request.clearGracenoteId)
     request.enabled?.let { this["enabled"] = JsonPrimitive(it) }
     pins?.let { this["sources"] = JsonArray(it.map(::pinJson)) }
 }

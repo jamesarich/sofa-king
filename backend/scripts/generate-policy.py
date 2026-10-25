@@ -18,13 +18,17 @@ Reads `GET /api/v1/providers` and `GET /api/v1/admin/lineup`. Writes:
   after the last block, and `numbering.followGroup`, so a station the server numbered follows its group's block.
 - `names.aliases`: for every enabled lineup entry whose native sources carry other keys than the entry's own,
   each other key aliased to the entry's. Every alias is printed for review.
+- `stations[key].gracenoteId` for each row of `--station-ids FILE`, a CSV with a `name,gracenoteId` header whose names
+  are channel names (an alias resolves to its target), so the M3U output gives Channels DVR a Gracenote station id.
 
 The output is sorted JSON with a two-space indent. Review it, then preview it with `GET /api/v1/admin/policy/preview`.
 Python 3 standard library only. `--offline FILE` reads the two server responses from one JSON file instead
 (`{"providers": [...], "lineup": [...]}`), for tests.
 """
 import argparse
+import csv
 import json
+import re
 import sys
 import unicodedata
 import urllib.request
@@ -120,18 +124,44 @@ def starter_groups(starter, local_pattern=None):
     return groups
 
 
-def generate(providers, lineup, starter, order, local_pattern=None):
+GRACENOTE_ID = re.compile(r'[0-9]{1,10}')
+
+
+def gracenote_stations(rows, aliases):
+    """`stations` overrides with a `gracenoteId` from CSV [rows] of name and id, keyed by each name's key."""
+    stations = {}
+    for row in rows:
+        name, station_id = (row.get('name') or '').strip(), (row.get('gracenoteId') or '').strip()
+        key = key_name(name, NAMES_VERSION)
+        key = aliases.get(key, key)
+        if not key or not GRACENOTE_ID.fullmatch(station_id):
+            print('station id %r for %r skipped: needs a name and 1 to 10 digits' % (station_id, name), file=sys.stderr)
+            continue
+        if key in stations and stations[key]['gracenoteId'] != station_id:
+            print('station id %r for %r skipped: %r already has %r' % (station_id, name, key, stations[key]['gracenoteId']),
+                  file=sys.stderr)
+            continue
+        stations[key] = {'gracenoteId': station_id}
+    return stations
+
+
+def generate(providers, lineup, starter, order, local_pattern=None, station_ids=()):
     """The policy as a dict."""
     configured = {p['id'] for p in providers}
     native = [p for p in order if p in configured]
-    return {
+    aliases = aliases_from_lineup(lineup, set(native))
+    policy = {
         'version': 1,
-        'names': {'version': NAMES_VERSION, 'aliases': aliases_from_lineup(lineup, set(native))},
+        'names': {'version': NAMES_VERSION, 'aliases': aliases},
         'providers': provider_entries(native, configured),
         'groups': starter_groups(starter, local_pattern),
         'numbering': {'floor': NUMBER_FLOOR, 'groups': dict(GROUP_BLOCKS), 'groupSize': GROUP_SIZE, 'followGroup': True},
         'health': {'requireVerified': True},
     }
+    stations = gracenote_stations(station_ids, aliases)
+    if stations:
+        policy['stations'] = stations
+    return policy
 
 
 def fetch(server, path, token):
@@ -163,6 +193,7 @@ def main():
     parser.add_argument('--starter-groups', help='a file with a groupMap, weak and patterns, such as server/src/main/resources/policy/starter-groups.json')
     parser.add_argument('--local-pattern', help='a name regex for the household\'s own market, grouped as Local ahead of every other rule')
     parser.add_argument('--offline', help='read providers and lineup from this file instead of the server')
+    parser.add_argument('--station-ids', help='a CSV of name,gracenoteId rows, written as stations[key].gracenoteId')
     args = parser.parse_args()
     order = [p.strip() for p in args.providers.split(',') if p.strip()]
     starter = load(args.starter_groups, {})
@@ -173,7 +204,11 @@ def main():
         providers, lineup = from_server(args)
     else:
         parser.error('give --server or --offline')
-    policy = generate(providers, lineup, starter, order, args.local_pattern)
+    station_ids = []
+    if args.station_ids:
+        with open(args.station_ids, encoding='utf-8', newline='') as handle:
+            station_ids = list(csv.DictReader(handle))
+    policy = generate(providers, lineup, starter, order, args.local_pattern, station_ids)
     with open(args.out, 'w', encoding='utf-8') as handle:
         json.dump(policy, handle, indent=2, sort_keys=True, ensure_ascii=False)
         handle.write('\n')

@@ -53,7 +53,8 @@ import kotlinx.serialization.Serializable
 
 /**
  * [createdBy] is `policy` for an entry a lineup policy built, else `manual`. [autoDisabledAt] and [autoDisabledReason]
- * (`unavailable`) are set while the policy holds the station off for want of an eligible source.
+ * (`unavailable`) are set while the policy holds the station off for want of an eligible source. [gracenoteId] is the
+ * policy's Gracenote station id for the station.
  */
 @Serializable data class LineupEntry(
     val id: String,
@@ -69,6 +70,7 @@ import kotlinx.serialization.Serializable
     val createdBy: String = "manual",
     val autoDisabledAt: String? = null,
     val autoDisabledReason: String? = null,
+    val gracenoteId: String? = null,
 )
 
 /**
@@ -88,7 +90,10 @@ import kotlinx.serialization.Serializable
     val position: Int? = null,
 )
 
-/** Absent fields keep their value; the `clear*` flags remove optional values. */
+/**
+ * Absent fields keep their value; the `clear*` flags remove optional values. [gracenoteId] is written to the policy and
+ * needs one.
+ */
 @Serializable data class UpdateLineupEntry(
     val number: String? = null,
     val name: String? = null,
@@ -101,6 +106,8 @@ import kotlinx.serialization.Serializable
     val clearGroup: Boolean = false,
     val clearLogo: Boolean = false,
     val clearGuide: Boolean = false,
+    val gracenoteId: String? = null,
+    val clearGracenoteId: Boolean = false,
 )
 
 @Serializable data class ReorderLineup(val ids: List<String>)

@@ -100,7 +100,10 @@ import kotlinx.serialization.Serializable
     val requireVerified: Boolean = true,
 )
 
-/** Overrides for one station. [prefer] orders and [exclude] removes unpinned sources by provider ID. */
+/**
+ * Overrides for one station. [prefer] orders and [exclude] removes unpinned sources by provider ID. [gracenoteId] is
+ * the station's Gracenote (TMS) station id, which the M3U output passes to Channels DVR for its guide.
+ */
 @Serializable data class StationOverride(
     val id: String? = null,
     val number: String? = null,
@@ -108,6 +111,7 @@ import kotlinx.serialization.Serializable
     val group: String? = null,
     val logo: String? = null,
     val guide: GuideMapping? = null,
+    val gracenoteId: String? = null,
     val enabled: Boolean? = null,
     val required: Boolean = false,
     val sources: List<SourcePin> = emptyList(),
@@ -139,6 +143,7 @@ import kotlinx.serialization.Serializable
     val offeringIds: List<String> = emptyList(),
     val disabledReason: String? = null,
     val guideCandidates: List<GuideMapping> = emptyList(),
+    val gracenoteId: String? = null,
 )
 
 /**

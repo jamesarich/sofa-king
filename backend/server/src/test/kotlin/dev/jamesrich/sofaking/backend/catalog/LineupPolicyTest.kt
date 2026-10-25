@@ -95,6 +95,7 @@ class LineupPolicyTest {
                 "three" to
                     StationOverride(
                         id = "not-a-uuid",
+                        gracenoteId = "WABC",
                         sources = listOf(SourcePin("ghost-provider", name = "x"), SourcePin("whale")),
                     ),
                 "b" to StationOverride(),
@@ -114,6 +115,7 @@ class LineupPolicyTest {
         has("number 5 is claimed by one, two")
         has("id 8a0f6f43-2e3e-4c2e-9c4f-111111111111 is claimed by one, two")
         has("stations[\"three\"]: id must be a UUID")
+        has("stations[\"three\"]: gracenoteId must be 1 to 10 digits")
         has("pin names unknown provider ghost-provider")
         has("a pin needs tvgId or name")
         has("pin whale/tvg-id:w1 is claimed by one, two")

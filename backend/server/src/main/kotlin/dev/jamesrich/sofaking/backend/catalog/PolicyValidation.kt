@@ -167,7 +167,13 @@ private fun overrideErrors(where: String, station: StationOverride): List<String
         add("$where: group must be 1 to $GROUP_LIMIT characters")
     }
     if (station.logo != null && normalizeLogoUrl(station.logo) == null) add("$where: logo must be an HTTP(S) URL")
+    if (station.gracenoteId != null && !station.gracenoteId.matches(GRACENOTE_ID)) {
+        add("$where: gracenoteId must be 1 to 10 digits")
+    }
 }
+
+/** A Gracenote (TMS) station id, as Channels DVR and Zap2it list it. */
+internal val GRACENOTE_ID = Regex("[0-9]{1,10}")
 
 /**
  * What more than one station claims: a channel number, a station id, or a source pin; and an id override that is

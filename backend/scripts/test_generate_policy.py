@@ -88,5 +88,31 @@ class GenerateTest(unittest.TestCase):
         self.assertNotIn('stations', policy)
 
 
+class GracenoteStationsTest(unittest.TestCase):
+    def test_names_key_through_aliases_and_bad_rows_are_skipped(self):
+        rows = [
+            {'name': 'BBC News North America', 'gracenoteId': '12345'},
+            {'name': 'The Weather Channel HD', 'gracenoteId': '58812'},
+            {'name': 'Nowhere', 'gracenoteId': 'WABC'},
+            {'name': '', 'gracenoteId': '1'},
+        ]
+        stations = generate_policy.gracenote_stations(rows, {'bbcnewsnorthamerica': 'bbcnews'})
+        self.assertEqual({'bbcnews': {'gracenoteId': '12345'}, 'weatherchannel': {'gracenoteId': '58812'}}, stations)
+
+    def test_the_csv_reaches_the_policy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ids = os.path.join(directory, 'ids.csv')
+            with open(ids, 'w', encoding='utf-8') as handle:
+                handle.write('name,gracenoteId\nBBC News,12345\n')
+            out = os.path.join(directory, 'policy.json')
+            subprocess.run([
+                sys.executable, SCRIPT, '--offline', os.path.join(DATA, 'generate-policy-server.json'),
+                '--providers', 'whale', '--station-ids', ids, '--out', out,
+            ], check=True, capture_output=True, text=True)
+            with open(out, encoding='utf-8') as handle:
+                policy = json.load(handle)
+        self.assertEqual({'bbcnews': {'gracenoteId': '12345'}}, policy['stations'])
+
+
 if __name__ == '__main__':
     unittest.main()

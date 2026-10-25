@@ -103,4 +103,4 @@ Android refuses an update signed with another key. A snapshot and a build from y
 
 ### Does a TV need the Play Store?
 
-No. Install the APK with `adb`, as [getting started](getting-started.md#android-tv-and-google-tv) describes; after that, Settings → About installs newer snapshots, as [the update check](usage.md#update-check) describes.
+No, Sofa King is not in a store. Install the APK with the Downloader app or with `adb`, as [getting started](getting-started.md#android-tv-and-google-tv) describes; after that, Settings → About installs newer snapshots, as [the update check](usage.md#update-check) describes.

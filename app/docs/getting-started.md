@@ -27,7 +27,13 @@ The [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag
 
 ### Android TV and Google TV
 
-Download `sofa-king-snapshot.apk`. On the TV, open Settings → System → About and press Android TV OS build seven times to enable developer options. Turn on Wireless debugging, then choose Pair device with pairing code.
+The TV can download the app itself, with no computer:
+
+1. On the TV, install **Downloader** by AFTVnews from Google Play.
+2. Allow it to install apps: Settings → Apps → Security & restrictions → Unknown sources, then turn on Downloader. Some TVs keep the switch under Settings → Privacy or Device Preferences → Security instead.
+3. Open Downloader, type `https://github.com/jamesarich/sofa-king/releases/download/snapshot/sofa-king-snapshot.apk` in its address box and choose Go. When the download finishes, choose Install.
+
+To install from a computer over adb instead, download `sofa-king-snapshot.apk`. On the TV, open Settings → System → About and press Android TV OS build seven times to enable developer options. Turn on Wireless debugging, then choose Pair device with pairing code.
 
 Replace the addresses and code below with the values the TV shows. Pairing and debugging use different ports:
 
@@ -37,7 +43,7 @@ adb connect TV_IP:DEBUG_PORT
 adb install -r sofa-king-snapshot.apk
 ```
 
-Sofa King appears with the TV's apps. Phones and tablets take the same APK. Later snapshots install from Settings → About → Install update, with no adb, as [the update check](usage.md#update-check) describes.
+Sofa King appears with the TV's apps. Phones and tablets take the same APK: open the address above in the phone's browser and allow the browser to install it when Android asks. To have [Obtainium](https://obtainium.imranr.dev/) keep a phone or tablet up to date instead, add `https://github.com/jamesarich/sofa-king` as an app with Include prereleases turned on, since the snapshot is a prerelease. Later snapshots install from Settings → About → Install update, with no adb, as [the update check](usage.md#update-check) describes.
 
 ### Desktop
 

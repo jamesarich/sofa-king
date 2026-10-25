@@ -482,4 +482,21 @@ class DataStoreSettingsStoreTest {
         store.setSettingsPin(null)
         assertFalse(store.settings.first().settingsLocked)
     }
+
+    @Test
+    fun `kids mode takes a PIN and goes with it`() = runTest {
+        val store = newStore()
+        store.setKidsMode(true)
+        assertFalse(store.settings.first().kidsMode)
+        store.setSettingsPin(SettingsPin.hash("2580"))
+        store.setKidsMode(true)
+        assertTrue(store.settings.first().kidsMode)
+        store.setKidsMode(false)
+        assertFalse(store.settings.first().kidsMode)
+        store.setKidsMode(true)
+        store.setSettingsPin(null)
+        assertFalse(store.settings.first().kidsMode)
+        store.setSettingsPin(SettingsPin.hash("2580"))
+        assertFalse(store.settings.first().kidsMode)
+    }
 }

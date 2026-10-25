@@ -27,6 +27,7 @@ import dev.jamesrich.sofaking.data.SettingsKeys.GUIDE_FILTER
 import dev.jamesrich.sofaking.data.SettingsKeys.HIDDEN_CHANNELS
 import dev.jamesrich.sofaking.data.SettingsKeys.HIDE_SPOILERS
 import dev.jamesrich.sofaking.data.SettingsKeys.KEY_LEGEND_SHOWN
+import dev.jamesrich.sofaking.data.SettingsKeys.KIDS_MODE
 import dev.jamesrich.sofaking.data.SettingsKeys.LAST_CHANNEL
 import dev.jamesrich.sofaking.data.SettingsKeys.LAST_TAB
 import dev.jamesrich.sofaking.data.SettingsKeys.LIVE_BREAKS
@@ -108,6 +109,7 @@ internal object SettingsKeys {
     val CLIENT_ID = stringPreferencesKey("client_id")
     val PREFERENCES_SYNCED_AT = stringPreferencesKey("preferences_synced_at")
     val SETTINGS_PIN = stringPreferencesKey("settings_pin")
+    val KIDS_MODE = booleanPreferencesKey("kids_mode")
     const val SEPARATOR = '\t'
 }
 
@@ -152,6 +154,8 @@ internal fun readSettings(prefs: Preferences): AppSettings = AppSettings(
     clientId = prefs[CLIENT_ID].orEmpty(),
     preferencesSyncedAt = prefs[PREFERENCES_SYNCED_AT].orEmpty(),
     settingsPin = prefs[SETTINGS_PIN].orEmpty(),
+    // Written only while a PIN is set, and removed with it.
+    kidsMode = prefs[KIDS_MODE] == true,
 )
 
 /** The skip modes; until one is set, the switch an older build kept stands in for it (on is automatic). */

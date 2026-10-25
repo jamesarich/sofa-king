@@ -119,6 +119,8 @@ class SettingsActions(
     val onBufferChanged: (BufferPreference) -> Unit = {},
     /** A new PIN for the lock, or null to remove it. */
     val onSettingsPinChanged: (String?) -> Unit = {},
+    /** Turns kids mode on, which leaves Settings locked, or off. */
+    val onKidsModeChanged: (Boolean) -> Unit = {},
     /** Compares the running [version] with the published snapshot; [again] repeats a check already made. */
     val onCheckForUpdate: (version: String, again: Boolean) -> Unit = { _, _ -> },
     val onSkipChanged: (SkipKind, SkipMode) -> Unit = { _, _ -> },
@@ -223,7 +225,7 @@ fun SettingsScreen(
             if (supportsPlaybackPreferences) playbackSection(settings, actions)
             if (!unconfigured) serverSection()
             item { SectionHeader(stringResource(Res.string.settings_section_lock)) }
-            item { LockSection(locked = settings.settingsLocked, onPinChange = actions.onSettingsPinChanged) }
+            item { LockSection(settings, actions.onSettingsPinChanged, actions.onKidsModeChanged) }
             // About: the app, its version and what is loaded, then where the build stands
             // against the published snapshot.
             item { SectionHeader(stringResource(Res.string.settings_section_about)) }

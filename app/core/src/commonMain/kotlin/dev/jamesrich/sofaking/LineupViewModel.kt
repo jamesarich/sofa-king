@@ -242,6 +242,11 @@ class LineupViewModel(
         viewModelScope.save { store.setSettingsPin(pin?.let(SettingsPin::hash)) }
     }
 
+    /** Turns kids mode on, once a PIN is set, or off. */
+    fun setKidsMode(on: Boolean) {
+        viewModelScope.save { store.setKidsMode(on) }
+    }
+
     private companion object {
         val log = Logger.withTag("SofaKing")
         val RELOAD_WAIT = 30.seconds

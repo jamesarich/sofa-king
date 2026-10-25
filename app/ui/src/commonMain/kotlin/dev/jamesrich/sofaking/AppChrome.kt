@@ -50,6 +50,8 @@ import dev.jamesrich.sofaking.resources.nav_live
 import dev.jamesrich.sofaking.resources.nav_settings
 import dev.jamesrich.sofaking.resources.refreshing
 import dev.jamesrich.sofaking.resources.settings
+import dev.jamesrich.sofaking.ui.KidsBadge
+import dev.jamesrich.sofaking.ui.LocalKidsMode
 import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
@@ -314,6 +316,7 @@ private fun Header(
     ) {
         LogoMark(40.dp)
         Text(stringResource(Res.string.app_name), style = MaterialTheme.typography.headlineSmall, maxLines = 1)
+        if (LocalKidsMode.current) KidsBadge()
         tabs?.let { HeaderTabs(it, tabFocus) }
         // Status sits right of the tabs in whatever Settings leaves, so a long notice ellipsizes rather than
         // squeezing the button.

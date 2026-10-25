@@ -10,6 +10,7 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.KidsMode
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.PlaybackSessions
@@ -45,11 +46,20 @@ import kotlin.time.Instant
 
 /**
  * The lineup as this device shows it: hidden channels leave the guide and the channel list, and the player's zapping
- * when that switch is on; the full lineup stays for the manager, the picker and a channel opened by number.
+ * when that switch is on; the full lineup stays for the manager, the picker and a channel opened by number. In
+ * kids mode only the kids' channels are left, everywhere.
  */
 @Composable
-internal fun rememberVisibleLineup(lineup: Lineup?, hidden: Set<String>): Lineup? =
-    remember(lineup, hidden) { lineup?.let { l -> l.copy(channels = visibleChannels(l.channels, hidden)) } }
+internal fun rememberVisibleLineup(lineup: Lineup?, settings: AppSettings?): Lineup? {
+    val hidden = settings?.hiddenChannels.orEmpty()
+    val kids = settings?.kidsMode == true
+    return remember(lineup, hidden, kids) {
+        lineup?.let { l ->
+            val shown = visibleChannels(l.channels, hidden)
+            l.copy(channels = if (kids) KidsMode.channels(shown) else shown)
+        }
+    }
+}
 
 /** The guide, once the cold start has decided where to land, or what stands in for it while there is no lineup. */
 @Composable
@@ -73,7 +83,7 @@ internal fun GuideDestination(
     }
     // Settings arrive a beat after the cached lineup; the guide waits for them so it can open on the last channel.
     val s = state
-    val visibleLineup = rememberVisibleLineup((s as? LineupState.Ready)?.lineup, settings?.hiddenChannels.orEmpty())
+    val visibleLineup = rememberVisibleLineup((s as? LineupState.Ready)?.lineup, settings)
     when {
         s is LineupState.Loading || settings == null || !shell.launchDecided -> MessageScreen(
             stringResource(Res.string.loading),
@@ -138,7 +148,7 @@ internal fun OnLaterDestination(shell: AppShellState, vm: LineupViewModel) {
     val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
     val watchlist by vm.watchlist.marks.collectAsStateWithLifecycle()
     val lineup = (state as? LineupState.Ready)?.lineup
-    val visibleLineup = rememberVisibleLineup(lineup, settings?.hiddenChannels.orEmpty())
+    val visibleLineup = rememberVisibleLineup(lineup, settings)
     if (visibleLineup == null) {
         MessageScreen(stringResource(Res.string.loading), loading = true)
         return
@@ -183,15 +193,12 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
     val capabilities by vm.capabilities.collectAsStateWithLifecycle()
     val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
     val lineup = (state as? LineupState.Ready)?.lineup
-    val hidden = settings?.hiddenChannels.orEmpty()
-    val visibleLineup = rememberVisibleLineup(lineup, hidden)
+    val playerLineup = playerLineup(lineup, rememberVisibleLineup(lineup, settings), route.guideId, settings)
     val channelGone = stringResource(Res.string.channel_gone)
-    if (lineup == null || visibleLineup == null) {
+    if (playerLineup == null) {
         LaunchedEffect(Unit) { shell.back() }
         return
     }
-    // Hidden channels drop out of zapping only when asked, and never under the channel being watched.
-    val playerLineup = if (settings?.zapSkipsHidden == true && route.guideId !in hidden) visibleLineup else lineup
     val start = playerLineup.channels.indexOfFirst { it.guideId == route.guideId }.coerceAtLeast(0)
     val previousGuideId = remember(route) { shell.history.previousFor(route.guideId) }
     PlayerScreen(
@@ -234,6 +241,18 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
         programFacts = vm::programFacts,
         sleep = shell.sleep,
     )
+}
+
+/**
+ * What the player zaps through, or null to send the viewer back: hidden channels drop out only when asked, and never
+ * under the channel being watched ([guideId]); kids mode zaps through its own channels and plays no other, however it
+ * was asked for.
+ */
+private fun playerLineup(lineup: Lineup?, visible: Lineup?, guideId: String, settings: AppSettings?): Lineup? = when {
+    lineup == null || visible == null -> null
+    settings?.kidsMode == true -> visible.takeIf { shown -> shown.channels.any { it.guideId == guideId } }
+    settings?.zapSkipsHidden == true && guideId !in settings.hiddenChannels -> visible
+    else -> lineup
 }
 
 @Composable

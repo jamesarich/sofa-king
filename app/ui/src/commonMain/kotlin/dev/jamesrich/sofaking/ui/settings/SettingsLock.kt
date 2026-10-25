@@ -31,6 +31,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.SettingsPin
 import dev.jamesrich.sofaking.resources.Res
@@ -46,6 +47,10 @@ import dev.jamesrich.sofaking.resources.lock_unlock
 import dev.jamesrich.sofaking.resources.lock_wait
 import dev.jamesrich.sofaking.resources.lock_wrong
 import dev.jamesrich.sofaking.resources.settings_api_token
+import dev.jamesrich.sofaking.resources.settings_kids_help
+import dev.jamesrich.sofaking.resources.settings_kids_on
+import dev.jamesrich.sofaking.resources.settings_kids_turn_off
+import dev.jamesrich.sofaking.resources.settings_kids_turn_on
 import dev.jamesrich.sofaking.resources.settings_lock_cancel
 import dev.jamesrich.sofaking.resources.settings_lock_confirm
 import dev.jamesrich.sofaking.resources.settings_lock_help
@@ -285,10 +290,12 @@ internal fun ErrorText(text: String) {
 
 /**
  * The Lock section of Settings: Set a PIN opens two fields that must agree, and with a PIN set, Remove PIN
- * takes it off. [onPinChange] gets the new digits, or null to remove the lock.
+ * takes it off. [onPinChange] gets the new digits, or null to remove the lock. With a PIN set, kids mode turns on
+ * and off through [onKidsModeChange].
  */
 @Composable
-internal fun LockSection(locked: Boolean, onPinChange: (String?) -> Unit) {
+internal fun LockSection(settings: AppSettings, onPinChange: (String?) -> Unit, onKidsModeChange: (Boolean) -> Unit) {
+    val locked = settings.settingsLocked
     var setting by remember { mutableStateOf(false) }
     val first = rememberTextFieldState()
     val again = rememberTextFieldState()
@@ -328,6 +335,7 @@ internal fun LockSection(locked: Boolean, onPinChange: (String?) -> Unit) {
                 }, modifier = Modifier.focusRequester(buttonFocus)) {
                     Text(stringResource(Res.string.settings_lock_remove))
                 }
+                KidsModeRow(settings.kidsMode, onKidsModeChange)
             }
 
             !setting -> {
@@ -346,6 +354,15 @@ internal fun LockSection(locked: Boolean, onPinChange: (String?) -> Unit) {
                 again.clearText()
             }
         }
+    }
+}
+
+/** Kids mode's help and the button that turns it on or off. */
+@Composable
+private fun KidsModeRow(kidsMode: Boolean, onChange: (Boolean) -> Unit) {
+    HelpText(stringResource(if (kidsMode) Res.string.settings_kids_on else Res.string.settings_kids_help))
+    SofaButton(onClick = { onChange(!kidsMode) }) {
+        Text(stringResource(if (kidsMode) Res.string.settings_kids_turn_off else Res.string.settings_kids_turn_on))
     }
 }
 

@@ -38,6 +38,7 @@ import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.ui.LocalAppLifecycleOwner
 import dev.jamesrich.sofaking.ui.LocalClockFormat
 import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
+import dev.jamesrich.sofaking.ui.LocalKidsMode
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.LocalTimeZone
@@ -125,7 +126,8 @@ private fun SofaKingApp(
     val recordingsState by recordingsVm.state.collectAsStateWithLifecycle()
     val shell = rememberAppShellState()
     val top = shell.nav.top
-    val offered = tabsOffered(capabilities, shell.nav.tab, libraryHome, recordingsState)
+    val kids = settings?.kidsMode == true
+    val offered = tabsOffered(capabilities, shell.nav.tab, libraryHome, recordingsState, kids)
     PairingEffects(shell, pairing, pairingState.outcome, onPairingHandle, vm::pair, vm::pairingHandled)
     val launch = launchTarget(state, settings)
     val lineup = (state as? LineupState.Ready)?.lineup
@@ -172,6 +174,7 @@ private fun SofaKingApp(
         LocalAppLifecycleOwner provides lifecycleOwner,
         LocalInPictureInPicture provides inPictureInPicture,
         LocalPlayerVolume provides playback.volume,
+        LocalKidsMode provides kids,
     ) {
         AppNavDisplay(shell, chrome, entries, playback.volume)
     }

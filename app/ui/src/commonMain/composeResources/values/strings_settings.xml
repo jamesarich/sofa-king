@@ -125,6 +125,10 @@
     <string name="settings_lock_cancel">Cancel</string>
     <string name="settings_lock_on">Settings now asks for the PIN. Forgot it? Choose Forgot the PIN on the lock screen and enter the server's API token.</string>
     <string name="settings_lock_remove">Remove the PIN</string>
+    <string name="settings_kids_help">Kids mode keeps the guide to the lineup's kids' channels and the library to titles rated G, PG, TV-Y, TV-Y7, TV-G or TV-PG, and hides the DVR tab. Leaving it takes the PIN.</string>
+    <string name="settings_kids_on">Kids mode is on. Turn it off here to show every channel and title again.</string>
+    <string name="settings_kids_turn_on">Turn on kids mode</string>
+    <string name="settings_kids_turn_off">Turn off kids mode</string>
     <string name="lock_title">Settings are locked</string>
     <string name="lock_help">Enter the PIN to open Settings.</string>
     <string name="lock_pin">PIN</string>

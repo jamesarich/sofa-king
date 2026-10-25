@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -91,11 +92,12 @@ internal fun OnLaterScreen(
     var kind by rememberSaveable { mutableStateOf(OnLaterKind.MOVIES) }
     var attempt by remember { mutableIntStateOf(0) }
     var shown by remember { mutableStateOf<OnLaterLoad>(OnLaterLoad.Loading) }
+    val currentLoad by rememberUpdatedState(load)
     LaunchedEffect(kind, attempt, lineup.channels) {
         shown = OnLaterLoad.Loading
         // Only the channels the viewer keeps in the guide; the server lists every enabled one.
         val channels = lineup.channels.associateBy { it.guideId }
-        shown = load(kind)?.let { programs ->
+        shown = currentLoad(kind)?.let { programs ->
             OnLaterLoad.Loaded(
                 programs.mapNotNull { program -> channels[program.channelId]?.let { Airing(it, program) } },
             )

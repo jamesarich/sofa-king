@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.settings.LicensesScreen
 
 /**
  * The page for [route], drawn by its destination (LiveDestinations, LibraryDestinations, RecordingsDestinations,
@@ -28,6 +29,8 @@ internal fun RouteDestination(
         is Route.SettingsSection -> SettingsDestination(route.page, arrival, shell, vm, libraryVm, offered)
 
         Route.Channels, Route.StartupChannel -> ChannelsDestination(route, shell, vm)
+
+        Route.Licenses -> LicensesScreen(onBack = shell::back)
 
         is Route.Player -> PlayerDestination(route, shell, vm, player)
 

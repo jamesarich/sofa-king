@@ -7,17 +7,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.data.AppSettings
-import dev.jamesrich.sofaking.data.AutoOpenDelay
-import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.KidsMode
 import dev.jamesrich.sofaking.data.Lineup
-import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMarks
+import dev.jamesrich.sofaking.data.playerLineup
 import dev.jamesrich.sofaking.data.toggleTeam
-import dev.jamesrich.sofaking.data.visibleChannels
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.channel_gone
 import dev.jamesrich.sofaking.resources.load_failed
@@ -45,23 +41,6 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
 
-/**
- * The lineup as this device shows it: hidden channels leave the guide and the channel list, and the player's zapping
- * when that switch is on; the full lineup stays for the manager, the picker and a channel opened by number. In
- * kids mode only the kids' channels are left, everywhere.
- */
-@Composable
-internal fun rememberVisibleLineup(lineup: Lineup?, settings: AppSettings?): Lineup? {
-    val hidden = settings?.hiddenChannels.orEmpty()
-    val kids = settings?.kidsMode == true
-    return remember(lineup, hidden, kids) {
-        lineup?.let { l ->
-            val shown = visibleChannels(l.channels, hidden)
-            l.copy(channels = if (kids) KidsMode.channels(shown) else shown)
-        }
-    }
-}
-
 /** The guide, once the cold start has decided where to land, or what stands in for it while there is no lineup. */
 @Composable
 internal fun GuideDestination(
@@ -74,6 +53,7 @@ internal fun GuideDestination(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val prefs = settings ?: AppSettings()
     val capabilities by vm.capabilities.collectAsStateWithLifecycle()
     val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
     val watchlist by vm.watchlist.marks.collectAsStateWithLifecycle()
@@ -84,7 +64,6 @@ internal fun GuideDestination(
     }
     // Settings arrive a beat after the cached lineup; the guide waits for them so it can open on the last channel.
     val s = state
-    val visibleLineup = rememberVisibleLineup((s as? LineupState.Ready)?.lineup, settings)
     when {
         s is LineupState.Loading || settings == null || !shell.launchDecided -> MessageScreen(
             stringResource(Res.string.loading),
@@ -104,10 +83,10 @@ internal fun GuideDestination(
         )
 
         s is LineupState.Ready -> GuideOrEmpty(
-            lineup = visibleLineup ?: s.lineup,
-            favorites = settings?.favorites.orEmpty(),
-            favoritesOrder = settings?.favoritesOrder.orEmpty(),
-            recentChannels = settings?.recentChannels.orEmpty(),
+            lineup = s.visible,
+            favorites = prefs.favorites,
+            favoritesOrder = prefs.favoritesOrder,
+            recentChannels = prefs.recentChannels,
             arrival = arrival.forGuide(settings, hasHeader = headerFocus != null),
             actions = GuideActions(
                 onPlay = { channel, scope, unattended -> shell.push(Route.Player(channel.guideId, scope, unattended)) },
@@ -125,10 +104,10 @@ internal fun GuideDestination(
             preview = GuidePreview(
                 player = player,
                 sessions = vm.sessions,
-                captionsEnabled = settings?.captionsEnabled ?: false,
-                captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
-                autoOpenDelay = settings?.autoOpenDelay ?: AutoOpenDelay.AFTER_10_SECONDS,
-                sound = settings?.previewSound ?: true,
+                captionsEnabled = prefs.captionsEnabled,
+                captionStyle = prefs.captionStyle,
+                autoOpenDelay = prefs.autoOpenDelay,
+                sound = prefs.previewSound,
             ),
             recordingMarks = recordingMarks.takeIf { capabilities.recordings },
             headerFocus = headerFocus,
@@ -145,11 +124,11 @@ internal fun GuideDestination(
 internal fun OnLaterDestination(shell: AppShellState, vm: LineupViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val prefs = settings ?: AppSettings()
     val capabilities by vm.capabilities.collectAsStateWithLifecycle()
     val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
     val watchlist by vm.watchlist.marks.collectAsStateWithLifecycle()
-    val lineup = (state as? LineupState.Ready)?.lineup
-    val visibleLineup = rememberVisibleLineup(lineup, settings)
+    val visibleLineup = (state as? LineupState.Ready)?.visible
     if (visibleLineup == null) {
         MessageScreen(stringResource(Res.string.loading), loading = true)
         return
@@ -157,7 +136,7 @@ internal fun OnLaterDestination(shell: AppShellState, vm: LineupViewModel) {
     val watch = { channel: Channel -> shell.push(Route.Player(channel.guideId)) }
     OnLaterScreen(
         lineup = visibleLineup,
-        favorites = settings?.favorites.orEmpty(),
+        favorites = prefs.favorites,
         recordingMarks = recordingMarks.takeIf { capabilities.recordings },
         actions = GuideActions(
             onPlay = { channel, _, _ -> watch(channel) },
@@ -191,10 +170,11 @@ private fun Arrival.forGuide(settings: AppSettings?, hasHeader: Boolean) = Guide
 internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: LineupViewModel, player: LivePlayer) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val prefs = settings ?: AppSettings()
     val capabilities by vm.capabilities.collectAsStateWithLifecycle()
     val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
-    val lineup = (state as? LineupState.Ready)?.lineup
-    val playerLineup = playerLineup(lineup, rememberVisibleLineup(lineup, settings), route.guideId, settings)
+    val ready = state as? LineupState.Ready
+    val playerLineup = ready?.let { playerLineup(it.lineup, it.visible, route.guideId, settings) }
     val channelGone = stringResource(Res.string.channel_gone)
     if (playerLineup == null) {
         LaunchedEffect(Unit) { shell.back() }
@@ -219,25 +199,25 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
             shell.notice = formatTemplate(channelGone, channel.label())
             shell.back()
         },
-        captionsEnabled = settings?.captionsEnabled ?: false,
+        captionsEnabled = prefs.captionsEnabled,
         onCaptionsChange = vm::setCaptionsEnabled,
-        captionAdvanceFor = { settings?.captionAdvanceFor(it.guideId) ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS },
+        captionAdvanceFor = { prefs.captionAdvanceFor(it.guideId) },
         onCaptionAdvanceChange = { channel, ms -> vm.setChannelCaptionAdvance(channel.guideId, ms) },
-        captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
-        smoothCaptions = settings?.smoothCaptions ?: true,
-        favorites = settings?.favorites.orEmpty(),
-        favoritesOrder = settings?.favoritesOrder.orEmpty(),
-        recentGuideIds = settings?.recentChannels.orEmpty(),
+        captionStyle = prefs.captionStyle,
+        smoothCaptions = prefs.smoothCaptions,
+        favorites = prefs.favorites,
+        favoritesOrder = prefs.favoritesOrder,
+        recentGuideIds = prefs.recentChannels,
         onToggleFavorite = { vm.toggleFavorite(it.guideId) },
-        keyLegendShown = settings?.keyLegendShown ?: AppSettings.KEY_LEGEND_BARS,
+        keyLegendShown = prefs.keyLegendShown,
         onKeyLegendShow = vm::setKeyLegendShown,
         recordingMarks = recordingMarks.takeIf { capabilities.recordings },
         onRecord = vm.recordings::toggle,
         onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
         zoom = shell.videoZoom,
         onZoom = { shell.videoZoom = it },
-        liveBreaks = settings?.liveBreaks ?: LiveBreaks.PLAY,
-        adsDodgedTodayMs = settings?.adsDodged?.on(localDay()) ?: 0,
+        liveBreaks = prefs.liveBreaks,
+        adsDodgedTodayMs = prefs.adsDodged.on(localDay()),
         onAdsDodge = { vm.addAdsDodged(localDay(), it) },
         programFacts = vm::programFacts,
         sleep = shell.sleep,
@@ -259,7 +239,8 @@ internal fun MultiviewDestination(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
-    val lineup = rememberVisibleLineup((state as? LineupState.Ready)?.lineup, settings)
+    val prefs = settings ?: AppSettings()
+    val lineup = (state as? LineupState.Ready)?.visible
     if (lineup == null) {
         LaunchedEffect(Unit) { shell.back() }
         return
@@ -269,23 +250,11 @@ internal fun MultiviewDestination(
         initial = route.guideIds,
         player = player,
         sessions = vm.sessions,
-        favoritesOrder = settings?.favoritesOrder.orEmpty(),
-        recent = settings?.recentChannels.orEmpty(),
+        favoritesOrder = prefs.favoritesOrder,
+        recent = prefs.recentChannels,
         onWatch = { channel -> shell.backToPlayer(channel.guideId) },
         onExit = { shell.backToPlayer(route.guideIds.first()) },
     )
-}
-
-/**
- * What the player zaps through, or null to send the viewer back: hidden channels drop out only when asked, and never
- * under the channel being watched ([guideId]); kids mode zaps through its own channels and plays no other, however it
- * was asked for.
- */
-private fun playerLineup(lineup: Lineup?, visible: Lineup?, guideId: String, settings: AppSettings?): Lineup? = when {
-    lineup == null || visible == null -> null
-    settings?.kidsMode == true -> visible.takeIf { shown -> shown.channels.any { it.guideId == guideId } }
-    settings?.zapSkipsHidden == true && guideId !in settings.hiddenChannels -> visible
-    else -> lineup
 }
 
 @Composable

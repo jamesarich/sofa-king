@@ -68,6 +68,8 @@ internal actual val KeyEvent.isLongPress: Boolean get() = false
 
 internal actual val platformMovesFocusOnArrows: Boolean = false
 
+internal actual val licenseTargets: Set<String> = setOf("iosArm64", "iosSimulatorArm64")
+
 /** The SwiftUI host owns the status bar, and the app offers no picture-in-picture on iOS. */
 @Composable
 internal actual fun rememberPlayerWindow(player: LivePlayer, active: Boolean): Boolean = false

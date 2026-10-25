@@ -45,6 +45,8 @@ androidx-test-orchestrator = "1.6.1"
 screenshot = "0.0.1-alpha16"
 vlcj = "4.12.1"
 coil = "3.6.3"
+# The open-source licenses screen: its Gradle plugin lists the dependencies at build time, its Compose UI draws them.
+aboutlibraries = "15.3.0"
 exposed = "1.6.0"
 sqlite = "3.53.4.0"
 logback = "1.6.5"
@@ -103,6 +105,7 @@ compose-animation = { module = "org.jetbrains.compose.animation:animation", vers
 navigationevent-compose = { module = "org.jetbrains.androidx.navigationevent:navigationevent-compose", version.ref = "navigationevent" }
 navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui", version.ref = "navigation3" }
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose-multiplatform" }
+aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutlibraries" }
 
 # Android
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
@@ -167,4 +170,5 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
 compose-hot-reload = { id = "org.jetbrains.compose.hot-reload", version.ref = "compose-hot-reload" }
+aboutlibraries = { id = "com.mikepenz.aboutlibraries.plugin", version.ref = "aboutlibraries" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

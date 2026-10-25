@@ -6,6 +6,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.MDC
 import java.io.ByteArrayOutputStream
+import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -27,7 +28,14 @@ class LoggingTest {
     }
 
     @Test fun `the defaults are info and text, and unknown values name their variable`() {
-        assertEquals(LogSettings("info", "text"), LogSettings.from(emptyMap()))
+        assertEquals(LogSettings("info", "text", 14), LogSettings.from(emptyMap()))
+        assertEquals(0, LogSettings.from(mapOf("SOFA_LOG_DAYS" to "0")).days)
+        assertEquals(
+            "SOFA_LOG_DAYS must be a whole number from 0 to 365",
+            assertFailsWith<IllegalArgumentException> {
+                LogSettings.from(mapOf("SOFA_LOG_DAYS" to "forever"))
+            }.message,
+        )
         assertEquals(
             LogSettings("debug", "json"),
             LogSettings.from(
@@ -110,5 +118,33 @@ class LoggingTest {
         assertFalse("kept for the page" in text, text)
         assertTrue("on both" in text, text)
         assertEquals(listOf("on both", "kept for the page"), ring.snapshot().map { it.message })
+    }
+
+    @Test fun `the log is also written to server log in the data folder, at the same level`() {
+        val directory = Files.createTempDirectory("logs")
+        val context = LoggerContext().apply { mdcAdapter = MDC.getMDCAdapter() }
+        try {
+            configureLogging(context, LogSettings("warn", "text"), ByteArrayOutputStream(), null, directory)
+            val log = context.getLogger("dev.jamesrich.sofaking.backend.Test")
+            log.info("stderr only at info")
+            log.warn("kept across updates")
+        } finally {
+            context.stop()
+        }
+        val text = Files.readString(directory.resolve("server.log"))
+        assertTrue("kept across updates" in text, text)
+        assertFalse("stderr only at info" in text, text)
+    }
+
+    @Test fun `no file is written when the days are 0 or there is no folder`() {
+        val directory = Files.createTempDirectory("logs")
+        val context = LoggerContext().apply { mdcAdapter = MDC.getMDCAdapter() }
+        try {
+            configureLogging(context, LogSettings("info", "text", days = 0), ByteArrayOutputStream(), null, directory)
+            context.getLogger("dev.jamesrich.sofaking.backend.Test").warn("nowhere")
+        } finally {
+            context.stop()
+        }
+        assertFalse(Files.exists(directory.resolve("server.log")))
     }
 }

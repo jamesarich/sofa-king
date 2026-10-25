@@ -36,17 +36,23 @@ internal class LibraryShelves(
     private val scope: CoroutineScope,
     private val emptyRecheck: Duration,
     watchNext: WatchNext,
+    present: (LibraryHomeState) -> LibraryHomeState = { it },
     private val repository: () -> LibraryRepository?,
 ) {
-    private val state = MutableStateFlow<LibraryHomeState>(LibraryHomeState.Loading)
-    val home: StateFlow<LibraryHomeState> = state.asStateFlow()
+    private val state = ShownState<LibraryHomeState>(LibraryHomeState.Loading, present)
+
+    /** The home as the screens show it. */
+    val home: StateFlow<LibraryHomeState> = state.shown
     private var job: Job? = null
 
     init {
         scope.launch {
-            state.collect { home -> watchNextItems(home)?.let(watchNext::publish) }
+            state.loaded.collect { home -> watchNextItems(home)?.let(watchNext::publish) }
         }
     }
+
+    /** Shows the home again, as the way it is shown changed. */
+    fun reshow() = state.reshow()
 
     /** Reloads the home shelves, keeping the ones on screen until the new ones are in. */
     fun refresh() {
@@ -80,11 +86,26 @@ internal class LibraryShelves(
         failedLoad("library home", e, state.value as? LibraryHomeState.Ready, LibraryHomeState::Failed)
 }
 
-/** The library grid opened last, paged in from [repository] in [scope]; it stays loaded while its pages are shown. */
-internal class LibraryGrids(private val scope: CoroutineScope, private val repository: () -> LibraryRepository?) {
-    private val state = MutableStateFlow<LibraryGrid?>(null)
-    val grid: StateFlow<LibraryGrid?> = state.asStateFlow()
+/**
+ * The library grid opened last, paged in from [repository] in [scope]; it stays loaded while its pages are shown, as
+ * [present] shows them.
+ */
+internal class LibraryGrids(
+    private val scope: CoroutineScope,
+    present: (LibraryGrid?) -> LibraryGrid? = { it },
+    private val repository: () -> LibraryRepository?,
+) {
+    private val state = ShownState<LibraryGrid?>(null, present)
+
+    /** The grid as the screens show it. */
+    val grid: StateFlow<LibraryGrid?> = state.shown
+
+    /** The grid as loaded, every page's items in it. */
+    val loaded: StateFlow<LibraryGrid?> = state.loaded
     private var job: Job? = null
+
+    /** Shows the grid again, as the way it is shown changed. */
+    fun reshow() = state.reshow()
 
     // The item a letter jump waits for; pages load one after another until it is in.
     private var loadTarget: Int? = null
@@ -192,6 +213,33 @@ internal class LibraryGrids(private val scope: CoroutineScope, private val repos
             } catch (_: Exception) {
             }
         }
+    }
+}
+
+/**
+ * State kept as loaded and published as [present] shows it: [shown] follows every write at once, and [reshow] applies a
+ * change in how it is shown, such as kids mode turning on. Written on the main thread only, as the pages are.
+ */
+internal class ShownState<T>(initial: T, private val present: (T) -> T) {
+    private val raw = MutableStateFlow(initial)
+    private val presented = MutableStateFlow(present(initial))
+    val loaded: StateFlow<T> = raw.asStateFlow()
+    val shown: StateFlow<T> = presented.asStateFlow()
+
+    var value: T
+        get() = raw.value
+        set(value) {
+            raw.value = value
+            reshow()
+        }
+
+    fun update(transform: (T) -> T) {
+        raw.update(transform)
+        reshow()
+    }
+
+    fun reshow() {
+        presented.value = present(raw.value)
     }
 }
 

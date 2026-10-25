@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.ItemKind
+import dev.jamesrich.sofaking.data.KidsMode
 import dev.jamesrich.sofaking.data.LetterJump
 import dev.jamesrich.sofaking.data.LibraryRepository
 import dev.jamesrich.sofaking.data.LibrarySort
@@ -27,7 +28,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -174,7 +179,7 @@ class LibraryViewModel private constructor(parts: LibraryParts, private val book
      * position is saved every [saveInterval], a home with no library is loaded again every [emptyRecheck], and
      * [watchNext] gets the Continue watching shelf each time the home loads, from this model's scope, so a stop saved
      * after the app left the screen still reaches the platform's row. [watchlist] is the household's watchlist, which
-     * the item pages add to.
+     * the item pages add to. While [kidsMode] is on, the home, the grid and search show only what [KidsMode] allows.
      */
     constructor(
         apis: Flow<SofaKingApi?>,
@@ -185,8 +190,17 @@ class LibraryViewModel private constructor(parts: LibraryParts, private val book
         emptyRecheck: Duration = 5.minutes,
         watchNext: WatchNext = WatchNext.None,
         watchlist: WatchlistBook? = null,
+        kidsMode: Flow<Boolean> = flowOf(false),
     ) : this(
-        LibraryParts(apis, sessions, newRepository, PositionSaver(timeSource, saveInterval), emptyRecheck, watchNext),
+        LibraryParts(
+            apis,
+            sessions,
+            newRepository,
+            PositionSaver(timeSource, saveInterval),
+            emptyRecheck,
+            watchNext,
+            kidsMode,
+        ),
         watchlist,
     )
 
@@ -204,7 +218,8 @@ private val noMarks: StateFlow<WatchlistMarks> = MutableStateFlow(WatchlistMarks
 
 /**
  * What a [LibraryViewModel] is made of, in its main-thread [scope]: the repository for the server [apis] names, the
- * shelves, grid and pages it browses, and the player's side.
+ * shelves, grid and pages it browses, and the player's side. While [kidsMode] is on, the shelves, the grid and search
+ * show only what [KidsMode] allows.
  */
 internal class LibraryParts(
     apis: Flow<SofaKingApi?>,
@@ -213,13 +228,15 @@ internal class LibraryParts(
     positions: PositionSaver,
     emptyRecheck: Duration,
     watchNext: WatchNext,
+    kidsMode: Flow<Boolean>,
 ) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val kids = kidsMode.stateIn(scope, SharingStarted.Eagerly, false)
     private var repository: LibraryRepository? = null
-    private val shelves = LibraryShelves(scope, emptyRecheck, watchNext) { repository }
-    private val grids = LibraryGrids(scope) { repository }
+    private val shelves = LibraryShelves(scope, emptyRecheck, watchNext, { kidsHome(it, kids.value) }) { repository }
+    private val grids = LibraryGrids(scope, { grid -> grid?.let { kidsGrid(it, kids.value) } }) { repository }
     private val pages = ItemPages(scope) { repository }
-    val browsing = LibraryBrowser(shelves, grids, pages, scope) { repository }
+    val browsing = LibraryBrowser(shelves, grids, pages, scope, kids::value) { repository }
     val playback = LibraryPlayer(sessions, positions, scope, { repository }, browsing::changed)
 
     init {
@@ -231,15 +248,30 @@ internal class LibraryParts(
                 if (api == null) shelves.unconfigured() else shelves.refresh()
             }
         }
+        scope.launch {
+            kids.collect {
+                shelves.reshow()
+                grids.reshow()
+            }
+        }
+        // Kids mode leaves some pages thin, so the next loads until the grid fills a screen or the library ends.
+        scope.launch {
+            combine(grids.loaded, kids) { grid, kids -> kids && grid != null && kidsGridThin(grid) }
+                .collect { thin -> if (thin) grids.loadMore() }
+        }
     }
 }
 
-/** [LibraryBrowsing] over the [shelves], [grids] and [pages], with [repository] for search and the watched marks. */
+/**
+ * [LibraryBrowsing] over the [shelves], [grids] and [pages], with [repository] for search and the watched marks; search
+ * finds only what [KidsMode] allows while [kids] says so.
+ */
 internal class LibraryBrowser(
     private val shelves: LibraryShelves,
     private val grids: LibraryGrids,
     private val pages: ItemPages,
     private val scope: CoroutineScope,
+    private val kids: () -> Boolean,
     private val repository: () -> LibraryRepository?,
 ) : LibraryBrowsing {
     override val home: StateFlow<LibraryHomeState> get() = shelves.home
@@ -260,7 +292,7 @@ internal class LibraryBrowser(
         val repository = repository() ?: return emptyList()
         if (query.isBlank()) return emptyList()
         return runCatchingCancellable {
-            repository.search(query.trim())
+            repository.search(query.trim()).let { found -> if (kids()) found.filter(KidsMode::allows) else found }
         }.getOrElse { e ->
             log.w { "library search failed: ${e.describe()}" }
             emptyList()
@@ -380,5 +412,26 @@ internal class LibraryPlayer(
         }
     }
 }
+
+/** [home] as the screens show it: every shelf down to the titles kids mode shows while [kids] is on. */
+private fun kidsHome(home: LibraryHomeState, kids: Boolean): LibraryHomeState =
+    if (kids && home is LibraryHomeState.Ready) LibraryHomeState.Ready(KidsMode.home(home.home)) else home
+
+/**
+ * [grid] as the screens show it: down to the titles kids mode shows while [kids] is on. Its letters then go, since they
+ * jump to places in the whole library, and its total counts what is shown so far.
+ */
+private fun kidsGrid(grid: LibraryGrid, kids: Boolean): LibraryGrid {
+    if (!kids) return grid
+    val items = grid.items.filter(KidsMode::allows)
+    return grid.copy(items = items, letters = emptyList(), total = items.size)
+}
+
+/** Whether a kids mode [grid], as loaded, shows fewer titles than fill a screen and has more pages to load. */
+private fun kidsGridThin(grid: LibraryGrid): Boolean =
+    !grid.loading && grid.next != null && grid.items.count(KidsMode::allows) < KIDS_GRID_FILL
+
+/** How many titles kids mode loads into a grid before it waits for the viewer to scroll. */
+private const val KIDS_GRID_FILL = 24
 
 private val log = Logger.withTag("SofaKing")

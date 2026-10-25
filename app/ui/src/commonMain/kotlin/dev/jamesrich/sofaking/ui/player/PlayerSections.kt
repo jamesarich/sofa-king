@@ -404,7 +404,7 @@ private fun PointerControls(
         ControlIcon(
             Icons.Filled.KeyboardArrowDown,
             stringResource(Res.string.player_control_channel_down),
-            bar.control { state.zapStep(PlayerAction.CHANNEL_DOWN.zapStep()!!) },
+            bar.control { PlayerAction.CHANNEL_DOWN.zapStep()?.let(state::zapStep) },
         )
         PlayPauseControl(
             paused,
@@ -416,7 +416,7 @@ private fun PointerControls(
         ControlIcon(
             Icons.Filled.KeyboardArrowUp,
             stringResource(Res.string.player_control_channel_up),
-            bar.control { state.zapStep(PlayerAction.CHANNEL_UP.zapStep()!!) },
+            bar.control { PlayerAction.CHANNEL_UP.zapStep()?.let(state::zapStep) },
         )
         buttons()
         VolumeControl(onAdjust = state::keepInfo, onDone = bar.control {})

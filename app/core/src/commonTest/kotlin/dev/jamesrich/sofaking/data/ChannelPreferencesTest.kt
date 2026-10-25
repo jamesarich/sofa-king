@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.data
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 
 class ChannelPreferencesTest {
@@ -12,6 +13,35 @@ class ChannelPreferencesTest {
     fun `hidden channels leave the list in lineup order`() {
         assertEquals(listOf("1", "3"), visibleChannels(channels, setOf("2", "4", "9")).map { it.guideId })
         assertSame(channels, visibleChannels(channels, emptySet()))
+    }
+
+    @Test
+    fun `the visible lineup drops hidden channels and in kids mode all but the kids ones`() {
+        val kidsChannel = Channel("5", 5.0, "Cartoons", null, listOf("Kids"))
+        val lineup = Lineup(channels + kidsChannel, emptyMap())
+        assertSame(lineup, visibleLineup(lineup, emptySet(), kids = false))
+        assertEquals(
+            listOf("1", "3", "5"),
+            visibleLineup(lineup, setOf("2", "4"), kids = false).channels.map {
+                it.guideId
+            },
+        )
+        assertEquals(listOf("5"), visibleLineup(lineup, setOf("2"), kids = true).channels.map { it.guideId })
+        assertEquals(emptyList(), visibleLineup(lineup, setOf("5"), kids = true).channels)
+    }
+
+    @Test
+    fun `the player zaps through hidden channels unless asked and kids mode plays only its own`() {
+        val lineup = Lineup(channels, emptyMap())
+        val visible = visibleLineup(lineup, setOf("2"), kids = false)
+        assertSame(lineup, playerLineup(lineup, visible, "1", null))
+        assertSame(lineup, playerLineup(lineup, visible, "1", AppSettings(hiddenChannels = setOf("2"))))
+        val skipping = AppSettings(hiddenChannels = setOf("2"), zapSkipsHidden = true)
+        assertSame(visible, playerLineup(lineup, visible, "1", skipping))
+        assertSame(lineup, playerLineup(lineup, visible, "2", skipping), "a hidden channel opened by number zaps all")
+        val kids = AppSettings(kidsMode = true)
+        assertSame(visible, playerLineup(lineup, visible, "1", kids))
+        assertNull(playerLineup(lineup, visible, "2", kids))
     }
 
     @Test

@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking
 import dev.jamesrich.sofaking.ui.library.SEARCH_FOCUS_KEY
 import dev.jamesrich.sofaking.ui.library.libraryFocusKey
 import dev.jamesrich.sofaking.ui.settings.CHANNELS_FOCUS_KEY
+import dev.jamesrich.sofaking.ui.settings.LICENSES_FOCUS_KEY
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -117,5 +118,18 @@ class NavigationTest {
         val nav = start.push(Route.Settings).push(Route.Channels).pop()
         assertEquals(Route.Settings, nav.top)
         assertEquals(CHANNELS_FOCUS_KEY, nav.arrival.returnedFrom)
+    }
+
+    @Test
+    fun `back from the licenses focuses their button in Settings`() {
+        val nav = start.push(Route.Settings).push(Route.Licenses).pop()
+        assertEquals(Route.Settings, nav.top)
+        assertEquals(LICENSES_FOCUS_KEY, nav.arrival.returnedFrom)
+    }
+
+    @Test
+    fun `leaving Settings from the licenses returns to the tab`() {
+        val nav = start.push(Route.Settings).push(Route.Licenses).closeSettings()
+        assertEquals(Route.Guide, nav.top)
     }
 }

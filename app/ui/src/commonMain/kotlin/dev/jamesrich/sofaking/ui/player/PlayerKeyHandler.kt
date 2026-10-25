@@ -187,9 +187,8 @@ internal class PlayerKeyHandler(
         when (action) {
             PlayerAction.TOGGLE_CAPTIONS -> controls.toggleCaptions()
 
-            PlayerAction.ZAP_UP, PlayerAction.ZAP_DOWN, PlayerAction.CHANNEL_UP, PlayerAction.CHANNEL_DOWN -> zapStep(
-                action.zapStep()!!,
-            )
+            PlayerAction.ZAP_UP, PlayerAction.ZAP_DOWN, PlayerAction.CHANNEL_UP, PlayerAction.CHANNEL_DOWN ->
+                action.zapStep()?.let(::zapStep)
 
             PlayerAction.LAST_CHANNEL -> recallLastChannel()
 

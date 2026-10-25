@@ -24,6 +24,7 @@ import dev.jamesrich.sofaking.data.UpdateChecker
 import dev.jamesrich.sofaking.data.UpdateState
 import dev.jamesrich.sofaking.data.WatchlistBook
 import dev.jamesrich.sofaking.data.runCatchingCancellable
+import dev.jamesrich.sofaking.data.visibleLineup
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +37,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -53,7 +55,12 @@ sealed interface LineupState {
 
     /** No usable server address yet; Settings is where it goes. */
     data object Unconfigured : LineupState
-    data class Ready(val lineup: Lineup) : LineupState
+
+    /**
+     * [lineup] is the server's, for the channel manager, the startup picker and a channel opened by number; [visible]
+     * is what this device shows of it (see [visibleLineup]).
+     */
+    data class Ready(val lineup: Lineup, val visible: Lineup = lineup) : LineupState
     data class Failed(val message: String) : LineupState
 }
 
@@ -72,6 +79,9 @@ data class PairingState(
     val failure: PairingFailure? = null,
     val outcome: PairingOutcome? = null,
 )
+
+/** The channels a device leaves out of what it shows: those it hides, and in [kids] mode every one not for kids. */
+private data class ChannelFilter(val hidden: Set<String>, val kids: Boolean)
 
 /** How long browsing outlives Settings closing its server fields, so a quick reopen keeps what was found. */
 private const val DISCOVERY_LINGER_MS = 5_000L
@@ -178,18 +188,23 @@ class LineupViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, LineupState.Loading)
 
-    val state: StateFlow<LineupState> = combine(liveState, days.loaded) { live, extra ->
-        if (live !is LineupState.Ready || extra.isEmpty()) {
-            live
+    /** Which channels this device leaves out, read apart from the other settings so only a change to it refilters. */
+    private val channelFilter = settings
+        .map { ChannelFilter(it?.hiddenChannels.orEmpty(), it?.kidsMode == true) }
+        .distinctUntilChanged()
+
+    val state: StateFlow<LineupState> = combine(liveState, days.loaded, channelFilter) { live, extra, filter ->
+        if (live !is LineupState.Ready) return@combine live
+        val lineup = if (extra.isEmpty()) {
+            live.lineup
         } else {
-            LineupState.Ready(
-                live.lineup.copy(
-                    guide = withContext(background) {
-                        mergeGuides(live.lineup.guide, extra.values)
-                    },
-                ),
+            live.lineup.copy(
+                guide = withContext(background) {
+                    mergeGuides(live.lineup.guide, extra.values)
+                },
             )
         }
+        LineupState.Ready(lineup, visibleLineup(lineup, filter.hidden, filter.kids))
     }.stateIn(viewModelScope, SharingStarted.Eagerly, LineupState.Loading)
 
     /**

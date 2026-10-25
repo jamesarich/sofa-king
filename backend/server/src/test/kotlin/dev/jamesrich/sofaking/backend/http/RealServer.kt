@@ -21,10 +21,11 @@ class RealServer(
     token: String,
     outputs: OutputConfig = OutputConfig(),
     hdhr: HdhrConfig = HdhrConfig(),
+    adminToken: String? = null,
 ) : AutoCloseable {
     private val server =
         embeddedServer(Netty, host = "127.0.0.1", port = 0) {
-            backendModule(store, clock, runtime, token, outputs = outputs, hdhr = hdhr)
+            backendModule(store, clock, runtime, token, adminToken, outputs = outputs, hdhr = hdhr)
         }
     val base: String
 

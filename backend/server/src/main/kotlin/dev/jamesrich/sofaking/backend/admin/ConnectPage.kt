@@ -171,7 +171,8 @@ private fun FlowContent.targetsTable(chrome: Chrome, targets: List<NotificationT
                         +target.name
                         if (!target.enabled) {
                             +" "
-                            chip("Off", Tone.OFF)
+                            // A header cell takes phrasing content only, so the chip is written as its span.
+                            span("chip ${Tone.OFF.css}") { +"Off" }
                         }
                     }
                     td {

@@ -36,6 +36,7 @@ import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.backend.library.ffprobeBeside
 import dev.jamesrich.sofaking.backend.logging.applyLogLevel
 import dev.jamesrich.sofaking.backend.logos.LogoCache
+import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.MediaRelay
@@ -174,6 +175,7 @@ internal class RuntimeAssembly(
             HdhrAccess(config.hdhr.allow, ServerConfig.isLoopback(config.host), store, clock).also { it.load() },
             listener,
             config.tmdb?.let { ProgramFactsLookup(TmdbClient(http, it), clock) },
+            IssuedTokens(store, clock),
         )
         dvr.start(scope)
         dvr.requestSchedule("startup")

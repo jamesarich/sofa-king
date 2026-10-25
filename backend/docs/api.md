@@ -6,6 +6,16 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. The examples
 
 Send `Authorization: Bearer $SOFA_API_TOKEN` on every `/api/v1` request. Routes under `/api/v1/admin` take `Authorization: Bearer $SOFA_ADMIN_TOKEN` instead when an admin token is configured. On a loopback server with no token, leave the header out; it then answers only requests from the same machine. A missing or wrong token answers `401 AUTH_REQUIRED`.
 
+The server also issues tokens of its own, each starting `sk_`, stored only as a hash and revoked one at a time:
+
+| Kind | Where it comes from | What it opens |
+| --- | --- | --- |
+| `api` | A device [pairing](#pair-a-client), one per `clientId`; forgetting the device revokes it | What `SOFA_API_TOKEN` opens, except `/api/v1/admin` and `/api/v1/hooks` |
+| `read` | The portal's Settings page or `POST /api/v1/admin/tokens`, for a dashboard | `GET` of `/api/v1/admin/status`, `/sessions`, `/guides`, `/lineup`, `/policy/preview`, `/policy/findings`, `/policy/changes` and `/libraries`, with what lies under each |
+| `hook` | The same, for Sonarr, Radarr or Bazarr | `/api/v1/hooks` only |
+
+`SOFA_API_TOKEN` stays valid beside them, for scripts and devices set up by hand, and opens the hooks too.
+
 These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id}/{role}`, `/artwork/{id}/scrub/{sheet}`, `POST /api/v1/pair` (a [pairing code](#pair-a-client) stands in for the token) and the session media URLs under `/media/sessions/` and `/media/vod/`, which work until the session ends or its epoch changes. The HDHomeRun routes take none either and admit clients by address. `/output/*` takes the output token, and the admin portal its own session after the sign-in page. A browser page on another origin can call the API when `SOFA_CORS_ORIGINS` lists its origin. The whole model is in [security](security.md#credentials-and-the-routes-they-open).
 
 ## Endpoints
@@ -15,7 +25,7 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | GET | `/healthz` | Public liveness check |
 | GET | `/readyz` | Public database readiness check |
 | GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`, `recordings`) |
-| POST | `/api/v1/pair` | Exchange a pairing code for the API token, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429` |
+| POST | `/api/v1/pair` | Exchange a pairing code for a token of the device's own, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429` |
 | GET | `/api/v1/preferences/{clientId}` | The preferences the client with that id last saved, see [viewer preferences](#viewer-preferences); `404 VIEWER_NOT_FOUND` before its first save |
 | PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt` |
 | GET | `/api/v1/channels` | Catalog revision and the enabled lineup entries as channels; supports ETag/If-None-Match |
@@ -132,14 +142,14 @@ Release is idempotent and cancels active upstream requests; a media request stil
 
 ## Pair a client
 
-A viewer need not type the API token into a TV: the admin portal's [Devices page](admin.md#devices) (or `POST /api/v1/admin/pairing-codes`) issues a six-digit code, live for ten minutes and good for one claim; a new code replaces the live one, and five wrong claims void it. The client posts the code with its own id and label, and receives the token:
+A viewer need not type the API token into a TV: the admin portal's [Devices page](admin.md#devices) (or `POST /api/v1/admin/pairing-codes`) issues a six-digit code, live for ten minutes and good for one claim; a new code replaces the live one, and five wrong claims void it. The client posts the code with its own id and label, and receives an `api` [token](#tokens) of its own:
 
 ```sh
 curl -X POST http://SERVER_HOST:9193/api/v1/pair -H 'Content-Type: application/json' \
   -d '{"code":"123456","clientId":"3f0b5f2e-6c1d-4f8a-9e2b-7a1c5d4e3b2a","name":"Living room TV","platform":"android-tv"}'
 ```
 
-The answer is `{"apiToken": "...", "serverId": "..."}`; a server running without an API token answers an empty one. A wrong, spent or expired code answers `403 PAIRING_INVALID`. `clientId`, `name` and `platform` are optional; with a `clientId` the server lists the device on the Devices page from then on. The portal's QR code carries the same code as `sofaking://pair?server=URL&code=DIGITS`, which the Android and iOS apps open.
+The answer is `{"apiToken": "...", "serverId": "..."}`; a server running without an API token answers an empty one. Pairing the same `clientId` again revokes the token it held before, and forgetting the device revokes the one it holds. A wrong, spent or expired code answers `403 PAIRING_INVALID`. `clientId`, `name` and `platform` are optional; with a `clientId` the server lists the device on the Devices page from then on. The portal's QR code carries the same code as `sofaking://pair?server=URL&code=DIGITS`, which the Android and iOS apps open.
 
 ## Viewer preferences
 
@@ -275,8 +285,11 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | POST | `/api/v1/admin/plex/sync` | Sync Plex now; returns the same status. A failure is reported in `lastError`, not as an error response |
 | GET | `/api/v1/admin/hdhr/access` | Who may use the tuners: `enabled`, `open` (every address is admitted), `configured` (from `SOFA_HDHR_ALLOW`), `allowed` (from the portal or this API) and `refused`, up to ten addresses refused since the start that are still refused, newest first, each with `address`, `lastAt` and the `path` it asked for |
 | PUT | `/api/v1/admin/hdhr/access` | `{"allowed": ["PLEX_SERVER_IP"]}` replaces the addresses allowed at run time, at most 64 IP literals or CIDR blocks, and returns the same status. It applies at once, without a restart, and is kept in the database; `SOFA_HDHR_ALLOW` still applies beside it. 400 `INVALID_REQUEST` names an entry that does not parse, and nothing changes |
-| GET | `/api/v1/admin/viewers` | Every client that paired or saved preferences, most recently seen first: `clientId`, `name`, `platform`, `firstSeenAt`, `lastSeenAt` and `preferences` (null until the client saves some) |
-| DELETE | `/api/v1/admin/viewers/{clientId}` | Forget a client and its preferences; returns 204. The client keeps working and reappears on its next save |
+| GET | `/api/v1/admin/viewers` | Every client that paired or saved preferences, most recently seen first: `clientId`, `name`, `platform`, `firstSeenAt`, `lastSeenAt`, `preferences` (null until the client saves some) and `ownToken` (false for a client on `SOFA_API_TOKEN`) |
+| DELETE | `/api/v1/admin/viewers/{clientId}` | Forget a client and its preferences and revoke its token; returns 204. A client on `SOFA_API_TOKEN` keeps working and reappears on its next save |
+| GET | `/api/v1/admin/tokens` | The [tokens](#tokens) the server issued, oldest first and without secrets: `id`, `label`, `scope` (`api`, `read` or `hook`), `clientId` (for a device's token), `createdAt` and `lastUsedAt` (to the minute) |
+| POST | `/api/v1/admin/tokens` | Make a token from `{"label", "scope"}`, `scope` `read` or `hook`; 201 with `{"token", "secret"}`, the only time the secret is shown. 400 for an empty label or `api`, which only pairing issues |
+| DELETE | `/api/v1/admin/tokens/{id}` | Revoke a token; 204, or 404 `TOKEN_NOT_FOUND` |
 | POST | `/api/v1/admin/pairing-codes` | Issue a [pairing code](#pair-a-client): `{"code", "expiresAt"}`, 201. It replaces the live code |
 | GET | `/api/v1/admin/libraries` | Every [media library](libraries.md): `id`, `name`, `kind` (`movies`, `shows` or `videos`), `path`, `createdAt`, `items` (present items by kind: `movie`, `show`, `season`, `episode`, `video`) and the last scan's `scannedAt`, `scanOk` and `scanNote` |
 | GET | `/api/v1/admin/libraries/folders` | `{"roots", "folders"}`: `SOFA_MEDIA_DIR` and the folders under it, two levels down, that no library uses |
@@ -370,7 +383,8 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | POST | `/admin/plex/allow`, `/admin/plex/disallow` | Allow an address onto the tuners, or remove one the portal allowed |
 | GET | `/admin/viewers` | The devices that paired or saved preferences, and the live pairing code with its QR code |
 | POST | `/admin/viewers/pair`, `/admin/viewers/cancel` | Issue a pairing code (replacing the live one); cancel it |
-| POST | `/admin/viewers/{clientId}/forget` | Forget a device and its preferences |
+| POST | `/admin/viewers/{clientId}/forget` | Forget a device and its preferences, and revoke its token |
+| POST | `/admin/settings/tokens/create`, `/admin/settings/tokens/{id}/revoke` | Make a `read` or `hook` token (`label`, `scope`), shown once; revoke a token |
 | GET | `/admin/library` | The media libraries and the form that adds one |
 | POST | `/admin/library` | Add a library (`name`, `kind`, `path`) |
 | POST | `/admin/library/{id}/scan`, `/admin/library/{id}/rename`, `/admin/library/{id}/remove` | Queue a scan; rename (`name`); remove, after `confirm=yes` |
@@ -429,7 +443,7 @@ Errors contain `code`, `message` and `retryable`:
 | 400 | `INVALID_REQUEST` (a malformed body or path), `INVALID_QUERY` (a guide query or `days` out of range), `INVALID_POLICY` (a policy write that fails validation, with every error in `message`), `INVALID_SOURCES` (a source file write that fails validation) |
 | 401 | `AUTH_REQUIRED` |
 | 403 | `PAIRING_INVALID` (a wrong, spent or expired pairing code), `LOOPBACK_ONLY` (a server with no API token answers only requests from its own machine, see [security](security.md)) |
-| 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND`, `RESOURCE_NOT_FOUND` (an unknown route, logo or media resource), `POLICY_NOT_CONFIGURED`, `PLEX_NOT_CONFIGURED`, `VIEWER_NOT_FOUND`, `PROGRAM_NOT_FOUND`, `RECORDING_NOT_FOUND`, `RULE_NOT_FOUND`, `RECORDING_MISSING` (a recording whose file is gone), `LIBRARY_NOT_FOUND`, `LIBRARIES_NOT_AVAILABLE`, `ITEM_NOT_FOUND`, `ITEM_MISSING` (a library item whose file is gone) |
+| 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND`, `RESOURCE_NOT_FOUND` (an unknown route, logo or media resource), `POLICY_NOT_CONFIGURED`, `PLEX_NOT_CONFIGURED`, `VIEWER_NOT_FOUND`, `TOKEN_NOT_FOUND`, `PROGRAM_NOT_FOUND`, `RECORDING_NOT_FOUND`, `RULE_NOT_FOUND`, `RECORDING_MISSING` (a recording whose file is gone), `LIBRARY_NOT_FOUND`, `LIBRARIES_NOT_AVAILABLE`, `ITEM_NOT_FOUND`, `ITEM_MISSING` (a library item whose file is gone) |
 | 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS`, `POLICY_CHANGED` (a stale `If-Match` or a policy file changed on disk), `STATION_CONFLICT` (a merge of two stations that both have overrides), `POLICY_EXISTS`, `NO_SOURCES` (a starter policy over an existing policy or no providers), `PROGRAM_ENDED`, `RECORDING_NOT_READY` (nothing written yet; retryable), `LIBRARY_EXISTS` |
 | 410 | `SESSION_EXPIRED`, `STREAM_CHANGED`, `POLICY_MANAGED` |
 | 413 | `REQUEST_TOO_LARGE`, answered before the token is checked |

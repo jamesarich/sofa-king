@@ -14,6 +14,7 @@ import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.library.ProgramFactsLookup
 import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.backend.logos.LogoCache
+import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.MediaRelay
@@ -119,6 +120,8 @@ class LiveRuntime(
     val listener: AdListener? = null,
     /** TMDB's facts about live programs, for the break screen; null without a TMDB token. */
     val programFacts: ProgramFactsLookup? = null,
+    /** The tokens issued to paired devices, dashboards and hooks. */
+    val tokens: IssuedTokens = IssuedTokens(store, Clock.systemUTC()),
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()

@@ -136,6 +136,7 @@ private fun FlowContent.devicesPanel(chrome: Chrome, view: ViewersView) = panel(
                     col("Hidden", "num")
                     col("Favorites", "num")
                     col("Recent", "num")
+                    col("Token")
                     col("Preferences saved")
                     col("Last seen")
                     col("First seen")
@@ -154,9 +155,10 @@ private fun FlowContent.devicesPanel(chrome: Chrome, view: ViewersView) = panel(
     p("muted small") {
         +(
             "Hidden channels, the favorites order and the recent list are the device's own; the lineup every " +
-                "device " +
-                "sees is on the Channels page. Forget drops what the server keeps for a device; the device keeps " +
-                "its settings and saves them again on its next change."
+                "device sees is on the Channels page. A device that paired holds a token of its own, and Forget " +
+                "revokes it with what the server keeps, so the device must pair again. A device on the shared API " +
+                "token, set up by hand or paired before devices had their own, keeps working after Forget; pair it " +
+                "again to give it its own token."
             )
     }
 }
@@ -174,6 +176,16 @@ private fun TR.viewerRow(chrome: Chrome, viewer: Viewer) {
     td("num") { +(preferences?.hidden?.size?.let(::thousands) ?: "") }
     td("num") { +(preferences?.favorites?.size?.let(::thousands) ?: "") }
     td("num") { +(preferences?.recent?.size?.let(::thousands) ?: "") }
+    td("nowrap") {
+        if (viewer.ownToken) {
+            chip("Its own", Tone.OK)
+        } else {
+            span("muted") {
+                attributes["title"] = "Pair it again to give it a token of its own"
+                +"Shared API token"
+            }
+        }
+    }
     td("nowrap") {
         if (preferences == null) {
             span("muted") { +"not yet" }

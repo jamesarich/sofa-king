@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.admin.isPortalPath
+import dev.jamesrich.sofaking.backend.api.TokenScope
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.ApiError
@@ -66,7 +67,7 @@ class RouteGuardTest {
         override fun toString() = "${method.value} $path"
     }
 
-    private class Routes(val endpoints: List<Endpoint>, val browser: HttpClient)
+    private class Routes(val endpoints: List<Endpoint>, val browser: HttpClient, val runtime: LiveRuntime)
 
     /** A runtime with every optional part on, both tokens set, and the routes its application installed. */
     private suspend fun ApplicationTestBuilder.routes(block: suspend Routes.() -> Unit) {
@@ -114,6 +115,7 @@ class RouteGuardTest {
                     install(HttpCookies)
                     followRedirects = false
                 },
+                runtime,
             ).block()
         } finally {
             runtime.close()
@@ -160,6 +162,18 @@ class RouteGuardTest {
     private fun Endpoint.isApi() = path == "/api" || path.startsWith("/api/")
     private fun Endpoint.isAdminApi() = path == "/api/v1/admin" || path.startsWith("/api/v1/admin/") ||
         (method == HttpMethod.Patch && path.startsWith("/api/v1/sources/"))
+
+    /** Whether a read token opens this route: a GET of the admin reads a dashboard needs. */
+    private fun Endpoint.readScope() = method == HttpMethod.Get && listOf(
+        "/api/v1/admin/status",
+        "/api/v1/admin/sessions",
+        "/api/v1/admin/guides",
+        "/api/v1/admin/lineup",
+        "/api/v1/admin/policy/preview",
+        "/api/v1/admin/policy/findings",
+        "/api/v1/admin/policy/changes",
+        "/api/v1/admin/libraries",
+    ).any { path == it || path.startsWith("$it/") }
 
     private suspend fun ApplicationTestBuilder.call(endpoint: Endpoint, token: String? = null): HttpResponse =
         client.request(endpoint.path) {
@@ -213,6 +227,41 @@ class RouteGuardTest {
                 assertTrue(violations.isEmpty(), violations.joinToString("\n"))
             }
         }
+
+    @Test fun `issued tokens open no admin route but the reads a read token is for`() = testApplication {
+        routes {
+            val device = runtime.tokens.pair("tv-1", "TV")
+            val read = runtime.tokens.create("Homepage", TokenScope.READ).second
+            val hook = runtime.tokens.create("Sonarr", TokenScope.HOOK).second
+            val violations = buildList {
+                for (endpoint in endpoints.filter { it.isAdminApi() }) {
+                    refused(call(endpoint, device))?.let { add("$endpoint with a device token: $it") }
+                    refused(call(endpoint, hook))?.let { add("$endpoint with a hook token: $it") }
+                    val readRefusal = refused(call(endpoint, read))
+                    if (endpoint.readScope() == (readRefusal == null)) {
+                        add("$endpoint with a read token: ${readRefusal ?: "401"}")
+                    }
+                }
+            }
+            assertTrue(violations.isEmpty(), violations.joinToString("\n"))
+        }
+    }
+
+    @Test fun `a device token opens every other API route, and a read or hook token none`() = testApplication {
+        routes {
+            val device = runtime.tokens.pair("tv-1", "TV")
+            val read = runtime.tokens.create("Homepage", TokenScope.READ).second
+            val hook = runtime.tokens.create("Sonarr", TokenScope.HOOK).second
+            val violations = buildList {
+                for (endpoint in endpoints.filter { it.isApi() && !it.isAdminApi() && it.path != PAIR_PATH }) {
+                    if (refused(call(endpoint, device)) == null) add("$endpoint refused a device token")
+                    refused(call(endpoint, read))?.let { add("$endpoint with a read token: $it") }
+                    refused(call(endpoint, hook))?.let { add("$endpoint with a hook token: $it") }
+                }
+            }
+            assertTrue(violations.isEmpty(), violations.joinToString("\n"))
+        }
+    }
 
     @Test fun `every portal POST but sign-in answers 401 without a session and 403 without its CSRF token`() =
         testApplication {

@@ -54,6 +54,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
         hdhrAccessRoutes(runtime.hdhrAccess, hdhrEnabled)
         setupRoutes(runtime.setup)
         viewerAdminRoutes(runtime)
+        tokenAdminRoutes(runtime.tokens)
         libraryAdminRoutes(runtime.libraries)
     }
 }

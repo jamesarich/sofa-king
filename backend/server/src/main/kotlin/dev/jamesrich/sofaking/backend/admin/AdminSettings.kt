@@ -95,6 +95,8 @@ internal class SettingsView(
      * Whether the Advanced section starts open: after an action inside it, or when the page is asked for `advanced=1`.
      */
     val openAdvanced: Boolean = false,
+    /** The issued tokens; null for a page without them. */
+    val tokens: TokensView? = null,
 ) {
     constructor(
         view: SettingsView,
@@ -108,6 +110,7 @@ internal class SettingsView(
         view.revealedApiToken,
         runtime,
         view.openAdvanced,
+        view.tokens,
     )
 }
 
@@ -195,6 +198,7 @@ internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("
             "under Advanced.",
     )
     view.runtime?.let { runtimePanel(chrome, it) }
+    view.tokens?.let { tokensPanel(chrome, it) }
     details("advanced") {
         id = "advanced"
         if (view.openAdvanced) open = true

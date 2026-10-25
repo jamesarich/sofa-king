@@ -1,8 +1,13 @@
 package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.LiveRuntime
+import dev.jamesrich.sofaking.backend.api.CreateApiToken
+import dev.jamesrich.sofaking.backend.api.CreatedApiToken
 import dev.jamesrich.sofaking.backend.api.PairingCode
+import dev.jamesrich.sofaking.backend.api.TokenScope
+import dev.jamesrich.sofaking.backend.api.Viewer
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.store.forgetViewer
 import dev.jamesrich.sofaking.backend.store.saveViewerPreferences
 import dev.jamesrich.sofaking.backend.store.touchViewer
@@ -39,8 +44,9 @@ private const val MAX_ID = 128
 
 /**
  * The viewer routes: pairing (`POST /api/v1/pair`, open to anyone with a live code) and each client's preferences
- * document (`GET`/`PUT /api/v1/preferences/{clientId}`, behind the API token). [apiToken] is what a claim receives;
- * a server running without one hands out an empty token.
+ * document (`GET`/`PUT /api/v1/preferences/{clientId}`, behind the API token). A claim receives an `api` token of its
+ * own, which forgetting the device revokes; a server running without [apiToken] hands out an empty token, as its API
+ * answers only this machine.
  */
 internal fun Route.viewerRoutes(runtime: LiveRuntime, clock: Clock, apiToken: String?) {
     rateLimit(PAIR_LIMIT) {
@@ -56,10 +62,12 @@ internal fun Route.viewerRoutes(runtime: LiveRuntime, clock: Clock, apiToken: St
                     "That pairing code is not valid; show a new one in the admin portal",
                 )
             }
+            val name = label(claim.name)
             if (clientId != null) {
-                runtime.store.touchViewer(clientId, label(claim.name), label(claim.platform), clock.instant())
+                runtime.store.touchViewer(clientId, name, label(claim.platform), clock.instant())
             }
-            call.respond(PairingResult(apiToken.orEmpty(), runtime.store.serverId()))
+            val token = if (apiToken == null) "" else runtime.tokens.pair(clientId, name)
+            call.respond(PairingResult(token, runtime.store.serverId()))
         }
     }
     route("/api/v1/preferences/{clientId}") {
@@ -84,11 +92,16 @@ internal fun Route.viewerRoutes(runtime: LiveRuntime, clock: Clock, apiToken: St
     }
 }
 
-/** The admin side under `/api/v1/admin`: the viewers list, forgetting one, and issuing a pairing code. */
+/**
+ * The admin side under `/api/v1/admin`: the viewers list, forgetting one (which revokes its token), and issuing a
+ * pairing code.
+ */
 internal fun Route.viewerAdminRoutes(runtime: LiveRuntime) {
-    get("/viewers") { call.respond(runtime.store.viewers()) }
+    get("/viewers") { call.respond(runtime.viewersWithTokens()) }
     delete("/viewers/{clientId}") {
-        if (!runtime.store.forgetViewer(validClientId(call.parameters["clientId"]!!))) {
+        val clientId = validClientId(call.parameters["clientId"]!!)
+        val revoked = runtime.tokens.revokeClient(clientId)
+        if (!runtime.store.forgetViewer(clientId) && revoked == 0) {
             throw ApiFailure(HttpStatusCode.NotFound, "VIEWER_NOT_FOUND", "Unknown viewer")
         }
         call.respond(HttpStatusCode.NoContent)
@@ -97,6 +110,35 @@ internal fun Route.viewerAdminRoutes(runtime: LiveRuntime) {
         val issued = runtime.pairing.issue()
         call.respond(HttpStatusCode.Created, PairingCode(issued.code, issued.expiresAt.toString()))
     }
+}
+
+/** The issued tokens under `/api/v1/admin/tokens`: list them, make a `read` or `hook` one, revoke one. */
+internal fun Route.tokenAdminRoutes(tokens: IssuedTokens) {
+    get("/tokens") { call.respond(tokens.all()) }
+    post("/tokens") {
+        val body = call.appBody<CreateApiToken>()
+        val label = label(body.label)
+        val refusal = when {
+            label.isEmpty() -> "A token needs a label"
+            body.scope == TokenScope.API -> "API tokens come from pairing; make a read or hook token"
+            else -> null
+        }
+        if (refusal != null) throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", refusal)
+        val (token, secret) = tokens.create(label, body.scope)
+        call.respond(HttpStatusCode.Created, CreatedApiToken(token, secret))
+    }
+    delete("/tokens/{id}") {
+        if (!tokens.revoke(call.parameters["id"]!!)) {
+            throw ApiFailure(HttpStatusCode.NotFound, "TOKEN_NOT_FOUND", "Unknown token")
+        }
+        call.respond(HttpStatusCode.NoContent)
+    }
+}
+
+/** The viewers, each marked with whether it holds a token of its own. */
+internal suspend fun LiveRuntime.viewersWithTokens(): List<Viewer> {
+    val paired = tokens.pairedClients()
+    return store.viewers().map { it.copy(ownToken = it.clientId in paired) }
 }
 
 internal fun validClientId(raw: String): String = raw.takeIf { CLIENT_ID.matches(it) }

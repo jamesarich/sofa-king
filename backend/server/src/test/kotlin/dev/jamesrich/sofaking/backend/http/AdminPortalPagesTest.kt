@@ -398,6 +398,36 @@ class AdminPortalPagesTest : AdminPortalCase() {
         }
     }
 
+    @Test fun `the calendar shows recordings by day in the week and the agenda`() = testApplication {
+        portal {
+            val at = java.time.Instant.parse("2026-10-17T12:00:00Z")
+            runtime.store.addRecording(
+                dev.jamesrich.sofaking.backend.dvr.StoredRecording(
+                    "rec-cal", null, "c", "Channel C", at, at.plusSeconds(1800),
+                    java.time.Duration.ZERO, java.time.Duration.ZERO, "Old Movie",
+                    state = Wire.RecordingState.COMPLETED, path = "Movies/Old Movie.ts",
+                    bytes = 2_000_000, createdAt = at, updatedAt = at,
+                ),
+            )
+            browser.signIn()
+            val day = at.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+            val week = browser.get("/admin/recordings/calendar?start=$day").bodyAsText()
+            assertTrue(
+                week.contains("Old Movie") && week.contains(">Recorded<") && week.contains("event ok") &&
+                    week.contains("Channel C") && week.contains("/output/recordings.ics"),
+                week,
+            )
+            assertTrue(week.contains("aria-current=\"page\">Calendar<"), "the Calendar tab is marked")
+            val agenda = browser.get("/admin/recordings/calendar?view=agenda&start=$day").bodyAsText()
+            assertTrue(agenda.contains("Old Movie") && agenda.contains("agenda-day"), agenda)
+            val later = browser.get("/admin/recordings/calendar?start=${day.plusDays(7)}").bodyAsText()
+            assertFalse(later.contains("Old Movie"), "the next week holds nothing")
+            assertTrue(later.contains("start=$day"), "Earlier goes back a week")
+            val bad = browser.get("/admin/recordings/calendar?start=nope")
+            assertEquals(HttpStatusCode.OK, bad.status, "a bad date falls back to today")
+        }
+    }
+
     @Test fun `the recordings page protects and deletes a recording, as the API sees it`() = testApplication {
         portal {
             val now = java.time.Instant.parse("2026-10-17T12:00:00Z")

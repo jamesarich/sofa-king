@@ -63,7 +63,7 @@ class LoopbackRelay(
     @Volatile private var closed = false
 
     /** One FFmpeg run's source and the resources its playlists named, by opaque token. */
-    internal class Lease(val stream: ResolvedStream) {
+    internal class Lease(val stream: ResolvedStream, val stalls: StallWatch?) {
         val id: String = UUID.randomUUID().toString()
         val credential: String = ByteArray(32).also(random::nextBytes).let {
             Base64.getUrlEncoder().withoutPadding().encodeToString(it)
@@ -93,11 +93,16 @@ class LoopbackRelay(
 
     /**
      * Runs [block] with a lease on [stream], whose [protocol] names the root's suffix; the lease ends with the block,
-     * and any request FFmpeg makes after that answers 401.
+     * and any request FFmpeg makes after that answers 401. Given [stalls], each playlist FFmpeg fetches is shown to it.
      */
-    suspend fun <T> reading(stream: ResolvedStream, protocol: String, block: suspend (FfmpegSource) -> T): T {
+    suspend fun <T> reading(
+        stream: ResolvedStream,
+        protocol: String,
+        stalls: StallWatch? = null,
+        block: suspend (FfmpegSource) -> T,
+    ): T {
         val port = start()
-        val lease = Lease(stream)
+        val lease = Lease(stream, stalls)
         leases[lease.id] = lease
         try {
             return block(
@@ -174,19 +179,23 @@ class LoopbackRelay(
                 permits.withPermit {
                     // FFmpeg's own messages name the status, which the probe's failure classes
                     // read; so it gets the upstream's.
-                    relayResource(http, policy, call, url, lease.stream, path = lease::path, refused = { status ->
-                        throw ApiFailure(
-                            if (status in
-                                UPSTREAM_ERRORS
-                            ) {
+                    relayResource(
+                        http,
+                        policy,
+                        call,
+                        url,
+                        lease.stream,
+                        path = lease::path,
+                        manifest = { text, source -> text.also { lease.stalls?.stalled(it, source) } },
+                        refused = { status ->
+                            val answer = if (status in UPSTREAM_ERRORS) {
                                 HttpStatusCode.fromValue(status)
                             } else {
                                 HttpStatusCode.BadGateway
-                            },
-                            "UPSTREAM_STATUS",
-                            "Upstream answered $status",
-                        )
-                    })
+                            }
+                            throw ApiFailure(answer, "UPSTREAM_STATUS", "Upstream answered $status")
+                        },
+                    )
                 }
             }
         }

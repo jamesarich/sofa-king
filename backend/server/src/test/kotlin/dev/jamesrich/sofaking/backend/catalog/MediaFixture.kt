@@ -22,6 +22,9 @@ class MediaFixture : AutoCloseable {
 
     /** Channel 1 plays the VOD playlist, channel 2 the live one, channel 3 a playlist that answers 404. */
     val feed = FeedConfig("media", "$base/feed.m3u", probe = false)
+
+    /** A second provider whose one channel is a live playlist that never adds a segment, for stall failover. */
+    val frozenFeed = FeedConfig("media-frozen", "$base/frozen-feed.m3u", probe = false)
     val segments: Int
     val liveRequests = AtomicInteger()
 
@@ -41,6 +44,16 @@ class MediaFixture : AutoCloseable {
                         "#EXTM3U\n#EXTINF:-1 tvg-id=\"vod\" tvg-chno=\"1\",VOD\n$base/vod.m3u8\n#EXTINF:-1 " +
                             "tvg-id=\"live\" tvg-chno=\"2\",Live\n$base/live.m3u8\n" +
                             "#EXTINF:-1 tvg-id=\"missing\" tvg-chno=\"3\",Missing\n$base/missing.m3u8\n"
+                        ).toByteArray()
+
+                path == "/frozen-feed.m3u" ->
+                    "audio/x-mpegurl" to
+                        "#EXTM3U\n#EXTINF:-1 tvg-id=\"frozen\" tvg-chno=\"4\",Frozen\n$base/frozen.m3u8\n".toByteArray()
+
+                path == "/frozen.m3u8" ->
+                    "application/vnd.apple.mpegurl" to (
+                        "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n" +
+                            "#EXTINF:2.000000,\nseg0.ts\n#EXTINF:2.000000,\nseg1.ts\n"
                         ).toByteArray()
 
                 path == "/vod.m3u8" -> "application/vnd.apple.mpegurl" to Files.readAllBytes(dir.resolve("vod.m3u8"))

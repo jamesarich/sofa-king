@@ -67,6 +67,9 @@ internal class LiveSession(
     val requests = mutableSetOf<Job>()
     val playlists = SteadyPlaylists()
 
+    /** Which of the session's media playlists stopped adding segments, to fail over from a stalled source. */
+    val stalls = StallWatch()
+
     fun resource(url: String, suffix: String? = null): String {
         resources.tokenFor(url)?.let { return it }
         return resourceToken(url, suffix).also {
@@ -156,6 +159,7 @@ data class MediaResource(
     val stats: SessionStats = SessionStats(Instant.EPOCH),
     val ads: AdClock? = null,
     val playlists: SteadyPlaylists = SteadyPlaylists(),
+    val stalls: StallWatch = StallWatch(),
 )
 
 /**

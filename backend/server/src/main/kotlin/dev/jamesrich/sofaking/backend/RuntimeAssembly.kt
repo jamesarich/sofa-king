@@ -168,7 +168,13 @@ internal class RuntimeAssembly(
         val libraries = libraries()
         val vod = vod(dvr, libraries)
         val runtime = LiveRuntime(
-            store, feeds, guides, lineup, catalog, sessions, relay, TsRemux(config.ffmpeg, loopback), logos, http,
+            store, feeds, guides, lineup, catalog, sessions, relay,
+            TsRemux(
+                config.ffmpeg,
+                loopback,
+                config.qualityFloors,
+            ),
+            logos, http,
             scope, policy, plex, started, jobs, settings, worker, PairingService(clock), updates,
             SetupService(config, options.restart, checkTmdb = { TmdbClient(http, it).check() }),
             libraries, vod, dvr, loopback,

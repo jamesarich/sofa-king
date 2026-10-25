@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.backend.catalog.FeedConfig
 import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
@@ -38,9 +39,12 @@ import io.ktor.http.origin
 import io.ktor.http.path
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
@@ -467,6 +471,30 @@ class RelayTest {
         val later = open("Proxied", "proxy-later", intent = "watch")
         assertEquals("hls", later.descriptor.protocol)
         assertEquals(1, later.descriptor.epoch)
+    }
+
+    @Test fun `a live playlist that adds no segment for two target durations moves the session on`() = relay(
+        { listOf(it.frozenFeed, it.altFeed) },
+    ) {
+        val frozen = runtime.feeds.published.offerings.single { it.providerId == "frozen" }
+        val alt = runtime.feeds.published.offerings.single { it.providerId == "alt" }
+        val entries = runtime.lineup.entries()
+        runtime.lineup.delete(entries.single { alt.id in it.offeringIds }.id)
+        runtime.lineup.update(
+            entries.single { frozen.id in it.offeringIds }.id,
+            UpdateLineupEntry(offerings = listOf(frozen.id, alt.id)),
+        )
+        val opened = open("Station", "frozen", intent = "watch")
+        assertEquals(frozen.id, runtime.sessions.snapshot().single().offeringId)
+        assertEquals(HttpStatusCode.OK, client.get(opened.descriptor.url).status)
+        // The playlist's target duration is 2 s, so it stalls once 4 s pass without a new segment.
+        withContext(Dispatchers.Default) { delay(4_200) }
+        assertStreamChanged(client.get(opened.descriptor.url))
+        val moved = session(opened.id)
+        assertEquals(2, moved.descriptor.epoch)
+        val stats = runtime.sessions.snapshot().single()
+        assertEquals(alt.id, stats.offeringId)
+        assertEquals(1, stats.sourceSwitches)
     }
 
     private suspend fun assertStreamChanged(response: HttpResponse) {

@@ -299,6 +299,36 @@ class AdminPortalSettingsTest : AdminPortalCase() {
         }
     }
 
+    @Test fun `the settings page makes a token, shows its secret once and revokes it`() = testApplication {
+        portal(basePolicy) {
+            browser.signIn()
+            val csrf = field(browser.get("/admin/settings").bodyAsText(), "csrf")
+            assertEquals(
+                HttpStatusCode.Forbidden,
+                browser.post("/admin/settings/tokens/create", "label" to "Homepage", "scope" to "read").status,
+                "making a token needs the CSRF token",
+            )
+            val create = "/admin/settings/tokens/create"
+            val refused = browser.post(create, "label" to "x", "scope" to "api", "csrf" to csrf)
+            assertEquals(HttpStatusCode.BadRequest, refused.status, "device tokens come only from pairing")
+            val made = browser.post(
+                "/admin/settings/tokens/create",
+                "label" to "Homepage",
+                "scope" to "read",
+                "csrf" to csrf,
+            ).bodyAsText()
+            val secret = Regex("""<code>(sk_[A-Za-z0-9_-]+)</code>""").find(made)?.groupValues?.get(1)
+            assertTrue(secret != null, made)
+            val token = runtime.tokens.all().single()
+            assertEquals("Homepage", token.label)
+            val later = browser.get("/admin/settings").bodyAsText()
+            assertTrue(later.contains("Homepage") && !later.contains(secret), "the secret is shown only once")
+            val revoked = browser.post("/admin/settings/tokens/${token.id}/revoke", "csrf" to csrf)
+            assertEquals(HttpStatusCode.SeeOther, revoked.status)
+            assertTrue(runtime.tokens.all().isEmpty())
+        }
+    }
+
     @Test fun `a runtime setting out of range is refused and stays in the form`() = testApplication {
         portal(basePolicy) {
             browser.signIn()

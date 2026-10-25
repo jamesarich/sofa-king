@@ -66,7 +66,7 @@ fun Application.backendModule(
     config?.corsOrigins?.takeIf { it.isNotEmpty() }?.let { installCors(it) }
     installLimits()
     installStatusPages()
-    guardTokens(portal, apiToken, adminToken)
+    guardTokens(portal, apiToken, adminToken, runtime?.tokens)
     routing {
         healthRoutes(store, clock, runtime)
         if (runtime != null) {

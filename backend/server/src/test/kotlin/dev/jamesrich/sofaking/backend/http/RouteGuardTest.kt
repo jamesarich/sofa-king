@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.admin.isPortalPath
+import dev.jamesrich.sofaking.backend.api.TokenScope
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.ApiError
@@ -66,7 +67,7 @@ class RouteGuardTest {
         override fun toString() = "${method.value} $path"
     }
 
-    private class Routes(val endpoints: List<Endpoint>, val browser: HttpClient)
+    private class Routes(val endpoints: List<Endpoint>, val browser: HttpClient, val runtime: LiveRuntime)
 
     /** A runtime with every optional part on, both tokens set, and the routes its application installed. */
     private suspend fun ApplicationTestBuilder.routes(block: suspend Routes.() -> Unit) {
@@ -114,6 +115,7 @@ class RouteGuardTest {
                     install(HttpCookies)
                     followRedirects = false
                 },
+                runtime,
             ).block()
         } finally {
             runtime.close()
@@ -208,6 +210,37 @@ class RouteGuardTest {
                     }
                     for (endpoint in endpoints.filter { it.isApi() && !it.isAdminApi() && it.path != PAIR_PATH }) {
                         refused(call(endpoint, adminToken))?.let { add("$endpoint with the admin token: $it") }
+                    }
+                }
+                assertTrue(violations.isEmpty(), violations.joinToString("\n"))
+            }
+        }
+
+    @Test fun `issued tokens open no admin route but the reads a read token is for, and no hook token the app`() =
+        testApplication {
+            routes {
+                val device = runtime.tokens.pair("tv-1", "TV")
+                val read = runtime.tokens.create("Homepage", TokenScope.READ).second
+                val hook = runtime.tokens.create("Sonarr", TokenScope.HOOK).second
+                val reads = listOf(
+                    "/api/v1/admin/status", "/api/v1/admin/sessions", "/api/v1/admin/guides", "/api/v1/admin/lineup",
+                    "/api/v1/admin/policy/preview", "/api/v1/admin/policy/findings", "/api/v1/admin/policy/changes",
+                    "/api/v1/admin/libraries",
+                )
+                val violations = buildList {
+                    for (endpoint in endpoints.filter { it.isAdminApi() }) {
+                        refused(call(endpoint, device))?.let { add("$endpoint with a device token: $it") }
+                        refused(call(endpoint, hook))?.let { add("$endpoint with a hook token: $it") }
+                        val readable = endpoint.method == HttpMethod.Get &&
+                            reads.any { endpoint.path == it || endpoint.path.startsWith("$it/") }
+                        val readRefusal = refused(call(endpoint, read))
+                        if (readable && readRefusal == null) add("$endpoint refused a read token")
+                        if (!readable && readRefusal != null) add("$endpoint with a read token: $readRefusal")
+                    }
+                    for (endpoint in endpoints.filter { it.isApi() && !it.isAdminApi() && it.path != PAIR_PATH }) {
+                        if (refused(call(endpoint, device)) == null) add("$endpoint refused a device token")
+                        refused(call(endpoint, read))?.let { add("$endpoint with a read token: $it") }
+                        refused(call(endpoint, hook))?.let { add("$endpoint with a hook token: $it") }
                     }
                 }
                 assertTrue(violations.isEmpty(), violations.joinToString("\n"))

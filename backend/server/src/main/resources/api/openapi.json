@@ -28,7 +28,9 @@
     "securitySchemes": {
       "apiToken": { "type": "http", "scheme": "bearer", "description": "SOFA_API_TOKEN" },
       "adminToken": { "type": "http", "scheme": "bearer", "description": "SOFA_ADMIN_TOKEN, or SOFA_API_TOKEN when no admin token is set" },
-      "outputToken": { "type": "apiKey", "in": "query", "name": "token", "description": "SOFA_OUTPUT_TOKEN; also accepted as a bearer" }
+      "outputToken": { "type": "apiKey", "in": "query", "name": "token", "description": "SOFA_OUTPUT_TOKEN; also accepted as a bearer" },
+      "deviceToken": { "type": "http", "scheme": "bearer", "description": "A paired device's own token from POST /api/v1/pair; it opens what SOFA_API_TOKEN opens outside /api/v1/admin and /api/v1/hooks" },
+      "readToken": { "type": "http", "scheme": "bearer", "description": "A read token from POST /api/v1/admin/tokens; it opens the admin reads listed with it" }
     },
     "parameters": {
       "id": { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
@@ -145,7 +147,7 @@
           "name": { "type": "string", "maxLength": 80 }, "platform": { "type": "string", "maxLength": 80, "example": "android-tv" }
         }
       },
-      "PairingResult": { "type": "object", "required": ["apiToken"], "properties": { "apiToken": { "type": "string", "description": "Empty when the server runs without one." }, "serverId": { "type": "string" } } },
+      "PairingResult": { "type": "object", "required": ["apiToken"], "properties": { "apiToken": { "type": "string", "description": "The device's own token; empty when the server runs without an API token." }, "serverId": { "type": "string" } } },
       "Library": {
         "type": "object", "required": ["id", "name", "kind"],
         "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "kind": { "type": "string", "enum": ["movies", "shows", "videos"] }, "items": { "type": "integer", "description": "Its movies, shows or videos." } }
@@ -253,9 +255,21 @@
         "properties": {
           "clientId": { "type": "string" }, "name": { "type": "string" }, "platform": { "type": "string" },
           "firstSeenAt": { "type": "string", "format": "date-time" }, "lastSeenAt": { "type": "string", "format": "date-time" },
-          "preferences": { "oneOf": [{ "$ref": "#/components/schemas/ViewerPreferences" }, { "type": "null" }], "description": "Null until the client saves some." }
+          "preferences": { "oneOf": [{ "$ref": "#/components/schemas/ViewerPreferences" }, { "type": "null" }], "description": "Null until the client saves some." },
+          "ownToken": { "type": "boolean", "description": "Whether the client holds a token of its own from pairing; false means it uses SOFA_API_TOKEN." }
         }
       },
+      "TokenScope": { "type": "string", "enum": ["api", "read", "hook"], "description": "api: a paired device's token for the app's routes; read: the admin reads a dashboard needs; hook: the inbound hooks under /api/v1/hooks." },
+      "ApiTokenInfo": {
+        "type": "object", "required": ["id", "label", "scope", "createdAt"],
+        "properties": {
+          "id": { "type": "string" }, "label": { "type": "string" }, "scope": { "$ref": "#/components/schemas/TokenScope" },
+          "clientId": { "type": ["string", "null"], "description": "The device an api token was paired to." },
+          "createdAt": { "type": "string", "format": "date-time" }, "lastUsedAt": { "type": ["string", "null"], "format": "date-time", "description": "To the minute." }
+        }
+      },
+      "CreateApiToken": { "type": "object", "required": ["label", "scope"], "properties": { "label": { "type": "string", "minLength": 1, "maxLength": 80 }, "scope": { "type": "string", "enum": ["read", "hook"] } } },
+      "CreatedApiToken": { "type": "object", "required": ["token", "secret"], "properties": { "token": { "$ref": "#/components/schemas/ApiTokenInfo" }, "secret": { "type": "string", "description": "Shown this once; the server keeps only a hash.", "example": "sk_..." } } },
       "PairingCode": { "type": "object", "required": ["code", "expiresAt"], "properties": { "code": { "type": "string", "example": "123456" }, "expiresAt": { "type": "string", "format": "date-time" } } },
       "ServerStatus": {
         "type": "object",
@@ -638,37 +652,37 @@
     "/healthz": { "get": { "tags": ["Health"], "summary": "Liveness", "security": [], "responses": { "200": { "description": "ok, as text" } } } },
     "/readyz": { "get": { "tags": ["Health"], "summary": "Database readiness", "security": [], "responses": { "200": { "description": "ready, as text" }, "503": { "$ref": "#/components/responses/Error" } } } },
     "/api/v1/bootstrap": {
-      "get": { "tags": ["Live TV"], "summary": "Server id, time and capabilities", "security": [{ "apiToken": [] }],
+      "get": { "tags": ["Live TV"], "summary": "Server id, time and capabilities", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Bootstrap" } } } }, "503": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/pair": {
-      "post": { "tags": ["Viewers"], "summary": "Claim a pairing code for the API token", "description": "The code comes from the admin portal's Viewers page or POST /api/v1/admin/pairing-codes; it is live for ten minutes and works once, and five wrong claims void it. No bearer token: 10 claims a minute per client address, then 429. A server without an API token answers an empty one.", "security": [],
+      "post": { "tags": ["Viewers"], "summary": "Claim a pairing code for a token of the device's own", "description": "The code comes from the admin portal's Devices page or POST /api/v1/admin/pairing-codes; it is live for ten minutes and works once, and five wrong claims void it. The answer is a new token for this clientId, which revokes the one it was paired with before; forgetting the device revokes it. No bearer token: 10 claims a minute per client address, then 429. A server without an API token answers an empty one.", "security": [],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PairingClaim" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PairingResult" } } } }, "403": { "description": "PAIRING_INVALID", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "429": { "description": "Too many claims from this address" } } }
     },
     "/api/v1/preferences/{clientId}": {
-      "get": { "tags": ["Viewers"], "summary": "The preferences this client last saved", "security": [{ "apiToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
+      "get": { "tags": ["Viewers"], "summary": "The preferences this client last saved", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } }, "404": { "description": "VIEWER_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "put": { "tags": ["Viewers"], "summary": "Replace this client's preferences", "description": "Each list holds at most 1,000 distinct ids; an empty name or platform keeps the stored one. The answer is the stored document with the server's updatedAt.", "security": [{ "apiToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
+      "put": { "tags": ["Viewers"], "summary": "Replace this client's preferences", "description": "Each list holds at most 1,000 distinct ids; an empty name or platform keeps the stored one. The answer is the stored document with the server's updatedAt.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/channels": {
-      "get": { "tags": ["Live TV"], "summary": "The catalog: the enabled lineup entries as channels", "description": "Carries an ETag; If-None-Match answers 304.", "security": [{ "apiToken": [] }],
+      "get": { "tags": ["Live TV"], "summary": "The catalog: the enabled lineup entries as channels", "description": "Carries an ETag; If-None-Match answers 304.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "parameters": [{ "name": "If-None-Match", "in": "header", "schema": { "type": "string" } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Catalog" } } } }, "304": { "description": "Unchanged" } } }
     },
     "/api/v1/guide/query": {
-      "post": { "tags": ["Live TV"], "summary": "Programs overlapping a window for up to 200 channels", "security": [{ "apiToken": [] }],
+      "post": { "tags": ["Live TV"], "summary": "Programs overlapping a window for up to 200 channels", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideQuery" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideWindow" } } } }, "409": { "description": "RESYNC_REQUIRED: the revision changed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/providers": {
-      "get": { "tags": ["Sources"], "summary": "Each provider's import status and counts", "security": [{ "apiToken": [] }],
+      "get": { "tags": ["Sources"], "summary": "Each provider's import status and counts", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ProviderStatus" } } } } } } }
     },
     "/api/v1/sources": {
-      "get": { "tags": ["Sources"], "summary": "Every source's health and manual-disable flag", "security": [{ "apiToken": [] }],
+      "get": { "tags": ["Sources"], "summary": "Every source's health and manual-disable flag", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SourceStatus" } } } } } } }
     },
     "/api/v1/sources/{id}": {
@@ -678,19 +692,19 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SourceStatus" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/playback-sessions": {
-      "post": { "tags": ["Playback"], "summary": "Open a preview or watch session", "description": "Picks the channel's first selectable source. Repeating a key returns the same session while it lives; a key reused with other parameters answers 409 IDEMPOTENCY_CONFLICT. At capacity the oldest preview, then an idle player session, yields; otherwise 429 CAPACITY_EXHAUSTED.", "security": [{ "apiToken": [] }],
+      "post": { "tags": ["Playback"], "summary": "Open a preview or watch session", "description": "Picks the channel's first selectable source. Repeating a key returns the same session while it lives; a key reused with other parameters answers 409 IDEMPOTENCY_CONFLICT. At capacity the oldest preview, then an idle player session, yields; otherwise 429 CAPACITY_EXHAUSTED.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenPlayback" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlaybackSession" } } } }, "404": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/playback-sessions/{id}": {
-      "get": { "tags": ["Playback"], "summary": "The current descriptor", "description": "Moves the session to the next selectable source, with a new epoch, when the current one stopped being selectable.", "security": [{ "apiToken": [] }],
+      "get": { "tags": ["Playback"], "summary": "The current descriptor", "description": "Moves the session to the next selectable source, with a new epoch, when the current one stopped being selectable.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlaybackSession" } } } }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "patch": { "tags": ["Playback"], "summary": "Renew the lease; optionally change the intent", "description": "A watch session expires 90 s after its last renewal, a preview 45 s. Send {} to renew alone.", "security": [{ "apiToken": [] }],
+      "patch": { "tags": ["Playback"], "summary": "Renew the lease; optionally change the intent", "description": "A watch session expires 90 s after its last renewal, a preview 45 s. Send {} to renew alone.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePlayback" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlaybackSession" } } } }, "410": { "$ref": "#/components/responses/Error" } } },
-      "delete": { "tags": ["Playback"], "summary": "Release the session", "description": "Idempotent; cancels its upstream requests.", "security": [{ "apiToken": [] }],
+      "delete": { "tags": ["Playback"], "summary": "Release the session", "description": "Idempotent; cancels its upstream requests.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "204": { "description": "Released" } } }
     },
@@ -719,49 +733,49 @@
         "responses": { "200": { "description": "PNG, JPEG, WebP, GIF or SVG" }, "304": { "description": "Unchanged" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/libraries": {
-      "get": { "tags": ["Library"], "summary": "Every media library", "security": [{ "apiToken": [] }],
+      "get": { "tags": ["Library"], "summary": "Every media library", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Library" } } } } } } }
     },
     "/api/v1/libraries/{id}/items": {
-      "get": { "tags": ["Library"], "summary": "One page of a library's movies, shows or videos", "security": [{ "apiToken": [] }],
+      "get": { "tags": ["Library"], "summary": "One page of a library's movies, shows or videos", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "sort", "in": "query", "schema": { "type": "string", "enum": ["title", "added", "year", "rating", "watched"], "default": "title" } }, { "name": "unwatched", "in": "query", "schema": { "type": "boolean" } }, { "name": "genre", "in": "query", "schema": { "type": "string" } }, { "name": "cursor", "in": "query", "schema": { "type": "string" } }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "LIBRARY_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/home": {
-      "get": { "tags": ["Library"], "summary": "Continue watching, Recently added per library, and the libraries", "security": [{ "apiToken": [] }],
+      "get": { "tags": ["Library"], "summary": "Continue watching, Recently added per library, and the libraries", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryHome" } } } } } }
     },
     "/api/v1/library/search": {
-      "get": { "tags": ["Library"], "summary": "Titles holding q: movies, shows and videos, then episodes", "description": "Movies, shows and videos whose title holds q, then those with a cast member or director whose name holds it, then episodes by title. At most 50.", "security": [{ "apiToken": [] }],
+      "get": { "tags": ["Library"], "summary": "Titles holding q: movies, shows and videos, then episodes", "description": "Movies, shows and videos whose title holds q, then those with a cast member or director whose name holds it, then episodes by title. At most 50.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "parameters": [{ "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 100 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/library/items/{id}": {
-      "get": { "tags": ["Library"], "summary": "An item with its seasons or episodes, a show's next episode and a file's tracks", "security": [{ "apiToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "get": { "tags": ["Library"], "summary": "An item with its seasons or episodes, a show's next episode and a file's tracks", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItemDetail" } } } }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/play-state": {
-      "put": { "tags": ["Library"], "summary": "Record where playback stopped, or mark an item watched", "description": "A stop in the first 5% leaves the item where it was; one at 90% or later marks it watched. A show or season takes watched only, and marks every episode in it.", "security": [{ "apiToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "put": { "tags": ["Library"], "summary": "Record where playback stopped, or mark an item watched", "description": "A stop in the first 5% leaves the item where it was; one at 90% or later marks it watched. A show or season takes watched only, and marks every episode in it.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePlayState" } } } },
         "responses": { "200": { "description": "The item", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItem" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/subtitles/{index}": {
-      "get": { "tags": ["Library"], "summary": "A text subtitle track of the item as WebVTT", "description": "index is a subtitle track's index from the item: a stream of its file, or from 1000 a subtitle file beside it. Times are in the item's time. The first read extracts the stream, which reads the whole file; later reads serve the kept copy. A picture subtitle answers 415 SUBTITLE_NOT_TEXT.", "security": [{ "apiToken": [] }],
+      "get": { "tags": ["Library"], "summary": "A text subtitle track of the item as WebVTT", "description": "index is a subtitle track's index from the item: a stream of its file, or from 1000 a subtitle file beside it. Times are in the item's time. The first read extracts the stream, which reads the whole file; later reads serve the kept copy. A picture subtitle answers 415 SUBTITLE_NOT_TEXT.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "index", "in": "path", "required": true, "schema": { "type": "integer" } }],
         "responses": { "200": { "description": "WebVTT", "content": { "text/vtt": { "schema": { "type": "string" } } } }, "404": { "description": "ITEM_NOT_FOUND, ITEM_MISSING or RESOURCE_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "415": { "description": "SUBTITLE_NOT_TEXT", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "502": { "description": "SUBTITLE_FAILED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/vod-sessions": {
-      "post": { "tags": ["Library"], "summary": "Play a library movie, episode or video", "description": "Direct play when the profile takes the file as is; otherwise HLS that FFmpeg remuxes or converts. At most SOFA_MAX_TRANSCODES convert at once.", "security": [{ "apiToken": [] }],
+      "post": { "tags": ["Library"], "summary": "Play a library movie, episode or video", "description": "Direct play when the profile takes the file as is; otherwise HLS that FFmpeg remuxes or converts. At most SOFA_MAX_TRANSCODES convert at once.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenVodPlayback" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VodSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND or ITEM_MISSING", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "503": { "description": "CAPACITY_EXHAUSTED or TRANSCODER_UNAVAILABLE", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/vod-sessions/{id}": {
-      "get": { "tags": ["Library"], "summary": "A library playback session", "security": [{ "apiToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "get": { "tags": ["Library"], "summary": "A library playback session", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VodSession" } } } }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "patch": { "tags": ["Library"], "summary": "Renew the session, or restart its converted stream", "description": "A session lasts five minutes past its last renewal or media request.", "security": [{ "apiToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "patch": { "tags": ["Library"], "summary": "Renew the session, or restart its converted stream", "description": "A session lasts five minutes past its last renewal or media request.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateVodPlayback" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VodSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "delete": { "tags": ["Library"], "summary": "Release the session", "security": [{ "apiToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }], "responses": { "204": { "description": "Released" } } }
+      "delete": { "tags": ["Library"], "summary": "Release the session", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }], "responses": { "204": { "description": "Released" } } }
     },
     "/media/vod/{id}/{epoch}/{secret}/{name}": {
       "get": { "tags": ["Library"], "summary": "A library playback session's media", "description": "The URL the session's descriptor names: the file itself with byte ranges, or the HLS playlist and its segments. No token; the secret is the session's.", "security": [],
@@ -792,11 +806,11 @@
         "responses": { "200": { "description": "video/mp2t" }, "404": { "$ref": "#/components/responses/Error" }, "503": { "description": "All tuners in use" } } }
     },
     "/api/v1/admin/status": {
-      "get": { "tags": ["Admin"], "summary": "One summary of the server", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "One summary of the server", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServerStatus" } } } } } }
     },
     "/api/v1/admin/sessions": {
-      "get": { "tags": ["Admin"], "summary": "Live playback sessions", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "Live playback sessions", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ActiveSession" } } } } } } }
     },
     "/api/v1/admin/candidates": {
@@ -810,16 +824,16 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CandidatePage" } } } } } }
     },
     "/api/v1/admin/guides": {
-      "get": { "tags": ["Admin"], "summary": "Each guide's import status", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "Each guide's import status", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/GuideStatus" } } } } } } }
     },
     "/api/v1/admin/guides/{id}/channels": {
-      "get": { "tags": ["Admin"], "summary": "The XMLTV channels of a guide", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "The XMLTV channels of a guide", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "q", "in": "query", "schema": { "type": "string" } }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/GuideChannelInfo" } } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/lineup": {
-      "get": { "tags": ["Admin"], "summary": "Every lineup entry in order", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "Every lineup entry in order", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LineupEntry" } } } } } } },
       "post": { "tags": ["Admin"], "summary": "Create an entry", "description": "410 POLICY_MANAGED while a lineup policy builds the lineup.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateLineupEntry" } } } },
@@ -836,7 +850,7 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdoptResult" } } } }, "410": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/lineup/{id}": {
-      "get": { "tags": ["Admin"], "summary": "One entry", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "get": { "tags": ["Admin"], "summary": "One entry", "security": [{ "adminToken": [] }, { "readToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LineupEntry" } } } }, "404": { "$ref": "#/components/responses/Error" } } },
       "patch": { "tags": ["Admin"], "summary": "Update an entry", "description": "With a policy, writes the station's override and applies it; If-Match may carry the policy revision.", "security": [{ "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "If-Match", "in": "header", "schema": { "type": "string" } }],
@@ -855,7 +869,7 @@
         "responses": { "200": { "description": "document and apply", "content": { "application/json": { "schema": { "type": "object", "properties": { "document": { "$ref": "#/components/schemas/PolicyDocument" }, "apply": { "$ref": "#/components/schemas/PolicyApplyResult" } } } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "428": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/policy/preview": {
-      "get": { "tags": ["Policy"], "summary": "What a run would change; writes nothing", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Policy"], "summary": "What a run would change; writes nothing", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyPreview" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/policy/apply": {
@@ -867,11 +881,11 @@
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupResult" } } } }, "409": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/policy/findings": {
-      "get": { "tags": ["Policy"], "summary": "Open findings of a run over the current candidates", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Policy"], "summary": "Open findings of a run over the current candidates", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyFindings" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/policy/changes": {
-      "get": { "tags": ["Policy"], "summary": "What runs changed, newest first", "description": "The server keeps the newest 10,000.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Policy"], "summary": "What runs changed, newest first", "description": "The server keeps the newest 10,000.", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "parameters": [{ "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/PolicyChangeEntry" } } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
@@ -913,26 +927,37 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Viewer" } } } } } } }
     },
     "/api/v1/admin/viewers/{clientId}": {
-      "delete": { "tags": ["Admin"], "summary": "Forget a client and its preferences", "description": "The client keeps working and reappears on its next save.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
+      "delete": { "tags": ["Admin"], "summary": "Forget a client, its preferences and its token", "description": "Revokes the token the client was paired with, so it must pair again; a client on SOFA_API_TOKEN keeps working and reappears on its next save.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
         "responses": { "204": { "description": "Forgotten" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/tokens": {
+      "get": { "tags": ["Admin"], "summary": "The tokens the server issued", "description": "Paired devices' api tokens and the read and hook tokens, oldest first, without secrets.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ApiTokenInfo" } } } } } } },
+      "post": { "tags": ["Admin"], "summary": "Make a read or hook token", "description": "The answer carries the secret this once. Device tokens come only from pairing (400).", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateApiToken" } } } },
+        "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreatedApiToken" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/tokens/{id}": {
+      "delete": { "tags": ["Admin"], "summary": "Revoke a token", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "204": { "description": "Revoked" }, "404": { "description": "TOKEN_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/admin/pairing-codes": {
       "post": { "tags": ["Admin"], "summary": "Issue a pairing code", "description": "Replaces the live code. The code is six digits, live for ten minutes, and spent by the claim that matches it.", "security": [{ "adminToken": [] }],
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PairingCode" } } } } } }
     },
     "/api/v1/admin/libraries": {
-      "get": { "tags": ["Library"], "summary": "Every media library", "description": "With each library's present items by kind and its last scan.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Library"], "summary": "Every media library", "description": "With each library's present items by kind and its last scan.", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryInfo" } } } } } } },
       "post": { "tags": ["Library"], "summary": "Add a library", "description": "The folder must be inside SOFA_MEDIA_DIR, lead nowhere outside it and be used by no other library (409 LIBRARY_EXISTS); its first scan starts at once.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateLibrary" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryInfo" } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/libraries/folders": {
-      "get": { "tags": ["Library"], "summary": "The folders a new library can use", "description": "SOFA_MEDIA_DIR and its subfolders two levels down, without hidden folders and those a library already uses.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Library"], "summary": "The folders a new library can use", "description": "SOFA_MEDIA_DIR and its subfolders two levels down, without hidden folders and those a library already uses.", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryFolders" } } } } } }
     },
     "/api/v1/admin/libraries/{id}": {
-      "get": { "tags": ["Library"], "summary": "One library", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "get": { "tags": ["Library"], "summary": "One library", "security": [{ "adminToken": [] }, { "readToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryInfo" } } } }, "404": { "$ref": "#/components/responses/Error" } } },
       "patch": { "tags": ["Library"], "summary": "Rename a library", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateLibrary" } } } },
@@ -948,7 +973,7 @@
       "get": {
         "tags": ["Recordings"],
         "summary": "Every recording, scheduled and running soonest first, then kept and failed newest first",
-        "security": [{ "apiToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "responses": {
           "200": {
             "description": "",
@@ -960,7 +985,7 @@
         "tags": ["Recordings"],
         "summary": "Record one program",
         "description": "Names the program by its channel and start, as the guide query gives them. Scheduling a program that already has a recording answers that recording.",
-        "security": [{ "apiToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "requestBody": {
           "required": true,
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScheduleRecording" } } }
@@ -986,7 +1011,7 @@
       "get": {
         "tags": ["Recordings"],
         "summary": "One recording",
-        "security": [{ "apiToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
           "200": {
@@ -1002,7 +1027,7 @@
       "patch": {
         "tags": ["Recordings"],
         "summary": "Protect a recording from culling, or save where the viewer stopped",
-        "security": [{ "apiToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
           "required": true,
@@ -1023,7 +1048,7 @@
         "tags": ["Recordings"],
         "summary": "Cancel, stop or delete a recording",
         "description": "Cancels a scheduled recording, stops a running one and keeps what it recorded, or deletes a finished one and its file. A canceled airing of a rule is not scheduled again.",
-        "security": [{ "apiToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
           "204": { "description": "" },
@@ -1038,7 +1063,7 @@
       "get": {
         "tags": ["Recordings"],
         "summary": "Every series rule, oldest first",
-        "security": [{ "apiToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "responses": {
           "200": {
             "description": "",
@@ -1049,7 +1074,7 @@
       "post": {
         "tags": ["Recordings"],
         "summary": "Add a series rule",
-        "security": [{ "apiToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "requestBody": {
           "required": true,
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateRecordingRule" } } }
@@ -1071,7 +1096,7 @@
       "patch": {
         "tags": ["Recordings"],
         "summary": "Change a series rule",
-        "security": [{ "apiToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
           "required": true,
@@ -1092,7 +1117,7 @@
       "delete": {
         "tags": ["Recordings"],
         "summary": "Delete a series rule and its scheduled recordings; what it recorded stays",
-        "security": [{ "apiToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
           "204": { "description": "" },

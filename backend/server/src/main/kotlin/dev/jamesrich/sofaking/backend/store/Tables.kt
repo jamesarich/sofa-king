@@ -340,3 +340,19 @@ internal object AdBreakRows : Table("ad_break") {
     val blocked = bool("blocked")
     override val primaryKey = PrimaryKey(id)
 }
+
+/**
+ * The tokens the server issued: one per paired device (`api`, with its [clientId]) and the ones the admin made for
+ * dashboards (`read`) and hooks (`hook`). Only the SHA-256 of the secret is kept; [revokedAt] retires a row for good.
+ */
+internal object ApiTokenRows : Table("api_token") {
+    val id = text("id")
+    val label = text("label")
+    val secretHash = text("secret_hash")
+    val scope = text("scope")
+    val clientId = text("client_id").nullable()
+    val createdAt = text("created_at")
+    val lastUsedAt = text("last_used_at").nullable()
+    val revokedAt = text("revoked_at").nullable()
+    override val primaryKey = PrimaryKey(id)
+}

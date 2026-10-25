@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.api.CreatedApiToken
+import dev.jamesrich.sofaking.backend.api.TokenScope
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import io.ktor.http.HttpStatusCode
@@ -28,6 +30,17 @@ internal class SettingsPages(private val portal: Portal) {
         route.action("/settings/reveal-api-token") { session, _ ->
             val view = settingsView(CHANGES_SHOWN, revealApiToken = true, openAdvanced = true)
             call.html(settingsPage(chrome(call, session), view))
+        }
+        route.action("/settings/tokens/create") { session, form -> createToken(call, session, form) }
+        route.action("/settings/tokens/{id}/revoke") { session, _ ->
+            val id = call.parameters["id"]!!
+            val label = runtime.tokens.all().firstOrNull { it.id == id }?.label
+            if (label == null || !runtime.tokens.revoke(id)) {
+                session.flash.set(Flash("That token is already revoked.", Tone.WARN))
+            } else {
+                session.flash.set(Flash("Revoked the $label token."))
+            }
+            seeOther(call, "/admin/settings#tokens")
         }
         route.action("/settings/runtime/check") { _, form ->
             // The form asks, on every change, whether its values differ from what the server uses; the
@@ -67,6 +80,24 @@ internal class SettingsPages(private val portal: Portal) {
         }
     }
 
+    private suspend fun createToken(call: ApplicationCall, session: AdminSession, form: Parameters) {
+        val label = form["label"].orEmpty().trim().replace(Regex("\\s+"), " ").take(MAX_TOKEN_LABEL)
+        val scope = TokenScope.entries.firstOrNull { it != TokenScope.API && it.name.lowercase() == form["scope"] }
+        if (label.isEmpty() || scope == null) {
+            call.html(
+                settingsPage(
+                    portal.chrome(call, session, Flash("Give the token a label and say what it opens.", Tone.BAD)),
+                    settingsView(CHANGES_SHOWN),
+                ),
+                HttpStatusCode.BadRequest,
+            )
+            return
+        }
+        val (token, secret) = runtime.tokens.create(label, scope)
+        val view = settingsView(CHANGES_SHOWN, created = CreatedApiToken(token, secret))
+        call.html(settingsPage(portal.chrome(call, session), view))
+    }
+
     private suspend fun apply(call: ApplicationCall, session: AdminSession) {
         val policy = runtime.policy
         if (policy == null) {
@@ -92,6 +123,7 @@ internal class SettingsPages(private val portal: Portal) {
         changeLimit: Int,
         revealApiToken: Boolean = false,
         openAdvanced: Boolean = false,
+        created: CreatedApiToken? = null,
     ): SettingsView {
         val policy = runtime.policy
         val document = policy?.document()
@@ -109,10 +141,12 @@ internal class SettingsPages(private val portal: Portal) {
                 runtime.plex != null,
             ),
             openAdvanced = openAdvanced,
+            tokens = TokensView(runtime.tokens.all(), created),
         )
     }
 }
 
 /** The change log entries the settings page shows at first, and the most it shows. */
 private const val CHANGES_SHOWN = 50
+private const val MAX_TOKEN_LABEL = 80
 internal const val CHANGES_LIMIT = 1000

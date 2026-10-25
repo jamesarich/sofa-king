@@ -4,7 +4,9 @@ import dev.jamesrich.sofaking.backend.CorsOrigin
 import dev.jamesrich.sofaking.backend.admin.AdminPortal
 import dev.jamesrich.sofaking.backend.admin.isPortalPath
 import dev.jamesrich.sofaking.backend.admin.sameSecret
+import dev.jamesrich.sofaking.backend.api.TokenScope
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
 import dev.jamesrich.sofaking.contract.ApiError
 import dev.jamesrich.sofaking.contract.Wire
@@ -168,17 +170,27 @@ private suspend fun ApplicationCall.answerFailure(cause: Throwable) {
 
 /**
  * Refuses a request without the token its path takes, deciding on the path routing resolves, so no spelling of a
- * guarded route skips its token. The [portal]'s pages take its sign-in.
+ * guarded route skips its token. The [portal]'s pages take its sign-in; [tokens] are the ones the server issued.
  */
-internal fun Application.guardTokens(portal: AdminPortal?, apiToken: String?, adminToken: String?) {
+internal fun Application.guardTokens(
+    portal: AdminPortal?,
+    apiToken: String?,
+    adminToken: String?,
+    tokens: IssuedTokens? = null,
+) {
     intercept(ApplicationCallPipeline.Call) {
         // A validator, such as the body limit, may have answered already.
-        if (call.isHandled || call.refused(portal, apiToken, adminToken)) finish()
+        if (call.isHandled || call.refused(portal, apiToken, adminToken, tokens)) finish()
     }
 }
 
 /** Answers a request the token guard turns away, and says whether it did. */
-private suspend fun ApplicationCall.refused(portal: AdminPortal?, apiToken: String?, adminToken: String?): Boolean {
+private suspend fun ApplicationCall.refused(
+    portal: AdminPortal?,
+    apiToken: String?,
+    adminToken: String?,
+    tokens: IssuedTokens?,
+): Boolean {
     val path = routedPath
     return when {
         path == null -> {
@@ -188,19 +200,37 @@ private suspend fun ApplicationCall.refused(portal: AdminPortal?, apiToken: Stri
 
         portal != null && isPortalPath(path) -> !portal.admit(this, path)
 
-        else -> refusedApi(path, apiToken, adminToken)
+        else -> refusedApi(path, apiToken, adminToken, tokens)
     }
 }
 
-private suspend fun ApplicationCall.refusedApi(path: String, apiToken: String?, adminToken: String?): Boolean {
+/** The admin API's reads a `read` token opens: status, sessions, guides, the lineup, policy findings, libraries. */
+private val READ_SCOPE_PATHS = listOf(
+    "/api/v1/admin/status", "/api/v1/admin/sessions", "/api/v1/admin/guides", "/api/v1/admin/lineup",
+    "/api/v1/admin/policy/preview", "/api/v1/admin/policy/findings", "/api/v1/admin/policy/changes",
+    "/api/v1/admin/libraries",
+)
+
+/** The inbound hooks, which a `hook` token opens and nothing else does but the API token. */
+internal const val HOOKS_PATH = "/api/v1/hooks"
+
+private fun under(path: String, root: String) = path == root || path.startsWith("$root/")
+
+private suspend fun ApplicationCall.refusedApi(
+    path: String,
+    apiToken: String?,
+    adminToken: String?,
+    tokens: IssuedTokens?,
+): Boolean {
     // Admin routes take the admin token when one is configured; otherwise the API token covers them too.
     // Disabling a source changes what every viewer gets, so it is one too, though outside /api/v1/admin.
-    val isAdmin = path == "/api/v1/admin" || path.startsWith("/api/v1/admin/") ||
+    val isAdmin = under(path, "/api/v1/admin") ||
         (request.httpMethod == HttpMethod.Patch && path.startsWith("/api/v1/sources/"))
     val expected = if (isAdmin && adminToken != null) adminToken else apiToken
-    val isApi = path == "/api" || path.startsWith("/api/")
+    if (!under(path, "/api")) return false
+    val bearer = bearer()
     val refusal = when {
-        !isApi -> null
+        issuedOpens(tokens, bearer, path, isAdmin) -> null
 
         // Without a token the API is open, so only this machine may use it: no other site's page, no rebound
         // name, no proxy.
@@ -213,7 +243,7 @@ private suspend fun ApplicationCall.refusedApi(path: String, apiToken: String?, 
             ).takeUnless { request.fromThisMachine() }
 
         // A pairing claim carries no token yet; the code it presents is checked by its route.
-        path == PAIR_PATH || sameSecret(bearer(), expected) -> null
+        path == PAIR_PATH || sameSecret(bearer, expected) -> null
 
         else -> {
             authFailed()
@@ -222,6 +252,28 @@ private suspend fun ApplicationCall.refusedApi(path: String, apiToken: String?, 
     }
     refusal?.let { (status, error) -> respond(status, error) }
     return refusal != null
+}
+
+/**
+ * Whether [bearer] is a token the server issued that opens [path]: a device's `api` token the app's routes, a `read`
+ * token the admin reads in [READ_SCOPE_PATHS], a `hook` token the hooks. None opens the rest of the admin API.
+ */
+private suspend fun ApplicationCall.issuedOpens(
+    tokens: IssuedTokens?,
+    bearer: String,
+    path: String,
+    isAdmin: Boolean,
+): Boolean {
+    val token = tokens?.resolve(bearer) ?: return false
+    val isHook = under(path, HOOKS_PATH)
+    return when (token.scope) {
+        TokenScope.API -> !isAdmin && !isHook
+
+        TokenScope.READ ->
+            request.httpMethod in setOf(HttpMethod.Get, HttpMethod.Head) && READ_SCOPE_PATHS.any { under(path, it) }
+
+        TokenScope.HOOK -> isHook
+    }
 }
 
 private fun ApplicationCall.bearer(): String =

@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.http.publicBase
+import dev.jamesrich.sofaking.backend.http.viewersWithTokens
 import dev.jamesrich.sofaking.backend.store.forgetViewer
 import dev.jamesrich.sofaking.backend.store.viewers
 import io.ktor.http.parameters
@@ -28,10 +29,13 @@ internal class ViewerPages(private val portal: Portal) {
         route.action("/viewers/{clientId}/forget") { session, _ ->
             val clientId = call.parameters["clientId"]!!
             val viewer = runtime.store.viewers().firstOrNull { it.clientId == clientId }
-            if (viewer == null || !runtime.store.forgetViewer(clientId)) {
+            val revoked = runtime.tokens.revokeClient(clientId)
+            if (!runtime.store.forgetViewer(clientId) && revoked == 0) {
                 session.flash.set(Flash("That device is already gone.", Tone.WARN))
             } else {
-                session.flash.set(Flash("Forgot ${viewer.name.ifEmpty { "the device" }}."))
+                val name = viewer?.name?.ifEmpty { null } ?: "the device"
+                val token = if (revoked > 0) " and revoked its token; it pairs again to reconnect" else ""
+                session.flash.set(Flash("Forgot $name$token."))
             }
             seeOther(call, "/admin/viewers#devices")
         }
@@ -40,6 +44,6 @@ internal class ViewerPages(private val portal: Portal) {
     /** The viewers the server knows and the live pairing code, with the address this request reached the server at. */
     private suspend fun viewersView(call: ApplicationCall): ViewersView {
         val base = publicBase(call)
-        return ViewersView(runtime.store.viewers(), runtime.pairing.current()?.let { PairingView(it, base) }, base)
+        return ViewersView(runtime.viewersWithTokens(), runtime.pairing.current()?.let { PairingView(it, base) }, base)
     }
 }

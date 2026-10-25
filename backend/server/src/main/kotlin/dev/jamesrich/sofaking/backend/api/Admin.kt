@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.api
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /** Which XMLTV channel of which configured guide source carries a lineup entry's programs. */
@@ -120,7 +121,40 @@ import kotlinx.serialization.Serializable
     val firstSeenAt: String,
     val lastSeenAt: String,
     val preferences: dev.jamesrich.sofaking.contract.ViewerPreferences? = null,
+    /** Whether the client holds a token of its own from pairing; false means it uses the shared API token. */
+    val ownToken: Boolean = false,
 )
 
 /** A pairing code the admin API issued: [code] is what the viewer types, valid until [expiresAt]. */
 @Serializable data class PairingCode(val code: String, val expiresAt: String)
+
+/** What a token the server issued opens: the app's API, the read-only status, or the inbound hooks. */
+@Serializable enum class TokenScope {
+    @SerialName("api")
+    API,
+
+    @SerialName("read")
+    READ,
+
+    @SerialName("hook")
+    HOOK,
+}
+
+/**
+ * A token the server issued, without its secret: [clientId] names the device it was paired to, for an `api` token;
+ * [lastUsedAt] is to the minute.
+ */
+@Serializable data class ApiTokenInfo(
+    val id: String,
+    val label: String,
+    val scope: TokenScope,
+    val clientId: String? = null,
+    val createdAt: String,
+    val lastUsedAt: String? = null,
+)
+
+/** Asks for a new `read` or `hook` token named [label]; `api` tokens come only from pairing. */
+@Serializable data class CreateApiToken(val label: String, val scope: TokenScope)
+
+/** A new token and its [secret], which the server shows this once and keeps only as a hash. */
+@Serializable data class CreatedApiToken(val token: ApiTokenInfo, val secret: String)

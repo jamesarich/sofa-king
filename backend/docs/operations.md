@@ -158,13 +158,15 @@ The [native providers](providers.md) call each service's public endpoints. A ser
 
 ## Rotating tokens
 
-Tokens come from the environment (`deploy/.env` for Docker), from the file a `_FILE` variable names, or, for a token none of those sets, from `secrets.json` in the config folder. Each change takes effect after a restart, and any client holding the old value gets `401` until it is updated.
+Tokens come from the environment (`deploy/.env` for Docker), from the file a `_FILE` variable names, or, for a token none of those sets, from `secrets.json` in the config folder. Each change takes effect after a restart, and any client holding the old value gets `401` until it is updated. The `sk_` tokens the server issues (devices', read and hook tokens) change without a restart, and rotating the API token leaves them working.
 
 | Token | Rotate by | Update |
 | --- | --- | --- |
 | API token (`SOFA_API_TOKEN`) | Set a new value from `openssl rand -hex 32` and restart. When it is generated, delete `apiToken` from `secrets.json` and restart, and a new one is generated | Every API client, including the Sofa King app |
 | Admin token (`SOFA_ADMIN_TOKEN`) | Same, with `adminToken`; read the new value from `secrets.json` | Whatever calls `/api/v1/admin`, and the admin portal sign-in |
 | Output token (`SOFA_OUTPUT_TOKEN`) | Set a new value from `openssl rand -hex 16` and restart. When it is generated, delete `outputToken` from `secrets.json` and restart, and a new one is generated | Each player's playlist and guide URL, and the Plex guide URL |
+| A device's token | Pair the device again from the portal's Devices page; that revokes its old token. Forget revokes it without a new one | That device only |
+| A read or hook token | Make a new one on the Settings page, put it where the old one was, then revoke the old one. No restart | The dashboard or the hook that holds it |
 
 The output token goes in URLs, so changing it means editing every player and Plex. Logo URLs carry no token and need no change. Native provider session tokens are renewed by the server, so nothing is needed for those.
 

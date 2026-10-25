@@ -3,7 +3,10 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.api.ApiTokenInfo
+import dev.jamesrich.sofaking.backend.api.CreatedApiToken
 import dev.jamesrich.sofaking.backend.api.PairingCode
+import dev.jamesrich.sofaking.backend.api.TokenScope
 import dev.jamesrich.sofaking.backend.api.Viewer
 import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
@@ -60,7 +63,7 @@ class ViewerApiTest {
         assertEquals(clock.now.plusSeconds(600).toString(), code.expiresAt)
     }
 
-    @Test fun `a pairing code hands out the API token once, and a wrong code nothing`() = viewers {
+    @Test fun `a pairing code hands out a token of the device's own once, and a wrong code nothing`() = viewers {
         val code = issue()
         val wrong = if (code.code == "000000") "111111" else "000000"
         assertEquals(HttpStatusCode.Forbidden, claim(PairingClaim(wrong)).status)
@@ -68,9 +71,96 @@ class ViewerApiTest {
         assertEquals(HttpStatusCode.OK, paired.status)
         assertKeepsWireFixture("v1/pairing-result.json", paired.bodyAsText())
         val result = Json.decodeFromString<PairingResult>(paired.bodyAsText())
-        assertEquals(token, result.apiToken)
+        assertTrue(result.apiToken.startsWith("sk_"))
+        assertFalse(paired.bodyAsText().contains(token), "the shared API token stays on the server")
         assertEquals(store.serverId(), result.serverId)
         assertEquals(HttpStatusCode.Forbidden, claim(PairingClaim(code.code)).status, "a code works once")
+        assertEquals(HttpStatusCode.OK, client.get("/api/v1/bootstrap") { bearerAuth(result.apiToken) }.status)
+        assertEquals(
+            HttpStatusCode.Unauthorized,
+            client.get("/api/v1/admin/viewers") { bearerAuth(result.apiToken) }.status,
+            "a device token never opens the admin API",
+        )
+        val tokens = Json.decodeFromString<List<ApiTokenInfo>>(
+            client.get("/api/v1/admin/tokens") { bearerAuth(admin) }.bodyAsText(),
+        )
+        assertEquals(listOf("tv-1"), tokens.map { it.clientId })
+        assertEquals(TokenScope.API, tokens.single().scope)
+        assertEquals("Living room", tokens.single().label)
+        assertFalse(tokens.toString().contains(result.apiToken))
+        assertTrue(list().single().ownToken)
+    }
+
+    @Test fun `forgetting a paired device revokes its token, and the shared token still works`() = viewers {
+        val device = pair()
+        assertEquals(HttpStatusCode.OK, save("tv-1", "{}", bearer = device).status)
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/v1/admin/viewers/tv-1") { bearerAuth(admin) }.status)
+        assertEquals(HttpStatusCode.Unauthorized, save("tv-1", "{}", bearer = device).status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/bootstrap") { bearerAuth(device) }.status)
+        assertEquals(HttpStatusCode.OK, client.get("/api/v1/bootstrap") { bearerAuth(token) }.status)
+        assertEquals("[]", client.get("/api/v1/admin/tokens") { bearerAuth(admin) }.bodyAsText())
+    }
+
+    @Test fun `pairing a device again revokes the token it held before`() = viewers {
+        val first = pair()
+        val second = pair()
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/bootstrap") { bearerAuth(first) }.status)
+        assertEquals(HttpStatusCode.OK, client.get("/api/v1/bootstrap") { bearerAuth(second) }.status)
+    }
+
+    @Test fun `a device on the shared token is listed as such`() = viewers {
+        save("phone.2", "{}")
+        assertFalse(list().single().ownToken)
+    }
+
+    @Test fun `a read token opens the admin API's reads and nothing else`() = viewers {
+        val (info, secret) = create("""{"label":"Homepage","scope":"read"}""")
+        assertEquals(TokenScope.READ, info.scope)
+        assertEquals(HttpStatusCode.OK, client.get("/api/v1/admin/status") { bearerAuth(secret) }.status)
+        assertEquals(HttpStatusCode.OK, client.get("/api/v1/admin/lineup") { bearerAuth(secret) }.status)
+        for (path in listOf("/api/v1/admin/viewers", "/api/v1/admin/tokens", "/api/v1/channels")) {
+            assertEquals(HttpStatusCode.Unauthorized, client.get(path) { bearerAuth(secret) }.status, path)
+        }
+        assertEquals(
+            HttpStatusCode.Unauthorized,
+            client.post("/api/v1/admin/pairing-codes") { bearerAuth(secret) }.status,
+        )
+        clock.now = clock.now.plusSeconds(120)
+        client.get("/api/v1/admin/status") { bearerAuth(secret) }
+        val listed = Json.decodeFromString<List<ApiTokenInfo>>(
+            client.get("/api/v1/admin/tokens") { bearerAuth(admin) }.bodyAsText(),
+        ).single()
+        assertEquals(clock.now.toString(), listed.lastUsedAt)
+        val revoke = suspend { client.delete("/api/v1/admin/tokens/${info.id}") { bearerAuth(admin) }.status }
+        assertEquals(HttpStatusCode.NoContent, revoke())
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/admin/status") { bearerAuth(secret) }.status)
+        assertEquals(HttpStatusCode.NotFound, revoke())
+    }
+
+    @Test fun `a hook token opens only the hooks`() = viewers {
+        val (_, secret) = create("""{"label":"Sonarr","scope":"hook"}""")
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/bootstrap") { bearerAuth(secret) }.status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/admin/status") { bearerAuth(secret) }.status)
+        // No hook is installed yet, so a hook token gets past the guard to routing's answer.
+        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/v1/hooks/servarr").status)
+        assertEquals(HttpStatusCode.NotFound, client.post("/api/v1/hooks/servarr") { bearerAuth(secret) }.status)
+    }
+
+    @Test fun `the admin API makes only read and hook tokens, each with a label`() = viewers {
+        for (body in listOf("""{"label":"x","scope":"api"}""", """{"label":"  ","scope":"read"}""")) {
+            val response = client.post("/api/v1/admin/tokens") {
+                bearerAuth(admin)
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            assertEquals(HttpStatusCode.BadRequest, response.status, body)
+        }
+        val withApiToken = client.post("/api/v1/admin/tokens") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody("""{"label":"x","scope":"read"}""")
+        }
+        assertEquals(HttpStatusCode.Unauthorized, withApiToken.status)
     }
 
     @Test fun `a paired device is listed without preferences until it saves some`() = viewers {
@@ -148,10 +238,24 @@ class ViewerApiTest {
             return Json.decodeFromString(issued.bodyAsText())
         }
 
-        /** Pairs the living room TV, tv-1. */
-        suspend fun pair() {
+        /** Pairs the living room TV, tv-1, and answers the token it received. */
+        suspend fun pair(): String {
             val claimed = claim(PairingClaim(issue().code, "tv-1", "Living room", "android-tv"))
             assertEquals(HttpStatusCode.OK, claimed.status)
+            return Json.decodeFromString<PairingResult>(claimed.bodyAsText()).apiToken
+        }
+
+        /** Makes a token from [body] with the admin token, and answers it with its secret. */
+        suspend fun create(body: String): Pair<ApiTokenInfo, String> {
+            val response = client.post("/api/v1/admin/tokens") {
+                bearerAuth(admin)
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            assertEquals(HttpStatusCode.Created, response.status)
+            val created = Json.decodeFromString<CreatedApiToken>(response.bodyAsText())
+            assertTrue(created.secret.startsWith("sk_"))
+            return created.token to created.secret
         }
 
         suspend fun save(clientId: String, body: String, bearer: String? = token) =

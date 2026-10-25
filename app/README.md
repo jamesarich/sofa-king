@@ -77,7 +77,7 @@ The [security page](docs/security.md) describes what the app stores, where the t
 - The web app fills in its page's origin as the server address and needs an origin the server allows, as [getting started](docs/getting-started.md#web) describes.
 - Caption timing and smoothing work on Android only. Chrome's built-in HLS player shows no captions.
 - There is no background audio. On an Android phone or tablet a player shrinks into picture-in-picture when the app leaves the screen; elsewhere playback stops, and a library item or recording resumes where it stopped.
-- There is no published iOS or Apple TV build. Snapshot APKs use a debug key and the desktop packages are unsigned.
+- There is no published iOS or Apple TV build. Snapshot APKs use the release key only once the repository has it ([signing](docs/development.md#signing)), and the desktop packages are unsigned.
 
 ## License
 

@@ -9,6 +9,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
+import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.PlaybackSessions
@@ -32,6 +33,7 @@ import dev.jamesrich.sofaking.ui.guide.GuideActions
 import dev.jamesrich.sofaking.ui.guide.GuideArrival
 import dev.jamesrich.sofaking.ui.guide.GuidePreview
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
+import dev.jamesrich.sofaking.ui.guide.OnLaterScreen
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.localDay
 import dev.jamesrich.sofaking.ui.player.LivePlayer
@@ -107,6 +109,7 @@ internal fun GuideDestination(
                 onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
                 onToggleWatchlist = vm.watchlist::toggleTitle,
                 watchlisted = { program -> watchlist.has(program).takeIf { watchlist.offered } },
+                onOnLater = { shell.push(Route.OnLater) }.takeIf { capabilities.onLater },
             ),
             preview = GuidePreview(
                 player = player,
@@ -121,6 +124,45 @@ internal fun GuideDestination(
             shown = shell.top == Route.Guide,
         )
     }
+}
+
+/**
+ * On Later over the channels the guide shows; a program's details record it, put it on the watchlist or watch its
+ * channel full screen.
+ */
+@Composable
+internal fun OnLaterDestination(shell: AppShellState, vm: LineupViewModel) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    val capabilities by vm.capabilities.collectAsStateWithLifecycle()
+    val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
+    val watchlist by vm.watchlist.marks.collectAsStateWithLifecycle()
+    val lineup = (state as? LineupState.Ready)?.lineup
+    val visibleLineup = rememberVisibleLineup(lineup, settings?.hiddenChannels.orEmpty())
+    if (visibleLineup == null) {
+        MessageScreen(stringResource(Res.string.loading), loading = true)
+        return
+    }
+    val watch = { channel: Channel -> shell.push(Route.Player(channel.guideId)) }
+    OnLaterScreen(
+        lineup = visibleLineup,
+        favorites = settings?.favorites.orEmpty(),
+        recordingMarks = recordingMarks.takeIf { capabilities.recordings },
+        actions = GuideActions(
+            onPlay = { channel, _, _ -> watch(channel) },
+            onToggleFavorite = { vm.toggleFavorite(it.guideId) },
+            onFilterChange = {},
+            onLoadGuideWindow = {},
+            onRecord = vm.recordings::toggle,
+            onRecordSeries = vm.recordings::toggleSeries,
+            onRecordTeam = vm.recordings::toggleTeam,
+            onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
+            onToggleWatchlist = vm.watchlist::toggleTitle,
+            watchlisted = { program -> watchlist.has(program).takeIf { watchlist.offered } },
+        ),
+        load = { vm.onLater.programs(it) },
+        onWatch = watch,
+    )
 }
 
 /** Where the guide opens: as the shell [Arrival] asks, on the channel and filter of the last visit. */

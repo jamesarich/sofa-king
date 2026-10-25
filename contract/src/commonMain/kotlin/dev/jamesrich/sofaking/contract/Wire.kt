@@ -128,6 +128,16 @@ object Wire {
         const val TITLE = "title"
     }
 
+    /** What `GET /api/v1/guide/on-later` lists, by its `kind`. */
+    object OnLaterKind {
+        const val MOVIE = "movie"
+        const val SPORTS = "sports"
+        const val KIDS = "kids"
+
+        /** A premiere: a series or season starting, by a `Premiere` category or a new first episode. */
+        const val NEW = "new"
+    }
+
     /**
      * How a server advertises itself on the LAN over mDNS (DNS-SD): this service type, the
      * API's port, and a TXT record.

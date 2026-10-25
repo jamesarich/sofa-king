@@ -97,13 +97,21 @@ class ServerConnection(
     /** What TMDB says about live programs, for the break screen. */
     val programFacts = ProgramFactsBook(api)
 
+    /** The movies, sports, kids' programs and premieres coming up, for On Later. */
+    val onLater = OnLaterBook(api)
+
     /** Asks until the server answers, backing off to every five minutes; a server without the route offers nothing. */
     private suspend fun readCapabilities(api: SofaKingApi): ServerCapabilities {
         var wait = 5.seconds
         while (true) {
             runCatchingCancellable {
                 return api.bootstrap().capabilities.let {
-                    ServerCapabilities(recordings = it.recordings, library = it.library, watchlist = it.watchlist)
+                    ServerCapabilities(
+                        recordings = it.recordings,
+                        library = it.library,
+                        watchlist = it.watchlist,
+                        onLater = it.onLater,
+                    )
                 }
             }.onFailure { e ->
                 if (e is SofaKingException) {

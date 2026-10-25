@@ -112,6 +112,7 @@ internal fun FilterChipRow(
     onSearch: () -> Unit,
     onSelect: (GuideFilter) -> Unit,
     modifier: Modifier = Modifier,
+    onOnLater: (() -> Unit)? = null,
 ) {
     LazyRow(
         state = listState,
@@ -137,6 +138,12 @@ internal fun FilterChipRow(
                 label = stringResource(Res.string.guide_filter_count, option.label(), counts[option] ?: 0),
                 modifier = if (selected) Modifier.focusRequester(selectedChip) else Modifier,
             )
+        }
+        // Last, so the fixed chips before the filters keep their places.
+        if (onOnLater != null) {
+            item(key = "on-later") {
+                SofaChip(selected = false, onClick = onOnLater, label = stringResource(Res.string.on_later))
+            }
         }
     }
 }

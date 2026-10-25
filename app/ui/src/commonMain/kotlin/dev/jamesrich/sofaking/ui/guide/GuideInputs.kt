@@ -49,6 +49,8 @@ data class GuideActions(
     val onToggleWatchlist: suspend (Program) -> Boolean = notRecorded,
     /** Whether the program's title is on the watchlist; null on a server without one, which hides the button. */
     val watchlisted: (Program) -> Boolean? = { null },
+    /** Opens On Later, the movies, sports, kids' programs and premieres coming up; null on a server without it. */
+    val onOnLater: (() -> Unit)? = null,
 )
 
 /** A server that does not record, or keeps no watchlist, takes nothing. */

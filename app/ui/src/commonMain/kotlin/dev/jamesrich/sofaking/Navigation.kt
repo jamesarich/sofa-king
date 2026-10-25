@@ -27,6 +27,12 @@ internal sealed interface Route : NavKey {
         override val id: String get() = "guide"
     }
 
+    /** On Later: the movies, sports, kids' programs and premieres coming up, opened from the guide. */
+    @Serializable
+    data object OnLater : Route {
+        override val id: String get() = "on-later"
+    }
+
     /**
      * A live channel full screen; [scope] is the guide filter it was picked from, which Up and Down stay in.
      * [unattended] marks one the guide opened by itself, which keeps the screen on only once a key is pressed.
@@ -112,8 +118,8 @@ internal sealed interface Route : NavKey {
     val playsFullScreen: Boolean get() = this is Player || this is Vod || this is Recording
 
     /** The pages under the tabs: the header (or, away from a TV, the navigation bar or rail) shows above them. */
-    val hasTabs: Boolean get() = this is Guide || this is Library || this is LibrarySearch || this is LibraryGrid ||
-        this is Recordings
+    val hasTabs: Boolean get() = this is Guide || this is OnLater || this is Library || this is LibrarySearch ||
+        this is LibraryGrid || this is Recordings
 
     /** What the page below focuses when the viewer leaves this one; the player's channel is the app's to know. */
     val focusKey: String?

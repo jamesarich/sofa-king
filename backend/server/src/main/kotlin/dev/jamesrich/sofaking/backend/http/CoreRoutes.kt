@@ -51,6 +51,7 @@ internal fun Route.healthRoutes(store: IdentityStore, clock: Clock, runtime: Liv
                         library = runtime?.libraries != null,
                         recordings = runtime?.dvr != null,
                         watchlist = runtime != null,
+                        onLater = runtime != null,
                     ),
                 ),
             )
@@ -87,6 +88,12 @@ internal fun Route.liveRoutes(runtime: LiveRuntime) {
         call.respond(source)
     }
     post("/api/v1/guide/query") { call.respond(runtime.catalog.guide(call.appBody<GuideQuery>())) }
+    get("/api/v1/guide/on-later") {
+        val query = call.request.queryParameters
+        val days = query["days"]?.let { it.toIntOrNull() ?: 0 } ?: ON_LATER_DAYS
+        val limit = query["limit"]?.let { it.toIntOrNull() ?: 0 } ?: ON_LATER_LIMIT
+        call.respond(runtime.onLater.programs(query["kind"].orEmpty(), days, limit))
+    }
     get("/api/v1/program-facts") {
         val title = call.request.queryParameters["title"]?.trim().orEmpty()
         if (title.isEmpty() || title.length > MAX_FACTS_TITLE) {
@@ -96,6 +103,10 @@ internal fun Route.liveRoutes(runtime: LiveRuntime) {
         call.respond(runtime.programFacts?.facts(title, movie) ?: ProgramFacts())
     }
 }
+
+/** How many days and programs `GET /api/v1/guide/on-later` covers when the query does not say. */
+private const val ON_LATER_DAYS = 2
+private const val ON_LATER_LIMIT = 200
 
 /** The longest program title `GET /api/v1/program-facts` looks up. */
 private const val MAX_FACTS_TITLE = 200

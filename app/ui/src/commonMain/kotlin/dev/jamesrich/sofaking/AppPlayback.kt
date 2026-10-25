@@ -144,9 +144,11 @@ internal fun RouteStreamEffects(
 
             is Route.Player, is Route.Vod, is Route.Recording -> Unit
 
-            // The library and the recordings play nothing until one is picked, so the
+            // The library, the recordings and On Later play nothing until one is picked, so the
             // guide's preview stops on the way in.
-            Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, is Route.LibraryItem, Route.Recordings -> {
+            Route.OnLater, Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, is Route.LibraryItem,
+            Route.Recordings,
+            -> {
                 player.stop()
                 sessions.release(forget = true)
             }

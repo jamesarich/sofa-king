@@ -33,6 +33,7 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | GET | `/api/v1/sources` | Health and manual-disable flag of every source |
 | PATCH | `/api/v1/sources/{id}` | Set `manuallyDisabled`; takes the admin token, as the admin routes do |
 | POST | `/api/v1/guide/query` | Programs overlapping a requested channel/time window |
+| GET | `/api/v1/guide/on-later?kind=movie` | Movies, sports, kids' programs or premieres coming up on the enabled channels |
 | POST | `/api/v1/playback-sessions` | Create a preview or watch session |
 | GET | `/api/v1/playback-sessions/{id}` | Read the current playback descriptor |
 | PATCH | `/api/v1/playback-sessions/{id}` | Renew the lease and optionally change intent |
@@ -102,6 +103,8 @@ Request 1-200 distinct channels and a positive window of at most 24 hours. Progr
 Each program has `id`, `channelId`, `startsAt`, `endsAt`, `title` and `description`, and the metadata its guide source provides: `subTitle` (the episode title), `episode` (a label such as `S2 E5` or `E5`, or the source's on-screen numbering), `isNew` (a first airing), `rating` (such as `TV-14`), `icon` (an image URL on the source's host) and `categories` (the source's genres, such as `Movies` or `Sports`, each once). A field the source does not provide is null, false for `isNew` or empty for `categories`. Clients should ignore fields they do not know.
 
 To page through a consistent guide, pass the returned `revision` in subsequent requests. A changed revision (any guide re-imported, or the lineup changed) returns `409 RESYNC_REQUIRED`; query again without the old revision.
+
+`GET /api/v1/guide/on-later` answers On Later: `{"programs": [...]}`, the programs of one `kind` on the enabled channels that have not ended and start within `days` (1 to 7, default 2), soonest first, at most `limit` (1 to 500, default 200), each as above with `channelId` the lineup entry. `kind` is `movie` (a `Movie` or `Film` category beside a film genre, and no news or sports one, as the app's guide filter reads it), `sports`, `kids` (a `Kids` or `Children` category) or `new` (a `Premiere` category, or a new airing of a season's first episode). `onLater` in the bootstrap capabilities says the server has it.
 
 ## Open and release playback
 

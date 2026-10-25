@@ -295,7 +295,10 @@
         "properties": {
           "id": { "type": "string" }, "channelId": { "type": "string" }, "intent": { "type": "string" }, "external": { "type": "boolean", "description": "An M3U or HDHomeRun player" },
           "busy": { "type": "boolean", "description": "A media request in flight" }, "providerId": { "type": "string" }, "expiresAt": { "type": "string", "format": "date-time" },
-          "startedAt": { "type": "string", "format": "date-time" }, "client": { "type": ["string", "null"], "description": "The player's address" }, "bytes": { "type": "integer", "description": "Bytes relayed to the player" }
+          "startedAt": { "type": "string", "format": "date-time" }, "client": { "type": ["string", "null"], "description": "The player's address" }, "bytes": { "type": "integer", "description": "Bytes relayed to the player" },
+          "offeringId": { "type": "string", "description": "The source playing" }, "bitrateKbps": { "type": "integer", "description": "The rate media went to the player over the last 10 seconds or so" },
+          "stalls": { "type": "integer", "description": "Media requests the upstream refused or dropped before anything was answered" }, "segmentsServed": { "type": "integer", "description": "HLS segments relayed" },
+          "sourceSwitches": { "type": "integer", "description": "Moves to another source, on a failure or by hand" }
         }
       },
       "CandidatePage": {
@@ -815,6 +818,11 @@
     "/api/v1/admin/sessions": {
       "get": { "tags": ["Admin"], "summary": "Live playback sessions", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ActiveSession" } } } } } } }
+    },
+    "/api/v1/admin/sessions/{id}/switch-source": {
+      "post": { "tags": ["Admin"], "summary": "Move a live session to its channel's next source", "description": "Passes over the source playing and those the session was switched away from, all of them again once none is left. The session keeps its id and moves to a new epoch: the app re-reads it, and another player's next media request answers 410.", "security": [{ "adminToken": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "The session on its new source", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ActiveSession" } } } }, "409": { "$ref": "#/components/responses/Error" }, "410": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/candidates": {
       "get": { "tags": ["Admin"], "summary": "Provider channels with their sources and the entries using them", "security": [{ "adminToken": [] }],

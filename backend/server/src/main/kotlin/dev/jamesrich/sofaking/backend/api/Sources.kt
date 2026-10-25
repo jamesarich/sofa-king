@@ -4,7 +4,10 @@ import kotlinx.serialization.Serializable
 
 /**
  * A live session as the admin API lists it; [external] marks an M3U or HDHomeRun player, [busy] a media request in
- * flight, [client] the player's address and [bytes] what the server has sent it.
+ * flight, [client] the player's address and [bytes] what the server has sent it. [offeringId] is the source it plays;
+ * [bitrateKbps] the rate its player was sent media at over the last 10 seconds or so; [stalls] the media requests the
+ * upstream refused or dropped before anything was answered; [segmentsServed] the HLS segments relayed;
+ * [sourceSwitches] the times it moved to another source, on a failure or by hand.
  */
 @Serializable data class ActiveSession(
     val id: String,
@@ -17,6 +20,11 @@ import kotlinx.serialization.Serializable
     val startedAt: String = "",
     val client: String? = null,
     val bytes: Long = 0,
+    val offeringId: String = "",
+    val bitrateKbps: Int = 0,
+    val stalls: Long = 0,
+    val segmentsServed: Long = 0,
+    val sourceSwitches: Int = 0,
 )
 
 @Serializable data class ProviderStatus(

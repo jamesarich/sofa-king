@@ -54,8 +54,12 @@ internal class LiveSession(
     /** Sources that failed to resolve for this session; it never goes back to them. */
     val failed = HashSet<String>()
 
-    /** Bytes relayed to the player over every media request, for the portal's Watching now. */
-    val bytes = AtomicLong()
+    /** What the relay saw of the session's media, for the portal's Watching now. */
+    val stats = SessionStats(startedAt)
+    val bytes: AtomicLong get() = stats.bytes
+
+    /** Sources the operator switched the session away from; Switch source passes over them until none is left. */
+    val switchedFrom = HashSet<String>()
     val busy: Boolean get() = requests.any { it.isActive }
 
     /** Token to URL for every mapped resource; playlists are pinned, segments and keys share a 4,096-entry LRU. */
@@ -142,14 +146,14 @@ internal class ResourceMap(private val segmentLimit: Int = 4096) {
 
 /**
  * [shared] marks the live MPEG-TS root, which one upstream connection fans out to every session on the source;
- * [bytes] counts what the relay sends the player on this session. [ads] is the session's [AdClock], which marks the
+ * [stats] counts what the relay sends the player on this session. [ads] is the session's [AdClock], which marks the
  * playlists and notes the segments fetched, on the app's own sessions only.
  */
 data class MediaResource(
     val offering: Offering,
     val url: String,
     val shared: Boolean = false,
-    val bytes: AtomicLong = AtomicLong(),
+    val stats: SessionStats = SessionStats(Instant.EPOCH),
     val ads: AdClock? = null,
     val playlists: SteadyPlaylists = SteadyPlaylists(),
 )
@@ -266,10 +270,16 @@ class SessionManager(
 
     suspend fun snapshot(): List<ActiveSession> = table.mutex.withLock {
         table.reap()
+        val now = clock.instant()
         sessions.values.map {
             ActiveSession(
                 it.id, it.request.channelId, it.intent, it.external, it.busy, it.offering.providerId,
                 it.expires.toString(), it.startedAt.toString(), it.client, it.bytes.get(),
+                offeringId = it.offering.id,
+                bitrateKbps = it.stats.bitrateKbps(now),
+                stalls = it.stats.stalls.get(),
+                segmentsServed = it.stats.segments.get(),
+                sourceSwitches = it.stats.switches.get(),
             )
         }
     }
@@ -282,6 +292,7 @@ class SessionManager(
         if (refreshed == null || health == null || !eligible(health)) {
             session.restart()
             session.offering = sources.select(session.request.channelId, session.failed)
+            session.stats.switches.incrementAndGet()
         }
         if (refreshed != null && session.offering.id == refreshed.id && session.offering.url != refreshed.url) {
             session.restart()

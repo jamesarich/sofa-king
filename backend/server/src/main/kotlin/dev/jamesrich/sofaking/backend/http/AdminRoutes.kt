@@ -35,6 +35,11 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
     route("/api/v1/admin") {
         get("/status") { call.respond(serverStatus(runtime, clock, revision)) }
         get("/sessions") { call.respond(runtime.sessions.snapshot()) }
+        post("/sessions/{id}/switch-source") {
+            val id = call.parameters["id"]!!
+            runtime.sessions.media.switchSource(id)
+            call.respond(runtime.sessions.snapshot().single { it.id == id })
+        }
         get("/candidates") {
             val params = call.request.queryParameters
             call.respond(

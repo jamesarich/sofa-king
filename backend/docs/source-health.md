@@ -47,6 +47,8 @@ Initial quarantine lasts 15 minutes. Failed recovery backs off to one hour, six 
 
 Every playback session, API, player or HDHomeRun, takes the lineup entry's first selectable source by health rank: healthy first, then unverified, then suspect, in the entry's failover order within each rank. Quarantined, probation, archived, manually disabled and withdrawn sources are never selected. When the playing source stops being selectable, an API session moves to the next one the next time the client fetches it, as [open and release playback](api.md#open-and-release-playback) describes.
 
+Switch on the portal's Watching now (or `POST /api/v1/admin/sessions/{id}/switch-source`) moves a session to the channel's next selectable source by hand, for a picture that plays but looks wrong. It passes over the source playing and those the session was switched away from, so pressing it again turns through every source; once none is left it starts over. The session keeps its id and moves to a new epoch: the app re-reads it and plays the new source within a second or two, while an M3U, Plex or HDHomeRun player sees its stream end once and opens it again. A channel with no other selectable source refuses with `409 NO_OTHER_SOURCE`. Watching now also shows each session's rate, its stalls (media requests the source refused or dropped) and its switches, the automatic ones included.
+
 With a [lineup policy](lineup-policy.md), a station none of whose sources is selectable for `health.disableAfterHours` (default 24) turns off, and the M3U, XMLTV and HDHomeRun listings stop carrying it. A source qualifying `HEALTHY` again turns it back on, or any selectable source with `health.enableOn: eligible`.
 
 ## Inspect or disable a source

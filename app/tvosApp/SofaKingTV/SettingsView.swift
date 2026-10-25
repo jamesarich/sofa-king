@@ -69,10 +69,8 @@ struct SettingsView: View {
                 Text("On streaming channels that mark their ads, such as Pluto TV and Tubi, a bouncing logo covers them. Show picture brings the picture back.")
             }
             Section {
-                Toggle("Skip intros automatically", isOn: Binding(
-                    get: { model.settings?.autoSkipIntros ?? false },
-                    set: { model.core.setAutoSkipIntros(enabled: $0) }
-                ))
+                SkipModePicker(title: "Skip intros", kind: .intros)
+                SkipModePicker(title: "Skip credits", kind: .credits)
                 Toggle("Hide spoilers", isOn: Binding(
                     get: { model.settings?.hideSpoilers ?? false },
                     set: { model.core.setHideSpoilers(enabled: $0) }
@@ -80,7 +78,7 @@ struct SettingsView: View {
             } header: {
                 Text("Library")
             } footer: {
-                Text("Skip intro counts down 5 seconds and then skips; pausing stops it. Off, an intro waits for a press. Hide spoilers keeps back the summaries of episodes you have not started and blurs their pictures.")
+                Text("Automatically, Skip intro or Skip credits counts down 5 seconds and then skips; pausing stops it. With a button, it waits for a press. Off, intros and credits play. Hide spoilers keeps back the summaries of episodes you have not started and blurs their pictures.")
             }
             Section("About") {
                 // TMDB's terms ask apps that show its data to say so.
@@ -97,5 +95,25 @@ struct SettingsView: View {
             url = model.settings?.serverUrl ?? ""
             token = model.settings?.apiToken ?? ""
         }
+    }
+}
+
+/// How the players meet `kind`: skipped by itself after a countdown, offered on a button, or neither.
+struct SkipModePicker: View {
+    @Environment(AppModel.self) private var model
+    let title: String
+    let kind: SkipKind
+
+    var body: some View {
+        Picker(title, selection: Binding(
+            get: { model.settings?.skips.of(kind: kind) ?? .button },
+            set: { model.core.setSkip(kind: kind, mode: $0) }
+        )) {
+            Text("Automatically").tag(SkipMode.auto_)
+            Text("With a button").tag(SkipMode.button)
+            Text("Off").tag(SkipMode.off)
+        }
+        // The default style in a List is a bare row of segments that drops the title.
+        .pickerStyle(.navigationLink)
     }
 }

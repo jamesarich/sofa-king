@@ -5,6 +5,8 @@ import androidx.compose.ui.input.key.Key
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.ScrubTiles
+import dev.jamesrich.sofaking.data.SkipMode
+import dev.jamesrich.sofaking.data.Skips
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
@@ -79,6 +81,17 @@ internal fun introAt(markers: List<VodMarker>, positionMs: Long): VodMarker? =
 /** The credits [positionMs] is in; null outside them. */
 internal fun creditsAt(markers: List<VodMarker>, positionMs: Long): VodMarker? =
     segmentAt(markers, positionMs, VodMarkerKind.CREDITS)
+
+/** An intro or the credits playback is in, and how [Skips] says to meet it. */
+internal data class SegmentSkip(val marker: VodMarker, val mode: SkipMode)
+
+/** The intro or credits [positionMs] is in, unless [skips] turns that kind off; null outside them. */
+internal fun segmentToSkip(markers: List<VodMarker>, positionMs: Long, skips: Skips): SegmentSkip? {
+    introAt(markers, positionMs)?.takeIf { skips.intros != SkipMode.OFF }?.let { return SegmentSkip(it, skips.intros) }
+    return creditsAt(markers, positionMs)?.takeIf {
+        skips.credits != SkipMode.OFF
+    }?.let { SegmentSkip(it, skips.credits) }
+}
 
 private fun segmentAt(markers: List<VodMarker>, positionMs: Long, kind: VodMarkerKind): VodMarker? =
     markers.firstOrNull { it.kind == kind && positionMs >= it.startMs && positionMs < it.endMs }

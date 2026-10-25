@@ -23,6 +23,8 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.BufferPreference
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.DecoderPreference
+import dev.jamesrich.sofaking.data.SkipKind
+import dev.jamesrich.sofaking.data.SkipMode
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.SubtitleRaise
 import dev.jamesrich.sofaking.data.SubtitleSize
@@ -39,8 +41,6 @@ import dev.jamesrich.sofaking.resources.recordings_skip_commercials
 import dev.jamesrich.sofaking.resources.recordings_skip_commercials_help
 import dev.jamesrich.sofaking.resources.recordings_title
 import dev.jamesrich.sofaking.resources.settings
-import dev.jamesrich.sofaking.resources.settings_auto_skip_intros
-import dev.jamesrich.sofaking.resources.settings_auto_skip_intros_help
 import dev.jamesrich.sofaking.resources.settings_buffer
 import dev.jamesrich.sofaking.resources.settings_buffer_fast
 import dev.jamesrich.sofaking.resources.settings_buffer_help
@@ -61,6 +61,13 @@ import dev.jamesrich.sofaking.resources.settings_match_frame_rate_help
 import dev.jamesrich.sofaking.resources.settings_section_captions
 import dev.jamesrich.sofaking.resources.settings_section_library
 import dev.jamesrich.sofaking.resources.settings_section_playback
+import dev.jamesrich.sofaking.resources.settings_skip_credits
+import dev.jamesrich.sofaking.resources.settings_skip_credits_help
+import dev.jamesrich.sofaking.resources.settings_skip_intros
+import dev.jamesrich.sofaking.resources.settings_skip_intros_help
+import dev.jamesrich.sofaking.resources.settings_skip_mode_auto
+import dev.jamesrich.sofaking.resources.settings_skip_mode_button
+import dev.jamesrich.sofaking.resources.settings_skip_mode_off
 import dev.jamesrich.sofaking.resources.settings_subtitle_box
 import dev.jamesrich.sofaking.resources.settings_subtitle_box_help
 import dev.jamesrich.sofaking.resources.settings_subtitle_look_help
@@ -86,18 +93,40 @@ import org.jetbrains.compose.resources.stringResource
 internal fun LazyListScope.recordingsSection(settings: AppSettings, actions: SettingsActions) {
     item { SectionHeader(stringResource(Res.string.recordings_title)) }
     item {
-        SettingToggle(
-            label = stringResource(Res.string.recordings_skip_commercials),
-            help = stringResource(Res.string.recordings_skip_commercials_help),
-            stored = settings.skipCommercials,
-            onChange = actions.onSkipCommercialsChanged,
+        SkipChoice(
+            SkipKind.COMMERCIAL_BREAKS,
+            stringResource(Res.string.recordings_skip_commercials),
+            stringResource(Res.string.recordings_skip_commercials_help),
+            settings,
+            actions,
         )
     }
 }
 
+/** How the players meet [kind]: skipped by itself, offered on a button, or neither. */
+@Composable
+private fun SkipChoice(kind: SkipKind, label: String, help: String, settings: AppSettings, actions: SettingsActions) {
+    SettingChoice(
+        label = label,
+        help = help,
+        stored = settings.skips.of(kind),
+        choices = SkipMode.entries,
+        choiceLabel = {
+            stringResource(
+                when (it) {
+                    SkipMode.AUTO -> Res.string.settings_skip_mode_auto
+                    SkipMode.BUTTON -> Res.string.settings_skip_mode_button
+                    SkipMode.OFF -> Res.string.settings_skip_mode_off
+                },
+            )
+        },
+        onChange = { actions.onSkipChanged(kind, it) },
+    )
+}
+
 /**
- * Library, on a server that has one: skipping intros, hiding spoilers, and the subtitles' look ([subtitleLook], shown
- * at once through [onLook]), which its three rows change a part of each.
+ * Library, on a server that has one: skipping intros and credits, hiding spoilers, and the subtitles' look
+ * ([subtitleLook], shown at once through [onLook]), which its three rows change a part of each.
  */
 internal fun LazyListScope.librarySection(
     settings: AppSettings,
@@ -107,11 +136,21 @@ internal fun LazyListScope.librarySection(
 ) {
     item { SectionHeader(stringResource(Res.string.settings_section_library)) }
     item {
-        SettingToggle(
-            label = stringResource(Res.string.settings_auto_skip_intros),
-            help = stringResource(Res.string.settings_auto_skip_intros_help),
-            stored = settings.autoSkipIntros,
-            onChange = actions.onAutoSkipIntrosChanged,
+        SkipChoice(
+            SkipKind.INTROS,
+            stringResource(Res.string.settings_skip_intros),
+            stringResource(Res.string.settings_skip_intros_help),
+            settings,
+            actions,
+        )
+    }
+    item {
+        SkipChoice(
+            SkipKind.CREDITS,
+            stringResource(Res.string.settings_skip_credits),
+            stringResource(Res.string.settings_skip_credits_help),
+            settings,
+            actions,
         )
     }
     item {

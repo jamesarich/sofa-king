@@ -34,6 +34,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.SkipMode
+import dev.jamesrich.sofaking.data.Skips
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.resources.Res
@@ -86,10 +88,8 @@ fun VodPlayerScreen(
     modifier: Modifier = Modifier,
     /** Playback reached the end; leaving is the default. */
     onEnd: () -> Unit = onExit,
-    /** Jump over a [VodMarkerKind.BREAK] when playback runs into it. */
-    autoSkipBreaks: Boolean = false,
-    /** Skip an intro after a countdown on Skip intro, rather than waiting for a press. */
-    autoSkipIntros: Boolean = false,
+    /** How commercial breaks, intros and credits are met: skipped by themselves, offered on a button, or neither. */
+    skips: Skips = Skips(),
     /** How the item's text subtitles look. */
     subtitleLook: SubtitleLook = SubtitleLook(),
     /** What plays after this item, asked for when it ends; null ends as [onEnd] says. */
@@ -119,7 +119,7 @@ fun VodPlayerScreen(
     VodSessionEffects(parts.vod, title, open, stream)
     VodEndingEffects(parts, sleep, autoplays, upNext, onStop, onEnd, onExit)
     UpNextCountdown(parts, autoplays, onPlayNext, onExit)
-    VodClock(parts, title, sleep, autoSkipBreaks, autoSkipIntros, onPosition, onExit)
+    VodClock(parts, title, sleep, skips, onPosition, onExit)
     LaunchedEffect(parts.picks.subtitle) { parts.picks.loadSubtitles(tracks) }
     VodToastTimers(parts.toasts)
     VodLifecycleEffects(parts.vod, onStop)
@@ -131,13 +131,13 @@ fun VodPlayerScreen(
         spots.credits?.let { creditsRunToEnd(it, state.durationMs) } == true && parts.ending.upcoming != null
     val buttons = vodButtons(
         failed = state.failure != null,
-        inBreak = spots.breakEnd != null,
+        inBreak = spots.breakEnd != null && skips.commercialBreaks != SkipMode.OFF,
         tracksPickable = tracks.pickable,
         captions = captionsOn != null,
         pastStart = spots.pastStart,
         hasNext = parts.ending.upcoming != null,
-        inIntro = spots.intro != null,
-        inCredits = spots.credits != null,
+        inIntro = spots.intro != null && skips.intros != SkipMode.OFF,
+        inCredits = spots.credits != null && skips.credits != SkipMode.OFF,
         creditsToNext = creditsToNext,
         speedAdjustable = player.speedAdjustable,
         toLive = onBackToLive != null,

@@ -16,6 +16,7 @@ import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.ScrubTiles
+import dev.jamesrich.sofaking.data.Skips
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialAudio
@@ -223,7 +224,7 @@ internal fun VodDestination(
                 onExit = shell::back,
                 upNext = { libraryVm.upNext(item)?.also { next = it }?.upNext() },
                 onPlayNext = { next?.let { shell.replaceTop(Route.Vod(it.id)) } },
-                autoSkipIntros = settings?.autoSkipIntros ?: false,
+                skips = settings?.skips ?: Skips(),
                 subtitleLook = settings?.subtitleLook ?: SubtitleLook(),
                 tracks = tracks,
                 zoom = shell.videoZoom,

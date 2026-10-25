@@ -4,6 +4,8 @@ import androidx.compose.ui.input.key.Key
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.SkipMode
+import dev.jamesrich.sofaking.data.Skips
 import dev.jamesrich.sofaking.ui.formatPlayTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -83,6 +85,24 @@ class VodPlaybackTest {
         assertNull(introAt(markers, 53_100))
         assertNull(introAt(markers, 90_000))
         assertNull(breakEndAt(listOf(intro), 10_000), "Skip break never skips an intro")
+    }
+
+    @Test
+    fun `an intro or the credits is met as its own skip mode says and off is never offered`() {
+        val intro = VodMarker(600, 53_100, VodMarkerKind.INTRO)
+        val credits = VodMarker(1_200_000, 1_300_000, VodMarkerKind.CREDITS)
+        val markers = listOf(intro, credits)
+        val skips = Skips(intros = SkipMode.AUTO, credits = SkipMode.BUTTON)
+        assertEquals(SegmentSkip(intro, SkipMode.AUTO), segmentToSkip(markers, 10_000, skips))
+        assertEquals(SegmentSkip(credits, SkipMode.BUTTON), segmentToSkip(markers, 1_250_000, skips))
+        assertNull(segmentToSkip(markers, 600_000, skips))
+        val off = Skips(intros = SkipMode.OFF, credits = SkipMode.OFF)
+        assertNull(segmentToSkip(markers, 10_000, off))
+        assertNull(segmentToSkip(markers, 1_250_000, off))
+        assertEquals(
+            SegmentSkip(credits, SkipMode.AUTO),
+            segmentToSkip(markers, 1_250_000, Skips(intros = SkipMode.OFF, credits = SkipMode.AUTO)),
+        )
     }
 
     @Test

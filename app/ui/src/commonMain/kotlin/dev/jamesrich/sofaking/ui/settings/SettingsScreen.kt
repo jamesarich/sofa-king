@@ -44,6 +44,8 @@ import dev.jamesrich.sofaking.data.InstallFailure
 import dev.jamesrich.sofaking.data.InstallState
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.ReleaseNote
+import dev.jamesrich.sofaking.data.SkipKind
+import dev.jamesrich.sofaking.data.SkipMode
 import dev.jamesrich.sofaking.data.StartupTarget
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.UpdateInstaller
@@ -118,8 +120,7 @@ class SettingsActions(
     val onSettingsPinChanged: (String?) -> Unit = {},
     /** Compares the running [version] with the published snapshot; [again] repeats a check already made. */
     val onCheckForUpdate: (version: String, again: Boolean) -> Unit = { _, _ -> },
-    val onSkipCommercialsChanged: (Boolean) -> Unit = {},
-    val onAutoSkipIntrosChanged: (Boolean) -> Unit = {},
+    val onSkipChanged: (SkipKind, SkipMode) -> Unit = { _, _ -> },
     val onHideSpoilersChanged: (Boolean) -> Unit = {},
     val onSubtitleLookChanged: (SubtitleLook) -> Unit = {},
     val onLiveBreaksChanged: (LiveBreaks) -> Unit = {},

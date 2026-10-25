@@ -92,6 +92,20 @@ class LibraryChoicesTest {
     }
 
     @Test
+    fun `only Continue watching's cards offer to leave it and last`() {
+        val partway = item("m", ItemKind.MOVIE, PlayProgress(60_000, 6_000_000, false))
+        assertEquals(
+            listOf(CardMenuEntry.PLAY_FROM_START, CardMenuEntry.MARK_WATCHED, CardMenuEntry.REMOVE_FROM_CONTINUE),
+            cardMenuEntries(partway, playFromStart = true, removeFromContinue = true),
+        )
+        val menu = CardMenu(onPlayFromStart = {}, onSetWatched = { _, _ -> })
+        val actions = LibraryHomeActions({}, {}, {}, {}, menu = menu, onRemoveFromContinue = {})
+        val continuing = MediaShelf(CONTINUE_SHELF, "Continue watching", listOf(partway))
+        assertTrue(actions.menuFor(continuing)!!.onRemoveFromContinue != null)
+        assertNull(actions.menuFor(MediaShelf("recent", "Recently added", listOf(partway)))!!.onRemoveFromContinue)
+    }
+
+    @Test
     fun `the next page loads near the end of what is loaded`() {
         assertTrue(shouldLoadMore(lastVisibleIndex = 45, loaded = 60, hasMore = true))
         assertFalse(shouldLoadMore(lastVisibleIndex = 20, loaded = 60, hasMore = true))

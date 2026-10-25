@@ -185,6 +185,43 @@ class LibraryCatalogTest {
         assertFailsWith<ApiFailure> { catalog.updatePlayState(show.id, UpdatePlayState(positionMs = 5)) }
     }
 
+    @Test fun `a dismissed item leaves Continue watching until it is played again`() = runBlocking<Unit> {
+        val s = setup()
+        val library = s.shows()
+        val catalog = s.service.catalog
+        val season = catalog.item(
+            catalog.item(catalog.items(library.id, null, false, null, 10).items.single().id).children[1].id,
+        )
+        val (pilot, second) = season.children
+        suspend fun continuing() =
+            catalog.home().shelves.firstOrNull { it.id == Wire.ShelfId.CONTINUE }?.items?.map { it.id }
+
+        catalog.updatePlayState(pilot.id, UpdatePlayState(positionMs = 500_000))
+        val dismissed = catalog.updatePlayState(pilot.id, UpdatePlayState(dismissed = true)).playState!!
+        assertTrue(dismissed.dismissed)
+        assertEquals(500_000, dismissed.positionMs, "dismissing keeps the place")
+        assertNull(continuing(), "the show leaves the shelf")
+
+        s.clock.now = s.clock.now.plus(Duration.ofMinutes(1))
+        catalog.updatePlayState(pilot.id, UpdatePlayState(positionMs = 600_000))
+        assertEquals(listOf(pilot.id), continuing(), "playing it again brings it back")
+
+        // The next episode up is dismissed on its own row, which holds no place, and never becomes the show's last.
+        s.clock.now = s.clock.now.plus(Duration.ofMinutes(1))
+        catalog.updatePlayState(pilot.id, UpdatePlayState(positionMs = 950_000))
+        assertEquals(listOf(second.id), continuing())
+        s.clock.now = s.clock.now.plus(Duration.ofMinutes(1))
+        assertEquals(0, catalog.updatePlayState(second.id, UpdatePlayState(dismissed = true)).playState?.positionMs)
+        assertNull(continuing())
+        assertEquals(
+            second.id,
+            catalog.item(catalog.items(library.id, null, false, null, 10).items.single().id).next?.id,
+            "the show still plays the next episode",
+        )
+        assertNull(catalog.updatePlayState(second.id, UpdatePlayState(dismissed = false)).playState)
+        assertEquals(listOf(second.id), continuing(), "putting it back leaves no row behind")
+    }
+
     /**
      * A movies library of Alien, with TMDB's facts and art, and Heat, with a nfo and a poster of its own as well as
      * TMDB's facts; [http] serves TMDB's images.

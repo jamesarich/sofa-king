@@ -16,6 +16,8 @@ import kotlinx.serialization.Serializable
     val durationMs: Long? = null,
     val watched: Boolean = false,
     val updatedAt: String = "",
+    /** Taken off Continue watching by hand; the next play clears it. */
+    val dismissed: Boolean = false,
 )
 
 /**
@@ -149,7 +151,13 @@ data class LibraryShelf(val id: String, val title: String, val items: List<Libra
  * `PUT /api/v1/library/items/{id}/play-state`: where playback stopped; [watched] set by hand wins over the position.
  */
 @Serializable
-data class UpdatePlayState(val positionMs: Long = 0, val durationMs: Long? = null, val watched: Boolean? = null)
+data class UpdatePlayState(
+    val positionMs: Long = 0,
+    val durationMs: Long? = null,
+    val watched: Boolean? = null,
+    /** True takes the item off Continue watching, false puts it back; either leaves its place and watched flag. */
+    val dismissed: Boolean? = null,
+)
 
 /**
  * What a player can play as is: containers (`mp4`, `mkv`, `webm`, `ts`), video codecs (`h264`, `hevc`, `vp9`, `av1`)

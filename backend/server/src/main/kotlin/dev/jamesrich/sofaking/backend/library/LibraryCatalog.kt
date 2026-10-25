@@ -306,10 +306,22 @@ class LibraryCatalog internal constructor(
         }
     }
 
-    /** Records where playback of [view] stopped, from its [old] state. */
+    /**
+     * Records where playback of [view] stopped, from its [old] state, which clears a dismissal; or, with
+     * [UpdatePlayState.dismissed], only takes it off Continue watching or puts it back.
+     */
     private suspend fun markItem(view: View, update: UpdatePlayState, old: PlayStateRecord?, now: String) {
         val id = view.record.id
         val duration = update.durationMs ?: view.record.durationMs ?: old?.durationMs
+        update.dismissed?.let { dismissed ->
+            val state = old ?: PlayStateRecord(id, 0, duration, false, now)
+            if (!dismissed && !state.played) {
+                store.savePlayStates(emptyList(), listOf(id))
+            } else {
+                store.savePlayStates(listOf(state.copy(dismissed = dismissed)))
+            }
+            return
+        }
         val share = if (duration != null && duration > 0) update.positionMs.toDouble() / duration else null
         val (position, watched) = when {
             update.watched != null -> 0L to update.watched!!

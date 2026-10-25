@@ -1,8 +1,10 @@
 package dev.jamesrich.sofaking.ui.library
 
 import androidx.compose.ui.input.key.key
+import dev.jamesrich.sofaking.data.CONTINUE_SHELF
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaLibrary
+import dev.jamesrich.sofaking.data.MediaShelf
 
 /** What the library home's cards do. OK opens an item's page; the remote's Play key plays an item that plays. */
 internal class LibraryHomeActions(
@@ -14,4 +16,13 @@ internal class LibraryHomeActions(
     val onSearch: (voice: Boolean) -> Unit = {},
     /** What a held OK on a card offers. */
     val menu: CardMenu? = null,
-)
+    /** Takes an item off Continue watching, from its card's menu on that shelf. */
+    val onRemoveFromContinue: ((MediaItem) -> Unit)? = null,
+) {
+    /** The menu for [shelf]'s cards: Continue watching's adds Remove from Continue watching. */
+    fun menuFor(shelf: MediaShelf): CardMenu? {
+        val menu = menu ?: return null
+        if (shelf.id != CONTINUE_SHELF || onRemoveFromContinue == null) return menu
+        return CardMenu(menu.onOpen, menu.onPlayFromStart, menu.onSetWatched, onRemoveFromContinue)
+    }
+}

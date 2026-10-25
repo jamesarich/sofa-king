@@ -148,11 +148,18 @@ data class MetadataFacts(
 /** One item's stored TMDB lookup. */
 data class MetadataRecord(val itemId: String, val tmdbId: Int?, val checkedAt: String, val facts: MetadataFacts?)
 
-/** The household's place in one movie, episode or video. */
+/**
+ * The household's place in one movie, episode or video; [dismissed] takes it off Continue watching until it is played
+ * again. A dismissed row with no position and not watched holds only that.
+ */
 data class PlayStateRecord(
     val itemId: String,
     val positionMs: Long,
     val durationMs: Long?,
     val watched: Boolean,
     val updatedAt: String,
-)
+    val dismissed: Boolean = false,
+) {
+    /** Started or finished: a row that says where the household is, not only that it was dismissed. */
+    val played: Boolean get() = positionMs > 0 || watched
+}

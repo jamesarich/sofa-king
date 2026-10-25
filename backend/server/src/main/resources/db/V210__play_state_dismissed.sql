@@ -1,0 +1,2 @@
+ALTER TABLE play_state ADD COLUMN dismissed INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE play_state ADD COLUMN scope TEXT NOT NULL DEFAULT 'household'

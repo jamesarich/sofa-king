@@ -2,7 +2,8 @@ import SwiftUI
 import SofaKingCore
 
 /// The Library tab: Continue watching, each library's recent additions, then the libraries themselves. Selecting a
-/// card opens its page; the remote's play/pause button plays a movie or episode straight from its card.
+/// card opens its page; the remote's play/pause button plays a movie or episode straight from its card, and holding the
+/// touch surface on a Continue watching card offers Remove from Continue watching.
 struct LibraryHomeView: View {
     @Environment(AppModel.self) private var model
 
@@ -61,6 +62,13 @@ struct LibraryHomeView: View {
                                 NavigationLink(value: item) { LibraryCard(item: item, wide: wide) }
                                     .buttonStyle(.card)
                                     .playsOnPlayPause(item)
+                                    .contextMenu {
+                                        if shelf.id == LibraryChoicesKt.CONTINUE_SHELF {
+                                            Button("Remove from Continue watching", systemImage: "minus.circle") {
+                                                model.core.removeFromContinue(item: item)
+                                            }
+                                        }
+                                    }
                             }
                         }
                     } header: {

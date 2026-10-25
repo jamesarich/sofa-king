@@ -19,7 +19,9 @@ import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.post
+import io.ktor.client.request.prepareGet
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -27,6 +29,7 @@ import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import io.ktor.sse.ServerSentEvent
+import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.filter
@@ -61,7 +64,7 @@ class HistoryApiTest {
                     }
                 }
             }
-            withTimeoutOrNull(STREAM_WAIT) { ready.await() } ?: fail("no ready event; received $received")
+            withTimeoutOrNull(STREAM_WAIT) { ready.await() } ?: fail("no ready event; raw: ${rawStream()}")
             watchAndStop()
             withTimeoutOrNull(STREAM_WAIT) { stream.join() } ?: fail("no start and end; received $received")
         }
@@ -101,6 +104,16 @@ class HistoryApiTest {
             )
         }
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/admin/history") { bearerAuth(device) }.status)
+    }
+
+    /** What a plain GET of the stream answers in its first lines, to tell the server's part from the client's. */
+    private suspend fun History.rawStream(): String = client.prepareGet(EVENT_STREAM_PATH) {
+        bearerAuth(admin)
+    }.execute { response ->
+        val body = response.bodyAsChannel()
+        val lines = mutableListOf<String?>()
+        withTimeoutOrNull(STREAM_WAIT) { repeat(4) { lines += body.readUTF8Line() } }
+        "${response.status} ${response.headers.entries()} $lines"
     }
 
     /** A server with the fixture's channels, the admin token and a paired device, `tv-1`. */

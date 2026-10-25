@@ -180,8 +180,7 @@ internal class TmdbClient(
 
     suspend fun movie(id: Int): TmdbMovie = get("/movie/$id", "append_to_response" to "credits,release_dates")
 
-    suspend fun show(id: Int): TmdbShow =
-        get("/tv/$id", "append_to_response" to "credits,content_ratings,external_ids")
+    suspend fun show(id: Int): TmdbShow = get("/tv/$id", "append_to_response" to "credits,content_ratings,external_ids")
 
     /** The movies and shows TMDB files under the TheTVDB id [id] (`tvdb_id`) or IMDb id (`imdb_id`). */
     suspend fun find(id: String, source: String): TmdbFound = get("/find/$id", "external_source" to source)

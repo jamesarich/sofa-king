@@ -44,6 +44,7 @@ import dev.jamesrich.sofaking.data.InstallFailure
 import dev.jamesrich.sofaking.data.InstallState
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.ReleaseNote
+import dev.jamesrich.sofaking.data.SeekSteps
 import dev.jamesrich.sofaking.data.SkipKind
 import dev.jamesrich.sofaking.data.SkipMode
 import dev.jamesrich.sofaking.data.StartupTarget
@@ -121,6 +122,7 @@ class SettingsActions(
     /** Compares the running [version] with the published snapshot; [again] repeats a check already made. */
     val onCheckForUpdate: (version: String, again: Boolean) -> Unit = { _, _ -> },
     val onSkipChanged: (SkipKind, SkipMode) -> Unit = { _, _ -> },
+    val onSeekStepsChanged: (SeekSteps) -> Unit = {},
     val onHideSpoilersChanged: (Boolean) -> Unit = {},
     val onSubtitleLookChanged: (SubtitleLook) -> Unit = {},
     val onLiveBreaksChanged: (LiveBreaks) -> Unit = {},
@@ -210,7 +212,7 @@ fun SettingsScreen(
             if (unconfigured) serverSection()
             generalSection(settings, actions, startup, { startup = it }, channels, libraryOffered, focus.startup)
             guideSection(settings, actions, channels, focus.channels)
-            if (recordingsOffered) recordingsSection(settings, actions)
+            if (recordingsOffered) recordingsSection(settings, actions, withSeekSteps = !libraryOffered)
             if (libraryOffered) {
                 librarySection(settings, actions, subtitleLook) { look ->
                     subtitleLook = look

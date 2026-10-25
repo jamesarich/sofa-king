@@ -140,6 +140,7 @@ private fun settingsActions(shell: AppShellState, vm: LineupViewModel, libraryVm
         onBufferChanged = vm::setBuffer,
         onCheckForUpdate = vm::checkForUpdate,
         onSkipChanged = vm::setSkip,
+        onSeekStepsChanged = vm::setSeekSteps,
         onHideSpoilersChanged = vm::setHideSpoilers,
         onSubtitleLookChanged = vm::setSubtitleLook,
         onLiveBreaksChanged = vm::setLiveBreaks,

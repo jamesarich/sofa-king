@@ -34,6 +34,8 @@ import dev.jamesrich.sofaking.data.SettingsKeys.MATCH_FRAME_RATE
 import dev.jamesrich.sofaking.data.SettingsKeys.PREFERENCES_SYNCED_AT
 import dev.jamesrich.sofaking.data.SettingsKeys.PREVIEW_SOUND
 import dev.jamesrich.sofaking.data.SettingsKeys.RECENT_CHANNELS
+import dev.jamesrich.sofaking.data.SettingsKeys.SEEK_BACK_SECONDS
+import dev.jamesrich.sofaking.data.SettingsKeys.SEEK_FORWARD_SECONDS
 import dev.jamesrich.sofaking.data.SettingsKeys.SEPARATOR
 import dev.jamesrich.sofaking.data.SettingsKeys.SERVER_URL
 import dev.jamesrich.sofaking.data.SettingsKeys.SETTINGS_PIN
@@ -88,6 +90,8 @@ internal object SettingsKeys {
     val SKIP_INTROS = stringPreferencesKey("skip_intros")
     val SKIP_CREDITS = stringPreferencesKey("skip_credits")
     val SKIP_COMMERCIAL_BREAKS = stringPreferencesKey("skip_commercial_breaks")
+    val SEEK_BACK_SECONDS = intPreferencesKey("seek_back_seconds")
+    val SEEK_FORWARD_SECONDS = intPreferencesKey("seek_forward_seconds")
     val HIDE_SPOILERS = booleanPreferencesKey("hide_spoilers")
     val SUBTITLE_SIZE = stringPreferencesKey("subtitle_size")
     val SUBTITLE_RAISE = stringPreferencesKey("subtitle_raise")
@@ -134,6 +138,10 @@ internal fun readSettings(prefs: Preferences): AppSettings = AppSettings(
     hiddenChannels = prefs[HIDDEN_CHANNELS] ?: emptySet(),
     zapSkipsHidden = prefs[ZAP_SKIPS_HIDDEN] ?: false,
     skips = readSkips(prefs),
+    seekSteps = SeekSteps(
+        prefs[SEEK_BACK_SECONDS] ?: SeekSteps.DEFAULT_BACK_SECONDS,
+        prefs[SEEK_FORWARD_SECONDS] ?: SeekSteps.DEFAULT_FORWARD_SECONDS,
+    ),
     hideSpoilers = prefs[HIDE_SPOILERS] ?: false,
     subtitleLook = readSubtitleLook(prefs),
     liveBreaks = prefs[LIVE_BREAKS].toEnum(LiveBreaks.PLAY),

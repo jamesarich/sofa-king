@@ -52,6 +52,8 @@ data class AppSettings(
     val zapSkipsHidden: Boolean = false,
     /** How the players skip intros, end credits and a recording's commercial breaks. */
     val skips: Skips = Skips(),
+    /** How far one press back or forward moves a library item or a recording. */
+    val seekSteps: SeekSteps = SeekSteps(),
     /** Whether an episode not started yet keeps its overview back and its still blurred ([hidesSpoilers]). */
     val hideSpoilers: Boolean = false,
     /** How a library item's text subtitles look; live and recording captions follow [captionStyle]. */
@@ -101,7 +103,7 @@ data class AppSettings(
             "keyLegendShown=$keyLegendShown, startup=$startup, " +
             "startupChannel=$startupChannel, lastTab=$lastTab, clockFormat=$clockFormat, guideDensity=$guideDensity, " +
             "hiddenChannels=$hiddenChannels, " +
-            "zapSkipsHidden=$zapSkipsHidden, skips=$skips, " +
+            "zapSkipsHidden=$zapSkipsHidden, skips=$skips, seekSteps=$seekSteps, " +
             "hideSpoilers=$hideSpoilers, subtitleLook=$subtitleLook, liveBreaks=$liveBreaks, adsDodged=$adsDodged, " +
             "favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
             "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, " +
@@ -173,6 +175,21 @@ data class Skips(
         SkipKind.INTROS -> intros
         SkipKind.CREDITS -> credits
         SkipKind.COMMERCIAL_BREAKS -> commercialBreaks
+    }
+}
+
+/** How far one press back and one press forward move a library item or a recording, in seconds. */
+data class SeekSteps(val backSeconds: Int = DEFAULT_BACK_SECONDS, val forwardSeconds: Int = DEFAULT_FORWARD_SECONDS) {
+    val backMs: Long get() = backSeconds * MS_PER_SECOND
+    val forwardMs: Long get() = forwardSeconds * MS_PER_SECOND
+
+    companion object {
+        const val DEFAULT_BACK_SECONDS = 10
+        const val DEFAULT_FORWARD_SECONDS = 30
+
+        /** The steps Settings offers, each way. */
+        val CHOICES = listOf(5, 10, 15, 20, 30, 45, 60, 90)
+        private const val MS_PER_SECOND = 1_000L
     }
 }
 
@@ -281,6 +298,8 @@ interface PlayerSettings {
 
     /** How the players skip [kind]. */
     suspend fun setSkip(kind: SkipKind, mode: SkipMode)
+
+    suspend fun setSeekSteps(steps: SeekSteps)
 
     suspend fun setLiveBreaks(mode: LiveBreaks)
 

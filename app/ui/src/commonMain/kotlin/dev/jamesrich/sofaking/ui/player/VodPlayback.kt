@@ -5,6 +5,7 @@ import androidx.compose.ui.input.key.Key
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.ScrubTiles
+import dev.jamesrich.sofaking.data.SeekSteps
 import dev.jamesrich.sofaking.data.SkipMode
 import dev.jamesrich.sofaking.data.Skips
 import kotlin.time.Duration.Companion.milliseconds
@@ -142,9 +143,9 @@ internal fun Key.vodAction(): VodAction? = when (this) {
 }
 
 /**
- * The seek a run of Left and Right presses builds up before it is applied. A press moves the target 10 s back or
- * 30 s forward; a held key moves it further with each repeat, a minute and then five, so a long file can be crossed
- * in seconds. [settled] applies it once the presses have rested for [SCRUB_SETTLE_MS].
+ * The seek a run of Left and Right presses builds up before it is applied. A press moves the target one of [steps]
+ * back or forward (10 s and 30 s unless Settings says otherwise); a held key moves it further with each repeat, a
+ * minute and then five, so a long file can be crossed in seconds. [settled] applies it once the presses have rested for [SCRUB_SETTLE_MS].
  */
 internal class VodScrub {
     /** Where the presses have taken the target, in the item; null while no seek is being built. */
@@ -152,13 +153,16 @@ internal class VodScrub {
         private set
     private var lastPressMs = 0L
 
+    /** One press back or forward, also the touch controls' and the media keys' steps. */
+    var steps = SeekSteps()
+
     /** One press in [direction] (-1 back, +1 forward) from [positionMs], the [repeatCount]th repeat of a held key. */
     fun press(direction: Int, positionMs: Long, durationMs: Long?, repeatCount: Int, nowMs: Long): Long {
         val step = when {
             repeatCount >= FAST_REPEATS -> 300_000L
             repeatCount >= MEDIUM_REPEATS -> 60_000L
-            direction < 0 -> BACK_STEP_MS
-            else -> FORWARD_STEP_MS
+            direction < 0 -> steps.backMs
+            else -> steps.forwardMs
         }
         val from = targetMs ?: positionMs
         val moved = from + direction * step
@@ -185,10 +189,6 @@ internal class VodScrub {
 
     companion object {
         const val SCRUB_SETTLE_MS = 700L
-
-        /** One press back or forward, also the touch controls' and the media keys' steps. */
-        const val BACK_STEP_MS = 10_000L
-        const val FORWARD_STEP_MS = 30_000L
         private const val MEDIUM_REPEATS = 8
         private const val FAST_REPEATS = 24
     }

@@ -11,6 +11,7 @@ import dev.jamesrich.sofaking.data.DisplaySettings
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.PlayerSettings
+import dev.jamesrich.sofaking.data.SeekSteps
 import dev.jamesrich.sofaking.data.SkipKind
 import dev.jamesrich.sofaking.data.SkipMode
 import dev.jamesrich.sofaking.data.StartupTarget
@@ -78,6 +79,8 @@ interface PlayerEdits {
 
     /** How the players skip [kind]. */
     fun setSkip(kind: SkipKind, mode: SkipMode)
+
+    fun setSeekSteps(steps: SeekSteps)
 
     fun setLiveBreaks(mode: LiveBreaks)
 
@@ -160,6 +163,8 @@ internal class StorePlayerEdits(private val store: PlayerSettings, private val s
     override fun setBuffer(buffer: BufferPreference) = scope.save { store.setBuffer(buffer) }
 
     override fun setSkip(kind: SkipKind, mode: SkipMode) = scope.save { store.setSkip(kind, mode) }
+
+    override fun setSeekSteps(steps: SeekSteps) = scope.save { store.setSeekSteps(steps) }
 
     override fun setLiveBreaks(mode: LiveBreaks) = scope.save { store.setLiveBreaks(mode) }
 

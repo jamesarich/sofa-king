@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.SeekSteps
 import dev.jamesrich.sofaking.data.SkipMode
 import dev.jamesrich.sofaking.data.Skips
 import dev.jamesrich.sofaking.data.SubtitleLook
@@ -90,6 +92,8 @@ fun VodPlayerScreen(
     onEnd: () -> Unit = onExit,
     /** How commercial breaks, intros and credits are met: skipped by themselves, offered on a button, or neither. */
     skips: Skips = Skips(),
+    /** How far one press back or forward moves. */
+    seekSteps: SeekSteps = SeekSteps(),
     /** How the item's text subtitles look. */
     subtitleLook: SubtitleLook = SubtitleLook(),
     /** What plays after this item, asked for when it ends; null ends as [onEnd] says. */
@@ -116,6 +120,7 @@ fun VodPlayerScreen(
     val stream = held?.takeIf { it.itemId == itemId }
     val parts = rememberVodParts(player, sessions, itemId, tracks)
     val state = parts.state
+    SideEffect { state.steps = seekSteps }
     VodSessionEffects(parts.vod, title, open, stream)
     VodEndingEffects(parts, sleep, autoplays, upNext, onStop, onEnd, onExit)
     UpNextCountdown(parts, autoplays, onPlayNext, onExit)
@@ -280,8 +285,8 @@ private fun Modifier.vodTouches(parts: VodParts, fullScreen: WindowFullScreen?, 
                     fullScreen.toggle()
                 } else {
                     when (doubleTapSeek(offset.x, size.width.toFloat())) {
-                        -1 -> parts.vod.seek(state.positionMs - VodScrub.BACK_STEP_MS)
-                        1 -> parts.vod.seek(state.positionMs + VodScrub.FORWARD_STEP_MS)
+                        -1 -> parts.vod.seek(state.positionMs - state.steps.backMs)
+                        1 -> parts.vod.seek(state.positionMs + state.steps.forwardMs)
                     }
                     state.showInfo()
                 }

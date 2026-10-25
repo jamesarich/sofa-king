@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.contract.Wire
+import dev.jamesrich.sofaking.data.SeekSteps
 import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.captions_off
@@ -308,8 +310,9 @@ private fun VodBarButtons(parts: VodParts, buttons: List<PlayerButtonItem>, cont
             verticalArrangement = Arrangement.spacedBy(8.dp),
             itemVerticalAlignment = Alignment.CenterVertically,
         ) {
-            ControlIcon(SofaIcons.Replay10, stringResource(Res.string.vod_control_back), {
-                vod.seek(state.positionMs - VodScrub.BACK_STEP_MS)
+            val steps = state.steps
+            ControlIcon(stepBackIcon(steps), stringResource(Res.string.vod_control_back, steps.backSeconds), {
+                vod.seek(state.positionMs - steps.backMs)
                 state.showInfo()
             })
             val paused = !vod.player.status.collectAsStateWithLifecycle().value.playWhenReady
@@ -317,8 +320,8 @@ private fun VodBarButtons(parts: VodParts, buttons: List<PlayerButtonItem>, cont
                 controls.playPause()
                 state.showInfo()
             }, onRetry = controls::retry, primary = true)
-            ControlIcon(SofaIcons.Forward30, stringResource(Res.string.vod_control_forward), {
-                vod.seek(state.positionMs + VodScrub.FORWARD_STEP_MS)
+            ControlIcon(stepForwardIcon(steps), stringResource(Res.string.vod_control_forward, steps.forwardSeconds), {
+                vod.seek(state.positionMs + steps.forwardMs)
                 state.showInfo()
             })
             PlayerButtonRow(buttons, entry = parts.focus.buttons, onFocus = {
@@ -370,3 +373,11 @@ internal fun VodParts.press(
     state.showInfo()
     if (button !in STAYING_BUTTONS) focus.picture.requestFocus()
 }
+
+/** The step back's icon: the numbered one for the default 10 seconds, the plain one for any other step. */
+private fun stepBackIcon(steps: SeekSteps): ImageVector =
+    if (steps.backSeconds == SeekSteps.DEFAULT_BACK_SECONDS) SofaIcons.Replay10 else SofaIcons.Replay
+
+/** The step forward's icon: the numbered one for the default 30 seconds, the plain one for any other step. */
+private fun stepForwardIcon(steps: SeekSteps): ImageVector =
+    if (steps.forwardSeconds == SeekSteps.DEFAULT_FORWARD_SECONDS) SofaIcons.Forward30 else SofaIcons.FastForward

@@ -177,6 +177,16 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `a press steps 10 seconds back and 30 forward until set otherwise`() = runTest {
+        val store = newStore()
+        assertEquals(SeekSteps(10, 30), store.settings.first().seekSteps)
+        assertEquals(10_000, store.settings.first().seekSteps.backMs)
+        store.setSeekSteps(SeekSteps(backSeconds = 5, forwardSeconds = 90))
+        assertEquals(SeekSteps(5, 90), store.settings.first().seekSteps)
+        assertEquals(90_000, store.settings.first().seekSteps.forwardMs)
+    }
+
+    @Test
     fun `episodes show their overviews until Hide spoilers is turned on`() = runTest {
         val store = newStore()
         assertFalse(store.settings.first().hideSpoilers)

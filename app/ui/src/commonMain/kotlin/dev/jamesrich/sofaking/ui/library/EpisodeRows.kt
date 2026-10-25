@@ -16,8 +16,13 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -34,7 +39,8 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * An episode as a row: its picture with progress, number and title, length and air date, and the overview; [spoilers]
- * hidden, the picture is blurred and the overview says only that the episode is unwatched.
+ * hidden, the picture is blurred and the overview says only that the episode is unwatched. OK plays it; holding OK (a
+ * long touch or a right click) opens [menu]: Details, Play from beginning when partway in, and the watched toggle.
  */
 @Composable
 internal fun EpisodeRow(
@@ -42,21 +48,26 @@ internal fun EpisodeRow(
     spoilersHidden: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    menu: CardMenu? = null,
 ) {
-    Card(
-        onClick = onClick,
-        shape = RowShape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        modifier = modifier.fillMaxWidth().playKey(onClick).tvFocus(RowShape, focusedScale = 1f),
-    ) {
-        Row(
-            Modifier.padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    var open by remember { mutableStateOf(false) }
+    Box(modifier.fillMaxWidth()) {
+        Card(
+            shape = RowShape,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            modifier = Modifier.fillMaxWidth().playKey(onClick).tvFocus(RowShape, focusedScale = 1f).clip(RowShape)
+                .clickOrHoldForMenu(onClick, menu?.let { { open = true } }),
         ) {
-            EpisodeThumb(episode, spoilersHidden)
-            EpisodeText(episode, spoilersHidden, Modifier.weight(1f))
+            Row(
+                Modifier.padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                EpisodeThumb(episode, spoilersHidden)
+                EpisodeText(episode, spoilersHidden, Modifier.weight(1f))
+            }
         }
+        if (menu != null) CardMenuDropdown(episode, menu, open, onClose = { open = false })
     }
 }
 

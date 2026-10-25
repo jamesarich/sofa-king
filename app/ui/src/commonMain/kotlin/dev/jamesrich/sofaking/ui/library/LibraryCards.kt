@@ -146,9 +146,7 @@ private fun WideCard(
 }
 
 /**
- * The card itself, with [menu] on a held OK. The menu is a window of its own, so a held OK opens it once the key comes
- * up: the whole press ends on the card, whose click would otherwise wait for a key-up that went to the menu and ignore
- * the next OK. A long touch or a right click opens it at once. The card is what takes focus, so it carries
+ * The card itself, with [menu] on a held OK (see [clickOrHoldForMenu]). The card is what takes focus, so it carries
  * [label], the title and subtitle drawn under it, for a screen reader.
  */
 @Composable
@@ -163,33 +161,14 @@ private fun ItemCard(
     picture: @Composable BoxScope.() -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
-    var okDown by remember { mutableStateOf(false) }
-    var openOnRelease by remember { mutableStateOf(false) }
     val focus = if (focusScale == null) Modifier.tvFocus(CardShape) else Modifier.tvFocus(CardShape, focusScale)
     Box {
         Card(
             shape = CardShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatio).playKey(onPlay)
-                .onPreviewKeyEvent { event ->
-                    if (event.key.isOk && event.type == KeyEventType.KeyDown) okDown = true
-                    if (event.key.isOk && event.type == KeyEventType.KeyUp) {
-                        okDown = false
-                        if (openOnRelease) {
-                            openOnRelease = false
-                            open = true
-                        }
-                    }
-                    false
-                }
                 .then(focus).clip(CardShape)
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClickLabel = if (menu != null) stringResource(Res.string.library_card_menu) else null,
-                    onLongClick = menu?.let {
-                        { if (okDown) openOnRelease = true else open = true }
-                    },
-                )
+                .clickOrHoldForMenu(onClick, menu?.let { { open = true } })
                 .semantics { contentDescription = label },
         ) {
             Box(Modifier.fillMaxSize()) {
@@ -199,6 +178,32 @@ private fun ItemCard(
         }
         if (menu != null) CardMenuDropdown(item, menu, open, onClose = { open = false })
     }
+}
+
+/**
+ * OK or a tap runs [onClick]; holding OK, a long touch or a right click runs [onMenu]. The menu is a window of its own,
+ * so a held OK runs it once the key comes up: the whole press ends here, whose click would otherwise wait for a key-up
+ * that went to the menu and ignore the next OK. A long touch or a right click runs it at once.
+ */
+@Composable
+internal fun Modifier.clickOrHoldForMenu(onClick: () -> Unit, onMenu: (() -> Unit)?): Modifier {
+    var okDown by remember { mutableStateOf(false) }
+    var openOnRelease by remember { mutableStateOf(false) }
+    return onPreviewKeyEvent { event ->
+        if (event.key.isOk && event.type == KeyEventType.KeyDown) okDown = true
+        if (event.key.isOk && event.type == KeyEventType.KeyUp) {
+            okDown = false
+            if (openOnRelease) {
+                openOnRelease = false
+                onMenu?.invoke()
+            }
+        }
+        false
+    }.combinedClickable(
+        onClick = onClick,
+        onLongClickLabel = if (onMenu != null) stringResource(Res.string.library_card_menu) else null,
+        onLongClick = onMenu?.let { { if (okDown) openOnRelease = true else it() } },
+    )
 }
 
 @Composable

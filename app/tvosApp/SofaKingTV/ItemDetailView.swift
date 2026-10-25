@@ -2,8 +2,9 @@ import SwiftUI
 import SofaKingCore
 
 /// An item's page: its backdrop, details and buttons to play, resume, start over and mark watched. A show adds its
-/// seasons, opening on the one with the next episode, and that season's episodes, which play when selected. Under
-/// them are the item's Extras, which play when selected, and More like this, which opens the other item's page.
+/// seasons, opening on the one with the next episode, and that season's episodes, which play when selected; holding
+/// the touch surface on one offers Details, its own page, Play from beginning and Mark watched. Under them are the
+/// item's Extras, which play when selected, and More like this, which opens the other item's page.
 struct ItemDetailView: View {
     @Environment(AppModel.self) private var model
     let itemId: String
@@ -12,6 +13,7 @@ struct ItemDetailView: View {
     @State private var pickedSeason: String?
     @State private var season: ItemDetailState?
     @State private var seasonWatch: Watch?
+    @State private var opened: MediaItem?
 
     var body: some View {
         Group {
@@ -30,6 +32,11 @@ struct ItemDetailView: View {
         }
         .onAppear {
             watch = model.core.watchItem(id: itemId) { state = $0 }
+            // Back from an episode's page keeps seasonId, so the season's watch, canceled on leaving, starts again here.
+            if seasonWatch != nil, let id = seasonId {
+                seasonWatch?.cancel()
+                seasonWatch = model.core.watchItem(id: id) { season = $0 }
+            }
         }
         .onDisappear {
             watch?.cancel()
@@ -104,6 +111,7 @@ struct ItemDetailView: View {
                     .ignoresSafeArea()
             }
         }
+        .navigationDestination(item: $opened) { ItemDetailView(itemId: $0.id) }
     }
 
     /// With Settings › Library › Hide spoilers on, an episode not started yet keeps its overview back and blurs its still.
@@ -179,6 +187,7 @@ struct ItemDetailView: View {
                 Button { model.vod = VodRequest(item: episode, fromStart: false) } label: { EpisodeRow(episode: episode, spoilersHidden: hidesSpoilers(episode)) }
                     .buttonStyle(.card)
                     .contextMenu {
+                        Button("Details", systemImage: "info.circle") { opened = episode }
                         if episode.progress?.inProgress == true {
                             Button("Play from beginning", systemImage: "arrow.counterclockwise") {
                                 model.vod = VodRequest(item: episode, fromStart: true)

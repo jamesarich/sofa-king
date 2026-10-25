@@ -52,8 +52,9 @@ import org.jetbrains.compose.resources.stringResource
  * An item's page, after Plex: the backdrop behind the title, its year, length and ratings, the overview, then Play
  * or Resume (focused on arrival), Play from beginning and Mark watched. A show lists its seasons as chips with
  * [season]'s episodes under them, the season [selectedSeasonId] names; a season lists its own episodes. OK on an
- * episode plays it, resuming where it stopped. Under them are the item's Extras, which OK plays, and More like this,
- * which OK opens. [returnedFrom] is the episode or extra the viewer just watched, or the title like it whose page
+ * episode plays it, resuming where it stopped; holding OK opens a menu with Details (its own page), Play from beginning
+ * and the watched toggle. Under them are the item's Extras, which OK plays, and More like this, which OK opens.
+ * [returnedFrom] is the episode or extra the viewer just watched, or the title like it whose page
  * they just left, which takes focus instead of the first button.
  */
 @Composable
@@ -103,6 +104,7 @@ private fun Details(
     LaunchedEffect(returnToExtra) { if (returnToExtra != null) requestFocusWhenAttached(episodeFocus) }
     LaunchedEffect(returnToRelated) { if (returnToRelated != null) requestFocusWhenAttached(episodeFocus) }
 
+    val episodeMenu = episodeMenu(actions)
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val heroHeight = maxHeight * HERO_FRACTION
         Hero(item.backdrop ?: item.poster, Modifier.fillMaxWidth().height(heroHeight))
@@ -137,13 +139,20 @@ private fun Details(
                     val modifier = if (episode.id == returnTo) Modifier.focusRequester(episodeFocus) else Modifier
                     EpisodeRow(episode, hideSpoilers && hidesSpoilers(episode), onClick = {
                         actions.onPlay(episode, false)
-                    }, modifier = Modifier.padding(sides).then(modifier))
+                    }, menu = episodeMenu, modifier = Modifier.padding(sides).then(modifier))
                 }
                 extrasAndRelated(detail, actions, sides, returnedFrom, episodeFocus)
             }
         }
     }
 }
+
+/** An episode row's menu: Details opens its own page, then Play from beginning and the watched toggle. */
+private fun episodeMenu(actions: ItemDetailsActions) = CardMenu(
+    onOpen = actions.onOpenItem,
+    onPlayFromStart = { actions.onPlay(it, true) },
+    onSetWatched = actions.onSetWatched,
+)
 
 /**
  * The episodes the page lists: a season's own, or those of the [season] picked in a show; any other item's playable

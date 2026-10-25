@@ -35,10 +35,14 @@ final class AppModel {
     var launchDecided = false
     /// A channel a `sofaking://channel/<guideId>` link (the Top Shelf) asked for; the list or the player takes it and clears it.
     var requestedChannel: String?
+    /// A library item a `sofaking://vod/<id>` link (the Top Shelf's Continue watching) asked for; the Library tab
+    /// plays it once its home lists it.
+    var requestedItem: String?
     /// Why the last `sofaking://pair` link failed to pair; an alert shows it once.
     var pairingFailure: String?
     private var watches: [Watch] = []
     private var published: [TopShelfChannel] = []
+    private var publishedContinue: [TopShelfItem]?
 
     init() {
         #if DEBUG
@@ -58,7 +62,10 @@ final class AppModel {
             self?.publishTopShelf()
         })
         watches.append(core.watchCapabilities { [weak self] in self?.capabilities = $0 })
-        watches.append(core.watchLibraryHome { [weak self] in self?.libraryHome = $0 })
+        watches.append(core.watchLibraryHome { [weak self] in
+            self?.libraryHome = $0
+            self?.publishContinueWatching()
+        })
         watches.append(core.watchRecordings { [weak self] in self?.recordings = $0 })
         watches.append(core.watchRecordingMarks { [weak self] in self?.recordingMarks = $0 })
     }
@@ -122,8 +129,40 @@ final class AppModel {
         }
         guard channels != published, lineup != nil else { return }
         published = channels
-        TopShelfChannels.save(channels)
+        TopShelfContent.save(channels)
         TVTopShelfContentProvider.topShelfContentDidChange()
+    }
+
+    /// Hands the library's Continue watching to the Top Shelf extension whenever it changes; a server without
+    /// libraries clears it.
+    private func publishContinueWatching() {
+        let items: [TopShelfItem]
+        switch libraryHome {
+        case let ready as LibraryHomeStateReady:
+            let shelf = ready.home.shelves.first { $0.id == LibraryChoicesKt.CONTINUE_SHELF }
+            items = (shelf?.items ?? []).map { item in
+                let title = [item.showTitle, item.episodeLabel, item.title].compactMap { $0 }.joined(separator: " · ")
+                let progress = item.progress.flatMap { $0.inProgress ? $0.fraction?.doubleValue : nil }
+                return TopShelfItem(id: item.id, title: title, image: item.backdrop ?? item.poster, progress: progress)
+            }
+        case is LibraryHomeStateUnavailable:
+            items = []
+        default:
+            return
+        }
+        guard items != publishedContinue else { return }
+        publishedContinue = items
+        TopShelfContent.saveContinue(items)
+        TVTopShelfContentProvider.topShelfContentDidChange()
+    }
+
+    /// Plays the item a `sofaking://vod/<id>` link asked for, once the library home lists it; one it does not list
+    /// is let go.
+    func openRequestedItem() {
+        guard let id = requestedItem, let ready = libraryHome as? LibraryHomeStateReady else { return }
+        requestedItem = nil
+        let item = ready.home.shelves.lazy.flatMap { $0.items }.first { $0.id == id }
+        if let item, item.kind.playable { vod = VodRequest(item: item, fromStart: false) }
     }
 }
 
@@ -158,12 +197,21 @@ struct ContentView: View {
         }
         .onChange(of: model.settings == nil, initial: true) { _, missing in
             guard !missing, !tabRestored else { return }
-            if let start = model.startTab, model.requestedChannel == nil { tab = start; restored = start }
+            if model.requestedItem != nil {
+                // A cold start from a Top Shelf item opens on the Library tab, which plays it.
+                tab = .library
+                restored = .library
+            } else if let start = model.startTab, model.requestedChannel == nil {
+                tab = start
+                restored = start
+            }
             tabRestored = true
         }
         .onOpenURL { url in
-            if let guideId = TopShelfChannels.guideId(from: url) {
+            if let guideId = TopShelfContent.guideId(from: url) {
                 model.requestedChannel = guideId
+            } else if let itemId = TopShelfContent.itemId(from: url) {
+                model.requestedItem = itemId
             } else if let request = PairingRequestKt.parsePairingLink(link: url.absoluteString) {
                 model.pair(request)
             }
@@ -192,6 +240,10 @@ struct ContentView: View {
         .onChange(of: model.requestedChannel) { _, requested in
             // A Top Shelf channel plays from the Live tab.
             if requested != nil { tab = .live }
+        }
+        .onChange(of: model.requestedItem) { _, requested in
+            // A Top Shelf item plays from the Library tab, whose player cover it opens in.
+            if requested != nil { tab = .library }
         }
         .onChange(of: tab) { _, picked in
             if let remembered = picked.remembered { model.core.setLastTab(tab: remembered) }

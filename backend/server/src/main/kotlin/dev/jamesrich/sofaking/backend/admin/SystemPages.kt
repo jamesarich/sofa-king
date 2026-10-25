@@ -36,7 +36,7 @@ internal class SystemPages(private val portal: Portal, private val events: Event
 
     fun install(route: Route) = with(portal) {
         route.get("/system/jobs") { call.html(jobsPage(chrome(), JobsView(runtime.jobs.snapshot()))) }
-        route.action("/system/jobs/{id}/run") { session, _ ->
+        route.action("/system/jobs/{id}/run") { session, form ->
             val id = call.parameters["id"]!!
             val job = runtime.jobs.snapshot().firstOrNull { it.id == id }
             if (job == null || !runtime.jobs.runNow(id)) {
@@ -44,7 +44,8 @@ internal class SystemPages(private val portal: Portal, private val events: Event
             } else {
                 session.flash.set(Flash("Started ${job.label}.", Tone.OK, id))
             }
-            seeOther(call, "/admin/system/jobs")
+            // The About page's transcode test comes back to its panel; every other run to the Jobs page.
+            seeOther(call, form["back"]?.takeIf { it == ENCODER_PANEL } ?: "/admin/system/jobs")
         }
         route.get("/system/events") { call.html(eventsPage(chrome(), eventsView(call.request.queryParameters))) }
         route.get("/system/about") { call.html(aboutPage(chrome(), aboutView())) }
@@ -143,7 +144,13 @@ internal class SystemPages(private val portal: Portal, private val events: Event
 
     private suspend fun aboutView(): AboutView {
         val snapshot = snapshot()
-        return AboutView(snapshot.server, snapshot.status, snapshot.toJson(), runtime.updates?.state())
+        return AboutView(
+            snapshot.server,
+            snapshot.status,
+            snapshot.toJson(),
+            runtime.updates?.state(),
+            encoders = runtime.vod?.encoders,
+        )
     }
 
     /** Each channel's ad census, the most watched first, by its lineup name. */

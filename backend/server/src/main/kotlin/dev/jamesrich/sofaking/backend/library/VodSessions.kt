@@ -162,6 +162,9 @@ class VodSessions(
     /** The encoder conversions use, once [start] has checked it. */
     val encoder: VideoEncoder get() = runner.encoder
 
+    /** The startup check of [encoder] and the transcode test, for the About and Home pages. */
+    val encoders = EncoderChecks(ffmpeg, clock)
+
     private val table = VodTable(clock, runner)
 
     /** Where each session's start and end is recorded; none until the runtime sets it. */
@@ -181,7 +184,7 @@ class VodSessions(
     /** Clears what an earlier run left behind and checks the hardware encoder, if one is set, can encode. */
     suspend fun start() {
         withContext(Dispatchers.IO) { VodRunner.clear(directory) }
-        runner.encoder = runner.encoder.verified(ffmpeg)
+        runner.encoder = encoders.verify(runner.encoder)
     }
 
     /** [from] is the player opening the session, for the history. */

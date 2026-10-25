@@ -401,6 +401,7 @@ internal class RuntimeAssembly(
         ).also {
             it.history = history
             it.start()
+            it.encoders.register(jobs, scope, it::encoder)
         }
         val free: suspend () -> Boolean = {
             val converting = vod.snapshot().count { it.mode != Wire.VodMode.DIRECT }

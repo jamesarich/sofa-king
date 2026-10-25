@@ -35,7 +35,7 @@ internal class OverviewReader(private val portal: Portal) {
         val requiredOff = stations?.count { it.required && !it.enabled }
         val all = (
             sourceAttention(now) + deviceAttention(plex) + tunerAttention(applied?.result, requiredOff) +
-                lineupAttention(applied?.result, guide)
+                lineupAttention(applied?.result, guide) + encoderAttention(runtime.vod?.encoders)
             ).sortedBy { listOf(Tone.BAD, Tone.WARN, Tone.OK, Tone.OFF).indexOf(it.tone) }
         // An ignored item stays out while its text is what it was when ignored; a change brings it back.
         val ignored = runtime.store.ignoredAttention()

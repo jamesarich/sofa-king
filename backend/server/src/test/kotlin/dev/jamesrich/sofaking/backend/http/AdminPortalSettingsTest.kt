@@ -206,6 +206,8 @@ class AdminPortalSettingsTest : AdminPortalCase() {
                 "Support snapshot",
                 "&quot;takenAt&quot;",
                 "Lineup policy run",
+                "Video encoder",
+                "Run the transcode test",
             )) {
                 assertTrue(html.contains(text), text)
             }

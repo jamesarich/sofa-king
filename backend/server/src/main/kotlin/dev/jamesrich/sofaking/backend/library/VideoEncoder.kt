@@ -1,12 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.slf4j.LoggerFactory
-import java.io.IOException
-import java.util.concurrent.TimeUnit
-
-private val log = LoggerFactory.getLogger(VideoEncoder::class.java)
+import java.time.Clock
 
 /**
  * The GPU encoder `SOFA_HWACCEL` names for converting library files, [NONE] for libx264 in software, or [AUTO] for
@@ -132,62 +126,15 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
     }
 
     /**
-     * This encoder when [ffmpeg] can encode a frame with it, else software, so a missing driver or device costs speed
-     * rather than playback. Software needs no check. [HardwareAccel.AUTO] tries NVENC when an NVIDIA device is there,
-     * then VA-API and Quick Sync when [device] is, and takes the first that encodes; [exists] tells whether a device
-     * file is there.
+     * This encoder when [ffmpeg] can encode a frame with it, else software; [EncoderChecks.verify] has the rules.
+     * [exists] tells whether a device file is there, and [run] whether a command succeeded.
      */
     suspend fun verified(
         ffmpeg: String,
         exists: (String) -> Boolean = { java.io.File(it).exists() },
-        run: (List<String>) -> Boolean = ::succeeds,
-    ): VideoEncoder = when (accel) {
-        HardwareAccel.NONE -> this
-        HardwareAccel.AUTO -> firstWorking(ffmpeg, exists, run)
-        else -> checked(ffmpeg, run)
-    }
-
-    /** The first GPU encoder that works, NVENC first, else software. */
-    private suspend fun firstWorking(
-        ffmpeg: String,
-        exists: (String) -> Boolean,
         run: (List<String>) -> Boolean,
-    ): VideoEncoder {
-        val candidates = buildList {
-            if (exists(NVIDIA_DEVICE)) add(HardwareAccel.NVENC)
-            if (exists(device)) {
-                add(HardwareAccel.VAAPI)
-                add(HardwareAccel.QSV)
-            }
-        }
-        val working = candidates.map { VideoEncoder(it, device) }
-            .firstOrNull { encoder -> withContext(Dispatchers.IO) { run(encoder.testCommand(ffmpeg)) } }
-        if (working != null) {
-            log.info("vod encoder ready accel={} (auto)", working.accel.setting)
-            return working
-        }
-        log.info(
-            "vod encoder: no GPU encoder works (tried {}); converting in software",
-            candidates.joinToString { it.setting }.ifEmpty { "none" },
-        )
-        return VideoEncoder(HardwareAccel.NONE, device)
-    }
-
-    /** This encoder when it works, else software. */
-    private suspend fun checked(ffmpeg: String, run: (List<String>) -> Boolean): VideoEncoder {
-        if (withContext(Dispatchers.IO) { run(testCommand(ffmpeg)) }) {
-            log.info("vod encoder ready accel={}", accel.setting)
-            return this
-        }
-        log.warn("vod encoder unavailable accel={}; converting in software", accel.setting)
-        return VideoEncoder(HardwareAccel.NONE, device)
-    }
-
-    /** One black frame through this encoder into nothing: whether the driver, the device and FFmpeg's build work. */
-    private fun testCommand(ffmpeg: String): List<String> =
-        listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error") + inputArgs() +
-            listOf("-f", "lavfi", "-i", "color=black:s=320x240:d=1", "-frames:v", "1") +
-            outputArgs(hdr = false, keyFrameSeconds = 4) + listOf("-f", "null", "-")
+    ): VideoEncoder = EncoderChecks(ffmpeg, Clock.systemUTC(), exists) { command, _ -> Attempt(run(command)) }
+        .verify(this)
 
     companion object {
         /** The picture size and rate of every virtual channel. */
@@ -201,25 +148,8 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
         /** The control device the NVIDIA container runtime passes in with a GPU. */
         const val NVIDIA_DEVICE = "/dev/nvidiactl"
 
-        /** How long the encoder check's one-frame encode may take. */
-        private const val CHECK_TIMEOUT_SECONDS = 20L
-
         /** HDR10 or HLG to SDR BT.709 with zimg and the Hable curve, as most media servers do. */
         private const val TONE_MAP = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709," +
             "tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv"
-
-        private fun succeeds(command: List<String>): Boolean = try {
-            val process = ProcessBuilder(
-                command,
-            ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
-            if (!process.waitFor(CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                process.destroyForcibly()
-                false
-            } else {
-                process.exitValue() == 0
-            }
-        } catch (_: IOException) {
-            false
-        }
     }
 }

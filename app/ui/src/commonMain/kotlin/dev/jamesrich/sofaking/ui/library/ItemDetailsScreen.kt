@@ -135,7 +135,7 @@ private fun Details(
                         )
                     }
                 }
-                items(episodes, key = { it.id }) { episode ->
+                items(episodes, key = { it.id }, contentType = { "episode" }) { episode ->
                     val modifier = if (episode.id == returnTo) Modifier.focusRequester(episodeFocus) else Modifier
                     EpisodeRow(episode, hideSpoilers && hidesSpoilers(episode), onClick = {
                         actions.onPlay(episode, false)

@@ -134,7 +134,7 @@ private fun Shelves(
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
         item(key = "chips") { LibraryChips(libraries, actions, returnedFrom, returnFocus, searchFocus, insets) }
-        items(shelves, key = { it.key }) { shelf ->
+        items(shelves, key = { it.key }, contentType = { "shelf" }) { shelf ->
             Shelf(
                 shelf,
                 actions,

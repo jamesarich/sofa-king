@@ -16,9 +16,6 @@ import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.ScrubTiles
-import dev.jamesrich.sofaking.data.SeekSteps
-import dev.jamesrich.sofaking.data.Skips
-import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialAudio
 import dev.jamesrich.sofaking.data.initialSeasonId
@@ -195,6 +192,7 @@ internal fun VodDestination(
     player: LivePlayer,
 ) {
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val prefs = settings ?: AppSettings()
     val detail by remember(route.itemId) { libraryVm.detail(route.itemId) }.collectAsStateWithLifecycle()
     val ready = (detail as? ItemDetailState.Ready)?.detail
     when {
@@ -203,7 +201,7 @@ internal fun VodDestination(
             val item = ready.item
             var next by remember { mutableStateOf<MediaItem?>(null) }
             // The tracks the viewer picked in this show start its episodes, read once as the item opens.
-            val choice = remember { item.showId?.let { settings?.trackChoices?.get(it) } }
+            val choice = remember { item.showId?.let { prefs.trackChoices[it] } }
             val startAudio = remember { initialAudio(ready, choice) }
             val startSubtitle = remember { initialSubtitle(ready, choice) }
             // The tracks the stream carries, so a retry opens the item with them again: an audio track other
@@ -230,9 +228,9 @@ internal fun VodDestination(
                 onExit = shell::back,
                 upNext = { libraryVm.upNext(item)?.also { next = it }?.upNext() },
                 onPlayNext = { next?.let { shell.replaceTop(Route.Vod(it.id)) } },
-                skips = settings?.skips ?: Skips(),
-                seekSteps = settings?.seekSteps ?: SeekSteps(),
-                subtitleLook = settings?.subtitleLook ?: SubtitleLook(),
+                skips = prefs.skips,
+                seekSteps = prefs.seekSteps,
+                subtitleLook = prefs.subtitleLook,
                 tracks = tracks,
                 zoom = shell.videoZoom,
                 onZoom = { shell.videoZoom = it },

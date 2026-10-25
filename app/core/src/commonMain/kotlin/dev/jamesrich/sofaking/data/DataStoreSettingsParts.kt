@@ -283,12 +283,11 @@ internal class DataStoreDeviceSettings(private val dataStore: DataStore<Preferen
     override suspend fun ensureClientId(): String {
         val stored = dataStore.data.first()[CLIENT_ID]
         if (!stored.isNullOrEmpty()) return stored
-        return dataStore.edit { prefs ->
-            if (prefs[CLIENT_ID].isNullOrEmpty()) {
-                prefs[CLIENT_ID] =
-                    Uuid.random().toString()
-            }
-        }[CLIENT_ID]!!
+        var id = ""
+        dataStore.edit { prefs ->
+            id = prefs[CLIENT_ID]?.takeIf { it.isNotEmpty() } ?: Uuid.random().toString().also { prefs[CLIENT_ID] = it }
+        }
+        return id
     }
 
     override suspend fun applyServerPreferences(

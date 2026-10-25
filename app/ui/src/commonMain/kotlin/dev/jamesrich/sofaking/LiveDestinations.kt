@@ -7,11 +7,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.data.AppSettings
-import dev.jamesrich.sofaking.data.AutoOpenDelay
-import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
-import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMarks
@@ -56,6 +53,7 @@ internal fun GuideDestination(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val prefs = settings ?: AppSettings()
     val capabilities by vm.capabilities.collectAsStateWithLifecycle()
     val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
     val watchlist by vm.watchlist.marks.collectAsStateWithLifecycle()
@@ -86,9 +84,9 @@ internal fun GuideDestination(
 
         s is LineupState.Ready -> GuideOrEmpty(
             lineup = s.visible,
-            favorites = settings?.favorites.orEmpty(),
-            favoritesOrder = settings?.favoritesOrder.orEmpty(),
-            recentChannels = settings?.recentChannels.orEmpty(),
+            favorites = prefs.favorites,
+            favoritesOrder = prefs.favoritesOrder,
+            recentChannels = prefs.recentChannels,
             arrival = arrival.forGuide(settings, hasHeader = headerFocus != null),
             actions = GuideActions(
                 onPlay = { channel, scope, unattended -> shell.push(Route.Player(channel.guideId, scope, unattended)) },
@@ -106,10 +104,10 @@ internal fun GuideDestination(
             preview = GuidePreview(
                 player = player,
                 sessions = vm.sessions,
-                captionsEnabled = settings?.captionsEnabled ?: false,
-                captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
-                autoOpenDelay = settings?.autoOpenDelay ?: AutoOpenDelay.AFTER_10_SECONDS,
-                sound = settings?.previewSound ?: true,
+                captionsEnabled = prefs.captionsEnabled,
+                captionStyle = prefs.captionStyle,
+                autoOpenDelay = prefs.autoOpenDelay,
+                sound = prefs.previewSound,
             ),
             recordingMarks = recordingMarks.takeIf { capabilities.recordings },
             headerFocus = headerFocus,
@@ -126,6 +124,7 @@ internal fun GuideDestination(
 internal fun OnLaterDestination(shell: AppShellState, vm: LineupViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val prefs = settings ?: AppSettings()
     val capabilities by vm.capabilities.collectAsStateWithLifecycle()
     val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
     val watchlist by vm.watchlist.marks.collectAsStateWithLifecycle()
@@ -137,7 +136,7 @@ internal fun OnLaterDestination(shell: AppShellState, vm: LineupViewModel) {
     val watch = { channel: Channel -> shell.push(Route.Player(channel.guideId)) }
     OnLaterScreen(
         lineup = visibleLineup,
-        favorites = settings?.favorites.orEmpty(),
+        favorites = prefs.favorites,
         recordingMarks = recordingMarks.takeIf { capabilities.recordings },
         actions = GuideActions(
             onPlay = { channel, _, _ -> watch(channel) },
@@ -171,6 +170,7 @@ private fun Arrival.forGuide(settings: AppSettings?, hasHeader: Boolean) = Guide
 internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: LineupViewModel, player: LivePlayer) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val prefs = settings ?: AppSettings()
     val capabilities by vm.capabilities.collectAsStateWithLifecycle()
     val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
     val ready = state as? LineupState.Ready
@@ -199,25 +199,25 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
             shell.notice = formatTemplate(channelGone, channel.label())
             shell.back()
         },
-        captionsEnabled = settings?.captionsEnabled ?: false,
+        captionsEnabled = prefs.captionsEnabled,
         onCaptionsChange = vm::setCaptionsEnabled,
-        captionAdvanceFor = { settings?.captionAdvanceFor(it.guideId) ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS },
+        captionAdvanceFor = { prefs.captionAdvanceFor(it.guideId) },
         onCaptionAdvanceChange = { channel, ms -> vm.setChannelCaptionAdvance(channel.guideId, ms) },
-        captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
-        smoothCaptions = settings?.smoothCaptions ?: true,
-        favorites = settings?.favorites.orEmpty(),
-        favoritesOrder = settings?.favoritesOrder.orEmpty(),
-        recentGuideIds = settings?.recentChannels.orEmpty(),
+        captionStyle = prefs.captionStyle,
+        smoothCaptions = prefs.smoothCaptions,
+        favorites = prefs.favorites,
+        favoritesOrder = prefs.favoritesOrder,
+        recentGuideIds = prefs.recentChannels,
         onToggleFavorite = { vm.toggleFavorite(it.guideId) },
-        keyLegendShown = settings?.keyLegendShown ?: AppSettings.KEY_LEGEND_BARS,
+        keyLegendShown = prefs.keyLegendShown,
         onKeyLegendShow = vm::setKeyLegendShown,
         recordingMarks = recordingMarks.takeIf { capabilities.recordings },
         onRecord = vm.recordings::toggle,
         onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
         zoom = shell.videoZoom,
         onZoom = { shell.videoZoom = it },
-        liveBreaks = settings?.liveBreaks ?: LiveBreaks.PLAY,
-        adsDodgedTodayMs = settings?.adsDodged?.on(localDay()) ?: 0,
+        liveBreaks = prefs.liveBreaks,
+        adsDodgedTodayMs = prefs.adsDodged.on(localDay()),
         onAdsDodge = { vm.addAdsDodged(localDay(), it) },
         programFacts = vm::programFacts,
         sleep = shell.sleep,
@@ -239,6 +239,7 @@ internal fun MultiviewDestination(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val prefs = settings ?: AppSettings()
     val lineup = (state as? LineupState.Ready)?.visible
     if (lineup == null) {
         LaunchedEffect(Unit) { shell.back() }
@@ -249,8 +250,8 @@ internal fun MultiviewDestination(
         initial = route.guideIds,
         player = player,
         sessions = vm.sessions,
-        favoritesOrder = settings?.favoritesOrder.orEmpty(),
-        recent = settings?.recentChannels.orEmpty(),
+        favoritesOrder = prefs.favoritesOrder,
+        recent = prefs.recentChannels,
         onWatch = { channel -> shell.backToPlayer(channel.guideId) },
         onExit = { shell.backToPlayer(route.guideIds.first()) },
     )

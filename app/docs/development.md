@@ -179,7 +179,7 @@ On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app re
 - [ ] The player's transport bar menu records the program on now on a server that records (Cancel recording once set), toggles the favorite and switches channels from Recent, Favorites and All channels.
 - [ ] In a recording with Skip commercials set to With a button, Skip break shows over the picture inside a commercial break and jumps to its end.
 - [ ] In an episode whose intro the server found, Skip intro shows over the picture inside the intro and jumps to its end.
-- [ ] After watching a few channels, the Top Shelf shows them newest first, and selecting one opens the app on it; the app and the extension must be signed with the `group.dev.jamesrich.sofaking` app group for the list to reach the extension.
+- [ ] After watching a few channels and stopping a library item partway, the Top Shelf shows Continue watching with its progress and then the channels newest first; selecting the item plays it where it stopped, from a cold start too, and selecting a channel opens the app on it; the app and the extension must be signed with the `group.dev.jamesrich.sofaking` app group for the list to reach the extension.
 
 ### Over adb
 

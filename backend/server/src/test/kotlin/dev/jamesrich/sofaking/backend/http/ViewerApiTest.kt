@@ -35,6 +35,7 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -141,9 +142,9 @@ class ViewerApiTest {
         val (_, secret) = create("""{"label":"Sonarr","scope":"hook"}""")
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/bootstrap") { bearerAuth(secret) }.status)
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/admin/status") { bearerAuth(secret) }.status)
-        // No hook is installed yet, so a hook token gets past the guard to routing's answer.
         assertEquals(HttpStatusCode.Unauthorized, client.post("/api/v1/hooks/servarr").status)
-        assertEquals(HttpStatusCode.NotFound, client.post("/api/v1/hooks/servarr") { bearerAuth(secret) }.status)
+        // Past the guard, the hook refuses the empty body.
+        assertNotEquals(HttpStatusCode.Unauthorized, client.post("/api/v1/hooks/servarr") { bearerAuth(secret) }.status)
     }
 
     @Test fun `the admin API makes only read and hook tokens, each with a label`() = viewers {

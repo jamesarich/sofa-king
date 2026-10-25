@@ -113,6 +113,7 @@ class AdminPortal(
             SystemPages(portal, events).install(this)
             ActivityPages(portal).install(this)
             BackupPages(portal).install(this)
+            LogPages(portal).install(this)
         }
     }
 }

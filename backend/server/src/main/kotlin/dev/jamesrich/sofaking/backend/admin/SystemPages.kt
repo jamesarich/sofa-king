@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.MIB
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.http.serverStatus
 import dev.jamesrich.sofaking.backend.logging.EventRing
+import dev.jamesrich.sofaking.backend.logging.logFile
 import dev.jamesrich.sofaking.backend.store.AdChannelRecord
 import dev.jamesrich.sofaking.backend.store.adChannels
 import dev.jamesrich.sofaking.backend.store.library
@@ -24,6 +25,7 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.header
 import io.ktor.server.routing.host
 import io.ktor.server.routing.route
+import java.nio.file.Files
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicReference
 
@@ -115,7 +117,17 @@ internal class SystemPages(private val portal: Portal, private val events: Event
                         event.logger.contains(q, ignoreCase = true)
                     )
         }
-        return EventsView(shown, all.size, events.capacity, level, q)
+        val debug = runtime.debugWindow
+        return EventsView(
+            shown,
+            all.size,
+            events.capacity,
+            level,
+            q,
+            config?.let { Files.isRegularFile(logFile(it.dataDirectory)) } ?: false,
+            debug?.until,
+            debug?.length?.toMinutes(),
+        )
     }
 
     private suspend fun aboutServer(): AboutServer {

@@ -50,6 +50,7 @@ class VirtualStreams(
     private val clock: Clock,
     private val scope: CoroutineScope,
     @Volatile var encoder: VideoEncoder = VideoEncoder(),
+    private val slides: SlideFetcher? = null,
     private val mayStart: suspend () -> Boolean = { true },
 ) {
     private val log = LoggerFactory.getLogger(VirtualStreams::class.java)
@@ -180,23 +181,27 @@ class VirtualStreams(
                     airing.startsAt > at -> airing.startsAt
                     else -> airing.endsAt
                 }
-                write(input(airing, at, until), at)
+                write(input(id, airing, at, until), at)
                 at = until
             }
         }
 
         /**
-         * What FFmpeg reads for [airing] from [at] until [until]: its file, its live channel, or a blank picture when
-         * it has neither.
+         * What FFmpeg reads for channel [channel]'s [airing] from [at] until [until]: its file, its live channel, its
+         * slide, or a blank picture when it has none of them.
          */
-        private suspend fun input(airing: Airing?, at: Instant, until: Instant): PieceInput {
+        private suspend fun input(channel: String, airing: Airing?, at: Instant, until: Instant): PieceInput {
             val durationMs = Duration.between(at, until).toMillis()
             val start = airing?.startsAt ?: at
             val id = airing?.itemId?.takeIf { start <= at }
             val live = liveEntryOf(id)
-            val item = if (live == null) id?.let { channels.playable(it) } else null
+            val slide = slideOf(id)?.let { index ->
+                runCatchingCancellable { channels.channel(channel).breaks?.slides?.getOrNull(index) }.getOrNull()
+            }
+            val item = if (live == null && slideOf(id) == null) id?.let { channels.playable(it) } else null
             return when {
                 live != null -> PieceInput(null, null, 0, durationMs, live)
+                slide != null -> PieceInput(null, null, 0, durationMs, slide = slide)
                 item == null -> PieceInput(null, null, 0, durationMs)
                 else -> PieceInput(item.file, item.media, Duration.between(start, at).toMillis(), durationMs)
             }
@@ -217,7 +222,7 @@ class VirtualStreams(
                 val piece = piece(from)
                 val ok = run(piece, current, burst)
                 val written = finish(piece)
-                val blank = current.file == null && current.live == null
+                val blank = current.file == null && current.live == null && current.slide == null
                 // FFmpeg that cannot even draw a blank picture would only fail again.
                 if (!ok && written == 0L && blank) return
                 from = from.plusMillis(written)
@@ -244,15 +249,32 @@ class VirtualStreams(
         }
 
         private suspend fun run(piece: Piece, input: PieceInput, burstSeconds: Int): Boolean {
-            val entry = input.live ?: return run(piece, input, burstSeconds, null)
-            val lineup = channels.live ?: return false
-            return runCatchingCancellable {
-                lineup.reading(entry) { source -> run(piece, input, burstSeconds, source) }
-            }.getOrElse { e ->
-                // Messages can carry upstream URLs; only the class is logged.
-                log.warn("virtual live slot did not open entry={} class={}", entry, e.javaClass.simpleName)
-                false
+            val slide = input.slide
+            val entry = input.live
+            val lineup = channels.live
+            return when {
+                slide != null -> still(piece, slide, input, burstSeconds)
+
+                entry == null -> run(piece, input, burstSeconds, null)
+
+                lineup == null -> false
+
+                else -> runCatchingCancellable {
+                    lineup.reading(entry) { source -> run(piece, input, burstSeconds, source) }
+                }.getOrElse { e ->
+                    // Messages can carry upstream URLs; only the class is logged.
+                    log.warn("virtual live slot did not open entry={} class={}", entry, e.javaClass.simpleName)
+                    false
+                }
             }
+        }
+
+        /** Fetches slide [url] and shows it for [input]'s time; false when it cannot be fetched. */
+        private suspend fun still(piece: Piece, url: String, input: PieceInput, burstSeconds: Int): Boolean {
+            val file = piece.dir.resolve(SLIDE_FILE)
+            withContext(Dispatchers.IO) { Files.createDirectories(piece.dir) }
+            if (slides?.save(url, file) != true) return false
+            return run(piece, PieceInput(file, null, 0, input.durationMs, still = true), burstSeconds, null)
         }
 
         private suspend fun run(piece: Piece, input: PieceInput, burstSeconds: Int, source: FfmpegSource?): Boolean {
@@ -336,6 +358,9 @@ class VirtualStreams(
 
         /** How long a live slot that would not open shows a blank picture before it is tried again. */
         private const val LIVE_RETRY_MS = 30_000L
+
+        /** Where a piece keeps the slide it shows. */
+        private const val SLIDE_FILE = "slide"
 
         /** How long a stream nobody reads keeps playing. */
         val IDLE: Duration = Duration.ofSeconds(60)

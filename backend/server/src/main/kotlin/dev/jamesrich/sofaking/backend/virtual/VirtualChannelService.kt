@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.virtual
 
 import dev.jamesrich.sofaking.backend.api.VirtualAiring
+import dev.jamesrich.sofaking.backend.api.VirtualBreaks
 import dev.jamesrich.sofaking.backend.api.VirtualChannel
 import dev.jamesrich.sofaking.backend.api.VirtualSource
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
@@ -18,6 +19,7 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.slf4j.LoggerFactory
+import java.net.URI
 import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
@@ -71,8 +73,10 @@ class VirtualChannelService(
         val lineup = live?.choices().orEmpty()
         return airings.map { airing ->
             val entry = liveEntryOf(airing.itemId)
+            val slide = slideOf(airing.itemId)
             val title = when {
                 entry != null -> lineup[entry]?.let { "Live: $it" } ?: GONE_LIVE
+                slide != null -> "Break slide ${slide + 1}"
                 airing.itemId == null -> BLANK
                 else -> snapshot.playable(airing.itemId)?.title ?: GONE
             }
@@ -161,6 +165,8 @@ class VirtualChannelService(
         private const val NAME_LIMIT = 100
         private const val SLOT_LIMIT = 50
         private val PAD_MINUTES = setOf(0, 15, 30, 60)
+        private val SLIDE_SECONDS = 3..60
+        private const val SLIDE_LIMIT = 5
         private val NUMBER = Regex("[0-9]{1,5}(\\.[0-9]{1,3})?")
         private val TIME = Regex("([01][0-9]|2[0-3]):[0-5][0-9]")
 
@@ -197,8 +203,29 @@ class VirtualChannelService(
                     slot.copy(source = slot.source.trimmed(), start = starts[i])
                 },
                 filler = channel.filler?.trimmed(),
+                breaks = channel.breaks?.let { checkedBreaks(it, snapshot) },
             )
         }
+
+        /** [breaks] trimmed, null when they air nothing, or a 400 naming what is wrong with them. */
+        private fun checkedBreaks(breaks: VirtualBreaks, snapshot: Snapshot): VirtualBreaks? {
+            if (breaks.everyMinutes !in
+                PAD_MINUTES
+            ) {
+                invalid("everyMinutes must be one of ${PAD_MINUTES.joinToString()}")
+            }
+            if (breaks.slideSeconds !in SLIDE_SECONDS) invalid("slideSeconds must be from 3 to 60")
+            val slides = breaks.slides.map { it.trim() }.filter { it.isNotEmpty() }
+            if (slides.size > SLIDE_LIMIT) invalid("A break shows at most $SLIDE_LIMIT slides")
+            slides.firstOrNull { !isWebUrl(it) }?.let { invalid("A slide is an http or https image URL") }
+            val source = breaks.source?.trimmed()
+            if (source?.kind == SourceKind.CHANNEL) invalid("A live channel cannot air in a break")
+            if (source != null && !snapshot.exists(source)) invalid("No ${source.kind} ${source.value}")
+            return breaks.copy(source = source, slides = slides).takeIf { source != null || slides.isNotEmpty() }
+        }
+
+        private fun isWebUrl(text: String): Boolean = runCatching { URI(text) }.getOrNull()
+            ?.let { it.scheme in setOf("http", "https") && !it.host.isNullOrEmpty() } == true
 
         /** A 400 for a source of [channel] that does not exist or a live channel where one cannot play. */
         private fun checkSources(
@@ -238,7 +265,15 @@ private fun Snapshot.builder(
         ScheduleSlot(index, playables(slot.source).map { it.pool }, slot.shuffle, slot.start?.let(::minuteOf), live)
     }
     val filler = channel.filler?.let { source -> playables(source).map { it.pool } }.orEmpty()
-    return ScheduleBuilder(slots, filler, channel.padMinutes, zone, history, random)
+    val breaks = channel.breaks?.let { plan ->
+        BreakPlan(
+            Duration.ofMinutes(plan.everyMinutes.toLong()).toMillis(),
+            plan.source?.let { source -> playables(source).map { it.pool } }.orEmpty(),
+            plan.slides.indices.map(::slideAiringId),
+            Duration.ofSeconds(plan.slideSeconds.toLong()).toMillis(),
+        )
+    }
+    return ScheduleBuilder(slots, filler, channel.padMinutes, zone, history, random, breaks)
 }
 
 private fun newId(): String = HexFormat.of().formatHex(ByteArray(ID_BYTES).also(SecureRandom()::nextBytes))

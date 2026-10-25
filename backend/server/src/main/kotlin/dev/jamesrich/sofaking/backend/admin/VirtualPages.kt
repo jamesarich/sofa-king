@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.api.VirtualBreaks
 import dev.jamesrich.sofaking.backend.api.VirtualChannel
 import dev.jamesrich.sofaking.backend.api.VirtualSlot
 import dev.jamesrich.sofaking.backend.api.VirtualSource
@@ -88,6 +89,7 @@ internal class VirtualPages(private val portal: Portal) {
     private companion object {
         val SCHEDULE_AHEAD: Duration = Duration.ofHours(12)
         const val SLOT_FIELDS = 52
+        const val DEFAULT_SLIDE_SECONDS = 10
 
         /** The channel the form describes: its numbered slots in order, those with a source. */
         fun channelOf(form: Parameters): VirtualChannel = VirtualChannel(
@@ -99,6 +101,14 @@ internal class VirtualPages(private val portal: Portal) {
             },
             filler = sourceOf(form["filler"]),
             padMinutes = form["padMinutes"]?.toIntOrNull() ?: 0,
+            breaks = form["breaks.every"]?.toIntOrNull()?.let { every ->
+                VirtualBreaks(
+                    everyMinutes = every,
+                    source = sourceOf(form["breaks.source"]),
+                    slides = form["breaks.slides"].orEmpty().lines(),
+                    slideSeconds = form["breaks.slideSeconds"]?.toIntOrNull() ?: DEFAULT_SLIDE_SECONDS,
+                )
+            },
         )
     }
 }

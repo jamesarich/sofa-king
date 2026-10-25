@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.api.VirtualAiring
+import dev.jamesrich.sofaking.backend.api.VirtualBreaks
 import dev.jamesrich.sofaking.backend.api.VirtualChannel
 import dev.jamesrich.sofaking.backend.api.VirtualSlot
 import dev.jamesrich.sofaking.backend.api.VirtualSource
@@ -166,6 +167,65 @@ class VirtualChannelsTest {
         }
     }
 
+    @Test fun `a break shows its slide, fetched as it airs`() {
+        val images = Files.createTempDirectory("sofa-slide-")
+        val png = images.resolve("chores.png")
+        check(
+            ProcessBuilder(
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+                "-f", "lavfi", "-i", "color=c=red:s=64x36", "-frames:v", "1", png.toString(),
+            ).start().waitFor() == 0,
+        )
+        val http = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+        http.createContext("/chores.png") { exchange ->
+            val bytes = Files.readAllBytes(png)
+            exchange.responseHeaders.set("Content-Type", "image/png")
+            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        http.start()
+        try {
+            server(loopback = true) {
+                val slide = "http://127.0.0.1:${http.address.port}/chores.png"
+                val channel = create(
+                    VirtualChannel(
+                        name = "Chores",
+                        slots = listOf(slot(library.id)),
+                        breaks = VirtualBreaks(everyMinutes = 0, slides = listOf(" $slide "), slideSeconds = 3),
+                    ),
+                )
+                assertEquals(listOf(slide), channel.breaks!!.slides)
+                val titles = runtime.virtual!!.schedule(
+                    channel.id,
+                    MutableClock().now,
+                    MutableClock().now.plusSeconds(60),
+                )
+                    .map { it.title }
+                assertTrue("Break slide 1" in titles && "Clip" in titles, titles.toString())
+                val text = fetch(streamUrl("Chores")).body().decodeToString()
+                assertTrue(text.lines().count { it.endsWith(".ts") } >= 3, text + logs(dir))
+                val shown = pollFor(20_000) {
+                    Files.walk(dir.resolve("virtual")).use { paths ->
+                        paths.anyMatch { it.fileName.toString() == "slide" }
+                    }.takeIf { it }
+                }
+                assertTrue(shown, "a piece fetched the slide")
+                val bad = VirtualChannel(
+                    name = "Bad",
+                    slots = listOf(slot(library.id)),
+                    breaks = VirtualBreaks(slides = listOf("file:///etc/passwd")),
+                )
+                assertEquals(
+                    HttpStatusCode.BadRequest,
+                    app.client.post("/api/v1/admin/virtual-channels") { body(bad) }.status,
+                )
+            }
+        } finally {
+            http.stop(0)
+            images.toFile().deleteRecursively()
+        }
+    }
+
     @Test fun `the portal adds a channel from the form and shows what it airs`() = server {
         val browser = app.createClient {
             install(HttpCookies)
@@ -184,13 +244,19 @@ class VirtualChannelsTest {
                 append("source.0", "${SourceKind.LIBRARY}:${library.id}")
                 append("shuffle.0", "true")
                 append("padMinutes", "0")
+                append("breaks.every", "30")
+                append("breaks.source", "${SourceKind.LIBRARY}:${library.id}")
+                append("breaks.slides", "")
             },
         )
         assertEquals(HttpStatusCode.SeeOther, saved.status)
         val edited = browser.get(saved.headers["Location"]!!).bodyAsText()
         assertTrue("Saved Movie night." in edited, edited)
         assertTrue("Coming up" in edited && "Clip" in edited, edited)
-        assertEquals(true, runtime.virtual!!.channels().single().slots.single().shuffle)
+        val stored = runtime.virtual!!.channels().single()
+        assertEquals(true, stored.slots.single().shuffle)
+        assertEquals(30, stored.breaks?.everyMinutes)
+        assertTrue("Every 30 minutes" in edited)
     }
 
     @Test fun `the live playlist marks each new piece and numbers its segments on`() {
@@ -252,7 +318,11 @@ class VirtualChannelsTest {
     }
 
     /** A server with a `virtual` source, [media]'s feed when given, and the clip as a movie library, scanned. */
-    private fun server(media: MediaFixture? = null, block: suspend Virtual.() -> Unit) = testApplication {
+    private fun server(
+        media: MediaFixture? = null,
+        loopback: Boolean = media != null,
+        block: suspend Virtual.() -> Unit,
+    ) = testApplication {
         val dir = Files.createTempDirectory("sofa-virtual-")
         clip(dir.resolve("media/movies/Clip (2020)/Clip (2020).mkv"))
         val feed = media?.let { """,{"id":"media","playlistUrl":"${it.feed.playlistUrl}","probe":false}""" }.orEmpty()
@@ -269,7 +339,7 @@ class VirtualChannelsTest {
             adminToken = admin,
             hdhr = HdhrConfig(enabled = false),
             updateImage = null,
-            allowLoopbackUpstreams = media != null,
+            allowLoopbackUpstreams = loopback,
         )
         val store = openStore(dir)
         val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)

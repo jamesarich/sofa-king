@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.api.VirtualAiring
 import dev.jamesrich.sofaking.backend.api.VirtualChannel
 import dev.jamesrich.sofaking.backend.api.VirtualSlot
 import dev.jamesrich.sofaking.backend.api.VirtualSource
+import dev.jamesrich.sofaking.backend.virtual.SourceKind
 import kotlinx.html.ButtonType
 import kotlinx.html.FORM
 import kotlinx.html.FlowContent
@@ -157,7 +158,8 @@ private fun FlowContent.channelForm(chrome: Chrome, view: VirtualView, editing: 
                     "and plays its whole slot. Leave a slot's source blank to remove it; save to get more empty slots."
                 )
         }
-        sourceSelect("virtual-filler", "filler", "Filler between items (optional)", view.sources, editing?.filler)
+        val library = view.sources.filter { it.first.kind != SourceKind.CHANNEL }
+        sourceSelect("virtual-filler", "filler", "Filler between items (optional)", library, editing?.filler)
         div("field") {
             label {
                 htmlFor = "virtual-pad"
@@ -175,6 +177,7 @@ private fun FlowContent.channelForm(chrome: Chrome, view: VirtualView, editing: 
                 }
             }
         }
+        breakFields(library, editing?.breaks)
         div("actions") {
             button(type = ButtonType.submit, classes = "primary") { +(if (editing == null) "Add" else "Save") }
             if (editing != null) a("/admin/virtual", classes = "btn quiet") { +"Cancel" }
@@ -206,7 +209,7 @@ private fun FORM.slotFields(view: VirtualView, index: Int, slot: VirtualSlot?) =
     }
 }
 
-private fun FlowContent.sourceSelect(
+internal fun FlowContent.sourceSelect(
     id: String,
     name: String,
     text: String,

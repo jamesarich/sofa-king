@@ -60,6 +60,7 @@ import dev.jamesrich.sofaking.backend.update.RunningBuild
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.virtual.LineupSlots
+import dev.jamesrich.sofaking.backend.virtual.SlideFetcher
 import dev.jamesrich.sofaking.backend.virtual.VirtualChannelService
 import dev.jamesrich.sofaking.backend.virtual.VirtualClient
 import dev.jamesrich.sofaking.backend.virtual.VirtualStreams
@@ -382,6 +383,7 @@ internal class RuntimeAssembly(
             clock,
             scope,
             vod.encoder,
+            slides = SlideFetcher(http, upstream),
         ) {
             val converting = vod.snapshot().count { it.mode != Wire.VodMode.DIRECT }
             converting + streams.running < config.maxTranscodes

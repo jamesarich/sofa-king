@@ -56,6 +56,7 @@ import dev.jamesrich.sofaking.resources.library_seasons
 import dev.jamesrich.sofaking.resources.library_subtitles
 import dev.jamesrich.sofaking.resources.tagline
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
+import dev.jamesrich.sofaking.ui.announcesChanges
 import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.hoursAndMinutes
 import dev.jamesrich.sofaking.ui.oneDecimal
@@ -152,13 +153,13 @@ private fun Buttons(detail: MediaItemDetail, actions: ItemDetailsActions, primar
         }
         SofaButton(
             onClick = { actions.onSetWatched(item, !watched) },
-            modifier = if (action == null) Modifier.focusRequester(primaryFocus) else Modifier,
+            modifier = (if (action == null) Modifier.focusRequester(primaryFocus) else Modifier).announcesChanges(),
         ) {
             Text(stringResource(if (watched) Res.string.library_mark_unwatched else Res.string.library_mark_watched))
         }
         val listed = actions.watchlisted(item)?.takeIf { item.kind in WATCHLIST_KINDS }
         if (listed != null) {
-            SofaButton(onClick = { actions.onToggleWatchlist(item) }) {
+            SofaButton(onClick = { actions.onToggleWatchlist(item) }, modifier = Modifier.announcesChanges()) {
                 Text(
                     stringResource(
                         if (listed) Res.string.library_remove_from_watchlist else Res.string.library_add_to_watchlist,

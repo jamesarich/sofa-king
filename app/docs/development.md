@@ -168,11 +168,13 @@ The journeys and the fuzz walk focus in the TV layout on the JVM, but not Androi
 - [ ] After stopping an episode part way, the home screen's Watch Next row (a Google TV or Shield launcher; the emulator's launcher has none) shows it with its artwork and progress; selecting it plays it from there, with the app closed and with it open on another tab, and Back returns to the Library tab. Finishing it moves the row on to the next episode.
 - [ ] Sleep timer on the live bar steps through Sleep in 15, 30, 60 and 90 min, Sleep after this program and Sleep timer (off); set to 15 minutes, the player returns to the guide on time with no preview playing. In a library episode, Sleep after this one leaves for the page as the episode ends, with no Up next. Let three episodes play into each other untouched: the third Up next card asks Still watching? and returns to the page after 30 seconds. On an Apple TV, the transport bar's Sleep timer menu does the same.
 - [ ] In the library player, Left and Right scrub and apply once released, holding them jumps further, OK applies at once, Back cancels a scrub and then returns to the page with the episode focused; Home and back resumes where it was, and a far jump in a converted file restarts there.
+- [ ] With TalkBack on: every button in the player's bars, Settings and the program details reads a name (the arrow and step buttons say what they move); Record, Record series, a team's Record, Add to watchlist and Mark watched read their new label after a press, Paused and Up next are read as they show, and the channel does not open by itself from the guide.
 
 On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app reliably):
 
 - [ ] The tab bar shows Live, Library (only for a server with libraries), DVR (only for a server that records) and Settings; a Top Shelf channel opens on Live from any tab. Leave the app from Library and start it again: it opens on Library.
 - [ ] In the Library, a card opens its page, play/pause on the remote plays a movie or episode straight from its card, and a library's grid sorts, filters and loads more as it scrolls.
+- [ ] With VoiceOver on, the tab bar, a channel row, a card and the player's transport bar each read a name.
 - [ ] A show's page opens on the season with the next episode; selecting an episode plays it, resuming where it stopped, and its context menu starts it over or marks it watched.
 - [ ] The library player resumes where the item stopped, scrubs in the transport bar, returns to the page at the end, and after Home and back picks up where it was.
 - [ ] Holding the touch surface on a channel opens its program details, and Watch plays it.

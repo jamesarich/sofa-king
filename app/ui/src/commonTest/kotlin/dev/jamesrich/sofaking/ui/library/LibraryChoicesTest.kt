@@ -45,18 +45,32 @@ class LibraryChoicesTest {
     }
 
     @Test
-    fun `search shows movies and shows as posters and episodes and videos as wide cards in their order`() {
+    fun `search groups movies shows the query's person episodes and videos in their order`() {
         val sections =
             searchSections(
                 listOf(
-                    item("e1", ItemKind.EPISODE),
-                    item("m", ItemKind.MOVIE),
-                    item("v", ItemKind.VIDEO),
-                    item("s", ItemKind.SHOW),
+                    item("m", ItemKind.MOVIE).copy(title = "Amber Road"),
+                    item("s", ItemKind.SHOW).copy(title = "Amber Nights"),
+                    item("v", ItemKind.VIDEO).copy(title = "Amber at dusk"),
+                    item("c", ItemKind.MOVIE).copy(title = "Night Train"),
+                    item("e1", ItemKind.EPISODE).copy(title = "Amber returns"),
                 ),
+                " amber ",
             )
-        assertEquals(listOf("m", "s"), sections.posters.map { it.id })
-        assertEquals(listOf("e1", "v"), sections.wide.map { it.id })
+        assertEquals(
+            listOf(
+                SearchGroup.MOVIES,
+                SearchGroup.SHOWS,
+                SearchGroup.CAST_AND_CREW,
+                SearchGroup.EPISODES,
+                SearchGroup.VIDEOS,
+            ),
+            sections.rows.map { it.group },
+        )
+        assertEquals(listOf("c"), sections.rows.single { it.group == SearchGroup.CAST_AND_CREW }.items.map { it.id })
+        assertEquals("amber", sections.query)
+        assertEquals(CardStyle.WIDE, SearchGroup.EPISODES.style)
+        assertFalse(searchSections(emptyList(), "amber").found)
     }
 
     @Test

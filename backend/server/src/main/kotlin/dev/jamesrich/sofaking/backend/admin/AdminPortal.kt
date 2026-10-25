@@ -112,6 +112,7 @@ class AdminPortal(
             ConnectPages(portal).install(this)
             SystemPages(portal, events).install(this)
             ActivityPages(portal).install(this)
+            BackupPages(portal).install(this)
         }
     }
 }

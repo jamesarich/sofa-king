@@ -37,7 +37,7 @@ Notes on the table:
 
 ## Request limits
 
-- Request bodies are capped at 64 KiB, and at 4 MiB for a whole policy written through `PUT /api/v1/admin/policy` or the portal's group and provider edits. A larger body answers `413 REQUEST_TOO_LARGE` before any token is checked.
+- Request bodies are capped at 64 KiB, at 4 MiB for a whole policy written through `PUT /api/v1/admin/policy` or the portal's group and provider edits, and at 8 GiB for a database uploaded to the portal's Backup page, which writes it to the data directory as it arrives. A larger body answers `413 REQUEST_TOO_LARGE` before any token is checked.
 - `POST /api/v1/pair` is the one `/api/v1/*` route that takes no token. It accepts 10 attempts a minute from each client address, like the login, and a six-digit code with a 10-minute life leaves at most 50 guesses against one million codes.
 - `POST /admin/login` accepts 10 attempts a minute from each client address and answers `429 Too Many Requests` beyond that, even for the right token. Behind a reverse proxy every sign-in comes from the proxy's address and shares that budget.
 - A rejected token is logged as `auth failed route=ROUTE remote=ADDRESS`, at most 30 lines a minute. The route is the path without its query, and the token is never logged.

@@ -32,6 +32,7 @@ import dev.jamesrich.sofaking.backend.settings.RuntimeSettings
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.setup.SetupService
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.store.DatabaseBackups
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
 import dev.jamesrich.sofaking.backend.virtual.VirtualChannelService
 import dev.jamesrich.sofaking.backend.virtual.VirtualStreams
@@ -149,6 +150,8 @@ class LiveRuntime(
     val virtualStreams: VirtualStreams? = null,
     /** Multiview sessions, offered when [MultiviewSessions.canvas] says the server can draw them. */
     val multiview: MultiviewSessions? = null,
+    /** The database backups and restore; null for a runtime built without a config. */
+    val backups: DatabaseBackups? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()

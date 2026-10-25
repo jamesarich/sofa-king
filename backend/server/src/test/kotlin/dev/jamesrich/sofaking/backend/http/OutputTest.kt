@@ -16,6 +16,7 @@ import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.contract.GuideWindow
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.head
 import io.ktor.client.request.header
@@ -23,6 +24,7 @@ import io.ktor.client.request.headers
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.prepareGet
+import io.ktor.client.request.put
 import io.ktor.client.request.query
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
@@ -208,6 +210,58 @@ class OutputTest {
         assertFalse(client.get("/output/playlist.m3u?token=$output").bodyAsText().contains(ts.id))
         assertFalse(client.get("/output/guide.xml?token=$output").bodyAsText().contains(ts.id))
         assertEquals(HttpStatusCode.NotFound, client.get("/output/stream/${ts.id}.ts?token=$output").status)
+    }
+
+    @Test fun `a named output lists only its channels and points at its own guide`() = outputLists {
+        val saved = client.put("/api/v1/admin/outputs/Kids") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody("""{"channels":[" 6 ", "6"]}""")
+        }
+        assertEquals(HttpStatusCode.OK, saved.status)
+        assertEquals("""{"name":"kids","groups":[],"channels":["6"]}""", saved.bodyAsText())
+
+        val playlist = client.get("/output/kids/playlist.m3u?token=$output").bodyAsText()
+        assertTrue(playlist.contains("url-tvg=\"$base/output/kids/guide.xml?token=$output\""), playlist)
+        assertTrue(playlist.contains("$base/output/stream/${ts.id}.ts?token=$output"), playlist)
+        assertFalse(playlist.contains(hls.id))
+        val guide = client.get("/output/kids/guide.xml?token=$output").bodyAsText()
+        assertTrue(guide.contains("<channel id=\"${ts.id}\">"))
+        assertFalse(guide.contains(hls.id))
+        assertTrue(client.get("/output/playlist.m3u?token=$output").bodyAsText().contains(hls.id), "the full list")
+    }
+
+    @Test fun `a named output takes the output token and an unknown one answers 404`() = outputLists {
+        client.put("/api/v1/admin/outputs/news") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody("""{"groups":["news"]}""")
+        }
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/output/news/playlist.m3u").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/output/missing/guide.xml").status)
+        assertEquals(HttpStatusCode.NotFound, client.get("/output/missing/guide.xml?token=$output").status)
+        assertEquals(HttpStatusCode.OK, client.get("/output/news/guide.xml?token=$output").status)
+    }
+
+    @Test fun `the admin API lists, refuses and deletes named outputs`() = outputLists {
+        suspend fun put(name: String, body: String) = client.put("/api/v1/admin/outputs/$name") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.status
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/admin/outputs").status)
+        assertEquals(HttpStatusCode.BadRequest, put("kids", """{"groups":[" "]}"""), "holds nothing")
+        assertEquals(HttpStatusCode.BadRequest, put("stream", """{"channels":["5"]}"""), "a reserved name")
+        assertEquals(HttpStatusCode.BadRequest, put("two%20words", """{"channels":["5"]}"""))
+        assertEquals(HttpStatusCode.OK, put("b", """{"channels":["5"]}"""))
+        assertEquals(HttpStatusCode.OK, put("a", """{"groups":["News"]}"""))
+        assertEquals(
+            """[{"name":"a","groups":["News"],"channels":[]},{"name":"b","groups":[],"channels":["5"]}]""",
+            client.get("/api/v1/admin/outputs") { bearerAuth(token) }.bodyAsText(),
+        )
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/v1/admin/outputs/a") { bearerAuth(token) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.delete("/api/v1/admin/outputs/a") { bearerAuth(token) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.get("/output/a/playlist.m3u?token=$output").status)
     }
 
     /** The fixture's HLS and TS feeds served by [serve], with their channels 5 ([hls]) and 6 ([ts]). */

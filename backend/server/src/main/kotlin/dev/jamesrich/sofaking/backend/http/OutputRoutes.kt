@@ -3,8 +3,10 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.admin.sameSecret
+import dev.jamesrich.sofaking.backend.api.NamedOutput
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
+import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -24,23 +26,34 @@ import java.time.Instant
 
 /**
  * The lineup for third-party players under `/output`: an M3U playlist, an XMLTV guide and one stream URL per
- * channel. Players send no headers, so the token travels in the query and the generated URLs carry it.
+ * channel. Players send no headers, so the token travels in the query and the generated URLs carry it. Each named
+ * output has its own playlist and guide under `/output/{name}`, holding its channels only.
  */
 fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig, apiToken: String?) {
     route("/output") {
-        get("/playlist.m3u") {
+        /** The channels [call] asks for, once it is authorized: the named output's, else the whole lineup. */
+        suspend fun selection(call: ApplicationCall): Selection {
             authorizeOutput(call, config.token, apiToken)
-            val allTs = tsOnly(call)
-            val query = tokenQuery(config.token).let { if (allTs) withParameter(it, "format=ts") else it }
-            playlist(call, runtime, query, allTs)
+            val name = call.parameters["name"] ?: return Selection("/output", null)
+            val output = runtime.namedOutputs.get(name)
+                ?: throw ApiFailure(HttpStatusCode.NotFound, "OUTPUT_NOT_FOUND", "Unknown output")
+            return Selection("/output/$name", output)
         }
-        get("/guide.xml") {
-            authorizeOutput(call, config.token, apiToken)
-            val days = call.request.queryParameters["days"]?.let { raw ->
-                raw.toIntOrNull()?.takeIf { it in 1..MAX_GUIDE_DAYS }
-                    ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_QUERY", "days must be between 1 and 14")
-            } ?: runtime.settings.current.guideDays
-            guide(call, runtime, clock.instant(), days)
+        for (prefix in listOf("", "/{name}")) {
+            get("$prefix/playlist.m3u") {
+                val selection = selection(call)
+                val allTs = tsOnly(call)
+                val query = tokenQuery(config.token).let { if (allTs) withParameter(it, "format=ts") else it }
+                playlist(call, runtime, query, allTs, selection)
+            }
+            get("$prefix/guide.xml") {
+                val selection = selection(call)
+                val days = call.request.queryParameters["days"]?.let { raw ->
+                    raw.toIntOrNull()?.takeIf { it in 1..MAX_GUIDE_DAYS }
+                        ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_QUERY", "days must be between 1 and 14")
+                } ?: runtime.settings.current.guideDays
+                guide(call, runtime, clock.instant(), days, selection)
+            }
         }
         get("/stream/{id}") {
             authorizeOutput(call, config.token, apiToken)
@@ -65,6 +78,11 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
 
 private const val MAX_GUIDE_DAYS = 14
 
+/** The channels one playlist or guide holds: [output]'s, or all of them without one; its URLs sit under [path]. */
+private class Selection(val path: String, val output: NamedOutput?) {
+    fun includes(entry: LineupEntryRecord?): Boolean = output == null || output.holds(entry)
+}
+
 /** Whether the request asks for every stream as MPEG-TS, `format=ts`; any other format answers 400. */
 private fun tsOnly(call: ApplicationCall): Boolean {
     val format = call.request.queryParameters["format"] ?: return false
@@ -79,18 +97,25 @@ private val GUIDE_LOOKBACK = Duration.ofHours(3)
  * The M3U playlist of the lineup's channels, each stream URL carrying [query]. A channel with a Gracenote id in the
  * policy carries `tvc-guide-stationid`, so Channels DVR takes its guide from Gracenote; any other channel with a logo
  * carries it as `tvc-guide-art`, the artwork Channels shows for its programs. With [allTs] every stream URL serves
- * MPEG-TS.
+ * MPEG-TS. Only the [selection]'s channels are listed.
  */
-private suspend fun playlist(call: ApplicationCall, runtime: LiveRuntime, query: String, allTs: Boolean) {
+private suspend fun playlist(
+    call: ApplicationCall,
+    runtime: LiveRuntime,
+    query: String,
+    allTs: Boolean,
+    selection: Selection,
+) {
     val base = publicBase(call)
-    val channels = runtime.catalog.catalog().channels
     val entries = runtime.lineup.entries().associateBy { it.id }
+    val channels = runtime.catalog.catalog().channels.filter { selection.includes(entries[it.id]) }
     val preferred = runtime.sessions.sources.preferredOfferings(channels.map { it.id })
     val gracenote = runtime.policy?.lastApplied()?.stations.orEmpty()
         .mapNotNull { station -> station.gracenoteId?.let { station.id to it } }.toMap()
     call.response.header(HttpHeaders.CacheControl, "no-store")
     call.respondTextWriter(ContentType.parse("audio/x-mpegurl").withCharset(Charsets.UTF_8)) {
-        write("#EXTM3U url-tvg=\"$base/output/guide.xml$query\" x-tvg-url=\"$base/output/guide.xml$query\"\n")
+        val guide = "$base${selection.path}/guide.xml$query"
+        write("#EXTM3U url-tvg=\"$guide\" x-tvg-url=\"$guide\"\n")
         for (channel in channels) {
             // Players infer the stream type from the suffix; a channel with no eligible source
             // lists as TS and fails at play time.
@@ -113,12 +138,13 @@ private suspend fun playlist(call: ApplicationCall, runtime: LiveRuntime, query:
     }
 }
 
-/** The XMLTV guide of the lineup's channels for [days] from [now]. */
-private suspend fun guide(call: ApplicationCall, runtime: LiveRuntime, now: Instant, days: Int) {
+/** The XMLTV guide of the [selection]'s channels for [days] from [now]. */
+private suspend fun guide(call: ApplicationCall, runtime: LiveRuntime, now: Instant, days: Int, selection: Selection) {
     val from = now.minus(GUIDE_LOOKBACK)
     val to = now.plus(Duration.ofDays(days.toLong()))
-    val channels = runtime.catalog.catalog().channels
-    val entries = channels.mapNotNull { channel -> runtime.lineup.entry(channel.id) }.associateBy { it.id }
+    val all = runtime.catalog.catalog().channels
+    val entries = all.mapNotNull { channel -> runtime.lineup.entry(channel.id) }.associateBy { it.id }
+    val channels = all.filter { selection.includes(entries[it.id]) }
     val mappings = channels.mapNotNull { channel -> entries[channel.id]?.guide?.let { channel.id to it } }
     val programs = HashMap<String, List<GuideProgram>>()
     for ((guideId, group) in mappings.groupBy { it.second.guideId }) {

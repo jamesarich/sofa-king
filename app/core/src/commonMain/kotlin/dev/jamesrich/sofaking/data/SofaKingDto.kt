@@ -20,6 +20,8 @@ import dev.jamesrich.sofaking.contract.LibraryItemDetail
 import dev.jamesrich.sofaking.contract.LibraryPage
 import dev.jamesrich.sofaking.contract.MediaSegment
 import dev.jamesrich.sofaking.contract.MediaTrack
+import dev.jamesrich.sofaking.contract.MultiviewSession
+import dev.jamesrich.sofaking.contract.OpenMultiview
 import dev.jamesrich.sofaking.contract.OpenPlayback
 import dev.jamesrich.sofaking.contract.OpenVodPlayback
 import dev.jamesrich.sofaking.contract.PairingClaim
@@ -35,6 +37,7 @@ import dev.jamesrich.sofaking.contract.RecordingRule
 import dev.jamesrich.sofaking.contract.RecordingRuleList
 import dev.jamesrich.sofaking.contract.ScheduleRecording
 import dev.jamesrich.sofaking.contract.UpcomingPrograms
+import dev.jamesrich.sofaking.contract.UpdateMultiview
 import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.UpdatePlayback
 import dev.jamesrich.sofaking.contract.UpdateRecording
@@ -89,6 +92,9 @@ internal typealias UpcomingProgramsDto = UpcomingPrograms
 internal typealias WatchlistEntryDto = WatchlistEntry
 internal typealias AddWatchlistEntryDto = AddWatchlistEntry
 internal typealias CapabilitiesDto = Capabilities
+internal typealias OpenMultiviewDto = OpenMultiview
+internal typealias UpdateMultiviewDto = UpdateMultiview
+internal typealias MultiviewSessionDto = MultiviewSession
 internal typealias RecordingDto = Recording
 internal typealias RecordingListDto = RecordingList
 internal typealias RecordingRuleDto = RecordingRule

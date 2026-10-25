@@ -38,6 +38,7 @@
     <string name="stream_card_size">%1$d × %2$d</string>
     <string name="player_control_guide">Guide</string>
     <string name="player_control_zoom">Zoom</string>
+    <string name="player_control_multiview">Multiview</string>
     <string name="player_zoom_fit">Fit</string>
     <string name="player_zoom_fill">Fill</string>
     <string name="player_zoom_stretch">Stretch</string>
@@ -136,4 +137,17 @@
     <string name="break_fact_and">%1$s and %2$s</string>
     <string name="player_control_from_start">Watch from start</string>
     <string name="vod_control_back_to_live">Back to live</string>
+    <string name="multiview_title">Multiview</string>
+    <string name="multiview_pick_hint">Pick 2 to 4 channels to watch at once.</string>
+    <string name="multiview_watch">Watch %1$d channels</string>
+    <string name="multiview_keys_hint">Arrows move the sound. OK watches it full screen. Back changes the channels.</string>
+    <string name="multiview_touch_hint">Tap a picture for its sound. Double-tap to watch it full screen.</string>
+    <string name="multiview_sound">%1$s, playing sound</string>
+    <string name="multiview_opening">Opening multiview…</string>
+    <string name="multiview_unavailable">This server can't show multiview now</string>
+    <string name="multiview_unavailable_hint">Its graphics card does the drawing, and none is working.</string>
+    <string name="multiview_busy">The server is busy</string>
+    <string name="multiview_busy_hint">Too many streams are being converted. Trying again shortly.</string>
+    <string name="multiview_failed">Multiview stopped</string>
+    <string name="multiview_failed_hint">Trying again shortly.</string>
 </resources>

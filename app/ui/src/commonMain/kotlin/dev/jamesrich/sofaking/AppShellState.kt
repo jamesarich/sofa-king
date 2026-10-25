@@ -91,6 +91,12 @@ internal class AppShellState(
         nav = nav.toLive(guideId)
     }
 
+    /** From multiview back to the live player, on [guideId]. */
+    fun backToPlayer(guideId: String) {
+        val left = nav.pop(nav.top.focusKey)
+        nav = if (left.top is Route.Player) left.replaceTop(Route.Player(guideId)) else left.push(Route.Player(guideId))
+    }
+
     /** The next episode replaces the one that ended, so Back still leaves for the page the first was opened from. */
     fun replaceTop(route: Route) {
         nav = nav.replaceTop(route)

@@ -38,6 +38,7 @@ import dev.jamesrich.sofaking.ui.guide.OnLaterScreen
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.localDay
 import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.player.MultiviewScreen
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
 import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -240,6 +241,38 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
         onAdsDodge = { vm.addAdsDodged(localDay(), it) },
         programFacts = vm::programFacts,
         sleep = shell.sleep,
+        onMultiview = { channel: Channel -> shell.push(Route.Multiview(listOf(channel.guideId))) }
+            .takeIf { capabilities.multiview },
+    )
+}
+
+/**
+ * Multiview over the channels the guide shows, opened from the player; watching one full screen takes the player's
+ * place, and leaving goes back to the channel it was opened on, which the player may have zapped to since it opened.
+ */
+@Composable
+internal fun MultiviewDestination(
+    route: Route.Multiview,
+    shell: AppShellState,
+    vm: LineupViewModel,
+    player: LivePlayer,
+) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    val lineup = rememberVisibleLineup((state as? LineupState.Ready)?.lineup, settings)
+    if (lineup == null) {
+        LaunchedEffect(Unit) { shell.back() }
+        return
+    }
+    MultiviewScreen(
+        lineup = lineup,
+        initial = route.guideIds,
+        player = player,
+        sessions = vm.sessions,
+        favoritesOrder = settings?.favoritesOrder.orEmpty(),
+        recent = settings?.recentChannels.orEmpty(),
+        onWatch = { channel -> shell.backToPlayer(channel.guideId) },
+        onExit = { shell.backToPlayer(route.guideIds.first()) },
     )
 }
 

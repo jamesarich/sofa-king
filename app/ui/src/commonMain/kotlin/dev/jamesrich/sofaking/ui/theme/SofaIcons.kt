@@ -389,6 +389,11 @@ internal object SofaIcons {
         )
     }
 
+    /** Multiview on the live player's bar: several pictures at once. */
+    val Dashboard: ImageVector by lazy {
+        pathIcon("Filled.Dashboard", "M3,13h8V3H3v10zm0,8h8v-6H3v6zm10,0h8V11h-8v10zm0,-18v6h8V3h-8z")
+    }
+
     /** An icon from its SVG path data, as the icon set's sources give it. */
     private fun pathIcon(name: String, pathData: String): ImageVector =
         materialIcon(name) { addPath(addPathNodes(pathData), fill = SolidColor(Color.Black)) }

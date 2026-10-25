@@ -142,7 +142,7 @@ internal fun RouteStreamEffects(
                 sessions.release(forget = true)
             }
 
-            is Route.Player, is Route.Vod, is Route.Recording -> Unit
+            is Route.Player, is Route.Multiview, is Route.Vod, is Route.Recording -> Unit
 
             // The library, the recordings and On Later play nothing until one is picked, so the
             // guide's preview stops on the way in.

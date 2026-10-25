@@ -78,4 +78,6 @@ data class ServerCapabilities(
     val onLater: Boolean = false,
     /** It keeps the household's shared favorites and hidden channels. */
     val household: Boolean = false,
+    /** It draws several channels into one picture now. */
+    val multiview: Boolean = false,
 )

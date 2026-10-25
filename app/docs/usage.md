@@ -1,6 +1,6 @@
 # Using Sofa King
 
-This page covers the guide, the library, recordings, the channels the guide lists, the remote and keyboard controls, captions and the settings. [Getting started](getting-started.md) connects the app to a server first.
+This page covers the guide, the library, recordings, the channels the guide lists, multiview, the remote and keyboard controls, captions and the settings. [Getting started](getting-started.md) connects the app to a server first.
 
 ## Guide
 
@@ -31,6 +31,10 @@ On a server that records, the app shows a DVR tab beside Live and Library. It li
 ## Channels
 
 Channels come from the server's lineup. The app lists a channel when the server reports it as playable and gives it a numeric display number, and lists them in number order. The server tags each channel with its lineup group, such as News, and each tag is a guide category with its own chip; a channel with several tags is under each, and one without a tag is under Other. Chips show how many channels they list.
+
+## Multiview
+
+On a server that [draws multiview](../../backend/docs/api.md#multiview), the live player's bar has a Multiview button, before Guide. It opens a list of channels beside the picture, with the channel you were watching ticked, then your favorites, your recent channels and the rest; tick two to four and press Watch. The server draws them into one picture: two side by side, or three or four in a grid. Only one channel's sound plays, marked by a white border and a speaker by its name. The arrows move the sound to the next tile that way, and OK watches the channel with the sound full screen; with a mouse or touch, a tap on a tile moves the sound there and a double tap watches it. Names show for 5 seconds after each press. Back returns to the list to change the channels, and Back from the list returns to the channel you opened it on. A channel that will not play is a black tile. When the server has no working graphics card for the drawing, the bar has no Multiview button; the Apple TV app does not offer multiview yet.
 
 ## Remote controls
 

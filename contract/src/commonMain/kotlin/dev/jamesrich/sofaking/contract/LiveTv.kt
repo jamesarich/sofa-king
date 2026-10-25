@@ -114,3 +114,25 @@ data class GuideQuery(val channelIds: List<String>, val from: String, val to: St
     /** TMDB's average vote, out of 10. */
     val rating: Double? = null,
 )
+
+/**
+ * Opens a multiview session: two to [Wire.MULTIVIEW_MAX_TILES] lineup [channelIds] drawn as one picture, tiles left to
+ * right and top to bottom, with the sound of tile [audio], counted from 0.
+ */
+@Serializable data class OpenMultiview(val channelIds: List<String>, val audio: Int = 0)
+
+/** Renews a multiview session; a different [audio] tile restarts its stream under a new epoch. */
+@Serializable data class UpdateMultiview(val audio: Int? = null)
+
+/**
+ * A multiview session: its channels, the tile whose sound plays and has the border, and the one HLS stream of them
+ * all, which the player loads again when the epoch changes. The session lasts until [expiresAt] past its last renewal
+ * or media request.
+ */
+@Serializable data class MultiviewSession(
+    val id: String,
+    val channelIds: List<String>,
+    val audio: Int,
+    val descriptor: PlaybackDescriptor,
+    val expiresAt: String = "",
+)

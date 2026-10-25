@@ -20,6 +20,8 @@ import kotlinx.serialization.Serializable
     val onLater: Boolean = false,
     /** `GET`/`PUT /api/v1/household/preferences`, the favorites and hidden channels devices may share. */
     val household: Boolean = false,
+    /** `/api/v1/multiview-sessions`: the server can composite channels into one picture now. */
+    val multiview: Boolean = false,
 )
 
 @Serializable data class Bootstrap(

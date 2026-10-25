@@ -57,7 +57,7 @@
         "type": "object",
         "properties": {
           "serverId": { "type": "string" }, "serverTime": { "type": "string", "format": "date-time" }, "apiVersion": { "type": "integer" },
-          "capabilities": { "type": "object", "properties": { "catalog": { "type": "boolean" }, "guide": { "type": "boolean" }, "playback": { "type": "boolean" }, "viewers": { "type": "boolean", "description": "The server pairs clients (/api/v1/pair) and keeps their preferences." }, "library": { "type": "boolean", "description": "The server serves media libraries (/api/v1/libraries, /api/v1/library)." }, "recordings": { "type": "boolean", "description": "The server records (/api/v1/recordings, /api/v1/recording-rules)." }, "watchlist": { "type": "boolean", "description": "The server keeps the household's watchlist (/api/v1/watchlist)." }, "onLater": { "type": "boolean", "description": "The server lists upcoming movies, sports, kids' programs and premieres (/api/v1/guide/on-later)." }, "household": { "type": "boolean", "description": "The server keeps the household's shared favorites and hidden channels (/api/v1/household/preferences)." } } }
+          "capabilities": { "type": "object", "properties": { "catalog": { "type": "boolean" }, "guide": { "type": "boolean" }, "playback": { "type": "boolean" }, "viewers": { "type": "boolean", "description": "The server pairs clients (/api/v1/pair) and keeps their preferences." }, "library": { "type": "boolean", "description": "The server serves media libraries (/api/v1/libraries, /api/v1/library)." }, "recordings": { "type": "boolean", "description": "The server records (/api/v1/recordings, /api/v1/recording-rules)." }, "watchlist": { "type": "boolean", "description": "The server keeps the household's watchlist (/api/v1/watchlist)." }, "onLater": { "type": "boolean", "description": "The server lists upcoming movies, sports, kids' programs and premieres (/api/v1/guide/on-later)." }, "household": { "type": "boolean", "description": "The server keeps the household's shared favorites and hidden channels (/api/v1/household/preferences)." }, "multiview": { "type": "boolean", "description": "The server composites multiview now (/api/v1/multiview-sessions)." } } }
         }
       },
       "Catalog": {
@@ -250,6 +250,25 @@
           "descriptor": { "type": "object", "properties": { "protocol": { "type": "string", "enum": ["file", "hls"] }, "mimeType": { "type": "string" }, "url": { "type": "string" }, "epoch": { "type": "integer" } } },
           "startMs": { "type": "integer", "description": "Where in the item the HLS stream's time 0 is; 0 for direct play." }, "durationMs": { "type": ["integer", "null"] },
           "expiresAt": { "type": "string", "format": "date-time" }, "recordingId": { "type": ["string", "null"], "description": "Set, with an empty itemId, when the session plays a recording." }
+        }
+      },
+      "OpenMultiview": {
+        "type": "object", "required": ["channelIds"],
+        "properties": {
+          "channelIds": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 4, "description": "Two to four different lineup channels, drawn left to right and top to bottom." },
+          "audio": { "type": "integer", "default": 0, "description": "The index in channelIds of the tile whose sound plays; it has a border." }
+        }
+      },
+      "UpdateMultiview": {
+        "type": "object",
+        "properties": { "audio": { "type": ["integer", "null"], "description": "Move the sound to this tile, restarting the stream under a new epoch." } }
+      },
+      "MultiviewSession": {
+        "type": "object", "required": ["id", "channelIds", "audio", "descriptor"],
+        "properties": {
+          "id": { "type": "string" }, "channelIds": { "type": "array", "items": { "type": "string" } }, "audio": { "type": "integer" },
+          "descriptor": { "type": "object", "properties": { "protocol": { "type": "string", "enum": ["hls"] }, "mimeType": { "type": "string" }, "url": { "type": "string" }, "epoch": { "type": "integer" } } },
+          "expiresAt": { "type": "string", "format": "date-time" }
         }
       },
       "ViewerPreferences": {
@@ -937,6 +956,24 @@
       "get": { "tags": ["Library"], "summary": "A library playback session's media", "description": "The URL the session's descriptor names: the file itself with byte ranges, or the HLS playlist and its segments. No token; the secret is the session's.", "security": [],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "epoch", "in": "path", "required": true, "schema": { "type": "integer" } }, { "name": "secret", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "The file, a playlist or a segment" }, "206": { "description": "A byte range of the file" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/multiview-sessions": {
+      "post": { "tags": ["Playback"], "summary": "Watch two to four channels at once", "description": "The server draws the channels into one HLS stream with the sound of one. Offered while the bootstrap's multiview capability is true: with SOFA_MULTIVIEW=auto, only when a GPU encoder works. Each tile holds a playback session, and the stream counts toward SOFA_MAX_TRANSCODES.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenMultiview" } } } },
+        "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MultiviewSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "CHANNEL_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "503": { "description": "MULTIVIEW_UNAVAILABLE or CAPACITY_EXHAUSTED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/api/v1/multiview-sessions/{id}": {
+      "get": { "tags": ["Playback"], "summary": "A multiview session", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MultiviewSession" } } } }, "404": { "description": "SESSION_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
+      "patch": { "tags": ["Playback"], "summary": "Renew the session, or move its sound to another tile", "description": "A session lasts 60 seconds past its last renewal or media request. Another audio tile restarts the stream under a new epoch.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateMultiview" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MultiviewSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "SESSION_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
+      "delete": { "tags": ["Playback"], "summary": "Release the session", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }], "responses": { "204": { "description": "Released" }, "404": { "description": "SESSION_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/media/multiview/{id}/{epoch}/{secret}/{name}": {
+      "get": { "tags": ["Playback"], "summary": "A multiview session's stream", "description": "The URL the session's descriptor names: the HLS playlist and its segments. No token; the secret is the session's.", "security": [],
+        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "epoch", "in": "path", "required": true, "schema": { "type": "integer" } }, { "name": "secret", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "The playlist or a segment" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/artwork/{id}/scrub/{sheet}": {
       "get": { "tags": ["Library"], "summary": "A sheet of an item's scrub thumbnails", "description": "A path from the item's scrub.sheets, with its ?v= version. Carries Cache-Control: public, max-age=604800.", "security": [],

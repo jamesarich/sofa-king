@@ -24,7 +24,7 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | --- | --- | --- |
 | GET | `/healthz` | Public liveness check |
 | GET | `/readyz` | Public database readiness check |
-| GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`, `recordings`, `watchlist`) |
+| GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`, `recordings`, `watchlist`, `multiview`) |
 | POST | `/api/v1/pair` | Exchange a pairing code for a token of the device's own, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429` |
 | GET | `/api/v1/preferences/{clientId}` | The preferences the client with that id last saved, see [viewer preferences](#viewer-preferences); `404 VIEWER_NOT_FOUND` before its first save |
 | PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt` |
@@ -73,6 +73,11 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | PATCH | `/api/v1/vod-sessions/{id}` | Renew it, and with `startMs` restart a converted stream there |
 | DELETE | `/api/v1/vod-sessions/{id}` | Release it; returns 204 |
 | GET | `/media/vod/{id}/{epoch}/{secret}/{name}` | The session's file with byte ranges, or its HLS playlist and segments |
+| POST | `/api/v1/multiview-sessions` | Watch two to four channels as one picture, see [multiview](#multiview) |
+| GET | `/api/v1/multiview-sessions/{id}` | Read a multiview session |
+| PATCH | `/api/v1/multiview-sessions/{id}` | Renew it, and with `audio` move the sound to another tile |
+| DELETE | `/api/v1/multiview-sessions/{id}` | Release it; returns 204 |
+| GET | `/media/multiview/{id}/{epoch}/{secret}/{name}` | The multiview stream's HLS playlist and segments |
 | GET | `/artwork/{id}/{role}` | An item's `poster` or `backdrop`, public, see [media libraries](#media-libraries) |
 | GET | `/artwork/{id}/scrub/{sheet}` | A sheet of an item's scrub thumbnails, public, see [media libraries](#media-libraries) |
 | GET | `/discover.json`, `/lineup.json`, `/lineup_status.json`, `/device.xml` | HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation) |
@@ -204,6 +209,12 @@ An item's `subtitles` list the subtitle streams of its file by stream index, the
 `GET /api/v1/library/items/{id}/subtitles/{index}` returns a text subtitle track from the item's `subtitles` (SubRip, ASS, SSA, MP4 text or WebVTT) as WebVTT, with times in the item's time, so a player draws it over any stream mode by the item's position. The first read extracts the track, which reads the whole file, and up to three tracks are extracted at once; the copy under `SOFA_DATA_DIR/transcode/subtitles` serves later reads until the file changes. A picture track (PGS, DVD, DVB) answers `415 SUBTITLE_NOT_TEXT`; ask for it in a session's `subtitleIndex` instead. One FFmpeg cannot read answers `502 SUBTITLE_FAILED`.
 
 A [recording](recordings.md#play-a-recording) plays the same way: send its `recordingId` instead of `itemId`, and the session echoes `recordingId` with an empty `itemId`. A finished recording's `durationMs` is the file's length. One still recording is never played directly: it gets HLS that follows the file as it grows, with `durationMs` the length its window will have, and the stream ends a minute after the file stops growing. A recording with nothing written yet answers `409 RECORDING_NOT_READY` (retryable), and one that is only scheduled, failed or unknown `404 RECORDING_NOT_FOUND`.
+
+## Multiview
+
+`multiview` in the bootstrap capabilities says the server can draw several channels into one picture now. `POST /api/v1/multiview-sessions` takes `channelIds`, two to four different enabled lineup channels, and `audio`, the index of the one whose sound plays (0 when absent). The server answers `201` with a session whose `descriptor` is one live HLS stream: two channels side by side, or three or four in a grid, left to right and top to bottom, each letterboxed into its quarter, with a white border around the tile whose sound plays. The player plays it like a channel. `PATCH` with `audio` moves the sound and the border to another tile: FFmpeg starts again, the epoch changes, and the player loads the new descriptor's URL. A session lasts 60 seconds past its last renewal or media request, so the player renews it with `PATCH` while it plays and releases it with `DELETE`.
+
+Each tile reads its channel in a playback session of its own, which picks the channel's healthiest source and holds a session slot as a viewer would. A channel that cannot be opened is a black tile; when a source fails mid-stream, the picture starts again two seconds later. The stream counts toward `SOFA_MAX_TRANSCODES` with library playback and virtual channels; one more answers `503 CAPACITY_EXHAUSTED`. `SOFA_MULTIVIEW` decides whether the server offers it: `auto`, the default, only when a [GPU encoder](libraries.md#hardware-transcoding) works, drawing 1080p; `on` also in software, drawing 720p, which takes several CPU cores; `off` never. While it is not offered, `POST` answers `503 MULTIVIEW_UNAVAILABLE`. The server logs which at start, for example `multiview: Off: no GPU encoder works`. Its files are under `SOFA_DATA_DIR/multiview` and are deleted when the session ends.
 
 ## Hooks
 
@@ -535,6 +546,6 @@ Errors contain `code`, `message` and `retryable`:
 | 429 | `CAPACITY_EXHAUSTED` (no session slot is free or can be freed, or a session already has 12 media requests in flight) |
 | 500 | `INTERNAL_ERROR` |
 | 502 | `UPSTREAM_UNAVAILABLE`, `UPSTREAM_REJECTED`, `INVALID_MANIFEST` |
-| 503 | `NOT_READY`, `SOURCE_UNAVAILABLE`, `SETUP_UNAVAILABLE`, `CAPACITY_EXHAUSTED` (every library playback slot, `SOFA_MAX_TRANSCODES`, is converting), `TRANSCODER_UNAVAILABLE` (FFmpeg could not start) |
+| 503 | `NOT_READY`, `SOURCE_UNAVAILABLE`, `SETUP_UNAVAILABLE`, `CAPACITY_EXHAUSTED` (every library playback slot, `SOFA_MAX_TRANSCODES`, is converting), `TRANSCODER_UNAVAILABLE` (FFmpeg could not start), `MULTIVIEW_UNAVAILABLE` (the server does not draw [multiview](#multiview)) |
 
 The admin portal shows its errors on its pages. A sign-in over its limit answers `429 Too Many Requests` with no error body.

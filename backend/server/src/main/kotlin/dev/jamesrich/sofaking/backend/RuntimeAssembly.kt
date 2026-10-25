@@ -36,8 +36,10 @@ import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.backend.library.ffprobeBeside
 import dev.jamesrich.sofaking.backend.logging.applyLogLevel
 import dev.jamesrich.sofaking.backend.logos.LogoCache
+import dev.jamesrich.sofaking.backend.multiview.MultiviewSessions
 import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.pairing.PairingService
+import dev.jamesrich.sofaking.backend.playback.ChannelTap
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.MediaRelay
 import dev.jamesrich.sofaking.backend.playback.SegmentAudio
@@ -176,7 +178,7 @@ internal class RuntimeAssembly(
             RunningBuild(config.revision, config.version),
             jobs,
         ).also { it.start(scope) }
-        val (vod, streams) = playback(dvr, libraries)
+        val (vod, streams, multiview) = playback(dvr, libraries)
         val runtime = LiveRuntime(
             store, feeds, guides, lineup, catalog, sessions, relay,
             TsRemux(
@@ -194,6 +196,7 @@ internal class RuntimeAssembly(
             IssuedTokens(store, clock),
             virtual = virtual,
             virtualStreams = streams,
+            multiview = multiview,
         )
         dvr.start(scope)
         dvr.requestSchedule("startup")
@@ -360,11 +363,13 @@ internal class RuntimeAssembly(
     ).also { it.start(scope) }
 
     /**
-     * Library playback and the virtual channels' streams, which share `SOFA_MAX_TRANSCODES`: each counts the other's
-     * conversions, the streams are served on the loopback listener, and their live slots play the lineup.
+     * Library playback, the virtual channels' streams and multiview, which share `SOFA_MAX_TRANSCODES`: each counts the
+     * others' conversions. The streams are served on the loopback listener, and the live slots and multiview tiles read
+     * the lineup through one [ChannelTap].
      */
-    private suspend fun playback(dvr: Dvr, libraries: LibraryService): Pair<VodSessions, VirtualStreams> {
+    private suspend fun playback(dvr: Dvr, libraries: LibraryService): Converters {
         lateinit var streams: VirtualStreams
+        lateinit var multiview: MultiviewSessions
         val vod = VodSessions(
             libraries.catalog,
             clock,
@@ -374,8 +379,12 @@ internal class RuntimeAssembly(
             recordings = dvr::playable,
             probe = MediaProbe(ffprobeBeside(config.ffmpeg))::probe,
             encoder = config.videoEncoder,
-            others = { streams.running },
+            others = { streams.running + multiview.running },
         ).also { it.start() }
+        val free: suspend () -> Boolean = {
+            val converting = vod.snapshot().count { it.mode != Wire.VodMode.DIRECT }
+            converting + streams.running + multiview.running < config.maxTranscodes
+        }
         streams = VirtualStreams(
             config.ffmpeg,
             config.dataDirectory.resolve("virtual"),
@@ -384,12 +393,27 @@ internal class RuntimeAssembly(
             scope,
             vod.encoder,
             slides = SlideFetcher(http, upstream),
-        ) {
-            val converting = vod.snapshot().count { it.mode != Wire.VodMode.DIRECT }
-            converting + streams.running < config.maxTranscodes
-        }
+            mayStart = free,
+        )
+        val tap = ChannelTap(sessions, feeds, loopback)
+        multiview = MultiviewSessions(
+            config.ffmpeg,
+            config.dataDirectory.resolve("multiview"),
+            lineup,
+            tap,
+            clock,
+            scope,
+            config.multiview,
+            encoder = { vod.encoder },
+            mayStart = free,
+        )
+        assemblyLog.info("multiview: {}", multiview.verdict)
+        scope.launchEvery("multiview-expire", VIRTUAL_EXPIRE_MS) { multiview.expire() }
         loopback.local = streams::serve
-        virtual.live = LineupSlots(lineup, guides, feeds, sessions, loopback)
-        return vod to streams
+        virtual.live = LineupSlots(lineup, guides, feeds, tap)
+        return Converters(vod, streams, multiview)
     }
+
+    /** What [playback] makes. */
+    private data class Converters(val vod: VodSessions, val streams: VirtualStreams, val multiview: MultiviewSessions)
 }

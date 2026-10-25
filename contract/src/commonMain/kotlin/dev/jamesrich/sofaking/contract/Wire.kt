@@ -152,6 +152,9 @@ object Wire {
     /** A pairing code is this many decimal digits. */
     const val PAIRING_CODE_LENGTH = 6
 
+    /** The most channels one multiview session shows; it needs at least two. */
+    const val MULTIVIEW_MAX_TILES = 4
+
     /** One guide query names at most this many channels, over at most this many hours. */
     const val GUIDE_MAX_CHANNELS = 200
     const val GUIDE_MAX_HOURS = 24

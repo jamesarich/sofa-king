@@ -303,6 +303,17 @@ docker buildx imagetools inspect ghcr.io/jamesarich/sofa-king:main --format '{{j
 
 Compare the commit in the provenance with the `org.opencontainers.image.revision` label of the image you run.
 
+Each published image is also signed with [Sigstore](https://www.sigstore.dev/)'s keyless signing and carries a GitHub build attestation, both made by `backend.yml` on `main` or a `v*` tag. Check either before you run an image:
+
+```sh
+cosign verify ghcr.io/jamesarich/sofa-king:main \
+  --certificate-identity-regexp '^https://github.com/jamesarich/sofa-king/\.github/workflows/backend\.yml@refs/(heads/main|tags/v.*)$' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+gh attestation verify oci://ghcr.io/jamesarich/sofa-king:main --repo jamesarich/sofa-king
+```
+
+An image that this repository's workflow did not build fails both.
+
 ## Update automatically
 
 `deploy/sofa-king-update.sh` keeps a host on the [published image](#the-published-image). When the published image differs from the running one, it:

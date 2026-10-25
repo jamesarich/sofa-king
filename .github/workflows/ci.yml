@@ -371,6 +371,8 @@ jobs:
     needs: [check, apple, apple-tv, snapshot]
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/publish-snapshot.yml
     with:
       version: ${{ needs.snapshot.outputs.version }}

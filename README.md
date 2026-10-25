@@ -13,6 +13,7 @@
   <a href="app/README.md#platforms"><img alt="Platforms: Android TV, Android, desktop, iOS, Apple TV, web" src="https://img.shields.io/badge/platforms-Android_TV_·_Android_·_desktop_·_iOS_·_Apple_TV_·_web-C9B8FF?labelColor=14111F"></a>
   <a href="https://github.com/jamesarich/sofa-king/actions/workflows/ci.yml?query=branch%3Amain"><img alt="App CI" src="https://img.shields.io/github/actions/workflow/status/jamesarich/sofa-king/ci.yml?branch=main&label=app%20CI&labelColor=14111F"></a>
   <a href="https://github.com/jamesarich/sofa-king/actions/workflows/backend.yml?query=branch%3Amain"><img alt="Server CI" src="https://img.shields.io/github/actions/workflow/status/jamesarich/sofa-king/backend.yml?branch=main&label=server%20CI&labelColor=14111F"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/jamesarich/sofa-king"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/jamesarich/sofa-king/badge"></a>
   <a href="https://jamesarich.github.io/sofa-king/"><img alt="Documentation" src="https://img.shields.io/badge/docs-jamesarich.github.io-C9B8FF?labelColor=14111F"></a>
 </p>
 

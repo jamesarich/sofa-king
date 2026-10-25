@@ -115,12 +115,16 @@ class AppJourneyTest {
     }
 
     @Test
-    fun `Settings opens on its first setting and Back returns to its button`() = journey(tv = true) {
+    fun `Settings opens on its first page and Back returns through it to its button`() = journey(tv = true) {
         guideCell()
         keys("Back", "Back", "Right", "Right", "Right")
         assertFocused("Settings")
         keys("OK")
+        assertFocused("the Live TV row") { it?.startsWith("Live TV") == true }
+        keys("OK")
         assertFocused("Where I left off")
+        keys("Back")
+        assertFocused("the Live TV row") { it?.startsWith("Live TV") == true }
         keys("Back")
         assertFocused("Settings")
     }

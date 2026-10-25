@@ -57,6 +57,7 @@ import dev.jamesrich.sofaking.ui.player.PlayerButtonRow
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
 import dev.jamesrich.sofaking.ui.player.UnavailableLivePlayer
 import dev.jamesrich.sofaking.ui.settings.SettingsLockScreen
+import dev.jamesrich.sofaking.ui.settings.SettingsPage
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
@@ -236,6 +237,25 @@ class RenderSmokeTest {
             )
         }
         assertTrue(image.hasContent())
+    }
+
+    @Test
+    fun `every settings page renders its settings`() {
+        SettingsPage.entries.forEach { page ->
+            val image = render("settings-${page.name.lowercase()}") {
+                SettingsScreen(
+                    settings = AppSettings(serverUrl = "http://sofa.lan:9193", captionsEnabled = true),
+                    onSave = { _, _ -> },
+                    onBack = {},
+                    channelCount = channels.size,
+                    channels = channels,
+                    libraryOffered = true,
+                    recordingsOffered = true,
+                    page = page,
+                )
+            }
+            assertTrue(image.hasContent(), "$page")
+        }
     }
 
     @Test

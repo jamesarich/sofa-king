@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -57,7 +58,6 @@ import dev.jamesrich.sofaking.resources.licenses_title
 import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.resources.settings_channels_loaded
 import dev.jamesrich.sofaking.resources.settings_section_about
-import dev.jamesrich.sofaking.resources.settings_section_lock
 import dev.jamesrich.sofaking.resources.settings_title
 import dev.jamesrich.sofaking.resources.settings_tmdb_notice
 import dev.jamesrich.sofaking.resources.settings_update_address
@@ -116,6 +116,8 @@ class SettingsActions(
     val onGuideDensityChanged: (GuideDensity) -> Unit = {},
     /** Opens the channel manager (hidden channels and the favorites order). */
     val onManageChannels: () -> Unit = {},
+    /** Opens one of Settings' pages from its list. */
+    val onOpenPage: (SettingsPage) -> Unit = {},
     val onMatchFrameRateChanged: (Boolean) -> Unit = {},
     val onNightListeningChanged: (Boolean) -> Unit = {},
     val onDecoderChanged: (DecoderPreference) -> Unit = {},
@@ -147,6 +149,10 @@ class PairingUi(
     val onDismiss: () -> Unit = {},
 )
 
+/**
+ * Settings: with no [page], the list of its pages, the server and About; with one, that page's settings, which apply
+ * as they change.
+ */
 @Composable
 fun SettingsScreen(
     settings: AppSettings,
@@ -175,9 +181,11 @@ fun SettingsScreen(
     returnedFrom: String? = null,
     /** The servers on the network, collected (and so browsed for) only while the server fields are open. */
     discoveredServers: Flow<List<DiscoveredServer>> = noServers,
+    /** The page shown, or null for the list. */
+    page: SettingsPage? = null,
 ) {
-    var startup by rememberShown(settings.startup)
-    var subtitleLook by rememberShown(settings.subtitleLook)
+    val startup = rememberShown(settings.startup)
+    val subtitleLook = rememberShown(settings.subtitleLook)
     val server = rememberServerFields(settings, pairing)
     val serverOpen = server.changing
     val unconfigured = remember { settings.serverUrl.isEmpty() }
@@ -202,6 +210,11 @@ fun SettingsScreen(
             onSave,
         )
     }
+    val offer = SettingsOffer(
+        library = libraryOffered,
+        recordings = recordingsOffered,
+        playback = supportsPlaybackPreferences || supportsNightListening,
+    )
     // Focus scrolls only to show what it lands on, so the first setting taking focus keeps the title on screen.
     ScrollOnlyWhenHidden(SETTINGS_FOCUS_EDGE) {
         LazyColumn(
@@ -213,39 +226,75 @@ fun SettingsScreen(
                 .focusGroup(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item { ScreenTitle(stringResource(Res.string.settings_title), onBack, focus.back) }
-            // A device with no server starts here; a configured one keeps the server near
-            // the end, as it seldom changes.
-            if (unconfigured) serverSection()
-            generalSection(settings, actions, startup, { startup = it }, channels, libraryOffered, focus.startup)
-            guideSection(settings, actions, channels, focus.channels)
-            if (recordingsOffered) recordingsSection(settings, actions, withSeekSteps = !libraryOffered)
-            if (libraryOffered) {
-                librarySection(settings, actions, subtitleLook) { look ->
-                    subtitleLook = look
-                    actions.onSubtitleLookChanged(look)
+            item { ScreenTitle(page?.title(offer) ?: stringResource(Res.string.settings_title), onBack, focus.back) }
+            when (page) {
+                null -> {
+                    // A device with no server starts here; a configured one keeps the server under the pages, as it
+                    // seldom changes.
+                    if (unconfigured) serverSection()
+                    pageRows(settings, offer, focus::page, actions.onOpenPage)
+                    if (!unconfigured) serverSection()
+                    // About: the app, its version and what is loaded, then where the build stands against the
+                    // published snapshot.
+                    item { SectionHeader(stringResource(Res.string.settings_section_about)) }
+                    item { AboutBlock(channelCount, update, actions, focus.licenses) }
                 }
+
+                else -> pageContent(page, settings, actions, offer, channels, startup, subtitleLook, focus)
             }
-            captionsSection(settings, actions)
-            if (supportsPlaybackPreferences || supportsNightListening) playbackSection(settings, actions)
-            if (!unconfigured) serverSection()
-            item { SectionHeader(stringResource(Res.string.settings_section_lock)) }
-            item { LockSection(settings, actions.onSettingsPinChanged, actions.onKidsModeChanged) }
-            // About: the app, its version and what is loaded, then where the build stands
-            // against the published snapshot.
-            item { SectionHeader(stringResource(Res.string.settings_section_about)) }
-            item { AboutBlock(channelCount, update, actions, focus.licenses) }
         }
     }
 }
 
-/** Where focus goes on Settings: Back, the list itself, and the buttons of the pages behind it. */
+/**
+ * The settings on [page], with the startup target and the subtitles' look shown at once as they change ([startup],
+ * [subtitleLook]).
+ */
+private fun LazyListScope.pageContent(
+    page: SettingsPage,
+    settings: AppSettings,
+    actions: SettingsActions,
+    offer: SettingsOffer,
+    channels: List<Channel>,
+    startup: MutableState<StartupTarget>,
+    subtitleLook: MutableState<SubtitleLook>,
+    focus: SettingsFocus,
+) {
+    when (page) {
+        SettingsPage.LIVE_TV -> liveTvPage(
+            settings,
+            actions,
+            startup.value,
+            { startup.value = it },
+            channels,
+            offer.library,
+            focus.startup,
+            focus.channels,
+        )
+
+        SettingsPage.LIBRARY -> libraryPage(settings, actions, offer.library, offer.recordings)
+
+        SettingsPage.CAPTIONS -> captionsPage(settings, actions, subtitleLook.value.takeIf { offer.library }) { look ->
+            subtitleLook.value = look
+            actions.onSubtitleLookChanged(look)
+        }
+
+        SettingsPage.PLAYBACK -> playbackPage(settings, actions)
+
+        SettingsPage.LOCK -> item { LockSection(settings, actions.onSettingsPinChanged, actions.onKidsModeChanged) }
+    }
+}
+
+/** Where focus goes on Settings: Back, the list itself, the rows of its pages, and the buttons of the pages behind. */
 private class SettingsFocus {
     val back = FocusRequester()
     val content = FocusRequester()
     val channels = FocusRequester()
     val startup = FocusRequester()
     val licenses = FocusRequester()
+    private val pages = SettingsPage.entries.associateWith { FocusRequester() }
+
+    fun page(page: SettingsPage): FocusRequester = pages.getValue(page)
 
     /** Back, or where no Back button is drawn, the first setting. */
     @Composable
@@ -260,7 +309,7 @@ private fun ArrivalFocus(returnedFrom: String?, focus: SettingsFocus, initial: F
             CHANNELS_FOCUS_KEY -> focus.channels
             STARTUP_FOCUS_KEY -> focus.startup
             LICENSES_FOCUS_KEY -> focus.licenses
-            else -> null
+            else -> SettingsPage.entries.firstOrNull { it.focusKey == returnedFrom }?.let(focus::page)
         }
         if (returnTo != null && requestFocusWhenAttached(returnTo)) return@LaunchedEffect
         requestFocusWhenAttached(initial)
@@ -459,6 +508,6 @@ private fun installText(install: InstallState): String = when (install) {
     }
 }
 
-/** What Settings' `returnedFrom` holds for the channel manager and the startup channel picker. */
+/** What the Live TV page's `returnedFrom` holds for the channel manager and the startup channel picker. */
 internal const val CHANNELS_FOCUS_KEY = "channels"
 internal const val STARTUP_FOCUS_KEY = "startup-channel"

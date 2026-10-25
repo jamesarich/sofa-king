@@ -59,6 +59,8 @@ class SettingsAboutFocusTest {
                         onSave = { _, _ -> },
                         onBack = {},
                         channelCount = 0,
+                        libraryOffered = true,
+                        recordingsOffered = true,
                         actions = SettingsActions(onCheckForUpdate = { _, again -> onCheck(again) }),
                         update = update(),
                     )

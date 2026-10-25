@@ -22,7 +22,10 @@ private val IntRange.span: String get() = "$first and $last"
  */
 fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String> {
     val effective = effectiveLearned(policy.names)
-    return settingErrors(policy) + providerErrors(policy, providerIds) + groupErrors(policy) + nameErrors(policy) +
+    return settingErrors(
+        policy,
+    ) + guideMatchErrors(policy) + providerErrors(policy, providerIds) + groupErrors(policy) +
+        nameErrors(policy) +
         policy.stations.entries.sortedBy { it.key }.flatMap { (key, station) ->
             stationErrors(key, station, policy, effective, providerIds)
         } +
@@ -51,6 +54,21 @@ private fun settingErrors(policy: LineupPolicy): List<String> = buildList {
     if (health.enableOn !in ENABLE_ON) add("health.enableOn must be healthy or eligible")
     if (health.keepMissingDays !in KEEP_MISSING_DAYS) {
         add("health.keepMissingDays must be between ${KEEP_MISSING_DAYS.span}")
+    }
+}
+
+/** The most ignored prefixes or suffixes `guideMatches` takes. */
+private const val IGNORE_LIMIT = 100
+
+private fun guideMatchErrors(policy: LineupPolicy): List<String> = buildList {
+    val matches = policy.guideMatches
+    if (matches.acceptAbove !in 0.0..1.0) add("guideMatches.acceptAbove must be between 0 and 1")
+    val lists = mapOf("ignorePrefixes" to matches.ignorePrefixes, "ignoreSuffixes" to matches.ignoreSuffixes)
+    for ((field, values) in lists) {
+        if (values.size > IGNORE_LIMIT) add("guideMatches.$field takes at most $IGNORE_LIMIT entries")
+        if (values.any { !fits(it.trim(), NAME_LIMIT) }) {
+            add("guideMatches.$field: entries must be 1 to $NAME_LIMIT characters")
+        }
     }
 }
 

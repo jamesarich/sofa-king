@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.api.GuideMatch
+import dev.jamesrich.sofaking.backend.api.GuideMatchChoice
 import dev.jamesrich.sofaking.backend.api.PolicyUnmappedCategory
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.PolicyService
@@ -13,7 +15,7 @@ import io.ktor.server.routing.accept
 import io.ktor.server.routing.get
 import io.ktor.server.routing.route
 
-/** The policy's own pages: merges, required channels and groups. */
+/** The policy's own pages: merges, guide matches, required channels and groups. */
 internal class PolicyPages(private val portal: Portal, private val editor: PolicyEditor) {
     private val runtime get() = portal.runtime
     private val reader = LineupReader(portal)
@@ -28,6 +30,26 @@ internal class PolicyPages(private val portal: Portal, private val editor: Polic
         }
         route.action("/merges/dismiss") { session, form ->
             merge(call, session, form, "Kept apart") { policy, from, to -> policy.edits.neverMerge(from, to, null) }
+        }
+        route.get("/guide-matches") { call.html(guideMatchesPage(chrome(), guideMatchesView())) }
+        route.action("/guide-matches/accept") { session, form ->
+            guideMatch(call, session) { policy ->
+                val choice = choiceOf(form)
+                policy.guideMatches.accept(choice)
+                "Accepted ${choice.channelId} for ${choice.station}."
+            }
+        }
+        route.action("/guide-matches/dismiss") { session, form ->
+            guideMatch(call, session) { policy ->
+                val choice = choiceOf(form)
+                policy.guideMatches.dismiss(choice)
+                "Dismissed ${choice.channelId} for ${choice.station}."
+            }
+        }
+        route.action("/guide-matches/accept-all") { session, _ ->
+            guideMatch(call, session) { policy ->
+                "Accepted ${plural(policy.guideMatches.acceptAll(null).accepted, "guide match", "guide matches")}."
+            }
         }
         route.get("/required") { call.html(requiredPage(chrome(), requiredView())) }
         route.get("/groups") { call.html(groupsPage(chrome(), groupsView())) }
@@ -72,6 +94,46 @@ internal class PolicyPages(private val portal: Portal, private val editor: Polic
                 failure.status,
             )
         }
+    }
+
+    /** Runs [write], then shows what it did, or why it failed, on Guide matches. */
+    private suspend fun guideMatch(
+        call: ApplicationCall,
+        session: AdminSession,
+        write: suspend (PolicyService) -> String,
+    ) {
+        val policy = runtime.policy
+            ?: throw ApiFailure(HttpStatusCode.NotFound, "POLICY_NOT_CONFIGURED", "No lineup policy is configured")
+        val failure = try {
+            session.flash.set(Flash("${write(policy)} The policy was applied."))
+            null
+        } catch (e: ApiFailure) {
+            e
+        }
+        if (failure == null) {
+            seeOther(call, "/admin/guide-matches")
+        } else {
+            call.html(
+                guideMatchesPage(
+                    portal.chrome(call, session, Flash("Not saved: ${failure.message}", Tone.BAD)),
+                    guideMatchesView(),
+                    failure.message,
+                ),
+                failure.status,
+            )
+        }
+    }
+
+    private fun guideMatchesView(): GuideMatchesView? {
+        val policy = runtime.policy ?: return null
+        val settings = policy.policy.guideMatches
+        return GuideMatchesView(
+            policy.guideMatches.proposals(),
+            settings.acceptAbove,
+            settings.ignorePrefixes,
+            settings.ignoreSuffixes,
+            ran = policy.lastApplied() != null,
+        )
     }
 
     private suspend fun mergesView(): MergesView? {
@@ -135,6 +197,15 @@ internal class PolicyPages(private val portal: Portal, private val editor: Polic
     }
 }
 
+/** The station and guide channel a Guide matches form posts. */
+private fun choiceOf(form: Parameters): GuideMatchChoice {
+    val (station, guideId, channelId) = listOf("station", "guideId", "channelId").map { form[it]?.trim().orEmpty() }
+    if (station.isEmpty() || guideId.isEmpty() || channelId.isEmpty()) {
+        throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "A station and a guide channel are required")
+    }
+    return GuideMatchChoice(station, guideId, channelId)
+}
+
 private val SUGGESTION = Regex("(.+): possible alias of (.+)")
 
 internal class MergesView(
@@ -144,4 +215,12 @@ internal class MergesView(
     val suggestions: List<Pair<String, String>>,
     val findings: List<String>,
     val unmapped: List<PolicyUnmappedCategory>,
+)
+
+internal class GuideMatchesView(
+    val matches: List<GuideMatch>,
+    val acceptAbove: Double,
+    val ignorePrefixes: List<String>,
+    val ignoreSuffixes: List<String>,
+    val ran: Boolean,
 )

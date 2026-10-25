@@ -81,6 +81,10 @@ A learned alias for a pair in `names.never` is ignored and removed at the next w
 | `health.requireVerified` | `true` | A station stays off until one of its sources has qualified healthy once |
 | `maxSourcesPerStation` | `16` | Source cap per station; 1 to 64 |
 | `stations` | `{}` | Overrides by station key, see below |
+| `guideMatches.ignorePrefixes` | `[]` | Text, such as `US:`, that comes off the start of a station's and a guide channel's name before [guide matching](#guide-matches) compares them; case-insensitive, at most 100 |
+| `guideMatches.ignoreSuffixes` | `[]` | The same for the end of a name, such as `FHD` |
+| `guideMatches.acceptAbove` | `0.9` | The confidence, 0 to 1, Accept all takes a station's best proposal at |
+| `guideMatches.dismissed` | `[]` | Written by the server: `{"station", "guideId", "channelId"}` proposals a person dismissed, never proposed again |
 
 ### Provider entries
 
@@ -171,6 +175,12 @@ With a policy, the probe worker runs whatever the providers' `probe` flags say, 
 
 Each run reports findings, each starting with the station key; the `groups:` summary of unmapped categories is the exception. Findings cover required or pinned sources missing, stations over the source cap, missing stations, and stations left as they were. They also cover schedule matches the policy kept from merging, because of an override holding more than a number or a `names.never` pair. With HDHomeRun range devices, a lineup that needs more devices than are configured adds an `hdhr:` finding. `GET /api/v1/admin/policy/findings` returns the open findings of a run over the current candidates, and the suggested aliases. With [Plex sync](live-tv.md#keep-plex-in-step) configured, it also carries the last sync's `plex:` findings.
 
+### Guide matches
+
+A station takes its guide from the guides that list one of its sources' `tvg-id`. For a station that has none, guide matching proposes guide channels by name. Both names lose the `guideMatches` prefixes and suffixes, then compare in their loose form: the name normalization without the words tv, channel, network, live, the and hd, and without spaces. A guide channel's ID before its first `.`, as in `CNN.us`, counts as a second name. Equal loose names score a confidence of 1. A name that shares a word with the station's scores its letter-pair (Dice) similarity, at most 0.95, and is listed from 0.6. Each station lists its best three, best first. Schedules do not count: a station with no guide has no programs to compare.
+
+Accepting a proposal writes it as the station's `guide` override, the same field `PATCH /lineup/{id}` writes, and applies. Accept all does so in one write for every station whose best proposal reaches `acceptAbove`, except a station whose best two proposals tie on different channels. Dismissing a proposal adds it to `guideMatches.dismissed`. The portal lists proposals on the Guide matches tab; the API is [below](#api).
+
 ### Unmapped categories
 
 Each run lists the raw categories that no `groups.map` entry, `rawGroup` pattern or, with `groups.builtIn`, shipped mapping names and that neither `groups.weak` nor the shipped weak list holds, in `unmappedCategories`, in preview, apply and findings. Every source of a station counts, not only the leading one. There is one entry per provider and category, `{"provider", "category", "stations", "example"}`, with the most stations first, then provider and category. `category` is the lowercase key `groups.map` takes, and `example` is the first station name in sorted order. Stations with a group override, a matching name pattern or a leading provider entry with a `group` are not listed, and neither are sources with no raw category. When the list is not empty, the findings carry one `groups:` line with the category and station counts.
@@ -189,6 +199,10 @@ All routes are under `/api/v1/admin` and take the admin token.
 | POST | `/policy/apply` | Run now and write the result; reports `enabledStations`, the numbers it `assigned`, the aliases it `learned`, the `unmappedCategories`, and with range devices `devicesNeeded` and `devicesConfigured` |
 | GET | `/policy/findings` | Open findings, suggested aliases and `unmappedCategories` |
 | GET | `/policy/changes?limit=` | The change log, newest first: each field a run changed, with the station key and the cause |
+| GET | `/policy/guide-matches` | Each station's [guide matches](#guide-matches): `station` (its key), `stationId`, `stationName`, `number`, `guideId`, `channelId`, `channelName` and `confidence`, in lineup order, best first; empty before the first apply |
+| POST | `/policy/guide-matches/accept` | `{"station", "guideId", "channelId"}`: writes that channel as the station's `guide`, then applies and returns the apply result. 404 `GUIDE_CHANNEL_NOT_FOUND` for a channel the guide does not list |
+| POST | `/policy/guide-matches/accept-all` | `{"minConfidence"}`, optional, else `guideMatches.acceptAbove`: accepts each station's best proposal at that confidence or more in one write, then applies; returns `{"accepted", "applied"}`, with `applied` null when nothing was accepted |
+| POST | `/policy/guide-matches/dismiss` | `{"station", "guideId", "channelId"}`: adds the proposal to `guideMatches.dismissed`, then applies |
 | GET | `/stations/{key}` | One station: its pins and every channel that names the key or joins it, with why |
 | PATCH | `/lineup/{id}` | Writes `name`, `number`, `group`, `logo`, `guide`, `gracenoteId`, `enabled` and `offerings` (as pins by provider and `tvg-id`) into the station's override, then applies |
 | DELETE | `/lineup/{id}` | Writes `enabled: false` into the station's override, then applies |

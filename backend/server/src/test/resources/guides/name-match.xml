@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tv generator-info-name="name match fixture">
+  <channel id="tsstation.us">
+    <display-name>US: TS Station HD</display-name>
+  </channel>
+  <channel id="tsstations.us">
+    <display-name>TS Stations</display-name>
+  </channel>
+  <channel id="weather.us">
+    <display-name>Weather Now</display-name>
+  </channel>
+  <programme channel="tsstation.us" start="20261010200000 +0000" stop="20261010203000 +0000">
+    <title lang="en">Station Hour</title>
+  </programme>
+</tv>

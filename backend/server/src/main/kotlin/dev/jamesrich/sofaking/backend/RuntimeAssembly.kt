@@ -35,6 +35,7 @@ import dev.jamesrich.sofaking.backend.library.ScrubSheets
 import dev.jamesrich.sofaking.backend.library.TmdbClient
 import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.backend.library.ffprobeBeside
+import dev.jamesrich.sofaking.backend.logging.DebugWindow
 import dev.jamesrich.sofaking.backend.logging.applyLogLevel
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.multiview.MultiviewSessions
@@ -138,6 +139,7 @@ internal class RuntimeAssembly(
     val scope = backgroundScope()
     private val jobs = Jobs(clock)
     private val settings = RuntimeSettings(store, RuntimeValues.of(config), clock)
+    private val debugWindow = DebugWindow(clock, scope, { settings.current.logLevel })
     private val upstream = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
     private val events = ServerEvents(clock)
     private val history = SessionHistory(store, events, clock, Duration.ofDays(config.historyDays.toLong()))
@@ -164,7 +166,7 @@ internal class RuntimeAssembly(
         for (problem in settings.load()) assemblyLog.warn("runtime settings: dropped a saved value: {}", problem)
         // The level the operator saved outranks the environment's from here on; logback
         // read the environment's at start.
-        settings.onChange { applyLogLevel(it.logLevel) }
+        settings.onChange { applyLogLevel(debugWindow.level(it.logLevel)) }
         val libraries = libraries()
         liveCatalog(libraries)
         plex = plexSync()
@@ -211,6 +213,7 @@ internal class RuntimeAssembly(
             virtualStreams = streams,
             multiview = multiview,
             backups = databaseBackups(config, clock, jobs, options.restart, store, scope),
+            debugWindow = debugWindow,
         )
         dvr.start(scope)
         dvr.requestSchedule("startup")

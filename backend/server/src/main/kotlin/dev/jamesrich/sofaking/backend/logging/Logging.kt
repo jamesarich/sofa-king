@@ -105,7 +105,7 @@ private fun fileAppender(
     val appender = RollingFileAppender<ILoggingEvent>()
     appender.context = context
     appender.name = "file"
-    appender.file = directory.resolve("server.log").toString()
+    appender.file = directory.resolve(LOG_FILE).toString()
     val policy = SizeAndTimeBasedRollingPolicy<ILoggingEvent>().apply {
         this.context = context
         fileNamePattern = directory.resolve("server.%d{yyyy-MM-dd,UTC}.%i.log.gz").toString()
@@ -149,6 +149,13 @@ private fun encoder(context: LoggerContext, format: String): Encoder<ILoggingEve
 
 private const val THRESHOLD = "sofa.logThreshold"
 
+/** The folder in the data directory that holds the log files, and the current file's name in it. */
+const val LOG_FOLDER = "logs"
+const val LOG_FILE = "server.log"
+
+/** The log file the server writes now under [dataDirectory]. */
+fun logFile(dataDirectory: Path): Path = dataDirectory.resolve(LOG_FOLDER).resolve(LOG_FILE)
+
 /** How many days of log files are kept by default, and at most. */
 const val DEFAULT_LOG_DAYS = 14
 private const val MAX_LOG_DAYS = 365
@@ -187,7 +194,7 @@ class EnvironmentLogConfigurator :
             LogSettings()
         }
         val data = Path.of(System.getenv("SOFA_DATA_DIR")?.takeIf { it.isNotBlank() } ?: "data")
-        configureLogging(context, settings, directory = data.resolve("logs"))
+        configureLogging(context, settings, directory = data.resolve(LOG_FOLDER))
         return Configurator.ExecutionStatus.DO_NOT_INVOKE_NEXT_IF_ANY
     }
 }

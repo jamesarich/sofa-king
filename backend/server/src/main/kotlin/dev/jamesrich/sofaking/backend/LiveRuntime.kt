@@ -17,6 +17,7 @@ import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.library.ProgramFactsLookup
 import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.backend.library.WatchlistService
+import dev.jamesrich.sofaking.backend.logging.DebugWindow
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.multiview.MultiviewSessions
 import dev.jamesrich.sofaking.backend.notify.NotificationTargetsService
@@ -152,6 +153,8 @@ class LiveRuntime(
     val multiview: MultiviewSessions? = null,
     /** The database backups and restore; null for a runtime built without a config. */
     val backups: DatabaseBackups? = null,
+    /** The portal's spell of DEBUG logging; null for a runtime built without a config. */
+    val debugWindow: DebugWindow? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()

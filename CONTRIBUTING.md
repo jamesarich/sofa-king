@@ -59,6 +59,15 @@ The squash-merge title is the release note: the `snapshot` release lists every `
 - Leave tokens, cookies, device identifiers, server addresses and private URLs out of code, fixtures, logs, screenshots and descriptions. The repository is public.
 - Pull requests are squash-merged once CI is green at the head.
 
+## Documentation site
+
+The Markdown pages are also the [documentation site](https://jamesarich.github.io/sofa-king/), built with MkDocs and Material for MkDocs from `mkdocs.yml`. The pages stay where they are and read the same on GitHub: [`docs/site/stage.py`](docs/site/stage.py) copies every tracked page and docs image (agent instructions and `.github/` aside) into `build/docs-src`, with the server's OpenAPI document rendered by Scalar as the API reference, and [`docs/site/hooks.py`](docs/site/hooks.py) points links to scripts and other non-page files at GitHub. A new page goes in the `nav` of `mkdocs.yml` as well as its part's index. To build it locally:
+
+```sh
+pip install -r docs/site/requirements.txt
+python3 docs/site/stage.py && mkdocs serve
+```
+
 ## Wire changes
 
 A request or response type the app and the server share lives in `contract/`, never in either part. A change to it lands with both sides in one pull request, follows the rules in the [contract's README](contract/README.md), and keeps every fixture in `contract/src/jvmTest/resources/wire`: never edit or delete one. Released apps run against newer servers, so the server must keep answering what those fixtures hold.
@@ -73,6 +82,7 @@ Versions are pinned exactly in the shared catalog, with no lockfiles or verifica
 | --- | --- | --- |
 | [`ci.yml`](.github/workflows/ci.yml) | Pull requests and pushes to `main` that change `app/` or `contract/` (not their Markdown or `app/docs/`), the shared `gradle/` directory, `.editorconfig` or `build-logic/`, `ci.yml`, `snapshot.yml`, `publish-snapshot.yml`, `.github/version.sh` or the `apt-install` action; also a manual run | Tests and builds the app, runs the [Apple TV remote tests](app/docs/development.md#apple-tv-remote-tests), the [iOS touch tests](app/docs/development.md#ios-touch-tests) and the [web key fuzz](app/docs/development.md#web-key-fuzz), and publishes the snapshot from `main` |
 | [`backend.yml`](.github/workflows/backend.yml) | Pull requests and pushes to `main` that change `backend/` or `contract/` (not their Markdown or `backend/docs/`), the shared `gradle/` directory, `.editorconfig` or `build-logic/`, `backend.yml`, `.github/version.sh` or the `apt-install` action; also a manual run | Tests and builds the server, and publishes its image from `main` |
+| [`docs.yml`](.github/workflows/docs.yml) | Pull requests and pushes to `main` that change any Markdown page, `docs/`, `mkdocs.yml`, the server's OpenAPI document or `docs.yml`; also a manual run | Builds the [documentation site](https://jamesarich.github.io/sofa-king/) strictly, so a link to a missing page or anchor fails, and publishes it to GitHub Pages from `main` |
 | [`screenshots.yml`](.github/workflows/screenshots.yml) | Pull requests that change it, `app/scripts/screenshots.py`, `app/scripts/showcase.py`, `app/scripts/fixture_server.py` or the `apt-install` action, and a manual run | Takes the documentation's screenshots on the web, the Linux desktop, Android phone, tablet and TV emulators and iPhone, iPad and Apple TV simulators against the showcase lineup, as [the app's development page](app/docs/development.md#screenshots) describes |
 | [`tv-monkey.yml`](.github/workflows/tv-monkey.yml) | Nightly, pull requests that change it, `app/scripts/tv-monkey.py`, `app/scripts/fixture_server.py` or `app/maestro/`, and a manual run with a key count and a seed | Runs the Maestro flows, then presses random remote keys, on the debug app in a headless Android TV emulator against fixture channels and a short fixture show, as [the app's development page](app/docs/development.md#tv-emulator-monkey) describes |
 | [`desktop-monkey.yml`](.github/workflows/desktop-monkey.yml) | Nightly, pull requests that change it, `app/scripts/desktop-monkey.py` or `app/scripts/fixture_server.py`, and a manual run with a key count and a seed | Presses random keys on the desktop app in a virtual X display, with libVLC playing fixture channels, as [the app's development page](app/docs/development.md#desktop-monkey) describes |

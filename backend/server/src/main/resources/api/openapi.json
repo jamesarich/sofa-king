@@ -425,6 +425,21 @@
         },
         "required": ["enabled", "open", "configured", "allowed"]
       },
+      "GuideMatch": {
+        "type": "object", "description": "A guide channel proposed for a station by name. confidence is 1 when the cleaned names are equal, less as they differ; proposals start at 0.6.",
+        "properties": {
+          "station": { "type": "string", "description": "The station key" }, "stationId": { "type": "string" }, "stationName": { "type": "string" }, "number": { "type": "string" },
+          "guideId": { "type": "string" }, "channelId": { "type": "string" }, "channelName": { "type": "string" }, "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "required": ["station", "stationId", "stationName", "number", "guideId", "channelId", "channelName", "confidence"]
+      },
+      "GuideMatchChoice": {
+        "type": "object", "properties": { "station": { "type": "string", "description": "The station key" }, "guideId": { "type": "string" }, "channelId": { "type": "string" } }, "required": ["station", "guideId", "channelId"]
+      },
+      "AcceptGuideMatches": { "type": "object", "properties": { "minConfidence": { "type": "number", "minimum": 0, "maximum": 1 } } },
+      "GuideMatchResult": {
+        "type": "object", "properties": { "accepted": { "type": "integer" }, "applied": { "oneOf": [{ "$ref": "#/components/schemas/PolicyApplyResult" }, { "type": "null" }] } }, "required": ["accepted"]
+      },
       "UpdateHdhrAccess": {
         "type": "object", "properties": { "allowed": { "type": "array", "maxItems": 64, "items": { "type": "string", "description": "An IP literal or CIDR block" } } }, "required": ["allowed"]
       },
@@ -904,6 +919,25 @@
       "get": { "tags": ["Policy"], "summary": "Why a station key is what it is", "security": [{ "adminToken": [] }],
         "parameters": [{ "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StationExplanation" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/policy/guide-matches": {
+      "get": { "tags": ["Policy"], "summary": "Guide channels proposed by name", "description": "For each station no guide lists by tvg-id, up to three guide channels whose names match its own, best first, in lineup order. Both names lose the policy's guideMatches prefixes and suffixes first. Empty before the first apply.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/GuideMatch" } } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/policy/guide-matches/accept": {
+      "post": { "tags": ["Policy"], "summary": "Accept a proposed guide channel", "description": "Writes the channel as the station's guide override, then applies. 404 GUIDE_CHANNEL_NOT_FOUND when the guide does not list the channel.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideMatchChoice" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyApplyResult" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/policy/guide-matches/accept-all": {
+      "post": { "tags": ["Policy"], "summary": "Accept every station's best proposal", "description": "Accepts each station's best proposal at minConfidence or more, else at the policy's guideMatches.acceptAbove, in one write, then applies once. A station whose best two proposals tie on different channels is skipped.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AcceptGuideMatches" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideMatchResult" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/policy/guide-matches/dismiss": {
+      "post": { "tags": ["Policy"], "summary": "Dismiss a proposed guide channel", "description": "Adds the proposal to the policy's guideMatches.dismissed, so it is never proposed again, then applies.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideMatchChoice" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyApplyResult" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/source-file": {
       "get": { "tags": ["Admin"], "summary": "The source file as written", "description": "Providers and guides as the file holds them, ${NAME} references unexpanded; an empty document when the server has no source file.", "security": [{ "adminToken": [] }],

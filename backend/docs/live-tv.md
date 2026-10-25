@@ -112,8 +112,9 @@ Each guide object configures one XMLTV source, independent of any provider:
 | `url` | Required | HTTP(S) XMLTV URL, plain or gzip (detected by content, not by extension) |
 | `headers` | `{}` | Request headers for the guide |
 | `refreshSeconds` | `21600` | Import interval; minimum 300 seconds |
+| `offsetMinutes` | `0` | Minutes added to every program's start and end at import, -1440 to 1440, for a guide that writes the wrong time zone offset |
 
-The server keeps every guide's channel index for guide mapping, and programs only for the channels the lineup maps onto that guide. Adding or changing a mapping triggers a refresh of that guide, so a newly mapped channel has programs within one fetch. Each guide fails on its own: `/api/v1/admin/guides` reports `IMPORT_FAILED` for the failing one, and the others keep refreshing. [Guide imports](architecture.md#guide-imports) describes the parser, its redirects and timeouts, and the XML it accepts.
+The server keeps every guide's channel index for guide mapping, and programs only for the channels the lineup maps onto that guide. Adding or changing a mapping triggers a refresh of that guide, so a newly mapped channel has programs within one fetch. A station whose sources no guide lists by `tvg-id` gets guide channels proposed by name on the portal's Guide matches tab ([guide matches](lineup-policy.md#guide-matches)). Each guide fails on its own: `/api/v1/admin/guides` reports `IMPORT_FAILED` for the failing one, and the others keep refreshing. [Guide imports](architecture.md#guide-imports) describes the parser, its redirects and timeouts, and the XML it accepts.
 
 ### Import limits
 

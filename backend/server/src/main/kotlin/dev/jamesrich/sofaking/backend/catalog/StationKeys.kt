@@ -72,7 +72,7 @@ fun effectiveLearned(names: PolicyNames): Map<String, String> =
 
 fun stationKeys(names: PolicyNames): StationKeys = StationKeys(names.aliases, names.version, effectiveLearned(names))
 
-private val LOOSE_FILLER = setOf("tv", "channel", "network", "live", "the", "hd")
+internal val LOOSE_FILLER = setOf("tv", "channel", "network", "live", "the", "hd")
 
 /**
  * The loose form of a name, for finding stations that may be one: base words without the filler words

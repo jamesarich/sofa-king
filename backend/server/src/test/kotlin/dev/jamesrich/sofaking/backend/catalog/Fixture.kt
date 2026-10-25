@@ -44,6 +44,9 @@ class Fixture : AutoCloseable {
     /** The TVApp2 shape: plain XMLTV with a `DOCTYPE` on its own line, served as `application/xml`. */
     val doctypeGuide = GuideConfig("tvapp2", "$base/doctype-guide.xml")
 
+    /** A guide that lists none of the feeds' tvg-ids, only names close to `TS Station`'s, for guide matching. */
+    val nameMatchGuide = GuideConfig("names", "$base/name-match.xml")
+
     /** Requests for the external DTD or an external entity a hostile guide could name; must stay at zero. */
     val dtdRequests = AtomicInteger()
     val tsFeed = FeedConfig("ts", "$base/ts-feed.m3u", probe = false)
@@ -221,6 +224,12 @@ class Fixture : AutoCloseable {
                     java.util.zip.GZIPOutputStream(out).use { it.write(resource("guides/mjh-doctype.xml")) }
                 }.toByteArray()
                 exchange.responseHeaders.set("Content-Type", "application/octet-stream")
+                exchange.sendResponseHeaders(200, bytes.size.toLong())
+                exchange.responseBody.use { it.write(bytes) }
+                return@createContext
+            }
+            if (path == "/name-match.xml") {
+                val bytes = resource("guides/name-match.xml")
                 exchange.sendResponseHeaders(200, bytes.size.toLong())
                 exchange.responseBody.use { it.write(bytes) }
                 return@createContext

@@ -66,6 +66,9 @@ class PolicyService(
     /** The changes to the policy file a person asks for, each followed by an apply. */
     val edits = PolicyEdits(this, feeds, lineup)
 
+    /** Guide channels proposed by name for stations no guide lists, and the choices a person makes about them. */
+    val guideMatches = GuideMatches(this, guides)
+
     init {
         jobs.register("policy", "Lineup policy run", Duration.ofSeconds(intervalSeconds)) { requestRun("now") }
     }

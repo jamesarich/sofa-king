@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.backend.http
 
+import dev.jamesrich.sofaking.backend.api.AcceptGuideMatches
+import dev.jamesrich.sofaking.backend.api.GuideMatchChoice
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.PolicyService
 import io.ktor.http.HttpHeaders
@@ -26,7 +28,7 @@ internal fun ApplicationCall.ifMatch(): String? =
 
 /**
  * The lineup policy under the admin route: the document and its writes, preview, apply, findings, the change
- * log and one station's candidates.
+ * log, one station's candidates and the guide channels proposed by name.
  */
 fun Route.policyRoutes(policy: PolicyService?) {
     fun loaded(): PolicyService = policy
@@ -60,4 +62,14 @@ fun Route.policyRoutes(policy: PolicyService?) {
         call.respond(loaded().changes(call.request.queryParameters["limit"]?.toIntOrNull() ?: CHANGES_SHOWN))
     }
     get("/stations/{key}") { call.respond(loaded().explain(call.parameters["key"]!!)) }
+    get("/policy/guide-matches") { call.respond(loaded().guideMatches.proposals()) }
+    post("/policy/guide-matches/accept") {
+        call.respond(loaded().guideMatches.accept(call.body<GuideMatchChoice>()))
+    }
+    post("/policy/guide-matches/accept-all") {
+        call.respond(loaded().guideMatches.acceptAll(call.body<AcceptGuideMatches>().minConfidence))
+    }
+    post("/policy/guide-matches/dismiss") {
+        call.respond(loaded().guideMatches.dismiss(call.body<GuideMatchChoice>()))
+    }
 }

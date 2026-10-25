@@ -7,8 +7,6 @@ import dev.jamesrich.sofaking.ui.player.LivePlayer
 @Composable
 internal actual fun rememberSystemCaptionSettings(): (() -> Unit)? = null
 
-internal actual fun captionEngineName(): String = "libVLC"
-
 internal actual val supportsPlaybackPreferences: Boolean = false
 
 internal actual val supportsNightListening: Boolean = true

@@ -18,7 +18,6 @@ import dev.jamesrich.sofaking.data.SettingsKeys.CAPTION_STYLE
 import dev.jamesrich.sofaking.data.SettingsKeys.CHANNEL_CAPTION_ADVANCE_MS
 import dev.jamesrich.sofaking.data.SettingsKeys.CHANNEL_DECODER
 import dev.jamesrich.sofaking.data.SettingsKeys.CLIENT_ID
-import dev.jamesrich.sofaking.data.SettingsKeys.CLOCK_FORMAT
 import dev.jamesrich.sofaking.data.SettingsKeys.DECODER
 import dev.jamesrich.sofaking.data.SettingsKeys.FAVORITES
 import dev.jamesrich.sofaking.data.SettingsKeys.FAVORITES_ORDER
@@ -81,7 +80,6 @@ internal object SettingsKeys {
     val STARTUP = stringPreferencesKey("startup")
     val STARTUP_CHANNEL = stringPreferencesKey("startup_channel")
     val LAST_TAB = stringPreferencesKey("last_tab")
-    val CLOCK_FORMAT = stringPreferencesKey("clock_format")
     val GUIDE_DENSITY = stringPreferencesKey("guide_density")
     val HIDDEN_CHANNELS = stringSetPreferencesKey("hidden_channels")
     val ZAP_SKIPS_HIDDEN = booleanPreferencesKey("zap_skips_hidden")
@@ -141,7 +139,6 @@ internal fun readSettings(prefs: Preferences): AppSettings = AppSettings(
     startup = prefs[STARTUP].toEnum(StartupTarget.RESUME),
     startupChannel = prefs[STARTUP_CHANNEL],
     lastTab = prefs[LAST_TAB].toEnum(TopLevelTab.LIVE),
-    clockFormat = prefs[CLOCK_FORMAT].toEnum(ClockFormat.AUTO),
     guideDensity = prefs[GUIDE_DENSITY].toEnum(GuideDensity.COMFORTABLE),
     hiddenChannels = prefs[HIDDEN_CHANNELS] ?: emptySet(),
     zapSkipsHidden = prefs[ZAP_SKIPS_HIDDEN] ?: false,

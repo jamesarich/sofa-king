@@ -37,7 +37,6 @@ import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.BufferPreference
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.DecoderPreference
 import dev.jamesrich.sofaking.data.DiscoveredServer
 import dev.jamesrich.sofaking.data.GuideDensity
@@ -112,7 +111,6 @@ class SettingsActions(
     val onStartupChanged: (StartupTarget, String?) -> Unit = { _, _ -> },
     /** Opens the channel picker for [StartupTarget.CHANNEL]. */
     val onChooseStartupChannel: () -> Unit = {},
-    val onClockFormatChanged: (ClockFormat) -> Unit = {},
     val onGuideDensityChanged: (GuideDensity) -> Unit = {},
     /** Opens the channel manager (hidden channels and the favorites order). */
     val onManageChannels: () -> Unit = {},

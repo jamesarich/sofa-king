@@ -63,7 +63,7 @@ internal class TimeFormatter(val zone: TimeZone, val twentyFourHour: Boolean = f
     fun range(start: Instant, stop: Instant): String = "${format(start)} - ${format(stop)}"
 }
 
-/** The clock format the screens write times in; the app provides the setting, and the default follows the platform. */
+/** The clock format the screens write times in: the platform's, or a fixed one in previews and screenshot tests. */
 internal val LocalClockFormat = staticCompositionLocalOf { ClockFormat.AUTO }
 
 /**

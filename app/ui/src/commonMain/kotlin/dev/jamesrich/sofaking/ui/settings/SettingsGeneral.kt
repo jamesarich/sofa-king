@@ -14,7 +14,6 @@ import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.StartupTarget
@@ -45,10 +44,6 @@ import dev.jamesrich.sofaking.resources.settings_startup_guide
 import dev.jamesrich.sofaking.resources.settings_startup_help
 import dev.jamesrich.sofaking.resources.settings_startup_library
 import dev.jamesrich.sofaking.resources.settings_startup_resume
-import dev.jamesrich.sofaking.resources.settings_time_12
-import dev.jamesrich.sofaking.resources.settings_time_24
-import dev.jamesrich.sofaking.resources.settings_time_auto
-import dev.jamesrich.sofaking.resources.settings_time_format
 import dev.jamesrich.sofaking.ui.hoursAndMinutes
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.localDay
@@ -59,7 +54,7 @@ import kotlin.time.Duration.Companion.minutes
 
 /**
  * The Live TV page: what the app opens on ([startup], shown at once through [onStartup]), the startup channel when that
- * is the choice, the time format, then the guide's rows.
+ * is the choice, then the guide's rows.
  */
 internal fun LazyListScope.liveTvPage(
     settings: AppSettings,
@@ -84,23 +79,6 @@ internal fun LazyListScope.liveTvPage(
                 }
             }
         }
-    }
-    item {
-        SettingChoice(
-            label = stringResource(Res.string.settings_time_format),
-            stored = settings.clockFormat,
-            choices = ClockFormat.entries,
-            choiceLabel = {
-                stringResource(
-                    when (it) {
-                        ClockFormat.AUTO -> Res.string.settings_time_auto
-                        ClockFormat.TWELVE_HOUR -> Res.string.settings_time_12
-                        ClockFormat.TWENTY_FOUR_HOUR -> Res.string.settings_time_24
-                    },
-                )
-            },
-            onChange = actions.onClockFormatChanged,
-        )
     }
     guideRows(settings, actions, channels, channelsFocus)
 }

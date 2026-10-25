@@ -32,11 +32,9 @@ import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.NavDisplay
 import coil3.compose.setSingletonImageLoaderFactory
 import dev.jamesrich.sofaking.data.AppLink
-import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.ui.LocalAppLifecycleOwner
-import dev.jamesrich.sofaking.ui.LocalClockFormat
 import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
 import dev.jamesrich.sofaking.ui.LocalKidsMode
 import dev.jamesrich.sofaking.ui.LocalLastInput
@@ -168,7 +166,6 @@ private fun SofaKingApp(
     }
     val entries = rememberTabEntries(shell.nav) { route -> page(route) }
     CompositionLocalProvider(
-        LocalClockFormat provides (settings?.clockFormat ?: ClockFormat.AUTO),
         LocalTimeZone provides rememberSystemTimeZone(lifecycleOwner.lifecycle).value,
         LocalGuideDensity provides (settings?.guideDensity ?: GuideDensity.COMFORTABLE),
         LocalAppLifecycleOwner provides lifecycleOwner,

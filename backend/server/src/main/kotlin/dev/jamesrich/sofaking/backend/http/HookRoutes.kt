@@ -29,8 +29,8 @@ private val CONFIGURATION_PATHS = MEDIA_BROWSER_PREFIXES.map { "$it/System/Confi
 private val ITEMS_PATHS = MEDIA_BROWSER_PREFIXES.map { "$it/Items" }
 
 /**
- * The Emby-style routes Sonarr's and Radarr's Emby / Jellyfin connection calls, outside `/api`: a hook token opens them,
- * sent as `X-MediaBrowser-Token` as that connection sends it.
+ * The Emby-style routes Sonarr's and Radarr's Emby / Jellyfin connection calls, outside `/api`: a hook token opens
+ * them, sent as `X-MediaBrowser-Token` as that connection sends it.
  */
 internal val MEDIA_BROWSER_HOOK_PATHS =
     (MEDIA_UPDATED_PATHS + ADMIN_NOTICE_PATHS + CONFIGURATION_PATHS + ITEMS_PATHS).toSet()
@@ -40,7 +40,7 @@ internal fun isHookPath(path: String): Boolean =
     path == HOOKS_PATH || path.startsWith("$HOOKS_PATH/") || path in MEDIA_BROWSER_HOOK_PATHS
 
 /** A Sonarr Download event with a season pack's episodes and release runs to tens of kilobytes. */
-internal const val HOOK_BODY_LIMIT = MIB
+internal const val HOOK_BODY_LIMIT = MIB.toLong()
 
 /**
  * The hooks that tell the libraries a file changed: Sonarr's and Radarr's Webhook connection at
@@ -67,8 +67,8 @@ internal fun Route.hookRoutes(libraries: LibraryService?) {
         post(path) {
             val service = loaded()
             val updates = call.appBody<MediaUpdates>().updates
-            val queued = updates.mapNotNull { it.path }.distinct().flatMap { service.requestScanAt(it) }
-                .map { it.id }.distinct()
+            val paths = updates.mapNotNull { it.path }.distinct()
+            val queued = paths.flatMap { service.requestScanAt(it) }.map { it.id }.distinct()
             log.info("library hook from=media-browser updates={} libraries={}", updates.size, queued.size)
             call.respond(HttpStatusCode.Accepted, ScanQueued(queued))
         }

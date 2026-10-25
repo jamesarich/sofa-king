@@ -7,7 +7,8 @@ has a made-up stream with no usable source, and only some runs go on to play one
 their documented 503 MULTIVIEW_UNAVAILABLE, since a runner has no GPU encoder.
 Netty answers a request line over its 4096-byte limit with its own plain-text 400 before the application sees it, so
 the run drops the schema and content-type failures of that one answer.
-The routes that save configuration and restart the server are left out, since a restart ends the run. Schemathesis
+The routes that save configuration and restart the server are left out, since a restart ends the run, and so is the
+admin event stream, which never ends. Schemathesis
 runs in the temporary directory, so its example database goes with it.
 """
 import os
@@ -27,6 +28,8 @@ SPEC = ROOT / 'server/src/main/resources/api/openapi.json'
 TOKEN = 'local-fuzz-token-' + 'x' * 40
 # PUT source-file, PUT tmdb-token and POST policy/starter save and restart (SetupService.requestRestart).
 RESTARTS = r'/admin/(source-file|tmdb-token|policy/starter)$'
+# The admin event stream stays open until the client leaves, so each example would wait out the run.
+ENDLESS = r'/admin/events/stream$'
 # Schemathesis reads schemathesis.toml from the directory it runs in.
 CONFIG = '''[[operations]]
 include-path-regex = '^/(api/v1/(playback|multiview)-sessions|media/(sessions|multiview)/|output/stream/|auto/)'
@@ -78,6 +81,7 @@ def main():
                     '--checks', 'not_a_server_error,response_schema_conformance,content_type_conformance',
                     '--max-examples', examples,
                     '--exclude-path-regex', RESTARTS,
+                    '--exclude-path-regex', ENDLESS,
                 ], cwd=directory, env=dict(os.environ, SCHEMATHESIS_HOOKS=str(directory / 'hooks.py')))
                 if process.poll() is not None:
                     raise SystemExit(f'Server exited during the run: {process.returncode}\n' + log_path.read_text()[-4000:])

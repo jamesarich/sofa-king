@@ -165,8 +165,13 @@ class RouteGuardTest {
 
     /** Whether a read token opens this route: a GET of the admin reads a dashboard needs. */
     private fun Endpoint.readScope() = method == HttpMethod.Get && listOf(
-        "/api/v1/admin/status", "/api/v1/admin/sessions", "/api/v1/admin/guides", "/api/v1/admin/lineup",
-        "/api/v1/admin/policy/preview", "/api/v1/admin/policy/findings", "/api/v1/admin/policy/changes",
+        "/api/v1/admin/status",
+        "/api/v1/admin/sessions",
+        "/api/v1/admin/guides",
+        "/api/v1/admin/lineup",
+        "/api/v1/admin/policy/preview",
+        "/api/v1/admin/policy/findings",
+        "/api/v1/admin/policy/changes",
         "/api/v1/admin/libraries",
     ).any { path == it || path.startsWith("$it/") }
 

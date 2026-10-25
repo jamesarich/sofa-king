@@ -206,8 +206,13 @@ private suspend fun ApplicationCall.refused(
 
 /** The admin API's reads a `read` token opens: status, sessions, guides, the lineup, policy findings, libraries. */
 private val READ_SCOPE_PATHS = listOf(
-    "/api/v1/admin/status", "/api/v1/admin/sessions", "/api/v1/admin/guides", "/api/v1/admin/lineup",
-    "/api/v1/admin/policy/preview", "/api/v1/admin/policy/findings", "/api/v1/admin/policy/changes",
+    "/api/v1/admin/status",
+    "/api/v1/admin/sessions",
+    "/api/v1/admin/guides",
+    "/api/v1/admin/lineup",
+    "/api/v1/admin/policy/preview",
+    "/api/v1/admin/policy/findings",
+    "/api/v1/admin/policy/changes",
     "/api/v1/admin/libraries",
 )
 

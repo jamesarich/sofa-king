@@ -113,5 +113,7 @@ struct SkipModePicker: View {
             Text("With a button").tag(SkipMode.button)
             Text("Off").tag(SkipMode.off)
         }
+        // The default style in a List is a bare row of segments that drops the title.
+        .pickerStyle(.navigationLink)
     }
 }

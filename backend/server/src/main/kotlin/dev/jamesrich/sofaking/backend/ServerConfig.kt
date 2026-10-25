@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.library.TmdbConfig
 import dev.jamesrich.sofaking.backend.library.VideoEncoder
 import dev.jamesrich.sofaking.backend.library.pathMappings
 import dev.jamesrich.sofaking.backend.logging.LogSettings
+import dev.jamesrich.sofaking.backend.multiview.MultiviewMode
 import dev.jamesrich.sofaking.backend.playback.DEFAULT_HISTORY_DAYS
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import java.nio.file.Files
@@ -117,6 +118,8 @@ data class ServerConfig(
     val maxTranscodes: Int = DEFAULT_MAX_TRANSCODES,
     /** `SOFA_HWACCEL` and `SOFA_HWACCEL_DEVICE`: the GPU encoder library conversions use; software when unset. */
     val videoEncoder: VideoEncoder = VideoEncoder(),
+    /** `SOFA_MULTIVIEW`: composite multiview only with a GPU encoder (auto), in software too (on), or never (off). */
+    val multiview: MultiviewMode = MultiviewMode.AUTO,
     /**
      * `SOFA_RECORDINGS_FREE_GIB`: the space the DVR keeps free on the recordings folder's disk by
      * deleting the oldest recordings.
@@ -139,6 +142,11 @@ data class ServerConfig(
     val libraryPathMap: List<PathMapping> = emptyList(),
     /** How many days of ended playback sessions the history keeps, `SOFA_HISTORY_DAYS`. */
     val historyDays: Int = DEFAULT_HISTORY_DAYS,
+    /**
+     * `SOFA_QUALITY_FLOORS`: a remuxed stream also moves to the channel's next source on a black picture or too low a
+     * rate, not only on a stall; off by default.
+     */
+    val qualityFloors: Boolean = false,
 ) {
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
@@ -260,6 +268,7 @@ data class ServerConfig(
                     HardwareAccel.parse(environment["SOFA_HWACCEL"]),
                     env.text("SOFA_HWACCEL_DEVICE") ?: VideoEncoder.DEFAULT_DEVICE,
                 ),
+                multiview = MultiviewMode.parse(environment["SOFA_MULTIVIEW"]),
                 recordingsFreeGib =
                 env.number("SOFA_RECORDINGS_FREE_GIB", DEFAULT_RECORDINGS_FREE_GIB, RECORDINGS_FREE_GIB_RANGE),
                 recordingsKeepDays = env.number("SOFA_RECORDINGS_KEEP_DAYS", 0, RECORDINGS_KEEP_DAYS_RANGE),
@@ -270,6 +279,7 @@ data class ServerConfig(
                 mdns = env.flag("SOFA_MDNS", !isLoopback(host)),
                 libraryPathMap = pathMappings(environment["SOFA_LIBRARY_PATH_MAP"]),
                 historyDays = env.number("SOFA_HISTORY_DAYS", DEFAULT_HISTORY_DAYS, RETENTION_DAYS_RANGE),
+                qualityFloors = env.flag("SOFA_QUALITY_FLOORS", false),
             )
         }
 

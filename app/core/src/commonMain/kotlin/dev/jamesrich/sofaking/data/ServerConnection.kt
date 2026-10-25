@@ -42,6 +42,8 @@ class ServerConnection(
     internal val newApi: (url: String, token: String) -> SofaKingApi = ::SofaKingApi,
     /** Keeps the synced preferences in step with the server; null leaves them on this device only. */
     viewerSync: ViewerSync? = null,
+    /** Keeps the favorites and hidden channels in step with the household's, while this device shares them. */
+    private val householdSync: HouseholdSync? = null,
 ) {
     private val work = scope + logFailures
 
@@ -88,11 +90,21 @@ class ServerConnection(
         }
         .stateIn(work, SharingStarted.Eagerly, ServerCapabilities())
 
+    init {
+        if (householdSync != null) work.launch { householdSync.run(api, capabilities.map { it.household }) }
+    }
+
     /** Recording from the guide, on a server that records. */
     val recordings = RecordingSchedule(work, api, capabilities.map { it.recordings })
 
+    /** The household's watchlist, on a server that keeps one. */
+    val watchlist = WatchlistBook(work, api, capabilities.map { it.watchlist })
+
     /** What TMDB says about live programs, for the break screen. */
     val programFacts = ProgramFactsBook(api)
+
+    /** The movies, sports, kids' programs and premieres coming up, for On Later. */
+    val onLater = OnLaterBook(api)
 
     /** Asks until the server answers, backing off to every five minutes; a server without the route offers nothing. */
     private suspend fun readCapabilities(api: SofaKingApi): ServerCapabilities {
@@ -100,7 +112,14 @@ class ServerConnection(
         while (true) {
             runCatchingCancellable {
                 return api.bootstrap().capabilities.let {
-                    ServerCapabilities(recordings = it.recordings, library = it.library)
+                    ServerCapabilities(
+                        recordings = it.recordings,
+                        library = it.library,
+                        watchlist = it.watchlist,
+                        onLater = it.onLater,
+                        household = it.household,
+                        multiview = it.multiview,
+                    )
                 }
             }.onFailure { e ->
                 if (e is SofaKingException) {

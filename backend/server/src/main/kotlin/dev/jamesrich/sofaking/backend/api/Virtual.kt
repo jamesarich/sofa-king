@@ -1,0 +1,53 @@
+package dev.jamesrich.sofaking.backend.api
+
+import kotlinx.serialization.Serializable
+
+/**
+ * Where a virtual channel's slot takes its items: [kind] `library` (every movie, episode and video of the library
+ * [value] names by ID), `show` (the episodes of the show [value] names by item ID) or `genre` (the movies and episodes
+ * of every library whose genres hold [value], ignoring case).
+ */
+@Serializable data class VirtualSource(val kind: String, val value: String)
+
+/**
+ * One slot of a virtual channel: its [source], played in order or with [shuffle], from [start] (`HH:MM` in the
+ * server's time zone) until the next slot's start. A channel either times every slot or none; untimed slots take
+ * turns, one item each.
+ */
+@Serializable data class VirtualSlot(val source: VirtualSource, val shuffle: Boolean = false, val start: String? = null)
+
+/**
+ * The breaks a virtual channel airs after an item, once [everyMinutes] (0, 15, 30 or 60) have passed since the last
+ * one: an item of [source], such as a bumper, then each of [slides], image URLs fetched without credentials when they
+ * air, for [slideSeconds] each.
+ */
+@Serializable data class VirtualBreaks(
+    val everyMinutes: Int = 0,
+    val source: VirtualSource? = null,
+    val slides: List<String> = emptyList(),
+    val slideSeconds: Int = 10,
+)
+
+/**
+ * A channel the server plays from the libraries on a schedule. [filler] fills the gap before a timed slot starts and
+ * before each [padMinutes] mark (0, 15, 30 or 60), with a blank picture for what it cannot fill; [breaks] come before
+ * that. [id] is given by the server.
+ */
+@Serializable data class VirtualChannel(
+    val id: String = "",
+    val name: String,
+    val number: String? = null,
+    val slots: List<VirtualSlot>,
+    val filler: VirtualSource? = null,
+    val padMinutes: Int = 0,
+    val breaks: VirtualBreaks? = null,
+)
+
+/** One airing of a virtual channel's schedule: an item, filler, or a blank picture when [itemId] is null. */
+@Serializable data class VirtualAiring(
+    val startsAt: String,
+    val endsAt: String,
+    val title: String,
+    val itemId: String? = null,
+    val filler: Boolean = false,
+)

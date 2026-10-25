@@ -4,8 +4,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
+import dev.jamesrich.sofaking.data.AppLink
+import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.TopLevelTab
+import dev.jamesrich.sofaking.data.linkedChannel
 import kotlinx.coroutines.delay
 
 /**
@@ -40,26 +43,40 @@ internal fun PairingEffects(
 }
 
 /**
- * The page the app starts on: a Watch Next entry's [playItem], claimed once through [onPlayItemHandle], or the cold
- * start's own [launch]; and the open tab, kept through [onLastTab] when it is not the [lastTab] already kept.
+ * The page the app starts on: a `sofaking://` [link]'s item or channel, claimed once through [onLinkHandle] (a channel
+ * once [lineup] lists it), or the cold start's own [launch]; and the open tab, kept through [onLastTab] when it is not
+ * the [lastTab] already kept.
  */
 @Composable
 internal fun LaunchEffects(
     shell: AppShellState,
     launch: LaunchTarget,
     lastTab: TopLevelTab?,
-    playItem: String?,
-    onPlayItemHandle: () -> Unit,
+    link: AppLink?,
+    onLinkHandle: () -> Unit,
+    lineup: Lineup?,
     onLastTab: (TopLevelTab) -> Unit,
 ) {
-    val currentOnPlayItemHandle by rememberUpdatedState(onPlayItemHandle)
+    val currentOnLinkHandle by rememberUpdatedState(onLinkHandle)
     val currentLastTab by rememberUpdatedState(lastTab)
     val currentOnLastTab by rememberUpdatedState(onLastTab)
-    // A Watch Next entry plays its item at once, in place of the cold start's own page.
-    LaunchedEffect(playItem) {
-        if (playItem == null) return@LaunchedEffect
-        currentOnPlayItemHandle()
-        shell.playItem(playItem)
+    // A link plays its item at once, or its channel once the lineup is in, in place of the cold start's own page.
+    LaunchedEffect(link, lineup != null) {
+        when (link) {
+            null -> Unit
+
+            is AppLink.Item -> {
+                currentOnLinkHandle()
+                shell.playItem(link.itemId, link.startMs)
+            }
+
+            is AppLink.Live -> {
+                if (lineup == null) return@LaunchedEffect
+                currentOnLinkHandle()
+                // A channel the lineup does not list leaves the app where it was.
+                linkedChannel(lineup, link.channel)?.let { shell.playChannel(it.guideId) }
+            }
+        }
     }
     // A cold start opens the channel last watched, full screen, once the lineup and settings are in. Decided
     // once per process (restored across configuration changes), and before the guide composes, so the preview

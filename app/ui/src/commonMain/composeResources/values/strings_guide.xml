@@ -29,6 +29,8 @@
     <string name="guide_details_stop_series">Stop series</string>
     <string name="guide_details_record_team">Record %1$s</string>
     <string name="guide_details_stop_team">Stop recording %1$s</string>
+    <string name="guide_details_add_to_watchlist">Add to watchlist</string>
+    <string name="guide_details_remove_from_watchlist">Remove from watchlist</string>
     <string name="guide_details_record_failed">The server didn't take that change. Try again.</string>
     <string name="guide_details_more_airings">More airings (%1$d)</string>
     <string name="guide_airings_title">More airings</string>
@@ -36,4 +38,12 @@
     <string name="guide_time_left">%1$s left</string>
     <string name="guide_starts_in">Starts in %1$s</string>
     <string name="guide_ended">Ended</string>
+    <string name="on_later">On later</string>
+    <string name="on_later_movies">Movies</string>
+    <string name="on_later_sports">Sports</string>
+    <string name="on_later_kids">Kids</string>
+    <string name="on_later_premieres">Premieres</string>
+    <string name="on_later_empty">Nothing like this is on in the next two days.</string>
+    <string name="on_later_failed">On later could not be loaded.</string>
+    <string name="on_later_when">%1$s · %2$s</string>
 </resources>

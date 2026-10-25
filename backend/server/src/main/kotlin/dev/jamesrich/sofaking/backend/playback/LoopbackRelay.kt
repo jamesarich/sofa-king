@@ -11,6 +11,7 @@ import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
 import io.ktor.client.HttpClient
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.application.install
 import io.ktor.server.engine.EmbeddedServer
@@ -42,9 +43,10 @@ import java.util.concurrent.ConcurrentHashMap
  * policy with the source's headers scoped to its origin, and every playlist is rewritten so its variants, segments and
  * keys come back to the lease too. FFmpeg so connects nowhere but here, and never holds the provider's headers.
  *
- * The listener binds 127.0.0.1 on a port of its own, started with the first lease, so its one route is no part of the
+ * The listener binds 127.0.0.1 on a port of its own, started with the first lease, so its routes are no part of the
  * public routes or the API, and nothing off this machine reaches it. An unknown lease or a
- * wrong credential answers 401.
+ * wrong credential answers 401. Its other route, `/local/`, serves the streams the server makes itself through
+ * [local], such as virtual channels, under a random key; the relay and FFmpeg fetch them like any source.
  */
 class LoopbackRelay(
     private val http: HttpClient,
@@ -62,8 +64,25 @@ class LoopbackRelay(
 
     @Volatile private var closed = false
 
+    /** Answers a request for a file of one of the server's own streams: the call, the stream, and the file's name. */
+    @Volatile var local: (suspend (ApplicationCall, String, String) -> Unit)? = null
+
+    private val localKey: String = ByteArray(32).also(random::nextBytes).let {
+        Base64.getUrlEncoder().withoutPadding().encodeToString(it)
+    }
+
+    /**
+     * Where stream [id] of the server's own is fetched, starting the listener and admitting the route in the address
+     * policy.
+     */
+    suspend fun localUrl(id: String, file: String): String {
+        val base = "http://127.0.0.1:${start()}/local/$localKey/"
+        policy.local.prefix = base
+        return base + java.net.URLEncoder.encode(id, Charsets.UTF_8) + "/" + file
+    }
+
     /** One FFmpeg run's source and the resources its playlists named, by opaque token. */
-    internal class Lease(val stream: ResolvedStream) {
+    internal class Lease(val stream: ResolvedStream, val stalls: StallWatch?) {
         val id: String = UUID.randomUUID().toString()
         val credential: String = ByteArray(32).also(random::nextBytes).let {
             Base64.getUrlEncoder().withoutPadding().encodeToString(it)
@@ -93,11 +112,16 @@ class LoopbackRelay(
 
     /**
      * Runs [block] with a lease on [stream], whose [protocol] names the root's suffix; the lease ends with the block,
-     * and any request FFmpeg makes after that answers 401.
+     * and any request FFmpeg makes after that answers 401. Given [stalls], each playlist FFmpeg fetches is shown to it.
      */
-    suspend fun <T> reading(stream: ResolvedStream, protocol: String, block: suspend (FfmpegSource) -> T): T {
+    suspend fun <T> reading(
+        stream: ResolvedStream,
+        protocol: String,
+        stalls: StallWatch? = null,
+        block: suspend (FfmpegSource) -> T,
+    ): T {
         val port = start()
-        val lease = Lease(stream)
+        val lease = Lease(stream, stalls)
         leases[lease.id] = lease
         try {
             return block(
@@ -160,6 +184,14 @@ class LoopbackRelay(
             }
         }
         routing {
+            get("/local/{key}/{stream}/{file}") {
+                val serve = local
+                if (!sameSecret(call.parameters["key"], localKey) || serve == null) {
+                    call.respond(HttpStatusCode.Unauthorized)
+                    return@get
+                }
+                serve(call, call.parameters["stream"]!!, call.parameters["file"]!!)
+            }
             get("/relay/{lease}/{token}") {
                 val lease = leases[call.parameters["lease"]]
                 if (lease == null || !sameSecret(call.request.headers[RELAY_CREDENTIAL_HEADER], lease.credential)) {
@@ -174,19 +206,23 @@ class LoopbackRelay(
                 permits.withPermit {
                     // FFmpeg's own messages name the status, which the probe's failure classes
                     // read; so it gets the upstream's.
-                    relayResource(http, policy, call, url, lease.stream, path = lease::path, refused = { status ->
-                        throw ApiFailure(
-                            if (status in
-                                UPSTREAM_ERRORS
-                            ) {
+                    relayResource(
+                        http,
+                        policy,
+                        call,
+                        url,
+                        lease.stream,
+                        path = lease::path,
+                        manifest = { text, source -> text.also { lease.stalls?.stalled(it, source) } },
+                        refused = { status ->
+                            val answer = if (status in UPSTREAM_ERRORS) {
                                 HttpStatusCode.fromValue(status)
                             } else {
                                 HttpStatusCode.BadGateway
-                            },
-                            "UPSTREAM_STATUS",
-                            "Upstream answered $status",
-                        )
-                    })
+                            }
+                            throw ApiFailure(answer, "UPSTREAM_STATUS", "Upstream answered $status")
+                        },
+                    )
                 }
             }
         }

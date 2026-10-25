@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.data
 
 import dev.jamesrich.sofaking.contract.AdBreakState
+import dev.jamesrich.sofaking.contract.AddWatchlistEntry
 import dev.jamesrich.sofaking.contract.ApiError
 import dev.jamesrich.sofaking.contract.Bootstrap
 import dev.jamesrich.sofaking.contract.Capabilities
@@ -11,6 +12,7 @@ import dev.jamesrich.sofaking.contract.ClientProfile
 import dev.jamesrich.sofaking.contract.CreateRecordingRule
 import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.contract.GuideWindow
+import dev.jamesrich.sofaking.contract.HouseholdPreferences
 import dev.jamesrich.sofaking.contract.Library
 import dev.jamesrich.sofaking.contract.LibraryHome
 import dev.jamesrich.sofaking.contract.LibraryItem
@@ -18,6 +20,8 @@ import dev.jamesrich.sofaking.contract.LibraryItemDetail
 import dev.jamesrich.sofaking.contract.LibraryPage
 import dev.jamesrich.sofaking.contract.MediaSegment
 import dev.jamesrich.sofaking.contract.MediaTrack
+import dev.jamesrich.sofaking.contract.MultiviewSession
+import dev.jamesrich.sofaking.contract.OpenMultiview
 import dev.jamesrich.sofaking.contract.OpenPlayback
 import dev.jamesrich.sofaking.contract.OpenVodPlayback
 import dev.jamesrich.sofaking.contract.PairingClaim
@@ -32,6 +36,8 @@ import dev.jamesrich.sofaking.contract.RecordingList
 import dev.jamesrich.sofaking.contract.RecordingRule
 import dev.jamesrich.sofaking.contract.RecordingRuleList
 import dev.jamesrich.sofaking.contract.ScheduleRecording
+import dev.jamesrich.sofaking.contract.UpcomingPrograms
+import dev.jamesrich.sofaking.contract.UpdateMultiview
 import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.UpdatePlayback
 import dev.jamesrich.sofaking.contract.UpdateRecording
@@ -39,6 +45,8 @@ import dev.jamesrich.sofaking.contract.UpdateRecordingRule
 import dev.jamesrich.sofaking.contract.UpdateVodPlayback
 import dev.jamesrich.sofaking.contract.ViewerPreferences
 import dev.jamesrich.sofaking.contract.VodSession
+import dev.jamesrich.sofaking.contract.Watchlist
+import dev.jamesrich.sofaking.contract.WatchlistEntry
 import kotlinx.serialization.json.Json
 
 /** Reads the server's `/api/v1` resources; fields the app does not know are ignored. */
@@ -64,6 +72,7 @@ internal typealias ApiErrorDto = ApiError
 internal typealias PairingClaimDto = PairingClaim
 internal typealias PairingResultDto = PairingResult
 internal typealias ViewerPreferencesDto = ViewerPreferences
+internal typealias HouseholdPreferencesDto = HouseholdPreferences
 internal typealias LibraryDto = Library
 internal typealias LibraryItemDto = LibraryItem
 internal typealias LibraryPageDto = LibraryPage
@@ -78,7 +87,14 @@ internal typealias UpdateVodPlaybackDto = UpdateVodPlayback
 internal typealias VodSessionDto = VodSession
 internal typealias ClientProfileDto = ClientProfile
 internal typealias BootstrapDto = Bootstrap
+internal typealias WatchlistDto = Watchlist
+internal typealias UpcomingProgramsDto = UpcomingPrograms
+internal typealias WatchlistEntryDto = WatchlistEntry
+internal typealias AddWatchlistEntryDto = AddWatchlistEntry
 internal typealias CapabilitiesDto = Capabilities
+internal typealias OpenMultiviewDto = OpenMultiview
+internal typealias UpdateMultiviewDto = UpdateMultiview
+internal typealias MultiviewSessionDto = MultiviewSession
 internal typealias RecordingDto = Recording
 internal typealias RecordingListDto = RecordingList
 internal typealias RecordingRuleDto = RecordingRule

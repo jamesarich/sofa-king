@@ -44,6 +44,9 @@ import dev.jamesrich.sofaking.data.InstallFailure
 import dev.jamesrich.sofaking.data.InstallState
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.ReleaseNote
+import dev.jamesrich.sofaking.data.SeekSteps
+import dev.jamesrich.sofaking.data.SkipKind
+import dev.jamesrich.sofaking.data.SkipMode
 import dev.jamesrich.sofaking.data.StartupTarget
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.UpdateInstaller
@@ -85,6 +88,7 @@ import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.rememberUpdateInstaller
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.supportsNightListening
 import dev.jamesrich.sofaking.ui.supportsPlaybackPreferences
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.updateDownloadUrl
@@ -112,14 +116,17 @@ class SettingsActions(
     /** Opens the channel manager (hidden channels and the favorites order). */
     val onManageChannels: () -> Unit = {},
     val onMatchFrameRateChanged: (Boolean) -> Unit = {},
+    val onNightListeningChanged: (Boolean) -> Unit = {},
     val onDecoderChanged: (DecoderPreference) -> Unit = {},
     val onBufferChanged: (BufferPreference) -> Unit = {},
     /** A new PIN for the lock, or null to remove it. */
     val onSettingsPinChanged: (String?) -> Unit = {},
+    /** Turns kids mode on, which leaves Settings locked, or off. */
+    val onKidsModeChanged: (Boolean) -> Unit = {},
     /** Compares the running [version] with the published snapshot; [again] repeats a check already made. */
     val onCheckForUpdate: (version: String, again: Boolean) -> Unit = { _, _ -> },
-    val onSkipCommercialsChanged: (Boolean) -> Unit = {},
-    val onAutoSkipIntrosChanged: (Boolean) -> Unit = {},
+    val onSkipChanged: (SkipKind, SkipMode) -> Unit = { _, _ -> },
+    val onSeekStepsChanged: (SeekSteps) -> Unit = {},
     val onHideSpoilersChanged: (Boolean) -> Unit = {},
     val onSubtitleLookChanged: (SubtitleLook) -> Unit = {},
     val onLiveBreaksChanged: (LiveBreaks) -> Unit = {},
@@ -209,7 +216,7 @@ fun SettingsScreen(
             if (unconfigured) serverSection()
             generalSection(settings, actions, startup, { startup = it }, channels, libraryOffered, focus.startup)
             guideSection(settings, actions, channels, focus.channels)
-            if (recordingsOffered) recordingsSection(settings, actions)
+            if (recordingsOffered) recordingsSection(settings, actions, withSeekSteps = !libraryOffered)
             if (libraryOffered) {
                 librarySection(settings, actions, subtitleLook) { look ->
                     subtitleLook = look
@@ -217,10 +224,10 @@ fun SettingsScreen(
                 }
             }
             captionsSection(settings, actions)
-            if (supportsPlaybackPreferences) playbackSection(settings, actions)
+            if (supportsPlaybackPreferences || supportsNightListening) playbackSection(settings, actions)
             if (!unconfigured) serverSection()
             item { SectionHeader(stringResource(Res.string.settings_section_lock)) }
-            item { LockSection(locked = settings.settingsLocked, onPinChange = actions.onSettingsPinChanged) }
+            item { LockSection(settings, actions.onSettingsPinChanged, actions.onKidsModeChanged) }
             // About: the app, its version and what is loaded, then where the build stands
             // against the published snapshot.
             item { SectionHeader(stringResource(Res.string.settings_section_about)) }

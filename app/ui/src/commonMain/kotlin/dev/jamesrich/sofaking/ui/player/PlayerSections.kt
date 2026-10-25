@@ -44,6 +44,7 @@ import dev.jamesrich.sofaking.resources.player_control_channel_up
 import dev.jamesrich.sofaking.resources.player_control_channels
 import dev.jamesrich.sofaking.resources.player_control_from_start
 import dev.jamesrich.sofaking.resources.player_control_guide
+import dev.jamesrich.sofaking.resources.player_control_multiview
 import dev.jamesrich.sofaking.resources.player_control_pause
 import dev.jamesrich.sofaking.resources.player_control_play
 import dev.jamesrich.sofaking.resources.player_control_previous
@@ -202,6 +203,7 @@ internal fun BoxScope.InfoBarPanel(
     onGuide: () -> Unit,
     focus: FocusRequester,
     entry: FocusRequester,
+    onMultiview: (() -> Unit)? = null,
 ) {
     val bar = BarActions(state, focus, pointerDriven)
     val buttons = LiveBarButtons(
@@ -217,6 +219,7 @@ internal fun BoxScope.InfoBarPanel(
         favorite,
         onToggleFavorite,
         onGuide,
+        onMultiview,
     )
     val items = liveButtons(
         pointerDriven,
@@ -224,6 +227,7 @@ internal fun BoxScope.InfoBarPanel(
         canFavorite = favorite != null,
         hasPrevious = state.previousIndex != null,
         canWatchFromStart = record?.fromStart != null,
+        canMultiview = onMultiview != null,
     ).map { buttons.item(it) }
 
     InfoBar(state.overlayVisible && !state.miniGuideOpen && !state.streamCardOpen) {
@@ -275,6 +279,7 @@ private class LiveBarButtons(
     private val favorite: Boolean?,
     private val onToggleFavorite: () -> Unit,
     private val onGuide: () -> Unit,
+    private val onMultiview: (() -> Unit)?,
 ) {
     @Composable
     fun item(button: LiveButton): PlayerButtonItem = when (button) {
@@ -316,6 +321,12 @@ private class LiveBarButtons(
         LiveButton.RECORD -> record()
 
         LiveButton.FAVORITE -> favorite()
+
+        LiveButton.MULTIVIEW -> PlayerButtonItem(
+            SofaIcons.Dashboard,
+            stringResource(Res.string.player_control_multiview),
+            { onMultiview?.invoke() },
+        )
 
         LiveButton.GUIDE -> PlayerButtonItem(
             SofaIcons.GridView,

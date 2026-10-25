@@ -23,18 +23,27 @@ import dev.jamesrich.sofaking.data.SettingsKeys.GUIDE_DENSITY
 import dev.jamesrich.sofaking.data.SettingsKeys.GUIDE_FILTER
 import dev.jamesrich.sofaking.data.SettingsKeys.HIDDEN_CHANNELS
 import dev.jamesrich.sofaking.data.SettingsKeys.HIDE_SPOILERS
+import dev.jamesrich.sofaking.data.SettingsKeys.HOUSEHOLD_SYNCED_AT
 import dev.jamesrich.sofaking.data.SettingsKeys.KEY_LEGEND_SHOWN
+import dev.jamesrich.sofaking.data.SettingsKeys.KIDS_MODE
 import dev.jamesrich.sofaking.data.SettingsKeys.LAST_CHANNEL
 import dev.jamesrich.sofaking.data.SettingsKeys.LAST_TAB
 import dev.jamesrich.sofaking.data.SettingsKeys.LIVE_BREAKS
 import dev.jamesrich.sofaking.data.SettingsKeys.MATCH_FRAME_RATE
+import dev.jamesrich.sofaking.data.SettingsKeys.NIGHT_LISTENING
 import dev.jamesrich.sofaking.data.SettingsKeys.PREFERENCES_SYNCED_AT
 import dev.jamesrich.sofaking.data.SettingsKeys.PREVIEW_SOUND
 import dev.jamesrich.sofaking.data.SettingsKeys.RECENT_CHANNELS
+import dev.jamesrich.sofaking.data.SettingsKeys.SEEK_BACK_SECONDS
+import dev.jamesrich.sofaking.data.SettingsKeys.SEEK_FORWARD_SECONDS
 import dev.jamesrich.sofaking.data.SettingsKeys.SEPARATOR
 import dev.jamesrich.sofaking.data.SettingsKeys.SERVER_URL
 import dev.jamesrich.sofaking.data.SettingsKeys.SETTINGS_PIN
+import dev.jamesrich.sofaking.data.SettingsKeys.SHARE_FAVORITES
 import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_COMMERCIALS
+import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_COMMERCIAL_BREAKS
+import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_CREDITS
+import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_INTROS
 import dev.jamesrich.sofaking.data.SettingsKeys.SMOOTH_CAPTIONS
 import dev.jamesrich.sofaking.data.SettingsKeys.STARTUP
 import dev.jamesrich.sofaking.data.SettingsKeys.STARTUP_CHANNEL
@@ -171,6 +180,10 @@ internal class DataStorePlayerSettings(private val dataStore: DataStore<Preferen
         dataStore.edit { prefs -> prefs[MATCH_FRAME_RATE] = enabled }
     }
 
+    override suspend fun setNightListening(enabled: Boolean) {
+        dataStore.edit { prefs -> prefs[NIGHT_LISTENING] = enabled }
+    }
+
     override suspend fun setDecoder(decoder: DecoderPreference) {
         dataStore.edit { prefs -> prefs[DECODER] = decoder.name }
     }
@@ -190,12 +203,30 @@ internal class DataStorePlayerSettings(private val dataStore: DataStore<Preferen
         dataStore.edit { prefs -> prefs[BUFFER] = buffer.name }
     }
 
-    override suspend fun setSkipCommercials(enabled: Boolean) {
-        dataStore.edit { prefs -> prefs[SKIP_COMMERCIALS] = enabled }
+    override suspend fun setSkip(kind: SkipKind, mode: SkipMode) {
+        dataStore.edit { prefs ->
+            // An older build on the same device reads its switch, on for automatic.
+            when (kind) {
+                SkipKind.INTROS -> {
+                    prefs[SKIP_INTROS] = mode.name
+                    prefs[AUTO_SKIP_INTROS] = mode == SkipMode.AUTO
+                }
+
+                SkipKind.CREDITS -> prefs[SKIP_CREDITS] = mode.name
+
+                SkipKind.COMMERCIAL_BREAKS -> {
+                    prefs[SKIP_COMMERCIAL_BREAKS] = mode.name
+                    prefs[SKIP_COMMERCIALS] = mode == SkipMode.AUTO
+                }
+            }
+        }
     }
 
-    override suspend fun setAutoSkipIntros(enabled: Boolean) {
-        dataStore.edit { prefs -> prefs[AUTO_SKIP_INTROS] = enabled }
+    override suspend fun setSeekSteps(steps: SeekSteps) {
+        dataStore.edit { prefs ->
+            prefs[SEEK_BACK_SECONDS] = steps.backSeconds
+            prefs[SEEK_FORWARD_SECONDS] = steps.forwardSeconds
+        }
     }
 
     override suspend fun setLiveBreaks(mode: LiveBreaks) {
@@ -282,6 +313,42 @@ internal class DataStoreDeviceSettings(private val dataStore: DataStore<Preferen
     }
 
     override suspend fun setSettingsPin(hash: String?) {
-        dataStore.edit { prefs -> if (hash.isNullOrEmpty()) prefs -= SETTINGS_PIN else prefs[SETTINGS_PIN] = hash }
+        dataStore.edit { prefs ->
+            if (hash.isNullOrEmpty()) {
+                prefs -= SETTINGS_PIN
+                prefs -= KIDS_MODE
+            } else {
+                prefs[SETTINGS_PIN] = hash
+            }
+        }
+    }
+
+    override suspend fun setShareFavorites(on: Boolean) {
+        dataStore.edit { prefs -> prefs[SHARE_FAVORITES] = on }
+    }
+
+    override suspend fun applyHouseholdPreferences(hidden: Set<String>, favorites: List<String>, syncedAt: String) {
+        dataStore.edit { prefs ->
+            prefs[HIDDEN_CHANNELS] = hidden
+            prefs[FAVORITES] = favorites.toSet()
+            prefs[FAVORITES_ORDER] = favorites.distinct().joinToString(SEPARATOR.toString())
+            prefs[HOUSEHOLD_SYNCED_AT] = syncedAt
+        }
+    }
+
+    override suspend fun setHouseholdSyncedAt(syncedAt: String) {
+        dataStore.edit { prefs -> prefs[HOUSEHOLD_SYNCED_AT] = syncedAt }
+    }
+
+    override suspend fun setKidsMode(on: Boolean) {
+        dataStore.edit { prefs ->
+            if (on &&
+                prefs[SETTINGS_PIN] != null
+            ) {
+                prefs[KIDS_MODE] = true
+            } else {
+                prefs -= KIDS_MODE
+            }
+        }
     }
 }

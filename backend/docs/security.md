@@ -44,6 +44,8 @@ Notes on the table:
 
 ## Outbound requests
 
+The server collects no telemetry, analytics or crash reports and reports nothing about its users. Its own requests are the ones below, and the update check's request to the image's container registry ([about](admin.md#update)).
+
 The server makes requests to the playlist, guide, logo and stream hosts that you configure, and, with a TMDB token, to `api.themoviedb.org` and `image.tmdb.org` for library details and artwork. The upstream address policy applies to all of them:
 
 - Only `http` and `https` URLs without user information are fetched.

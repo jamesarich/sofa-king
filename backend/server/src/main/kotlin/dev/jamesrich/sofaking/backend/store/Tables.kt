@@ -218,7 +218,7 @@ internal object PlayStates : Table("play_state") {
     val dismissed = bool("dismissed").default(false)
 
     /** Whose state it is; every row is the household's until profiles exist. */
-    val scope = text("scope").default("household")
+    val scope = text("scope").default(HOUSEHOLD)
     override val primaryKey = PrimaryKey(itemId)
 }
 
@@ -266,6 +266,27 @@ internal object LibraryScrubRows : Table("library_scrub") {
     override val primaryKey = PrimaryKey(itemId)
 }
 
+/** The household's shared favorites and hidden channels, one JSON document per scope. */
+internal object HouseholdPreferencesTable : Table("household_preferences") {
+    /** Whose document it is; the household's until profiles exist. */
+    val scope = text("scope").default(HOUSEHOLD)
+    val preferencesJson = text("preferences_json")
+    val updatedAt = text("updated_at")
+    override val primaryKey = PrimaryKey(scope)
+}
+
+internal object WatchlistEntries : Table("watchlist") {
+    val id = text("id")
+
+    /** Whose list it is; every row is the household's until profiles exist. */
+    val scope = text("scope").default(HOUSEHOLD)
+    val kind = text("kind")
+    val itemId = text("item_id").nullable()
+    val title = text("title")
+    val channelId = text("channel_id").nullable()
+    val addedAt = text("added_at")
+    override val primaryKey = PrimaryKey(id)
+}
 internal object RecordingRules : Table("recording_rule") {
     val id = text("id")
     val title = text("title")
@@ -384,4 +405,33 @@ internal object SessionHistoryRows : Table("session_history") {
     val endedAt = text("ended_at")
     val bytes = long("bytes").nullable()
     override val primaryKey = PrimaryKey(id)
+}
+
+/** The scope of household rows: the one value until profiles exist. */
+internal const val HOUSEHOLD = "household"
+internal object VirtualChannels : Table("virtual_channel") {
+    val id = text("id")
+    val name = text("name")
+    val number = text("number").nullable()
+    val settingsJson = text("settings_json")
+    val createdAt = text("created_at")
+    val updatedAt = text("updated_at")
+    override val primaryKey = PrimaryKey(id)
+}
+internal object VirtualSlots : Table("virtual_slot") {
+    val channelId = text("channel_id")
+    val position = integer("position")
+    val sourceJson = text("source_json")
+    val shuffle = bool("shuffle")
+    val startMinute = integer("start_minute").nullable()
+    override val primaryKey = PrimaryKey(channelId, position)
+}
+internal object VirtualAirings : Table("virtual_airing") {
+    val channelId = text("channel_id")
+    val startsAt = text("starts_at")
+    val endsAt = text("ends_at")
+    val itemId = text("item_id").nullable()
+    val slot = integer("slot").nullable()
+    val filler = bool("filler")
+    override val primaryKey = PrimaryKey(channelId, startsAt)
 }

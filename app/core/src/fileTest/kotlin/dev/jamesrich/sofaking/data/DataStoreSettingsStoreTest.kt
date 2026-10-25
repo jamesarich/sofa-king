@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.data
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.first
@@ -147,19 +148,42 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
-    fun `skipping commercials is off until it is turned on`() = runTest {
+    fun `intros credits and commercial breaks wait for a press until set otherwise`() = runTest {
         val store = newStore()
-        assertFalse(store.settings.first().skipCommercials)
-        store.setSkipCommercials(true)
-        assertTrue(store.settings.first().skipCommercials)
+        assertEquals(Skips(), store.settings.first().skips)
+        store.setSkip(SkipKind.CREDITS, SkipMode.AUTO)
+        store.setSkip(SkipKind.COMMERCIAL_BREAKS, SkipMode.OFF)
+        assertEquals(
+            Skips(credits = SkipMode.AUTO, commercialBreaks = SkipMode.OFF),
+            store.settings.first().skips,
+        )
     }
 
     @Test
-    fun `intros wait for a press until auto skip is turned on`() = runTest {
+    fun `the switches an older build kept stand in until a mode is set and stay written for it`() = runTest {
+        dataStore.edit {
+            it[booleanPreferencesKey("auto_skip_intros")] = true
+            it[booleanPreferencesKey("skip_commercials")] = true
+        }
         val store = newStore()
-        assertFalse(store.settings.first().autoSkipIntros)
-        store.setAutoSkipIntros(true)
-        assertTrue(store.settings.first().autoSkipIntros)
+        assertEquals(Skips(intros = SkipMode.AUTO, commercialBreaks = SkipMode.AUTO), store.settings.first().skips)
+
+        store.setSkip(SkipKind.INTROS, SkipMode.OFF)
+        store.setSkip(SkipKind.COMMERCIAL_BREAKS, SkipMode.BUTTON)
+        assertEquals(Skips(intros = SkipMode.OFF), store.settings.first().skips)
+        val prefs = dataStore.data.first()
+        assertEquals(false, prefs[booleanPreferencesKey("auto_skip_intros")])
+        assertEquals(false, prefs[booleanPreferencesKey("skip_commercials")])
+    }
+
+    @Test
+    fun `a press steps 10 seconds back and 30 forward until set otherwise`() = runTest {
+        val store = newStore()
+        assertEquals(SeekSteps(10, 30), store.settings.first().seekSteps)
+        assertEquals(10_000, store.settings.first().seekSteps.backMs)
+        store.setSeekSteps(SeekSteps(backSeconds = 5, forwardSeconds = 90))
+        assertEquals(SeekSteps(5, 90), store.settings.first().seekSteps)
+        assertEquals(90_000, store.settings.first().seekSteps.forwardMs)
     }
 
     @Test
@@ -457,5 +481,22 @@ class DataStoreSettingsStoreTest {
         assertFalse(locked.settingsPin.contains("2580"))
         store.setSettingsPin(null)
         assertFalse(store.settings.first().settingsLocked)
+    }
+
+    @Test
+    fun `kids mode takes a PIN and goes with it`() = runTest {
+        val store = newStore()
+        store.setKidsMode(true)
+        assertFalse(store.settings.first().kidsMode)
+        store.setSettingsPin(SettingsPin.hash("2580"))
+        store.setKidsMode(true)
+        assertTrue(store.settings.first().kidsMode)
+        store.setKidsMode(false)
+        assertFalse(store.settings.first().kidsMode)
+        store.setKidsMode(true)
+        store.setSettingsPin(null)
+        assertFalse(store.settings.first().kidsMode)
+        store.setSettingsPin(SettingsPin.hash("2580"))
+        assertFalse(store.settings.first().kidsMode)
     }
 }

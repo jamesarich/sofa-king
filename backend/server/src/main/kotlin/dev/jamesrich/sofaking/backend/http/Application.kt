@@ -81,6 +81,7 @@ fun Application.backendModule(
             historyRoutes(runtime, clock)
             viewerRoutes(runtime, clock, apiToken)
             runtime.dvr?.let { recordingRoutes(it) }
+            watchlistRoutes(runtime.watchlist)
             playbackRoutes(runtime)
             outputRoutes(runtime, clock, outputs, apiToken)
             calendarRoutes(runtime, clock, outputs, apiToken)
@@ -91,6 +92,7 @@ fun Application.backendModule(
             }
             hookRoutes(runtime.libraries)
             runtime.vod?.let { vodRoutes(it) }
+            runtime.multiview?.let { multiviewRoutes(it) }
             if (hdhr.enabled) hdhrRoutes(runtime, hdhr, store)
             portal?.install(this)
         }

@@ -79,7 +79,15 @@
     <string name="settings_caption_engine">Captions on this device are drawn by %1$s.</string>
     <string name="settings_section_playback">Playback</string>
     <string name="settings_section_library">Library</string>
-    <string name="settings_auto_skip_intros">Skip intros automatically</string>
+    <string name="settings_skip_intros">Skip intros</string>
+    <string name="settings_skip_credits">Skip credits</string>
+    <string name="settings_seek_back">Step back</string>
+    <string name="settings_seek_forward">Step forward</string>
+    <string name="settings_seek_seconds">%1$d s</string>
+    <string name="settings_seek_help">How far Left and Right, Rewind and Fast Forward, the bar's step buttons and a double tap move a library item or a recording. A held key still moves a minute and then five.</string>
+    <string name="settings_skip_mode_auto">Automatically</string>
+    <string name="settings_skip_mode_button">With a button</string>
+    <string name="settings_skip_mode_off">Off</string>
     <string name="settings_hide_spoilers">Hide spoilers</string>
     <string name="settings_hide_spoilers_help">Episodes you have not started keep their summaries back and blur their pictures.</string>
     <string name="settings_subtitle_size">Subtitle size</string>
@@ -93,7 +101,8 @@
     <string name="settings_subtitle_raise_high">Higher</string>
     <string name="settings_subtitle_box">Subtitle background</string>
     <string name="settings_subtitle_box_help">A dark box behind the subtitles. Off, they are white with a shadow.</string>
-    <string name="settings_auto_skip_intros_help">Skip intro counts down 5 seconds and then skips; any key stops it. Off, an intro waits for a press.</string>
+    <string name="settings_skip_intros_help">Automatically, Skip intro counts down 5 seconds and then skips; any key stops it. With a button, it waits for a press. Off, intros play.</string>
+    <string name="settings_skip_credits_help">Automatically, Skip credits counts down 5 seconds and then skips to the end, where Up next takes over; any key stops it. With a button, it waits for a press. Off, credits play.</string>
     <string name="settings_match_frame_rate">Match frame rate</string>
     <string name="settings_match_frame_rate_help">Switches the display to the stream's frame rate while it plays. Some TVs show a black screen for a moment at each switch.</string>
     <string name="settings_decoder">Decoder</string>
@@ -116,6 +125,10 @@
     <string name="settings_lock_cancel">Cancel</string>
     <string name="settings_lock_on">Settings now asks for the PIN. Forgot it? Choose Forgot the PIN on the lock screen and enter the server's API token.</string>
     <string name="settings_lock_remove">Remove the PIN</string>
+    <string name="settings_kids_help">Kids mode keeps the guide to the lineup's kids' channels and the library to titles rated G, PG, TV-Y, TV-Y7, TV-G or TV-PG, and hides the DVR tab. Leaving it takes the PIN.</string>
+    <string name="settings_kids_on">Kids mode is on. Turn it off here to show every channel and title again.</string>
+    <string name="settings_kids_turn_on">Turn on kids mode</string>
+    <string name="settings_kids_turn_off">Turn off kids mode</string>
     <string name="lock_title">Settings are locked</string>
     <string name="lock_help">Enter the PIN to open Settings.</string>
     <string name="lock_pin">PIN</string>
@@ -157,4 +170,8 @@
         <item quantity="one">%1$d channel loaded</item>
         <item quantity="other">%1$d channels loaded</item>
     </plurals>
+    <string name="channels_share">Share favorites across devices</string>
+    <string name="channels_share_help">Keeps the favorites, their order and the hidden channels the same on every device of the household that has this on. Turning it on takes the household's list over when another device saved one.</string>
+    <string name="settings_night_listening">Night listening</string>
+    <string name="settings_night_listening_help">Brings quiet dialogue up and loud scenes down, for late nights. Audio passed through to a receiver is left as it is.</string>
 </resources>

@@ -24,15 +24,18 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | --- | --- | --- |
 | GET | `/healthz` | Public liveness check |
 | GET | `/readyz` | Public database readiness check |
-| GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`, `recordings`) |
+| GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`, `recordings`, `watchlist`, `multiview`) |
 | POST | `/api/v1/pair` | Exchange a pairing code for a token of the device's own, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429` |
 | GET | `/api/v1/preferences/{clientId}` | The preferences the client with that id last saved, see [viewer preferences](#viewer-preferences); `404 VIEWER_NOT_FOUND` before its first save |
 | PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt` |
+| GET | `/api/v1/household/preferences` | The household's shared favorites and hidden channels, see [viewer preferences](#viewer-preferences); an empty document with an empty `updatedAt` before the first save |
+| PUT | `/api/v1/household/preferences` | Replace the household's shared favorites and hidden channels; answers the stored document with the server's `updatedAt` |
 | GET | `/api/v1/channels` | Catalog revision and the enabled lineup entries as channels; supports ETag/If-None-Match |
 | GET | `/api/v1/providers` | Provider import status and channel counts |
 | GET | `/api/v1/sources` | Health and manual-disable flag of every source |
 | PATCH | `/api/v1/sources/{id}` | Set `manuallyDisabled`; takes the admin token, as the admin routes do |
 | POST | `/api/v1/guide/query` | Programs overlapping a requested channel/time window |
+| GET | `/api/v1/guide/on-later?kind=movie` | Movies, sports, kids' programs or premieres coming up on the enabled channels |
 | POST | `/api/v1/playback-sessions` | Create a preview or watch session |
 | GET | `/api/v1/playback-sessions/{id}` | Read the current playback descriptor |
 | PATCH | `/api/v1/playback-sessions/{id}` | Renew the lease and optionally change intent |
@@ -48,6 +51,9 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | POST | `/api/v1/recording-rules` | Add a series rule, by title or with a `match` for a team or keywords ([recordings](recordings.md#record-a-series)); `201` |
 | PATCH | `/api/v1/recording-rules/{id}` | Change `channelId` (`anyChannel: true` clears it), `newOnly`, `keep`, the paddings or `priority`; `404 RULE_NOT_FOUND` |
 | DELETE | `/api/v1/recording-rules/{id}` | Delete a rule and its scheduled recordings; what it recorded stays. Returns 204 |
+| GET | `/api/v1/watchlist` | The household's [watchlist](#watchlist), newest first |
+| POST | `/api/v1/watchlist` | Add a library item or a guide title; `201`, or the entry the list already holds. `404 ITEM_NOT_FOUND`, `409 WATCHLIST_FULL` |
+| DELETE | `/api/v1/watchlist/{id}` | Take an entry off the list; returns 204, or `404 WATCHLIST_ENTRY_NOT_FOUND` |
 | GET | `/media/sessions/{id}/{epoch}/{token}` | Session-authorized HLS or MPEG-TS media. `{epoch}` is the descriptor's epoch and `{token}` a random token for one playlist, segment or key |
 | GET | `/output/playlist.m3u` | The enabled lineup as an M3U playlist for third-party players, see [player outputs](#player-outputs) |
 | GET | `/output/guide.xml?days=` | The lineup's programs as XMLTV |
@@ -56,7 +62,7 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | GET | `/logos/{key}` | A cached lineup logo, public, see [logos](#logos) |
 | GET | `/api/v1/libraries` | Every [media library](#media-libraries) with its count of movies, shows or videos |
 | GET | `/api/v1/libraries/{id}/items?sort=&unwatched=&genre=&cursor=&limit=` | One page of a library's movies, shows or videos |
-| GET | `/api/v1/library/home` | Continue watching, then Recently added for each library, and the libraries |
+| GET | `/api/v1/library/home` | Continue watching, the Watchlist, then Recently added for each library, and the libraries |
 | GET | `/api/v1/library/items/{id}` | An item with its seasons or episodes, the next episode of a show, and a file's tracks |
 | GET | `/api/v1/library/lookup?tmdb=&tvdb=&imdb=` | The movies and shows whose TMDB, TheTVDB or IMDb (`tt…`) id is one of those given, as a `LibraryPage` in title order. 400 without an id or with a malformed one |
 | GET | `/api/v1/library/search?q=` | Movies, shows and videos whose title holds `q`, then those with a cast member or director whose name holds it, then episodes by title; at most 50 |
@@ -67,6 +73,11 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | PATCH | `/api/v1/vod-sessions/{id}` | Renew it, and with `startMs` restart a converted stream there |
 | DELETE | `/api/v1/vod-sessions/{id}` | Release it; returns 204 |
 | GET | `/media/vod/{id}/{epoch}/{secret}/{name}` | The session's file with byte ranges, or its HLS playlist and segments |
+| POST | `/api/v1/multiview-sessions` | Watch two to four channels as one picture, see [multiview](#multiview) |
+| GET | `/api/v1/multiview-sessions/{id}` | Read a multiview session |
+| PATCH | `/api/v1/multiview-sessions/{id}` | Renew it, and with `audio` move the sound to another tile |
+| DELETE | `/api/v1/multiview-sessions/{id}` | Release it; returns 204 |
+| GET | `/media/multiview/{id}/{epoch}/{secret}/{name}` | The multiview stream's HLS playlist and segments |
 | GET | `/artwork/{id}/{role}` | An item's `poster` or `backdrop`, public, see [media libraries](#media-libraries) |
 | GET | `/artwork/{id}/scrub/{sheet}` | A sheet of an item's scrub thumbnails, public, see [media libraries](#media-libraries) |
 | GET | `/discover.json`, `/lineup.json`, `/lineup_status.json`, `/device.xml` | HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation) |
@@ -99,6 +110,8 @@ Request 1-200 distinct channels and a positive window of at most 24 hours. Progr
 Each program has `id`, `channelId`, `startsAt`, `endsAt`, `title` and `description`, and the metadata its guide source provides: `subTitle` (the episode title), `episode` (a label such as `S2 E5` or `E5`, or the source's on-screen numbering), `isNew` (a first airing), `rating` (such as `TV-14`), `icon` (an image URL on the source's host) and `categories` (the source's genres, such as `Movies` or `Sports`, each once). A field the source does not provide is null, false for `isNew` or empty for `categories`. Clients should ignore fields they do not know.
 
 To page through a consistent guide, pass the returned `revision` in subsequent requests. A changed revision (any guide re-imported, or the lineup changed) returns `409 RESYNC_REQUIRED`; query again without the old revision.
+
+`GET /api/v1/guide/on-later` answers On Later: `{"programs": [...]}`, the programs of one `kind` on the enabled channels that have not ended and start within `days` (1 to 7, default 2), soonest first, at most `limit` (1 to 500, default 200), each as above with `channelId` the lineup entry. `kind` is `movie` (a `Movie` or `Film` category beside a film genre, and no news or sports one, as the app's guide filter reads it), `sports`, `kids` (a `Kids` or `Children` category) or `new` (a `Premiere` category, or a new airing of a season's first episode). `onLater` in the bootstrap capabilities says the server has it.
 
 ## Open and release playback
 
@@ -166,6 +179,8 @@ Each client keeps one document under its own id, so a reinstall or a second devi
 
 Each list holds at most 1,000 distinct ids. The server sets `updatedAt` and answers the stored document; a client compares that stamp to the one it last synced to decide whether the server's copy is newer than its own. The app pushes a change a few seconds after it settles and takes the server's copy over at start when another device wrote it since.
 
+The household keeps one more document under `/api/v1/household/preferences`, with `favorites` and `hidden` as above and the same limits, which every device that shares favorites keeps in step the same way. Each device still keeps its own document too, with its recent list. A server that offers it says `household` in the bootstrap's capabilities.
+
 ## Media libraries
 
 `library` in the bootstrap capabilities says the server has the routes below. Items are what a [library scan](libraries.md) found, with what TMDB knows filled in; a `.nfo` beside a file wins over TMDB's text, and the library's own images over TMDB's. `kind` is `movie`, `show`, `season`, `episode` or `video`. A show's `children` counts its seasons (or its episodes when it has no season folders) and `unwatched` its unwatched episodes; an episode names its show in `showId` and `showTitle`. `videoHeight` and `hdr` come from FFprobe, for a 4K, HD or HDR badge.
@@ -194,6 +209,12 @@ An item's `subtitles` list the subtitle streams of its file by stream index, the
 `GET /api/v1/library/items/{id}/subtitles/{index}` returns a text subtitle track from the item's `subtitles` (SubRip, ASS, SSA, MP4 text or WebVTT) as WebVTT, with times in the item's time, so a player draws it over any stream mode by the item's position. The first read extracts the track, which reads the whole file, and up to three tracks are extracted at once; the copy under `SOFA_DATA_DIR/transcode/subtitles` serves later reads until the file changes. A picture track (PGS, DVD, DVB) answers `415 SUBTITLE_NOT_TEXT`; ask for it in a session's `subtitleIndex` instead. One FFmpeg cannot read answers `502 SUBTITLE_FAILED`.
 
 A [recording](recordings.md#play-a-recording) plays the same way: send its `recordingId` instead of `itemId`, and the session echoes `recordingId` with an empty `itemId`. A finished recording's `durationMs` is the file's length. One still recording is never played directly: it gets HLS that follows the file as it grows, with `durationMs` the length its window will have, and the stream ends a minute after the file stops growing. A recording with nothing written yet answers `409 RECORDING_NOT_READY` (retryable), and one that is only scheduled, failed or unknown `404 RECORDING_NOT_FOUND`.
+
+## Multiview
+
+`multiview` in the bootstrap capabilities says the server can draw several channels into one picture now. `POST /api/v1/multiview-sessions` takes `channelIds`, two to four different enabled lineup channels, and `audio`, the index of the one whose sound plays (0 when absent). The server answers `201` with a session whose `descriptor` is one live HLS stream: two channels side by side, or three or four in a grid, left to right and top to bottom, each letterboxed into its quarter, with a white border around the tile whose sound plays. The player plays it like a channel. `PATCH` with `audio` moves the sound and the border to another tile: FFmpeg starts again, the epoch changes, and the player loads the new descriptor's URL. A session lasts 60 seconds past its last renewal or media request, so the player renews it with `PATCH` while it plays and releases it with `DELETE`; one that has ended answers `410 SESSION_EXPIRED`.
+
+Each tile reads its channel in a playback session of its own, which picks the channel's healthiest source and holds a session slot as a viewer would. A channel that cannot be opened is a black tile; when a source fails mid-stream, the picture starts again two seconds later. The stream counts toward `SOFA_MAX_TRANSCODES` with library playback and virtual channels; one more answers `503 CAPACITY_EXHAUSTED`. `SOFA_MULTIVIEW` decides whether the server offers it: `auto`, the default, only when a [GPU encoder](libraries.md#hardware-transcoding) works, drawing 1080p; `on` also in software, drawing 720p, which takes several CPU cores; `off` never. While it is not offered, `POST` answers `503 MULTIVIEW_UNAVAILABLE`. The server logs which at start, for example `multiview: Off: no GPU encoder works`. Its files are under `SOFA_DATA_DIR/multiview` and are deleted when the session ends.
 
 ## Hooks
 
@@ -231,6 +252,10 @@ A rule has a `title`, an optional `channelId`, `newOnly`, `keep` (0 keeps all), 
 ```
 
 `channels` counts the lineup's entries, those turned on, and those with a source that can play. `sessions` counts live and library playback open now. `recordings.conflicts` counts the scheduled recordings that conflict, and `next` is the next to start. `updateAvailable` is null until the update check has an answer, and `recordings` and `libraries` are null on a server without them.
+
+## Watchlist
+
+`watchlist` in the bootstrap capabilities says the server has these routes. The watchlist belongs to the household, not one device, and holds up to 500 entries. An entry's `kind` is `item`, a library movie, show or video with its `itemId` and the `item` as the library has it now (`null` once the library no longer holds it), or `title`, a guide title to watch for, on `channelId` only when set. A title matches a program's title ignoring case and outer spaces, as a [series rule](recordings.md#record-a-series) does, and its `next` is the soonest airing of it the guide holds in the coming week that has not ended, which may be on now, or `null`. `POST` takes `kind` with `itemId`, or with `title` (1 to 200 characters) and an optional `channelId`; adding what the list already holds, a title in any case, answers that entry. The library home's Watchlist shelf lists the item entries the library holds, newest first, after Continue watching.
 
 ## Player outputs
 
@@ -356,6 +381,17 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 
 While a lineup policy is in use, `POST /lineup`, `PUT /lineup/order` and `POST /lineup/adopt` answer `410 Gone` with code `POLICY_MANAGED`; see [lineup policy](lineup-policy.md#api). Without it, the `/policy/*` routes answer `404 POLICY_NOT_CONFIGURED`.
 
+### Virtual channels
+
+[Virtual channels](virtual-channels.md) are kept in the database and reach the lineup through a `virtual` provider in the source file.
+
+| Method | Path | Response or action |
+| --- | --- | --- |
+| GET | `/api/v1/admin/virtual-channels` | Every virtual channel in the order they were made: `id`, `name`, `number`, `slots`, `filler`, `padMinutes` and `breaks` |
+| POST | `/api/v1/admin/virtual-channels` | Create a channel; 201 with it and its new `id`. The body is `{"name", "number", "slots": [{"source": {"kind", "value"}, "shuffle", "start"}], "filler", "padMinutes", "breaks"}`: `kind` is `library` (a library ID), `show` (a show's item ID), `genre` (a genre name) or `channel` (a lineup entry ID, in timed slots only and never as filler), `start` is `HH:MM` on every slot or none, `filler` a source like a slot's, `padMinutes` 0, 15, 30 or 60, `breaks` either null or `{"everyMinutes", "source", "slides", "slideSeconds"}` (`everyMinutes` 0, 15, 30 or 60, 0 after every item; `source` a library source; `slides` up to five http or https image URLs; `slideSeconds` 3 to 60). 400 `INVALID_REQUEST` names what is wrong, such as a source that does not exist |
+| GET, PUT, DELETE | `/api/v1/admin/virtual-channels/{id}` | One channel; replace it with the same body, rebuilding its schedule from the end of what airs now; delete it (204). 404 `NOT_FOUND` |
+| GET | `/api/v1/admin/virtual-channels/{id}/schedule?hours=` | The airings from now for `hours` (1 to 48, 24 by default): `startsAt`, `endsAt`, `title`, `itemId` (null for black) and `filler` |
+
 ### Server status
 
 `GET /api/v1/admin/status` answers one JSON document, defined in the [server's status model](../server/src/main/kotlin/dev/jamesrich/sofaking/backend/api/Status.kt):
@@ -478,6 +514,8 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | GET | `/admin/required` | Required stations |
 | GET, POST | `/admin/providers`, `/admin/providers/edit` | Provider entries and their edits |
 | GET, POST | `/admin/groups`, `/admin/groups/edit` | Groups and their edits |
+| GET | `/admin/virtual?edit=` | The virtual channels, and the form that adds one or changes the channel `edit` names, with its schedule ahead |
+| POST | `/admin/virtual`, `/admin/virtual/{id}`, `/admin/virtual/{id}/delete` | Add a channel or change one (`name`, `number`, `source.N`, `shuffle.N` and `start.N` for each slot N from 0, `filler`, `padMinutes`, and `breaks.every` (empty for none), `breaks.source`, `breaks.slides` (one URL a line) and `breaks.slideSeconds`; a source is `kind:value`); delete one |
 | GET, POST | `/admin/plex`, `/admin/plex/reveal` | Plex and the device addresses; reveal the output token |
 | POST | `/admin/plex/allow`, `/admin/plex/disallow` | Allow an address onto the tuners, or remove one the portal allowed |
 | GET | `/admin/viewers` | The devices that paired or saved preferences, and the live pairing code with its QR code |
@@ -503,7 +541,7 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | GET | `/admin/system/about` | Whether an update is available, the server, the status and the support snapshot |
 | POST | `/admin/system/update/check`, `/admin/system/update/request` | Check the registry for a newer image now; ask the host's updater to update, after `confirm=yes`, by writing `update-requested` in the data directory |
 | GET | `/admin/system/snapshot.json` | The support snapshot as a JSON download |
-| GET | `/admin/api`, `/admin/api/openapi.json` | The API reference, and the OpenAPI 3.1 document it is rendered from |
+| GET | `/admin/api`, `/admin/api/openapi.json` | The API reference, and the OpenAPI 3.1 document it is rendered from; the [documentation site](https://jamesarich.github.io/sofa-king/api/index.html) renders the same document |
 
 ## Discovery
 
@@ -551,6 +589,6 @@ Errors contain `code`, `message` and `retryable`:
 | 429 | `CAPACITY_EXHAUSTED` (no session slot is free or can be freed, or a session already has 12 media requests in flight) |
 | 500 | `INTERNAL_ERROR` |
 | 502 | `UPSTREAM_UNAVAILABLE`, `UPSTREAM_REJECTED`, `INVALID_MANIFEST` |
-| 503 | `NOT_READY`, `SOURCE_UNAVAILABLE`, `SETUP_UNAVAILABLE`, `CAPACITY_EXHAUSTED` (every library playback slot, `SOFA_MAX_TRANSCODES`, is converting), `TRANSCODER_UNAVAILABLE` (FFmpeg could not start) |
+| 503 | `NOT_READY`, `SOURCE_UNAVAILABLE`, `SETUP_UNAVAILABLE`, `CAPACITY_EXHAUSTED` (every library playback slot, `SOFA_MAX_TRANSCODES`, is converting), `TRANSCODER_UNAVAILABLE` (FFmpeg could not start), `MULTIVIEW_UNAVAILABLE` (the server does not draw [multiview](#multiview)) |
 
 The admin portal shows its errors on its pages. A sign-in over its limit answers `429 Too Many Requests` with no error body.

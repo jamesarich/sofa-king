@@ -71,6 +71,7 @@ import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.ProgramBadges
 import dev.jamesrich.sofaking.ui.WIDESCREEN
 import dev.jamesrich.sofaking.ui.WholeLinesText
+import dev.jamesrich.sofaking.ui.announcesChanges
 import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.episodeLine
 import dev.jamesrich.sofaking.ui.hoursAndMinutes
@@ -96,10 +97,11 @@ private val SHEET_TEXT_MAX_HEIGHT = 360.dp
 
 /**
  * The program's details with Watch and Favorite, and Record and Record series when [recording] says how the
- * program is set (null on a server that does not record), with Record for each team a sports program names: a side
- * panel over the guide on a TV, where a window of its own would not take D-pad focus, and a Material bottom sheet
- * elsewhere. Back and Close dismiss it. With other
- * [airings] of the program, More airings lists them in its place; Back returns from the list to the details.
+ * program is set (null on a server that does not record), with Record for each team a sports program names, and Add
+ * to watchlist when [watchlisted] says whether its title is on the household's watchlist (null on a server without
+ * one): a side panel over the guide on a TV, where a window of its own would not take D-pad focus, and a Material
+ * bottom sheet elsewhere. Back and Close dismiss it. With other [airings] of the program, More airings lists them in
+ * its place; Back returns from the list to the details.
  */
 @Composable
 internal fun ProgramSheet(
@@ -117,6 +119,8 @@ internal fun ProgramSheet(
     onWatchFromStart: (recordingId: String) -> Unit = {},
     airings: List<Airing> = emptyList(),
     onShowAiring: (Airing) -> Unit = {},
+    watchlisted: Boolean? = null,
+    onToggleWatchlist: suspend (Program) -> Boolean = { false },
 ) {
     val watchFocus = remember { FocusRequester() }
     val airingsFocus = remember { FocusRequester() }
@@ -131,6 +135,8 @@ internal fun ProgramSheet(
         if (recordable != null && recording != null) {
             RecordButtons(recordable, recording, RecordActions(onRecord, onRecordSeries, onRecordTeam))
         }
+        val program = details.program
+        if (program != null && watchlisted != null) WatchlistButton(program, watchlisted, onToggleWatchlist)
         if (airings.isNotEmpty()) {
             SofaButton(onClick = { showAirings = true }, modifier = Modifier.focusRequester(airingsFocus)) {
                 Text(stringResource(Res.string.guide_details_more_airings, airings.size), maxLines = 1)
@@ -430,7 +436,7 @@ private fun RecordButtons(program: Program, mark: RecordingMark, actions: Record
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            SofaButton(onClick = { run(actions.onRecord) }) {
+            SofaButton(onClick = { run(actions.onRecord) }, modifier = Modifier.announcesChanges()) {
                 Text(
                     stringResource(
                         if (mark.recording) {
@@ -442,7 +448,7 @@ private fun RecordButtons(program: Program, mark: RecordingMark, actions: Record
                     maxLines = 1,
                 )
             }
-            SofaButton(onClick = { run(actions.onRecordSeries) }) {
+            SofaButton(onClick = { run(actions.onRecordSeries) }, modifier = Modifier.announcesChanges()) {
                 Text(
                     stringResource(
                         if (mark.series) {
@@ -465,6 +471,7 @@ private fun RecordButtons(program: Program, mark: RecordingMark, actions: Record
                 stringResource(Res.string.guide_details_record_failed),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.announcesChanges(),
             )
         }
     }
@@ -473,7 +480,7 @@ private fun RecordButtons(program: Program, mark: RecordingMark, actions: Record
 /** Record [team], or Stop recording it once a team rule has it. */
 @Composable
 private fun TeamButton(team: String, recorded: Boolean, onClick: () -> Unit) {
-    SofaButton(onClick = onClick) {
+    SofaButton(onClick = onClick, modifier = Modifier.announcesChanges()) {
         Text(
             stringResource(
                 if (recorded) Res.string.guide_details_stop_team else Res.string.guide_details_record_team,

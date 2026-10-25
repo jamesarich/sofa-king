@@ -155,7 +155,7 @@ The journeys and the fuzz walk focus in the TV layout on the JVM, but not Androi
 - [ ] CC then Left/Right moves the channel's caption timing both ways and the toast follows; Info held opens the stream card, and Up/Down and OK pick an audio track on a channel with several.
 - [ ] Settings → Open on start set to Guide opens the guide on a cold start, Library opens the Library tab, and A channel with one chosen opens that channel; Save & reload is off until the server fields change.
 - [ ] Settings → Manage channels: a group switched off empties its chip in the guide and its channels leave the channel list; the arrow opens the group's channels and one switched back on returns alone; hidden channels leave Channel Up/Down only once Skip hidden channels is on; the move buttons reorder the Favorites filter.
-- [ ] Settings opens on its first setting with no Back button drawn and Down walks General, Live TV, Recordings, Library, Captions, Playback, Server; the header shows only the tabs and Settings. Settings → Server → Reload shows Reloading while the lineup loads. Settings → Recordings → Skip commercials jumps a recording's breaks.
+- [ ] Settings opens on its first setting with no Back button drawn and Down walks General, Live TV, Recordings, Library, Captions, Playback, Server; the header shows only the tabs and Settings. Settings → Server → Reload shows Reloading while the lineup loads. Settings → Recordings → Skip commercials set to Automatically jumps a recording's breaks.
 - [ ] Settings → Time format 24-hour and Guide rows Compact change the guide at once; Open system caption settings opens the TV's captioning page.
 - [ ] Settings → Lock → Set a PIN, Back, open Settings: the lock page focuses the PIN field; a wrong PIN says so and the fifth starts a 30 s wait; the right PIN opens Settings; Forgot the PIN with the server's API token removes it.
 - [ ] Settings → Match frame rate on: a 29.97 or 25 fps channel switches the TV's refresh rate (the panel may blank for a moment) and the launcher's rate returns on Back, with playback still running after the switch (logcat shows "ignored a media-session pause" on a box that sends one); Decoder Software and Buffer Smoother still play the channel.
@@ -168,18 +168,20 @@ The journeys and the fuzz walk focus in the TV layout on the JVM, but not Androi
 - [ ] After stopping an episode part way, the home screen's Watch Next row (a Google TV or Shield launcher; the emulator's launcher has none) shows it with its artwork and progress; selecting it plays it from there, with the app closed and with it open on another tab, and Back returns to the Library tab. Finishing it moves the row on to the next episode.
 - [ ] Sleep timer on the live bar steps through Sleep in 15, 30, 60 and 90 min, Sleep after this program and Sleep timer (off); set to 15 minutes, the player returns to the guide on time with no preview playing. In a library episode, Sleep after this one leaves for the page as the episode ends, with no Up next. Let three episodes play into each other untouched: the third Up next card asks Still watching? and returns to the page after 30 seconds. On an Apple TV, the transport bar's Sleep timer menu does the same.
 - [ ] In the library player, Left and Right scrub and apply once released, holding them jumps further, OK applies at once, Back cancels a scrub and then returns to the page with the episode focused; Home and back resumes where it was, and a far jump in a converted file restarts there.
+- [ ] With TalkBack on: every button in the player's bars, Settings and the program details reads a name (the arrow and step buttons say what they move); Record, Record series, a team's Record, Add to watchlist and Mark watched read their new label after a press, Paused and Up next are read as they show, and the channel does not open by itself from the guide.
 
 On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app reliably):
 
 - [ ] The tab bar shows Live, Library (only for a server with libraries), DVR (only for a server that records) and Settings; a Top Shelf channel opens on Live from any tab. Leave the app from Library and start it again: it opens on Library.
 - [ ] In the Library, a card opens its page, play/pause on the remote plays a movie or episode straight from its card, and a library's grid sorts, filters and loads more as it scrolls.
+- [ ] With VoiceOver on, the tab bar, a channel row, a card and the player's transport bar each read a name.
 - [ ] A show's page opens on the season with the next episode; selecting an episode plays it, resuming where it stopped, and its context menu starts it over or marks it watched.
 - [ ] The library player resumes where the item stopped, scrubs in the transport bar, returns to the page at the end, and after Home and back picks up where it was.
 - [ ] Holding the touch surface on a channel opens its program details, and Watch plays it.
 - [ ] The player's transport bar menu records the program on now on a server that records (Cancel recording once set), toggles the favorite and switches channels from Recent, Favorites and All channels.
-- [ ] In a recording with Skip commercials off, Skip break shows over the picture inside a commercial break and jumps to its end.
+- [ ] In a recording with Skip commercials set to With a button, Skip break shows over the picture inside a commercial break and jumps to its end.
 - [ ] In an episode whose intro the server found, Skip intro shows over the picture inside the intro and jumps to its end.
-- [ ] After watching a few channels, the Top Shelf shows them newest first, and selecting one opens the app on it; the app and the extension must be signed with the `group.dev.jamesrich.sofaking` app group for the list to reach the extension.
+- [ ] After watching a few channels and stopping a library item partway, the Top Shelf shows Continue watching with its progress and then the channels newest first; selecting the item plays it where it stopped, from a cold start too, and selecting a channel opens the app on it; the app and the extension must be signed with the `group.dev.jamesrich.sofaking` app group for the list to reach the extension.
 
 ### Over adb
 
@@ -218,7 +220,30 @@ The device needs Android 13 or later, or root. The run installs the generator's 
 
 ## Signing
 
-Release APKs are minified with R8 and signed with the local debug key, so they are for testing. Distributing one needs a release signing configuration.
+Release APKs are minified with R8. With a release key they are signed with it; without one they are signed with the local debug key, so a local `assembleRelease` still works and its APK is for testing. The build reads the key from Gradle properties or the matching environment variables:
+
+| Gradle property | Environment variable | Value |
+| --- | --- | --- |
+| `sofaking.keystore.path` | `SOFAKING_KEYSTORE_PATH` | The keystore file |
+| `sofaking.keystore.password` | `SOFAKING_KEYSTORE_PASSWORD` | Its password |
+| `sofaking.key.alias` | `SOFAKING_KEY_ALIAS` | The key's alias |
+| `sofaking.key.password` | `SOFAKING_KEY_PASSWORD` | The key's password, when it differs from the keystore's |
+
+Make the key once and keep a copy somewhere other than the machine that made it: Android installs an update only when it carries the same key, so a lost key strands every installed app.
+
+```sh
+keytool -genkeypair -keystore sofa-king-release.p12 -alias sofa-king -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Sofa King"
+```
+
+Snapshots sign with it once the repository has three secrets: `ANDROID_RELEASE_KEYSTORE` (the keystore in base64), `ANDROID_RELEASE_KEYSTORE_PASSWORD` and `ANDROID_RELEASE_KEY_ALIAS`:
+
+```sh
+base64 -w0 sofa-king-release.p12 | gh secret set ANDROID_RELEASE_KEYSTORE --repo jamesarich/sofa-king
+gh secret set ANDROID_RELEASE_KEYSTORE_PASSWORD --repo jamesarich/sofa-king
+gh secret set ANDROID_RELEASE_KEY_ALIAS --repo jamesarich/sofa-king --body sofa-king
+```
+
+The snapshot job prints the APK's signer and fails when the release key is set but the APK carries the debug key. Devices that installed a debug-signed snapshot refuse the first release-signed one, so uninstall the app on each of them once, as [troubleshooting](troubleshooting.md#why-will-a-snapshot-apk-not-install-over-my-build) describes.
 
 ## CI and snapshots
 
@@ -226,7 +251,7 @@ Release APKs are minified with R8 and signed with the local debug key, so they a
 
 The app version is `sofaking` in [the version catalog](../../gradle/libs.versions.toml). Snapshots build every package with `-Psofaking.versionCode` (the build number) and `-Psofaking.versionSuffix` (`-dev.BUILD+COMMIT`, the build number and the short commit), which [`.github/version.sh`](../../.github/version.sh) prints. The build number is the count of commits behind the build, so it grows with every merge to `main`, and the server image built from the same commit carries the same version. A rerun on a commit already published takes one more than the published build, so it still installs over it. Android's `versionName` and the About row of every snapshot build append the suffix. Only the catalog version is compiled in; the suffix is written to `files/version-suffix.txt` among the UI module's Compose resources and read at runtime, so a snapshot reuses the compile outputs the CI run just cached. The desktop packages carry the catalog version too: a snapshot's `.deb` is 0.1.0 plus the suffix and its MSI is 0.1.BUILD, so each installs over the last. jpackage refuses a macOS version whose first number is 0, so the macOS app is built as 1.1.0 and its `Info.plist` repeats `CFBundleShortVersionString` as 0.1.0; macOS reads the later key, so Finder and About This Mac show 0.1.0, with 1.1.BUILD as the build version.
 
-Set the `ANDROID_DEBUG_KEYSTORE` repository secret to a base64 debug keystore so every snapshot APK installs over the last:
+Without the release key, set the `ANDROID_DEBUG_KEYSTORE` repository secret to a base64 debug keystore so every snapshot APK installs over the last:
 
 ```sh
 base64 -w0 ~/.android/debug.keystore | gh secret set ANDROID_DEBUG_KEYSTORE --repo jamesarich/sofa-king

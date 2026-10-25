@@ -91,6 +91,12 @@ internal class AppShellState(
         nav = nav.toLive(guideId)
     }
 
+    /** From multiview back to the live player, on [guideId]. */
+    fun backToPlayer(guideId: String) {
+        val left = nav.pop(nav.top.focusKey)
+        nav = if (left.top is Route.Player) left.replaceTop(Route.Player(guideId)) else left.push(Route.Player(guideId))
+    }
+
     /** The next episode replaces the one that ended, so Back still leaves for the page the first was opened from. */
     fun replaceTop(route: Route) {
         nav = nav.replaceTop(route)
@@ -113,15 +119,28 @@ internal class AppShellState(
     }
 
     /**
-     * A `sofaking://vod` link, from the home screen's Watch Next row, plays [itemId] over the Library tab, so Back
-     * leaves for the Library, and takes the place of an item already playing there. On a cold start it is the
-     * start's page, in place of the channel last watched.
+     * A `sofaking://vod` link, from the home screen's Watch Next row or a shortcut, plays [itemId] over the Library
+     * tab, from [startMs] when the link names it, so Back leaves for the Library, and takes the place of an item
+     * already playing there. On a cold start it is the start's page, in place of the channel last watched.
      */
-    fun playItem(itemId: String) {
+    fun playItem(itemId: String, startMs: Long? = null) {
         val from = if (launchDecided) nav.closeSettings() else Navigation()
         launchDecided = true
         val library = if (from.tab == Tab.LIBRARY) from else from.open(Tab.LIBRARY)
-        nav = if (library.top is Route.Vod) library.replaceTop(Route.Vod(itemId)) else library.push(Route.Vod(itemId))
+        val route = Route.Vod(itemId, startMs = startMs)
+        nav = if (library.top is Route.Vod) library.replaceTop(route) else library.push(route)
+    }
+
+    /**
+     * A `sofaking://live` link plays [guideId] full screen on the Live tab, in place of a channel already playing
+     * there, so Back lands on the guide. On a cold start it is the start's page, in place of the channel last watched.
+     */
+    fun playChannel(guideId: String) {
+        val from = if (launchDecided) nav.closeSettings() else Navigation()
+        launchDecided = true
+        val live = if (from.tab == Tab.LIVE) from else from.open(Tab.LIVE)
+        val route = Route.Player(guideId)
+        nav = if (live.top is Route.Player) live.replaceTop(route) else live.push(route)
     }
 
     /** The guide and the player lock Settings again; the pages behind Settings keep it open. */
@@ -145,18 +164,20 @@ internal data class TabsOffered(val library: Boolean, val recordings: Boolean)
 
 /**
  * The Library tab shows when the server's bootstrap says it serves libraries and it has at least one, and the
- * Recordings tab when it records. A start on either shows its tab before the bootstrap answers.
+ * Recordings tab when it records, except in [kids] mode. A start on either shows its tab before the bootstrap answers.
  */
 internal fun tabsOffered(
     capabilities: ServerCapabilities,
     open: Tab,
     libraryHome: LibraryHomeState,
     recordings: RecordingsState,
+    kids: Boolean = false,
 ): TabsOffered = TabsOffered(
     library = (capabilities.library || open == Tab.LIBRARY) && when (libraryHome) {
         LibraryHomeState.Unavailable -> false
         is LibraryHomeState.Ready -> libraryHome.home.libraries.isNotEmpty()
         else -> true
     },
-    recordings = capabilities.recordings || (open == Tab.RECORDINGS && recordings != RecordingsState.Unavailable),
+    recordings = !kids &&
+        (capabilities.recordings || (open == Tab.RECORDINGS && recordings != RecordingsState.Unavailable)),
 )

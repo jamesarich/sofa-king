@@ -49,6 +49,17 @@ Every playback session, API, player or HDHomeRun, takes the lineup entry's first
 
 Switch on the portal's Watching now (or `POST /api/v1/admin/sessions/{id}/switch-source`) moves a session to the channel's next selectable source by hand, for a picture that plays but looks wrong. It passes over the source playing and those the session was switched away from, so pressing it again turns through every source; once none is left it starts over. The session keeps its id and moves to a new epoch: the app re-reads it and plays the new source within a second or two, while an M3U, Plex or HDHomeRun player sees its stream end once and opens it again. A channel with no other selectable source refuses with `409 NO_OTHER_SOURCE`. Watching now also shows each session's rate, its stalls (media requests the source refused or dropped) and its switches, the automatic ones included.
 
+### Stall and quality failover
+
+A live HLS source that stops adding segments has stalled: its media playlist shows the same newest segment for two of its target durations (the target counted between 2 and 30 seconds), or lists no segments at all. Playback then moves to the channel's next selectable source the session has not played, and counts a switch:
+
+- An app or M3U player session gets `410 STREAM_CHANGED` on that playlist fetch, re-reads the session and plays the new source, as after Switch.
+- A remuxed stream (Plex, HDHomeRun and `format=ts` players) moves inside the same response: FFmpeg stops on the stalled source and starts on the next, and the player sees one break in the stream rather than its end.
+
+A session never goes back to a source it failed over from, so when none is left it stays on the one it plays. The server logs each move as `playback failover` with the reason and both providers.
+
+`SOFA_QUALITY_FLOORS=true` adds two floors for remuxed streams: a picture that stays black for 30 seconds and a rate under 64 kbit/s for 30 seconds, from the start of the stream on, each move the stream the same way. FFmpeg checks the picture on the video's keyframes beside the copy, which stays untouched. A source with no video plays without the check.
+
 With a [lineup policy](lineup-policy.md), a station none of whose sources is selectable for `health.disableAfterHours` (default 24) turns off, and the M3U, XMLTV and HDHomeRun listings stop carrying it. A source qualifying `HEALTHY` again turns it back on, or any selectable source with `health.enableOn: eligible`.
 
 ## Inspect or disable a source

@@ -174,6 +174,28 @@ class MediaRelay(
         }
     }
 
+    /**
+     * A media playlist that shows its source stalled moves the session to the channel's next source, and the 410
+     * sends the player to it; with no other source left, the playlist goes out as it is.
+     */
+    private suspend fun failOverStalled(
+        resource: MediaResource,
+        text: String,
+        source: URI,
+        id: String,
+        epoch: Int,
+        job: Job,
+    ) {
+        if (!resource.stalls.stalled(text, source)) return
+        if (sessions.media.failover(id, epoch, job, RemuxWatch.STALL) == null) return
+        throw ApiFailure(
+            HttpStatusCode.Gone,
+            Wire.ErrorCode.STREAM_CHANGED,
+            "The source stalled; fetch the current session descriptor",
+            true,
+        )
+    }
+
     private suspend fun serveDirect(
         call: ApplicationCall,
         id: String,
@@ -195,6 +217,7 @@ class MediaRelay(
                     path = { sessions.media.resourcePath(id, epoch, it) },
                     sent = { resource.stats.bytes.addAndGet(it) },
                     manifest = { text, source ->
+                        failOverStalled(resource, text, source, id, epoch, job)
                         resource.playlists.steady(text, source).let { ads?.annotate(it, source) ?: it }
                     },
                     sniffed = { protocol ->
@@ -278,7 +301,7 @@ internal suspend fun relayResource(
         throw ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
     },
     sniffed: suspend (String?) -> Unit = {},
-    manifest: (String, URI) -> String = { text, _ -> text },
+    manifest: suspend (String, URI) -> String = { text, _ -> text },
     tap: ((TappedSegment) -> Unit)? = null,
     keepBytes: Boolean = false,
     streamed: () -> Unit = {},
@@ -332,7 +355,7 @@ private class RelayedBody(
         (isGzip(head) && !type.startsWith("video/", true))
 
     /** Answers with the manifest, inflated when gzipped, after [edit] and the rewrite that maps its URIs by [path]. */
-    suspend fun manifest(edit: (String, URI) -> String, path: suspend (String) -> String) {
+    suspend fun manifest(edit: suspend (String, URI) -> String, path: suspend (String) -> String) {
         val raw = upTo(MANIFEST_LIMIT) {
             throw ApiFailure(HttpStatusCode.BadGateway, "INVALID_MANIFEST", "Manifest too large")
         }

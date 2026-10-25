@@ -9,10 +9,13 @@ import dev.jamesrich.sofaking.backend.api.Viewer
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.store.forgetViewer
+import dev.jamesrich.sofaking.backend.store.householdPreferences
+import dev.jamesrich.sofaking.backend.store.saveHouseholdPreferences
 import dev.jamesrich.sofaking.backend.store.saveViewerPreferences
 import dev.jamesrich.sofaking.backend.store.touchViewer
 import dev.jamesrich.sofaking.backend.store.viewer
 import dev.jamesrich.sofaking.backend.store.viewers
+import dev.jamesrich.sofaking.contract.HouseholdPreferences
 import dev.jamesrich.sofaking.contract.PairingClaim
 import dev.jamesrich.sofaking.contract.PairingResult
 import dev.jamesrich.sofaking.contract.ViewerPreferences
@@ -43,8 +46,9 @@ private const val MAX_LIST = 1000
 private const val MAX_ID = 128
 
 /**
- * The viewer routes: pairing (`POST /api/v1/pair`, open to anyone with a live code) and each client's preferences
- * document (`GET`/`PUT /api/v1/preferences/{clientId}`, behind the API token). A claim receives an `api` token of its
+ * The viewer routes: pairing (`POST /api/v1/pair`, open to anyone with a live code), each client's preferences
+ * document (`GET`/`PUT /api/v1/preferences/{clientId}`, behind the API token) and the household's shared one
+ * (`GET`/`PUT /api/v1/household/preferences`). A claim receives an `api` token of its
  * own, which forgetting the device revokes; a server running without [apiToken] hands out an empty token, as its API
  * answers only this machine.
  */
@@ -88,6 +92,14 @@ internal fun Route.viewerRoutes(runtime: LiveRuntime, clock: Clock, apiToken: St
             val clientId = validClientId(call.parameters["clientId"]!!)
             val body = call.appBody<ViewerPreferences>()
             call.respond(runtime.store.saveViewerPreferences(clientId, validPreferences(body), clock.instant()))
+        }
+    }
+    route("/api/v1/household/preferences") {
+        get { call.respond(runtime.store.householdPreferences()) }
+        put {
+            val body = call.appBody<HouseholdPreferences>()
+            val valid = HouseholdPreferences(ids(body.favorites, "favorites"), ids(body.hidden, "hidden"))
+            call.respond(runtime.store.saveHouseholdPreferences(valid, clock.instant()))
         }
     }
 }

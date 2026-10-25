@@ -22,6 +22,9 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      # The packages' build attestations take the run's OpenID Connect identity.
+      id-token: write
+      attestations: write
     env:
       # A step's condition cannot read a secret, only whether the job has one.
       SIGN_APT: ${{ secrets.APT_SIGNING_KEY != '' }}
@@ -36,6 +39,10 @@ jobs:
           pattern: dist-*
           path: dist
           merge-multiple: true
+      # A build attestation for every package, which `gh attestation verify` checks, as app/docs/security.md shows.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/sofa-king-*
       # The release doubles as a flat apt repository, so `apt upgrade` installs each snapshot's .deb: the index, the
       # signed Release and the public key that checks it sit beside the package.
       - name: Sign the apt repository
@@ -97,7 +104,7 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           {
-            echo "Built from ${GITHUB_SHA} by ${RUN_URL}. Unsigned desktop packages; the APK uses a debug key."
+            echo "Built from ${GITHUB_SHA} by ${RUN_URL}. The desktop packages are unsigned."
             if [ -s "$RUNNER_TEMP/changes.md" ]; then
               printf '\n## %s\n' "$VERSION"
               cat "$RUNNER_TEMP/changes.md"

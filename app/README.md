@@ -40,7 +40,7 @@ Every platform needs a Sofa King server it can reach over the network.
 
 ## Quick start
 
-With a Sofa King server on your network, download the APK from the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot) and install it on the TV over `adb`:
+With a Sofa King server on your network, install the APK from the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot) on the TV: in the Downloader app from Google Play, open `https://github.com/jamesarich/sofa-king/releases/download/snapshot/sofa-king-snapshot.apk` and choose Install. From a computer, `adb` installs it too:
 
 ```sh
 adb connect TV_IP:DEBUG_PORT
@@ -77,7 +77,7 @@ The [security page](docs/security.md) describes what the app stores, where the t
 - The web app fills in its page's origin as the server address and needs an origin the server allows, as [getting started](docs/getting-started.md#web) describes.
 - Caption timing and smoothing work on Android only. Chrome's built-in HLS player shows no captions.
 - There is no background audio. On an Android phone or tablet a player shrinks into picture-in-picture when the app leaves the screen; elsewhere playback stops, and a library item or recording resumes where it stopped.
-- There is no published iOS or Apple TV build. Snapshot APKs use a debug key and the desktop packages are unsigned.
+- There is no published iOS or Apple TV build. Snapshot APKs use the release key only once the repository has it ([signing](docs/development.md#signing)), and the desktop packages are unsigned.
 
 ## License
 

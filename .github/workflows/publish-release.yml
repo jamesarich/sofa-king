@@ -1,0 +1,83 @@
+name: Publish release
+
+# Makes the packages the calling run uploaded as `dist-*` artifacts the `vX.Y.Z` release of the pushed tag. The assets
+# carry the version instead of `snapshot` (sofa-king-0.1.0.apk, sofa-king-0.1.0-linux-amd64.deb and so on). The notes
+# are the tag annotation's message, when there is one, above git-cliff's changes since the previous `v*` tag.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The version the packages were built with, such as 0.1.0.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      # The packages' build attestations take the run's OpenID Connect identity.
+      id-token: write
+      attestations: write
+    steps:
+      # The whole history and the tags, for the notes' range.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+      - name: Name the packages
+        working-directory: dist
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          for f in sofa-king-snapshot*; do mv "$f" "sofa-king-$VERSION${f#sofa-king-snapshot}"; done
+          ls -l
+      # A build attestation for every package, which `gh attestation verify` checks, as app/docs/security.md shows.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/sofa-king-*
+      - name: Find the notes' range
+        id: range
+        run: |
+          tag=${GITHUB_REF#refs/tags/}
+          # The checkout can leave an annotated tag lightweight; fetch it again for its message.
+          git fetch --force --tags --quiet "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          previous=$(git describe --tags --abbrev=0 --match 'v*' "$tag^" 2>/dev/null || true)
+          echo "range=${previous:+$previous..}$tag" >> "$GITHUB_OUTPUT"
+          git tag -l --format='%(contents)' "$tag" | sed '/-----BEGIN PGP SIGNATURE-----/,$d' > "$RUNNER_TEMP/highlights.md"
+      - name: Write the changes
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4
+        with:
+          config: .github/cliff.toml
+          args: --strip all ${{ steps.range.outputs.range }}
+        env:
+          OUTPUT: ${{ runner.temp }}/changes.md
+      # The `## <version>` heading is what the app's update check reads the groups under.
+      - name: Write the notes
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          {
+            if [ -s "$RUNNER_TEMP/highlights.md" ]; then cat "$RUNNER_TEMP/highlights.md"; echo; fi
+            printf '## %s\n' "$VERSION"
+            cat "$RUNNER_TEMP/changes.md"
+          } > "$RUNNER_TEMP/notes.md"
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          gh release create "${GITHUB_REF#refs/tags/}" dist/* \
+            --verify-tag \
+            --latest \
+            --title "Sofa King $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md"

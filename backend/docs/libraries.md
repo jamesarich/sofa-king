@@ -81,7 +81,7 @@ After each scan the server makes the thumbnails the app's library player shows o
 
 ## Browse and watch
 
-Clients read the libraries through the [library API](api.md#media-libraries): a home with Continue watching and Recently added for each library, each library's movies, shows or videos, a show's seasons and episodes, and search. Watch progress is the household's: an episode finished on the TV is watched on the phone too, and a show's next episode is the one after the last finished. Removing an item from Continue watching removes it for the whole household until someone plays it again. A client plays a file through a [library playback session](api.md#play-library-files): as it is when the player takes its format, otherwise remuxed or converted to HLS by FFmpeg. The app's Library tab, on the TV, phones, desktops, the web and the Apple TV, is the client; see the [app's usage](../../app/docs/usage.md#library).
+Clients read the libraries through the [library API](api.md#media-libraries): a home with Continue watching, the household's [Watchlist](api.md#watchlist) and Recently added for each library, each library's movies, shows or videos, a show's seasons and episodes, and search. Watch progress is the household's: an episode finished on the TV is watched on the phone too, and a show's next episode is the one after the last finished. Removing an item from Continue watching removes it for the whole household until someone plays it again. A client plays a file through a [library playback session](api.md#play-library-files): as it is when the player takes its format, otherwise remuxed or converted to HLS by FFmpeg. The app's Library tab, on the TV, phones, desktops, the web and the Apple TV, is the client; see the [app's usage](../../app/docs/usage.md#library).
 
 Copied HEVC is written as fragmented MP4 tagged `hvc1`, which every player takes, and an HEVC file in MP4 tagged `hev1` is remuxed that way instead of played as it is, since AVPlayer refuses that tag. An HDR file converted for a player that cannot show HDR is tone-mapped to SDR. A file with more than 8 bits a sample, such as HEVC Main 10 or H.264 High 10, plays as it is only on a player that decodes that depth, and is converted to 8-bit H.264 for any other. Subtitles come from inside the file and from subtitle files beside it, named for the video with an optional language and `forced` or `sdh`, such as `Movie (2020).en.srt` or `Episode.de.forced.sup`. Text subtitles (SubRip, ASS, MP4 text, WebVTT) are served as WebVTT, which the apps draw over the picture. Picture subtitles (PGS from Blu-ray, VobSub from DVD) have no text, so the server draws the chosen one into the picture as it converts the file, which costs a transcode.
 
@@ -102,14 +102,20 @@ printf 'RENDER_GID=%s\n' "$(stat -c %g /dev/dri/renderD128)" >> .env
       - "${RENDER_GID:?set RENDER_GID in .env}"
 ```
 
-The image carries Mesa's VA-API driver for AMD and, on amd64, Intel's media driver and Quick Sync runtime. For `nvenc`, install the NVIDIA Container Toolkit on the host and give the service the GPU:
+The image carries Mesa's VA-API driver for AMD and, on amd64, Intel's media driver and Quick Sync runtime. For `nvenc`, install the NVIDIA driver and the NVIDIA Container Toolkit on the host (`nvidia-smi` works there, and `docker info` lists the `nvidia` runtime), then give the service the GPU, by uncommenting the NVIDIA lines in `compose.yaml` or with these in `compose.override.yaml`, which `docker compose` and `sofa-king-update` read beside it:
 
 ```yaml
+services:
+  sofa-king-backend:
+    environment:
+      NVIDIA_DRIVER_CAPABILITIES: compute,video,utility
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [gpu, video]
+              capabilities: [gpu, compute, video, utility]
 ```
+
+The capabilities decide which driver libraries the runtime mounts. FFmpeg's NVENC encoder needs `video` (the encoder library) and `compute` (the CUDA library it opens first), and `utility` puts `nvidia-smi` in the container. Docker turns the listed capabilities into `NVIDIA_DRIVER_CAPABILITIES`, so `[gpu, video]` alone mounts no CUDA library and the test frame fails. Check the GPU from inside with `docker exec sofa-king-backend nvidia-smi`. GeForce drivers limit how many NVENC encodes run at once (8 on current drivers), so set `SOFA_MAX_TRANSCODES` below that. NVENC also draws [multiview](api.md#multiview) at 1080p, since `SOFA_MULTIVIEW=auto` offers it only when this encoder works.

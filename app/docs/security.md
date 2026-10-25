@@ -2,6 +2,8 @@
 
 This page covers what the app stores, where it sends the API token, and its cleartext HTTP. To report a vulnerability, follow the [repository's security policy](../../SECURITY.md#reporting-a-vulnerability). The [server's security page](../../backend/docs/security.md) covers its tokens, routes and limits.
 
+The app collects no telemetry, analytics or crash reports. It talks only to the server you set and, for the update check, to GitHub, as the next sections describe.
+
 ## What the app stores
 
 The server address and API token are saved with the other settings: in DataStore in the app's private storage on Android, desktops and iOS, in `NSUserDefaults` on Apple TV, and in the browser's localStorage for the web app's origin. They are not encrypted at rest. A Settings PIN is stored beside them as a salted SHA-256 hash, never the digits, and is never sent to the server. [Storage](architecture.md#storage) lists the files on each platform. On Android, app backup and device-to-device transfer exclude them (`allowBackup` is off and `data_extraction_rules.xml` excludes all data).
@@ -17,3 +19,13 @@ The server is on the local network, which Android 17 opens to an app only with t
 The app allows cleartext HTTP (`network_security_config.xml` on Android, `NSAllowsArbitraryLoads` on iOS and Apple TV) so it can reach a Sofa King server on your LAN, which serves plain HTTP. A web app served over HTTPS cannot call a plain-HTTP server; browsers block the mixed content. Traffic to that server, including the token and the streams, is readable by anyone who can observe the network path.
 
 If the server is reachable beyond your LAN, serve it over HTTPS and enter its `https://` address in Settings. Set `SOFA_API_TOKEN` on the server in either case.
+
+## Verify a download
+
+Every package on the [releases](https://github.com/jamesarich/sofa-king/releases), the APK, the `.deb`, the DMG, the MSI and the web archives, carries a GitHub build attestation that ties the file to the commit and the workflow run that built it. With the [GitHub CLI](https://cli.github.com/), check one before installing it:
+
+```sh
+gh attestation verify sofa-king-snapshot.apk --repo jamesarich/sofa-king
+```
+
+A file that someone else built or changed fails the check. The attestation proves where a file came from, not that it is signed for its platform: the desktop packages are still unsigned, so macOS and Windows ask before the first start.

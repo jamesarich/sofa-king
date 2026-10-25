@@ -83,7 +83,7 @@ internal fun AiringsList(
 }
 
 /** "Today 8:00 PM", "Tomorrow 9:30 AM" or "Sat 7:00 PM". */
-private fun airingWhen(
+internal fun airingWhen(
     airing: Airing,
     now: Instant,
     timeFormat: TimeFormatter,

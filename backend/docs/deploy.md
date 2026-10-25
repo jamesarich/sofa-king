@@ -19,6 +19,37 @@ The server runs without `.env`. Download [`.env.example`](../deploy/.env.example
 
 The HDHomeRun emulation for Plex is on, and admits no address until you allow the Plex server's on the portal's Plex page, as [Plex Live TV](live-tv.md#plex-live-tv) describes.
 
+## Install on a NAS
+
+The same image runs from a NAS's own container screens. Each keeps the [host networking](#host-networking) that app discovery and the HDHomeRun tuners need, and the [container limits](#container-limits) of `compose.yaml`.
+
+### Unraid
+
+[`unraid/sofa-king.xml`](../deploy/unraid/sofa-king.xml) is a Docker template with the config, recordings and media folders, host networking and the limits as extra parameters. On the Unraid console:
+
+```sh
+curl -fsSL -o /boot/config/plugins/dockerMan/templates-user/my-sofa-king.xml \
+  https://raw.githubusercontent.com/jamesarich/sofa-king/main/backend/deploy/unraid/sofa-king.xml
+mkdir -p /mnt/user/appdata/sofa-king /mnt/user/recordings
+chown 99:100 /mnt/user/appdata/sofa-king /mnt/user/recordings
+```
+
+Then open Docker, choose Add Container, pick `sofa-king` under Template and apply. The container runs as Unraid's `nobody:users` (`99:100`), which owns the shares. The WebUI link opens the admin portal; the admin token is `adminToken` in `secrets.json` in the config folder. For a GPU, set the GPU device to `/dev/dri` and add `--group-add` with the id `stat -c %g /dev/dri/renderD128` prints to Extra Parameters.
+
+### Synology
+
+Container Manager (DSM 7.2 or later) runs `compose.yaml` as a project:
+
+1. In File Station, create `docker/sofa-king` with `config` and `recordings` folders inside it.
+2. Over SSH, print your user's ids with `id -u` and `id -g`, and save them in `docker/sofa-king/.env` as `UID=` and `GID=` lines, since the first DSM user is usually `1026:100`, not `1000:1000`.
+3. In Container Manager, open Project, choose Create, set the path to `docker/sofa-king`, and paste [`compose.yaml`](../deploy/compose.yaml) as the source. Build it.
+
+The project keeps `network_mode: host`, so the server answers on port 9193 of the NAS. A media share mounts read only by changing the commented `/media` line to its path, such as `/volume1/video:/media:ro`.
+
+### Portainer
+
+In Portainer, open Stacks, choose Add stack and paste [`compose.yaml`](../deploy/compose.yaml) in the web editor. Portainer resolves relative paths inside its own container, so change `./config` and `./recordings` to absolute paths on the host, such as `/srv/sofa-king/config:/config`, and create both folders, owned by the `UID:GID` the stack runs as, before deploying. Remove the `env_file` lines and set any [server setting](live-tv.md#server-settings), `UID` and `GID` included, under Environment variables instead.
+
 ## Host networking
 
 `compose.yaml` runs the container on the host's network (`network_mode: host`) with `SOFA_PORT=9193`, so the server answers on port 9193 of every address the host has. That lets two things work that a Docker bridge network stops:
@@ -136,9 +167,21 @@ tv.example.com {
 
 Point Plex's HDHomeRun tuner at port 9193, not the proxy: the tuners admit clients by address, and behind a proxy every request comes from the proxy. Keep the proxy on your LAN or VPN, as [security](security.md#intended-deployment) describes.
 
+## Remote access
+
+The server has no relay and no cloud account, and never opens a port on your router. To watch away from home, join the devices to a private network of your own. [Tailscale](https://tailscale.com/kb/1017/install) is the shortest route:
+
+1. Install Tailscale on the Docker host and sign in. The container runs on the host's network, so it is reachable on the host's tailnet address and MagicDNS name at port 9193 with no change to `compose.yaml`.
+2. Install Tailscale on the phone, tablet or laptop that travels, signed in to the same tailnet.
+3. In the app's Settings, enter the host's MagicDNS name, such as `sofa-host` or `sofa-host.tailnet-name.ts.net`; the app adds port 9193. Discovery does not search the tailnet (the server's [mDNS advertisement](live-tv.md#server-settings) skips VPN interfaces), so type the name once.
+
+Traffic between tailnet devices is encrypted by WireGuard. For HTTPS as well, run `tailscale serve --bg 9193` on the host and enter `https://sofa-host.tailnet-name.ts.net` instead; see [Tailscale serve](https://tailscale.com/kb/1312/serve). WireGuard, ZeroTier or any VPN you already run works the same way: the app needs only an address that reaches port 9193. Keep the tuners' [allowed addresses](live-tv.md#plex-live-tv) to the LAN.
+
 ## Serve the web app
 
-The Sofa King app's web build is a static site. Unzip `sofa-king-snapshot-web-wasm.zip` from the [snapshot release](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), or `sofa-king-snapshot-web-js.zip` for browsers without WebAssembly GC. It holds `index.html`, `sofaking.js`, two `.wasm` files and `composeResources/`. The web app plays HLS channels only.
+The Sofa King app's web build is a static site. Unzip `sofa-king-snapshot-web-wasm.zip` from the [snapshot release](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), or `sofa-king-snapshot-web-js.zip` for browsers without WebAssembly GC. It holds `index.html`, `sofaking.js`, two `.wasm` files, `composeResources/`, the web app manifest with its icons, and `sw.js`. The web app plays HLS channels only.
+
+Served over HTTPS (or from `localhost`), the web app is installable: Chrome and Edge offer Install in the address bar, and Safari on iOS has Add to Home Screen. It then opens in its own window, in landscape. Its service worker, `sw.js`, keeps a copy of the app's own files, fetched from the network first so a new bundle shows on the next load, and never touches `/api/`, `/media/` or `/logos/`. Over plain HTTP the browser runs no service worker and offers no install; the app works the same in a tab.
 
 To serve it from the same origin as the API, the proxy forwards exactly `/api/`, `/media/` and `/logos/` at the origin root to the server and serves everything else from the bundle. It must serve `.wasm` files as `application/wasm`, which Caddy's `file_server` and nginx's stock `mime.types` do. The server cannot be served under a sub-path, so neither can the web app.
 
@@ -221,6 +264,7 @@ Homepage's [Custom API widget](https://gethomepage.dev/widgets/services/customap
 | `deploy/compose.build.yaml` | Builds the image from a checkout instead, see [build](#build) |
 | `deploy/.env.example` | Optional settings; copy to `.env` beside `compose.yaml` |
 | `deploy/sources.example.json` | Source template; copy to `config/sources.json` |
+| `deploy/unraid/sofa-king.xml` | The Unraid Docker template, see [Unraid](#unraid) |
 | `deploy/sofa-king-update.sh` | Keeps a host on the published image and installs its own systemd units, see [update automatically](#update-automatically) |
 | `.github/workflows/backend.yml` (at the repository root) | Tests pull requests and pushes to `main`, and publishes the image for `main`, as [contributing](../../CONTRIBUTING.md#ci) describes |
 
@@ -267,7 +311,9 @@ Upgrades and rollbacks are covered in [operations](operations.md#upgrade-and-rol
 
 ## The published image
 
-For `main`, the [Backend workflow](../../CONTRIBUTING.md#ci) builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king:main`, with a `sha-<commit>` tag beside it. A commit whose tests fail publishes nothing.
+For `main`, the [Backend workflow](../../CONTRIBUTING.md#ci) builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king:main`, with a `sha-<commit>` tag beside it. For a release tag such as `v0.2.0` it pushes the same build as `:0.2.0`, `:0.2` and `:latest`. A commit whose tests fail publishes nothing.
+
+Pick a channel by tag: `:latest` moves at each release, `:0.2` takes that minor version's patch releases only, and `:main` moves at every server change merged to `main`. Set the same tag in `compose.yaml`'s `image` and, for [automatic updates](#update-automatically), in `SOFA_UPDATE_IMAGE` for both the updater and the server, whose About page then compares against that tag. A host moves from `:main` to `:latest` only once a release is newer than the `main` build it runs, since migrations do not run backward.
 
 The package is public, so pulling it needs no login, and `compose.yaml` runs it unless `.env` sets `SOFA_IMAGE`. Docker pulls the variant for the host, so the same tag serves `amd64` and `arm64` hosts. To update by hand, from the Compose directory:
 
@@ -288,6 +334,17 @@ docker buildx imagetools inspect ghcr.io/jamesarich/sofa-king:main --format '{{j
 ```
 
 Compare the commit in the provenance with the `org.opencontainers.image.revision` label of the image you run.
+
+Each published image is also signed with [Sigstore](https://www.sigstore.dev/)'s keyless signing and carries a GitHub build attestation, both made by `backend.yml` on `main` or a `v*` tag. Check either before you run an image:
+
+```sh
+cosign verify ghcr.io/jamesarich/sofa-king:main \
+  --certificate-identity-regexp '^https://github.com/jamesarich/sofa-king/\.github/workflows/backend\.yml@refs/(heads/main|tags/v.*)$' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+gh attestation verify oci://ghcr.io/jamesarich/sofa-king:main --repo jamesarich/sofa-king
+```
+
+An image that this repository's workflow did not build fails both.
 
 ## Update automatically
 
@@ -310,7 +367,7 @@ sudo ./sofa-king-update.sh install
 
 `install` writes `sofa-king-update.service`, `sofa-king-update.timer` and `sofa-king-update.path` to `/etc/systemd/system` for that directory and that copy of the script, then enables and starts the timer and the path unit. `sudo ./sofa-king-update.sh install /srv/sofa-king` installs for another Compose directory. The script stays where it is, so keep it there; the paths may not hold a space, `%` or a backslash. The timer checks every 15 minutes; `sudo systemctl start sofa-king-update` checks now, and `journalctl -u sofa-king-update` shows what each run did. The path unit starts the same service when the portal's Update now writes `config/update-requested`, so an update asked for in the portal starts within seconds; the script removes the file as it starts.
 
-Other settings come from the environment: `SOFA_UPDATE_IMAGE` (the image to pull, `ghcr.io/jamesarich/sofa-king:main`), `SOFA_UPDATE_CONFIG_DIR` (the folder with the status and request files, `config` under the Compose directory; set it when running `install` too), `SOFA_UPDATE_CONTAINER` (`sofa-king-backend`), `SOFA_UPDATE_LOCAL_TAG` (the image `compose.yaml` runs, read with `docker compose config --images`) and `SOFA_UPDATE_PREVIOUS_TAG` (`sofa-king-backend:previous`), `SOFA_UPDATE_KEEP_BACKUPS` and `SOFA_UPDATE_HEALTH_SECONDS`. An image built by hand is replaced at the next check; stop the timer and the path unit to keep it. The updater installs new images, not new copies of itself, so download it again and run `install` again to take a newer script.
+Other settings come from the environment: `SOFA_UPDATE_IMAGE` (the image to pull, `ghcr.io/jamesarich/sofa-king:main`; `:latest` for [releases only](#the-published-image)), `SOFA_UPDATE_CONFIG_DIR` (the folder with the status and request files, `config` under the Compose directory; set it when running `install` too), `SOFA_UPDATE_CONTAINER` (`sofa-king-backend`), `SOFA_UPDATE_LOCAL_TAG` (the image `compose.yaml` runs, read with `docker compose config --images`) and `SOFA_UPDATE_PREVIOUS_TAG` (`sofa-king-backend:previous`), `SOFA_UPDATE_KEEP_BACKUPS` and `SOFA_UPDATE_HEALTH_SECONDS`. An image built by hand is replaced at the next check; stop the timer and the path unit to keep it. The updater installs new images, not new copies of itself, so download it again and run `install` again to take a newer script.
 
 The server checks the registry itself too, as [update](admin.md#update) describes: it reads the revision the `main` tag's index carries and compares it with its own, so the portal says whether an update is available before the updater runs. It checks every five minutes and, once the updater has reported, writes `config/update-requested` for a newer revision, so the path unit installs it within minutes; the 15-minute timer stays as the fallback. `SOFA_UPDATE_IMAGE` in `.env` names another image for that check, or set it empty to turn it off.
 

@@ -66,7 +66,16 @@ data class PlaybackStream(
     val startAtMs: Long = 0,
     /** The item's whole length when the server knows it; a converted stream's own length grows as it is written. */
     val itemDurationMs: Long? = null,
-)
+    /**
+     * A multiview's channels, as the server draws them left to right and top to bottom; empty for one channel or an
+     * item. [channelId] is then the channel of [audioTile], whose sound plays.
+     */
+    val tiles: List<String> = emptyList(),
+    val audioTile: Int = 0,
+) {
+    /** True for a multiview, several channels the server draws into this one stream. */
+    val isMultiview: Boolean get() = tiles.isNotEmpty()
+}
 
 /** A live channel's session, as the guide and the live player hold it. */
 interface LiveSessions {
@@ -122,6 +131,21 @@ interface ItemSessions {
     fun reportPosition(positionMs: Long)
 }
 
+/** A multiview's session, as the multiview screen holds it. */
+interface MultiviewSessions {
+    /**
+     * Plays [channelIds], two to four, as one picture the server draws, with the sound of tile [audio]. The held
+     * session, whatever it plays, is released first.
+     */
+    suspend fun multiview(channelIds: List<String>, audio: Int): PlaybackStream
+
+    /**
+     * Moves the held multiview's sound to [tile]; the server starts its stream again, so the new one has a new
+     * [PlaybackStream.url]. Null when no multiview is held.
+     */
+    suspend fun moveAudio(tile: Int): PlaybackStream?
+}
+
 /**
  * The one playback session the app holds on the Sofa King server, a live channel's or a library item's. The guide
  * preview opens it; OK promotes the same session to watch, so the stream the player already has continues. The
@@ -133,7 +157,8 @@ class PlaybackSessions private constructor(
     private val hold: SessionHold,
     private val playing: ItemPlaying = ItemPlaying(hold),
 ) : LiveSessions by LiveTuning(hold),
-    ItemSessions by playing {
+    ItemSessions by playing,
+    MultiviewSessions by MultiviewPlaying(hold) {
     constructor(
         scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
         renewInterval: Duration = 15.seconds,
@@ -170,9 +195,12 @@ class PlaybackSessions private constructor(
             if (forget) {
                 hold.resumable = null
             } else if (held != null) {
-                hold.resumable =
-                    hold.items[held.sessionId]?.let { Resumable.Item(it) }
+                hold.resumable = when {
+                    held.isMultiview -> Resumable.Multiview(held.tiles, held.audioTile)
+
+                    else -> hold.items[held.sessionId]?.let { Resumable.Item(it) }
                         ?: Resumable.Live(held.channelId, held.intent)
+                }
             }
             val api = hold.api
             if (held != null && api != null) hold.releaseHeld(api, held)
@@ -194,7 +222,13 @@ class PlaybackSessions private constructor(
     fun exitRelease(): SessionRelease? {
         val api = hold.api ?: return null
         val held = hold.current.value ?: return null
-        return api.releaseRequest(held.sessionId, vod = held.itemId != null)
+        return api.releaseRequest(
+            when {
+                held.isMultiview -> multiviewPath(held.sessionId)
+                held.itemId != null -> vodPath(held.sessionId)
+                else -> sessionPath(held.sessionId)
+            },
+        )
     }
 
     /**
@@ -205,6 +239,7 @@ class PlaybackSessions private constructor(
         null -> null
         is Resumable.Live -> tune(last.channelId, last.intent)
         is Resumable.Item -> playing.openItem(last.request, hold.mutex.withLock { hold.itemPositionMs })
+        is Resumable.Multiview -> multiview(last.channelIds, last.audio)
     }
 }
 
@@ -216,7 +251,7 @@ internal class LiveTuning(private val hold: SessionHold) : LiveSessions {
             // A tune supersedes what an earlier stop left to reopen, even when this open fails.
             resumable = null
             val held = current.value
-            if (held != null && held.channelId == channelId) {
+            if (held != null && held.channelId == channelId && !held.isMultiview) {
                 val reread = reread(api, held)
                 if (reread != null) {
                     return@withLock if (reread.intent == intent) {
@@ -234,7 +269,7 @@ internal class LiveTuning(private val hold: SessionHold) : LiveSessions {
 
     override suspend fun adBreak(aheadMs: Long): AdBreakNow? {
         val api = hold.api ?: return null
-        val held = hold.current.value?.takeIf { it.itemId == null && !it.seekable } ?: return null
+        val held = hold.current.value?.takeIf { it.itemId == null && !it.seekable && !it.isMultiview } ?: return null
         val state = api.adBreak(held.sessionId, aheadMs)
         return if (state.inBreak) AdBreakNow(state.remainingMs) else null
     }
@@ -242,7 +277,8 @@ internal class LiveTuning(private val hold: SessionHold) : LiveSessions {
     override suspend fun setIntent(channelId: String, intent: PlaybackIntent) {
         hold.mutex.withLock {
             val api = hold.api ?: return
-            val held = hold.current.value?.takeIf { it.channelId == channelId && it.intent != intent } ?: return
+            val held = hold.current.value
+                ?.takeIf { it.channelId == channelId && it.intent != intent && !it.isMultiview } ?: return
             hold.publish(api.updateSession(held.sessionId, intent.wire), intent)
         }
     }
@@ -286,5 +322,26 @@ internal class ItemPlaying(private val hold: SessionHold) : ItemSessions {
 
     override fun reportPosition(positionMs: Long) {
         if (hold.current.value?.itemId != null) hold.itemPositionMs = positionMs.coerceAtLeast(0)
+    }
+}
+
+/** [MultiviewSessions] on the session [hold] keeps. */
+internal class MultiviewPlaying(private val hold: SessionHold) : MultiviewSessions {
+    override suspend fun multiview(channelIds: List<String>, audio: Int): PlaybackStream = with(hold) {
+        mutex.withLock {
+            val api = api ?: throw IOException("No server configured")
+            resumable = null
+            current.value?.let { releaseHeld(api, it) }
+            open(api, MultiviewSessionKind(channelIds, audio))
+        }
+    }
+
+    override suspend fun moveAudio(tile: Int): PlaybackStream? = with(hold) {
+        mutex.withLock {
+            val api = api ?: return null
+            val held = current.value?.takeIf { it.isMultiview } ?: return null
+            if (held.audioTile == tile) return held
+            multiviewStream(api, api.updateMultiview(held.sessionId, tile)).also { current.value = it }
+        }
     }
 }

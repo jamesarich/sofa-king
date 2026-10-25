@@ -26,18 +26,27 @@ import dev.jamesrich.sofaking.data.SettingsKeys.GUIDE_DENSITY
 import dev.jamesrich.sofaking.data.SettingsKeys.GUIDE_FILTER
 import dev.jamesrich.sofaking.data.SettingsKeys.HIDDEN_CHANNELS
 import dev.jamesrich.sofaking.data.SettingsKeys.HIDE_SPOILERS
+import dev.jamesrich.sofaking.data.SettingsKeys.HOUSEHOLD_SYNCED_AT
 import dev.jamesrich.sofaking.data.SettingsKeys.KEY_LEGEND_SHOWN
+import dev.jamesrich.sofaking.data.SettingsKeys.KIDS_MODE
 import dev.jamesrich.sofaking.data.SettingsKeys.LAST_CHANNEL
 import dev.jamesrich.sofaking.data.SettingsKeys.LAST_TAB
 import dev.jamesrich.sofaking.data.SettingsKeys.LIVE_BREAKS
 import dev.jamesrich.sofaking.data.SettingsKeys.MATCH_FRAME_RATE
+import dev.jamesrich.sofaking.data.SettingsKeys.NIGHT_LISTENING
 import dev.jamesrich.sofaking.data.SettingsKeys.PREFERENCES_SYNCED_AT
 import dev.jamesrich.sofaking.data.SettingsKeys.PREVIEW_SOUND
 import dev.jamesrich.sofaking.data.SettingsKeys.RECENT_CHANNELS
+import dev.jamesrich.sofaking.data.SettingsKeys.SEEK_BACK_SECONDS
+import dev.jamesrich.sofaking.data.SettingsKeys.SEEK_FORWARD_SECONDS
 import dev.jamesrich.sofaking.data.SettingsKeys.SEPARATOR
 import dev.jamesrich.sofaking.data.SettingsKeys.SERVER_URL
 import dev.jamesrich.sofaking.data.SettingsKeys.SETTINGS_PIN
+import dev.jamesrich.sofaking.data.SettingsKeys.SHARE_FAVORITES
 import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_COMMERCIALS
+import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_COMMERCIAL_BREAKS
+import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_CREDITS
+import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_INTROS
 import dev.jamesrich.sofaking.data.SettingsKeys.SMOOTH_CAPTIONS
 import dev.jamesrich.sofaking.data.SettingsKeys.STARTUP
 import dev.jamesrich.sofaking.data.SettingsKeys.STARTUP_CHANNEL
@@ -76,8 +85,17 @@ internal object SettingsKeys {
     val GUIDE_DENSITY = stringPreferencesKey("guide_density")
     val HIDDEN_CHANNELS = stringSetPreferencesKey("hidden_channels")
     val ZAP_SKIPS_HIDDEN = booleanPreferencesKey("zap_skips_hidden")
+
+    /** Before [SKIP_COMMERCIAL_BREAKS]; still written for an older build on the same device. */
     val SKIP_COMMERCIALS = booleanPreferencesKey("skip_commercials")
+
+    /** Before [SKIP_INTROS]; still written for an older build on the same device. */
     val AUTO_SKIP_INTROS = booleanPreferencesKey("auto_skip_intros")
+    val SKIP_INTROS = stringPreferencesKey("skip_intros")
+    val SKIP_CREDITS = stringPreferencesKey("skip_credits")
+    val SKIP_COMMERCIAL_BREAKS = stringPreferencesKey("skip_commercial_breaks")
+    val SEEK_BACK_SECONDS = intPreferencesKey("seek_back_seconds")
+    val SEEK_FORWARD_SECONDS = intPreferencesKey("seek_forward_seconds")
     val HIDE_SPOILERS = booleanPreferencesKey("hide_spoilers")
     val SUBTITLE_SIZE = stringPreferencesKey("subtitle_size")
     val SUBTITLE_RAISE = stringPreferencesKey("subtitle_raise")
@@ -88,12 +106,16 @@ internal object SettingsKeys {
     val FAVORITES_ORDER = stringPreferencesKey("favorites_order")
     val TRACK_CHOICES = stringPreferencesKey("track_choices")
     val MATCH_FRAME_RATE = booleanPreferencesKey("match_frame_rate")
+    val NIGHT_LISTENING = booleanPreferencesKey("night_listening")
     val DECODER = stringPreferencesKey("decoder")
     val CHANNEL_DECODER = stringSetPreferencesKey("channel_decoder")
     val BUFFER = stringPreferencesKey("buffer")
     val CLIENT_ID = stringPreferencesKey("client_id")
     val PREFERENCES_SYNCED_AT = stringPreferencesKey("preferences_synced_at")
     val SETTINGS_PIN = stringPreferencesKey("settings_pin")
+    val KIDS_MODE = booleanPreferencesKey("kids_mode")
+    val SHARE_FAVORITES = booleanPreferencesKey("share_favorites")
+    val HOUSEHOLD_SYNCED_AT = stringPreferencesKey("household_synced_at")
     const val SEPARATOR = '\t'
 }
 
@@ -123,8 +145,11 @@ internal fun readSettings(prefs: Preferences): AppSettings = AppSettings(
     guideDensity = prefs[GUIDE_DENSITY].toEnum(GuideDensity.COMFORTABLE),
     hiddenChannels = prefs[HIDDEN_CHANNELS] ?: emptySet(),
     zapSkipsHidden = prefs[ZAP_SKIPS_HIDDEN] ?: false,
-    skipCommercials = prefs[SKIP_COMMERCIALS] ?: false,
-    autoSkipIntros = prefs[AUTO_SKIP_INTROS] ?: false,
+    skips = readSkips(prefs),
+    seekSteps = SeekSteps(
+        prefs[SEEK_BACK_SECONDS] ?: SeekSteps.DEFAULT_BACK_SECONDS,
+        prefs[SEEK_FORWARD_SECONDS] ?: SeekSteps.DEFAULT_FORWARD_SECONDS,
+    ),
     hideSpoilers = prefs[HIDE_SPOILERS] ?: false,
     subtitleLook = readSubtitleLook(prefs),
     liveBreaks = prefs[LIVE_BREAKS].toEnum(LiveBreaks.PLAY),
@@ -135,7 +160,21 @@ internal fun readSettings(prefs: Preferences): AppSettings = AppSettings(
     clientId = prefs[CLIENT_ID].orEmpty(),
     preferencesSyncedAt = prefs[PREFERENCES_SYNCED_AT].orEmpty(),
     settingsPin = prefs[SETTINGS_PIN].orEmpty(),
+    // Written only while a PIN is set, and removed with it.
+    kidsMode = prefs[KIDS_MODE] == true,
+    shareFavorites = prefs[SHARE_FAVORITES] == true,
+    householdSyncedAt = prefs[HOUSEHOLD_SYNCED_AT].orEmpty(),
 )
+
+/** The skip modes; until one is set, the switch an older build kept stands in for it (on is automatic). */
+internal fun readSkips(prefs: Preferences): Skips {
+    fun fromSwitch(on: Boolean?) = if (on == true) SkipMode.AUTO else SkipMode.BUTTON
+    return Skips(
+        intros = prefs[SKIP_INTROS].toEnum(fromSwitch(prefs[AUTO_SKIP_INTROS])),
+        credits = prefs[SKIP_CREDITS].toEnum(SkipMode.BUTTON),
+        commercialBreaks = prefs[SKIP_COMMERCIAL_BREAKS].toEnum(fromSwitch(prefs[SKIP_COMMERCIALS])),
+    )
+}
 
 internal fun readSubtitleLook(prefs: Preferences): SubtitleLook = SubtitleLook(
     size = prefs[SUBTITLE_SIZE].toEnum(SubtitleSize.MEDIUM),
@@ -148,6 +187,7 @@ internal fun readPlayback(prefs: Preferences): PlaybackPreferences = PlaybackPre
     decoder = prefs[DECODER].toEnum(DecoderPreference.AUTO),
     decoderByChannel = channelDecoders(prefs),
     buffer = prefs[BUFFER].toEnum(BufferPreference.STANDARD),
+    nightListening = prefs[NIGHT_LISTENING] ?: false,
 )
 
 internal fun trackChoices(prefs: Preferences): Map<String, TrackChoice> =

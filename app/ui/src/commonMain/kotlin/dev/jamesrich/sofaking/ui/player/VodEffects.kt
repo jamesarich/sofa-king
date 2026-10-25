@@ -16,6 +16,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withStateAtLeast
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.SkipMode
+import dev.jamesrich.sofaking.data.Skips
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.resources.retry
 import dev.jamesrich.sofaking.ui.LocalLastInput
@@ -52,7 +54,7 @@ internal fun VodSessionEffects(
     val lifecycle = appLifecycleOwner.lifecycle
     LifecycleStartEffect(player, lifecycleOwner = appLifecycleOwner) {
         val session = player.openMediaSession { step ->
-            vod.seek(state.positionMs + step * if (step < 0) VodScrub.BACK_STEP_MS else VodScrub.FORWARD_STEP_MS)
+            vod.seek(state.positionMs + step * if (step < 0) state.steps.backMs else state.steps.forwardMs)
         }
         vod.mediaSession = session
         player.volume = volume.gain
@@ -164,17 +166,15 @@ internal fun UpNextCountdown(parts: VodParts, autoplays: AutoplayRun, onPlayNext
 }
 
 /**
- * The clock of the screen: the position in the item, the length, a run into a break or an intro (skipped by itself
- * with [autoSkipBreaks] and [autoSkipIntros]), a scrub that has settled, and [onPosition] once a second while it
- * plays. The [sleep] timer running out leaves through [onExit].
+ * The clock of the screen: the position in the item, the length, a run into a break, an intro or the credits (each
+ * met as [skips] says), a scrub that has settled, and [onPosition] once a second while it plays. The [sleep] timer running out leaves through [onExit].
  */
 @Composable
 internal fun VodClock(
     parts: VodParts,
     title: VodTitle,
     sleep: SleepTimer,
-    autoSkipBreaks: Boolean,
-    autoSkipIntros: Boolean,
+    skips: Skips,
     onPosition: (positionMs: Long, durationMs: Long?) -> Unit,
     onExit: () -> Unit,
 ) {
@@ -182,7 +182,7 @@ internal fun VodClock(
     val state = parts.state
     val scrubClock = LocalUptimeMs.current
     val currentTitle by rememberUpdatedState(title)
-    val currentAutoSkipIntros by rememberUpdatedState(autoSkipIntros)
+    val currentSkips by rememberUpdatedState(skips)
     val currentOnPosition by rememberUpdatedState(onPosition)
     val currentOnExit by rememberUpdatedState(onExit)
     LaunchedEffect(Unit) {
@@ -191,7 +191,7 @@ internal fun VodClock(
             delay(TICK_MS)
             if (sleep.due(Clock.System.now().toEpochMilliseconds())) break
             state.settledScrub(scrubClock())?.let(vod::seek)
-            val read = vod.tick(currentTitle.markers, autoSkipBreaks, currentAutoSkipIntros, parts.toasts)
+            val read = vod.tick(currentTitle.markers, currentSkips, parts.toasts)
             val clock = uptimeMs()
             if (read && vod.player.status.value.isPlaying && clock - lastReport >= REPORT_MS) {
                 lastReport = clock
@@ -207,18 +207,13 @@ internal fun VodClock(
  * One tick of the screen's clock: the position in the item, its length, and a run into a break, an intro or the
  * credits, as [markers] place them. False while there is no position to read.
  */
-private fun VodSession.tick(
-    markers: List<VodMarker>,
-    autoSkipBreaks: Boolean,
-    autoSkipIntros: Boolean,
-    toasts: VodToasts,
-): Boolean {
+private fun VodSession.tick(markers: List<VodMarker>, skips: Skips, toasts: VodToasts): Boolean {
     val current = stream?.takeIf { player.isSeekable && pendingSeek == null } ?: return false
     val previous = state.positionMs
     val now = player.positionMs + current.offsetMs
     state.positionMs = now
     state.durationMs = current.itemDurationMs ?: player.durationMs?.let { it + current.offsetMs }
-    if (state.scrubTarget == null) followMarkers(markers, previous, now, autoSkipBreaks, autoSkipIntros, toasts)
+    if (state.scrubTarget == null) followMarkers(markers, previous, now, skips, toasts)
     return true
 }
 
@@ -226,32 +221,32 @@ private fun VodSession.followMarkers(
     markers: List<VodMarker>,
     previous: Long,
     now: Long,
-    autoSkipBreaks: Boolean,
-    autoSkipIntros: Boolean,
+    skips: Skips,
     toasts: VodToasts,
 ) {
     breakToSkip(markers, previous, now)?.let { end ->
-        if (autoSkipBreaks) {
-            seek(end)
-            toasts.breakSkipped = true
-        } else {
-            state.ranIntoBreak()
+        when (skips.commercialBreaks) {
+            SkipMode.AUTO -> {
+                seek(end)
+                toasts.breakSkipped = true
+            }
+
+            SkipMode.BUTTON -> state.ranIntoBreak()
+
+            SkipMode.OFF -> Unit
         }
     }
-    val playing = player.status.value.isPlaying
     // Offered once playing, so a start inside the intro does not count down while it buffers.
-    val inIntro = introAt(markers, now)
-    if (inIntro == null) {
+    val segment = segmentToSkip(markers, now, skips)
+    if (segment == null) {
         state.cancelAutoSkip()
-    } else if (playing) {
-        state.inIntro(inIntro, autoSkipIntros)
+    } else if (player.status.value.isPlaying) {
+        state.inIntro(segment.marker, segment.mode == SkipMode.AUTO)
         if (state.autoSkipDue(uptimeMs())) {
-            seek(inIntro.endMs)
-            toasts.introSkipped = true
+            seek(segment.marker.endMs)
+            if (segment.marker.kind == VodMarkerKind.INTRO) toasts.introSkipped = true
         }
     }
-    // The credits are offered the same way, never skipped by themselves.
-    creditsAt(markers, now)?.let { if (playing) state.inIntro(it) }
 }
 
 /** Each toast goes away after [TOAST_MS]. */

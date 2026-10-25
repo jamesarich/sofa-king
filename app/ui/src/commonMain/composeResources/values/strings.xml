@@ -30,4 +30,5 @@
     <string name="cant_play_retry">Reconnecting automatically. Press OK to try now, or pick another channel.</string>
     <string name="no_channel_number">No channel %1$s</string>
     <string name="channel_gone">%1$s is no longer on the server</string>
+    <string name="kids_mode_badge">Kids</string>
 </resources>

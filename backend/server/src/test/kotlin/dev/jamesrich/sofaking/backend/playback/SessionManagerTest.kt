@@ -441,6 +441,58 @@ class SessionManagerTest {
         }
     }
 
+    @Test fun `failover moves to a source not played yet and stays when none is left`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-failover-")
+        try {
+            HttpClient(CIO).use { http ->
+                openStore(dir).use { store ->
+                    val clock = MutableClock()
+                    val config = FeedConfig("p", "http://example.test/feed.m3u", probe = false)
+                    val offerings = listOf("first", "second").map {
+                        Offering(it, "c", "p", "http://example.test/$it.m3u8", "hls")
+                    }
+                    store.saveSnapshot(
+                        FeedSnapshot("p", listOf(Channel("c", "1", "Station")), offerings, clock.now.toString()),
+                    )
+                    for (offering in offerings) {
+                        store.recordObservation(
+                            offering.id,
+                            Observation("ok-${offering.id}", clock.now, true),
+                            clock.now,
+                        )
+                    }
+                    val feeds = FeedService(listOf(config), store, http, clock)
+                    feeds.initialize()
+                    val catalog = lineupStack(feeds, store, clock, http).catalog
+                    val sessions = SessionManager(catalog, store, clock)
+                    val channel = catalog.catalog().channels.single().id
+                    val opened = sessions.open(OpenPlayback(channel, "watch", "k"))
+                    val playing = Job()
+                    val other = Job()
+                    val token = opened.descriptor.url.substringAfterLast('/')
+                    sessions.media.acquire(opened.id, 1, token, playing)
+                    sessions.media.acquire(opened.id, 1, token, other)
+
+                    assertEquals("second", sessions.media.failover(opened.id, 1, playing, "stall")?.id)
+                    assertFalse(playing.isCancelled, "the request that found the stall goes on")
+                    assertTrue(other.isCancelled)
+                    assertEquals(2, sessions.get(opened.id).descriptor.epoch)
+                    assertEquals(
+                        "second",
+                        sessions.media.failover(opened.id, 1, null, "stall")?.id,
+                        "a request of an older epoch finds the session moved on",
+                    )
+                    assertNull(sessions.media.failover(opened.id, 2, null, "stall"), "never back to a stalled one")
+                    assertEquals("second", sessions.media.offeringOf(opened.id).id)
+                    assertEquals(1, sessions.snapshot().single().sourceSwitches)
+                    sessions.close()
+                }
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
     @Test fun `re-acquiring a live MPEG-TS stream cancels the previous media request but HLS requests coexist`() =
         runBlocking<Unit> {
             val dir = Files.createTempDirectory("sofa-reacquire-")

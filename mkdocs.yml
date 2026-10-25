@@ -1,0 +1,98 @@
+# The documentation site, published to GitHub Pages by .github/workflows/docs.yml. The Markdown stays where it is in the
+# repository and reads the same on GitHub: docs/site/stage.py copies it into build/docs-src first, and docs/site/hooks.py
+# points links to non-page files at GitHub.
+site_name: Sofa King
+site_description: Self-hosted media center for live TV, recordings and media libraries
+site_url: https://jamesarich.github.io/sofa-king/
+repo_url: https://github.com/jamesarich/sofa-king
+repo_name: jamesarich/sofa-king
+edit_uri: edit/main/
+docs_dir: build/docs-src
+site_dir: build/site
+hooks:
+  - docs/site/hooks.py
+use_directory_urls: false
+
+theme:
+  name: material
+  logo: backend/server/src/main/resources/admin/icon.svg
+  favicon: backend/server/src/main/resources/admin/icon.svg
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - content.action.edit
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Light mode
+
+markdown_extensions:
+  - tables
+  - toc:
+      permalink: true
+  - admonition
+  - pymdownx.superfences
+
+plugins:
+  - search
+
+validation:
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: info
+    unrecognized_links: info
+
+nav:
+  - Home: README.md
+  - Start:
+      - Documentation index: docs/README.md
+      - How Sofa King compares: docs/comparison.md
+      - Coming from Plex or Jellyfin: docs/migrating.md
+      - Run the server: backend/docs/getting-started.md
+      - Install the app: app/docs/getting-started.md
+      - Build a starter lineup: backend/docs/starter-lineup.md
+  - Guides:
+      - Using the app: app/docs/usage.md
+      - Deploying with Docker: backend/docs/deploy.md
+      - Admin portal: backend/docs/admin.md
+      - Operations: backend/docs/operations.md
+      - Live TV and settings: backend/docs/live-tv.md
+      - Recordings: backend/docs/recordings.md
+      - Media libraries: backend/docs/libraries.md
+      - Virtual channels: backend/docs/virtual-channels.md
+      - App troubleshooting: app/docs/troubleshooting.md
+      - Server troubleshooting: backend/docs/troubleshooting.md
+  - Reference:
+      - HTTP API: backend/docs/api.md
+      - API reference: api/index.html
+      - Native providers: backend/docs/providers.md
+      - Lineup policy: backend/docs/lineup-policy.md
+      - Source health: backend/docs/source-health.md
+      - Wire contract: contract/README.md
+  - Explanation:
+      - Server overview: backend/README.md
+      - App overview: app/README.md
+      - Server architecture: backend/docs/architecture.md
+      - App architecture: app/docs/architecture.md
+      - Server security: backend/docs/security.md
+      - App security: app/docs/security.md
+  - Contributing:
+      - Contributing: CONTRIBUTING.md
+      - Security reporting: SECURITY.md
+      - Support: SUPPORT.md
+      - Code of conduct: CODE_OF_CONDUCT.md
+      - Server development: backend/docs/development.md
+      - App development: app/docs/development.md
+      - Server dependencies: backend/docs/dependencies.md
+      - App dependencies: app/docs/dependencies.md
+      - Server docs index: backend/docs/README.md
+      - App docs index: app/docs/README.md

@@ -20,12 +20,12 @@ private const val DETAIL_WAIT_MS = 5_000L
 /** A library item on the session, as the Apple TV app's player plays it. */
 interface TvItemPlayback {
     /**
-     * Opens [item] on the session, from the start with [fromStart], else where the household stopped in it, with the
-     * tracks [initialAudio] and [initialSubtitle] pick: an audio track other than the default, and picture subtitles
-     * drawn in.
+     * Opens [item] on the session, at [startMs] when it is not negative (a `sofaking://vod?t=` link), from the start
+     * with [fromStart], else where the household stopped in it, with the tracks [initialAudio] and [initialSubtitle]
+     * pick: an audio track other than the default, and picture subtitles drawn in.
      */
     @Throws(Exception::class)
-    suspend fun playItem(item: MediaItem, fromStart: Boolean): PlaybackStream
+    suspend fun playItem(item: MediaItem, fromStart: Boolean, startMs: Long): PlaybackStream
 
     /** The tracks the viewer picked in [item]'s show, which its episodes start with; null for none or a movie. */
     fun trackChoice(item: MediaItem): TrackChoice?
@@ -59,14 +59,14 @@ internal class TvItemCalls(private val parts: TvParts) : TvItemPlayback {
     private val viewModel = parts.viewModel
 
     @Throws(Exception::class)
-    override suspend fun playItem(item: MediaItem, fromStart: Boolean): PlaybackStream = parts.opening {
+    override suspend fun playItem(item: MediaItem, fromStart: Boolean, startMs: Long): PlaybackStream = parts.opening {
         val state =
             withTimeoutOrNull(DETAIL_WAIT_MS) { library.detail(item.id).first { it !is ItemDetailState.Loading } }
         val detail = (state as? ItemDetailState.Ready)?.detail
         val choice = trackChoice(item)
         val audio = detail?.let { initialAudio(it, choice) }?.takeIf { it.index != detail.let(::defaultAudio)?.index }
         val picture = detail?.let { initialSubtitle(it, choice) }?.takeIf(::isPictureSubtitle)
-        library.play(item, appleTvProfile, fromStart, audio?.index, picture?.index)
+        library.play(item, appleTvProfile, fromStart, audio?.index, picture?.index, startMs.takeIf { it >= 0 })
     }
 
     override fun trackChoice(item: MediaItem): TrackChoice? =

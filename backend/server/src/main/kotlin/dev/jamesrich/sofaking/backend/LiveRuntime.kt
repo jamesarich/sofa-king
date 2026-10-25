@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.catalog.CatalogService
 import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.GuideService
 import dev.jamesrich.sofaking.backend.catalog.LineupService
+import dev.jamesrich.sofaking.backend.catalog.OnLaterService
 import dev.jamesrich.sofaking.backend.catalog.PolicyService
 import dev.jamesrich.sofaking.backend.dvr.Dvr
 import dev.jamesrich.sofaking.backend.events.ServerEvents
@@ -15,7 +16,9 @@ import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.library.ProgramFactsLookup
 import dev.jamesrich.sofaking.backend.library.VodSessions
+import dev.jamesrich.sofaking.backend.library.WatchlistService
 import dev.jamesrich.sofaking.backend.logos.LogoCache
+import dev.jamesrich.sofaking.backend.multiview.MultiviewSessions
 import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
@@ -29,6 +32,8 @@ import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.setup.SetupService
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
+import dev.jamesrich.sofaking.backend.virtual.VirtualChannelService
+import dev.jamesrich.sofaking.backend.virtual.VirtualStreams
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
@@ -131,11 +136,23 @@ class LiveRuntime(
     val history: SessionHistory? = null,
     /** The named player outputs, each a filtered playlist and guide. */
     val namedOutputs: NamedOutputs = NamedOutputs(store),
+    /** The household's watchlist of library items and guide titles. */
+    val watchlist: WatchlistService = WatchlistService(store, lineup, guides, libraries?.catalog, Clock.systemUTC()),
+    /** On Later: the movies, sports, kids' programs and premieres coming up on the enabled channels. */
+    val onLater: OnLaterService = OnLaterService(lineup, guides, Clock.systemUTC()),
+    /** The virtual channels; null for a runtime built without a config. */
+    val virtual: VirtualChannelService? = null,
+    /** The virtual channels' streams, which the loopback relay serves. */
+    val virtualStreams: VirtualStreams? = null,
+    /** Multiview sessions, offered when [MultiviewSessions.canvas] says the server can draw them. */
+    val multiview: MultiviewSessions? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
         sessions.close()
         vod?.close()
+        virtualStreams?.close()
+        multiview?.close()
         // The sessions just closed are the history's last rows.
         history?.let { history ->
             runCatchingCancellable { history.flush() }

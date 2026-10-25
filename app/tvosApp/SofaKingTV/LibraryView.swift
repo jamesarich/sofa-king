@@ -19,6 +19,9 @@ struct LibraryHomeView: View {
             // leaves reports its stop as itself.
             VodPlayerView(request: request).id(request)
         }
+        .onAppear { model.openRequestedItem() }
+        .onChange(of: model.requestedItem) { model.openRequestedItem() }
+        .onChange(of: model.libraryHome is LibraryHomeStateReady) { model.openRequestedItem() }
     }
 
     @ViewBuilder

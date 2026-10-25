@@ -117,6 +117,25 @@ object Wire {
     object ShelfId {
         const val CONTINUE = "continue"
         const val RECENT = "recent"
+
+        /** The library items on the household's watchlist, newest first. */
+        const val WATCHLIST = "watchlist"
+    }
+
+    /** What a [WatchlistEntry] holds. */
+    object WatchlistKind {
+        const val ITEM = "item"
+        const val TITLE = "title"
+    }
+
+    /** What `GET /api/v1/guide/on-later` lists, by its `kind`. */
+    object OnLaterKind {
+        const val MOVIE = "movie"
+        const val SPORTS = "sports"
+        const val KIDS = "kids"
+
+        /** A premiere: a series or season starting, by a `Premiere` category or a new first episode. */
+        const val NEW = "new"
     }
 
     /**
@@ -132,6 +151,9 @@ object Wire {
 
     /** A pairing code is this many decimal digits. */
     const val PAIRING_CODE_LENGTH = 6
+
+    /** The most channels one multiview session shows; it needs at least two. */
+    const val MULTIVIEW_MAX_TILES = 4
 
     /** One guide query names at most this many channels, over at most this many hours. */
     const val GUIDE_MAX_CHANNELS = 200

@@ -76,7 +76,7 @@ targets:
   TopShelf:
     type: app-extension
     platform: tvOS
-    sources: [TopShelf, SofaKingTV/TopShelfChannels.swift]
+    sources: [TopShelf, SofaKingTV/TopShelfContent.swift]
     configFiles:
       Debug: ../build/Version.xcconfig
       Release: ../build/Version.xcconfig

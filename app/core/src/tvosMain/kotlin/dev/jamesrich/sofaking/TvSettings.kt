@@ -1,15 +1,14 @@
 package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.data.LiveBreaks
+import dev.jamesrich.sofaking.data.SkipKind
+import dev.jamesrich.sofaking.data.SkipMode
 import dev.jamesrich.sofaking.data.TopLevelTab
 
 /** The settings and the server, as the Apple TV app's Settings and guide change them. */
 interface TvSettings {
-    /** Whether recordings jump over the commercial breaks the server found. */
-    fun setSkipCommercials(enabled: Boolean)
-
-    /** Whether an episode's intro skips itself after a countdown on Skip intro. */
-    fun setAutoSkipIntros(enabled: Boolean)
+    /** How the players skip [kind]: automatically after a countdown, by a button, or not at all. */
+    fun setSkip(kind: SkipKind, mode: SkipMode)
 
     /** Whether an episode not started yet keeps its overview back and its still blurred. */
     fun setHideSpoilers(enabled: Boolean)
@@ -38,9 +37,7 @@ interface TvSettings {
 internal class TvSettingCalls(parts: TvParts) : TvSettings {
     private val viewModel = parts.viewModel
 
-    override fun setSkipCommercials(enabled: Boolean) = viewModel.setSkipCommercials(enabled)
-
-    override fun setAutoSkipIntros(enabled: Boolean) = viewModel.setAutoSkipIntros(enabled)
+    override fun setSkip(kind: SkipKind, mode: SkipMode) = viewModel.setSkip(kind, mode)
 
     override fun setHideSpoilers(enabled: Boolean) = viewModel.setHideSpoilers(enabled)
 

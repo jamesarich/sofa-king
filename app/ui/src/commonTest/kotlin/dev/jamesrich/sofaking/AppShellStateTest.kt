@@ -80,6 +80,24 @@ class AppShellStateTest {
     }
 
     @Test
+    fun `a live link plays its channel over the guide in place of the one playing`() {
+        shell.playChannel("a")
+        assertTrue(shell.launchDecided, "the link is the cold start's page")
+        assertEquals(listOf(Route.Guide, Route.Player("a")), shell.nav.stack(Tab.LIVE))
+
+        shell.openTab(Tab.LIBRARY)
+        shell.playChannel("b")
+        assertEquals(Tab.LIVE, shell.nav.tab)
+        assertEquals(listOf(Route.Guide, Route.Player("b")), shell.nav.stack(Tab.LIVE))
+    }
+
+    @Test
+    fun `an item link may start the item partway`() {
+        shell.playItem("e1", startMs = 90_000)
+        assertEquals(Route.Vod("e1", startMs = 90_000), shell.top)
+    }
+
+    @Test
     fun `a Watch Next link while the app runs leaves Settings and keeps the Library pages`() {
         shell.decideLaunch(LaunchTarget.OpenTab(Tab.LIBRARY))
         shell.push(Route.LibraryGrid("tv"))
@@ -178,5 +196,17 @@ class AppShellStateTest {
                 RecordingsState.Unavailable,
             ).recordings,
         )
+    }
+
+    @Test
+    fun `kids mode hides the Recordings tab`() {
+        val offered = tabsOffered(
+            ServerCapabilities(recordings = true),
+            Tab.LIVE,
+            LibraryHomeState.Loading,
+            RecordingsState.Loading,
+            kids = true,
+        )
+        assertFalse(offered.recordings)
     }
 }

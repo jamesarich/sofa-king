@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.data.CachedLineup
 import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.DiscoveredServer
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.OnLaterBook
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.ProgramFacts
@@ -21,6 +22,7 @@ import dev.jamesrich.sofaking.data.SettingsStore
 import dev.jamesrich.sofaking.data.SofaKingRepository
 import dev.jamesrich.sofaking.data.UpdateChecker
 import dev.jamesrich.sofaking.data.UpdateState
+import dev.jamesrich.sofaking.data.WatchlistBook
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
@@ -81,7 +83,7 @@ class LineupViewModel(
     private val connection: ServerConnection,
     /** How this device names itself when it pairs. */
     client: ClientInfo = ClientInfo(),
-    /** Reads the published snapshot for the update check in Settings. */
+    /** Reads the published snapshot or release for the update check in Settings. */
     private val updateChecker: UpdateChecker = UpdateChecker(),
     /** Where the guide window and the cache's expiry read the time. */
     clock: Clock = Clock.System,
@@ -120,6 +122,12 @@ class LineupViewModel(
 
     /** Recording from the guide, on a server that records. */
     val recordings: RecordingSchedule get() = connection.recordings
+
+    /** The household's watchlist, which the guide's program details add titles to. */
+    val watchlist: WatchlistBook get() = connection.watchlist
+
+    /** On Later: what is coming up on the lineup's channels, on a server that offers it. */
+    val onLater: OnLaterBook get() = connection.onLater
 
     /** What TMDB says about [program], through the server, for the break screen; null when nothing is known. */
     suspend fun programFacts(program: Program): ProgramFacts? = connection.programFacts.of(program)
@@ -212,15 +220,15 @@ class LineupViewModel(
     }
 
     /**
-     * Compares [runningVersion] with the published snapshot, once per process unless [again] is set, since GitHub
-     * limits anonymous calls; the answer lands in [update].
+     * Compares [runningVersion] with the published build of its channel, once per process unless [again] is set, since
+     * GitHub limits anonymous calls; the answer lands in [update].
      */
     fun checkForUpdate(runningVersion: String, again: Boolean = false) {
         if (!again && _update.value != null) return
         _update.value = UpdateState.Checking
         viewModelScope.launch {
             val latest = runCatchingCancellable {
-                updateChecker.latest()
+                updateChecker.latest(runningVersion)
             }.getOrElse { e ->
                 log.w { "update check failed: ${e.message}" }
                 null
@@ -232,6 +240,16 @@ class LineupViewModel(
     /** Locks Settings behind [pin], stored as its hash, or removes the lock for null. */
     fun setSettingsPin(pin: String?) {
         viewModelScope.save { store.setSettingsPin(pin?.let(SettingsPin::hash)) }
+    }
+
+    /** Keeps the favorites and hidden channels in step with the household's devices, or stops. */
+    fun setShareFavorites(on: Boolean) {
+        viewModelScope.save { store.setShareFavorites(on) }
+    }
+
+    /** Turns kids mode on, once a PIN is set, or off. */
+    fun setKidsMode(on: Boolean) {
+        viewModelScope.save { store.setKidsMode(on) }
     }
 
     private companion object {

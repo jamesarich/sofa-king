@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.DataStoreSettingsStore
+import dev.jamesrich.sofaking.data.HouseholdSync
 import dev.jamesrich.sofaking.data.ServerConnection
 import dev.jamesrich.sofaking.data.ServerDiscovery
 import dev.jamesrich.sofaking.data.SettingsStore
@@ -11,7 +12,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * The app's objects over a platform's [storage]: one settings store per file and one connection to the server it
@@ -26,6 +31,14 @@ internal class AppGraph(
     private val settings: SettingsStore = DataStoreSettingsStore(storage.settings)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
+    /** Kids mode empties the platform's row, and keeps it empty until it is off and the shelves load again. */
+    private val kidsMode = settings.settings.map { it.kidsMode }.stateIn(scope, SharingStarted.Eagerly, false)
+    private val shownWatchNext = WatchNext { items -> watchNext.publish(if (kidsMode.value) emptyList() else items) }
+
+    init {
+        scope.launch { kidsMode.collect { kids -> if (kids) watchNext.publish(emptyList()) } }
+    }
+
     /**
      * Started by the first ViewModel rather than with the process, so a process woken for anything else does not call
      * the server. Its flows run on the main thread, as the ViewModels' do.
@@ -35,6 +48,7 @@ internal class AppGraph(
             settings = settings.settings,
             scope = scope,
             viewerSync = ViewerSync(settings, storage.client),
+            householdSync = HouseholdSync(settings),
         )
     }
 
@@ -46,8 +60,12 @@ internal class AppGraph(
         discovery = discovery,
     )
 
-    fun libraryViewModel(): LibraryViewModel =
-        LibraryViewModel(connection.api, connection.sessions, watchNext = watchNext)
+    fun libraryViewModel(): LibraryViewModel = LibraryViewModel(
+        connection.api,
+        connection.sessions,
+        watchNext = shownWatchNext,
+        watchlist = connection.watchlist,
+    )
 
     /** The Recordings tab reads the same list as the guide's record marks, from the connection. */
     fun recordingsViewModel(): RecordingsViewModel = RecordingsViewModel(connection.recordings, connection.sessions)

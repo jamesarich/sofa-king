@@ -39,6 +39,7 @@ struct ProgramDetailView: View {
                             Text(summary).font(.body)
                         }
                         RecordButtons(program: shown)
+                        WatchlistButton(program: shown)
                     } else {
                         Text("No program information").font(.title2)
                     }
@@ -132,6 +133,28 @@ private struct RecordButtons: View {
         Task {
             failed = !((try? await action())?.boolValue ?? false)
             busy = false
+        }
+    }
+}
+
+/// Add to watchlist (Remove from watchlist once there) for the program's title on every channel, on a server that
+/// keeps a watchlist.
+private struct WatchlistButton: View {
+    @Environment(AppModel.self) private var model
+    let program: Program
+    @State private var busy = false
+
+    var body: some View {
+        if let marks = model.watchlist, marks.offered {
+            let listed = model.core.watchlistHasProgram(marks: marks, program: program)
+            Button(listed ? "Remove from watchlist" : "Add to watchlist", systemImage: listed ? "bookmark.slash" : "bookmark") {
+                guard !busy else { return }
+                busy = true
+                Task {
+                    _ = try? await model.core.toggleWatchlistTitle(program: program)
+                    busy = false
+                }
+            }
         }
     }
 }

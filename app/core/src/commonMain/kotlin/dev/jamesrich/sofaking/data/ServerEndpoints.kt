@@ -36,3 +36,15 @@ internal suspend fun SofaKingApi.savePreferences(
 ): ViewerPreferencesDto = call {
     http.put("preferences/" + clientId.encodeURLPathPart()) { json(preferences) }.decode()
 }
+
+/** The household's shared favorites and hidden channels; an empty `updatedAt` before any device saved them. */
+internal suspend fun SofaKingApi.householdPreferences(): HouseholdPreferencesDto = call {
+    http.get("household/preferences").decode()
+}
+
+/** Replaces the household's shared copy; the answer carries the server's stamp. */
+internal suspend fun SofaKingApi.saveHouseholdPreferences(
+    preferences: HouseholdPreferencesDto,
+): HouseholdPreferencesDto = call {
+    http.put("household/preferences") { json(preferences) }.decode()
+}

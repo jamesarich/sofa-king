@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.LetterJump
@@ -15,6 +16,8 @@ import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.SofaKingApi
 import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.data.WatchNext
+import dev.jamesrich.sofaking.data.WatchlistBook
+import dev.jamesrich.sofaking.data.WatchlistMarks
 import dev.jamesrich.sofaking.data.describe
 import dev.jamesrich.sofaking.data.episodeAfter
 import dev.jamesrich.sofaking.data.runCatchingCancellable
@@ -23,6 +26,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
@@ -113,8 +117,8 @@ interface LibraryBrowsing {
 /** Playing library items: opening one, what comes next, its tracks and subtitles, and the household's place in it. */
 interface LibraryPlayback {
     /**
-     * Opens [item] on the app's one session, releasing whatever was held: from the start with [fromStart], else
-     * where the household stopped in it. [profile] is what the player plays as it is.
+     * Opens [item] on the app's one session, releasing whatever was held: at [startMs] when a link names it, from the
+     * start with [fromStart], else where the household stopped in it. [profile] is what the player plays as it is.
      */
     suspend fun play(
         item: MediaItem,
@@ -122,6 +126,7 @@ interface LibraryPlayback {
         fromStart: Boolean = false,
         audioIndex: Int? = null,
         subtitleIndex: Int? = null,
+        startMs: Long? = null,
     ): PlaybackStream
 
     /**
@@ -160,7 +165,7 @@ interface LibraryPlayback {
  * The media libraries for every screen: the home shelves, one library's grid, item pages and the household's place
  * in what plays. Playback goes through the app's one sessions, so playing an item releases the live channel.
  */
-class LibraryViewModel private constructor(parts: LibraryParts) :
+class LibraryViewModel private constructor(parts: LibraryParts, private val book: WatchlistBook?) :
     ViewModel(parts.scope),
     LibraryBrowsing by parts.browsing,
     LibraryPlayback by parts.playback {
@@ -168,7 +173,8 @@ class LibraryViewModel private constructor(parts: LibraryParts) :
      * The libraries of the server [apis] names, null while there is none, played through [sessions]. A playing item's
      * position is saved every [saveInterval], a home with no library is loaded again every [emptyRecheck], and
      * [watchNext] gets the Continue watching shelf each time the home loads, from this model's scope, so a stop saved
-     * after the app left the screen still reaches the platform's row.
+     * after the app left the screen still reaches the platform's row. [watchlist] is the household's watchlist, which
+     * the item pages add to.
      */
     constructor(
         apis: Flow<SofaKingApi?>,
@@ -178,10 +184,23 @@ class LibraryViewModel private constructor(parts: LibraryParts) :
         saveInterval: Duration = 10.seconds,
         emptyRecheck: Duration = 5.minutes,
         watchNext: WatchNext = WatchNext.None,
+        watchlist: WatchlistBook? = null,
     ) : this(
         LibraryParts(apis, sessions, newRepository, PositionSaver(timeSource, saveInterval), emptyRecheck, watchNext),
+        watchlist,
     )
+
+    /** What the household's watchlist holds; empty on a server without one. */
+    val watchlistMarks: StateFlow<WatchlistMarks> get() = book?.marks ?: noMarks
+
+    /** Adds [item] to the household's watchlist or takes it off; the home reloads, as its Watchlist shelf follows. */
+    fun toggleWatchlist(item: MediaItem) {
+        val watchlist = book ?: return
+        viewModelScope.launch { if (watchlist.toggleItem(item.id)) refreshHome() }
+    }
 }
+
+private val noMarks: StateFlow<WatchlistMarks> = MutableStateFlow(WatchlistMarks())
 
 /**
  * What a [LibraryViewModel] is made of, in its main-thread [scope]: the repository for the server [apis] names, the
@@ -298,8 +317,9 @@ internal class LibraryPlayer(
         fromStart: Boolean,
         audioIndex: Int?,
         subtitleIndex: Int?,
+        startMs: Long?,
     ): PlaybackStream {
-        val start = item.progress?.takeIf { !fromStart && it.inProgress }?.positionMs ?: 0
+        val start = startMs ?: item.progress?.takeIf { !fromStart && it.inProgress }?.positionMs ?: 0
         positions.reset(item.id)
         return sessions.play(item.id, profile, start, audioIndex, subtitleIndex)
     }

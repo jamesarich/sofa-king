@@ -149,7 +149,15 @@ private fun GuideColumn(
     val timeFormat = rememberTimeFormatter()
     val env = rememberGuideEnv(state, nav, span.start, timeFormat, lineup.guideLoading, open, actions.onToggleFavorite)
     val chips: @Composable (Modifier) -> Unit = { chipModifier ->
-        GuideChips(state, nav, channels, { nav.now(channels.items, span.now) }, actions.onFilterChange, chipModifier)
+        GuideChips(
+            state,
+            nav,
+            channels,
+            { nav.now(channels.items, span.now) },
+            actions.onFilterChange,
+            chipModifier,
+            onOnLater = actions.onOnLater,
+        )
     }
     val searchBar: @Composable (Modifier) -> Unit = { barModifier -> GuideSearchBar(state, nav, barModifier) }
     // 16dp here is spacing, not overscan.
@@ -286,7 +294,7 @@ private fun rememberGuideEnv(
     )
 }
 
-/** Now, Search and the filters; choosing a filter saves its key through [onFilterChange]. */
+/** Now, Search, the filters and On Later; choosing a filter saves its key through [onFilterChange]. */
 @Composable
 private fun GuideChips(
     state: GuideState,
@@ -295,6 +303,7 @@ private fun GuideChips(
     onNow: () -> Unit,
     onFilterChange: (String?) -> Unit,
     modifier: Modifier = Modifier,
+    onOnLater: (() -> Unit)? = null,
 ) {
     FilterChipRow(
         filters = channels.filters,
@@ -320,6 +329,7 @@ private fun GuideChips(
                 down
             }
             .onFocusChanged { state.chipsFocused = it.hasFocus },
+        onOnLater = onOnLater,
     )
 }
 
@@ -377,5 +387,7 @@ private fun GuideDetails(
             shown.program?.let { lineup.airingsOf(it, now) }.orEmpty()
         },
         onShowAiring = { airing -> state.details = ProgramDetails(airing.channel, airing.program) },
+        watchlisted = shown.program?.let(actions.watchlisted),
+        onToggleWatchlist = actions.onToggleWatchlist,
     )
 }

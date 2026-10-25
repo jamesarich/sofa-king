@@ -154,6 +154,12 @@ struct ItemDetailView: View {
                 Button(watched ? "Mark unwatched" : "Mark watched", systemImage: watched ? "eye.slash" : "checkmark") {
                     model.core.setWatched(item: item, watched: !watched)
                 }
+                if let marks = model.watchlist, marks.offered, [ItemKind.movie, ItemKind.show, ItemKind.video].contains(item.kind) {
+                    let listed = model.core.watchlistHasItem(marks: marks, item: item)
+                    Button(listed ? "Remove from watchlist" : "Add to watchlist", systemImage: listed ? "bookmark.slash" : "bookmark") {
+                        Task { _ = try? await model.core.toggleWatchlistItem(item: item) }
+                    }
+                }
             }
             if !detail.directors.isEmpty {
                 Text("Directed by \(detail.directors.joined(separator: ", "))").font(.caption).foregroundStyle(.secondary)

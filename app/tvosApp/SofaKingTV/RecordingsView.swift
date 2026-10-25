@@ -60,15 +60,12 @@ struct RecordingsView: View {
         let groups = RecordingGroup.groups(ready.recordings) { model.core.recordingStartMs(recording: $0) }
         return List {
             Section {
-                Toggle("Skip commercials", isOn: Binding(
-                    get: { model.settings?.skipCommercials ?? false },
-                    set: { model.core.setSkipCommercials(enabled: $0) }
-                ))
+                SkipModePicker(title: "Skip commercials", kind: .commercialBreaks)
             } footer: {
                 if ready.space.totalBytes > 0 {
                     Text("\(bytes(ready.space.freeBytes)) free of \(bytes(ready.space.totalBytes))")
                 } else {
-                    Text("Playback jumps over the breaks the server found in a recording.")
+                    Text("Automatically, playback jumps over the breaks the server found in a recording. With a button, Skip break waits for a press. Off, breaks play.")
                 }
             }
             if groups.isEmpty {

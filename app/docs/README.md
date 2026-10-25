@@ -7,7 +7,7 @@ The Sofa King app watches a Sofa King server's live TV, recordings and media lib
 | Page | What it covers |
 | --- | --- |
 | [Getting started](getting-started.md) | From a running Sofa King server to a channel playing on a TV, a desktop, a phone or a browser, including serving the web app |
-| [Using Sofa King](usage.md) | The guide, the channels it lists, previews, the library, recordings, the player, the remote and keyboard controls, captions, the Apple TV app and the settings |
+| [Using Sofa King](usage.md) | The guide, the channels it lists, previews, the library, recordings, the player, the remote and keyboard controls, `sofaking://` links, captions, the Apple TV app and the settings |
 | [Troubleshooting and FAQ](troubleshooting.md) | Symptoms and fixes for connecting, the lineup and guide, playback, the library and recordings, captions and each platform, and common questions |
 
 ## Reference

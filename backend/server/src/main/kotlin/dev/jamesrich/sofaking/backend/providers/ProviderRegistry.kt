@@ -199,11 +199,14 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
             store: BackendStore,
             clock: Clock,
             policy: UpstreamPolicy,
+            /** Clients the server builds from its own parts, by service, such as `virtual`. */
+            local: Map<String, (ProviderContext) -> ProviderClient> = emptyMap(),
         ): ProviderRegistry {
             val transport = ProviderHttp(http, policy)
             val clients = configs.filter { it.native }.associate { config ->
                 val context = ProviderContext(config.id, config.options, transport, clock, store)
-                config.id to client(requireNotNull(config.service), context)
+                val service = requireNotNull(config.service)
+                config.id to (local[service]?.invoke(context) ?: client(service, context))
             }
             return ProviderRegistry(clients, clock)
         }

@@ -1,0 +1,37 @@
+name: Feature request
+description: Something Sofa King does not do yet, in the app or the server.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search the [open and closed issues](https://github.com/jamesarich/sofa-king/issues?q=is%3Aissue) first; a thumbs-up on an existing request counts.
+        The [comparison](https://github.com/jamesarich/sofa-king/blob/main/docs/comparison.md) lists what Sofa King does and does not do next to other media centers.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you want to do
+      description: The thing you want to do and cannot, from your couch or your server, rather than a design for it.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: What you do today
+      description: The workaround you use now, or the other program that does it and how it behaves there.
+  - type: dropdown
+    id: part
+    attributes:
+      label: Part
+      options:
+        - App
+        - Server
+        - Both
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: platforms
+    attributes:
+      label: Platforms
+      description: For the app, the platforms you would use it on, such as Android TV or iOS.

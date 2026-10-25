@@ -29,18 +29,20 @@ internal fun RouteDestination(
 
         is Route.Player -> PlayerDestination(route, shell, vm, player)
 
+        is Route.Multiview -> MultiviewDestination(route, shell, vm, player)
+
         is Route.Vod -> VodDestination(route, shell, vm, libraryVm, player)
 
         is Route.Recording -> RecordingDestination(route, shell, vm, recordingsVm, player)
 
         is Route.LibraryItem -> LibraryItemDestination(route, arrival, shell, libraryVm, hideSpoilers)
 
-        Route.Guide, Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, Route.Recordings ->
+        Route.Guide, Route.OnLater, Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, Route.Recordings ->
             TabDestination(route, arrival, shell, vm, libraryVm, recordingsVm, player, chrome, refreshing)
     }
 }
 
-/** A page under the tabs: the guide, the library's pages or the recordings, with the header over it. */
+/** A page under the tabs: the guide, On Later, the library's pages or the recordings, with the header over it. */
 @Composable
 private fun TabDestination(
     route: Route,
@@ -75,6 +77,8 @@ private fun TabDestination(
                 chrome.settingsFocus,
                 headerFocus = chrome.tabFocus.takeIf { showsTabs },
             )
+
+            Route.OnLater -> OnLaterDestination(shell, vm)
 
             Route.Library -> LibraryHomeDestination(arrival, shell, libraryVm, tabBack, headerFocused)
 

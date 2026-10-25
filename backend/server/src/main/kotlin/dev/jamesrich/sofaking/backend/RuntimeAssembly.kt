@@ -37,8 +37,10 @@ import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.backend.library.ffprobeBeside
 import dev.jamesrich.sofaking.backend.logging.applyLogLevel
 import dev.jamesrich.sofaking.backend.logos.LogoCache
+import dev.jamesrich.sofaking.backend.multiview.MultiviewSessions
 import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.pairing.PairingService
+import dev.jamesrich.sofaking.backend.playback.ChannelTap
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.MediaRelay
 import dev.jamesrich.sofaking.backend.playback.SegmentAudio
@@ -47,6 +49,8 @@ import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.TsRemux
 import dev.jamesrich.sofaking.backend.plex.HdhrDevice
 import dev.jamesrich.sofaking.backend.plex.PlexSync
+import dev.jamesrich.sofaking.backend.providers.ProviderClient
+import dev.jamesrich.sofaking.backend.providers.ProviderContext
 import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.settings.RuntimeSettings
@@ -59,6 +63,12 @@ import dev.jamesrich.sofaking.backend.store.savePlexStatus
 import dev.jamesrich.sofaking.backend.update.RunningBuild
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
+import dev.jamesrich.sofaking.backend.virtual.LineupSlots
+import dev.jamesrich.sofaking.backend.virtual.SlideFetcher
+import dev.jamesrich.sofaking.backend.virtual.VirtualChannelService
+import dev.jamesrich.sofaking.backend.virtual.VirtualClient
+import dev.jamesrich.sofaking.backend.virtual.VirtualStreams
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
@@ -79,6 +89,7 @@ private const val LIBRARY_FLUSH_MS = 300_000L
 /** How often lapsed playback sessions, and lapsed library playback sessions, are swept. */
 private const val SESSION_EXPIRE_MS = 1_000L
 private const val VOD_EXPIRE_MS = 5_000L
+private const val VIRTUAL_EXPIRE_MS = 10_000L
 
 private const val REQUEST_TIMEOUT_MS = 60_000L
 private const val CONNECT_TIMEOUT_MS = 5_000L
@@ -138,13 +149,15 @@ internal class RuntimeAssembly(
     private var plex: PlexSync? = null
     private var policy: PolicyService? = null
     private var dvrService: Dvr? = null
+    private lateinit var virtual: VirtualChannelService
 
     suspend fun assemble(started: Instant): LiveRuntime {
         for (problem in settings.load()) assemblyLog.warn("runtime settings: dropped a saved value: {}", problem)
         // The level the operator saved outranks the environment's from here on; logback
         // read the environment's at start.
         settings.onChange { applyLogLevel(it.logLevel) }
-        liveCatalog()
+        val libraries = libraries()
+        liveCatalog(libraries)
         plex = plexSync()
         catalog = CatalogService(feeds, guides, lineup, store, clock)
         logos = logoCache()
@@ -172,33 +185,49 @@ internal class RuntimeAssembly(
             RunningBuild(config.revision, config.version),
             jobs,
         ).also { it.start(scope) }
-        val libraries = libraries()
-        val vod = vod(dvr, libraries)
+        val (vod, streams, multiview) = playback(dvr, libraries)
         val runtime = LiveRuntime(
-            store, feeds, guides, lineup, catalog, sessions, relay, TsRemux(config.ffmpeg, loopback), logos, http,
+            store, feeds, guides, lineup, catalog, sessions, relay,
+            TsRemux(
+                config.ffmpeg,
+                loopback,
+                config.qualityFloors,
+            ),
+            logos, http,
             scope, policy, plex, started, jobs, settings, worker, PairingService(clock), updates,
             SetupService(config, options.restart, checkTmdb = { TmdbClient(http, it).check() }),
             libraries, vod, dvr, loopback,
             HdhrAccess(config.hdhr.allow, ServerConfig.isLoopback(config.host), store, clock).also { it.load() },
             listener,
             config.tmdb?.let { ProgramFactsLookup(TmdbClient(http, it), clock) },
-            IssuedTokens(store, clock),
-            events,
-            history,
+            IssuedTokens(store, clock), events, history,
+            virtual = virtual,
+            virtualStreams = streams,
+            multiview = multiview,
         )
         dvr.start(scope)
         dvr.requestSchedule("startup")
         scope.launchEvery("session-expire", SESSION_EXPIRE_MS) { sessions.expire() }
         scope.launchEvery("vod-expire", VOD_EXPIRE_MS) { vod.expire() }
-        history.start(scope)
-        scope.launchEvery("history-prune", HISTORY_PRUNE_MS) { history.prune() }
+        scope.launchEvery("virtual-expire", VIRTUAL_EXPIRE_MS) { streams.expire() }
         if (worker != null) scope.launch(CoroutineName("probe-worker")) { worker.run() }
         return runtime
     }
 
     /** The feeds, the guides they and the policy want, and the lineup over both. */
-    private suspend fun liveCatalog() {
-        val providers = ProviderRegistry.create(sources.providers, http, store, clock, upstream)
+    private suspend fun liveCatalog(libraries: LibraryService) {
+        val virtualIds = sources.providers.filter { it.service == VirtualClient.SERVICE }.map { it.id }
+        virtual = VirtualChannelService(store, libraries.catalog, clock) {
+            for (id in virtualIds) {
+                feeds.requestRefresh(id)
+                guides.requestRefresh(id)
+            }
+        }
+        val local = mapOf<String, (ProviderContext) -> ProviderClient>(
+            VirtualClient.SERVICE to
+                { VirtualClient(virtual) { id -> loopback.localUrl(id, VirtualStreams.LIVE_PLAYLIST) } },
+        )
+        val providers = ProviderRegistry.create(sources.providers, http, store, clock, upstream, local)
         feeds = FeedService(sources.providers, store, http, clock, upstream, providers, jobs) {
             logos.requestSweep()
             policy?.requestRun("feeds")
@@ -254,6 +283,8 @@ internal class RuntimeAssembly(
     private suspend fun playback() {
         sessions = SessionManager(catalog, store, clock, settings.current.maxSessions)
         sessions.history = history
+        history.start(scope)
+        scope.launchEvery("history-prune", HISTORY_PRUNE_MS) { history.prune() }
         library = BreakLibrary(store, clock).also { it.load() }
         sessions.library = library
         scope.launch(CoroutineName("ad-library")) {
@@ -342,17 +373,61 @@ internal class RuntimeAssembly(
         pathMap = config.libraryPathMap,
     ).also { it.start(scope) }
 
-    private suspend fun vod(dvr: Dvr, libraries: LibraryService): VodSessions = VodSessions(
-        libraries.catalog,
-        clock,
-        config.ffmpeg,
-        config.dataDirectory.resolve("transcode"),
-        config.maxTranscodes,
-        recordings = dvr::playable,
-        probe = MediaProbe(ffprobeBeside(config.ffmpeg))::probe,
-        encoder = config.videoEncoder,
-    ).also {
-        it.history = history
-        it.start()
+    /**
+     * Library playback, the virtual channels' streams and multiview, which share `SOFA_MAX_TRANSCODES`: each counts the
+     * others' conversions. The streams are served on the loopback listener, and the live slots and multiview tiles read
+     * the lineup through one [ChannelTap].
+     */
+    private suspend fun playback(dvr: Dvr, libraries: LibraryService): Converters {
+        lateinit var streams: VirtualStreams
+        lateinit var multiview: MultiviewSessions
+        val vod = VodSessions(
+            libraries.catalog,
+            clock,
+            config.ffmpeg,
+            config.dataDirectory.resolve("transcode"),
+            config.maxTranscodes,
+            recordings = dvr::playable,
+            probe = MediaProbe(ffprobeBeside(config.ffmpeg))::probe,
+            encoder = config.videoEncoder,
+            others = { streams.running + multiview.running },
+        ).also {
+            it.history = history
+            it.start()
+        }
+        val free: suspend () -> Boolean = {
+            val converting = vod.snapshot().count { it.mode != Wire.VodMode.DIRECT }
+            converting + streams.running + multiview.running < config.maxTranscodes
+        }
+        streams = VirtualStreams(
+            config.ffmpeg,
+            config.dataDirectory.resolve("virtual"),
+            virtual,
+            clock,
+            scope,
+            vod.encoder,
+            slides = SlideFetcher(http, upstream),
+            mayStart = free,
+        )
+        val tap = ChannelTap(sessions, feeds, loopback)
+        multiview = MultiviewSessions(
+            config.ffmpeg,
+            config.dataDirectory.resolve("multiview"),
+            lineup,
+            tap,
+            clock,
+            scope,
+            config.multiview,
+            encoder = { vod.encoder },
+            mayStart = free,
+        )
+        assemblyLog.info("multiview: {}", multiview.verdict)
+        scope.launchEvery("multiview-expire", VIRTUAL_EXPIRE_MS) { multiview.expire() }
+        loopback.local = streams::serve
+        virtual.live = LineupSlots(lineup, guides, feeds, tap)
+        return Converters(vod, streams, multiview)
     }
+
+    /** What [playback] makes. */
+    private data class Converters(val vod: VodSessions, val streams: VirtualStreams, val multiview: MultiviewSessions)
 }

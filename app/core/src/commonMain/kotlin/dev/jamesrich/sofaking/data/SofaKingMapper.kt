@@ -37,6 +37,10 @@ internal object SofaKingMapper {
         }
     }
 
+    /** On Later's programs in the server's order, each on its own channel; unreadable ones are dropped. */
+    fun upcoming(upcoming: UpcomingProgramsDto): List<Program> =
+        upcoming.programs.mapNotNull { toProgram(it.channelId, it) }
+
     /** Channels the guide answered as gone from the lineup since the catalog was read. */
     fun removed(window: GuideWindowDto): Set<String> =
         window.channels.filter { it.status == Wire.GuideStatus.REMOVED }.mapTo(HashSet()) { it.channelId }

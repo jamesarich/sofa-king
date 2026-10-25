@@ -32,6 +32,7 @@ private class EffectiveSettings(private val config: ServerConfig) {
             s("SOFA_POLICY", config.policyFile, null, found("SOFA_POLICY")),
             s("SOFA_FFMPEG", config.ffmpeg, "ffmpeg"),
             s("SOFA_COMSKIP", config.comskip ?: "none", "comskip"),
+            s("SOFA_QUALITY_FLOORS", config.qualityFloors, false),
             s("SOFA_PROBE_PARALLELISM", config.probeParallelism, ServerConfig.DEFAULT_PROBE_PARALLELISM),
             s("SOFA_RESTREAM_ORIGINS", config.restreamOrigins.sorted().joinToString(), ""),
             s("SOFA_OBSERVATION_RETENTION_DAYS", config.observationRetentionDays, ServerConfig.DEFAULT_RETENTION_DAYS),

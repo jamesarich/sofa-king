@@ -209,7 +209,7 @@ class FeedService(
             runCatchingCancellable {
                 val parsed = parse(config)
                 val (channels, offerings) = parsed
-                require(channels.isNotEmpty() || config.allowEmpty) { "Empty playlist requires explicit allowEmpty" }
+                require(channels.isNotEmpty() || config.mayBeEmpty) { "Empty playlist requires explicit allowEmpty" }
                 val succeededAt = clock.instant().toString()
                 val firstSinceStart = statuses.firstOrNull { it.id == config.id }?.lastSuccessAt == null
                 val unchanged = publish(config, parsed, succeededAt)

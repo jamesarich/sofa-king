@@ -144,4 +144,70 @@ class UpdateCheckTest {
         val behindMore = assertIs<UpdateState.Available>(UpdateChecker.compare("0.4.0-dev.100+abc", latest))
         assertEquals(4, behindMore.changes.size)
     }
+
+    @Test
+    fun `a tagged build asks for the latest release and a snapshot asks for the snapshot`() = runTest {
+        val http = FakeHttp(this) { respond(release, HttpStatusCode.OK) }
+        val checker = UpdateChecker(http.client, "${FAKE_BASE}snapshot", "${FAKE_BASE}latest")
+        checker.latest("0.4.0")
+        checker.latest("0.4.0-dev.12+abc")
+        assertEquals(listOf("GET /latest", "GET /snapshot"), http.requests.map { it.toString() })
+    }
+
+    @Test
+    fun `a release title or tag gives the plain version`() = runTest {
+        val tagged = release.replace("Snapshot 0.4.0-dev.140+abc1234", "Sofa King 0.5.0")
+        val latest = UpdateChecker(
+            FakeHttp(this) { respond(tagged, HttpStatusCode.OK) }.client,
+            stableUrl = "${FAKE_BASE}latest",
+        ).latest("0.4.0")!!
+        assertEquals("0.5.0", latest.version)
+        assertNull(latest.run)
+        val untitled = release.replace("Snapshot 0.4.0-dev.140+abc1234", "").replace("\"snapshot\"", "\"v0.5.1\"")
+        assertEquals(
+            "0.5.1",
+            UpdateChecker(
+                FakeHttp(this) { respond(untitled, HttpStatusCode.OK) }.client,
+                stableUrl = "${FAKE_BASE}latest",
+            ).latest("0.4.0")!!.version,
+        )
+    }
+
+    @Test
+    fun `a newer release is an update for a tagged build with all its notes`() {
+        val note = ReleaseNote(0, false, "Watch from start")
+        val latest = PublishedBuild("0.10.0", null, "https://page", null, notes = listOf(note))
+        assertEquals(UpdateState.Available(latest, listOf(note)), UpdateChecker.compare("0.9.2", latest))
+        assertIs<UpdateState.UpToDate>(UpdateChecker.compare("0.10.0", latest))
+        assertIs<UpdateState.UpToDate>(UpdateChecker.compare("1.0.0", latest))
+        assertIs<UpdateState.Unknown>(UpdateChecker.compare("0.9.2", latest.copy(version = "0.10.0-dev.3+a")))
+    }
+
+    @Test
+    fun `a release's notes read under its version with upgrade notes as new`() {
+        val body = """Highlights written by hand.
+
+## 0.5.0
+
+### Upgrade notes
+
+- dvr: Recordings move to one folder per show (#300)
+
+### New
+
+- Watch from start (#301)
+
+### Fixes
+
+- A fix (#302)
+"""
+        assertEquals(
+            listOf(
+                ReleaseNote(0, false, "Recordings move to one folder per show"),
+                ReleaseNote(0, false, "Watch from start"),
+                ReleaseNote(0, true, "A fix"),
+            ),
+            UpdateChecker.releaseNotes(body),
+        )
+    }
 }

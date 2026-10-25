@@ -61,6 +61,7 @@ internal fun SettingsDestination(
 internal fun ChannelsDestination(route: Route, shell: AppShellState, vm: LineupViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val state by vm.state.collectAsStateWithLifecycle()
+    val capabilities by vm.capabilities.collectAsStateWithLifecycle()
     val s = settings ?: return
     val channels = (state as? LineupState.Ready)?.lineup?.channels.orEmpty()
     SettingsLockGate(s, shell, onPinRemove = { vm.setSettingsPin(null) }) {
@@ -76,6 +77,8 @@ internal fun ChannelsDestination(route: Route, shell: AppShellState, vm: LineupV
                 onChannelsHiddenChange = vm::setChannelsHidden,
                 onZapSkipsHiddenChange = vm::setZapSkipsHidden,
                 onBack = shell::back,
+                shareFavorites = s.shareFavorites.takeIf { capabilities.household },
+                onShareFavoritesChange = vm::setShareFavorites,
             )
 
             Route.StartupChannel -> ChannelPickerScreen(
@@ -136,11 +139,12 @@ private fun settingsActions(shell: AppShellState, vm: LineupViewModel, libraryVm
         onGuideDensityChanged = vm::setGuideDensity,
         onManageChannels = { shell.push(Route.Channels) },
         onMatchFrameRateChanged = vm::setMatchFrameRate,
+        onNightListeningChanged = vm::setNightListening,
         onDecoderChanged = vm::setDecoder,
         onBufferChanged = vm::setBuffer,
         onCheckForUpdate = vm::checkForUpdate,
-        onSkipCommercialsChanged = vm::setSkipCommercials,
-        onAutoSkipIntrosChanged = vm::setAutoSkipIntros,
+        onSkipChanged = vm::setSkip,
+        onSeekStepsChanged = vm::setSeekSteps,
         onHideSpoilersChanged = vm::setHideSpoilers,
         onSubtitleLookChanged = vm::setSubtitleLook,
         onLiveBreaksChanged = vm::setLiveBreaks,
@@ -152,5 +156,13 @@ private fun settingsActions(shell: AppShellState, vm: LineupViewModel, libraryVm
             vm.setSettingsPin(pin)
             // The page that set the PIN stays open; the lock takes effect on the next visit.
             shell.settingsUnlocked = true
+        },
+        onKidsModeChanged = { on ->
+            vm.setKidsMode(on)
+            // Kids mode starts behind the lock, on the guide.
+            if (on) {
+                shell.settingsUnlocked = false
+                shell.leaveSettings()
+            }
         },
     )

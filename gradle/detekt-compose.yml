@@ -5,7 +5,7 @@ Compose:
     # The app's own CompositionLocals, each an ambient value that nearly every screen reads and nothing passes by hand:
     # the window's layout profile, last input, full screen and picture-in-picture; the clock, zone and clock format that
     # previews and screenshot tests pin, and the uptime clock the player's scrub rests by; the app's lifecycle; the
-    # guide's density; and the player volume. A new one has to be added here, which is the rule's point.
+    # guide's density; the player volume; and kids mode, which the header and the tabs read. A new one has to be added here, which is the rule's point.
     allowedCompositionLocals:
       - LocalLayoutProfile
       - LocalLastInput
@@ -18,6 +18,7 @@ Compose:
       - LocalTimeZone
       - LocalGuideDensity
       - LocalPlayerVolume
+      - LocalKidsMode
   ViewModelForwarding:
     # The shell hands its ViewModels to one destination per route (LiveDestinations.kt and the rest), and the
     # destination is where state is hoisted: it collects the state and passes values and callbacks to stateless screens.

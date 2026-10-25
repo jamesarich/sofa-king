@@ -14,6 +14,14 @@ import kotlinx.serialization.Serializable
     val viewers: Boolean = false,
     val library: Boolean = false,
     val recordings: Boolean = false,
+    /** `/api/v1/watchlist`, and the Watchlist shelf on a server with libraries. */
+    val watchlist: Boolean = false,
+    /** `GET /api/v1/guide/on-later`. */
+    val onLater: Boolean = false,
+    /** `GET`/`PUT /api/v1/household/preferences`, the favorites and hidden channels devices may share. */
+    val household: Boolean = false,
+    /** `/api/v1/multiview-sessions`: the server can composite channels into one picture now. */
+    val multiview: Boolean = false,
 )
 
 @Serializable data class Bootstrap(

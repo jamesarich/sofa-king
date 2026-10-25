@@ -59,3 +59,17 @@ internal suspend fun SofaKingApi.programFacts(title: String, movie: Boolean): Pr
 internal suspend fun SofaKingApi.releaseSession(id: String) = call {
     http.delete(sessionPath(id)).checkSuccess()
 }
+
+/** Opens a multiview of [channelIds] with the sound of tile [audio]: one stream the server draws them all into. */
+internal suspend fun SofaKingApi.openMultiview(channelIds: List<String>, audio: Int): MultiviewSessionDto = call {
+    http.post("multiview-sessions") { json(OpenMultiviewDto(channelIds, audio)) }.decode()
+}
+
+/** Renews multiview [id]; with [audio], moves its sound to that tile, which restarts its stream under a new epoch. */
+internal suspend fun SofaKingApi.updateMultiview(id: String, audio: Int?): MultiviewSessionDto = call {
+    http.patch(multiviewPath(id)) { json(UpdateMultiviewDto(audio)) }.decode()
+}
+
+internal suspend fun SofaKingApi.releaseMultiview(id: String) = call {
+    http.delete(multiviewPath(id)).checkSuccess()
+}

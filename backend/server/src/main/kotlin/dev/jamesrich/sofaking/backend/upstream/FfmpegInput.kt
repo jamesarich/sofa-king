@@ -25,11 +25,18 @@ class FfmpegSource internal constructor(val url: String, internal val credential
  * and key request. The provider's own headers stay with the relay. The caller adds its own input options and `-i`.
  */
 internal fun ffmpegBase(ffmpeg: String, loglevel: String, source: FfmpegSource): MutableList<String> {
-    val command = mutableListOf(ffmpeg, "-hide_banner", "-loglevel", loglevel, "-nostdin", "-rw_timeout", "15000000")
-    command += FFMPEG_PROTOCOL_WHITELIST
-    command += listOf("-headers", "$RELAY_CREDENTIAL_HEADER: ${source.credential}\r\n")
+    val command = mutableListOf(ffmpeg, "-hide_banner", "-loglevel", loglevel, "-nostdin")
+    command += sourceOptions(source)
     return command
 }
+
+/**
+ * The input options of one source, for a command that reads several: the 15 s network read timeout, the whitelist
+ * and the relay credential, as [ffmpegBase] gives the first. Each goes right before its own `-i`.
+ */
+internal fun sourceOptions(source: FfmpegSource): List<String> =
+    listOf("-rw_timeout", "15000000") + FFMPEG_PROTOCOL_WHITELIST +
+        listOf("-headers", "$RELAY_CREDENTIAL_HEADER: ${source.credential}\r\n")
 
 /**
  * A builder for an FFmpeg that reads a source: it reaches the relay directly, never through a proxy in the environment.

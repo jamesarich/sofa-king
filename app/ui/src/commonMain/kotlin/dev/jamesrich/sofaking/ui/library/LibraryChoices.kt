@@ -10,15 +10,43 @@ import kotlin.time.Duration.Companion.minutes
 /** How a row draws its items: 2:3 posters for movies and shows, 16:9 cards for episodes and what is being watched. */
 internal enum class CardStyle { POSTER, WIDE }
 
-/** Search results split as the search draws them: movies and shows as posters, episodes and videos as wide cards. */
-internal class SearchSections(val posters: List<MediaItem>, val wide: List<MediaItem>) {
-    /** Whether the search found anything. */
-    val found: Boolean get() = posters.isNotEmpty() || wide.isNotEmpty()
+/** A row of search results: movies, shows, what the query's person is in, episodes and videos, in that order. */
+internal enum class SearchGroup(val style: CardStyle) {
+    MOVIES(CardStyle.POSTER),
+    SHOWS(CardStyle.POSTER),
+
+    /** Movies, shows and videos found by their cast or directors rather than their titles. */
+    CAST_AND_CREW(CardStyle.POSTER),
+    EPISODES(CardStyle.WIDE),
+    VIDEOS(CardStyle.WIDE),
 }
 
-internal fun searchSections(results: List<MediaItem>): SearchSections {
-    val (wide, posters) = results.partition { it.kind == ItemKind.EPISODE || it.kind == ItemKind.VIDEO }
-    return SearchSections(posters, wide)
+/** One [SearchGroup]'s results, in the order the server sent them. */
+internal class SearchSection(val group: SearchGroup, val items: List<MediaItem>)
+
+/** Search results for [query] as the search draws them, the groups that found nothing left out. */
+internal class SearchSections(val query: String, val rows: List<SearchSection>) {
+    /** Whether the search found anything. */
+    val found: Boolean get() = rows.isNotEmpty()
+}
+
+/**
+ * [results] for [query] in their groups. The server matches titles, then cast and directors, then episode titles, so a
+ * movie, show or video whose title lacks [query] was found by the people in it.
+ */
+internal fun searchSections(results: List<MediaItem>, query: String): SearchSections {
+    val needle = query.trim().lowercase()
+    val groups = results.groupBy { item ->
+        when {
+            item.kind == ItemKind.EPISODE -> SearchGroup.EPISODES
+            needle.isNotEmpty() && needle !in item.title.lowercase() -> SearchGroup.CAST_AND_CREW
+            item.kind == ItemKind.SHOW -> SearchGroup.SHOWS
+            item.kind == ItemKind.VIDEO -> SearchGroup.VIDEOS
+            else -> SearchGroup.MOVIES
+        }
+    }
+    val rows = SearchGroup.entries.mapNotNull { group -> groups[group]?.let { SearchSection(group, it) } }
+    return SearchSections(query.trim(), rows)
 }
 
 /** Continue watching and a row of episodes or videos are wide; anything else shows posters. */

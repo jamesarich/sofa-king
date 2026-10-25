@@ -31,12 +31,14 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.NavDisplay
 import coil3.compose.setSingletonImageLoaderFactory
+import dev.jamesrich.sofaking.data.AppLink
 import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.ui.LocalAppLifecycleOwner
 import dev.jamesrich.sofaking.ui.LocalClockFormat
 import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
+import dev.jamesrich.sofaking.ui.LocalKidsMode
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.LocalTimeZone
@@ -64,18 +66,18 @@ import kotlin.math.abs
 /**
  * The whole app, the same on every platform: the theme, the window's layout profile and input, then the screen the
  * user is on. [pairing] is a server to pair with from a `sofaking://pair` link the platform received; the app claims
- * it once and calls [onPairingHandle], so a restored activity does not claim it again. [playItem] is a library item
- * to play from a `sofaking://vod` link, such as the Android TV home screen's Watch Next row, handed back the same way
- * through [onPlayItemHandle]. [windowFullScreen] is the host window's full screen where the app can switch it (a
- * desktop window, a browser page).
+ * it once and calls [onPairingHandle], so a restored activity does not claim it again. [link] is a library item or a
+ * live channel to play from a `sofaking://vod` or `sofaking://live` link, such as the Android TV home screen's Watch
+ * Next row or a home automation's shortcut, handed back the same way through [onLinkHandle]. [windowFullScreen] is
+ * the host window's full screen where the app can switch it (a desktop window, a browser page).
  */
 @Composable
 fun App(
     modifier: Modifier = Modifier,
     pairing: PairingRequest? = null,
     onPairingHandle: () -> Unit = {},
-    playItem: String? = null,
-    onPlayItemHandle: () -> Unit = {},
+    link: AppLink? = null,
+    onLinkHandle: () -> Unit = {},
     windowFullScreen: WindowFullScreen? = null,
 ) {
     setSingletonImageLoaderFactory(::sofaKingImageLoader)
@@ -93,8 +95,8 @@ fun App(
                 SofaKingApp(
                     pairing = pairing,
                     onPairingHandle = onPairingHandle,
-                    playItem = playItem,
-                    onPlayItemHandle = onPlayItemHandle,
+                    link = link,
+                    onLinkHandle = onLinkHandle,
                 )
             }
         }
@@ -109,8 +111,8 @@ fun App(
 private fun SofaKingApp(
     pairing: PairingRequest? = null,
     onPairingHandle: () -> Unit = {},
-    playItem: String? = null,
-    onPlayItemHandle: () -> Unit = {},
+    link: AppLink? = null,
+    onLinkHandle: () -> Unit = {},
     vm: LineupViewModel = viewModel { appGraph.lineupViewModel() },
     libraryVm: LibraryViewModel = viewModel { appGraph.libraryViewModel() },
     recordingsVm: RecordingsViewModel = viewModel { appGraph.recordingsViewModel() },
@@ -124,10 +126,12 @@ private fun SofaKingApp(
     val recordingsState by recordingsVm.state.collectAsStateWithLifecycle()
     val shell = rememberAppShellState()
     val top = shell.nav.top
-    val offered = tabsOffered(capabilities, shell.nav.tab, libraryHome, recordingsState)
+    val kids = settings?.kidsMode == true
+    val offered = tabsOffered(capabilities, shell.nav.tab, libraryHome, recordingsState, kids)
     PairingEffects(shell, pairing, pairingState.outcome, onPairingHandle, vm::pair, vm::pairingHandled)
     val launch = launchTarget(state, settings)
-    LaunchEffects(shell, launch, settings?.lastTab, playItem, onPlayItemHandle, vm::setLastTab)
+    val lineup = (state as? LineupState.Ready)?.lineup
+    LaunchEffects(shell, launch, settings?.lastTab, link, onLinkHandle, lineup, vm::setLastTab)
     ShellEffects(shell, offered, vm::setLastChannel)
 
     val playback = rememberAppPlayback()
@@ -170,6 +174,7 @@ private fun SofaKingApp(
         LocalAppLifecycleOwner provides lifecycleOwner,
         LocalInPictureInPicture provides inPictureInPicture,
         LocalPlayerVolume provides playback.volume,
+        LocalKidsMode provides kids,
     ) {
         AppNavDisplay(shell, chrome, entries, playback.volume)
     }

@@ -12,15 +12,19 @@ struct VodRequest: Identifiable, Hashable {
 
     let source: Source
     let fromStart: Bool
+    /// Where a `sofaking://vod?t=` link starts the item, in milliseconds; negative for none.
+    let startMs: Int64
 
-    init(item: MediaItem, fromStart: Bool) {
+    init(item: MediaItem, fromStart: Bool, startMs: Int64 = -1) {
         source = .item(item)
         self.fromStart = fromStart
+        self.startMs = startMs
     }
 
     init(recording: DvrRecording, fromStart: Bool) {
         source = .recording(recording)
         self.fromStart = fromStart
+        startMs = -1
     }
 
     /// The library item, or nil for a recording.
@@ -81,9 +85,9 @@ struct VodPlayerView: View {
     @State private var breakEndMs: Int64?
     /// The end of the episode's intro while the player is in it, for Skip intro; nil outside it.
     @State private var introEndMs: Int64?
-    /// With Skip intros automatically on: the intro end the countdown is for, offered once per intro, and the seconds
-    /// left on it; nil when it waits for a press. Pausing stops it.
-    @State private var autoSkipIntroEndMs: Int64?
+    /// With intros or credits skipped automatically: the segment end the countdown is for, offered once per segment,
+    /// and the seconds left on it; nil when it waits for a press. Pausing stops it.
+    @State private var autoSkipEndMs: Int64?
     @State private var autoSkipSeconds: Int?
     /// The end of the episode's credits while the player is in them, for Skip credits; nil outside them.
     @State private var creditsEndMs: Int64?
@@ -212,7 +216,7 @@ struct VodPlayerView: View {
             let s: PlaybackStream
             switch request.source {
             case .item(let item):
-                s = try await waitForConverter { try await model.core.playItem(item: item, fromStart: request.fromStart) }
+                s = try await waitForConverter { try await model.core.playItem(item: item, fromStart: request.fromStart, startMs: request.startMs) }
             case .recording(let recording):
                 s = try await waitForConverter { try await model.core.playRecording(recording: recording, fromStart: request.fromStart) }
             }
@@ -300,10 +304,12 @@ struct VodPlayerView: View {
         }
         skipBreak(from: lastPositionMs, to: positionMs, in: s)
         lastPositionMs = positionMs
-        breakEndMs = breaks.first(where: { positionMs >= $0.startMs && positionMs < $0.endMs })?.endMs
-        introEndMs = detail?.intro.flatMap { positionMs >= $0.startMs && positionMs < $0.endMs ? $0.endMs : nil }
-        countDownIntro(in: s)
-        creditsEndMs = detail?.credits.flatMap { positionMs >= $0.startMs && positionMs < $0.endMs ? $0.endMs : nil }
+        breakEndMs = skips.commercialBreaks == .off ? nil : breaks.first(where: { positionMs >= $0.startMs && positionMs < $0.endMs })?.endMs
+        introEndMs = skips.intros == .off ? nil
+            : detail?.intro.flatMap { positionMs >= $0.startMs && positionMs < $0.endMs ? $0.endMs : nil }
+        creditsEndMs = skips.credits == .off ? nil
+            : detail?.credits.flatMap { positionMs >= $0.startMs && positionMs < $0.endMs ? $0.endMs : nil }
+        countDownSkip(in: s)
         if creditsEndMs != nil, !creditsNextAsked, let item = request.libraryItem {
             creditsNextAsked = true
             Task { creditsNext = try? await model.core.upNext(item: item) }
@@ -319,16 +325,22 @@ struct VodPlayerView: View {
         }
     }
 
-    /// Skips the intro after 5 seconds' countdown on Skip intro, once per intro, while it plays; a pause stops it.
-    private func countDownIntro(in s: PlaybackStream) {
-        guard let end = introEndMs, model.settings?.autoSkipIntros == true else {
+    /// How the viewer chose to meet breaks, intros and credits.
+    private var skips: Skips { model.settings?.skips ?? Skips(intros: .button, credits: .button, commercialBreaks: .button) }
+
+    /// Skips the intro, or the credits, after 5 seconds' countdown on its button, once each, while it plays and the
+    /// viewer chose to skip it automatically; a pause stops it.
+    private func countDownSkip(in s: PlaybackStream) {
+        let intro = introEndMs.flatMap { skips.intros == .auto_ ? $0 : nil }
+        let credits = creditsEndMs.flatMap { skips.credits == .auto_ ? $0 : nil }
+        guard let end = intro ?? credits else {
             autoSkipSeconds = nil
             return
         }
         if player.rate == 0 { autoSkipSeconds = nil }
-        if autoSkipIntroEndMs != end {
+        if autoSkipEndMs != end {
             guard player.rate > 0 else { return }
-            autoSkipIntroEndMs = end
+            autoSkipEndMs = end
             autoSkipSeconds = 5
         } else if let left = autoSkipSeconds {
             if left > 1 {
@@ -336,6 +348,7 @@ struct VodPlayerView: View {
             } else {
                 autoSkipSeconds = nil
                 introEndMs = nil
+                creditsEndMs = nil
                 jump(to: end, in: s)
             }
         }
@@ -347,10 +360,10 @@ struct VodPlayerView: View {
         return []
     }
 
-    /// With Skip commercials on, jumps to the end of a break that playback ran into between two ticks; a seek into
+    /// With Skip commercials automatic, jumps to the end of a break that playback ran into between two ticks; a seek into
     /// a break stays there. A break end past what the server has converted restarts the conversion there.
     private func skipBreak(from previousMs: Int64, to nowMs: Int64, in s: PlaybackStream) {
-        guard model.settings?.skipCommercials == true, player.rate > 0,
+        guard skips.commercialBreaks == .auto_, player.rate > 0,
               let b = breaks.first(where: { previousMs < $0.startMs && nowMs >= $0.startMs && nowMs < $0.endMs })
         else { return }
         jump(to: b.endMs, in: s)
@@ -395,7 +408,9 @@ struct VodPlayerView: View {
                     play(upcoming)
                 }]
             }
-            return [UIAction(title: "Skip credits", image: UIImage(systemName: "forward.end")) { _ in
+            let title = autoSkipSeconds.map { "Skip credits (\($0))" } ?? "Skip credits"
+            return [UIAction(title: title, image: UIImage(systemName: "forward.end")) { _ in
+                autoSkipSeconds = nil
                 creditsEndMs = nil
                 jump(to: end, in: s)
             }]

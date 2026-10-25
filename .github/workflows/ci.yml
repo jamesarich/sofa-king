@@ -352,13 +352,19 @@ jobs:
   # until every check and every package is green.
   snapshot:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # snapshot.yml's publish job, skipped here, still needs every permission it asks for granted.
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/snapshot.yml
     with:
       publish: false
     secrets:
       ANDROID_DEBUG_KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
+      ANDROID_RELEASE_KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE }}
+      ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+      ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
       SOFAKING_CACHE_USERNAME: ${{ secrets.SOFAKING_CACHE_USERNAME }}
       SOFAKING_CACHE_PASSWORD: ${{ secrets.SOFAKING_CACHE_PASSWORD }}
       GRADLE_ENCRYPTION_KEY: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
@@ -368,6 +374,8 @@ jobs:
     needs: [check, apple, apple-tv, snapshot]
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/publish-snapshot.yml
     with:
       version: ${{ needs.snapshot.outputs.version }}

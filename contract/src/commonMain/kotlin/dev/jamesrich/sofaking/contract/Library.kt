@@ -85,7 +85,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class LibraryShelf(val id: String, val title: String, val items: List<LibraryItem>, val libraryId: String? = null)
 
-/** The library home: Continue watching, then Recently added per library, and every library. */
+/** The library home: Continue watching, the Watchlist, then Recently added per library, and every library. */
 @Serializable data class LibraryHome(val shelves: List<LibraryShelf>, val libraries: List<Library> = emptyList())
 
 /**
@@ -220,4 +220,35 @@ data class UpdatePlayState(
     val durationMs: Long? = null,
     val expiresAt: String = "",
     val recordingId: String? = null,
+)
+
+/**
+ * An entry of the household's watchlist: a library [item] to watch ([kind] [Wire.WatchlistKind.ITEM], which an older
+ * server's library may no longer hold, so [item] is then null), or a guide [title] to watch for
+ * ([Wire.WatchlistKind.TITLE]) on [channelId] only when set, with the [next] airing of it the guide holds in the
+ * coming week, which may be on now.
+ */
+@Serializable data class WatchlistEntry(
+    val id: String,
+    val kind: String,
+    val title: String,
+    val itemId: String? = null,
+    val channelId: String? = null,
+    val addedAt: String = "",
+    val item: LibraryItem? = null,
+    val next: Program? = null,
+)
+
+/** The household's watchlist, newest first. */
+@Serializable data class Watchlist(val entries: List<WatchlistEntry> = emptyList())
+
+/**
+ * Adds a library item ([kind] [Wire.WatchlistKind.ITEM] with [itemId]) or a guide title ([Wire.WatchlistKind.TITLE]
+ * with [title], on [channelId] only when set) to the watchlist. Adding what the list already holds returns that entry.
+ */
+@Serializable data class AddWatchlistEntry(
+    val kind: String,
+    val itemId: String? = null,
+    val title: String? = null,
+    val channelId: String? = null,
 )

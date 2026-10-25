@@ -11,6 +11,9 @@ import dev.jamesrich.sofaking.data.DisplaySettings
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.PlayerSettings
+import dev.jamesrich.sofaking.data.SeekSteps
+import dev.jamesrich.sofaking.data.SkipKind
+import dev.jamesrich.sofaking.data.SkipMode
 import dev.jamesrich.sofaking.data.StartupTarget
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.TopLevelTab
@@ -68,15 +71,18 @@ interface PlayerEdits {
 
     fun setMatchFrameRate(enabled: Boolean)
 
+    fun setNightListening(enabled: Boolean)
+
     fun setDecoder(decoder: DecoderPreference)
 
     fun setChannelDecoder(guideId: String, decoder: DecoderPreference?)
 
     fun setBuffer(buffer: BufferPreference)
 
-    fun setSkipCommercials(enabled: Boolean)
+    /** How the players skip [kind]. */
+    fun setSkip(kind: SkipKind, mode: SkipMode)
 
-    fun setAutoSkipIntros(enabled: Boolean)
+    fun setSeekSteps(steps: SeekSteps)
 
     fun setLiveBreaks(mode: LiveBreaks)
 
@@ -151,6 +157,8 @@ internal class StorePlayerEdits(private val store: PlayerSettings, private val s
 
     override fun setMatchFrameRate(enabled: Boolean) = scope.save { store.setMatchFrameRate(enabled) }
 
+    override fun setNightListening(enabled: Boolean) = scope.save { store.setNightListening(enabled) }
+
     override fun setDecoder(decoder: DecoderPreference) = scope.save { store.setDecoder(decoder) }
 
     override fun setChannelDecoder(guideId: String, decoder: DecoderPreference?) =
@@ -158,9 +166,9 @@ internal class StorePlayerEdits(private val store: PlayerSettings, private val s
 
     override fun setBuffer(buffer: BufferPreference) = scope.save { store.setBuffer(buffer) }
 
-    override fun setSkipCommercials(enabled: Boolean) = scope.save { store.setSkipCommercials(enabled) }
+    override fun setSkip(kind: SkipKind, mode: SkipMode) = scope.save { store.setSkip(kind, mode) }
 
-    override fun setAutoSkipIntros(enabled: Boolean) = scope.save { store.setAutoSkipIntros(enabled) }
+    override fun setSeekSteps(steps: SeekSteps) = scope.save { store.setSeekSteps(steps) }
 
     override fun setLiveBreaks(mode: LiveBreaks) = scope.save { store.setLiveBreaks(mode) }
 

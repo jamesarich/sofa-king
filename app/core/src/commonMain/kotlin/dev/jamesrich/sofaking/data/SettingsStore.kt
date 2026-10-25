@@ -50,10 +50,10 @@ data class AppSettings(
     val hiddenChannels: Set<String> = emptySet(),
     /** Whether Channel Up and Down and the D-pad skip [hiddenChannels] too, or only the lists leave them out. */
     val zapSkipsHidden: Boolean = false,
-    /** Whether a recording's playback jumps over the commercial breaks the server found. */
-    val skipCommercials: Boolean = false,
-    /** Whether an episode's intro skips itself after a few seconds' countdown on Skip intro; off waits for a press. */
-    val autoSkipIntros: Boolean = false,
+    /** How the players skip intros, end credits and a recording's commercial breaks. */
+    val skips: Skips = Skips(),
+    /** How far one press back or forward moves a library item or a recording. */
+    val seekSteps: SeekSteps = SeekSteps(),
     /** Whether an episode not started yet keeps its overview back and its still blurred ([hidesSpoilers]). */
     val hideSpoilers: Boolean = false,
     /** How a library item's text subtitles look; live and recording captions follow [captionStyle]. */
@@ -83,6 +83,12 @@ data class AppSettings(
     val settingsPin: String = "",
     /** The tracks picked in each show, by show id, most recent first; never synced. */
     val trackChoices: Map<String, TrackChoice> = emptyMap(),
+    /** Whether [KidsMode] is on; it is only while [settingsPin] is set, which leaves it. Never synced. */
+    val kidsMode: Boolean = false,
+    /** Whether this device keeps its favorites and hidden channels in step with the household's shared copy. */
+    val shareFavorites: Boolean = false,
+    /** The `updatedAt` of the household's shared copy this device last pushed or took over; empty before any. */
+    val householdSyncedAt: String = "",
 ) {
     /** True while Settings asks for a PIN before it opens. */
     val settingsLocked: Boolean get() = settingsPin.isNotEmpty()
@@ -103,11 +109,12 @@ data class AppSettings(
             "keyLegendShown=$keyLegendShown, startup=$startup, " +
             "startupChannel=$startupChannel, lastTab=$lastTab, clockFormat=$clockFormat, guideDensity=$guideDensity, " +
             "hiddenChannels=$hiddenChannels, " +
-            "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, autoSkipIntros=$autoSkipIntros, " +
+            "zapSkipsHidden=$zapSkipsHidden, skips=$skips, seekSteps=$seekSteps, " +
             "hideSpoilers=$hideSpoilers, subtitleLook=$subtitleLook, liveBreaks=$liveBreaks, adsDodged=$adsDodged, " +
             "favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
             "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, " +
-            "trackChoices=${trackChoices.size})"
+            "trackChoices=${trackChoices.size}, kidsMode=$kidsMode, shareFavorites=$shareFavorites, " +
+            "householdSyncedAt=$householdSyncedAt)"
 
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
@@ -155,6 +162,43 @@ data class SubtitleLook(
 
 /** How captions are drawn; SYSTEM defers to the platform's CaptioningManager settings. */
 enum class CaptionStyle { SYSTEM, LARGE_HIGH_CONTRAST }
+
+/**
+ * How a player meets a part it can skip: [AUTO] skips it after a countdown on its button, [BUTTON] offers the button
+ * and waits for a press, [OFF] offers nothing.
+ */
+enum class SkipMode { AUTO, BUTTON, OFF }
+
+/** What can be skipped: an episode's intro, its end credits, and a recording's commercial breaks. */
+enum class SkipKind { INTROS, CREDITS, COMMERCIAL_BREAKS }
+
+/** The [SkipMode] for each [SkipKind]. */
+data class Skips(
+    val intros: SkipMode = SkipMode.BUTTON,
+    val credits: SkipMode = SkipMode.BUTTON,
+    val commercialBreaks: SkipMode = SkipMode.BUTTON,
+) {
+    fun of(kind: SkipKind): SkipMode = when (kind) {
+        SkipKind.INTROS -> intros
+        SkipKind.CREDITS -> credits
+        SkipKind.COMMERCIAL_BREAKS -> commercialBreaks
+    }
+}
+
+/** How far one press back and one press forward move a library item or a recording, in seconds. */
+data class SeekSteps(val backSeconds: Int = DEFAULT_BACK_SECONDS, val forwardSeconds: Int = DEFAULT_FORWARD_SECONDS) {
+    val backMs: Long get() = backSeconds * MS_PER_SECOND
+    val forwardMs: Long get() = forwardSeconds * MS_PER_SECOND
+
+    companion object {
+        const val DEFAULT_BACK_SECONDS = 10
+        const val DEFAULT_FORWARD_SECONDS = 30
+
+        /** The steps Settings offers, each way. */
+        val CHOICES = listOf(5, 10, 15, 20, 30, 45, 60, 90)
+        private const val MS_PER_SECOND = 1_000L
+    }
+}
 
 /**
  * The live player in an ad break: [PLAY] shows it; the others cover it with the break
@@ -252,6 +296,8 @@ interface PlayerSettings {
 
     suspend fun setMatchFrameRate(enabled: Boolean)
 
+    suspend fun setNightListening(enabled: Boolean)
+
     suspend fun setDecoder(decoder: DecoderPreference)
 
     /** A per-channel decoder, or null to follow the default again. */
@@ -259,9 +305,10 @@ interface PlayerSettings {
 
     suspend fun setBuffer(buffer: BufferPreference)
 
-    suspend fun setSkipCommercials(enabled: Boolean)
+    /** How the players skip [kind]. */
+    suspend fun setSkip(kind: SkipKind, mode: SkipMode)
 
-    suspend fun setAutoSkipIntros(enabled: Boolean)
+    suspend fun setSeekSteps(steps: SeekSteps)
 
     suspend fun setLiveBreaks(mode: LiveBreaks)
 
@@ -284,7 +331,7 @@ interface DisplaySettings {
     suspend fun setHideSpoilers(enabled: Boolean)
 }
 
-/** This device's own: the server it pairs with, its client id, the preferences sync and the Settings PIN. */
+/** This device's own: the server it pairs with, its client id, the preferences sync, the Settings PIN and kids mode. */
 interface DeviceSettings {
     suspend fun setServer(serverUrl: String, apiToken: String)
 
@@ -306,6 +353,21 @@ interface DeviceSettings {
     /** Remembers the server document's stamp after this device pushed its preferences. */
     suspend fun setPreferencesSyncedAt(syncedAt: String)
 
-    /** Locks Settings behind [hash], a [SettingsPin.hash], or removes the lock for null. */
+    /** Locks Settings behind [hash], a [SettingsPin.hash], or removes the lock, and kids mode with it, for null. */
     suspend fun setSettingsPin(hash: String?)
+
+    /** Turns [AppSettings.kidsMode] on, which takes a PIN already set, or off. */
+    suspend fun setKidsMode(on: Boolean)
+
+    /** Turns [AppSettings.shareFavorites] on or off. */
+    suspend fun setShareFavorites(on: Boolean)
+
+    /**
+     * Takes over the household's shared copy: [hidden] replaces the hidden set and [favorites] the starred set and
+     * their order, and [syncedAt] is remembered as the document taken.
+     */
+    suspend fun applyHouseholdPreferences(hidden: Set<String>, favorites: List<String>, syncedAt: String)
+
+    /** Remembers the household document's stamp after this device pushed to it. */
+    suspend fun setHouseholdSyncedAt(syncedAt: String)
 }

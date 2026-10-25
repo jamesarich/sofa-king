@@ -23,7 +23,8 @@
       "name": "Recordings",
       "description": "The DVR: recordings and the series rules that schedule them. Bearer: the API token."
     },
-    { "name": "Hooks", "description": "Calls from Sonarr, Radarr and other tools when files change, each queuing a library scan. A hook token from POST /api/v1/admin/tokens, or the API token, as a bearer, a Basic password or the X-MediaBrowser-Token or X-Emby-Token header." }
+    { "name": "Hooks", "description": "Calls from Sonarr, Radarr and other tools when files change, each queuing a library scan. A hook token from POST /api/v1/admin/tokens, or the API token, as a bearer, a Basic password or the X-MediaBrowser-Token or X-Emby-Token header." },
+    { "name": "Watchlist", "description": "The household's watchlist of library items and guide titles. Bearer: the API token." }
   ],
   "components": {
     "securitySchemes": {
@@ -56,7 +57,7 @@
         "type": "object",
         "properties": {
           "serverId": { "type": "string" }, "serverTime": { "type": "string", "format": "date-time" }, "apiVersion": { "type": "integer" },
-          "capabilities": { "type": "object", "properties": { "catalog": { "type": "boolean" }, "guide": { "type": "boolean" }, "playback": { "type": "boolean" }, "viewers": { "type": "boolean", "description": "The server pairs clients (/api/v1/pair) and keeps their preferences." }, "library": { "type": "boolean", "description": "The server serves media libraries (/api/v1/libraries, /api/v1/library)." }, "recordings": { "type": "boolean", "description": "The server records (/api/v1/recordings, /api/v1/recording-rules)." } } }
+          "capabilities": { "type": "object", "properties": { "catalog": { "type": "boolean" }, "guide": { "type": "boolean" }, "playback": { "type": "boolean" }, "viewers": { "type": "boolean", "description": "The server pairs clients (/api/v1/pair) and keeps their preferences." }, "library": { "type": "boolean", "description": "The server serves media libraries (/api/v1/libraries, /api/v1/library)." }, "recordings": { "type": "boolean", "description": "The server records (/api/v1/recordings, /api/v1/recording-rules)." }, "watchlist": { "type": "boolean", "description": "The server keeps the household's watchlist (/api/v1/watchlist)." }, "onLater": { "type": "boolean", "description": "The server lists upcoming movies, sports, kids' programs and premieres (/api/v1/guide/on-later)." }, "household": { "type": "boolean", "description": "The server keeps the household's shared favorites and hidden channels (/api/v1/household/preferences)." }, "multiview": { "type": "boolean", "description": "The server composites multiview now (/api/v1/multiview-sessions)." } } }
         }
       },
       "Catalog": {
@@ -94,6 +95,10 @@
           "channelId": { "type": "string" }, "status": { "type": "string", "description": "ok, or removed for an entry the lineup no longer has" },
           "programs": { "type": "array", "items": { "$ref": "#/components/schemas/Program" } }
         }
+      },
+      "UpcomingPrograms": {
+        "type": "object", "required": ["programs"],
+        "properties": { "programs": { "type": "array", "items": { "$ref": "#/components/schemas/Program" } } }
       },
       "Program": {
         "type": "object",
@@ -247,6 +252,25 @@
           "expiresAt": { "type": "string", "format": "date-time" }, "recordingId": { "type": ["string", "null"], "description": "Set, with an empty itemId, when the session plays a recording." }
         }
       },
+      "OpenMultiview": {
+        "type": "object", "required": ["channelIds"],
+        "properties": {
+          "channelIds": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 4, "description": "Two to four different lineup channels, drawn left to right and top to bottom." },
+          "audio": { "type": "integer", "default": 0, "description": "The index in channelIds of the tile whose sound plays; it has a border." }
+        }
+      },
+      "UpdateMultiview": {
+        "type": "object",
+        "properties": { "audio": { "type": ["integer", "null"], "description": "Move the sound to this tile, restarting the stream under a new epoch." } }
+      },
+      "MultiviewSession": {
+        "type": "object", "required": ["id", "channelIds", "audio", "descriptor"],
+        "properties": {
+          "id": { "type": "string" }, "channelIds": { "type": "array", "items": { "type": "string" } }, "audio": { "type": "integer" },
+          "descriptor": { "type": "object", "properties": { "protocol": { "type": "string", "enum": ["hls"] }, "mimeType": { "type": "string" }, "url": { "type": "string" }, "epoch": { "type": "integer" } } },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        }
+      },
       "ViewerPreferences": {
         "type": "object",
         "properties": {
@@ -255,6 +279,14 @@
           "recent": { "type": "array", "items": { "type": "string" }, "maxItems": 1000, "description": "Channels watched last, newest first." },
           "name": { "type": "string", "maxLength": 80 }, "platform": { "type": "string", "maxLength": 80 },
           "updatedAt": { "type": "string", "format": "date-time", "readOnly": true, "description": "Set by the server on every write." }
+        }
+      },
+      "HouseholdPreferences": {
+        "type": "object",
+        "properties": {
+          "favorites": { "type": "array", "items": { "type": "string" }, "maxItems": 1000, "description": "Starred channel ids, in the household's order." },
+          "hidden": { "type": "array", "items": { "type": "string" }, "maxItems": 1000, "description": "Channel ids the sharing devices leave out." },
+          "updatedAt": { "type": "string", "format": "date-time", "readOnly": true, "description": "Set by the server on every write; empty until a device first writes." }
         }
       },
       "Viewer": {
@@ -278,6 +310,11 @@
       "CreateApiToken": { "type": "object", "required": ["label", "scope"], "properties": { "label": { "type": "string", "minLength": 1, "maxLength": 80 }, "scope": { "type": "string", "enum": ["read", "hook"] } } },
       "CreatedApiToken": { "type": "object", "required": ["token", "secret"], "properties": { "token": { "$ref": "#/components/schemas/ApiTokenInfo" }, "secret": { "type": "string", "description": "Shown this once; the server keeps only a hash.", "example": "sk_..." } } },
       "PairingCode": { "type": "object", "required": ["code", "expiresAt"], "properties": { "code": { "type": "string", "example": "123456" }, "expiresAt": { "type": "string", "format": "date-time" } } },
+      "VirtualSource": { "type": "object", "required": ["kind", "value"], "properties": { "kind": { "type": "string", "enum": ["library", "show", "genre", "channel"] }, "value": { "type": "string", "description": "A library ID, a show's item ID, a genre name or a lineup entry ID, by kind. A channel plays in timed slots only." } } },
+      "VirtualSlot": { "type": "object", "required": ["source"], "properties": { "source": { "$ref": "#/components/schemas/VirtualSource" }, "shuffle": { "type": "boolean", "default": false }, "start": { "type": ["string", "null"], "description": "HH:MM in the server's time zone, on every slot or none.", "example": "18:00" } } },
+      "VirtualChannel": { "type": "object", "required": ["name", "slots"], "properties": { "id": { "type": "string", "description": "Given by the server; ignored in a request." }, "name": { "type": "string" }, "number": { "type": ["string", "null"] }, "slots": { "type": "array", "items": { "$ref": "#/components/schemas/VirtualSlot" } }, "filler": { "oneOf": [{ "$ref": "#/components/schemas/VirtualSource" }, { "type": "null" }] }, "padMinutes": { "type": "integer", "enum": [0, 15, 30, 60], "default": 0 }, "breaks": { "oneOf": [{ "$ref": "#/components/schemas/VirtualBreaks" }, { "type": "null" }] } } },
+      "VirtualBreaks": { "type": "object", "description": "Breaks after an item: one item of source, then each slide. Null when they would air nothing.", "properties": { "everyMinutes": { "type": "integer", "enum": [0, 15, 30, 60], "default": 0, "description": "Minutes since the last break before another; 0 after every item." }, "source": { "oneOf": [{ "$ref": "#/components/schemas/VirtualSource" }, { "type": "null" }] }, "slides": { "type": "array", "maxItems": 5, "items": { "type": "string", "format": "uri" }, "description": "Image URLs fetched as each slide airs." }, "slideSeconds": { "type": "integer", "minimum": 3, "maximum": 60, "default": 10 } } },
+      "VirtualAiring": { "type": "object", "required": ["startsAt", "endsAt", "title"], "properties": { "startsAt": { "type": "string", "format": "date-time" }, "endsAt": { "type": "string", "format": "date-time" }, "title": { "type": "string" }, "itemId": { "type": ["string", "null"], "description": "Null for a black picture." }, "filler": { "type": "boolean" } } },
       "ServerStatus": {
         "type": "object",
         "properties": {
@@ -733,6 +770,34 @@
             "description": "The higher wins a playback slot when recordings conflict; a one-off outranks every rule."
           }
         }
+      },
+      "WatchlistEntry": {
+        "type": "object",
+        "required": ["id", "kind", "title"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string", "enum": ["item", "title"] },
+          "title": { "type": "string", "description": "The item's title as the library has it now, or the guide title, matched ignoring case." },
+          "itemId": { "type": ["string", "null"] },
+          "channelId": { "type": ["string", "null"], "description": "A title on this channel only; null watches every channel." },
+          "addedAt": { "type": "string", "format": "date-time" },
+          "item": { "oneOf": [{ "$ref": "#/components/schemas/LibraryItem" }, { "type": "null" }], "description": "Null when the library no longer holds the item." },
+          "next": { "oneOf": [{ "$ref": "#/components/schemas/Program" }, { "type": "null" }], "description": "A title's soonest airing that has not ended, within seven days." }
+        }
+      },
+      "Watchlist": {
+        "type": "object",
+        "properties": { "entries": { "type": "array", "items": { "$ref": "#/components/schemas/WatchlistEntry" } } }
+      },
+      "AddWatchlistEntry": {
+        "type": "object",
+        "required": ["kind"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["item", "title"] },
+          "itemId": { "type": "string", "description": "Required for an item." },
+          "title": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Required for a title." },
+          "channelId": { "type": "string", "description": "A title on this lineup channel only." }
+        }
       }
     }
   },
@@ -755,6 +820,13 @@
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
+    "/api/v1/household/preferences": {
+      "get": { "tags": ["Viewers"], "summary": "The household's shared favorites and hidden channels", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HouseholdPreferences" } } } } } },
+      "put": { "tags": ["Viewers"], "summary": "Replace the household's shared favorites and hidden channels", "description": "Each list holds at most 1,000 distinct ids. The answer is the stored document with the server's updatedAt.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HouseholdPreferences" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HouseholdPreferences" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
+    },
     "/api/v1/channels": {
       "get": { "tags": ["Live TV"], "summary": "The catalog: the enabled lineup entries as channels", "description": "Carries an ETag; If-None-Match answers 304.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "parameters": [{ "name": "If-None-Match", "in": "header", "schema": { "type": "string" } }],
@@ -764,6 +836,15 @@
       "post": { "tags": ["Live TV"], "summary": "Programs overlapping a window for up to 200 channels", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideQuery" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideWindow" } } } }, "409": { "description": "RESYNC_REQUIRED: the revision changed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/api/v1/guide/on-later": {
+      "get": { "tags": ["Live TV"], "summary": "Movies, sports, kids' programs or premieres coming up on the enabled channels", "description": "Programs that have not ended and start within days, soonest first. A movie needs a Movie or Film category beside a film genre and no News or Sports one; sports and kids match their categories; new is a Premiere category or a new airing of a season's first episode.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "parameters": [
+          { "name": "kind", "in": "query", "required": true, "schema": { "type": "string", "enum": ["movie", "sports", "kids", "new"] } },
+          { "name": "days", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 7, "default": 2 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 200 } }
+        ],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpcomingPrograms" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/providers": {
       "get": { "tags": ["Sources"], "summary": "Each provider's import status and counts", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
@@ -893,6 +974,24 @@
       "get": { "tags": ["Library"], "summary": "A library playback session's media", "description": "The URL the session's descriptor names: the file itself with byte ranges, or the HLS playlist and its segments. No token; the secret is the session's.", "security": [],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "epoch", "in": "path", "required": true, "schema": { "type": "integer" } }, { "name": "secret", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "The file, a playlist or a segment" }, "206": { "description": "A byte range of the file" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/multiview-sessions": {
+      "post": { "tags": ["Playback"], "summary": "Watch two to four channels at once", "description": "The server draws the channels into one HLS stream with the sound of one. Offered while the bootstrap's multiview capability is true: with SOFA_MULTIVIEW=auto, only when a GPU encoder works. Each tile holds a playback session, and the stream counts toward SOFA_MAX_TRANSCODES.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenMultiview" } } } },
+        "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MultiviewSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "CHANNEL_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "503": { "description": "MULTIVIEW_UNAVAILABLE or CAPACITY_EXHAUSTED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/api/v1/multiview-sessions/{id}": {
+      "get": { "tags": ["Playback"], "summary": "A multiview session", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MultiviewSession" } } } }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
+      "patch": { "tags": ["Playback"], "summary": "Renew the session, or move its sound to another tile", "description": "A session lasts 60 seconds past its last renewal or media request. Another audio tile restarts the stream under a new epoch.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateMultiview" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MultiviewSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
+      "delete": { "tags": ["Playback"], "summary": "Release the session", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }], "responses": { "204": { "description": "Released" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/media/multiview/{id}/{epoch}/{secret}/{name}": {
+      "get": { "tags": ["Playback"], "summary": "A multiview session's stream", "description": "The URL the session's descriptor names: the HLS playlist and its segments. No token; the secret is the session's.", "security": [],
+        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "epoch", "in": "path", "required": true, "schema": { "type": "integer" } }, { "name": "secret", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "The playlist or a segment" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/artwork/{id}/scrub/{sheet}": {
       "get": { "tags": ["Library"], "summary": "A sheet of an item's scrub thumbnails", "description": "A path from the item's scrub.sheets, with its ?v= version. Carries Cache-Control: public, max-age=604800.", "security": [],
@@ -1112,6 +1211,27 @@
     "/api/v1/admin/pairing-codes": {
       "post": { "tags": ["Admin"], "summary": "Issue a pairing code", "description": "Replaces the live code. The code is six digits, live for ten minutes, and spent by the claim that matches it.", "security": [{ "adminToken": [] }],
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PairingCode" } } } } } }
+    },
+    "/api/v1/admin/virtual-channels": {
+      "get": { "tags": ["Admin"], "summary": "Every virtual channel", "description": "In the order they were made.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/VirtualChannel" } } } } } } },
+      "post": { "tags": ["Admin"], "summary": "Add a virtual channel", "description": "The server gives it an id and builds its schedule 48 hours ahead. 400 INVALID_REQUEST names what is wrong, such as a source that does not exist or start times on some slots only.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VirtualChannel" } } } },
+        "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VirtualChannel" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/virtual-channels/{id}": {
+      "get": { "tags": ["Admin"], "summary": "One virtual channel", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VirtualChannel" } } } }, "404": { "$ref": "#/components/responses/Error" } } },
+      "put": { "tags": ["Admin"], "summary": "Replace a virtual channel", "description": "Rebuilds its schedule from the end of what airs now, so the current item plays on.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VirtualChannel" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VirtualChannel" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } },
+      "delete": { "tags": ["Admin"], "summary": "Delete a virtual channel", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "204": { "description": "Deleted" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/virtual-channels/{id}/schedule": {
+      "get": { "tags": ["Admin"], "summary": "What a virtual channel airs ahead", "description": "The airings from now, extending the stored schedule when it runs short.", "security": [{ "adminToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "hours", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 48, "default": 24 } }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/VirtualAiring" } } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/libraries": {
       "get": { "tags": ["Library"], "summary": "Every media library", "description": "With each library's present items by kind and its last scan.", "security": [{ "adminToken": [] }, { "readToken": [] }],
@@ -1352,6 +1472,55 @@
           "204": { "description": "" },
           "404": {
             "description": "RULE_NOT_FOUND",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/watchlist": {
+      "get": {
+        "tags": ["Watchlist"],
+        "summary": "The household's watchlist, newest first, with each title's next airing in the coming week",
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "responses": {
+          "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Watchlist" } } } }
+        }
+      },
+      "post": {
+        "tags": ["Watchlist"],
+        "summary": "Add a library item or a guide title; adding one the list holds returns that entry",
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AddWatchlistEntry" } } }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WatchlistEntry" } } }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "404": {
+            "description": "ITEM_NOT_FOUND",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+          },
+          "409": {
+            "description": "WATCHLIST_FULL: the list holds 500 entries",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/watchlist/{id}": {
+      "delete": {
+        "tags": ["Watchlist"],
+        "summary": "Take an entry off the watchlist",
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "204": { "description": "" },
+          "404": {
+            "description": "WATCHLIST_ENTRY_NOT_FOUND",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
           }
         }

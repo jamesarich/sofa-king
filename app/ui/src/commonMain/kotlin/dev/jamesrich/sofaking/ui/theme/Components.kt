@@ -18,7 +18,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusEventModifierNode
+import androidx.compose.ui.focus.FocusRequesterModifierNode
 import androidx.compose.ui.focus.FocusState
+import androidx.compose.ui.focus.requestFocus
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -26,17 +28,27 @@ import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.PointerInputModifierNode
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import dev.jamesrich.sofaking.ui.LastInput
+import dev.jamesrich.sofaking.ui.LocalLastInput
+import dev.jamesrich.sofaking.ui.rememberIsTelevision
+import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.launch
 
 /** How much a focused control grows, as TV focus does; a guide cell passes 1 so it never covers its neighbors. */
@@ -46,6 +58,9 @@ const val TV_FOCUS_SCALE = 1.1f
  * A D-pad focus cue for Material components, whose own focus state layer is too faint across a room: the control
  * scales by [focusedScale] on the theme's spatial spring and draws an outline ring in [shape] while it has focus.
  * The cue lives in a modifier node, so a focus move redraws the control without recomposing its caller.
+ *
+ * On a TV, a mouse or a pointer remote's cursor moving over the control focuses it, so the cue shows what a click
+ * will press and the D-pad carries on from there.
  */
 @Composable
 fun Modifier.tvFocus(shape: Shape, focusedScale: Float = TV_FOCUS_SCALE): Modifier = this then TvFocusElement(
@@ -53,6 +68,7 @@ fun Modifier.tvFocus(shape: Shape, focusedScale: Float = TV_FOCUS_SCALE): Modifi
     focusedScale = focusedScale,
     ring = MaterialTheme.colorScheme.onSurface,
     spec = MaterialTheme.motionScheme.fastSpatialSpec(),
+    cursor = if (rememberIsTelevision()) LocalLastInput.current else null,
 )
 
 private data class TvFocusElement(
@@ -60,10 +76,11 @@ private data class TvFocusElement(
     val focusedScale: Float,
     val ring: Color,
     val spec: FiniteAnimationSpec<Float>,
+    val cursor: LastInput?,
 ) : ModifierNodeElement<TvFocusNode>() {
-    override fun create() = TvFocusNode(shape, focusedScale, ring, spec)
+    override fun create() = TvFocusNode(shape, focusedScale, ring, spec, cursor)
 
-    override fun update(node: TvFocusNode) = node.update(shape, focusedScale, ring, spec)
+    override fun update(node: TvFocusNode) = node.update(shape, focusedScale, ring, spec, cursor)
 
     override fun InspectorInfo.inspectableProperties() {
         name = "tvFocus"
@@ -77,8 +94,12 @@ private class TvFocusNode(
     private var focusedScale: Float,
     ring: Color,
     private var spec: FiniteAnimationSpec<Float>,
+    /** Where a TV's cursor last moved; null off a TV, where hovering focuses nothing. */
+    private var cursor: LastInput?,
 ) : Modifier.Node(),
     FocusEventModifierNode,
+    FocusRequesterModifierNode,
+    PointerInputModifierNode,
     LayoutModifierNode,
     DrawModifierNode {
     private val scale = Animatable(1f)
@@ -88,14 +109,27 @@ private class TvFocusNode(
     private var shape by mutableStateOf(shape)
     private var ring by mutableStateOf(ring)
 
-    fun update(shape: Shape, focusedScale: Float, ring: Color, spec: FiniteAnimationSpec<Float>) {
+    fun update(shape: Shape, focusedScale: Float, ring: Color, spec: FiniteAnimationSpec<Float>, cursor: LastInput?) {
         val rescale = focusedScale != this.focusedScale
         this.shape = shape
         this.focusedScale = focusedScale
         this.ring = ring
         this.spec = spec
+        this.cursor = cursor
         if (rescale) animate()
     }
+
+    override fun onPointerEvent(pointerEvent: PointerEvent, pass: PointerEventPass, bounds: IntSize) {
+        val cursor = cursor ?: return
+        if (pass != PointerEventPass.Main || focused) return
+        if (pointerEvent.type != PointerEventType.Enter && pointerEvent.type != PointerEventType.Move) return
+        // Only a cursor the viewer is moving: one left resting where a D-pad scroll brings a card under it stays put.
+        if (pointerEvent.changes.none { it.type == PointerType.Mouse }) return
+        if (uptimeMs() - cursor.cursorMovedAtMs > CURSOR_MOVE_WINDOW_MS) return
+        requestFocus()
+    }
+
+    override fun onCancelPointerInput() = Unit
 
     override fun onFocusEvent(focusState: FocusState) {
         if (focusState.hasFocus == focused) return
@@ -127,6 +161,9 @@ private class TvFocusNode(
         translate(inset, inset) { drawOutline(outline, ring, style = Stroke(stroke)) }
     }
 }
+
+/** How recently the cursor must have moved for a hover to take focus. */
+private const val CURSOR_MOVE_WINDOW_MS = 250L
 
 /**
  * A Material 3 button with the D-pad focus cue; every action button in the app is one. It rests tonal and fills

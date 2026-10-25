@@ -137,6 +137,8 @@ fun PlayerScreen(
     programFacts: suspend (Program) -> ProgramFacts? = { null },
     /** The sleep timer, which leaves the player as Back does once it runs out. */
     sleep: SleepTimer = remember { SleepTimer() },
+    /** Opens multiview on the channel; null where the server does not draw it. */
+    onMultiview: ((Channel) -> Unit)? = null,
 ) {
     val state = rememberPlayerState(
         lineup.channels,
@@ -175,11 +177,7 @@ fun PlayerScreen(
             val program = state.currentChannel?.let { lineup.nowAndNext(it, now).first }
             parts.notice.recordFor(program, recordingMarks, onRecord)?.onClick?.invoke()
         },
-        onZoom = {
-            val next = zoom.next()
-            onZoom(next)
-            parts.notice.zoomed(next)
-        },
+        onZoom = { zoom.next().also(onZoom).let(parts.notice::zoomed) },
     )
     LiveSurface(parts, controls, lineup, now, breakScreen, zoom, captionStyle, onExit, modifier) {
         if (breakScreen) LiveBreakScreen(state, lineup, now, parts.cover, adsDodgedTodayMs, onAdsDodge, programFacts)
@@ -197,6 +195,7 @@ fun PlayerScreen(
             sleep = sleep,
             zoom = zoom,
             onExit = onExit,
+            onMultiview = onMultiview,
         )
     }
 }
@@ -386,6 +385,7 @@ private fun BoxScope.LiveOverlays(
     sleep: SleepTimer,
     zoom: VideoZoom,
     onExit: () -> Unit,
+    onMultiview: ((Channel) -> Unit)?,
 ) {
     val state = parts.state
     val channel = state.currentChannel
@@ -437,5 +437,6 @@ private fun BoxScope.LiveOverlays(
         onGuide = controls::guide,
         focus = parts.focus.picture,
         entry = parts.focus.buttons,
+        onMultiview = onMultiview?.let { open -> { open(channel) } },
     )
 }

@@ -309,3 +309,5 @@ details>summary{cursor:pointer;color:var(--accent);font-weight:600;min-height:32
 .pairing-qr svg{display:block;width:100%;height:auto}
 .pairing-text{flex:1 1 260px;min-width:0}
 .pairing-code{font-size:2rem;font-weight:600;letter-spacing:.12em;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+fieldset.slot{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0;display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+fieldset.slot legend{font-weight:600;padding:0 4px}

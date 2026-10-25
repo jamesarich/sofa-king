@@ -72,4 +72,12 @@ data class ServerCapabilities(
     val recordings: Boolean = false,
     /** It serves media libraries. */
     val library: Boolean = false,
+    /** It keeps the household's watchlist. */
+    val watchlist: Boolean = false,
+    /** It lists the movies, sports, kids' programs and premieres coming up. */
+    val onLater: Boolean = false,
+    /** It keeps the household's shared favorites and hidden channels. */
+    val household: Boolean = false,
+    /** It draws several channels into one picture now. */
+    val multiview: Boolean = false,
 )

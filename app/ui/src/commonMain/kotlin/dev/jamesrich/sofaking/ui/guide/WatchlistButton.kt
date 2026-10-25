@@ -7,10 +7,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.guide_details_add_to_watchlist
 import dev.jamesrich.sofaking.resources.guide_details_remove_from_watchlist
+import dev.jamesrich.sofaking.ui.announcesChanges
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -20,7 +22,7 @@ import org.jetbrains.compose.resources.stringResource
 internal fun WatchlistButton(program: Program, listed: Boolean, onToggle: suspend (Program) -> Boolean) {
     val scope = rememberCoroutineScope()
     var busy by remember(program) { mutableStateOf(false) }
-    SofaButton(onClick = {
+    SofaButton(modifier = Modifier.announcesChanges(), onClick = {
         if (!busy) {
             busy = true
             scope.launch {

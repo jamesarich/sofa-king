@@ -71,6 +71,7 @@ import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.ProgramBadges
 import dev.jamesrich.sofaking.ui.WIDESCREEN
 import dev.jamesrich.sofaking.ui.WholeLinesText
+import dev.jamesrich.sofaking.ui.announcesChanges
 import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.episodeLine
 import dev.jamesrich.sofaking.ui.hoursAndMinutes
@@ -435,7 +436,7 @@ private fun RecordButtons(program: Program, mark: RecordingMark, actions: Record
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            SofaButton(onClick = { run(actions.onRecord) }) {
+            SofaButton(onClick = { run(actions.onRecord) }, modifier = Modifier.announcesChanges()) {
                 Text(
                     stringResource(
                         if (mark.recording) {
@@ -447,7 +448,7 @@ private fun RecordButtons(program: Program, mark: RecordingMark, actions: Record
                     maxLines = 1,
                 )
             }
-            SofaButton(onClick = { run(actions.onRecordSeries) }) {
+            SofaButton(onClick = { run(actions.onRecordSeries) }, modifier = Modifier.announcesChanges()) {
                 Text(
                     stringResource(
                         if (mark.series) {
@@ -470,6 +471,7 @@ private fun RecordButtons(program: Program, mark: RecordingMark, actions: Record
                 stringResource(Res.string.guide_details_record_failed),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.announcesChanges(),
             )
         }
     }
@@ -478,7 +480,7 @@ private fun RecordButtons(program: Program, mark: RecordingMark, actions: Record
 /** Record [team], or Stop recording it once a team rule has it. */
 @Composable
 private fun TeamButton(team: String, recorded: Boolean, onClick: () -> Unit) {
-    SofaButton(onClick = onClick) {
+    SofaButton(onClick = onClick, modifier = Modifier.announcesChanges()) {
         Text(
             stringResource(
                 if (recorded) Res.string.guide_details_stop_team else Res.string.guide_details_record_team,

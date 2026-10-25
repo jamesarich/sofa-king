@@ -23,6 +23,7 @@ import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.unit.Dp
@@ -114,6 +115,13 @@ internal class LastInput(initial: InputKind) {
     /** The [uptimeMs] of the latest key, press or scroll; read when needed, so not observable. */
     var atMs: Long = 0L
         internal set
+
+    /**
+     * The [uptimeMs] of the latest move of a mouse or a pointer remote's cursor; read when needed, so not observable.
+     * A move the platform makes up after a layout change, with the cursor where it was, does not count.
+     */
+    var cursorMovedAtMs: Long = 0L
+        internal set
 }
 
 internal val LocalLastInput = staticCompositionLocalOf { LastInput(InputKind.KEYS) }
@@ -128,7 +136,8 @@ internal fun rememberLastInput(): LastInput {
 
 /**
  * Records every key event and every press or scroll of a finger or mouse inside this node into [last], before
- * the content handles it and without consuming it. Mouse moves alone do not count.
+ * the content handles it and without consuming it. Mouse moves alone do not count as input, only as
+ * [LastInput.cursorMovedAtMs].
  */
 internal fun Modifier.trackLastInput(last: LastInput): Modifier = this
     .onPreviewKeyEvent {
@@ -144,6 +153,11 @@ internal fun Modifier.trackLastInput(last: LastInput): Modifier = this
                     last.kind = InputKind.POINTER
                     last.atMs = uptimeMs()
                 }
+                // The root does not move, so a cursor that stayed put while the layout moved under it reads unmoved.
+                val moved = event.changes.any {
+                    it.type == PointerType.Mouse && it.position != it.previousPosition
+                }
+                if (event.type == PointerEventType.Move && moved) last.cursorMovedAtMs = uptimeMs()
             }
         }
     }

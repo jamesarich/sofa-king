@@ -41,6 +41,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SofaKing">
 
+        <!-- Google TV's pointer remotes, and a mouse on any TV: a hovered control takes focus and a click presses it. -->
+        <meta-data android:name="android.software.leanback.supports_touch" android:value="true" />
+
         <!-- One activity, in its own task, so the launcher or a link brings back the player in picture-in-picture (as
              onNewIntent) rather than opening a second one inside the small window. -->
         <activity

@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.MINUTES_PER_HOUR
+import dev.jamesrich.sofaking.backend.api.VirtualBreaks
 import dev.jamesrich.sofaking.backend.api.VirtualChannel
 import dev.jamesrich.sofaking.backend.api.VirtualSlot
 import dev.jamesrich.sofaking.backend.api.VirtualSource
@@ -21,7 +22,11 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 /** What a virtual channel keeps beside its name, number and slots. */
-@Serializable private class StoredSettings(val filler: VirtualSource? = null, val padMinutes: Int = 0)
+@Serializable private class StoredSettings(
+    val filler: VirtualSource? = null,
+    val padMinutes: Int = 0,
+    val breaks: VirtualBreaks? = null,
+)
 
 /** The virtual channels in the order they were made, each with its slots. */
 suspend fun BackendStore.virtualChannels(): List<VirtualChannel> = read {
@@ -47,6 +52,7 @@ suspend fun BackendStore.virtualChannels(): List<VirtualChannel> = read {
                 slots[it[VirtualChannels.id]].orEmpty(),
                 settings.filler,
                 settings.padMinutes,
+                settings.breaks,
             )
         }
 }
@@ -56,7 +62,7 @@ suspend fun BackendStore.virtualChannels(): List<VirtualChannel> = read {
  * so the schedule is built again from there.
  */
 suspend fun BackendStore.saveVirtualChannel(channel: VirtualChannel, now: Instant, keepUntil: Instant) = query {
-    val settings = Json.encodeToString(StoredSettings(channel.filler, channel.padMinutes))
+    val settings = Json.encodeToString(StoredSettings(channel.filler, channel.padMinutes, channel.breaks))
     val changed = VirtualChannels.update({ VirtualChannels.id eq channel.id }) {
         it[name] = channel.name
         it[number] = channel.number

@@ -17,9 +17,21 @@ import kotlinx.serialization.Serializable
 @Serializable data class VirtualSlot(val source: VirtualSource, val shuffle: Boolean = false, val start: String? = null)
 
 /**
+ * The breaks a virtual channel airs after an item, once [everyMinutes] (0, 15, 30 or 60) have passed since the last
+ * one: an item of [source], such as a bumper, then each of [slides], image URLs fetched without credentials when they
+ * air, for [slideSeconds] each.
+ */
+@Serializable data class VirtualBreaks(
+    val everyMinutes: Int = 0,
+    val source: VirtualSource? = null,
+    val slides: List<String> = emptyList(),
+    val slideSeconds: Int = 10,
+)
+
+/**
  * A channel the server plays from the libraries on a schedule. [filler] fills the gap before a timed slot starts and
- * before each [padMinutes] mark (0, 15, 30 or 60), with a blank picture for what it cannot fill. [id] is given by the
- * server.
+ * before each [padMinutes] mark (0, 15, 30 or 60), with a blank picture for what it cannot fill; [breaks] come before
+ * that. [id] is given by the server.
  */
 @Serializable data class VirtualChannel(
     val id: String = "",
@@ -28,6 +40,7 @@ import kotlinx.serialization.Serializable
     val slots: List<VirtualSlot>,
     val filler: VirtualSource? = null,
     val padMinutes: Int = 0,
+    val breaks: VirtualBreaks? = null,
 )
 
 /** One airing of a virtual channel's schedule: an item, filler, or a blank picture when [itemId] is null. */

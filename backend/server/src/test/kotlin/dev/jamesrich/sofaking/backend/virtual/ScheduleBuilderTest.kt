@@ -92,6 +92,31 @@ class ScheduleBuilderTest {
         assertTrue(airings.contiguous())
     }
 
+    @Test fun `a break airs its item and slides after an item once it is due`() {
+        val slot = ScheduleSlot(0, listOf(item("show", 10)), shuffle = false)
+        val plan =
+            BreakPlan(Duration.ofMinutes(15).toMillis(), listOf(item("bumper", 1)), listOf(slideAiringId(0)), 30_000)
+        val airings = ScheduleBuilder(listOf(slot), emptyList(), 0, utc, emptyList(), Random(7), plan)
+            .extend(start, start.plus(Duration.ofMinutes(40)))
+        assertEquals(
+            listOf("show", "bumper", "slide:0", "show", "show", "bumper", "slide:0", "show"),
+            airings.map { it.itemId },
+            "a break, then none until 15 minutes have passed",
+        )
+        assertTrue(airings.filter { it.slot == ScheduleBuilder.BREAK_SLOT }.all { it.filler })
+        assertEquals(30_000, Duration.between(airings[2].startsAt, airings[2].endsAt).toMillis())
+        assertTrue(airings.contiguous())
+    }
+
+    @Test fun `a break that does not fit before the next timed slot is left out`() {
+        val first = ScheduleSlot(0, listOf(item("show", 29)), shuffle = false, startMinute = 18 * 60)
+        val next = ScheduleSlot(1, listOf(item("news", 30)), shuffle = false, startMinute = 18 * 60 + 30)
+        val plan = BreakPlan(0, listOf(item("bumper", 2)), emptyList(), 0)
+        val airings = ScheduleBuilder(listOf(first, next), emptyList(), 0, utc, emptyList(), Random(7), plan)
+            .extend(start, start.plus(Duration.ofMinutes(30)))
+        assertEquals(listOf("show", null), airings.map { it.itemId })
+    }
+
     @Test fun `with nothing to air the schedule is blank`() {
         val airings = builder(listOf(ScheduleSlot(0, emptyList(), shuffle = false)))
             .extend(start, start.plus(Duration.ofHours(1)))

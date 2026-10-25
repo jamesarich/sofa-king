@@ -374,8 +374,8 @@ While a lineup policy is in use, `POST /lineup`, `PUT /lineup/order` and `POST /
 
 | Method | Path | Response or action |
 | --- | --- | --- |
-| GET | `/api/v1/admin/virtual-channels` | Every virtual channel in the order they were made: `id`, `name`, `number`, `slots`, `filler` and `padMinutes` |
-| POST | `/api/v1/admin/virtual-channels` | Create a channel; 201 with it and its new `id`. The body is `{"name", "number", "slots": [{"source": {"kind", "value"}, "shuffle", "start"}], "filler", "padMinutes"}`: `kind` is `library` (a library ID), `show` (a show's item ID), `genre` (a genre name) or `channel` (a lineup entry ID, in timed slots only and never as filler), `start` is `HH:MM` on every slot or none, `filler` a source like a slot's, `padMinutes` 0, 15, 30 or 60. 400 `INVALID_REQUEST` names what is wrong, such as a source that does not exist |
+| GET | `/api/v1/admin/virtual-channels` | Every virtual channel in the order they were made: `id`, `name`, `number`, `slots`, `filler`, `padMinutes` and `breaks` |
+| POST | `/api/v1/admin/virtual-channels` | Create a channel; 201 with it and its new `id`. The body is `{"name", "number", "slots": [{"source": {"kind", "value"}, "shuffle", "start"}], "filler", "padMinutes", "breaks"}`: `kind` is `library` (a library ID), `show` (a show's item ID), `genre` (a genre name) or `channel` (a lineup entry ID, in timed slots only and never as filler), `start` is `HH:MM` on every slot or none, `filler` a source like a slot's, `padMinutes` 0, 15, 30 or 60, `breaks` either null or `{"everyMinutes", "source", "slides", "slideSeconds"}` (`everyMinutes` 0, 15, 30 or 60, 0 after every item; `source` a library source; `slides` up to five http or https image URLs; `slideSeconds` 3 to 60). 400 `INVALID_REQUEST` names what is wrong, such as a source that does not exist |
 | GET, PUT, DELETE | `/api/v1/admin/virtual-channels/{id}` | One channel; replace it with the same body, rebuilding its schedule from the end of what airs now; delete it (204). 404 `NOT_FOUND` |
 | GET | `/api/v1/admin/virtual-channels/{id}/schedule?hours=` | The airings from now for `hours` (1 to 48, 24 by default): `startsAt`, `endsAt`, `title`, `itemId` (null for black) and `filler` |
 
@@ -461,7 +461,7 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | GET, POST | `/admin/providers`, `/admin/providers/edit` | Provider entries and their edits |
 | GET, POST | `/admin/groups`, `/admin/groups/edit` | Groups and their edits |
 | GET | `/admin/virtual?edit=` | The virtual channels, and the form that adds one or changes the channel `edit` names, with its schedule ahead |
-| POST | `/admin/virtual`, `/admin/virtual/{id}`, `/admin/virtual/{id}/delete` | Add a channel or change one (`name`, `number`, `source.N`, `shuffle.N` and `start.N` for each slot N from 0, `filler`, `padMinutes`; a source is `kind:value`); delete one |
+| POST | `/admin/virtual`, `/admin/virtual/{id}`, `/admin/virtual/{id}/delete` | Add a channel or change one (`name`, `number`, `source.N`, `shuffle.N` and `start.N` for each slot N from 0, `filler`, `padMinutes`, and `breaks.every` (empty for none), `breaks.source`, `breaks.slides` (one URL a line) and `breaks.slideSeconds`; a source is `kind:value`); delete one |
 | GET, POST | `/admin/plex`, `/admin/plex/reveal` | Plex and the device addresses; reveal the output token |
 | POST | `/admin/plex/allow`, `/admin/plex/disallow` | Allow an address onto the tuners, or remove one the portal allowed |
 | GET | `/admin/viewers` | The devices that paired or saved preferences, and the live pairing code with its QR code |

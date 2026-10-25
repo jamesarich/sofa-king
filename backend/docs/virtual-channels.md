@@ -35,6 +35,15 @@ A live channel slot makes a channel that is "the news at six, cartoons otherwise
 
 **Fill to the next mark** pads after each item to the next quarter hour, half hour or hour, so items start on the clock as broadcast TV does. The **filler** source fills those gaps, and the gap before a timed slot starts, with items that fit, such as a library of bumpers and trailers. Whatever filler cannot cover shows a black picture with silence.
 
+## Breaks
+
+**Breaks** are the ads you choose: a bumper, a trailer or a "time to brush your teeth" clip, and slides such as a chore chart. A break airs after an item, after every one or once 15, 30 or 60 minutes have passed since the last, and holds:
+
+- one item of the break source, in a shuffled turn, such as a library of bumpers;
+- then each slide, an image URL shown for 3 to 60 seconds with silence. The server fetches it as the slide airs, with no credentials, so the image is current. For Home Assistant, have an automation save a snapshot (`camera.snapshot`) or a rendered card into its `www` folder, which it serves at `http://homeassistant.local:8123/local/...` without a token; its entities' own image URLs carry tokens that expire within minutes. PNG, JPEG, GIF and WebP images up to 10 MB work, at most five slides a break. One that cannot be fetched shows black.
+
+A break goes before the padding and its filler, and in a timed slot only when it fits before the next start: without room for the item, only the slides air, and without room for them, nothing does. The guide gives a break's time to the item before it, like filler.
+
 The server builds each schedule 48 hours ahead and stores it, so the guide, the stream and a restart agree on what airs when. It extends the schedule when less than a day is left. Saving a channel rebuilds its schedule from the end of what airs now, so the current item plays on. The portal shows what is coming up under the form.
 
 The guide lists each item as a program: an episode under its show's title, with its own as the episode title and its season and episode numbers. Filler and black time go to the program before them.

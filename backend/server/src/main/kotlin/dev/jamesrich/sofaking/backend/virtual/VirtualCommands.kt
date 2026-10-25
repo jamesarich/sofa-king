@@ -12,8 +12,8 @@ import java.util.Locale
 internal const val CHANNEL_SEGMENT_SECONDS = 4
 
 /**
- * One stretch of a channel's stream that one FFmpeg writes: [file] from [offsetMs] in, the lineup entry [live] as it
- * plays now, or a blank picture without either.
+ * One stretch of a channel's stream that one FFmpeg writes: [file] from [offsetMs] in, or an image held when it is
+ * [still]; the lineup entry [live] as it plays now; the [slide] image URL, fetched first; or a blank picture.
  */
 internal class PieceInput(
     val file: Path?,
@@ -21,6 +21,8 @@ internal class PieceInput(
     val offsetMs: Long,
     val durationMs: Long,
     val live: String? = null,
+    val slide: String? = null,
+    val still: Boolean = false,
 )
 
 /**
@@ -51,12 +53,16 @@ internal fun pieceCommand(
         addAll(listOf("-i", source.url))
     } else if (file == null) {
         addAll(paced + listOf("-f", "lavfi", "-i", "color=c=black:s=$SIZE:r=${VideoEncoder.CHANNEL_FPS}"))
+    } else if (input.still) {
+        addAll(
+            listOf("-loop", "1", "-framerate", "${VideoEncoder.CHANNEL_FPS}") + paced + listOf("-i", file.toString()),
+        )
     } else {
         addAll(paced)
         if (input.offsetMs > 0) addAll(listOf("-ss", seconds(input.offsetMs)))
         addAll(listOf("-i", file.toString()))
     }
-    val audio = source != null || (file != null && input.media?.audio?.isNotEmpty() != false)
+    val audio = source != null || (file != null && !input.still && input.media?.audio?.isNotEmpty() != false)
     if (!audio) addAll(listOf("-f", "lavfi", "-i", "anullsrc=r=$SAMPLE_RATE:cl=stereo"))
     addAll(listOf("-map", "0:v:0", "-map", if (audio) "0:a:0" else "1:a:0", "-sn", "-dn"))
     addAll(encoder.channelArgs(hdr = input.media?.video?.transfer != null, keyFrameSeconds = CHANNEL_SEGMENT_SECONDS))

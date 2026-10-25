@@ -61,7 +61,9 @@ On macOS and Windows, install VLC 3 first, then `sofa-king-snapshot-macos-arm64.
 
 ### Web
 
-The web app is a set of static files: unzip `sofa-king-snapshot-web-wasm.zip`, or `sofa-king-snapshot-web-js.zip`, the same app for browsers without WebAssembly GC. A browser lets the page call the Sofa King server only from an origin the server allows, so serve the files one of two ways:
+The Sofa King server serves the web app: open `http://SERVER_HOST:9193/app/` in a browser, or the server's address alone. Settings fills in the page's origin as the server address, so pair as [connect to the server](#3-connect-to-the-server) describes. This copy comes with the server and updates when it does, so Settings checks GitHub for no newer build.
+
+To serve it elsewhere, the web app is also a set of static files: unzip `sofa-king-snapshot-web-wasm.zip`, or `sofa-king-snapshot-web-js.zip`, the same app for browsers without WebAssembly GC. A browser lets the page call the Sofa King server only from an origin the server allows, so serve the files one of two ways:
 
 - Through a reverse proxy that serves the page and forwards `/api/`, `/media/` and `/logos/` at its origin root to the Sofa King server, so the page and the server share an origin. The server's [deploy guide](../../backend/docs/deploy.md#serve-the-web-app) has Caddy and nginx configurations.
 - From any static web server, with that server's origin, such as `http://192.168.1.20:8080`, in the Sofa King server's `SOFA_CORS_ORIGINS`.

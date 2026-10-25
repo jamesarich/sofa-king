@@ -1,7 +1,9 @@
 name: Backend
 
 # Tests every pull request and push that changes the server's or the contract's code or build, the shared Gradle settings,
-# version catalog and build-logic, or this workflow; backend/docs and Markdown are left out. A push to main, or a manual run on main,
+# version catalog and build-logic, or this workflow; backend/docs and Markdown are left out. The image carries the web app
+# built from the same commit, so a push to main that changes the app's core or ui module or its build publishes it too;
+# app pull requests are checked by ci.yml. A push to main, or a manual run on main,
 # then publishes the server image for linux/amd64 and linux/arm64 to GitHub Container Registry as
 # ghcr.io/<owner>/sofa-king:main and :sha-<commit>, with a BuildKit SBOM and max-mode provenance stored beside it, a
 # keyless cosign signature and a GitHub build attestation.
@@ -15,6 +17,12 @@ on:
     branches: [main]
     tags: ["v*"]
     paths:
+      - "app/core/**"
+      - "app/ui/**"
+      - "app/build.gradle.kts"
+      - "app/settings.gradle.kts"
+      - "app/gradle.properties"
+      - "!app/**/*.md"
       - "backend/**"
       - "!backend/docs/**"
       - "!backend/**/*.md"
@@ -146,9 +154,58 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  # The web app the image serves at /app/, built with the version the image carries. It runs beside the tests, and the
+  # remote build cache answers it when the app has not changed.
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The version counts the commits behind HEAD.
+          fetch-depth: 0
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      - name: Build the web app
+        run: |
+          eval "$(../.github/version.sh | grep -E '^(code|suffix)=')"
+          ./gradlew --console=plain "-Psofaking.versionCode=$code" "-Psofaking.versionSuffix=$suffix" :ui:wasmJsBrowserDistribution
+
+      # The server sends a .gz beside a file to a browser that takes gzip, so the NAS never compresses the bundle itself.
+      # Source maps stay out of the image.
+      - name: Pack the web app
+        run: |
+          mkdir -p "$RUNNER_TEMP/web"
+          cp -R ui/build/dist/wasmJs/productionExecutable/. "$RUNNER_TEMP/web/"
+          rm -f "$RUNNER_TEMP"/web/*.map
+          find "$RUNNER_TEMP/web" -type f \( -name '*.wasm' -o -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.cvr' -o -name '*.json' -o -name '*.webmanifest' -o -name '*.svg' \) -exec gzip -9 -k -n {} +
+          tar -C "$RUNNER_TEMP" -cf "$GITHUB_WORKSPACE/web.tar" web
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web-app
+          path: web.tar
+          retention-days: 1
+          if-no-files-found: error
+
   image:
     name: Image (${{ matrix.arch }})
-    needs: test
+    needs: [test, web]
     strategy:
       matrix:
         include:
@@ -179,6 +236,14 @@ jobs:
 
       - name: Unpack the distribution
         run: mkdir -p server/build/install && tar -C server/build/install -xf server-dist.tar
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: web-app
+          path: backend
+
+      - name: Unpack the web app
+        run: tar -xf web.tar
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
@@ -236,6 +301,10 @@ jobs:
             sleep 1
           done
           test "$(curl -fsS http://127.0.0.1:8080/healthz)" = ok
+          # The web app: the page, and its WebAssembly as such, precompressed.
+          curl -fsS http://127.0.0.1:8080/app/ | grep -q '<title>Sofa King</title>'
+          wasm="$(docker exec sofa-king sh -c 'cd /opt/sofa/web && ls *.wasm | head -1')"
+          curl -fsS -o /dev/null -D - -H 'Accept-Encoding: gzip' "http://127.0.0.1:8080/app/$wasm" | tee /dev/stderr | grep -qi '^content-encoding: gzip'
           # The tuners are on and admit nobody until an address is allowed.
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/discover.json)" = 403
           # The image's own health check, run inside the container.

@@ -24,6 +24,7 @@ import io.ktor.util.cio.ChannelIOException
 import io.ktor.utils.io.ClosedByteChannelException
 import io.ktor.utils.io.ConnectionClosedException
 import java.time.Clock
+import kotlin.io.path.isRegularFile
 
 /**
  * Every request body is capped at [CONTROL_BODY_LIMIT], except the policy writes, which may carry a whole policy file.
@@ -37,11 +38,11 @@ internal fun requestBodyLimit(method: HttpMethod, path: String?): Long = when {
 
 /**
  * Whether a request to the routed [path] gets an access log line: not media, logos, artwork,
- * player streams or health checks.
+ * player streams, the web app's files or health checks.
  */
 internal fun accessLogged(path: String?): Boolean = path == null || !(
     path.startsWith("/media/") || path.startsWith("/logos/") || path.startsWith("/artwork/") ||
-        path.startsWith("/output/stream/") ||
+        path.startsWith("/output/stream/") || path.startsWith("$WEB_APP_PATH/") ||
         path.startsWith("/auto/") ||
         path == "/healthz" || path == "/readyz"
     )
@@ -74,6 +75,8 @@ fun Application.backendModule(
     portal?.watchAttention(this)
     routing {
         healthRoutes(store, clock, runtime)
+        // A folder without the page, as a local image built with an empty web/ has, serves no web app.
+        config?.webDirectory?.takeIf { it.resolve("index.html").isRegularFile() }?.let { webAppRoutes(it) }
         if (runtime != null) {
             liveRoutes(runtime)
             adminRoutes(runtime, clock, config?.revision ?: "unknown", hdhr.enabled)
@@ -144,9 +147,12 @@ internal fun isLoopbackName(raw: String): Boolean {
 /** The path routing resolves for this call, computed once at setup; null when [routedPath] refused the raw path. */
 internal val ApplicationCall.routedPath: String? get() = attributes.getOrNull(RoutedPathKey)
 
-/** Responses worth compressing: API documents, the portal, the playlist and the guide. Media and logos never are. */
+/**
+ * Responses worth compressing: API documents, the portal, the web app, the playlist and the guide. Media and logos
+ * never are.
+ */
 internal fun compressible(path: String?): Boolean = path != null && path != EVENT_STREAM_PATH && (
-    path.startsWith("/api/") || path == "/admin" || path.startsWith("/admin/") ||
+    path.startsWith("/api/") || path == "/admin" || path.startsWith("/admin/") || path.startsWith("$WEB_APP_PATH/") ||
         path == "/output/playlist.m3u" || path == "/output/guide.xml" || path == "/lineup.json"
     )
 

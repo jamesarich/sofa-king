@@ -112,6 +112,8 @@ data class ServerConfig(
     val recordingsDirectory: Path = dataDirectory.resolve("recordings"),
     /** `SOFA_MEDIA_DIR`: the folder media libraries live under, read only; `media` in the data directory when unset. */
     val mediaDirectory: Path = dataDirectory.resolve("media"),
+    /** `SOFA_WEB_DIR`: the web app's bundle, served at `/app/`; unset serves no web app. The image sets it. */
+    val webDirectory: Path? = null,
     /** `SOFA_TMDB_TOKEN` and `SOFA_TMDB_LANGUAGE`: TMDB lookups for the media libraries; null leaves them off. */
     val tmdb: TmdbConfig? = null,
     /** Library files FFmpeg converts or remuxes at once (`SOFA_MAX_TRANSCODES`); direct play is not counted. */
@@ -262,6 +264,7 @@ data class ServerConfig(
                 corsOrigins = corsOrigins(environment["SOFA_CORS_ORIGINS"]),
                 recordingsDirectory = env.path("SOFA_RECORDINGS_DIR") ?: data.resolve("recordings"),
                 mediaDirectory = env.path("SOFA_MEDIA_DIR") ?: data.resolve("media"),
+                webDirectory = env.path("SOFA_WEB_DIR"),
                 tmdb = tmdbConfig(env),
                 maxTranscodes = env.number("SOFA_MAX_TRANSCODES", DEFAULT_MAX_TRANSCODES, MAX_TRANSCODES_RANGE),
                 videoEncoder = VideoEncoder(

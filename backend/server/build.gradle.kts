@@ -20,6 +20,7 @@ dependencies {
     implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.server.status.pages)
     implementation(libs.ktor.server.compression)
+    implementation(libs.ktor.server.conditional.headers)
     implementation(libs.ktor.server.body.limit)
     implementation(libs.ktor.server.rate.limit)
     implementation(libs.ktor.server.call.id)

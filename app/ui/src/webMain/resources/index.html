@@ -11,14 +11,10 @@
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <link rel="manifest" href="manifest.webmanifest">
-    <style>
-        html, body { margin: 0; height: 100%; overflow: hidden; background: #14111F; }
-    </style>
+    <!-- No inline script: the server serves the page under a policy that allows none. -->
+    <link rel="stylesheet" href="index.css">
     <script src="sofaking.js" defer></script>
-    <script>
-        // Makes the app installable and keeps its own files for a flaky network; see sw.js.
-        if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
-    </script>
+    <script src="index.js" defer></script>
 </head>
 <body></body>
 </html>

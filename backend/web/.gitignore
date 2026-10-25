@@ -1,0 +1,3 @@
+# The web app bundle the image serves at /app/; CI unpacks it here (see Dockerfile).
+*
+!.gitignore

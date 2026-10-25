@@ -33,7 +33,9 @@ data class PublishedBuild(
      * The package's SHA-256 in lowercase hex, from the digest GitHub records for the asset; null when it records none.
      */
     val apkSha256: String? = null,
-    /** The user-facing changes of the recent snapshots, or of the release, newest first, read from the release notes. */
+    /**
+     * The user-facing changes of the recent snapshots, or of the release, newest first, read from the release notes.
+     */
     val notes: List<ReleaseNote> = emptyList(),
 )
 

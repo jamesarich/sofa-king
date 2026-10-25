@@ -125,7 +125,7 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
         lineupTiles(view)
     }
     div("cols") {
-        watchingPanel(chrome, view)
+        watchingPanel(chrome, view.sessions, view.playing)
         if (view.policy) lastRunPanel(view.lastRun, chrome.now)
     }
     overviewDialogs(chrome, view)

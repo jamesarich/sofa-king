@@ -49,6 +49,25 @@ class JobsTest {
         assertNull(job.nextDueAt, "a job with no interval is never due")
     }
 
+    @Test fun `progress shows only while the job runs`() = runTest {
+        val jobs = Jobs(MutableClock())
+        jobs.register("scrub", "Scrub thumbnails")
+        jobs.progress("scrub", JobProgress(1, 4))
+        assertNull(jobs.snapshot().single().progress, "a job that is not running takes no progress")
+        jobs.record("scrub") {
+            jobs.progress("scrub", JobProgress(1, 4, "Shows"))
+            val progress = jobs.snapshot().single().progress!!
+            assertEquals(25, progress.percent)
+            assertEquals("Shows", progress.step)
+            jobs.progress("scrub", JobProgress(0, 0, "Movies"))
+            assertNull(jobs.snapshot().single().progress!!.percent, "a step it cannot count has no percent")
+            JobOutcome(true)
+        }
+        assertNull(jobs.snapshot().single().progress, "the run's end clears it")
+        jobs.progress("nothing", JobProgress(1, 2))
+        assertEquals(1, jobs.snapshot().size, "progress for an unknown job registers nothing")
+    }
+
     @Test fun `jobs keep registration order`() {
         val jobs = Jobs(MutableClock())
         jobs.register("b", "B")

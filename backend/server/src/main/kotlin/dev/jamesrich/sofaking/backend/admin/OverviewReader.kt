@@ -300,7 +300,7 @@ internal class OverviewReader(private val portal: Portal) {
     }
 
     /** The live sessions with their channel's name and the program it airs now, read once per guide. */
-    private suspend fun sessionRows(now: Instant): List<SessionRow> {
+    suspend fun sessionRows(now: Instant): List<SessionRow> {
         val active = runtime.sessions.snapshot()
         if (active.isEmpty()) return emptyList()
         val entries = active.associate { it.channelId to runtime.lineup.entry(it.channelId) }

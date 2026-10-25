@@ -97,6 +97,7 @@ p{max-width:75ch}
 .nowrap{white-space:nowrap}
 ul.probes{list-style:none;margin:4px 0 0;padding:0}
 .why{margin:4px 0 0}
+progress{width:8em;max-width:100%;vertical-align:middle;accent-color:var(--accent)}
 .num{font-variant-numeric:tabular-nums}
 code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em}
 code{word-break:break-all;background:var(--plum);border:1px solid var(--line);padding:1px 5px;border-radius:5px}

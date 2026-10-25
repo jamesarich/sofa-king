@@ -108,7 +108,14 @@ internal val NAV: List<Section> = listOf(
         "/admin/system/about",
         "System",
         "system",
-        listOf("/admin/system/about", "/admin/system/jobs", "/admin/system/events", "/admin/api"),
+        listOf(
+            "/admin/system/about",
+            "/admin/system/activity",
+            "/admin/system/changes",
+            "/admin/system/jobs",
+            "/admin/system/events",
+            "/admin/api",
+        ),
     ),
 )
 
@@ -134,6 +141,8 @@ internal val SETTINGS_TABS = listOf(Tab("/admin/settings", "Settings"), Tab("/ad
 internal val SYSTEM_TABS =
     listOf(
         Tab("/admin/system/about", "About"),
+        Tab("/admin/system/activity", "Activity"),
+        Tab("/admin/system/changes", "Changes"),
         Tab("/admin/system/jobs", "Jobs", "jobs"),
         Tab("/admin/system/events", "Events"),
         Tab("/admin/api", "API"),

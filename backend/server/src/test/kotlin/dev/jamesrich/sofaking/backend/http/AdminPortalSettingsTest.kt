@@ -129,8 +129,13 @@ class AdminPortalSettingsTest : AdminPortalCase() {
             val html = browser.get("/admin/settings").bodyAsText()
             for (secret in secrets) assertFalse(html.contains(secret), "a secret reached the page")
             val settings = listOf("SOFA_ADMIN_TOKEN", "SOFA_PLEX_URL", "http://127.0.0.1:32400", "policy.json")
-            for (setting in settings + "Change log") assertTrue(html.contains(setting), setting)
-            assertTrue(html.contains("Twin Sports"), "the change log lists the stations the run added")
+            for (setting in settings) assertTrue(html.contains(setting), setting)
+            assertTrue(html.contains("/admin/system/changes"), "Settings points at the change log")
+            val changes = browser.get("/admin/system/changes").bodyAsText()
+            assertTrue(
+                changes.contains("Policy change log") && changes.contains("Twin Sports"),
+                "the change log lists the stations the run added",
+            )
             assertTrue(
                 html.contains("<details class=\"advanced\" id=\"advanced\">"),
                 "the startup settings fold behind Advanced",

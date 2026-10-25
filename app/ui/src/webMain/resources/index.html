@@ -15,6 +15,10 @@
         html, body { margin: 0; height: 100%; overflow: hidden; background: #14111F; }
     </style>
     <script src="sofaking.js" defer></script>
+    <script>
+        // Makes the app installable and keeps its own files for a flaky network; see sw.js.
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+    </script>
 </head>
 <body></body>
 </html>

@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpServer
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.api.TokenScope
 import dev.jamesrich.sofaking.backend.catalog.MediaFixture
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
 import dev.jamesrich.sofaking.backend.dvr.StoredRecording
@@ -19,6 +20,7 @@ import dev.jamesrich.sofaking.contract.RecordingRuleList
 import dev.jamesrich.sofaking.contract.ScheduleRecording
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.get
 import io.ktor.client.request.port
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
@@ -200,6 +202,23 @@ class RecordingApiTest {
             assertEquals(HttpStatusCode.OK, read.status)
             assertEquals(movie, json.decodeFromString<Recording>(read.bodyAsText()))
             assertError(HttpStatusCode.NotFound, "RECORDING_NOT_FOUND", send(HttpMethod.Get, "$RECORDINGS/nope"))
+        }
+    }
+
+    @Test fun `the calendar feed lists a scheduled program for a read token or the API token`() = testApplication {
+        dvrApi {
+            val movie = scheduleMovie(this)
+            val read = runtime.tokens.create("Calendar", TokenScope.READ).second
+            val hook = runtime.tokens.create("Sonarr", TokenScope.HOOK).second
+            val feed = client.get("/output/recordings.ics?token=$read")
+            assertEquals(HttpStatusCode.OK, feed.status, feed.bodyAsText())
+            assertEquals(ContentType("text", "calendar"), feed.contentType()?.withoutParameters())
+            val lines = feed.bodyAsText().split("\r\n")
+            assertTrue("UID:${movie.id}@sofa-king" in lines, feed.bodyAsText())
+            assertTrue("SUMMARY:Movie Night" in lines, feed.bodyAsText())
+            assertEquals(HttpStatusCode.OK, client.get("/output/recordings.ics") { bearerAuth(token) }.status)
+            assertEquals(HttpStatusCode.Unauthorized, client.get("/output/recordings.ics?token=$hook").status)
+            assertEquals(HttpStatusCode.Unauthorized, client.get("/output/recordings.ics").status)
         }
     }
 

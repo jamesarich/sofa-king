@@ -86,6 +86,10 @@ While a recording runs, the DVR checks the free space every five seconds. Below 
 
 `DELETE /api/v1/recordings/{id}` cancels a scheduled recording, stops a running one and keeps what it recorded, or deletes a finished one with its file and any folders it leaves empty. `PATCH` sets `protected`, and the `positionMs` and `watched` a player saves.
 
+## Subscribe in a calendar
+
+`/output/recordings.ics` lists the scheduled and running recordings as calendar events, so a calendar app shows when the DVR records. Make a read token on the portal's Settings page, under Access tokens, and subscribe to `http://SERVER_HOST:9193/output/recordings.ics?token=TOKEN` (Google Calendar: Other calendars, From URL; Apple Calendar: File, New Calendar Subscription). The output token works there too. Each event covers the recording's window, paddings included, and a recording in a conflict carries `X-SOFA-KING-CONFLICT:TRUE`. The feed asks to be refreshed every 15 minutes; how often an app does is up to it.
+
 ## Limitations
 
 - An HLS source recorded while someone watches the same channel opens a second connection to it; only MPEG-TS sources share one.

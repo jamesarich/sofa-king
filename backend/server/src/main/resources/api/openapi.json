@@ -289,6 +289,18 @@
           "activeSessions": { "type": "integer" }
         }
       },
+      "StatusSummary": {
+        "type": "object",
+        "required": ["revision", "uptimeSeconds", "channels", "sessions"],
+        "properties": {
+          "revision": { "type": "string" }, "uptimeSeconds": { "type": "integer" },
+          "channels": { "type": "object", "properties": { "total": { "type": "integer" }, "enabled": { "type": "integer" }, "eligible": { "type": "integer" } } },
+          "sessions": { "type": "integer", "description": "Live and library playback sessions open now." },
+          "recordings": { "type": ["object", "null"], "description": "Null without the DVR.", "properties": { "running": { "type": "integer" }, "scheduled": { "type": "integer" }, "conflicts": { "type": "integer", "description": "Scheduled recordings in a conflict." }, "next": { "type": ["object", "null"], "properties": { "title": { "type": "string" }, "channelName": { "type": "string" }, "startsAt": { "type": "string", "format": "date-time" } } } } },
+          "libraries": { "type": ["object", "null"], "description": "Null without media libraries.", "properties": { "libraries": { "type": "integer" }, "movies": { "type": "integer" }, "shows": { "type": "integer" }, "episodes": { "type": "integer" }, "videos": { "type": "integer" } } },
+          "updateAvailable": { "type": ["boolean", "null"], "description": "Whether a newer image is published; null until the update check has an answer." }
+        }
+      },
       "StatusImports": {
         "type": "object",
         "properties": {
@@ -761,6 +773,10 @@
         "parameters": [{ "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
         "responses": { "200": { "description": "" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" } } }
     },
+    "/output/recordings.ics": {
+      "get": { "tags": ["Outputs"], "summary": "The scheduled and running recordings as iCalendar", "description": "One event per recording over the window the DVR records, paddings included. A read token from POST /api/v1/admin/tokens works as ?token= too.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "readToken": [] }],
+        "responses": { "200": { "description": "text/calendar", "content": { "text/calendar": { "schema": { "type": "string" } } } }, "401": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
     "/output/guide.xml": {
       "get": { "tags": ["Outputs"], "summary": "The lineup's programs as XMLTV", "description": "From three hours ago to days ahead; the server's runtime setting applies when days is absent.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
         "parameters": [{ "name": "days", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 14 } }],
@@ -857,6 +873,10 @@
       "get": { "tags": ["HDHomeRun"], "summary": "An MPEG-TS stream of the channel with that lineup number", "description": "While the device's streams are all open, or the source refuses, 503 with X-HDHomeRun-Error: 805 All Tuners In Use.", "security": [],
         "parameters": [{ "name": "number", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "video/mp2t" }, "404": { "$ref": "#/components/responses/Error" }, "503": { "description": "All tuners in use" } } }
+    },
+    "/api/v1/status": {
+      "get": { "tags": ["Admin"], "summary": "The dashboard summary", "description": "What a dashboard such as Homepage shows: channels, sessions, recordings, libraries and whether an update is published.", "security": [{ "readToken": [] }, { "apiToken": [] }, { "deviceToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StatusSummary" } } } } } }
     },
     "/api/v1/admin/status": {
       "get": { "tags": ["Admin"], "summary": "One summary of the server", "security": [{ "adminToken": [] }, { "readToken": [] }],

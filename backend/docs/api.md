@@ -11,7 +11,7 @@ The server also issues tokens of its own, each starting `sk_`, stored only as a 
 | Kind | Where it comes from | What it opens |
 | --- | --- | --- |
 | `api` | A device [pairing](#pair-a-client), one per `clientId`; forgetting the device revokes it | What `SOFA_API_TOKEN` opens, except `/api/v1/admin` and `/api/v1/hooks` |
-| `read` | The portal's Settings page or `POST /api/v1/admin/tokens`, for a dashboard | `GET` of `/api/v1/admin/status`, `/sessions`, `/guides`, `/lineup`, `/policy/preview`, `/policy/findings`, `/policy/changes` and `/libraries`, with what lies under each |
+| `read` | The portal's Settings page or `POST /api/v1/admin/tokens`, for a dashboard or a calendar | The [dashboard summary](#dashboard-summary) `GET /api/v1/status`, the [recordings calendar](#player-outputs) `/output/recordings.ics` (also as `?token=`), and `GET` of `/api/v1/admin/status`, `/sessions`, `/guides`, `/lineup`, `/policy/preview`, `/policy/findings`, `/policy/changes` and `/libraries`, with what lies under each |
 | `hook` | The same, for Sonarr and Radarr | The [hooks](#hooks) only: `/api/v1/hooks` and the Emby-style routes |
 
 `SOFA_API_TOKEN` stays valid beside them, for scripts and devices set up by hand, and opens the hooks too.
@@ -213,6 +213,24 @@ The Emby-style routes answer under `/emby` and `/mediabrowser` too. Paths are ma
 
 A rule has a `title`, an optional `channelId`, `newOnly`, `keep` (0 keeps all), `startPaddingSeconds`, `endPaddingSeconds` and `priority`; [record a series](recordings.md#record-a-series) lists their defaults and ranges.
 
+## Dashboard summary
+
+`GET /api/v1/status` is what a dashboard such as [Homepage](deploy.md#homepage-dashboard) shows. It takes a `read` token, the API token or a device token:
+
+```json
+{
+  "revision": "0123abc",
+  "uptimeSeconds": 86400,
+  "channels": { "total": 120, "enabled": 96, "eligible": 94 },
+  "sessions": 2,
+  "recordings": { "running": 1, "scheduled": 7, "conflicts": 0, "next": { "title": "News", "channelName": "Channel One", "startsAt": "2026-10-25T18:00:00Z" } },
+  "libraries": { "libraries": 2, "movies": 410, "shows": 37, "episodes": 2210, "videos": 0 },
+  "updateAvailable": false
+}
+```
+
+`channels` counts the lineup's entries, those turned on, and those with a source that can play. `sessions` counts live and library playback open now. `recordings.conflicts` counts the scheduled recordings that conflict, and `next` is the next to start. `updateAvailable` is null until the update check has an answer, and `recordings` and `libraries` are null on a server without them.
+
 ## Player outputs
 
 `/output/*` serves the lineup to players that only speak HTTP, such as M3U and XMLTV players. They send no headers, so these routes take `SOFA_OUTPUT_TOKEN` as `?token=` in the URL, or as a bearer. The API token is accepted as a bearer only, never in a query. A non-loopback server always has an output token, generated at the first start unless `SOFA_OUTPUT_TOKEN` sets one. On loopback without one, the routes answer `401 AUTH_REQUIRED` to anything but the API bearer, and with neither token configured (a loopback development server) they are open. [Security](security.md#credentials-and-the-routes-they-open) explains why the output token is separate, and [operations](operations.md#rotating-tokens) how to rotate it.
@@ -244,6 +262,8 @@ A program that is not a movie and has no episode numbering from its source gets 
 `GET /output/stream/{channelId}.m3u8|.ts` opens a watch session for the channel and plays it. An HLS source answers `302` to the session's playlist URL under `/media/sessions/`; the player follows it and fetches playlists, segments and keys through the relay. An MPEG-TS source streams `video/mp2t` in this response through the fan-out. Players never renew, so these sessions live differently from API sessions. A request in flight holds the session, and it is released 60 seconds after its last media request (the player stopped) or when a TS player disconnects. Two players on the same HLS channel share one session; each TS request is its own. At `SOFA_MAX_SESSIONS` the oldest preview session yields first, then an idle player session (a zap left behind), and otherwise the request answers `429 CAPACITY_EXHAUSTED`.
 
 When an unprobed source's descriptor says MPEG-TS and the body is HLS, the request switches to the redirect itself instead of answering `410`. The reverse, an HLS descriptor with an MPEG-TS body, reaches the player as `410` on the media URL once; after that the stored protocol is right. A disabled or unknown channel answers `404 CHANNEL_NOT_FOUND`, and a channel with no eligible source `503 SOURCE_UNAVAILABLE`.
+
+`GET /output/recordings.ics` is the scheduled and running recordings as an iCalendar feed for a calendar app to subscribe to, `text/calendar`: one event per recording over the window the DVR records, paddings included, with the channel as its location. It takes the output token or a `read` token as `?token=`, or either or the API token as a bearer; the [recordings page](recordings.md#subscribe-in-a-calendar) has the setup.
 
 ## Logos
 

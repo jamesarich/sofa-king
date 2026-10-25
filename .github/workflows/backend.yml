@@ -323,6 +323,8 @@ jobs:
       # against this workflow's identity, as deploy.md shows.
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
       - name: Sign the image
+        # This job has no checkout, so the workflow's default backend/ folder does not exist.
+        working-directory: ${{ runner.temp }}
         env:
           REF: ${{ steps.index.outputs.image }}@${{ steps.index.outputs.digest }}
         run: cosign sign --yes "$REF"

@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.api
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 /** Which XMLTV channel of which configured guide source carries a lineup entry's programs. */
 @Serializable data class GuideMapping(val guideId: String, val channelId: String)
@@ -33,6 +34,8 @@ import kotlinx.serialization.Serializable
     val errorCode: String? = null,
     val channels: Int = 0,
     val programs: Int = 0,
+    /** Why the last import failed, URLs redacted; the portal shows it, and the API keeps to [errorCode]. */
+    @Transient val error: String? = null,
 )
 
 @Serializable data class GuideChannelInfo(

@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.api.PolicyApplyResult
+import dev.jamesrich.sofaking.backend.api.PolicyStation
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.ignoredAttention
@@ -32,9 +33,9 @@ internal class OverviewReader(private val portal: Portal) {
         val providers = runtime.feeds.statuses
         val plex = portal.plexStatus?.status()
         val stations = applied?.stations
-        val requiredOff = stations?.count { it.required && !it.enabled }
+        val requiredOff = stations?.filter { it.required && !it.enabled }
         val all = (
-            sourceAttention(now) + deviceAttention(plex) + tunerAttention(applied?.result, requiredOff) +
+            sourceAttention(now) + deviceAttention(plex) + tunerAttention(applied?.result, requiredOff.orEmpty()) +
                 lineupAttention(applied?.result, guide) + encoderAttention(runtime.vod?.encoders)
             ).sortedBy { listOf(Tone.BAD, Tone.WARN, Tone.OK, Tone.OFF).indexOf(it.tone) }
         // An ignored item stays out while its text is what it was when ignored; a change brings it back.
@@ -43,7 +44,7 @@ internal class OverviewReader(private val portal: Portal) {
         return OverviewView(
             attention = attention, ignored = hidden,
             stations = entries.size, enabled = enabled.size, guide = guide,
-            required = stations?.count { it.required }, requiredOff = requiredOff,
+            required = stations?.count { it.required }, requiredOff = requiredOff?.size,
             suggestions = applied?.result?.suggestedAliases?.size, findings = applied?.result?.findings?.size,
             unverified = stations?.count { it.disabledReason == "unverified" },
             providersOk = providers.count { it.errorCode == null && it.lastSuccessAt != null },
@@ -76,7 +77,7 @@ internal class OverviewReader(private val portal: Portal) {
                     } else {
                         "${failed.size} providers failed their last import"
                     },
-                    failed.joinToString { failure(it.id, it.errorCode, it.lastSuccessAt, now) },
+                    failed.joinToString("; ") { failure(it.id, it.error ?: it.errorCode, it.lastSuccessAt, now) },
                     "/admin/providers#imports",
                     "Sources",
                     "providers-failed",
@@ -91,7 +92,11 @@ internal class OverviewReader(private val portal: Portal) {
                 Attention(
                     Tone.WARN,
                     "Waiting for the first import of ${waiting.joinToString { it.id }}",
-                    null,
+                    // No running count here: a detail that changes brings an ignored item back.
+                    "Over ${IMPORT_GRACE.toMinutes()} minutes since the server started, and " +
+                        "${if (waiting.size == 1) "this import has" else "these imports have"} not finished. A " +
+                        "large playlist takes a while; one that never ends usually means an address that does " +
+                        "not answer. The log says what each import is doing.",
                     "/admin/providers#imports",
                     "Sources",
                     "providers-waiting",
@@ -110,7 +115,7 @@ internal class OverviewReader(private val portal: Portal) {
                     } else {
                         "${badGuides.size} guides failed their last import"
                     },
-                    badGuides.joinToString { failure(it.id, it.errorCode, it.lastSuccessAt, now) },
+                    badGuides.joinToString("; ") { failure(it.id, it.error ?: it.errorCode, it.lastSuccessAt, now) },
                     "/admin/providers#guides",
                     "Sources",
                     "guides-failed",
@@ -120,8 +125,9 @@ internal class OverviewReader(private val portal: Portal) {
         }
     }
 
-    private fun failure(id: String, errorCode: String?, lastSuccessAt: String?, now: Instant): String =
-        "$id ($errorCode${failingFor(lastSuccessAt, now)?.let { f -> ", $f" } ?: ""})"
+    /** One failed import in words: its id, why it failed, and for how long when that is over a day. */
+    private fun failure(id: String, why: String?, lastSuccessAt: String?, now: Instant): String =
+        "$id: $why${failingFor(lastSuccessAt, now)?.let { f -> " ($f)" } ?: ""}"
 
     /** Refused tuner addresses, an unwritable recordings folder and a failing Plex sync. */
     private fun deviceAttention(plex: PlexStatus?): List<Attention> = buildList {
@@ -184,36 +190,45 @@ internal class OverviewReader(private val portal: Portal) {
     }
 
     /** Too few tuner devices for the lineup, and required channels that are off. */
-    private fun tunerAttention(result: PolicyApplyResult?, requiredOff: Int?): List<Attention> = buildList {
-        val needed = result?.devicesNeeded
-        val configured = result?.devicesConfigured
-        if (needed != null && configured != null && needed > configured) {
-            add(
-                Attention(
-                    Tone.BAD,
-                    "The lineup needs $needed tuners; $configured are configured",
-                    "Add ports to SOFA_HDHR_EXTRA_PORTS, then add the devices in Plex.",
-                    "/admin/plex#tuners",
-                    "Plex",
-                    "tuners-short",
-                    "lineup-policy.md#hdhomerun-devices",
-                ),
-            )
+    private fun tunerAttention(result: PolicyApplyResult?, requiredOff: List<PolicyStation>): List<Attention> =
+        buildList {
+            val needed = result?.devicesNeeded
+            val configured = result?.devicesConfigured
+            if (needed != null && configured != null && needed > configured) {
+                add(
+                    Attention(
+                        Tone.BAD,
+                        "The lineup needs $needed tuners; $configured are configured",
+                        "Add ports to SOFA_HDHR_EXTRA_PORTS, then add the devices in Plex.",
+                        "/admin/plex#tuners",
+                        "Plex",
+                        "tuners-short",
+                        "lineup-policy.md#hdhomerun-devices",
+                    ),
+                )
+            }
+            if (requiredOff.isNotEmpty()) {
+                add(
+                    Attention(
+                        Tone.BAD,
+                        "${plural(requiredOff.size, "required channel")} off",
+                        requiredOff.take(REQUIRED_NAMED).joinToString("; ") {
+                            "${it.name}: ${it.disabledReason ?: "off"}"
+                        } + if (requiredOff.size >
+                            REQUIRED_NAMED
+                        ) {
+                            "; and ${requiredOff.size - REQUIRED_NAMED} more"
+                        } else {
+                            ""
+                        },
+                        "/admin/required",
+                        "Required",
+                        "required-off",
+                        "lineup-policy.md#required-stations",
+                    ),
+                )
+            }
         }
-        if (requiredOff != null && requiredOff > 0) {
-            add(
-                Attention(
-                    Tone.BAD,
-                    "${plural(requiredOff, "required channel")} off",
-                    null,
-                    "/admin/required",
-                    "Required",
-                    "required-off",
-                    "lineup-policy.md#required-stations",
-                ),
-            )
-        }
-    }
 
     /**
      * Merges to settle, unmapped categories and channels without programs. Run findings and stations waiting for a
@@ -304,6 +319,9 @@ internal class OverviewReader(private val portal: Portal) {
         }
     }
 }
+
+/** How many required channels that are off the home page names. */
+private const val REQUIRED_NAMED = 5
 
 /** How long the server waits for a first import before the home page mentions it. */
 private val IMPORT_GRACE = Duration.ofMinutes(10)

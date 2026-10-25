@@ -41,6 +41,21 @@ class BackendStoreTest {
     private fun observation(minute: Long, id: String = "failure-$minute") =
         Observation(id, t.plusSeconds(minute * 60), false, FailureClass.OFFERING)
 
+    @Test fun `recent observations are each source's newest, newest first`() = runBlocking<Unit> {
+        openStore(directory()).use { store ->
+            store.registerOffering("p:a")
+            store.registerOffering("p:b")
+            for (m in listOf(0L, 10L, 20L, 30L)) store.recordObservation("p:a", observation(m), t.plusSeconds(m * 60))
+            store.recordObservation("p:b", Observation("ok", t, true), t)
+            val recent = store.recentObservations(listOf("p:a", "p:b", "p:none"), 3)
+            assertEquals(listOf("failure-30", "failure-20", "failure-10"), recent.getValue("p:a").map { it.incidentId })
+            assertEquals(FailureClass.OFFERING, recent.getValue("p:a").first().failureClass)
+            assertTrue(recent.getValue("p:b").single().qualifiedSuccess)
+            assertFalse("p:none" in recent)
+            assertTrue(store.recentObservations(emptyList(), 3).isEmpty())
+        }
+    }
+
     @Test fun `identity survives restart`() = runBlocking<Unit> {
         val dir = directory()
         val id = openStore(dir).use { it.serverId() }

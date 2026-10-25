@@ -194,6 +194,7 @@ private fun TR.lineupRow(chrome: Chrome, view: LineupView, row: StationRow) {
             +" "
             chip("Override", Tone.OFF)
         }
+        row.why?.let { div("why small error-text") { +"No healthy source: $it" } }
     }
     detailCells(row)
     actionsCell(chrome, view, entry, edit)

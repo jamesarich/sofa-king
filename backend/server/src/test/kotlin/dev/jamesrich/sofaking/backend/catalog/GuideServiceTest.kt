@@ -24,12 +24,15 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class GuideServiceTest {
     @Test fun `guides import independently and keep only the mapped channel's programs`() = guideTest("sofa-guides-") {
         withImported { stack ->
             val statuses = stack.guides.statuses.associateBy { it.id }
             assertEquals("IMPORT_FAILED", statuses.getValue("broken").errorCode)
+            assertTrue(!statuses.getValue("broken").error.isNullOrBlank(), "the portal shows why")
+            assertNull(statuses.getValue("gz").error)
             assertNull(statuses.getValue("gz").errorCode)
             assertEquals(2, statuses.getValue("gz").channels, "the channel index lists every channel")
             assertEquals(1, statuses.getValue("gz").programs, "only the mapped channel's programs are retained")

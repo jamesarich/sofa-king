@@ -2,7 +2,10 @@ package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
 import dev.jamesrich.sofaking.backend.catalog.stationId
+import dev.jamesrich.sofaking.backend.health.FailureClass
+import dev.jamesrich.sofaking.backend.health.Observation
 import dev.jamesrich.sofaking.backend.store.health
+import dev.jamesrich.sofaking.backend.store.recordObservation
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.headers
@@ -19,6 +22,7 @@ import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.nio.file.Files
+import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -203,6 +207,10 @@ class AdminPortalLineupTest : AdminPortalCase() {
                 assertTrue(plain.contains("<caption class=\"sr\">Channels</caption>"), "every table has a caption")
                 assertTrue(plain.contains("<th class=\"num\" scope=\"col\">"), "headers carry their scope")
                 assertTrue(plain.contains("class=\"tint-bad\""), "an on-air station with no healthy source is tinted")
+                assertTrue(
+                    plain.contains("No healthy source: no source has passed a probe yet"),
+                    "a red row says why",
+                )
                 fun names(html: String) =
                     Regex("""class="rowlink">([^<]+)</a>""").findAll(html).map { it.groupValues[1] }.toList()
                 val desc = browser.get("/admin/lineup?sort=name&dir=desc").bodyAsText()
@@ -235,6 +243,33 @@ class AdminPortalLineupTest : AdminPortalCase() {
                 assertTrue(changed.contains("Twin Sports"), "the hide was the last run's change")
             }
         }
+
+    @Test fun `a source that is not healthy says why, over its newest probe results`() = testApplication {
+        portal {
+            runtime.adoptAll()
+            browser.signIn()
+            val station = runtime.lineup.entries().first { it.offeringIds.isNotEmpty() }
+            val offeringId = station.offeringIds.first()
+            val now = Instant.now()
+            runtime.store.recordObservation(
+                offeringId,
+                Observation("refused", now.minusSeconds(600), false, FailureClass.AUTH),
+                now,
+            )
+            runtime.store.recordObservation(
+                offeringId,
+                Observation("gone", now, false, FailureClass.OFFERING),
+                now,
+            )
+            val probed = browser.get("/admin/lineup/${station.id}").bodyAsText()
+            assertTrue(
+                probed.contains("The source failed: not found, no stream") &&
+                    probed.contains("the provider refused access (401 or 403)") &&
+                    probed.indexOf("refused access") > probed.indexOf("Failed "),
+                "a suspect source says why, over its probe results, newest first: $probed",
+            )
+        }
+    }
 
     @Test fun `a source is disabled from the channel page after a confirmation, and enabled again at once`() =
         testApplication {

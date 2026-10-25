@@ -246,7 +246,9 @@ class FeedService(
                     "${channels.size} channels, ${offerings.size} sources" + if (unchanged) ", unchanged" else "",
                 )
             }.getOrElse { e ->
-                _statuses.updateAndGet { all -> all.replacing(config.id) { it.copy(errorCode = "IMPORT_FAILED") } }
+                _statuses.updateAndGet { all ->
+                    all.replacing(config.id) { it.copy(errorCode = "IMPORT_FAILED", error = importError(e)) }
+                }
                 // The message, with its URLs redacted, tells an auth or rate limit from an outage.
                 log.warn(
                     "import provider={} failed class={} transient={} message=\"{}\" durationMs={}",

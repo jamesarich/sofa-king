@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.admin
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.health.HealthStatus
 import dev.jamesrich.sofaking.backend.store.allHealth
+import dev.jamesrich.sofaking.backend.store.recentObservations
 import io.ktor.server.routing.get
 
 /** The Channels pages' rows: each lineup entry with its policy station, guide state, health and override. */
@@ -56,7 +57,7 @@ internal class LineupReader(private val portal: Portal) {
         val groups = rows.mapNotNull { it.entry.group }.distinct().sorted()
         return LineupView(
             filter.copy(page = page),
-            matches.drop((page - 1) * PAGE_SIZE).take(PAGE_SIZE), matches.size, rows.size, pages,
+            withWhy(matches.drop((page - 1) * PAGE_SIZE).take(PAGE_SIZE)), matches.size, rows.size, pages,
             groups, runtime.policy?.document()?.revision, groupChoices(rows), rows.count { it.entry.enabled },
         )
     }
@@ -79,13 +80,50 @@ internal class LineupReader(private val portal: Portal) {
         )
     }
 
+    /** [rows] with a Why on each red one, from its sources' newest probe results. */
+    private suspend fun withWhy(rows: List<StationRow>): List<StationRow> {
+        val red = rows.filter { it.tint == Tone.BAD }
+        if (red.isEmpty()) return rows
+        val health = runtime.store.allHealth()
+        val recent = runtime.store.recentObservations(red.flatMap { it.entry.offeringIds }, RECENT_PROBES)
+        return rows.map { row ->
+            if (row.tint != Tone.BAD) {
+                row
+            } else {
+                StationRow(
+                    row.entry,
+                    row.station,
+                    row.guideStatus,
+                    row.healthy,
+                    row.overridden,
+                    if (row.entry.offeringIds.none { runtime.feeds.published.offering(it) != null }) {
+                        "the providers no longer list its sources"
+                    } else {
+                        stationWhy(row.entry.offeringIds, health, recent)
+                    },
+                )
+            }
+        }
+    }
+
     private suspend fun sourceLines(entry: LineupEntryRecord): List<SourceLine> {
         val health = runtime.store.allHealth()
+        val recent = runtime.store.recentObservations(entry.offeringIds, RECENT_PROBES)
         return entry.offeringIds.map { offeringId ->
             val offering = runtime.feeds.published.offering(offeringId)
             val state = health[offeringId]
+            val probes = recent[offeringId].orEmpty()
             if (offering == null) {
-                SourceLine(offeringId, "gone", null, "", "WITHDRAWN", state?.manuallyDisabled == true)
+                SourceLine(
+                    offeringId,
+                    "gone",
+                    null,
+                    "",
+                    "WITHDRAWN",
+                    state?.manuallyDisabled == true,
+                    "The provider no longer lists it.",
+                    probes,
+                )
             } else {
                 SourceLine(
                     offeringId,
@@ -94,6 +132,8 @@ internal class LineupReader(private val portal: Portal) {
                     offering.protocol,
                     state?.status?.name ?: "UNVERIFIED",
                     state?.manuallyDisabled == true,
+                    healthWhy(state, probes),
+                    probes,
                 )
             }
         }

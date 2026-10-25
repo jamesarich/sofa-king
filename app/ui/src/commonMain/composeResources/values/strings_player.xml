@@ -57,8 +57,8 @@
     <string name="vod_waiting_converter">Waiting for a free converter</string>
     <string name="vod_cant_play">Can't play this</string>
     <string name="vod_cant_play_retry">Press OK to try again, or Back to leave.</string>
-    <string name="vod_control_back">Back 10 seconds</string>
-    <string name="vod_control_forward">Forward 30 seconds</string>
+    <string name="vod_control_back">Back %1$d seconds</string>
+    <string name="vod_control_forward">Forward %1$d seconds</string>
     <string name="vod_mode_direct">Direct play</string>
     <string name="vod_mode_remux">Repackaged</string>
     <string name="vod_mode_audio">Audio converted</string>

@@ -4,6 +4,7 @@ import androidx.compose.ui.input.key.Key
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.SeekSteps
 import dev.jamesrich.sofaking.data.SkipMode
 import dev.jamesrich.sofaking.data.Skips
 import dev.jamesrich.sofaking.ui.formatPlayTime
@@ -103,6 +104,15 @@ class VodPlaybackTest {
             SegmentSkip(credits, SkipMode.AUTO),
             segmentToSkip(markers, 1_250_000, Skips(intros = SkipMode.OFF, credits = SkipMode.AUTO)),
         )
+    }
+
+    @Test
+    fun `a press moves by the chosen steps and a held key still speeds up`() {
+        val scrub = VodScrub()
+        scrub.steps = SeekSteps(backSeconds = 5, forwardSeconds = 90)
+        assertEquals(190_000, scrub.press(1, positionMs = 100_000, durationMs = 1_000_000, repeatCount = 0, nowMs = 0))
+        assertEquals(185_000, scrub.press(-1, positionMs = 100_000, durationMs = 1_000_000, repeatCount = 0, nowMs = 1))
+        assertEquals(245_000, scrub.press(1, positionMs = 100_000, durationMs = 1_000_000, repeatCount = 8, nowMs = 2))
     }
 
     @Test

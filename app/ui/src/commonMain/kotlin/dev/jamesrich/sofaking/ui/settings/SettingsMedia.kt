@@ -23,6 +23,7 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.BufferPreference
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.DecoderPreference
+import dev.jamesrich.sofaking.data.SeekSteps
 import dev.jamesrich.sofaking.data.SkipKind
 import dev.jamesrich.sofaking.data.SkipMode
 import dev.jamesrich.sofaking.data.SubtitleLook
@@ -61,6 +62,10 @@ import dev.jamesrich.sofaking.resources.settings_match_frame_rate_help
 import dev.jamesrich.sofaking.resources.settings_section_captions
 import dev.jamesrich.sofaking.resources.settings_section_library
 import dev.jamesrich.sofaking.resources.settings_section_playback
+import dev.jamesrich.sofaking.resources.settings_seek_back
+import dev.jamesrich.sofaking.resources.settings_seek_forward
+import dev.jamesrich.sofaking.resources.settings_seek_help
+import dev.jamesrich.sofaking.resources.settings_seek_seconds
 import dev.jamesrich.sofaking.resources.settings_skip_credits
 import dev.jamesrich.sofaking.resources.settings_skip_credits_help
 import dev.jamesrich.sofaking.resources.settings_skip_intros
@@ -89,8 +94,11 @@ import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import org.jetbrains.compose.resources.stringResource
 
-/** Recordings, on a server that records: skipping commercials. */
-internal fun LazyListScope.recordingsSection(settings: AppSettings, actions: SettingsActions) {
+/**
+ * Recordings, on a server that records: skipping commercials, and the seek steps [withSeekSteps] (when there is no
+ * Library section to hold them).
+ */
+internal fun LazyListScope.recordingsSection(settings: AppSettings, actions: SettingsActions, withSeekSteps: Boolean) {
     item { SectionHeader(stringResource(Res.string.recordings_title)) }
     item {
         SkipChoice(
@@ -99,6 +107,31 @@ internal fun LazyListScope.recordingsSection(settings: AppSettings, actions: Set
             stringResource(Res.string.recordings_skip_commercials_help),
             settings,
             actions,
+        )
+    }
+    if (withSeekSteps) seekStepRows(settings, actions)
+}
+
+/** How far one press back and one press forward move a library item or a recording. */
+private fun LazyListScope.seekStepRows(settings: AppSettings, actions: SettingsActions) {
+    val steps = settings.seekSteps
+    item {
+        SettingChoice(
+            label = stringResource(Res.string.settings_seek_back),
+            stored = steps.backSeconds,
+            choices = SeekSteps.CHOICES,
+            choiceLabel = { stringResource(Res.string.settings_seek_seconds, it) },
+            onChange = { actions.onSeekStepsChanged(steps.copy(backSeconds = it)) },
+        )
+    }
+    item {
+        SettingChoice(
+            label = stringResource(Res.string.settings_seek_forward),
+            help = stringResource(Res.string.settings_seek_help),
+            stored = steps.forwardSeconds,
+            choices = SeekSteps.CHOICES,
+            choiceLabel = { stringResource(Res.string.settings_seek_seconds, it) },
+            onChange = { actions.onSeekStepsChanged(steps.copy(forwardSeconds = it)) },
         )
     }
 }
@@ -125,8 +158,8 @@ private fun SkipChoice(kind: SkipKind, label: String, help: String, settings: Ap
 }
 
 /**
- * Library, on a server that has one: skipping intros and credits, hiding spoilers, and the subtitles' look
- * ([subtitleLook], shown at once through [onLook]), which its three rows change a part of each.
+ * Library, on a server that has one: skipping intros and credits, the seek steps, hiding spoilers, and the subtitles'
+ * look ([subtitleLook], shown at once through [onLook]), which its three rows change a part of each.
  */
 internal fun LazyListScope.librarySection(
     settings: AppSettings,
@@ -153,6 +186,7 @@ internal fun LazyListScope.librarySection(
             actions,
         )
     }
+    seekStepRows(settings, actions)
     item {
         SettingToggle(
             label = stringResource(Res.string.settings_hide_spoilers),

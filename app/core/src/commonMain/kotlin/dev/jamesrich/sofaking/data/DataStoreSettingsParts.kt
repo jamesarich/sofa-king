@@ -31,6 +31,8 @@ import dev.jamesrich.sofaking.data.SettingsKeys.MATCH_FRAME_RATE
 import dev.jamesrich.sofaking.data.SettingsKeys.PREFERENCES_SYNCED_AT
 import dev.jamesrich.sofaking.data.SettingsKeys.PREVIEW_SOUND
 import dev.jamesrich.sofaking.data.SettingsKeys.RECENT_CHANNELS
+import dev.jamesrich.sofaking.data.SettingsKeys.SEEK_BACK_SECONDS
+import dev.jamesrich.sofaking.data.SettingsKeys.SEEK_FORWARD_SECONDS
 import dev.jamesrich.sofaking.data.SettingsKeys.SEPARATOR
 import dev.jamesrich.sofaking.data.SettingsKeys.SERVER_URL
 import dev.jamesrich.sofaking.data.SettingsKeys.SETTINGS_PIN
@@ -209,6 +211,13 @@ internal class DataStorePlayerSettings(private val dataStore: DataStore<Preferen
                     prefs[SKIP_COMMERCIALS] = mode == SkipMode.AUTO
                 }
             }
+        }
+    }
+
+    override suspend fun setSeekSteps(steps: SeekSteps) {
+        dataStore.edit { prefs ->
+            prefs[SEEK_BACK_SECONDS] = steps.backSeconds
+            prefs[SEEK_FORWARD_SECONDS] = steps.forwardSeconds
         }
     }
 

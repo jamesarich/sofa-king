@@ -54,7 +54,7 @@ internal fun VodSessionEffects(
     val lifecycle = appLifecycleOwner.lifecycle
     LifecycleStartEffect(player, lifecycleOwner = appLifecycleOwner) {
         val session = player.openMediaSession { step ->
-            vod.seek(state.positionMs + step * if (step < 0) VodScrub.BACK_STEP_MS else VodScrub.FORWARD_STEP_MS)
+            vod.seek(state.positionMs + step * if (step < 0) state.steps.backMs else state.steps.forwardMs)
         }
         vod.mediaSession = session
         player.volume = volume.gain

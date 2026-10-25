@@ -81,6 +81,10 @@
     <string name="settings_section_library">Library</string>
     <string name="settings_skip_intros">Skip intros</string>
     <string name="settings_skip_credits">Skip credits</string>
+    <string name="settings_seek_back">Step back</string>
+    <string name="settings_seek_forward">Step forward</string>
+    <string name="settings_seek_seconds">%1$d s</string>
+    <string name="settings_seek_help">How far Left and Right, Rewind and Fast Forward, the bar's step buttons and a double tap move a library item or a recording. A held key still moves a minute and then five.</string>
     <string name="settings_skip_mode_auto">Automatically</string>
     <string name="settings_skip_mode_button">With a button</string>
     <string name="settings_skip_mode_off">Off</string>

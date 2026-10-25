@@ -107,6 +107,7 @@ A provider's narrow entries take the channels they match; end with a plain entry
 | `number` | The station number |
 | `name`, `group`, `logo` | Override the leading channel's values |
 | `guide` | `{"guideId": "...", "channelId": "..."}` |
+| `gracenoteId` | The station's Gracenote (TMS) station id, 1 to 10 digits; the M3U output passes it to [Channels DVR](live-tv.md#channels-dvr) |
 | `enabled` | Override the leading entry's default |
 | `required` | Keep the station whatever its sources do, see below |
 | `sources` | Pins: `{"provider": "...", "tvgId": "...", "name": "..."}` |
@@ -189,7 +190,7 @@ All routes are under `/api/v1/admin` and take the admin token.
 | GET | `/policy/findings` | Open findings, suggested aliases and `unmappedCategories` |
 | GET | `/policy/changes?limit=` | The change log, newest first: each field a run changed, with the station key and the cause |
 | GET | `/stations/{key}` | One station: its pins and every channel that names the key or joins it, with why |
-| PATCH | `/lineup/{id}` | Writes `name`, `number`, `group`, `logo`, `guide`, `enabled` and `offerings` (as pins by provider and `tvg-id`) into the station's override, then applies |
+| PATCH | `/lineup/{id}` | Writes `name`, `number`, `group`, `logo`, `guide`, `gracenoteId`, `enabled` and `offerings` (as pins by provider and `tvg-id`) into the station's override, then applies |
 | DELETE | `/lineup/{id}` | Writes `enabled: false` into the station's override, then applies |
 
 Every write holds one lock, writes a temp file in the policy's directory, syncs it to disk and renames it over the policy. When the file changed on disk since the server read it, the server reloads it and the write fails with `409 POLICY_CHANGED`; read the policy again and retry. `PATCH` and `DELETE` accept `If-Match` too.
@@ -215,6 +216,6 @@ With a policy, the HDHomeRun devices split the lineup by range instead of by has
 
    `Local` from 1, `Local News (US)` 10, `News` 100, `Sports` 300, `En Español` 600, `Entertainment` 700, `Drama` 900, `Classic TV` 1050, `Movies` 1200, `Sci-Fi & Horror` 1400, `Comedy` 1500, `Crime` 1600, `Documentary` 1700, `Lifestyle` 1850, `Food & Travel` 2100, `Kids & Family` 2200, `Anime` 2300, `Music` 2350, `Game Shows` 2500, `Faith` 2550, `Shopping` 2580, `Ambiance` 2600.
 
-   It also writes an alias for every enabled lineup entry whose native sources carry other keys than its name, and prints every alias for review.
+   It also writes an alias for every enabled lineup entry whose native sources carry other keys than its name, and prints every alias for review. `--station-ids FILE` takes a CSV with a `name,gracenoteId` header and writes each row's id as the `gracenoteId` of the station its name keys to, following the aliases; a row without a name or with an id that is not 1 to 10 digits is printed and skipped.
 2. **Turn it on** after a backup of `SOFA_DATA_DIR`: move `policy.json` into the data directory, or set `SOFA_POLICY` to it, and restart, then read `GET /api/v1/admin/policy/preview`. With `requireVerified`, stations come on as the probe worker verifies a source of each, first sources first; a station none of whose sources has ever qualified healthy waits, disabled. Compare `devicesNeeded` with `devicesConfigured` in the apply result, then rescan the Plex devices and remap their channels.
 3. **Roll back** by restoring the backup and removing `policy.json` from the data directory, or unsetting `SOFA_POLICY`.

@@ -5,7 +5,6 @@ import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.admin.sameSecret
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
-import dev.jamesrich.sofaking.contract.PlaybackSession
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -18,8 +17,6 @@ import io.ktor.server.response.respondTextWriter
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.route
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.withContext
 import java.net.URLEncoder
 import java.time.Clock
 import java.time.Duration
@@ -33,7 +30,9 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
     route("/output") {
         get("/playlist.m3u") {
             authorizeOutput(call, config.token, apiToken)
-            playlist(call, runtime, tokenQuery(config.token))
+            val allTs = tsOnly(call)
+            val query = tokenQuery(config.token).let { if (allTs) withParameter(it, "format=ts") else it }
+            playlist(call, runtime, query, allTs)
         }
         get("/guide.xml") {
             authorizeOutput(call, config.token, apiToken)
@@ -50,9 +49,15 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
                 runtime.lineup.entry(id)?.takeIf { it.enabled }
                     ?: throw ApiFailure(HttpStatusCode.NotFound, "CHANNEL_NOT_FOUND", "Unknown channel")
             val base = publicBase(call)
-            serveExternal(call, runtime, entry.id, shareHls = true) { session ->
-                call.respondRedirect(base + session.descriptor.url)
-                true
+            if (call.request.queryParameters["format"] == "ts") {
+                // A player that takes one stream format for the whole playlist, such as Channels DVR's MPEG-TS
+                // source: an HLS source is remuxed in this request, as for an HDHomeRun tuner.
+                serveExternal(call, runtime, entry.id, shareHls = false) { session -> remux(call, runtime, session.id) }
+            } else {
+                serveExternal(call, runtime, entry.id, shareHls = true) { session ->
+                    call.respondRedirect(base + session.descriptor.url)
+                    true
+                }
             }
         }
     }
@@ -60,28 +65,49 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
 
 private const val MAX_GUIDE_DAYS = 14
 
+/** Whether the request asks for every stream as MPEG-TS, `format=ts`; any other format answers 400. */
+private fun tsOnly(call: ApplicationCall): Boolean {
+    val format = call.request.queryParameters["format"] ?: return false
+    if (format != "ts") throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_QUERY", "format must be ts")
+    return true
+}
+
 /** How far back the guide starts, so a player tuning in mid-program still sees it. */
 private val GUIDE_LOOKBACK = Duration.ofHours(3)
 
-/** The M3U playlist of the lineup's channels, each stream URL carrying [query]. */
-private suspend fun playlist(call: ApplicationCall, runtime: LiveRuntime, query: String) {
+/**
+ * The M3U playlist of the lineup's channels, each stream URL carrying [query]. A channel with a Gracenote id in the
+ * policy carries `tvc-guide-stationid`, so Channels DVR takes its guide from Gracenote; any other channel with a logo
+ * carries it as `tvc-guide-art`, the artwork Channels shows for its programs. With [allTs] every stream URL serves
+ * MPEG-TS.
+ */
+private suspend fun playlist(call: ApplicationCall, runtime: LiveRuntime, query: String, allTs: Boolean) {
     val base = publicBase(call)
     val channels = runtime.catalog.catalog().channels
     val entries = runtime.lineup.entries().associateBy { it.id }
     val preferred = runtime.sessions.sources.preferredOfferings(channels.map { it.id })
+    val gracenote = runtime.policy?.lastApplied()?.stations.orEmpty()
+        .mapNotNull { station -> station.gracenoteId?.let { station.id to it } }.toMap()
     call.response.header(HttpHeaders.CacheControl, "no-store")
     call.respondTextWriter(ContentType.parse("audio/x-mpegurl").withCharset(Charsets.UTF_8)) {
         write("#EXTM3U url-tvg=\"$base/output/guide.xml$query\" x-tvg-url=\"$base/output/guide.xml$query\"\n")
         for (channel in channels) {
             // Players infer the stream type from the suffix; a channel with no eligible source
             // lists as TS and fails at play time.
-            val suffix = if (preferred[channel.id]?.protocol == "hls") "m3u8" else "ts"
+            val suffix = if (!allTs && preferred[channel.id]?.protocol == "hls") "m3u8" else "ts"
             write(
                 "#EXTINF:-1 tvg-id=\"${channel.id}\" tvg-chno=\"${attribute(channel.displayNumber)}\" " +
                     "tvg-name=\"${attribute(channel.name)}\"",
             )
-            channel.logo?.let { write(" tvg-logo=\"${runtime.logos.publicUrl(base, it)}\"") }
+            val logo = channel.logo?.let { runtime.logos.publicUrl(base, it) }
+            logo?.let { write(" tvg-logo=\"$it\"") }
             entries[channel.id]?.group?.let { write(" group-title=\"${attribute(it)}\"") }
+            val stationId = gracenote[channel.id]
+            if (stationId != null) {
+                write(" tvc-guide-stationid=\"$stationId\"")
+            } else if (logo != null) {
+                write(" tvc-guide-art=\"$logo\"")
+            }
             write(",${attribute(channel.name)}\n$base/output/stream/${channel.id}.$suffix$query\n")
         }
     }
@@ -125,52 +151,6 @@ private suspend fun guide(call: ApplicationCall, runtime: LiveRuntime, now: Inst
 }
 
 /**
- * Plays [channelId] for a player that only speaks HTTP. A TS source is fanned out through this response and its
- * session ends with it. An HLS source goes to [hls], which returns true when the player's own media requests now
- * hold the session (a redirect) and false when it was consumed inside this request (a remux). A protocol detected
- * on the first fetch switches paths here instead of reaching the player as 410.
- */
-internal suspend fun serveExternal(
-    call: ApplicationCall,
-    runtime: LiveRuntime,
-    channelId: String,
-    shareHls: Boolean,
-    hls: suspend (PlaybackSession) -> Boolean,
-) {
-    val sessions = runtime.sessions
-    val joined = if (shareHls) sessions.external.joinable(channelId) else null
-    if (joined != null) {
-        hls(joined)
-    } else {
-        val opened = sessions.external.open(channelId, call.request.origin.remoteAddress)
-        var release = true
-        try {
-            release = serveOpened(call, runtime, opened, hls)
-        } finally {
-            if (release) withContext(NonCancellable) { sessions.release(opened.id) }
-        }
-    }
-}
-
-/** Serves [session], once more if the first fetch found the stream changed; true when it is to be released. */
-private suspend fun serveOpened(
-    call: ApplicationCall,
-    runtime: LiveRuntime,
-    session: PlaybackSession,
-    hls: suspend (PlaybackSession) -> Boolean,
-    retried: Boolean = false,
-): Boolean {
-    if (session.descriptor.protocol == "hls") return !hls(session)
-    try {
-        runtime.relay.serve(call, session.id, session.descriptor.epoch, session.descriptor.url.substringAfterLast('/'))
-    } catch (e: ApiFailure) {
-        if (e.code != "STREAM_CHANGED" || retried) throw e
-        return serveOpened(call, runtime, runtime.sessions.get(session.id), hls, retried = true)
-    }
-    return true
-}
-
-/**
  * The output token in the query or as a bearer, or the API token as a bearer. With neither configured the outputs are
  * open to this machine only, as the API is, so a reverse proxy cannot expose them.
  */
@@ -210,6 +190,10 @@ internal fun publicBase(call: ApplicationCall): String {
 }
 
 internal fun tokenQuery(token: String?): String = token?.let { "?token=" + URLEncoder.encode(it, Charsets.UTF_8) } ?: ""
+
+/** [query], a query string or empty, with [parameter] added. */
+private fun withParameter(query: String, parameter: String): String =
+    if (query.isEmpty()) "?$parameter" else "$query&$parameter"
 
 private val LINE_BREAK = Regex("[\\r\\n]")
 

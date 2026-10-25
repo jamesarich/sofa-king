@@ -133,6 +133,16 @@ class OutputTest {
         assertFalse(body.contains(fixture.base))
     }
 
+    @Test fun `format=ts lists every stream as TS and no other format is taken`() = outputLists {
+        val lines = client.get("/output/playlist.m3u?token=$output&format=ts").bodyAsText().lines()
+        assertEquals("$base/output/stream/${hls.id}.ts?token=$output&format=ts", lines[2])
+        assertEquals("$base/output/stream/${ts.id}.ts?token=$output&format=ts", lines[4])
+        assertEquals(
+            HttpStatusCode.BadRequest,
+            client.get("/output/playlist.m3u?token=$output&format=hls").status,
+        )
+    }
+
     @Test fun `the guide lists each channel and its programs, with placeholders where it has none`() = outputLists {
         val guide = client.get("/output/guide.xml?token=$output&days=2")
         assertEquals(HttpStatusCode.OK, guide.status)

@@ -297,6 +297,7 @@ internal class StationRun(private val input: BuildInput) {
             offeringIds = draft.offeringIds,
             disabledReason = reason,
             guideCandidates = guides,
+            gracenoteId = override?.gracenoteId,
         )
     }
 }

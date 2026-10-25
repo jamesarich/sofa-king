@@ -329,7 +329,8 @@
             "id": { "type": "string" }, "providerId": { "type": ["string", "null"] }, "channelName": { "type": ["string", "null"] }, "protocol": { "type": ["string", "null"] },
             "status": { "type": "string", "description": "A health status, or WITHDRAWN when no provider lists the source now" }, "manuallyDisabled": { "type": "boolean" } } } },
           "guideStatus": { "type": "string", "enum": ["unassigned", "empty", "available", "stale"] }, "createdBy": { "type": "string", "enum": ["policy", "manual"] },
-          "autoDisabledAt": { "type": ["string", "null"] }, "autoDisabledReason": { "type": ["string", "null"] }
+          "autoDisabledAt": { "type": ["string", "null"] }, "autoDisabledReason": { "type": ["string", "null"] },
+          "gracenoteId": { "type": ["string", "null"], "description": "The policy's Gracenote station id for the station" }
         }
       },
       "CreateLineupEntry": {
@@ -348,7 +349,8 @@
           "number": { "type": ["string", "null"] }, "name": { "type": ["string", "null"] }, "group": { "type": ["string", "null"] }, "logo": { "type": ["string", "null"] },
           "enabled": { "type": ["boolean", "null"] }, "offerings": { "type": ["array", "null"], "items": { "type": "string" } },
           "guide": { "oneOf": [{ "$ref": "#/components/schemas/GuideMapping" }, { "type": "null" }] }, "position": { "type": ["integer", "null"], "description": "Not with a policy" },
-          "clearGroup": { "type": "boolean" }, "clearLogo": { "type": "boolean" }, "clearGuide": { "type": "boolean" }
+          "clearGroup": { "type": "boolean" }, "clearLogo": { "type": "boolean" }, "clearGuide": { "type": "boolean" },
+          "gracenoteId": { "type": ["string", "null"], "pattern": "^[0-9]{1,10}$", "description": "Only with a policy" }, "clearGracenoteId": { "type": "boolean" }
         }
       },
       "ReorderLineup": { "type": "object", "required": ["ids"], "properties": { "ids": { "type": "array", "items": { "type": "string" }, "description": "Every entry once" } } },
@@ -714,8 +716,9 @@
         "responses": { "200": { "description": "application/vnd.apple.mpegurl, video/mp2t or the resource's own type" }, "206": { "description": "A range of the resource" }, "404": { "$ref": "#/components/responses/Error" }, "410": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "502": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
     },
     "/output/playlist.m3u": {
-      "get": { "tags": ["Outputs"], "summary": "The enabled lineup as an M3U playlist", "description": "audio/x-mpegurl; tvg-id is the channel id, URLs use the request's Host. The stream suffix follows the protocol of the source the channel would play now.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
-        "responses": { "200": { "description": "" }, "401": { "$ref": "#/components/responses/Error" } } }
+      "get": { "tags": ["Outputs"], "summary": "The enabled lineup as an M3U playlist", "description": "audio/x-mpegurl; tvg-id is the channel id, URLs use the request's Host. The stream suffix follows the protocol of the source the channel would play now; format=ts lists every stream as MPEG-TS. A channel with a Gracenote id in the policy carries tvc-guide-stationid, any other with a logo tvc-guide-art.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+        "parameters": [{ "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
+        "responses": { "200": { "description": "" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" } } }
     },
     "/output/guide.xml": {
       "get": { "tags": ["Outputs"], "summary": "The lineup's programs as XMLTV", "description": "From three hours ago to days ahead; the server's runtime setting applies when days is absent.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
@@ -723,8 +726,8 @@
         "responses": { "200": { "description": "application/xml" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" } } }
     },
     "/output/stream/{channelId}.{suffix}": {
-      "get": { "tags": ["Outputs"], "summary": "Open a player session for the channel and stream it", "description": "An HLS source answers 302 to the session's playlist; an MPEG-TS source streams video/mp2t here. The session is released 60 s after the last media request.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
-        "parameters": [{ "name": "channelId", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "suffix", "in": "path", "required": true, "schema": { "type": "string", "enum": ["m3u8", "ts"] } }],
+      "get": { "tags": ["Outputs"], "summary": "Open a player session for the channel and stream it", "description": "An HLS source answers 302 to the session's playlist; an MPEG-TS source streams video/mp2t here, and with format=ts so does an HLS source, remuxed. The session is released 60 s after the last media request.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+        "parameters": [{ "name": "channelId", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "suffix", "in": "path", "required": true, "schema": { "type": "string", "enum": ["m3u8", "ts"] } }, { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
         "responses": { "200": { "description": "video/mp2t" }, "302": { "description": "To the session's playlist under /media/sessions/" }, "404": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
     },
     "/logos/{key}": {

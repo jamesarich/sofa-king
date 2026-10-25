@@ -126,6 +126,32 @@ class HdhrStreamTest {
             dir.toFile().deleteRecursively()
         }
 
+    @Test fun `the TS-only playlist remuxes an HLS channel`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-output-ts-")
+        MediaFixture().use { media ->
+            stack(dir, listOf(media.feed), HdhrConfig(tuners = 2)).use { stack ->
+                HttpClient(CIO).use { http ->
+                    val channel = stack.channels.single { it.displayNumber == "2" }
+                    val playlist = http.get("${stack.server.base}/output/playlist.m3u?format=ts") {
+                        bearerAuth(token)
+                    }.bodyAsText()
+                    val url = playlist.lines().single { "/output/stream/${channel.id}" in it }
+                    assertTrue(url.endsWith("/output/stream/${channel.id}.ts?format=ts"), url)
+                    val head = withTimeout(60_000) {
+                        http.prepareGet(url) { bearerAuth(token) }.execute { response ->
+                            assertEquals(HttpStatusCode.OK, response.status)
+                            assertEquals("video/mp2t", response.headers[HttpHeaders.ContentType])
+                            response.bodyAsChannel().readHead(188 * 3)
+                        }
+                    }
+                    for (packet in 0 until 3) assertEquals(0x47.toByte(), head[packet * 188])
+                    pollUntil(15_000, 50) { stack.runtime.sessions.count() == 0 && ffmpegChildren() == 0 }
+                }
+            }
+        }
+        dir.toFile().deleteRecursively()
+    }
+
     @Test fun `a source FFmpeg cannot open ends the response cleanly with the process reaped`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-hdhr-missing-")
         MediaFixture().use { media ->

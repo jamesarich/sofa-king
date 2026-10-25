@@ -168,6 +168,27 @@ To set up a player:
 
 Players that accept a single URL can open a stream URL directly, without the playlist.
 
+### Channels DVR
+
+Channels DVR takes the playlist as a custom channels source, with one stream format for the whole source, so use the playlist with `format=ts`, which serves every channel as MPEG-TS (an HLS source is remuxed on the server, as for Plex):
+
+1. In Channels DVR's web settings, add a source and choose Custom Channels.
+2. Name it, set Stream Format to MPEG-TS, and add it by URL: `http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN&format=ts`.
+3. For the guide, set the source's XMLTV guide data to `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN`. A channel with a Gracenote station id takes its guide from Gracenote instead.
+
+Each Channels stream is a player session and counts against `SOFA_MAX_SESSIONS`.
+
+For a channel that broadcasts over the air or on cable, set its Gracenote (TMS) station id on its [Channel page](admin.md#pages) or as `gracenoteId` in the [lineup policy](lineup-policy.md#station-overrides); `scripts/generate-policy.py --station-ids` takes a CSV of them. The playlist then carries `tvc-guide-stationid`, and Channels shows Gracenote's programs, artwork and series ids for it. Any other channel with a logo carries `tvc-guide-art`, which Channels shows as the art of programs the guide has no image for.
+
+### Jellyfin
+
+Jellyfin takes the lineup either as an HDHomeRun tuner or as an M3U tuner, and the guide as XMLTV:
+
+1. In the Jellyfin dashboard, open Live TV and add a tuner device. For HDHomeRun, enter `http://SERVER_HOST:9193` and allow the Jellyfin server's address in `SOFA_HDHR_ALLOW` (or on the portal's Plex page), as for [Plex](#plex-live-tv); it plays every channel as MPEG-TS. For M3U Tuner, enter the playlist URL with the token.
+2. Add a TV guide data provider of type XMLTV with the guide URL with the token.
+3. Map channels by `tvg-id` if Jellyfin asks; the playlist and the guide use the same channel IDs.
+4. Run the Refresh Guide scheduled task after a lineup change, or wait for its daily run.
+
 ## Plex Live TV
 
 Plex Live TV & DVR takes an HDHomeRun tuner and an XMLTV guide. The server emulates the tuner at the root of its port ([API detail](api.md#hdhomerun-emulation)). The guide is the [player output](#third-party-players) XMLTV, so Plex needs the output token for the guide URL and no token for the tuner.

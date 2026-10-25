@@ -36,6 +36,9 @@ internal class LineupDrafts(private val feeds: FeedService, private val guides: 
 
     /** [current] with the fields [request] sets or clears. */
     fun updated(current: LineupEntryRecord, request: UpdateLineupEntry): LineupEntryRecord {
+        if (request.gracenoteId != null || request.clearGracenoteId) {
+            invalid("A Gracenote station id is kept in the lineup policy; configure one to set it")
+        }
         // An enabled flag the household sets is its own, so an automatic disable no longer explains it.
         val household = request.enabled != null
         return validated(

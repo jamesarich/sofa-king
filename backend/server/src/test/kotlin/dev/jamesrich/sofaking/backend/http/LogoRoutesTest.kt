@@ -82,7 +82,12 @@ class LogoRoutesTest {
 
     @Test fun `the playlist and guide name the logo at this server, never at its source`() = logos {
         val playlist = client.get("/output/playlist.m3u?token=$output").bodyAsText()
-        assertTrue(playlist.contains(" tvg-logo=\"$base$logoPath\" group-title=\"News\",Logo Station"), playlist)
+        assertTrue(
+            playlist.contains(
+                " tvg-logo=\"$base$logoPath\" group-title=\"News\" tvc-guide-art=\"$base$logoPath\",Logo Station",
+            ),
+            playlist,
+        )
         assertFalse(playlist.contains(fixture.base), playlist)
         val guide = client.get("/output/guide.xml?token=$output").bodyAsText()
         assertTrue(guide.contains("<display-name>11</display-name><icon src=\"$base$logoPath\"/></channel>"), guide)

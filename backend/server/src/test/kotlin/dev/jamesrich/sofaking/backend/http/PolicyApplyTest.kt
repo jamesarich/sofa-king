@@ -304,6 +304,40 @@ class PolicyApplyTest {
         }
     }
 
+    @Test fun `a Gracenote id PATCHed into the policy reaches the lineup and the M3U`() = testApplication {
+        withPolicy {
+            runtime.policy!!.apply("test")
+            val path = "/api/v1/admin/lineup/${stationId("station")}"
+            val invalid = client.patch(path) {
+                asAdmin()
+                setBody("""{"gracenoteId":"WABC"}""")
+            }
+            assertEquals(HttpStatusCode.BadRequest, invalid.status, "an id is digits only")
+            val patched = client.patch(path) {
+                asAdmin()
+                setBody("""{"gracenoteId":"10021"}""")
+            }
+            assertEquals(HttpStatusCode.OK, patched.status, patched.bodyAsText())
+            assertEquals("10021", Json.decodeFromString<LineupEntry>(patched.bodyAsText()).gracenoteId)
+            val override = stationsIn(policyFile).getValue("station").jsonObject
+            assertEquals("10021", override["gracenoteId"]!!.jsonPrimitive.content)
+            val playlist = client.get("/output/playlist.m3u") { bearerAuth(token) }.bodyAsText()
+            val line = playlist.lines().single { "tvg-id=\"${stationId("station")}\"" in it }
+            assertTrue("tvc-guide-stationid=\"10021\"" in line, line)
+            assertFalse("tvc-guide-art" in line, "Gracenote brings its own artwork")
+
+            client.patch(path) {
+                asAdmin()
+                setBody("""{"clearGracenoteId":true,"logo":"https://logo.test/s.png"}""")
+            }
+            assertFalse("gracenoteId" in stationsIn(policyFile).getValue("station").jsonObject)
+            val cleared = client.get("/output/playlist.m3u") { bearerAuth(token) }.bodyAsText()
+                .lines().single { "tvg-id=\"${stationId("station")}\"" in it }
+            assertFalse("tvc-guide-stationid" in cleared, cleared)
+            assertTrue("tvc-guide-art=\"" in cleared, "the logo stands in for program art: $cleared")
+        }
+    }
+
     @Test fun `PATCH refuses a position, and a number another station holds`() = testApplication {
         withPolicy {
             runtime.policy!!.apply("test")

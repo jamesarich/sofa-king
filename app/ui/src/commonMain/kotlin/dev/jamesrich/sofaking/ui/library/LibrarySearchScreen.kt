@@ -39,8 +39,11 @@ import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_search_episodes
 import dev.jamesrich.sofaking.resources.library_search_hint
+import dev.jamesrich.sofaking.resources.library_search_movies
 import dev.jamesrich.sofaking.resources.library_search_none
-import dev.jamesrich.sofaking.resources.library_search_titles
+import dev.jamesrich.sofaking.resources.library_search_people
+import dev.jamesrich.sofaking.resources.library_search_shows
+import dev.jamesrich.sofaking.resources.library_search_videos
 import dev.jamesrich.sofaking.resources.library_search_voice_prompt
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.TvTextField
@@ -52,7 +55,8 @@ import kotlinx.coroutines.flow.collectLatest
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * Search across every library by title, show or cast: movies and shows as posters, then episodes and videos.
+ * Search across every library by title, show or cast: movies, shows and what the query's person is in as posters, then
+ * episodes and videos, each in its own row.
  * [voice] starts the platform's speech input on arrival, falling back to the text field without a recognizer;
  * [initialQuery] searches for it on arrival, with focus on the first result; [returnedFrom] is the item whose page
  * the viewer just left, which takes focus.
@@ -98,7 +102,7 @@ internal fun LibrarySearchScreen(
         arrived = true
     }
     RunSearch(query, actions.search, search)
-    val sections = remember(search.results) { searchSections(search.results.orEmpty()) }
+    val sections = remember(search.results) { searchSections(search.results.orEmpty(), search.query) }
     FocusAfterSearch(search, sections, focus)
 
     LazyColumn(
@@ -111,7 +115,7 @@ internal fun LibrarySearchScreen(
     }
 }
 
-/** The posters row, then the episodes and videos row; the first row shown holds the first result. */
+/** A row per group that found something; the first row shown holds the first result. */
 private fun LazyListScope.resultRows(
     sections: SearchSections,
     focus: SearchFocus,
@@ -119,35 +123,29 @@ private fun LazyListScope.resultRows(
     actions: LibrarySearchActions,
     returnedFrom: String?,
 ) {
-    if (sections.posters.isNotEmpty()) {
-        item(key = "posters") {
+    sections.rows.forEachIndexed { index, section ->
+        item(key = section.group.name) {
             ResultRow(
-                stringResource(Res.string.library_search_titles),
-                sections.posters,
-                CardStyle.POSTER,
+                searchGroupTitle(section.group, sections.query),
+                section.items,
+                section.group.style,
                 insets,
                 actions,
-                focus.firstResult,
+                if (index == 0) focus.firstResult else null,
                 returnedFrom,
                 focus.returnTo,
             )
         }
     }
-    if (sections.wide.isNotEmpty()) {
-        item(key = "wide") {
-            val first = if (sections.posters.isEmpty()) focus.firstResult else null
-            ResultRow(
-                stringResource(Res.string.library_search_episodes),
-                sections.wide,
-                CardStyle.WIDE,
-                insets,
-                actions,
-                first,
-                returnedFrom,
-                focus.returnTo,
-            )
-        }
-    }
+}
+
+@Composable
+private fun searchGroupTitle(group: SearchGroup, query: String): String = when (group) {
+    SearchGroup.MOVIES -> stringResource(Res.string.library_search_movies)
+    SearchGroup.SHOWS -> stringResource(Res.string.library_search_shows)
+    SearchGroup.CAST_AND_CREW -> stringResource(Res.string.library_search_people, query)
+    SearchGroup.EPISODES -> stringResource(Res.string.library_search_episodes)
+    SearchGroup.VIDEOS -> stringResource(Res.string.library_search_videos)
 }
 
 /** Where focus goes around a search: the field, the first result, and the result the viewer came back from. */
@@ -164,6 +162,9 @@ private class SearchFocus {
 @Stable
 private class SearchProgress {
     var results by mutableStateOf<List<MediaItem>?>(null)
+
+    /** The query [results] answer. */
+    var query by mutableStateOf("")
     var searching by mutableStateOf(false)
     var focusResults by mutableStateOf(false)
     var focusReturn by mutableStateOf<String?>(null)
@@ -183,7 +184,9 @@ private fun RunSearch(query: TextFieldState, search: suspend (String) -> List<Me
             // A newer query cancels this one mid-request; the loader must still come down.
             into.searching = true
             try {
-                into.results = currentSearch(text)
+                val found = currentSearch(text)
+                into.query = text
+                into.results = found
             } finally {
                 into.searching = false
             }

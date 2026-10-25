@@ -326,6 +326,7 @@ internal class RuntimeAssembly(
         ).also { it.start(scope) },
         scrub = ScrubSheets(store, clock, jobs, FfmpegSheetMaker(config.ffmpeg), config.dataDirectory.resolve("scrub"))
             .also { it.start(scope) },
+        pathMap = config.libraryPathMap,
     ).also { it.start(scope) }
 
     private suspend fun vod(dvr: Dvr, libraries: LibraryService): VodSessions = VodSessions(

@@ -104,6 +104,8 @@ class RouteGuardTest {
                 Endpoint(HttpMethod.Delete, "/api/v1/recording-rules/x"),
                 Endpoint(HttpMethod.Put, "/api/v1/admin/policy"),
                 Endpoint(HttpMethod.Post, "/api/v1/admin/libraries/x/scan"),
+                Endpoint(HttpMethod.Post, "/api/v1/hooks/servarr"),
+                Endpoint(HttpMethod.Post, "/Library/Media/Updated"),
                 Endpoint(HttpMethod.Post, "/admin/login"),
                 Endpoint(HttpMethod.Post, "/admin/logout"),
             )) {
@@ -162,6 +164,8 @@ class RouteGuardTest {
     private fun Endpoint.isApi() = path == "/api" || path.startsWith("/api/")
     private fun Endpoint.isAdminApi() = path == "/api/v1/admin" || path.startsWith("/api/v1/admin/") ||
         (method == HttpMethod.Patch && path.startsWith("/api/v1/sources/"))
+
+    private fun Endpoint.isHook() = isHookPath(path)
 
     /** Whether a read token opens this route: a GET of the admin reads a dashboard needs. */
     private fun Endpoint.readScope() = method == HttpMethod.Get && listOf(
@@ -253,10 +257,32 @@ class RouteGuardTest {
             val read = runtime.tokens.create("Homepage", TokenScope.READ).second
             val hook = runtime.tokens.create("Sonarr", TokenScope.HOOK).second
             val violations = buildList {
-                for (endpoint in endpoints.filter { it.isApi() && !it.isAdminApi() && it.path != PAIR_PATH }) {
+                val app = endpoints.filter { it.isApi() && !it.isAdminApi() && !it.isHook() && it.path != PAIR_PATH }
+                for (endpoint in app) {
                     if (refused(call(endpoint, device)) == null) add("$endpoint refused a device token")
                     refused(call(endpoint, read))?.let { add("$endpoint with a read token: $it") }
                     refused(call(endpoint, hook))?.let { add("$endpoint with a hook token: $it") }
+                }
+            }
+            assertTrue(violations.isEmpty(), violations.joinToString("\n"))
+        }
+    }
+
+    @Test fun `every hook opens to a hook token or the API token and to no other`() = testApplication {
+        routes {
+            val device = runtime.tokens.pair("tv-1", "TV")
+            val read = runtime.tokens.create("Homepage", TokenScope.READ).second
+            val hook = runtime.tokens.create("Sonarr", TokenScope.HOOK).second
+            val hooks = endpoints.filter { it.isHook() }
+            assertTrue(hooks.size >= 13, "only ${hooks.size} hooks")
+            val violations = buildList {
+                for (endpoint in hooks) {
+                    refused(call(endpoint))?.let { add("$endpoint without a token: $it") }
+                    for ((name, wrong) in listOf("device" to device, "read" to read, "admin" to adminToken)) {
+                        refused(call(endpoint, wrong))?.let { add("$endpoint with the $name token: $it") }
+                    }
+                    if (refused(call(endpoint, hook)) == null) add("$endpoint refused a hook token")
+                    if (refused(call(endpoint, apiToken)) == null) add("$endpoint refused the API token")
                 }
             }
             assertTrue(violations.isEmpty(), violations.joinToString("\n"))

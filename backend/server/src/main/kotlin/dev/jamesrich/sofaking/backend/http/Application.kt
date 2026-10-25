@@ -29,6 +29,7 @@ import java.time.Clock
 internal fun requestBodyLimit(method: HttpMethod, path: String?): Long = when {
     method == HttpMethod.Put && path == "/api/v1/admin/policy" -> POLICY_BODY_LIMIT
     method == HttpMethod.Post && (path == "/admin/providers/edit" || path == "/admin/groups/edit") -> POLICY_BODY_LIMIT
+    method == HttpMethod.Post && path != null && isHookPath(path) -> HOOK_BODY_LIMIT
     else -> CONTROL_BODY_LIMIT
 }
 
@@ -81,6 +82,7 @@ fun Application.backendModule(
                 libraryRoutes(it)
                 artworkRoutes(it)
             }
+            hookRoutes(runtime.libraries)
             runtime.vod?.let { vodRoutes(it) }
             if (hdhr.enabled) hdhrRoutes(runtime, hdhr, store)
             portal?.install(this)

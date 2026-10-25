@@ -1,0 +1,50 @@
+{
+  "series": {
+    "id": 1,
+    "title": "Show",
+    "titleSlug": "show",
+    "path": "/data/media/tv/Show (2020)",
+    "tvdbId": 349232,
+    "tvMazeId": 0,
+    "tmdbId": 62085,
+    "imdbId": "tt0959621",
+    "type": "standard",
+    "year": 2020,
+    "genres": ["Drama"],
+    "images": [{ "coverType": "poster", "url": "/MediaCover/1/poster.jpg", "remoteUrl": "https://artworks.thetvdb.com/banners/poster.jpg" }],
+    "tags": []
+  },
+  "episodes": [
+    {
+      "id": 11,
+      "episodeNumber": 2,
+      "seasonNumber": 1,
+      "title": "Second",
+      "airDate": "2020-01-12",
+      "airDateUtc": "2020-01-13T02:00:00Z",
+      "seriesId": 1,
+      "tvdbId": 7121405
+    }
+  ],
+  "episodeFile": {
+    "id": 21,
+    "relativePath": "Season 01/Show (2020) - S01E02 - Second [WEBDL-1080p].mkv",
+    "path": "/data/media/tv/Show (2020)/Season 01/Show (2020) - S01E02 - Second [WEBDL-1080p].mkv",
+    "quality": "WEBDL-1080p",
+    "qualityVersion": 1,
+    "releaseGroup": "GRP",
+    "sceneName": "Show.2020.S01E02.1080p.WEB-DL-GRP",
+    "size": 1503238553,
+    "dateAdded": "2026-10-25T03:00:00Z",
+    "mediaInfo": { "audioChannels": 5.1, "audioCodec": "EAC3", "audioLanguages": ["eng"], "height": 1080, "width": 1920, "subtitles": ["eng"], "videoCodec": "h264", "videoDynamicRange": "", "videoDynamicRangeType": "" }
+  },
+  "isUpgrade": false,
+  "downloadClient": "qBittorrent",
+  "downloadClientType": "qBittorrent",
+  "downloadId": "0123456789ABCDEF0123456789ABCDEF01234567",
+  "customFormatInfo": { "customFormats": [], "customFormatScore": 0 },
+  "release": { "releaseTitle": "Show.2020.S01E02.1080p.WEB-DL-GRP", "indexer": "Indexer", "size": 1503238553 },
+  "eventType": "Download",
+  "instanceName": "Sonarr",
+  "applicationUrl": ""
+}

@@ -216,7 +216,7 @@ private val READ_SCOPE_PATHS = listOf(
     "/api/v1/admin/libraries",
 )
 
-/** The inbound hooks, which a `hook` token opens and nothing else does but the API token. */
+/** The inbound hooks under `/api`, which a `hook` token opens and nothing else does but the API token. */
 internal const val HOOKS_PATH = "/api/v1/hooks"
 
 private fun under(path: String, root: String) = path == root || path.startsWith("$root/")
@@ -232,10 +232,11 @@ private suspend fun ApplicationCall.refusedApi(
     val isAdmin = under(path, "/api/v1/admin") ||
         (request.httpMethod == HttpMethod.Patch && path.startsWith("/api/v1/sources/"))
     val expected = if (isAdmin && adminToken != null) adminToken else apiToken
-    if (!under(path, "/api")) return false
-    val bearer = bearer()
+    val isHook = isHookPath(path)
+    if (!under(path, "/api") && !isHook) return false
+    val bearer = presentedToken(isHook)
     val refusal = when {
-        issuedOpens(tokens, bearer, path, isAdmin) -> null
+        issuedOpens(tokens, bearer, path, isAdmin, isHook) -> null
 
         // Without a token the API is open, so only this machine may use it: no other site's page, no rebound
         // name, no proxy.
@@ -261,16 +262,17 @@ private suspend fun ApplicationCall.refusedApi(
 
 /**
  * Whether [bearer] is a token the server issued that opens [path]: a device's `api` token the app's routes, a `read`
- * token the admin reads in [READ_SCOPE_PATHS], a `hook` token the hooks. None opens the rest of the admin API.
+ * token the admin reads in [READ_SCOPE_PATHS], a `hook` token the hooks ([isHook]). None opens the rest of the admin
+ * API.
  */
 private suspend fun ApplicationCall.issuedOpens(
     tokens: IssuedTokens?,
     bearer: String,
     path: String,
     isAdmin: Boolean,
+    isHook: Boolean,
 ): Boolean {
     val token = tokens?.resolve(bearer) ?: return false
-    val isHook = under(path, HOOKS_PATH)
     return when (token.scope) {
         TokenScope.API -> !isAdmin && !isHook
 
@@ -280,6 +282,3 @@ private suspend fun ApplicationCall.issuedOpens(
         TokenScope.HOOK -> isHook
     }
 }
-
-private fun ApplicationCall.bearer(): String =
-    request.headers[HttpHeaders.Authorization]?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ").orEmpty()

@@ -42,3 +42,9 @@ import kotlinx.serialization.Serializable
 
 /** A TMDB API read access token or v3 API key for the libraries' details and artwork. */
 @Serializable data class SaveTmdbToken(val token: String)
+
+/** `POST /api/v1/admin/libraries/scan`: a file or folder that changed, as Sonarr or Radarr names it. */
+@Serializable data class ScanPath(val path: String)
+
+/** A scan request's answer: the libraries it queued a scan of, none when no library holds the path. */
+@Serializable data class ScanQueued(val libraries: List<String>)

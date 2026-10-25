@@ -70,6 +70,8 @@ class LibraryService(
     private val intros: IntroDetector? = null,
     /** Makes scrub thumbnails after each scan; `/artwork` serves them. */
     val scrub: ScrubSheets? = null,
+    /** How Sonarr, Radarr and the like name the media folders, where they see them under another path. */
+    private val pathMap: List<PathMapping> = emptyList(),
 ) {
     /** Counts changes to what the libraries hold, so [catalog] rebuilds its view only after one. */
     private val revision = AtomicLong()
@@ -154,6 +156,15 @@ class LibraryService(
     fun requestScan(id: String?) {
         pending += id ?: ALL
         trigger.trySend(Unit)
+    }
+
+    /**
+     * Queues a scan of the libraries a change at [path] concerns, as another program names the path, and returns them;
+     * none when no library holds it. Requests for one library coalesce until its scan starts.
+     */
+    suspend fun requestScanAt(path: String): List<LibraryRecord> {
+        val local = localPath(path, pathMap) ?: return emptyList()
+        return librariesAt(local, store.libraries()).onEach { requestScan(it.id) }
     }
 
     /** Scans [id] now, on the caller, and records the outcome on the library and the Jobs page. */

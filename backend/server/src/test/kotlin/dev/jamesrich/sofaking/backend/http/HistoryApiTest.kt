@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.api.HistoryEntry
 import dev.jamesrich.sofaking.backend.api.ServerEvent
 import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
+import dev.jamesrich.sofaking.backend.catalog.adoptAll
 import dev.jamesrich.sofaking.backend.events.EventType
 import dev.jamesrich.sofaking.backend.playback.HistoryReason
 import dev.jamesrich.sofaking.backend.store.openStore
@@ -92,7 +93,7 @@ class HistoryApiTest {
 
         /** Opens a watch session as the device and releases it; the session's id. */
         suspend fun watchAndStop(): String {
-            val channel = runtime.catalog.catalog().channels.first().id
+            val channel = runtime.lineup.entries().first().id
             val opened = client.post("/api/v1/playback-sessions") {
                 bearerAuth(device)
                 contentType(ContentType.Application.Json)
@@ -127,6 +128,7 @@ class HistoryApiTest {
             val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
             try {
                 runtime.feeds.refresh(fixture.feed)
+                runtime.adoptAll()
                 application { backendModule(store, MutableClock(), runtime, token, admin, config = config) }
                 History(this, runtime, runtime.tokens.pair("tv-1", "TV")).block()
             } finally {

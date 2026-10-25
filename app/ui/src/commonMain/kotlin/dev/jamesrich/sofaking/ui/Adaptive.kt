@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -147,6 +148,8 @@ internal fun Modifier.trackLastInput(last: LastInput): Modifier = this
     }
     .pointerInput(last) {
         awaitPointerEventScope {
+            // Compose keeps no previous position for a pointer that is not pressed, so the cursor's is kept here.
+            var cursorAt: Offset? = null
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 if (event.type == PointerEventType.Press || event.type == PointerEventType.Scroll) {
@@ -154,9 +157,9 @@ internal fun Modifier.trackLastInput(last: LastInput): Modifier = this
                     last.atMs = uptimeMs()
                 }
                 // The root does not move, so a cursor that stayed put while the layout moved under it reads unmoved.
-                val moved = event.changes.any {
-                    it.type == PointerType.Mouse && it.position != it.previousPosition
-                }
+                val mouse = event.changes.firstOrNull { it.type == PointerType.Mouse } ?: continue
+                val moved = cursorAt != null && mouse.position != cursorAt
+                cursorAt = mouse.position
                 if (event.type == PointerEventType.Move && moved) last.cursorMovedAtMs = uptimeMs()
             }
         }

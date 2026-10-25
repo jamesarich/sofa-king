@@ -13,6 +13,8 @@ Every feature is in the one free build. There is no paid tier, so nothing below 
 - **Media libraries** read with the names Plex, Jellyfin and Kodi use, matched on TMDB, with intro and credits detection, scrub thumbnails and conversion on the fly, in software or on the GPU ([media libraries](../backend/docs/libraries.md)).
 - **First-party apps** on every platform above, one codebase, with the same guide, player and library on each ([using the app](../app/docs/usage.md)).
 - **Household features**: shared favorites and hidden channels, Continue watching, a watchlist, On Later, and kids mode behind the Settings PIN.
+- **Channels of your own**: [virtual channels](../backend/docs/virtual-channels.md) that play a library on a schedule, with live slots and breaks you choose, and [multiview](../app/docs/usage.md#multiview) of two to four channels, drawn on the server.
+- **Homelab hooks**: Sonarr and Radarr tell the server what changed ([integrations](../backend/docs/integrations.md)), alerts go to a webhook, ntfy or Apprise ([notifications](../backend/docs/notifications.md)), and each device or tool gets its own token, scoped to what it needs.
 - **Outputs for other players**: an HDHomeRun tuner for Plex Live TV, and an M3U playlist with an XMLTV guide for Jellyfin, Channels DVR and IPTV players ([third-party players](../backend/docs/live-tv.md#third-party-players)).
 
 ## Next to the usual servers

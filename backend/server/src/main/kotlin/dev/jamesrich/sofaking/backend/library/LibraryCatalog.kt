@@ -314,12 +314,7 @@ class LibraryCatalog internal constructor(
         val id = view.record.id
         val duration = update.durationMs ?: view.record.durationMs ?: old?.durationMs
         update.dismissed?.let { dismissed ->
-            val state = old ?: PlayStateRecord(id, 0, duration, false, now)
-            if (!dismissed && !state.played) {
-                store.savePlayStates(emptyList(), listOf(id))
-            } else {
-                store.savePlayStates(listOf(state.copy(dismissed = dismissed)))
-            }
+            store.dismiss(old ?: PlayStateRecord(id, 0, duration, false, now), dismissed)
             return
         }
         val share = if (duration != null && duration > 0) update.positionMs.toDouble() / duration else null
@@ -334,6 +329,18 @@ class LibraryCatalog internal constructor(
         } else {
             store.savePlayStates(listOf(PlayStateRecord(id, position, duration, watched, now)))
         }
+    }
+}
+
+/**
+ * Takes [state]'s item off Continue watching, or with [dismissed] false puts it back; a row with nothing played is
+ * deleted rather than kept.
+ */
+private suspend fun BackendStore.dismiss(state: PlayStateRecord, dismissed: Boolean) {
+    if (!dismissed && !state.played) {
+        savePlayStates(emptyList(), listOf(state.itemId))
+    } else {
+        savePlayStates(listOf(state.copy(dismissed = dismissed)))
     }
 }
 

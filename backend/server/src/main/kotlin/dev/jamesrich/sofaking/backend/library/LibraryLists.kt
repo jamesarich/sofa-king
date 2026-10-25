@@ -103,8 +103,9 @@ internal fun related(snapshot: Snapshot, view: View): List<View> {
 internal fun continueWatching(snapshot: Snapshot, states: Map<String, PlayStateRecord>): List<View> {
     val picks = LinkedHashMap<String, Pair<View, String>>()
     for (state in states.values) {
+        if (state.positionMs == 0L || state.dismissed) continue
         val view = snapshot.views[state.itemId]
-        if (view != null && view.record.kind != ItemKind.EXTRA && state.positionMs > 0 && !state.dismissed) {
+        if (view != null && view.record.kind != ItemKind.EXTRA) {
             picks[view.record.id] = view to state.updatedAt
         }
     }

@@ -233,6 +233,14 @@ internal object LibraryMetadataRows : Table("library_metadata") {
     override val primaryKey = PrimaryKey(itemId)
 }
 
+/** The TMDB entry someone chose by hand for a movie or show, which every scan looks up in place of a search. */
+internal object LibraryMatchRows : Table("library_match") {
+    val itemId = text("item_id")
+    val tmdbId = integer("tmdb_id")
+    val chosenAt = text("chosen_at")
+    override val primaryKey = PrimaryKey(itemId)
+}
+
 /**
  * One episode's audio fingerprints and the intro and credits found from them. [fileKey] is the file's size and change
  * time when it was read, so a replaced file is read again; [fingerprint] is null when the file had no audio to read.

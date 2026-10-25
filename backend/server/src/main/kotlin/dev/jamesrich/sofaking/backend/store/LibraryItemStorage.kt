@@ -26,6 +26,11 @@ suspend fun BackendStore.libraryItems(libraryId: String): List<LibraryItemRecord
     LibraryItems.selectAll().where { LibraryItems.libraryId eq libraryId }.map { it.item() }
 }
 
+/** One item, present or missing; null when no library holds it. */
+suspend fun BackendStore.libraryItem(id: String): LibraryItemRecord? = read {
+    LibraryItems.selectAll().where { LibraryItems.id eq id }.singleOrNull()?.item()
+}
+
 /** Present items by library and kind, for the portal's counts. */
 suspend fun BackendStore.libraryItemCounts(): Map<String, Map<String, Int>> = read {
     val count = LibraryItems.id.count()
@@ -55,6 +60,7 @@ suspend fun BackendStore.deleteLibraryItems(ids: Collection<String>) = query {
     ids.chunked(ROW_CHUNK).forEach { chunk ->
         PlayStates.deleteWhere { itemId inList chunk }
         LibraryMetadataRows.deleteWhere { itemId inList chunk }
+        LibraryMatchRows.deleteWhere { itemId inList chunk }
         LibraryIntroRows.deleteWhere { itemId inList chunk }
         LibraryItems.deleteWhere { id inList chunk }
     }

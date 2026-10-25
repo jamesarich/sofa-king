@@ -50,6 +50,7 @@ internal fun libraryPage(chrome: Chrome, view: LibraryView): String = layout("Li
             "app's Library tab plays them, " +
             "direct or transcoded to suit each device. Each library is scanned every six hours and when you ask.",
     )
+    tabs(chrome, "/admin/library", LIBRARY_TABS)
     librariesPanel(chrome, view)
     removeDialog(chrome, view)
     tmdbPanel(chrome, view)

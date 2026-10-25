@@ -44,6 +44,7 @@ suspend fun BackendStore.deleteLibrary(id: String): Boolean = query {
     itemIds.chunked(ROW_CHUNK).forEach { chunk ->
         PlayStates.deleteWhere { itemId inList chunk }
         LibraryMetadataRows.deleteWhere { itemId inList chunk }
+        LibraryMatchRows.deleteWhere { itemId inList chunk }
         LibraryIntroRows.deleteWhere { itemId inList chunk }
     }
     LibraryItems.deleteWhere { libraryId eq id }

@@ -6,10 +6,13 @@ name: Backend
 # ghcr.io/<owner>/sofa-king:main and :sha-<commit>, with a BuildKit SBOM and max-mode provenance stored beside it.
 # Each platform builds on a native runner and pushes by digest, and one job joins the digests under the tags.
 # A pull request builds both platforms and pushes nothing.
-# Hosts that run deploy/sofa-king-update.sh pull :main, so Markdown alone never redeploys them.
+# Hosts that run deploy/sofa-king-update.sh pull :main, so Markdown alone never redeploys them. A `v*` tag, which
+# release.yml publishes the app for, publishes the same image as :X.Y.Z, :X.Y and :latest instead of :main; path filters
+# do not apply to tags.
 on:
   push:
     branches: [main]
+    tags: ["v*"]
     paths:
       - "backend/**"
       - "!backend/docs/**"
@@ -160,7 +163,7 @@ jobs:
     outputs:
       version: ${{ steps.names.outputs.version }}
     env:
-      PUBLISH: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+      PUBLISH: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -262,7 +265,7 @@ jobs:
 
   publish:
     needs: image
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -291,8 +294,13 @@ jobs:
           VERSION: ${{ needs.image.outputs.version }}
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sofa-king"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tags=(--tag "$image:$VERSION" --tag "$image:${VERSION%.*}" --tag "$image:latest")
+          else
+            tags=(--tag "$image:main")
+          fi
           docker buildx imagetools create \
-            --tag "$image:main" \
+            "${tags[@]}" \
             --tag "$image:sha-${GITHUB_SHA::7}" \
             --annotation "index:org.opencontainers.image.title=Sofa King server" \
             --annotation "index:org.opencontainers.image.description=Self-hosted media center server: live TV from free streaming services, tuners and playlists in one lineup, a DVR with commercial detection, and movie and TV libraries converted on the fly; also an HDHomeRun tuner for Plex" \
@@ -301,4 +309,4 @@ jobs:
             --annotation "index:org.opencontainers.image.revision=${GITHUB_SHA::7}" \
             --annotation "index:org.opencontainers.image.version=$VERSION" \
             $(printf "$image@sha256:%s " *)
-          docker buildx imagetools inspect "$image:main"
+          docker buildx imagetools inspect "$image:sha-${GITHUB_SHA::7}"

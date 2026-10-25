@@ -1,7 +1,9 @@
-# The notes of the rolling `snapshot` release, rendered by git-cliff from the squash-merge titles on `main`, which are
-# Conventional Commits. `publish-snapshot.yml` runs it over the commits since the previous snapshot. Only `feat`, `fix`
-# and `perf` reach the notes; tests, CI, docs and Renovate's `build(deps)` updates do not. The lines stay plain text
-# (GitHub links the `(#123)` itself), since the app's update check reads them too: keep the `New` and `Fixes` group
+# The notes of the rolling `snapshot` release and of each tagged release, rendered by git-cliff from the squash-merge
+# titles on `main`, which are Conventional Commits. `publish-snapshot.yml` runs it over the commits since the previous
+# snapshot, `publish-release.yml` over those since the previous `v*` tag. A breaking change (`feat!:`, or a
+# `BREAKING CHANGE:` footer) goes under Upgrade notes whatever its type; otherwise only `feat`, `fix` and `perf` reach
+# the notes, and tests, CI, docs and Renovate's `build(deps)` updates do not. The lines stay plain text (GitHub links
+# the `(#123)` itself), since the app's update check reads them too: keep the `Upgrade notes`, `New` and `Fixes` group
 # names and the `- scope: summary` shape in step with `UpdateChecker.releaseNotes`.
 
 [changelog]
@@ -21,7 +23,8 @@ filter_unconventional = true
 filter_commits = true
 sort_commits = "newest"
 commit_parsers = [
-  { message = "^feat", group = "<!-- 0 -->New" },
-  { message = "^(fix|perf)", group = "<!-- 1 -->Fixes" },
+  { field = "breaking", pattern = "true", group = "<!-- 0 -->Upgrade notes" },
+  { message = "^feat", group = "<!-- 1 -->New" },
+  { message = "^(fix|perf)", group = "<!-- 2 -->Fixes" },
   { message = ".*", skip = true },
 ]

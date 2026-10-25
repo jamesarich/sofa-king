@@ -1,7 +1,8 @@
 name: Snapshot
 
 # Builds the packages of the rolling `snapshot` prerelease. CI calls it for a main push, alongside the checks, and
-# publishes once everything is green; a manual run builds and publishes by itself.
+# publishes once everything is green; a manual run builds and publishes by itself. `release.yml` calls it for a `v*` tag,
+# where version.sh drops the suffix, and publishes the same packages as that version's release.
 on:
   workflow_call:
     inputs:
@@ -64,7 +65,8 @@ jobs:
         run: |
           eval "$(.github/version.sh)"
           published=$(gh release view snapshot --repo "$GITHUB_REPOSITORY" --json name --jq .name 2>/dev/null | sed -n 's/.*-dev\.\([0-9]*\).*/\1/p' || true)
-          if [ -n "$published" ] && [ "$((published + 1))" -gt "$code" ]; then
+          # A tagged release keeps the commit count; only snapshots step past each other.
+          if [ -n "$suffix" ] && [ -n "$published" ] && [ "$((published + 1))" -gt "$code" ]; then
             code=$((published + 1))
             suffix="-dev.$code+${GITHUB_SHA::7}"
             version="${version%%-dev.*}$suffix"

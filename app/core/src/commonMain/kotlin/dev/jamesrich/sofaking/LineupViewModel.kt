@@ -83,7 +83,7 @@ class LineupViewModel(
     private val connection: ServerConnection,
     /** How this device names itself when it pairs. */
     client: ClientInfo = ClientInfo(),
-    /** Reads the published snapshot for the update check in Settings. */
+    /** Reads the published snapshot or release for the update check in Settings. */
     private val updateChecker: UpdateChecker = UpdateChecker(),
     /** Where the guide window and the cache's expiry read the time. */
     clock: Clock = Clock.System,
@@ -220,15 +220,15 @@ class LineupViewModel(
     }
 
     /**
-     * Compares [runningVersion] with the published snapshot, once per process unless [again] is set, since GitHub
-     * limits anonymous calls; the answer lands in [update].
+     * Compares [runningVersion] with the published build of its channel, once per process unless [again] is set, since
+     * GitHub limits anonymous calls; the answer lands in [update].
      */
     fun checkForUpdate(runningVersion: String, again: Boolean = false) {
         if (!again && _update.value != null) return
         _update.value = UpdateState.Checking
         viewModelScope.launch {
             val latest = runCatchingCancellable {
-                updateChecker.latest()
+                updateChecker.latest(runningVersion)
             }.getOrElse { e ->
                 log.w { "update check failed: ${e.message}" }
                 null

@@ -1,0 +1,34 @@
+name: Release
+
+# Publishes a stable release for a `v*` tag, such as v0.1.0, whose version must match the catalog's `sofaking`
+# (.github/version.sh refuses any other). It builds the same packages as a snapshot through snapshot.yml, then
+# publish-release.yml makes them the `vX.Y.Z` release, which GitHub marks the latest. The server image for the same tag
+# comes from backend.yml as :X.Y.Z, :X.Y and :latest.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    uses: ./.github/workflows/snapshot.yml
+    with:
+      publish: false
+    secrets:
+      ANDROID_DEBUG_KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
+      ANDROID_RELEASE_KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE }}
+      ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+      ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+      SOFAKING_CACHE_USERNAME: ${{ secrets.SOFAKING_CACHE_USERNAME }}
+      SOFAKING_CACHE_PASSWORD: ${{ secrets.SOFAKING_CACHE_PASSWORD }}
+      GRADLE_ENCRYPTION_KEY: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+  publish:
+    needs: packages
+    permissions:
+      contents: write
+    uses: ./.github/workflows/publish-release.yml
+    with:
+      version: ${{ needs.packages.outputs.version }}

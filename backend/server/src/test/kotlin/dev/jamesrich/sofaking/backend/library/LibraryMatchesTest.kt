@@ -72,6 +72,7 @@ class LibraryMatchesTest {
         )
         val matches = assertNotNull(service.matches)
         val library = service.create("Movies", LibraryKind.MOVIES, root.resolve("movies").toString())
+        service.scan(library.id)
         val movie = store.libraryItems(library.id).single()
         assertNull(store.libraryMetadata(listOf(movie.id)).getValue(movie.id).tmdbId, "the search missed it")
 

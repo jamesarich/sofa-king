@@ -22,9 +22,9 @@ internal const val WEB_APP_PATH = "/app"
  * media source buffers.
  */
 internal const val WEB_APP_CSP =
-    "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; " +
-        "media-src 'self' blob:; connect-src 'self' https:; worker-src 'self'; frame-ancestors 'none'; " +
-        "base-uri 'none'; form-action 'none'"
+    "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https:; worker-src 'self'; " +
+        "frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 
 /** A bundle file named by its content's hash, as webpack names the `.wasm` files, which never changes in place. */
 private val HASHED_NAME = Regex("[0-9a-f]{16,}\\.wasm")

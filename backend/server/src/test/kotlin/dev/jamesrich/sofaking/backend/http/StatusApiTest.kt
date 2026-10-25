@@ -69,48 +69,47 @@ class StatusApiTest {
         }
     }
 
-    @Test fun `the dashboard summary takes a read token, the API token or a device token, and no other`() =
-        testApplication {
-            val dir = Files.createTempDirectory("sofa-status-summary-")
-            Fixture().use { fixture ->
-                val sources = dir.resolve("sources.json")
-                Files.writeString(sources, json.encodeToString(listOf(fixture.feed)))
-                val config = ServerConfig(
-                    "127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin,
-                    hdhr = HdhrConfig(enabled = false), revision = "abc1234",
-                )
-                val store = openStore(dir)
-                val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
-                try {
-                    runtime.feeds.refresh(fixture.feed)
-                    application { backendModule(store, MutableClock(), runtime, token, admin, config = config) }
-                    val read = runtime.tokens.create("Homepage", TokenScope.READ).second
-                    val hook = runtime.tokens.create("Sonarr", TokenScope.HOOK).second
-                    val device = runtime.tokens.pair("tv-1", "TV")
-                    val response = client.get("/api/v1/status") { bearerAuth(read) }
-                    assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
-                    val summary = Json.decodeFromString<StatusSummary>(response.bodyAsText())
-                    assertEquals("abc1234", summary.revision)
-                    assertEquals(0, summary.sessions)
-                    assertEquals(StatusRecordings(0, 0, 0), summary.recordings)
-                    assertEquals(StatusLibraries(0, 0, 0, 0, 0), summary.libraries)
-                    assertNull(summary.updateAvailable, "no update check has run")
-                    for (opens in listOf(token, device)) {
-                        assertEquals(HttpStatusCode.OK, client.get("/api/v1/status") { bearerAuth(opens) }.status)
-                    }
-                    for (refused in listOf(hook, admin, "")) {
-                        assertEquals(
-                            HttpStatusCode.Unauthorized,
-                            client.get("/api/v1/status") { bearerAuth(refused) }.status,
-                        )
-                    }
-                } finally {
-                    runtime.close()
-                    store.close()
-                    dir.toFile().deleteRecursively()
+    @Test fun `the dashboard summary takes a read, API or device token and no other`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-status-summary-")
+        Fixture().use { fixture ->
+            val sources = dir.resolve("sources.json")
+            Files.writeString(sources, json.encodeToString(listOf(fixture.feed)))
+            val config = ServerConfig(
+                "127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin,
+                hdhr = HdhrConfig(enabled = false), revision = "abc1234",
+            )
+            val store = openStore(dir)
+            val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
+            try {
+                runtime.feeds.refresh(fixture.feed)
+                application { backendModule(store, MutableClock(), runtime, token, admin, config = config) }
+                val read = runtime.tokens.create("Homepage", TokenScope.READ).second
+                val hook = runtime.tokens.create("Sonarr", TokenScope.HOOK).second
+                val device = runtime.tokens.pair("tv-1", "TV")
+                val response = client.get("/api/v1/status") { bearerAuth(read) }
+                assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+                val summary = Json.decodeFromString<StatusSummary>(response.bodyAsText())
+                assertEquals("abc1234", summary.revision)
+                assertEquals(0, summary.sessions)
+                assertEquals(StatusRecordings(0, 0, 0), summary.recordings)
+                assertEquals(StatusLibraries(0, 0, 0, 0, 0), summary.libraries)
+                assertNull(summary.updateAvailable, "no update check has run")
+                for (opens in listOf(token, device)) {
+                    assertEquals(HttpStatusCode.OK, client.get("/api/v1/status") { bearerAuth(opens) }.status)
                 }
+                for (refused in listOf(hook, admin, "")) {
+                    assertEquals(
+                        HttpStatusCode.Unauthorized,
+                        client.get("/api/v1/status") { bearerAuth(refused) }.status,
+                    )
+                }
+            } finally {
+                runtime.close()
+                store.close()
+                dir.toFile().deleteRecursively()
             }
         }
+    }
 
     @Test fun `the status names the revision, start time, uptime and schema`() = status { status, _, started ->
         assertEquals("abc1234", status.revision)

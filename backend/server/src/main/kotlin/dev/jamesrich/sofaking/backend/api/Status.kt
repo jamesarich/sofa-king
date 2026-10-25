@@ -72,10 +72,5 @@ data class StatusPolicy(val revision: String, val lastRunAt: String? = null, val
 @Serializable data class StatusNextRecording(val title: String, val channelName: String, val startsAt: String)
 
 /** The libraries and their present items by kind. */
-@Serializable data class StatusLibraries(
-    val libraries: Int,
-    val movies: Int,
-    val shows: Int,
-    val episodes: Int,
-    val videos: Int,
-)
+@Serializable
+data class StatusLibraries(val libraries: Int, val movies: Int, val shows: Int, val episodes: Int, val videos: Int)

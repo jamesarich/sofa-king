@@ -28,7 +28,8 @@ SPEC = ROOT / 'server/src/main/resources/api/openapi.json'
 TOKEN = 'local-fuzz-token-' + 'x' * 40
 # PUT source-file, PUT tmdb-token and POST policy/starter save and restart (SetupService.requestRestart).
 RESTARTS = r'/admin/(source-file|tmdb-token|policy/starter)$'
-# The admin event stream stays open until the client leaves, so each example would wait out the run.
+# The admin event stream stays open until the client leaves, so each example would wait out the run. Schemathesis
+# keeps only the last --exclude-path-regex, so both go in one.
 ENDLESS = r'/admin/events/stream$'
 # Schemathesis reads schemathesis.toml from the directory it runs in.
 CONFIG = '''[[operations]]
@@ -80,8 +81,7 @@ def main():
                     '--header', f'Authorization: Bearer {TOKEN}',
                     '--checks', 'not_a_server_error,response_schema_conformance,content_type_conformance',
                     '--max-examples', examples,
-                    '--exclude-path-regex', RESTARTS,
-                    '--exclude-path-regex', ENDLESS,
+                    '--exclude-path-regex', f'{RESTARTS}|{ENDLESS}',
                 ], cwd=directory, env=dict(os.environ, SCHEMATHESIS_HOOKS=str(directory / 'hooks.py')))
                 if process.poll() is not None:
                     raise SystemExit(f'Server exited during the run: {process.returncode}\n' + log_path.read_text()[-4000:])

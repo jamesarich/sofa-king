@@ -59,6 +59,7 @@ import dev.jamesrich.sofaking.backend.store.savePlexStatus
 import dev.jamesrich.sofaking.backend.update.RunningBuild
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
+import dev.jamesrich.sofaking.backend.virtual.LineupSlots
 import dev.jamesrich.sofaking.backend.virtual.VirtualChannelService
 import dev.jamesrich.sofaking.backend.virtual.VirtualClient
 import dev.jamesrich.sofaking.backend.virtual.VirtualStreams
@@ -359,7 +360,7 @@ internal class RuntimeAssembly(
 
     /**
      * Library playback and the virtual channels' streams, which share `SOFA_MAX_TRANSCODES`: each counts the other's
-     * conversions, and the streams are served on the loopback listener.
+     * conversions, the streams are served on the loopback listener, and their live slots play the lineup.
      */
     private suspend fun playback(dvr: Dvr, libraries: LibraryService): Pair<VodSessions, VirtualStreams> {
         lateinit var streams: VirtualStreams
@@ -386,6 +387,7 @@ internal class RuntimeAssembly(
             converting + streams.running < config.maxTranscodes
         }
         loopback.local = streams::serve
+        virtual.live = LineupSlots(lineup, guides, feeds, sessions, loopback)
         return vod to streams
     }
 }

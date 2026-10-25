@@ -7,7 +7,9 @@ import dev.jamesrich.sofaking.backend.api.VirtualAiring
 import dev.jamesrich.sofaking.backend.api.VirtualChannel
 import dev.jamesrich.sofaking.backend.api.VirtualSlot
 import dev.jamesrich.sofaking.backend.api.VirtualSource
+import dev.jamesrich.sofaking.backend.catalog.MediaFixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
+import dev.jamesrich.sofaking.backend.catalog.adoptAll
 import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.LibraryRecord
 import dev.jamesrich.sofaking.backend.pollFor
@@ -57,7 +59,17 @@ class VirtualChannelsTest {
         val runtime: LiveRuntime,
         val library: LibraryRecord,
         val dir: Path,
-    )
+    ) {
+        /** The URL the virtual channel [name] plays from, once its provider lists it. */
+        suspend fun streamUrl(name: String): String {
+            val offering = pollFor(10_000) {
+                runtime.feeds.published.channels("virtual").firstOrNull { it.name == name }?.let {
+                    runtime.feeds.published.offeringsOf(it.id).firstOrNull()
+                }
+            }
+            return runtime.feeds.playable(offering).url
+        }
+    }
 
     /** What the streams' FFmpeg said, for a failure's message. */
     private fun logs(dir: Path): String = Files.walk(dir.resolve("virtual")).use { paths ->
@@ -133,6 +145,27 @@ class VirtualChannelsTest {
         assertEquals(404, fetch(stream.url).statusCode())
     }
 
+    @Test fun `a timed slot airs a live channel of the lineup in a session of its own`() = MediaFixture().use { media ->
+        server(media) {
+            runtime.feeds.refresh(media.feed)
+            runtime.adoptAll()
+            val entry = runtime.lineup.entries().single { it.name == "Live" }
+            val untimed = VirtualChannel(name = "News", slots = listOf(live(entry.id)))
+            val refused = app.client.post("/api/v1/admin/virtual-channels") { body(untimed) }
+            assertEquals(HttpStatusCode.BadRequest, refused.status)
+            assertTrue("timed slot" in refused.bodyAsText())
+            val channel = create(VirtualChannel(name = "News", slots = listOf(live(entry.id).copy(start = "00:00"))))
+            val schedule = runtime.virtual!!.schedule(channel.id, MutableClock().now, MutableClock().now.plusSeconds(1))
+            assertEquals("Live: ${entry.number} Live", schedule.single().title)
+            assertEquals(entry.name, runtime.virtual!!.programs(setOf(channel.id)).first().title)
+            val url = streamUrl("News")
+            val text = fetch(url).body().decodeToString()
+            assertTrue(text.lines().count { it.endsWith(".ts") } >= 3, text + logs(dir))
+            assertTrue(media.liveRequests.get() > 0, "the live channel's source was read")
+            assertTrue(runtime.sessions.count() >= 1, "the slot holds a session")
+        }
+    }
+
     @Test fun `the portal adds a channel from the form and shows what it airs`() = server {
         val browser = app.createClient {
             install(HttpCookies)
@@ -176,6 +209,8 @@ class VirtualChannelsTest {
 
     private fun slot(library: String) = VirtualSlot(VirtualSource(SourceKind.LIBRARY, library))
 
+    private fun live(entry: String) = VirtualSlot(VirtualSource(SourceKind.CHANNEL, entry))
+
     private fun io.ktor.client.request.HttpRequestBuilder.body(channel: VirtualChannel) {
         bearerAuth(admin)
         contentType(ContentType.Application.Json)
@@ -216,13 +251,14 @@ class VirtualChannelsTest {
         }
     }
 
-    /** A server with a `virtual` source and the clip as a movie library, scanned. */
-    private fun server(block: suspend Virtual.() -> Unit) = testApplication {
+    /** A server with a `virtual` source, [media]'s feed when given, and the clip as a movie library, scanned. */
+    private fun server(media: MediaFixture? = null, block: suspend Virtual.() -> Unit) = testApplication {
         val dir = Files.createTempDirectory("sofa-virtual-")
         clip(dir.resolve("media/movies/Clip (2020)/Clip (2020).mkv"))
+        val feed = media?.let { """,{"id":"media","playlistUrl":"${it.feed.playlistUrl}","probe":false}""" }.orEmpty()
         Files.writeString(
             dir.resolve("sources.json"),
-            """{"providers":[{"id":"virtual","type":"native","service":"virtual"}]}""",
+            """{"providers":[{"id":"virtual","type":"native","service":"virtual"}$feed]}""",
         )
         val config = ServerConfig(
             "127.0.0.1",
@@ -233,6 +269,7 @@ class VirtualChannelsTest {
             adminToken = admin,
             hdhr = HdhrConfig(enabled = false),
             updateImage = null,
+            allowLoopbackUpstreams = media != null,
         )
         val store = openStore(dir)
         val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)

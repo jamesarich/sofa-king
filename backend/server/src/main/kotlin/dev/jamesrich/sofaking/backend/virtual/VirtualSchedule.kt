@@ -22,15 +22,25 @@ data class Airing(
 /** An item a slot or the filler can air, and how long it runs. */
 class PoolItem(val id: String, val durationMs: Long)
 
-/** A slot as the schedule reads it: its items in play order, shuffled or not, and its start in minutes of the day. */
-class ScheduleSlot(val position: Int, val items: List<PoolItem>, val shuffle: Boolean, val startMinute: Int? = null)
+/**
+ * A slot as the schedule reads it: its items in play order, shuffled or not, and its start in minutes of the day. A
+ * timed slot with [live], an airing ID from [liveAiringId], airs that live channel for its whole window instead.
+ */
+class ScheduleSlot(
+    val position: Int,
+    val items: List<PoolItem>,
+    val shuffle: Boolean,
+    val startMinute: Int? = null,
+    val live: String? = null,
+)
 
 /**
  * Extends a virtual channel's schedule. Untimed slots take turns, one item each; a timed slot runs from its start until
  * the next one's, as many whole items as fit, and the first item of a slot always airs even when it runs past the
  * next start, which then starts late. In order, a slot plays the item after the one it aired last; shuffled, an item
  * it has not aired among its last ones. After each item the schedule fills to the next [padMinutes] mark, and before a
- * timed slot's start, with [filler] items that fit, and a blank picture for the rest. [history] is what aired before,
+ * timed slot's start, with [filler] items that fit, and a blank picture for the rest. A live slot airs its channel
+ * from its start, or from when the slot before it ends, to the next start. [history] is what aired before,
  * oldest first, which the order and the shuffle continue from.
  */
 internal class ScheduleBuilder(
@@ -85,11 +95,18 @@ internal class ScheduleBuilder(
      * [first] of the window; otherwise filler and blank take the window to its end.
      */
     private fun nextTimed(at: Instant, current: Window, first: Boolean): Instant {
-        val item = next(current.slot)
-        if (item == null || (!first && at.plusMillis(item.durationMs) > current.end)) return fill(at, current.end)
-        val end = add(Airing(at, at.plusMillis(item.durationMs), item.id, current.slot.position))
-        if (end >= current.end) return end
-        return mark(end)?.let { fill(end, minOf(it, current.end)) } ?: end
+        val live = current.slot.live
+        val item = if (live == null) next(current.slot) else null
+        return when {
+            live != null -> add(Airing(at, current.end, live, current.slot.position))
+
+            item == null || (!first && at.plusMillis(item.durationMs) > current.end) -> fill(at, current.end)
+
+            else -> {
+                val end = add(Airing(at, at.plusMillis(item.durationMs), item.id, current.slot.position))
+                if (end >= current.end) end else mark(end)?.let { fill(end, minOf(it, current.end)) } ?: end
+            }
+        }
     }
 
     private class Window(val slot: ScheduleSlot, val start: Instant, val end: Instant)

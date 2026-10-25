@@ -31,7 +31,8 @@ import kotlin.random.Random
  * The virtual channels: each a schedule of library items that the server plays as a live channel. The schedule is
  * built [AHEAD] ahead and stored, so the guide, the stream and a restart agree on what airs when; it is extended
  * whenever less than [REFILL] of it is left, and an edit rebuilds it from the end of what airs now. [onChanged] hears
- * of every channel added, changed or removed, and [zone] is where the slots' times of day are.
+ * of every channel added, changed or removed, and [zone] is where the slots' times of day are. [live] is the lineup a
+ * slot can play a live channel from, set once the playback sessions exist.
  */
 class VirtualChannelService(
     private val store: BackendStore,
@@ -43,6 +44,8 @@ class VirtualChannelService(
 ) {
     private val log = LoggerFactory.getLogger(VirtualChannelService::class.java)
     private val lock = Mutex()
+
+    @Volatile var live: LiveLineup? = null
 
     suspend fun channels(): List<VirtualChannel> = store.virtualChannels()
 
@@ -65,9 +68,14 @@ class VirtualChannelService(
     suspend fun schedule(id: String, from: Instant, to: Instant): List<VirtualAiring> {
         val airings = airings(channel(id), from, to)
         val snapshot = catalog.snapshot()
+        val lineup = live?.choices().orEmpty()
         return airings.map { airing ->
-            val title =
-                airing.itemId?.let { snapshot.playable(it)?.title } ?: if (airing.itemId == null) BLANK else GONE
+            val entry = liveEntryOf(airing.itemId)
+            val title = when {
+                entry != null -> lineup[entry]?.let { "Live: $it" } ?: GONE_LIVE
+                airing.itemId == null -> BLANK
+                else -> snapshot.playable(airing.itemId)?.title ?: GONE
+            }
             VirtualAiring(airing.startsAt.toString(), airing.endsAt.toString(), title, airing.itemId, airing.filler)
         }
     }
@@ -89,6 +97,11 @@ class VirtualChannelService(
         return channels().filter { it.id in wanted }.flatMap { channel ->
             val programs = ArrayList<GuideProgram>()
             for (airing in airings(channel, now, now.plus(AHEAD)).dropWhile { it.endsAt <= now }) {
+                val entry = liveEntryOf(airing.itemId)
+                if (entry != null) {
+                    programs += live.programsOf(channel, entry, airing)
+                    continue
+                }
                 val item = airing.itemId?.takeUnless { airing.filler }?.let { snapshot.playable(it) }
                 val last = programs.lastOrNull()
                 programs += when {
@@ -102,7 +115,7 @@ class VirtualChannelService(
     }
 
     private suspend fun save(channel: VirtualChannel): VirtualChannel {
-        val clean = validated(channel, catalog.snapshot())
+        val clean = validated(channel, catalog.snapshot(), live?.choices().orEmpty())
         lock.withLock {
             store.saveVirtualChannel(clean, clock.instant(), keepUntil = clock.instant())
         }
@@ -144,6 +157,7 @@ class VirtualChannelService(
 
         const val BLANK = "Blank"
         const val GONE = "Missing item"
+        const val GONE_LIVE = "Missing live channel"
         private const val NAME_LIMIT = 100
         private const val SLOT_LIMIT = 50
         private val PAD_MINUTES = setOf(0, 15, 30, 60)
@@ -156,7 +170,7 @@ class VirtualChannelService(
             throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", message)
 
         /** [channel] trimmed, or a 400 naming what is wrong with it. */
-        internal fun validated(channel: VirtualChannel, snapshot: Snapshot): VirtualChannel {
+        internal fun validated(channel: VirtualChannel, snapshot: Snapshot, live: Map<String, String>): VirtualChannel {
             val name = channel.name.trim()
             if (name.isEmpty() || name.length > NAME_LIMIT) invalid("A name of 1 to $NAME_LIMIT characters is required")
             val number = channel.number?.trim()?.ifEmpty { null }
@@ -175,8 +189,7 @@ class VirtualChannelService(
             ) {
                 invalid("Two slots start together")
             }
-            val sources = channel.slots.map { it.source.trimmed() } + listOfNotNull(channel.filler?.trimmed())
-            sources.firstOrNull { !snapshot.exists(it) }?.let { invalid("No ${it.kind} ${it.value}") }
+            checkSources(channel, timed = starts.all { it != null }, snapshot, live)
             return channel.copy(
                 name = name,
                 number = number,
@@ -185,6 +198,24 @@ class VirtualChannelService(
                 },
                 filler = channel.filler?.trimmed(),
             )
+        }
+
+        /** A 400 for a source of [channel] that does not exist or a live channel where one cannot play. */
+        private fun checkSources(
+            channel: VirtualChannel,
+            timed: Boolean,
+            snapshot: Snapshot,
+            live: Map<String, String>,
+        ) {
+            val sources = channel.slots.map { it.source.trimmed() } + listOfNotNull(channel.filler?.trimmed())
+            if (!timed &&
+                sources.any { it.kind == SourceKind.CHANNEL }
+            ) {
+                invalid("A live channel plays in a timed slot only")
+            }
+            if (channel.filler?.kind == SourceKind.CHANNEL) invalid("A live channel cannot be the filler")
+            sources.firstOrNull { if (it.kind == SourceKind.CHANNEL) it.value !in live else !snapshot.exists(it) }
+                ?.let { invalid("No ${it.kind} ${it.value}") }
         }
 
         private fun VirtualSource.trimmed(): VirtualSource {
@@ -203,7 +234,8 @@ private fun Snapshot.builder(
     random: Random,
 ): ScheduleBuilder {
     val slots = channel.slots.mapIndexed { index, slot ->
-        ScheduleSlot(index, playables(slot.source).map { it.pool }, slot.shuffle, slot.start?.let(::minuteOf))
+        val live = slot.source.takeIf { it.kind == SourceKind.CHANNEL }?.let { liveAiringId(it.value) }
+        ScheduleSlot(index, playables(slot.source).map { it.pool }, slot.shuffle, slot.start?.let(::minuteOf), live)
     }
     val filler = channel.filler?.let { source -> playables(source).map { it.pool } }.orEmpty()
     return ScheduleBuilder(slots, filler, channel.padMinutes, zone, history, random)
@@ -212,3 +244,22 @@ private fun Snapshot.builder(
 private fun newId(): String = HexFormat.of().formatHex(ByteArray(ID_BYTES).also(SecureRandom()::nextBytes))
 
 private const val ID_BYTES = 6
+
+/**
+ * What the guide lists on live channel [entry] during [airing], cut to it and moved to [channel]; the entry's name
+ * where its guide has nothing.
+ */
+private suspend fun LiveLineup?.programsOf(channel: VirtualChannel, entry: String, airing: Airing): List<GuideProgram> {
+    val listed = this?.programs(entry, airing.startsAt, airing.endsAt).orEmpty()
+        .filter { it.endsAt > airing.startsAt && it.startsAt < airing.endsAt }
+        .map {
+            it.copy(
+                channelId = channel.id,
+                startsAt = maxOf(it.startsAt, airing.startsAt),
+                endsAt = minOf(it.endsAt, airing.endsAt),
+            )
+        }
+    if (listed.isNotEmpty()) return listed
+    val name = this?.choices()?.get(entry)?.substringAfter(' ') ?: channel.name
+    return listOf(GuideProgram(channel.id, airing.startsAt, airing.endsAt, name))
+}

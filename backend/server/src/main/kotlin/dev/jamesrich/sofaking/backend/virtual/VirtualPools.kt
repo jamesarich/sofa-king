@@ -17,7 +17,10 @@ object SourceKind {
     const val LIBRARY = "library"
     const val SHOW = "show"
     const val GENRE = "genre"
-    val all = setOf(LIBRARY, SHOW, GENRE)
+
+    /** A live channel of the lineup, by its entry ID, airing for a timed slot's whole window. */
+    const val CHANNEL = "channel"
+    val all = setOf(LIBRARY, SHOW, GENRE, CHANNEL)
 }
 
 /** A movie, episode or video a virtual channel can air: its file, and its length in whole seconds, rounded up. */
@@ -92,7 +95,8 @@ internal fun Snapshot.playables(source: VirtualSource): List<Playable> {
 internal fun Snapshot.exists(source: VirtualSource): Boolean = when (source.kind) {
     SourceKind.LIBRARY -> libraries.any { it.id == source.value }
     SourceKind.SHOW -> views[source.value]?.record?.kind == ItemKind.SHOW
-    else -> source.kind in SourceKind.all
+    SourceKind.GENRE -> true
+    else -> false
 }
 
 /** Every source there is to choose from, labeled: each library, each show, and each genre any title carries. */

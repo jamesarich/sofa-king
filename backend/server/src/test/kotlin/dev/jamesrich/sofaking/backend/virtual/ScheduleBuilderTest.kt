@@ -81,6 +81,17 @@ class ScheduleBuilderTest {
         assertEquals(Instant.parse("2026-10-25T19:40:00Z"), airings[1].startsAt)
     }
 
+    @Test fun `a live slot airs its channel for the whole window, from when the slot before it ends`() {
+        val movies = ScheduleSlot(0, listOf(item("movie", 100)), shuffle = false, startMinute = 18 * 60)
+        val news = ScheduleSlot(1, emptyList(), shuffle = false, startMinute = 19 * 60, live = liveAiringId("news"))
+        val airings = builder(listOf(movies, news)).extend(start, start.plus(Duration.ofHours(3)))
+        val live = airings.filter { liveEntryOf(it.itemId) == "news" }
+        assertEquals(Instant.parse("2026-10-25T19:40:00Z"), live.first().startsAt, "the movie runs on")
+        assertEquals(Instant.parse("2026-10-26T18:00:00Z"), live.first().endsAt)
+        assertEquals(1, live.first().slot)
+        assertTrue(airings.contiguous())
+    }
+
     @Test fun `with nothing to air the schedule is blank`() {
         val airings = builder(listOf(ScheduleSlot(0, emptyList(), shuffle = false)))
             .extend(start, start.plus(Duration.ofHours(1)))

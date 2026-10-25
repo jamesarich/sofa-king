@@ -22,6 +22,7 @@ A channel has one or more **slots**. Each slot plays one source:
 | Library | Every movie, episode and video of the library, titles in order and each show's episodes in its own order |
 | Show | The episodes of one show, in order |
 | Genre | Every movie and show of any library whose genres include it, ignoring case |
+| Live channel | A channel of the lineup as it plays now, for the slot's whole time; timed slots only |
 
 A slot plays its items in order, continuing after the one it aired last, or shuffled, playing each item once before any again. It always airs whole items.
 
@@ -29,6 +30,8 @@ The slots either all have a start time or none do:
 
 - **Untimed** slots take turns, one item each. One untimed slot plays its source end to end.
 - **Timed** slots make a daily grid in the server's time zone (`TZ`). Each runs from its start until the next slot's start, airing as many whole items as fit. The first item of a slot always airs, even when it runs past the next start, which then starts late.
+
+A live channel slot makes a channel that is "the news at six, cartoons otherwise". It airs the lineup channel from its start, or from when the item before it ends, until the next slot's start, and the guide lists that channel's own programs for the time. The lineup's virtual channels are not offered, so a channel never plays itself.
 
 **Fill to the next mark** pads after each item to the next quarter hour, half hour or hour, so items start on the clock as broadcast TV does. The **filler** source fills those gaps, and the gap before a timed slot starts, with items that fit, such as a library of bumpers and trailers. Whatever filler cannot cover shows a black picture with silence.
 
@@ -43,6 +46,8 @@ A channel plays nothing until someone tunes in. The first request starts one FFm
 The conversion uses the encoder `SOFA_HWACCEL` picks, as library playback does. Each playing channel counts toward `SOFA_MAX_TRANSCODES` with the library files being converted; past it, tuning in answers `503 CAPACITY_EXHAUSTED`, and the session moves to the channel's next source if it has one.
 
 The relay fetches the stream from the server's own loopback route, `http://127.0.0.1:{port}/local/{key}/{channel}/live.m3u8`. The listener binds 127.0.0.1 only, and the random key changes at every start, so the route is reachable from nothing but the server. The address policy admits that route alone among loopback URLs.
+
+A live channel slot opens a playback session of its own, the way a recording does: it holds one of `SOFA_MAX_SESSIONS`, picks the channel's healthiest source, and opens the channel again when that source drops. A slot that cannot open, because every session is taken or no source plays, shows black and tries again every 30 seconds.
 
 An item whose file is gone, or one FFmpeg cannot read, shows black for the rest of its time.
 

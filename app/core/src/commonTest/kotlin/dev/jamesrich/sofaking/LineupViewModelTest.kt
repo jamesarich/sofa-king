@@ -159,6 +159,19 @@ class LineupViewModelTest {
     }
 
     @Test
+    fun `a hidden channel leaves the visible lineup and stays in the lineup`() = viewModelTest {
+        val viewModel = start(FakeServer(this))
+        viewModel.state.first { it is LineupState.Ready && !it.lineup.guideLoading }
+
+        settings.setChannelHidden("c1", hidden = true)
+        val ready = assertIs<LineupState.Ready>(
+            viewModel.state.first { it is LineupState.Ready && it.visible.channels.size == 1 },
+        )
+        assertEquals(listOf("c2"), ready.visible.channels.map { it.guideId })
+        assertEquals(listOf("c1", "c2"), ready.lineup.channels.map { it.guideId })
+    }
+
+    @Test
     fun `a cold start loads the channels then the guide and caches the lineup`() = viewModelTest {
         val server = FakeServer(this)
         val viewModel = start(server)

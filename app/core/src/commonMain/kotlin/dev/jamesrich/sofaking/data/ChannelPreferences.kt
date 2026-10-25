@@ -5,6 +5,27 @@ fun visibleChannels(channels: List<Channel>, hidden: Set<String>): List<Channel>
     if (hidden.isEmpty()) channels else channels.filterNot { it.guideId in hidden }
 
 /**
+ * [lineup] as this device shows it in the guide, the channel lists and multiview: without the channels in [hidden],
+ * and in [kids] mode only the kids' channels. The lineup itself when nothing is left out.
+ */
+fun visibleLineup(lineup: Lineup, hidden: Set<String>, kids: Boolean): Lineup {
+    if (hidden.isEmpty() && !kids) return lineup
+    val shown = visibleChannels(lineup.channels, hidden)
+    return lineup.copy(channels = if (kids) KidsMode.channels(shown) else shown)
+}
+
+/**
+ * What the player zaps through when it plays [guideId], or null when it must not play it: hidden channels drop out
+ * of [lineup] only when [AppSettings.zapSkipsHidden] asks, and never under the channel being watched; kids mode zaps
+ * through its own channels ([visible]) and plays no other, however it was asked for.
+ */
+fun playerLineup(lineup: Lineup, visible: Lineup, guideId: String, settings: AppSettings?): Lineup? = when {
+    settings?.kidsMode == true -> visible.takeIf { shown -> shown.channels.any { it.guideId == guideId } }
+    settings?.zapSkipsHidden == true && guideId !in settings.hiddenChannels -> visible
+    else -> lineup
+}
+
+/**
  * The starred channels in the order the user put them: those in [order] first, in that order, then the rest by
  * their place in [channels]. Ids in [order] that are no longer starred or listed are skipped.
  */

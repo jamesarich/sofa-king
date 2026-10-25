@@ -12,6 +12,7 @@ import dev.jamesrich.sofaking.contract.ClientProfile
 import dev.jamesrich.sofaking.contract.CreateRecordingRule
 import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.contract.GuideWindow
+import dev.jamesrich.sofaking.contract.HouseholdPreferences
 import dev.jamesrich.sofaking.contract.Library
 import dev.jamesrich.sofaking.contract.LibraryHome
 import dev.jamesrich.sofaking.contract.LibraryItem
@@ -68,6 +69,7 @@ internal typealias ApiErrorDto = ApiError
 internal typealias PairingClaimDto = PairingClaim
 internal typealias PairingResultDto = PairingResult
 internal typealias ViewerPreferencesDto = ViewerPreferences
+internal typealias HouseholdPreferencesDto = HouseholdPreferences
 internal typealias LibraryDto = Library
 internal typealias LibraryItemDto = LibraryItem
 internal typealias LibraryPageDto = LibraryPage

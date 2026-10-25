@@ -242,6 +242,11 @@ class LineupViewModel(
         viewModelScope.save { store.setSettingsPin(pin?.let(SettingsPin::hash)) }
     }
 
+    /** Keeps the favorites and hidden channels in step with the household's devices, or stops. */
+    fun setShareFavorites(on: Boolean) {
+        viewModelScope.save { store.setShareFavorites(on) }
+    }
+
     /** Turns kids mode on, once a PIN is set, or off. */
     fun setKidsMode(on: Boolean) {
         viewModelScope.save { store.setKidsMode(on) }

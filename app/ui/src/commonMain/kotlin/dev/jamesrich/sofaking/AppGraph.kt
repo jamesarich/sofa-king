@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.DataStoreSettingsStore
+import dev.jamesrich.sofaking.data.HouseholdSync
 import dev.jamesrich.sofaking.data.ServerConnection
 import dev.jamesrich.sofaking.data.ServerDiscovery
 import dev.jamesrich.sofaking.data.SettingsStore
@@ -47,6 +48,7 @@ internal class AppGraph(
             settings = settings.settings,
             scope = scope,
             viewerSync = ViewerSync(settings, storage.client),
+            householdSync = HouseholdSync(settings),
         )
     }
 

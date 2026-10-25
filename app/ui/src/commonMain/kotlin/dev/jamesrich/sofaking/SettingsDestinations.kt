@@ -61,6 +61,7 @@ internal fun SettingsDestination(
 internal fun ChannelsDestination(route: Route, shell: AppShellState, vm: LineupViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val state by vm.state.collectAsStateWithLifecycle()
+    val capabilities by vm.capabilities.collectAsStateWithLifecycle()
     val s = settings ?: return
     val channels = (state as? LineupState.Ready)?.lineup?.channels.orEmpty()
     SettingsLockGate(s, shell, onPinRemove = { vm.setSettingsPin(null) }) {
@@ -76,6 +77,8 @@ internal fun ChannelsDestination(route: Route, shell: AppShellState, vm: LineupV
                 onChannelsHiddenChange = vm::setChannelsHidden,
                 onZapSkipsHiddenChange = vm::setZapSkipsHidden,
                 onBack = shell::back,
+                shareFavorites = s.shareFavorites.takeIf { capabilities.household },
+                onShareFavoritesChange = vm::setShareFavorites,
             )
 
             Route.StartupChannel -> ChannelPickerScreen(

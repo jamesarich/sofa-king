@@ -57,7 +57,7 @@
         "type": "object",
         "properties": {
           "serverId": { "type": "string" }, "serverTime": { "type": "string", "format": "date-time" }, "apiVersion": { "type": "integer" },
-          "capabilities": { "type": "object", "properties": { "catalog": { "type": "boolean" }, "guide": { "type": "boolean" }, "playback": { "type": "boolean" }, "viewers": { "type": "boolean", "description": "The server pairs clients (/api/v1/pair) and keeps their preferences." }, "library": { "type": "boolean", "description": "The server serves media libraries (/api/v1/libraries, /api/v1/library)." }, "recordings": { "type": "boolean", "description": "The server records (/api/v1/recordings, /api/v1/recording-rules)." }, "watchlist": { "type": "boolean", "description": "The server keeps the household's watchlist (/api/v1/watchlist)." }, "onLater": { "type": "boolean", "description": "The server lists upcoming movies, sports, kids' programs and premieres (/api/v1/guide/on-later)." } } }
+          "capabilities": { "type": "object", "properties": { "catalog": { "type": "boolean" }, "guide": { "type": "boolean" }, "playback": { "type": "boolean" }, "viewers": { "type": "boolean", "description": "The server pairs clients (/api/v1/pair) and keeps their preferences." }, "library": { "type": "boolean", "description": "The server serves media libraries (/api/v1/libraries, /api/v1/library)." }, "recordings": { "type": "boolean", "description": "The server records (/api/v1/recordings, /api/v1/recording-rules)." }, "watchlist": { "type": "boolean", "description": "The server keeps the household's watchlist (/api/v1/watchlist)." }, "onLater": { "type": "boolean", "description": "The server lists upcoming movies, sports, kids' programs and premieres (/api/v1/guide/on-later)." }, "household": { "type": "boolean", "description": "The server keeps the household's shared favorites and hidden channels (/api/v1/household/preferences)." } } }
         }
       },
       "Catalog": {
@@ -260,6 +260,14 @@
           "recent": { "type": "array", "items": { "type": "string" }, "maxItems": 1000, "description": "Channels watched last, newest first." },
           "name": { "type": "string", "maxLength": 80 }, "platform": { "type": "string", "maxLength": 80 },
           "updatedAt": { "type": "string", "format": "date-time", "readOnly": true, "description": "Set by the server on every write." }
+        }
+      },
+      "HouseholdPreferences": {
+        "type": "object",
+        "properties": {
+          "favorites": { "type": "array", "items": { "type": "string" }, "maxItems": 1000, "description": "Starred channel ids, in the household's order." },
+          "hidden": { "type": "array", "items": { "type": "string" }, "maxItems": 1000, "description": "Channel ids the sharing devices leave out." },
+          "updatedAt": { "type": "string", "format": "date-time", "readOnly": true, "description": "Set by the server on every write; empty until a device first writes." }
         }
       },
       "Viewer": {
@@ -769,6 +777,13 @@
       "put": { "tags": ["Viewers"], "summary": "Replace this client's preferences", "description": "Each list holds at most 1,000 distinct ids; an empty name or platform keeps the stored one. The answer is the stored document with the server's updatedAt.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/household/preferences": {
+      "get": { "tags": ["Viewers"], "summary": "The household's shared favorites and hidden channels", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HouseholdPreferences" } } } } } },
+      "put": { "tags": ["Viewers"], "summary": "Replace the household's shared favorites and hidden channels", "description": "Each list holds at most 1,000 distinct ids. The answer is the stored document with the server's updatedAt.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HouseholdPreferences" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HouseholdPreferences" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/channels": {
       "get": { "tags": ["Live TV"], "summary": "The catalog: the enabled lineup entries as channels", "description": "Carries an ETag; If-None-Match answers 304.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],

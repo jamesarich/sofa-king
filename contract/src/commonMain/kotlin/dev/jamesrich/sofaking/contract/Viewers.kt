@@ -29,3 +29,14 @@ data class PairingClaim(val code: String, val clientId: String = "", val name: S
     val platform: String = "",
     val updatedAt: String = "",
 )
+
+/**
+ * The household's shared channel preferences under `/api/v1/household/preferences`, which the devices that choose to
+ * share favorites keep in step: [favorites] the starred channel ids in order, [hidden] the channel ids left out.
+ * The server sets [updatedAt] on every write, and it is empty until a device first writes.
+ */
+@Serializable data class HouseholdPreferences(
+    val favorites: List<String> = emptyList(),
+    val hidden: List<String> = emptyList(),
+    val updatedAt: String = "",
+)

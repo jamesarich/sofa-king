@@ -18,6 +18,8 @@ import kotlinx.serialization.Serializable
     val watchlist: Boolean = false,
     /** `GET /api/v1/guide/on-later`. */
     val onLater: Boolean = false,
+    /** `GET`/`PUT /api/v1/household/preferences`, the favorites and hidden channels devices may share. */
+    val household: Boolean = false,
 )
 
 @Serializable data class Bootstrap(

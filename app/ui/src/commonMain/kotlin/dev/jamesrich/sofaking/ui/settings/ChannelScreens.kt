@@ -56,6 +56,8 @@ import dev.jamesrich.sofaking.resources.channels_move_down
 import dev.jamesrich.sofaking.resources.channels_move_up
 import dev.jamesrich.sofaking.resources.channels_section_favorites
 import dev.jamesrich.sofaking.resources.channels_section_hidden
+import dev.jamesrich.sofaking.resources.channels_share
+import dev.jamesrich.sofaking.resources.channels_share_help
 import dev.jamesrich.sofaking.resources.channels_title
 import dev.jamesrich.sofaking.resources.channels_zap_skips
 import dev.jamesrich.sofaking.resources.settings_back
@@ -94,6 +96,9 @@ fun ChannelManagerScreen(
     onZapSkipsHiddenChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Whether the favorites and hidden channels are shared across devices; null on a server that cannot. */
+    shareFavorites: Boolean? = null,
+    onShareFavoritesChange: (Boolean) -> Unit = {},
 ) {
     val ordered =
         remember(channels, favorites, favoritesOrder) { orderedFavorites(channels, favorites, favoritesOrder) }
@@ -114,6 +119,7 @@ fun ChannelManagerScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item { ScreenTitle(stringResource(Res.string.channels_title), onBack, backFocus) }
+            if (shareFavorites != null) shareSection(shareFavorites, onShareFavoritesChange)
             favoritesSection(ordered, orderIds, onFavoritesOrderChange)
             hiddenSection(
                 groups,
@@ -126,6 +132,18 @@ fun ChannelManagerScreen(
             )
         }
     }
+}
+
+/** The switch that keeps the favorites and hidden channels in step across the household's devices. */
+private fun LazyListScope.shareSection(share: Boolean, onShareChange: (Boolean) -> Unit) {
+    item {
+        ToggleRow(
+            label = stringResource(Res.string.channels_share),
+            checked = share,
+            onCheckedChange = onShareChange,
+        )
+    }
+    item { HelpText(stringResource(Res.string.channels_share_help)) }
 }
 
 /** The favorites in the order the Favorites filter shows them, each with a row that moves it. */

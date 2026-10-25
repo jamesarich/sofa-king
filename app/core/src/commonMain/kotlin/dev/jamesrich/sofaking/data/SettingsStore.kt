@@ -85,6 +85,10 @@ data class AppSettings(
     val trackChoices: Map<String, TrackChoice> = emptyMap(),
     /** Whether [KidsMode] is on; it is only while [settingsPin] is set, which leaves it. Never synced. */
     val kidsMode: Boolean = false,
+    /** Whether this device keeps its favorites and hidden channels in step with the household's shared copy. */
+    val shareFavorites: Boolean = false,
+    /** The `updatedAt` of the household's shared copy this device last pushed or took over; empty before any. */
+    val householdSyncedAt: String = "",
 ) {
     /** True while Settings asks for a PIN before it opens. */
     val settingsLocked: Boolean get() = settingsPin.isNotEmpty()
@@ -109,7 +113,8 @@ data class AppSettings(
             "hideSpoilers=$hideSpoilers, subtitleLook=$subtitleLook, liveBreaks=$liveBreaks, adsDodged=$adsDodged, " +
             "favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
             "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, " +
-            "trackChoices=${trackChoices.size}, kidsMode=$kidsMode)"
+            "trackChoices=${trackChoices.size}, kidsMode=$kidsMode, shareFavorites=$shareFavorites, " +
+            "householdSyncedAt=$householdSyncedAt)"
 
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
@@ -351,4 +356,16 @@ interface DeviceSettings {
 
     /** Turns [AppSettings.kidsMode] on, which takes a PIN already set, or off. */
     suspend fun setKidsMode(on: Boolean)
+
+    /** Turns [AppSettings.shareFavorites] on or off. */
+    suspend fun setShareFavorites(on: Boolean)
+
+    /**
+     * Takes over the household's shared copy: [hidden] replaces the hidden set and [favorites] the starred set and
+     * their order, and [syncedAt] is remembered as the document taken.
+     */
+    suspend fun applyHouseholdPreferences(hidden: Set<String>, favorites: List<String>, syncedAt: String)
+
+    /** Remembers the household document's stamp after this device pushed to it. */
+    suspend fun setHouseholdSyncedAt(syncedAt: String)
 }

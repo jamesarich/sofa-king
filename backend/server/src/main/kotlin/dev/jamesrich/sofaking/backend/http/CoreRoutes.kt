@@ -52,6 +52,7 @@ internal fun Route.healthRoutes(store: IdentityStore, clock: Clock, runtime: Liv
                         recordings = runtime?.dvr != null,
                         watchlist = runtime != null,
                         onLater = runtime != null,
+                        household = runtime != null,
                     ),
                 ),
             )

@@ -26,6 +26,7 @@ import dev.jamesrich.sofaking.data.SettingsKeys.GUIDE_DENSITY
 import dev.jamesrich.sofaking.data.SettingsKeys.GUIDE_FILTER
 import dev.jamesrich.sofaking.data.SettingsKeys.HIDDEN_CHANNELS
 import dev.jamesrich.sofaking.data.SettingsKeys.HIDE_SPOILERS
+import dev.jamesrich.sofaking.data.SettingsKeys.HOUSEHOLD_SYNCED_AT
 import dev.jamesrich.sofaking.data.SettingsKeys.KEY_LEGEND_SHOWN
 import dev.jamesrich.sofaking.data.SettingsKeys.KIDS_MODE
 import dev.jamesrich.sofaking.data.SettingsKeys.LAST_CHANNEL
@@ -40,6 +41,7 @@ import dev.jamesrich.sofaking.data.SettingsKeys.SEEK_FORWARD_SECONDS
 import dev.jamesrich.sofaking.data.SettingsKeys.SEPARATOR
 import dev.jamesrich.sofaking.data.SettingsKeys.SERVER_URL
 import dev.jamesrich.sofaking.data.SettingsKeys.SETTINGS_PIN
+import dev.jamesrich.sofaking.data.SettingsKeys.SHARE_FAVORITES
 import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_COMMERCIALS
 import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_COMMERCIAL_BREAKS
 import dev.jamesrich.sofaking.data.SettingsKeys.SKIP_CREDITS
@@ -110,6 +112,8 @@ internal object SettingsKeys {
     val PREFERENCES_SYNCED_AT = stringPreferencesKey("preferences_synced_at")
     val SETTINGS_PIN = stringPreferencesKey("settings_pin")
     val KIDS_MODE = booleanPreferencesKey("kids_mode")
+    val SHARE_FAVORITES = booleanPreferencesKey("share_favorites")
+    val HOUSEHOLD_SYNCED_AT = stringPreferencesKey("household_synced_at")
     const val SEPARATOR = '\t'
 }
 
@@ -156,6 +160,8 @@ internal fun readSettings(prefs: Preferences): AppSettings = AppSettings(
     settingsPin = prefs[SETTINGS_PIN].orEmpty(),
     // Written only while a PIN is set, and removed with it.
     kidsMode = prefs[KIDS_MODE] == true,
+    shareFavorites = prefs[SHARE_FAVORITES] == true,
+    householdSyncedAt = prefs[HOUSEHOLD_SYNCED_AT].orEmpty(),
 )
 
 /** The skip modes; until one is set, the switch an older build kept stands in for it (on is automatic). */

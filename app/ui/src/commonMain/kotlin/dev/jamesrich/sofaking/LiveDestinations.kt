@@ -14,6 +14,7 @@ import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMarks
+import dev.jamesrich.sofaking.data.toggleTeam
 import dev.jamesrich.sofaking.data.visibleChannels
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.channel_gone
@@ -101,6 +102,7 @@ internal fun GuideDestination(
                 onLoadGuideWindow = vm::loadGuideWindow,
                 onRecord = vm.recordings::toggle,
                 onRecordSeries = vm.recordings::toggleSeries,
+                onRecordTeam = vm.recordings::toggleTeam,
                 onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
             ),
             preview = GuidePreview(

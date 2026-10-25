@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.dvr.StoredRule
+import dev.jamesrich.sofaking.contract.RuleMatch
+import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -37,6 +39,9 @@ suspend fun BackendStore.saveRecordingRule(rule: StoredRule) = query {
         it[endPadding] = rule.endPadding.seconds.toInt()
         it[priority] = rule.priority
         it[createdAt] = rule.createdAt.toString()
+        it[matchKind] = rule.match.kind
+        it[termsJson] = Json.encodeToString(rule.match.terms)
+        it[categoriesJson] = Json.encodeToString(rule.match.categories)
     }
     Unit
 }
@@ -57,4 +62,9 @@ private fun ResultRow.rule() = StoredRule(
     ),
     Duration.ofSeconds(this[RecordingRules.endPadding].toLong()),
     this[RecordingRules.priority], Instant.parse(this[RecordingRules.createdAt]),
+    RuleMatch(
+        this[RecordingRules.matchKind],
+        Json.decodeFromString(this[RecordingRules.termsJson]),
+        Json.decodeFromString(this[RecordingRules.categoriesJson]),
+    ),
 )

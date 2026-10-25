@@ -622,7 +622,17 @@
             "default": 0,
             "description": "The higher wins a playback slot when recordings conflict; a one-off outranks every rule."
           },
-          "createdAt": { "type": "string", "format": "date-time" }
+          "createdAt": { "type": "string", "format": "date-time" },
+          "match": { "oneOf": [{ "$ref": "#/components/schemas/RuleMatch" }, { "type": "null" }], "description": "A team or keyword rule's match; a title rule has none." }
+        }
+      },
+      "RuleMatch": {
+        "type": "object",
+        "description": "What a rule matches. title: the rule's title. team: any term as a whole word in the title or episode title, in one of the categories (the rule's title and Sports when none are given). keyword: any term as a whole word in the title, episode title or description, in one of the categories when any is given.",
+        "properties": {
+          "kind": { "type": "string", "enum": ["title", "team", "keyword"], "default": "title" },
+          "terms": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 100 } },
+          "categories": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 100 } }
         }
       },
       "RecordingRuleList": {
@@ -660,7 +670,8 @@
             "maximum": 100,
             "default": 0,
             "description": "The higher wins a playback slot when recordings conflict; a one-off outranks every rule."
-          }
+          },
+          "match": { "$ref": "#/components/schemas/RuleMatch" }
         }
       },
       "UpdateRecordingRule": {

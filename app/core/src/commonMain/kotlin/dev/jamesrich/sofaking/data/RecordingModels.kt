@@ -53,11 +53,28 @@ data class DvrRecording(
 
 /**
  * A series rule: every airing of [title], on [channelId] or on any channel when null. [newOnly] skips repeats, and
- * [keep] is how many finished recordings it keeps, newest first, 0 for all.
+ * [keep] is how many finished recordings it keeps, newest first, 0 for all. A rule for a team or keywords has its
+ * [kind] (`Wire.RuleMatchKind`) and [terms]; [title] then only names it.
  */
-data class SeriesRule(val id: String, val title: String, val channelId: String?, val newOnly: Boolean, val keep: Int)
+data class SeriesRule(
+    val id: String,
+    val title: String,
+    val channelId: String?,
+    val newOnly: Boolean,
+    val keep: Int,
+    val kind: String = Wire.RuleMatchKind.TITLE,
+    val terms: List<String> = emptyList(),
+)
 
-internal fun RecordingRuleDto.toModel() = SeriesRule(id, title, channelId, newOnly, keep)
+internal fun RecordingRuleDto.toModel() = SeriesRule(
+    id,
+    title,
+    channelId,
+    newOnly,
+    keep,
+    match?.kind ?: Wire.RuleMatchKind.TITLE,
+    match?.terms.orEmpty(),
+)
 
 /** What the recordings folder's disk holds free and in all. */
 data class RecordingSpace(val freeBytes: Long, val totalBytes: Long)

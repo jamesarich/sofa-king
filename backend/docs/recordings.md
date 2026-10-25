@@ -42,8 +42,17 @@ curl -sS -X POST -H "Authorization: Bearer $SOFA_API_TOKEN" -H 'Content-Type: ap
 | `keep` | `0`, all | How many finished recordings the rule keeps, newest first |
 | `startPaddingSeconds`, `endPaddingSeconds` | `60`, `120` | How far before and after the program the recording runs, 0 to 3600 |
 | `priority` | `0` | -100 to 100; the higher wins a playback slot when recordings conflict |
+| `match` | By title | `{"kind", "terms", "categories"}`: what the rule matches, below. It never changes once the rule exists |
 
-`PATCH /api/v1/recording-rules/{id}` changes any of these but the title; `"anyChannel":true` clears the channel. The schedule is rebuilt after every guide import, every rule change and every 30 minutes, over the days the guide covers (`SOFA_XMLTV_DAYS`, 3 by default). An airing is skipped when a recording of the same episode is already scheduled, running or kept: the same season and episode numbers, or the same episode title when the guide gives no numbers. An airing with neither, such as a news show, is recorded every time. When the guide moves or drops an airing, its scheduled recording follows. Deleting a scheduled airing of a rule cancels it for good; deleting the rule drops its scheduled recordings and keeps what it recorded.
+A rule's `match.kind` is `title`, `team` or `keyword`:
+
+- `title` (or no `match`) matches the title, as above.
+- `team` matches any of `terms` as a whole word, ignoring case, in the program's title or episode title, on a program with one of `categories` among its guide categories as a word (`Sports` matches `Sports event`). Without `terms` the team is the rule's `title`, and without `categories` it is `Sports`. `{"title":"Packers","match":{"kind":"team"}}` records `NFL Football` with the episode title `Bears at Packers` on any channel.
+- `keyword` matches any of `terms` as a whole word in the title, episode title or description, in one of `categories` when any is given. It needs at least one term.
+
+Each takes up to 20 terms and 20 categories of up to 100 characters. The rule's `title` then only names it in the lists; recordings take their program's title as usual. The rule list answers its `match`; a title rule answers none. The app's program details offer Record for each team a sports program names, and the portal's Recordings page adds any of the three.
+
+`PATCH /api/v1/recording-rules/{id}` changes any of these but the title and the match; `"anyChannel":true` clears the channel. The schedule is rebuilt after every guide import, every rule change and every 30 minutes, over the days the guide covers (`SOFA_XMLTV_DAYS`, 3 by default). An airing is skipped when a recording of the same episode is already scheduled, running or kept: the same season and episode numbers, or the same episode title when the guide gives no numbers. An airing with neither, such as a news show, is recorded every time. When the guide moves or drops an airing, its scheduled recording follows. Deleting a scheduled airing of a rule cancels it for good; deleting the rule drops its scheduled recordings and keeps what it recorded.
 
 ## While a recording runs
 

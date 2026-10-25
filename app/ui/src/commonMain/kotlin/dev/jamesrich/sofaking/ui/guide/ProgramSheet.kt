@@ -48,6 +48,7 @@ import dev.jamesrich.sofaking.data.Airing
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMark
+import dev.jamesrich.sofaking.data.teamSides
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.guide_details_add_favorite
 import dev.jamesrich.sofaking.resources.guide_details_cancel_recording
@@ -56,8 +57,10 @@ import dev.jamesrich.sofaking.resources.guide_details_more_airings
 import dev.jamesrich.sofaking.resources.guide_details_record
 import dev.jamesrich.sofaking.resources.guide_details_record_failed
 import dev.jamesrich.sofaking.resources.guide_details_record_series
+import dev.jamesrich.sofaking.resources.guide_details_record_team
 import dev.jamesrich.sofaking.resources.guide_details_remove_favorite
 import dev.jamesrich.sofaking.resources.guide_details_stop_series
+import dev.jamesrich.sofaking.resources.guide_details_stop_team
 import dev.jamesrich.sofaking.resources.guide_details_watch
 import dev.jamesrich.sofaking.resources.guide_ended
 import dev.jamesrich.sofaking.resources.guide_starts_in
@@ -93,8 +96,9 @@ private val SHEET_TEXT_MAX_HEIGHT = 360.dp
 
 /**
  * The program's details with Watch and Favorite, and Record and Record series when [recording] says how the
- * program is set (null on a server that does not record): a side panel over the guide on a TV, where a window of
- * its own would not take D-pad focus, and a Material bottom sheet elsewhere. Back and Close dismiss it. With other
+ * program is set (null on a server that does not record), with Record for each team a sports program names: a side
+ * panel over the guide on a TV, where a window of its own would not take D-pad focus, and a Material bottom sheet
+ * elsewhere. Back and Close dismiss it. With other
  * [airings] of the program, More airings lists them in its place; Back returns from the list to the details.
  */
 @Composable
@@ -109,6 +113,7 @@ internal fun ProgramSheet(
     recording: RecordingMark? = null,
     onRecord: suspend (Program) -> Boolean = { false },
     onRecordSeries: suspend (Program) -> Boolean = { false },
+    onRecordTeam: suspend (String) -> Boolean = { false },
     onWatchFromStart: (recordingId: String) -> Unit = {},
     airings: List<Airing> = emptyList(),
     onShowAiring: (Airing) -> Unit = {},
@@ -123,7 +128,9 @@ internal fun ProgramSheet(
         // A recording being written plays from the program's start, while the program is still on.
         val fromStart = recording?.runningId?.takeIf { recordable != null }?.let { id -> { onWatchFromStart(id) } }
         SheetButtons(details.channel, isFavorite, watchFocus, onWatch, fromStart, onToggleFavorite, onDismiss)
-        if (recordable != null && recording != null) RecordButtons(recordable, recording, onRecord, onRecordSeries)
+        if (recordable != null && recording != null) {
+            RecordButtons(recordable, recording, RecordActions(onRecord, onRecordSeries, onRecordTeam))
+        }
         if (airings.isNotEmpty()) {
             SofaButton(onClick = { showAirings = true }, modifier = Modifier.focusRequester(airingsFocus)) {
                 Text(stringResource(Res.string.guide_details_more_airings, airings.size), maxLines = 1)
@@ -389,20 +396,24 @@ private fun SheetButtons(
     }
 }
 
+/** What the record buttons ask of the server; each answers false when it did not take the change. */
+private class RecordActions(
+    val onRecord: suspend (Program) -> Boolean,
+    val onRecordSeries: suspend (Program) -> Boolean,
+    val onRecordTeam: suspend (String) -> Boolean,
+)
+
 /**
- * Record or cancel the program, and record or stop its series, with a line when the server did not take the
- * change. A press waits for the server, so a second press cannot undo the first before the marks catch up.
+ * Record or cancel the program, record or stop its series, and record or stop each team a sports program names, with
+ * a line when the server did not take the change. A press waits for the server, so a second press cannot undo the
+ * first before the marks catch up.
  */
 @Composable
-private fun RecordButtons(
-    program: Program,
-    mark: RecordingMark,
-    onRecord: suspend (Program) -> Boolean,
-    onRecordSeries: suspend (Program) -> Boolean,
-) {
+private fun RecordButtons(program: Program, mark: RecordingMark, actions: RecordActions) {
     val scope = rememberCoroutineScope()
     var busy by remember(program) { mutableStateOf(false) }
     var failed by remember(program) { mutableStateOf(false) }
+    val teams = remember(program) { teamSides(program) }
     fun run(action: suspend (Program) -> Boolean) {
         if (busy) return
         busy = true
@@ -419,7 +430,7 @@ private fun RecordButtons(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            SofaButton(onClick = { run(onRecord) }) {
+            SofaButton(onClick = { run(actions.onRecord) }) {
                 Text(
                     stringResource(
                         if (mark.recording) {
@@ -431,7 +442,7 @@ private fun RecordButtons(
                     maxLines = 1,
                 )
             }
-            SofaButton(onClick = { run(onRecordSeries) }) {
+            SofaButton(onClick = { run(actions.onRecordSeries) }) {
                 Text(
                     stringResource(
                         if (mark.series) {
@@ -443,6 +454,11 @@ private fun RecordButtons(
                     maxLines = 1,
                 )
             }
+            for (team in teams) {
+                TeamButton(team, recorded = team.lowercase() in mark.teams) {
+                    run { actions.onRecordTeam(team) }
+                }
+            }
         }
         if (failed) {
             Text(
@@ -451,6 +467,20 @@ private fun RecordButtons(
                 color = MaterialTheme.colorScheme.error,
             )
         }
+    }
+}
+
+/** Record [team], or Stop recording it once a team rule has it. */
+@Composable
+private fun TeamButton(team: String, recorded: Boolean, onClick: () -> Unit) {
+    SofaButton(onClick = onClick) {
+        Text(
+            stringResource(
+                if (recorded) Res.string.guide_details_stop_team else Res.string.guide_details_record_team,
+                team,
+            ),
+            maxLines = 1,
+        )
     }
 }
 

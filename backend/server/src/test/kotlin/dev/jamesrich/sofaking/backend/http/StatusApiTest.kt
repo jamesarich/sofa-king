@@ -69,7 +69,7 @@ class StatusApiTest {
         assertEquals("abc1234", status.revision)
         assertEquals(started.toString(), status.startedAt)
         assertEquals(3725, status.uptimeSeconds)
-        assertEquals(215, status.schemaVersion)
+        assertEquals(218, status.schemaVersion)
     }
 
     @Test fun `the status counts the lineup's channels and the sources`() = status { status, runtime, _ ->

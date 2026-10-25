@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.data
 
 import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.contract.RuleMatch
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
@@ -43,7 +45,13 @@ sealed interface RecordingsState {
  * Whether a program is set to record, on its own or through a series rule for its title, and [runningId], the
  * recording of it that is being written now, which plays from the program's start as it grows.
  */
-data class RecordingMark(val recording: Boolean = false, val series: Boolean = false, val runningId: String? = null)
+data class RecordingMark(
+    val recording: Boolean = false,
+    val series: Boolean = false,
+    val runningId: String? = null,
+    /** The program's [teamSides] a team rule records, lowercase. */
+    val teams: Set<String> = emptySet(),
+)
 
 /** The server's scheduled recordings and series rules, as the guide marks programs with them. */
 data class RecordingMarks(
@@ -53,6 +61,8 @@ data class RecordingMarks(
     internal val rules: Map<String, String> = emptyMap(),
     /** The recordings being written now, by [recordingKey], to their ids. */
     internal val running: Map<String, String> = emptyMap(),
+    /** Team rules by each team they name, lowercase, to their ids. */
+    internal val teams: Map<String, String> = emptyMap(),
 ) {
     fun of(program: Program): RecordingMark {
         val key = recordingKey(program.channelId, program.start)
@@ -60,6 +70,7 @@ data class RecordingMarks(
             recording = key in recordings,
             series = ruleId(program) != null,
             runningId = running[key],
+            teams = teamSides(program).map { it.lowercase() }.filterTo(HashSet()) { it in teams },
         )
     }
 
@@ -75,7 +86,9 @@ private fun ruleKey(title: String, channelId: String?) = title.trim().lowercase(
 private fun RecordingsState.Ready.marks() = RecordingMarks(
     recordings = recordings.filter { it.state == RecordingState.SCHEDULED || it.state == RecordingState.RECORDING }
         .associate { recordingKey(it.channelId, it.startsAt) to it.id },
-    rules = rules.associate { ruleKey(it.title, it.channelId) to it.id },
+    rules = rules.filter { it.kind == Wire.RuleMatchKind.TITLE }.associate { ruleKey(it.title, it.channelId) to it.id },
+    teams = rules.filter { it.kind == Wire.RuleMatchKind.TEAM }
+        .flatMap { rule -> rule.terms.map { it.lowercase() to rule.id } }.toMap(),
     running = recordings.filter { it.state == RecordingState.RECORDING }
         .associate { recordingKey(it.channelId, it.startsAt) to it.id },
 )
@@ -95,7 +108,8 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
 
     @Volatile private var api: SofaKingApi? = null
 
-    @Volatile private var records = false
+    @Volatile internal var records = false
+        private set
     private val mutex = Mutex()
 
     init {
@@ -213,7 +227,7 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
     }
 
     /** Runs [action] on the server, then reads the lists again whether it worked or not. False when it failed. */
-    private suspend fun change(what: String, action: suspend SofaKingApi.() -> Unit): Boolean {
+    internal suspend fun change(what: String, action: suspend SofaKingApi.() -> Unit): Boolean {
         val api = api ?: return false
         val done = runCatchingCancellable {
             api.action()
@@ -239,5 +253,19 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
 
     private companion object {
         val log = Logger.withTag("SofaKing")
+    }
+}
+
+/**
+ * Records every sports program that names [team] in its title or episode title, on any channel, or deletes the team's
+ * rule with the recordings it scheduled.
+ */
+suspend fun RecordingSchedule.toggleTeam(team: String): Boolean = records && change("recording a team") {
+    val id = marks.value.teams[team.trim().lowercase()]
+    if (id != null) {
+        deleteRecordingRule(id)
+    } else {
+        val match = RuleMatch(Wire.RuleMatchKind.TEAM, listOf(team.trim()))
+        createRecordingRule(CreateRecordingRuleDto(team.trim(), match = match))
     }
 }

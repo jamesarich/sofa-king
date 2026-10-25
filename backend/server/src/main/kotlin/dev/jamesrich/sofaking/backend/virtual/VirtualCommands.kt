@@ -3,20 +3,32 @@ package dev.jamesrich.sofaking.backend.virtual
 import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.library.MediaInfo
 import dev.jamesrich.sofaking.backend.library.VideoEncoder
+import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
+import dev.jamesrich.sofaking.backend.upstream.ffmpegBase
 import java.nio.file.Path
 import java.util.Locale
 
 /** Seconds per segment of a virtual channel's stream; a key frame starts each. */
 internal const val CHANNEL_SEGMENT_SECONDS = 4
 
-/** One stretch of a channel's stream that one FFmpeg writes: [file] from [offsetMs] in, or a blank picture without. */
-internal class PieceInput(val file: Path?, val media: MediaInfo?, val offsetMs: Long, val durationMs: Long)
+/**
+ * One stretch of a channel's stream that one FFmpeg writes: [file] from [offsetMs] in, the lineup entry [live] as it
+ * plays now, or a blank picture without either.
+ */
+internal class PieceInput(
+    val file: Path?,
+    val media: MediaInfo?,
+    val offsetMs: Long,
+    val durationMs: Long,
+    val live: String? = null,
+)
 
 /**
  * The FFmpeg command that writes [input] as HLS into [dir] for a virtual channel: converted to one format whatever the
  * file holds (see [VideoEncoder.channelArgs]), with silence where the file has no audio, exactly [PieceInput.durationMs]
- * long, its timestamps [timestampMs] in so they carry on from the piece before. FFmpeg reads at the speed it plays,
- * after a first [burstSeconds] read at once, so the stream keeps a little ahead of the clock and no further.
+ * long, its timestamps [timestampMs] in so they carry on from the piece before. FFmpeg reads a file at the speed it
+ * plays, after a first [burstSeconds] read at once, so the stream keeps a little ahead of the clock and no further; a
+ * live channel's [source] comes at that speed already.
  */
 internal fun pieceCommand(
     ffmpeg: String,
@@ -25,19 +37,26 @@ internal fun pieceCommand(
     encoder: VideoEncoder,
     timestampMs: Long,
     burstSeconds: Int,
+    source: FfmpegSource? = null,
 ): List<String> = buildList {
     val paced = listOf("-readrate", "1", "-readrate_initial_burst", "$burstSeconds")
-    addAll(listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error"))
+    if (source != null) {
+        addAll(ffmpegBase(ffmpeg, "error", source))
+    } else {
+        addAll(listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error"))
+    }
     addAll(encoder.inputArgs())
     val file = input.file
-    if (file == null) {
+    if (source != null) {
+        addAll(listOf("-i", source.url))
+    } else if (file == null) {
         addAll(paced + listOf("-f", "lavfi", "-i", "color=c=black:s=$SIZE:r=${VideoEncoder.CHANNEL_FPS}"))
     } else {
         addAll(paced)
         if (input.offsetMs > 0) addAll(listOf("-ss", seconds(input.offsetMs)))
         addAll(listOf("-i", file.toString()))
     }
-    val audio = file != null && input.media?.audio?.isNotEmpty() != false
+    val audio = source != null || (file != null && input.media?.audio?.isNotEmpty() != false)
     if (!audio) addAll(listOf("-f", "lavfi", "-i", "anullsrc=r=$SAMPLE_RATE:cl=stereo"))
     addAll(listOf("-map", "0:v:0", "-map", if (audio) "0:a:0" else "1:a:0", "-sn", "-dn"))
     addAll(encoder.channelArgs(hdr = input.media?.video?.transfer != null, keyFrameSeconds = CHANNEL_SEGMENT_SECONDS))

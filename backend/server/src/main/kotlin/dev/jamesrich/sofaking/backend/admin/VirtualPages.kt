@@ -2,7 +2,9 @@ package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.api.VirtualChannel
 import dev.jamesrich.sofaking.backend.api.VirtualSlot
+import dev.jamesrich.sofaking.backend.api.VirtualSource
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.virtual.SourceKind
 import dev.jamesrich.sofaking.backend.virtual.VirtualChannelService
 import dev.jamesrich.sofaking.backend.virtual.VirtualClient
 import dev.jamesrich.sofaking.backend.virtual.sourceChoices
@@ -73,7 +75,10 @@ internal class VirtualPages(private val portal: Portal) {
             configured = ids.isNotEmpty(),
             inPolicy = entries?.let { list -> list.any { it.id in ids } },
             rows = rows,
-            sources = runtime.libraries?.catalog?.snapshot()?.sourceChoices().orEmpty(),
+            sources = runtime.libraries?.catalog?.snapshot()?.sourceChoices().orEmpty() +
+                channels.live?.choices().orEmpty().map { (id, label) ->
+                    VirtualSource(SourceKind.CHANNEL, id) to "Live channel: $label"
+                },
             editing = editing,
             schedule = editing?.let { channels.schedule(it.id, now, now.plus(SCHEDULE_AHEAD)) }.orEmpty(),
             zone = ZoneId.systemDefault(),

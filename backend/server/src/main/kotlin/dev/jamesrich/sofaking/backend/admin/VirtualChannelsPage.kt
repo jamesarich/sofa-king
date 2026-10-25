@@ -153,8 +153,8 @@ private fun FlowContent.channelForm(chrome: Chrome, view: VirtualView, editing: 
         p("muted small") {
             +(
                 "Give every slot a start time (${view.zone.id}) for a daily grid, each running until the next one " +
-                    "starts, or leave them all blank to take turns, one item each. Leave a slot's source blank to " +
-                    "remove it; save to get more empty slots."
+                    "starts, or leave them all blank to take turns, one item each. A live channel needs start times " +
+                    "and plays its whole slot. Leave a slot's source blank to remove it; save to get more empty slots."
                 )
         }
         sourceSelect("virtual-filler", "filler", "Filler between items (optional)", view.sources, editing?.filler)

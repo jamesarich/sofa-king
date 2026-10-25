@@ -5,6 +5,8 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.io.terminate
 import dev.jamesrich.sofaking.backend.library.VideoEncoder
 import dev.jamesrich.sofaking.backend.library.VodRunner
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
+import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -183,29 +185,50 @@ class VirtualStreams(
             }
         }
 
-        /** What FFmpeg reads for [airing] from [at] until [until]: its file, or a blank picture when it has none. */
+        /**
+         * What FFmpeg reads for [airing] from [at] until [until]: its file, its live channel, or a blank picture when
+         * it has neither.
+         */
         private suspend fun input(airing: Airing?, at: Instant, until: Instant): PieceInput {
             val durationMs = Duration.between(at, until).toMillis()
-            val item = airing?.itemId?.let { channels.playable(it) }
-            return if (item == null || airing.startsAt > at) {
-                PieceInput(null, null, 0, durationMs)
-            } else {
-                PieceInput(item.file, item.media, Duration.between(airing.startsAt, at).toMillis(), durationMs)
+            val start = airing?.startsAt ?: at
+            val id = airing?.itemId?.takeIf { start <= at }
+            val live = liveEntryOf(id)
+            val item = if (live == null) id?.let { channels.playable(it) } else null
+            return when {
+                live != null -> PieceInput(null, null, 0, durationMs, live)
+                item == null -> PieceInput(null, null, 0, durationMs)
+                else -> PieceInput(item.file, item.media, Duration.between(start, at).toMillis(), durationMs)
             }
         }
 
         /**
-         * Runs the FFmpeg of one piece from [at] to its end. One that fails keeps the segments it wrote, and a blank
-         * picture covers the rest of its time.
+         * Runs the FFmpeg of one piece from [at] to its end. One that fails or runs short keeps the segments it wrote,
+         * and a blank picture covers the rest of its time. A live channel is opened again for the rest instead, which
+         * picks its next source if this one went bad; one that wrote nothing waits [LIVE_RETRY_MS] on a blank picture
+         * first.
          */
         private suspend fun write(input: PieceInput, at: Instant) {
-            val piece = piece(at)
-            val ok = run(piece, input, LEAD_SECONDS + BURST_SECONDS)
-            val written = finish(piece)
-            if (ok || input.file == null || input.durationMs - written < ScheduleBuilder.MIN_BLANK_MS) return
-            val blank = piece(at.plusMillis(written))
-            run(blank, PieceInput(null, null, 0, input.durationMs - written), BURST_SECONDS)
-            finish(blank)
+            var from = at
+            var left = input.durationMs
+            var current = input
+            var burst = LEAD_SECONDS + BURST_SECONDS
+            while (left >= ScheduleBuilder.MIN_BLANK_MS) {
+                val piece = piece(from)
+                val ok = run(piece, current, burst)
+                val written = finish(piece)
+                val blank = current.file == null && current.live == null
+                // FFmpeg that cannot even draw a blank picture would only fail again.
+                if (!ok && written == 0L && blank) return
+                from = from.plusMillis(written)
+                left -= written
+                burst = BURST_SECONDS
+                current = when {
+                    input.live == null -> PieceInput(null, null, 0, left)
+                    current.live != null && written == 0L -> PieceInput(null, null, 0, minOf(left, LIVE_RETRY_MS))
+                    else -> PieceInput(null, null, 0, left, input.live)
+                }
+            }
         }
 
         private fun piece(at: Instant): Piece = Piece(number, at, dir.resolve("$number"), sequence).also {
@@ -221,8 +244,20 @@ class VirtualStreams(
         }
 
         private suspend fun run(piece: Piece, input: PieceInput, burstSeconds: Int): Boolean {
+            val entry = input.live ?: return run(piece, input, burstSeconds, null)
+            val lineup = channels.live ?: return false
+            return runCatchingCancellable {
+                lineup.reading(entry) { source -> run(piece, input, burstSeconds, source) }
+            }.getOrElse { e ->
+                // Messages can carry upstream URLs; only the class is logged.
+                log.warn("virtual live slot did not open entry={} class={}", entry, e.javaClass.simpleName)
+                false
+            }
+        }
+
+        private suspend fun run(piece: Piece, input: PieceInput, burstSeconds: Int, source: FfmpegSource?): Boolean {
             val timestamp = Duration.between(epoch, piece.from).toMillis()
-            val command = pieceCommand(ffmpeg, input, piece.dir, encoder, timestamp, burstSeconds)
+            val command = pieceCommand(ffmpeg, input, piece.dir, encoder, timestamp, burstSeconds, source)
             val process = try {
                 withContext(Dispatchers.IO) {
                     Files.createDirectories(piece.dir)
@@ -298,6 +333,9 @@ class VirtualStreams(
 
         /** How far ahead of its time FFmpeg may read, beyond [LEAD]. */
         private const val BURST_SECONDS = 8
+
+        /** How long a live slot that would not open shows a blank picture before it is tried again. */
+        private const val LIVE_RETRY_MS = 30_000L
 
         /** How long a stream nobody reads keeps playing. */
         val IDLE: Duration = Duration.ofSeconds(60)

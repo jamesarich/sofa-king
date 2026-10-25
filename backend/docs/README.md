@@ -7,7 +7,7 @@ The Sofa King server keeps live TV, recordings and media libraries for the app a
 | Page | What it covers |
 | --- | --- |
 | [Getting started](getting-started.md) | From `docker compose up` to a channel playing in Plex, the Sofa King app or an M3U player |
-| [Deploy with Docker](deploy.md) | The config folder, running as your own user, secrets, reverse proxies, serving the web app, the published image and its provenance, and automatic updates |
+| [Deploy with Docker](deploy.md) | Installing with Compose, Unraid, Synology or Portainer, the config folder, running as your own user, secrets, reverse proxies, serving the web app, the published image and its provenance, and automatic updates |
 | [Build a starter lineup](starter-lineup.md) | From an empty server to a grouped lineup of the free services with fallbacks across them, plus your local channels, and a lineup built by hand without a policy |
 | [Admin portal](admin.md) | The web pages at `/admin`: the home page and setup, channel edits, merges, required stations, groups, the sources and provider priority, devices and pairing, Plex, recordings, media libraries, the runtime and effective settings, and the System pages for updates, jobs, events and a support snapshot |
 | [Operations](operations.md) | State and backups, restore, upgrades and rollback, monitoring, logs, native provider failures and token rotation |

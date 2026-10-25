@@ -26,7 +26,7 @@ Compose pulls the published image, `ghcr.io/jamesarich/sofa-king:main`, which ne
 curl --fail http://SERVER_HOST:9193/readyz
 ```
 
-It answers `ready`. If the container exits at once instead, `docker compose logs` says why; [troubleshooting](troubleshooting.md#the-container-does-not-start) lists the common causes. To build the image from a checkout of this repository instead, see [build](deploy.md#build).
+It answers `ready`. If the container exits at once instead, `docker compose logs` says why; [troubleshooting](troubleshooting.md#the-container-does-not-start) lists the common causes. To build the image from a checkout of this repository instead, see [build](deploy.md#build); on Unraid, Synology or Portainer, see [install on a NAS](deploy.md#install-on-a-nas).
 
 ## 2. Sign in
 

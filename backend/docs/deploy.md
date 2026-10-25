@@ -19,6 +19,37 @@ The server runs without `.env`. Download [`.env.example`](../deploy/.env.example
 
 The HDHomeRun emulation for Plex is on, and admits no address until you allow the Plex server's on the portal's Plex page, as [Plex Live TV](live-tv.md#plex-live-tv) describes.
 
+## Install on a NAS
+
+The same image runs from a NAS's own container screens. Each keeps the [host networking](#host-networking) that app discovery and the HDHomeRun tuners need, and the [container limits](#container-limits) of `compose.yaml`.
+
+### Unraid
+
+[`unraid/sofa-king.xml`](../deploy/unraid/sofa-king.xml) is a Docker template with the config, recordings and media folders, host networking and the limits as extra parameters. On the Unraid console:
+
+```sh
+curl -fsSL -o /boot/config/plugins/dockerMan/templates-user/my-sofa-king.xml \
+  https://raw.githubusercontent.com/jamesarich/sofa-king/main/backend/deploy/unraid/sofa-king.xml
+mkdir -p /mnt/user/appdata/sofa-king /mnt/user/recordings
+chown 99:100 /mnt/user/appdata/sofa-king /mnt/user/recordings
+```
+
+Then open Docker, choose Add Container, pick `sofa-king` under Template and apply. The container runs as Unraid's `nobody:users` (`99:100`), which owns the shares. The WebUI link opens the admin portal; the admin token is `adminToken` in `secrets.json` in the config folder. For a GPU, set the GPU device to `/dev/dri` and add `--group-add` with the id `stat -c %g /dev/dri/renderD128` prints to Extra Parameters.
+
+### Synology
+
+Container Manager (DSM 7.2 or later) runs `compose.yaml` as a project:
+
+1. In File Station, create `docker/sofa-king` with `config` and `recordings` folders inside it.
+2. Over SSH, print your user's ids with `id -u` and `id -g`, and save them in `docker/sofa-king/.env` as `UID=` and `GID=` lines, since the first DSM user is usually `1026:100`, not `1000:1000`.
+3. In Container Manager, open Project, choose Create, set the path to `docker/sofa-king`, and paste [`compose.yaml`](../deploy/compose.yaml) as the source. Build it.
+
+The project keeps `network_mode: host`, so the server answers on port 9193 of the NAS. A media share mounts read only by changing the commented `/media` line to its path, such as `/volume1/video:/media:ro`.
+
+### Portainer
+
+In Portainer, open Stacks, choose Add stack and paste [`compose.yaml`](../deploy/compose.yaml) in the web editor. Portainer resolves relative paths inside its own container, so change `./config` and `./recordings` to absolute paths on the host, such as `/srv/sofa-king/config:/config`, and create both folders, owned by the `UID:GID` the stack runs as, before deploying. Remove the `env_file` lines and set any [server setting](live-tv.md#server-settings), `UID` and `GID` included, under Environment variables instead.
+
 ## Host networking
 
 `compose.yaml` runs the container on the host's network (`network_mode: host`) with `SOFA_PORT=9193`, so the server answers on port 9193 of every address the host has. That lets two things work that a Docker bridge network stops:
@@ -233,6 +264,7 @@ Homepage's [Custom API widget](https://gethomepage.dev/widgets/services/customap
 | `deploy/compose.build.yaml` | Builds the image from a checkout instead, see [build](#build) |
 | `deploy/.env.example` | Optional settings; copy to `.env` beside `compose.yaml` |
 | `deploy/sources.example.json` | Source template; copy to `config/sources.json` |
+| `deploy/unraid/sofa-king.xml` | The Unraid Docker template, see [Unraid](#unraid) |
 | `deploy/sofa-king-update.sh` | Keeps a host on the published image and installs its own systemd units, see [update automatically](#update-automatically) |
 | `.github/workflows/backend.yml` (at the repository root) | Tests pull requests and pushes to `main`, and publishes the image for `main`, as [contributing](../../CONTRIBUTING.md#ci) describes |
 

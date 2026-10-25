@@ -48,7 +48,7 @@ class DvrRules internal constructor(
             UUID.randomUUID().toString(), title, request.channelId, request.newOnly, keep(request.keep),
             padding(request.startPaddingSeconds, Dvr.DEFAULT_START_PADDING),
             padding(request.endPaddingSeconds, Dvr.DEFAULT_END_PADDING),
-            priority(request.priority), clock.instant(),
+            priority(request.priority), clock.instant(), ruleMatch(request.match, title),
         )
         store.saveRecordingRule(rule)
         changed()

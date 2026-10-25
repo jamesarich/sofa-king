@@ -28,6 +28,13 @@ object Wire {
         const val FAILED = "failed"
     }
 
+    /** `RuleMatch.kind`: what a recording rule matches; a client reads an unknown kind as one it cannot edit. */
+    object RuleMatchKind {
+        const val TITLE = "title"
+        const val TEAM = "team"
+        const val KEYWORD = "keyword"
+    }
+
     /** How far the server got looking for a recording's commercial breaks. */
     object CommercialScan {
         const val SCANNING = "scanning"

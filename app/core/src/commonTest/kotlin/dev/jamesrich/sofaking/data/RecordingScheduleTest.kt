@@ -164,6 +164,44 @@ class RecordingScheduleTest {
     }
 
     @Test
+    fun `record team adds a team rule for any channel and its games mark the team`() = runTest {
+        var added = false
+        val http = FakeHttp(this) { seen ->
+            when {
+                seen.method == "POST" -> {
+                    added = true
+                    json("""{"id":"t1","title":"Packers","match":{"kind":"team","terms":["Packers"]}}""", 201)
+                }
+
+                seen.path == "/api/v1/recording-rules" -> json(
+                    if (added) {
+                        """{"rules":[{"id":"t1","title":"Packers","match":{"kind":"team","terms":["Packers"]}}]}"""
+                    } else {
+                        "{}"
+                    },
+                )
+
+                else -> json("{}")
+            }
+        }
+        val schedule = RecordingSchedule(backgroundScope, flowOf(http.api()), flowOf(true))
+        runCurrent()
+        val game = news.copy(title = "NFL Football", subTitle = "Bears at Packers", kinds = setOf(ProgramKind.SPORTS))
+
+        assertTrue(schedule.toggleTeam("Packers"))
+        assertEquals(
+            """POST /api/v1/recording-rules {"title":"Packers","match":{"kind":"team","terms":["Packers"]}}""",
+            http.requestsOfKind("POST").single(),
+        )
+        assertEquals(RecordingMark(teams = setOf("packers")), schedule.marks.value.of(game))
+        assertEquals(
+            RecordingMark(),
+            schedule.marks.value.of(news.copy(title = "Packers")),
+            "a team rule never marks a title as a series",
+        )
+    }
+
+    @Test
     fun `a server that does not record is never asked`() = runTest {
         val http = FakeHttp(this) { json("{}") }
         val enabled = MutableStateFlow(false)

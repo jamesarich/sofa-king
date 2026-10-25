@@ -26,8 +26,10 @@ object DvrPlanner {
     /** A guide that marks neither `new` nor `previously-shown` makes every airing new. */
     fun isNew(program: GuideProgram): Boolean = program.isNew || program.previouslyShown == null
 
-    fun matches(rule: StoredRule, airing: Airing): Boolean =
-        airing.program.title.trim().equals(rule.title.trim(), ignoreCase = true) &&
+    fun matches(rule: StoredRule, airing: Airing): Boolean = matches(rule, RuleMatcher(rule), airing)
+
+    private fun matches(rule: StoredRule, matcher: RuleMatcher, airing: Airing): Boolean =
+        matcher.takes(airing.program) &&
             (rule.channelId == null || rule.channelId == airing.channelId) &&
             (!rule.newOnly || isNew(airing.program))
 
@@ -63,7 +65,8 @@ object DvrPlanner {
         val add = mutableListOf<Pair<StoredRule, Airing>>()
         val wanted = HashSet<Pair<String, Instant>>()
         for (rule in rules.sortedByDescending { it.priority }) {
-            for (airing in airings.filter { matches(rule, it) }.sortedBy { it.program.startsAt }) {
+            val matcher = RuleMatcher(rule)
+            for (airing in airings.filter { matches(rule, matcher, it) }.sortedBy { it.program.startsAt }) {
                 val slot = airing.channelId to airing.program.startsAt
                 wanted += slot
                 val episode = key(airing)

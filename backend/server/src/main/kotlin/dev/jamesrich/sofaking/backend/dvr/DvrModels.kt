@@ -4,6 +4,8 @@ import dev.jamesrich.sofaking.backend.catalog.SeasonEpisode
 import dev.jamesrich.sofaking.contract.Recording
 import dev.jamesrich.sofaking.contract.RecordingBreak
 import dev.jamesrich.sofaking.contract.RecordingRule
+import dev.jamesrich.sofaking.contract.RuleMatch
+import dev.jamesrich.sofaking.contract.Wire
 import java.time.Duration
 import java.time.Instant
 
@@ -81,10 +83,12 @@ data class StoredRule(
     val endPadding: Duration,
     val priority: Int,
     val createdAt: Instant,
+    /** What the rule matches; a title rule matches [title]. */
+    val match: RuleMatch = RuleMatch(),
 ) {
     fun toWire() = RecordingRule(
         id, title, channelId, newOnly, keep, startPadding.seconds.toInt(), endPadding.seconds.toInt(), priority,
-        createdAt.toString(),
+        createdAt.toString(), match.takeIf { it.kind != Wire.RuleMatchKind.TITLE },
     )
 }
 

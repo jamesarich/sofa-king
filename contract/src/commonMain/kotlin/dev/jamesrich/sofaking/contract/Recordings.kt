@@ -73,7 +73,8 @@ data class UpdateRecording(val protected: Boolean? = null, val positionMs: Long?
 /**
  * A series rule: record every airing whose title is [title] (ignoring case), on [channelId] or on any channel when
  * null. [newOnly] skips airings the guide marks as repeats. [keep] is how many finished recordings the rule keeps,
- * newest first; 0 keeps all. When recordings conflict, a higher [priority] wins the slot.
+ * newest first; 0 keeps all. When recordings conflict, a higher [priority] wins the slot. A [match] other than
+ * [Wire.RuleMatchKind.TITLE] matches by its terms instead, and [title] only names the rule; older servers send none.
  */
 @Serializable data class RecordingRule(
     val id: String,
@@ -85,12 +86,25 @@ data class UpdateRecording(val protected: Boolean? = null, val positionMs: Long?
     val endPaddingSeconds: Int = 120,
     val priority: Int = 0,
     val createdAt: String = "",
+    val match: RuleMatch? = null,
+)
+
+/**
+ * What a rule matches, by [kind] ([Wire.RuleMatchKind]): `title` the rule's title; `team` any of [terms] as whole
+ * words in a program's title or episode title, on a program in one of [categories] (`Sports` when none is given);
+ * `keyword` any of [terms] as whole words in its title, episode title or description, in one of [categories] when
+ * any is given. Words match ignoring case.
+ */
+@Serializable data class RuleMatch(
+    val kind: String = Wire.RuleMatchKind.TITLE,
+    val terms: List<String> = emptyList(),
+    val categories: List<String> = emptyList(),
 )
 
 /** `GET /api/v1/recording-rules`. */
 @Serializable data class RecordingRuleList(val rules: List<RecordingRule> = emptyList())
 
-/** `POST /api/v1/recording-rules`; unset paddings take the server's defaults. */
+/** `POST /api/v1/recording-rules`; unset paddings take the server's defaults. A rule's [match] never changes. */
 @Serializable data class CreateRecordingRule(
     val title: String,
     val channelId: String? = null,
@@ -99,6 +113,8 @@ data class UpdateRecording(val protected: Boolean? = null, val positionMs: Long?
     val startPaddingSeconds: Int? = null,
     val endPaddingSeconds: Int? = null,
     val priority: Int = 0,
+    /** Null or a `title` match records by [title]; a team's rule falls back to [title] as its one term. */
+    val match: RuleMatch? = null,
 )
 
 /**

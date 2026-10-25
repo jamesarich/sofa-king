@@ -160,7 +160,7 @@ class MigrationsTest {
             assertEquals(
                 listOf(
                     1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201, 202,
-                    203, 204, 205, 206, 207, 208, 209, 210, 214, 215,
+                    203, 204, 205, 206, 207, 208, 209, 210, 214, 215, 218,
                 ),
                 withStatement(dir) { it.ints("SELECT version FROM schema_version ORDER BY version") },
             )
@@ -326,7 +326,7 @@ class MigrationsTest {
             assertEquals(
                 listOf(
                     1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201, 202, 203, 204, 205,
-                    206, 207, 208, 209, 210, 214, 215,
+                    206, 207, 208, 209, 210, 214, 215, 218,
                 ),
                 foundationMigrations().map {
                     it.version

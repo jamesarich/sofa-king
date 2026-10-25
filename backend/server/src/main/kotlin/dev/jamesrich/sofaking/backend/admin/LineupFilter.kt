@@ -107,6 +107,8 @@ internal class StationRow(
     val guideStatus: String,
     val healthy: Int = 0,
     val overridden: Boolean = false,
+    /** Why a red row has no healthy source; only the rows a page shows carry it. */
+    val why: String? = null,
 ) {
     val required: Boolean get() = station?.required == true
     val state: String get() = if (entry.enabled) {

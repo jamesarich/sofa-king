@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.health.Observation
 import kotlinx.html.A
 import kotlinx.html.ButtonType
 import kotlinx.html.DIV
@@ -45,6 +46,10 @@ internal class SourceLine(
     val protocol: String,
     val status: String,
     val disabled: Boolean = false,
+    /** Why a source that is not healthy is where it is; null when there is nothing to say. */
+    val why: String? = null,
+    /** Its newest probe results, newest first. */
+    val recent: List<Observation> = emptyList(),
 )
 
 internal class StationView(
@@ -272,6 +277,8 @@ private fun DIV.stationSources(chrome: Chrome, view: StationView) = table {
                         +" "
                         chip("Disabled by hand", Tone.OFF)
                     }
+                    source.why?.let { p("why small") { +it } }
+                    if (source.recent.isNotEmpty()) recentProbes(source.recent, chrome)
                 }
                 td { if (source.status != "WITHDRAWN") sourceActions(chrome, view, source, index + 1) }
             }

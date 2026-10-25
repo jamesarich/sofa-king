@@ -172,7 +172,9 @@ class GuideService(
                 onImported()
                 JobOutcome(true, "${parsed.channels.size} channels, ${parsed.programs.size} programs")
             }.getOrElse { e ->
-                _statuses.updateAndGet { all -> all.replacing(config.id) { it.copy(errorCode = "IMPORT_FAILED") } }
+                _statuses.updateAndGet { all ->
+                    all.replacing(config.id) { it.copy(errorCode = "IMPORT_FAILED", error = importError(e)) }
+                }
                 log.warn(
                     "guide import guide={} failed class={} message=\"{}\" durationMs={}",
                     config.id,
@@ -245,6 +247,9 @@ private class GuideFetcher(
 private val urlInMessage = Regex("""https?://[^\s"'\]\[<>]+""")
 private val whitespace = Regex("\\s+")
 private const val MESSAGE_LIMIT = 300
+
+/** Why an import failed, for the portal: its message with URLs redacted, or the exception's name without one. */
+internal fun importError(e: Throwable): String = redactedMessage(e).ifEmpty { e.javaClass.simpleName }
 
 /** The exception's message with every URL (and so any query token) replaced by `<url>`, on one line, bounded. */
 internal fun redactedMessage(e: Throwable): String =

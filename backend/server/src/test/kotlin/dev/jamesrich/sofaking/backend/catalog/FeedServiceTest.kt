@@ -48,6 +48,7 @@ class FeedServiceTest {
                         feeds.refresh(fixture.feed)
                         assertEquals(id, stack.catalog.catalog().channels.single().id)
                         assertEquals("IMPORT_FAILED", feeds.statuses.single().errorCode)
+                        assertTrue(!feeds.statuses.single().error.isNullOrBlank(), "the portal shows why")
                         assertFalse(stack.catalog.catalog().channels.single().playbackEligible)
                     }
                     openStore(dir).use { store ->

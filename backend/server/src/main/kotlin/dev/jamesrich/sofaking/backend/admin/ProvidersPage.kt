@@ -123,7 +123,7 @@ private fun FlowContent.importsPanel(view: ProvidersView, now: Instant) = panel(
                         td("num") { +thousands(status.channels) }
                         td("nowrap") { ago(status.lastSuccessAt, now) }
                         td {
-                            importChip(status.errorCode, status.lastSuccessAt)
+                            importChip(status.errorCode, status.error, status.lastSuccessAt)
                             if (status.skippedEntries > 0) {
                                 span("muted small") { +" ${thousands(status.skippedEntries)} skipped" }
                             }
@@ -136,10 +136,14 @@ private fun FlowContent.importsPanel(view: ProvidersView, now: Instant) = panel(
     }
 }
 
-private fun FlowContent.importChip(errorCode: String?, lastSuccessAt: String?) = when {
-    errorCode != null -> chip(errorCode, Tone.BAD)
-    lastSuccessAt == null -> chip("Waiting", Tone.WARN)
-    else -> chip("OK", Tone.OK)
+/** The import's state, with why the last one failed beside a failure. */
+private fun FlowContent.importChip(errorCode: String?, error: String?, lastSuccessAt: String?) {
+    when {
+        errorCode != null -> chip(errorCode, Tone.BAD)
+        lastSuccessAt == null -> chip("Waiting", Tone.WARN)
+        else -> chip("OK", Tone.OK)
+    }
+    if (errorCode != null && error != null) p("why small muted") { +error }
 }
 
 private fun FlowContent.guidesPanel(guides: List<GuideStatus>, now: Instant) = panel("Guides", id = "guides") {
@@ -168,7 +172,7 @@ private fun FlowContent.guidesPanel(guides: List<GuideStatus>, now: Instant) = p
                             td("num") { +thousands(guide.channels) }
                             td("num") { +thousands(guide.programs) }
                             td("nowrap") { ago(guide.lastSuccessAt, now) }
-                            td { importChip(guide.errorCode, guide.lastSuccessAt) }
+                            td { importChip(guide.errorCode, guide.error, guide.lastSuccessAt) }
                         }
                     }
                 }

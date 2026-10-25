@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.api
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 /**
  * A live session as the admin API lists it; [external] marks an M3U or HDHomeRun player, [busy] a media request in
@@ -36,6 +37,8 @@ import kotlinx.serialization.Serializable
     val skippedEntries: Int = 0,
     val skipReasons: String? = null,
     val notes: String? = null,
+    /** Why the last import failed, URLs redacted; the portal shows it, and the API keeps to [errorCode]. */
+    @Transient val error: String? = null,
 )
 
 @Serializable data class SourceStatus(

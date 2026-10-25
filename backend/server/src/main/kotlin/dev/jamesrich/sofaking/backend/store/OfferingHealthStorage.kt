@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.health.HealthPolicy
 import dev.jamesrich.sofaking.backend.health.HealthState
 import dev.jamesrich.sofaking.backend.health.Observation
 import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -95,6 +96,26 @@ suspend fun BackendStore.recordObservation(offeringId: String, observation: Obse
             next
         }
     }
+
+/**
+ * The newest [limit] probe results of each of [offeringIds], newest first; a source with none is left out. Results
+ * older than the observation history the server keeps are gone.
+ */
+suspend fun BackendStore.recentObservations(
+    offeringIds: Collection<String>,
+    limit: Int,
+): Map<String, List<Observation>> {
+    if (offeringIds.isEmpty()) return emptyMap()
+    return query {
+        offeringIds.distinct().chunked(ROW_CHUNK).flatMap { chunk ->
+            HealthObservations.selectAll().where { HealthObservations.offeringId inList chunk }
+                .orderBy(HealthObservations.observedAt, SortOrder.DESC)
+                .map { it[HealthObservations.offeringId] to it[HealthObservations.observationJson] }
+        }.groupBy({ it.first }, { it.second }).mapValues { (_, rows) ->
+            rows.take(limit).map { Json.decodeFromString<StoredObservation>(it).domain() }
+        }
+    }
+}
 
 /**
  * Deletes observation history older than [before]; health state and strikes live in

@@ -65,6 +65,7 @@ internal class AppGraph(
         connection.sessions,
         watchNext = shownWatchNext,
         watchlist = connection.watchlist,
+        kidsMode = kidsMode,
     )
 
     /** The Recordings tab reads the same list as the guide's record marks, from the connection. */

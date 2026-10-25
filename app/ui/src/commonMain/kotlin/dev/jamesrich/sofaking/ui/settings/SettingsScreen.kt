@@ -88,6 +88,7 @@ import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.rememberUpdateInstaller
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.supportsNightListening
 import dev.jamesrich.sofaking.ui.supportsPlaybackPreferences
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.updateDownloadUrl
@@ -115,6 +116,7 @@ class SettingsActions(
     /** Opens the channel manager (hidden channels and the favorites order). */
     val onManageChannels: () -> Unit = {},
     val onMatchFrameRateChanged: (Boolean) -> Unit = {},
+    val onNightListeningChanged: (Boolean) -> Unit = {},
     val onDecoderChanged: (DecoderPreference) -> Unit = {},
     val onBufferChanged: (BufferPreference) -> Unit = {},
     /** A new PIN for the lock, or null to remove it. */
@@ -222,7 +224,7 @@ fun SettingsScreen(
                 }
             }
             captionsSection(settings, actions)
-            if (supportsPlaybackPreferences) playbackSection(settings, actions)
+            if (supportsPlaybackPreferences || supportsNightListening) playbackSection(settings, actions)
             if (!unconfigured) serverSection()
             item { SectionHeader(stringResource(Res.string.settings_section_lock)) }
             item { LockSection(settings, actions.onSettingsPinChanged, actions.onKidsModeChanged) }

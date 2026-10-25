@@ -33,6 +33,8 @@ internal actual fun captionEngineName(): String = "Media3"
 
 internal actual val supportsPlaybackPreferences: Boolean = true
 
+internal actual val supportsNightListening: Boolean = true
+
 internal actual val supportsCaptionSync: Boolean = true
 
 @Composable

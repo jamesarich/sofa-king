@@ -71,6 +71,8 @@ interface PlayerEdits {
 
     fun setMatchFrameRate(enabled: Boolean)
 
+    fun setNightListening(enabled: Boolean)
+
     fun setDecoder(decoder: DecoderPreference)
 
     fun setChannelDecoder(guideId: String, decoder: DecoderPreference?)
@@ -154,6 +156,8 @@ internal class StorePlayerEdits(private val store: PlayerSettings, private val s
     override fun setVolume(level: Int, muted: Boolean) = scope.save { store.setVolume(level, muted) }
 
     override fun setMatchFrameRate(enabled: Boolean) = scope.save { store.setMatchFrameRate(enabled) }
+
+    override fun setNightListening(enabled: Boolean) = scope.save { store.setNightListening(enabled) }
 
     override fun setDecoder(decoder: DecoderPreference) = scope.save { store.setDecoder(decoder) }
 

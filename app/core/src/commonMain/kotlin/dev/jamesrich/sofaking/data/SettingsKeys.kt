@@ -33,6 +33,7 @@ import dev.jamesrich.sofaking.data.SettingsKeys.LAST_CHANNEL
 import dev.jamesrich.sofaking.data.SettingsKeys.LAST_TAB
 import dev.jamesrich.sofaking.data.SettingsKeys.LIVE_BREAKS
 import dev.jamesrich.sofaking.data.SettingsKeys.MATCH_FRAME_RATE
+import dev.jamesrich.sofaking.data.SettingsKeys.NIGHT_LISTENING
 import dev.jamesrich.sofaking.data.SettingsKeys.PREFERENCES_SYNCED_AT
 import dev.jamesrich.sofaking.data.SettingsKeys.PREVIEW_SOUND
 import dev.jamesrich.sofaking.data.SettingsKeys.RECENT_CHANNELS
@@ -105,6 +106,7 @@ internal object SettingsKeys {
     val FAVORITES_ORDER = stringPreferencesKey("favorites_order")
     val TRACK_CHOICES = stringPreferencesKey("track_choices")
     val MATCH_FRAME_RATE = booleanPreferencesKey("match_frame_rate")
+    val NIGHT_LISTENING = booleanPreferencesKey("night_listening")
     val DECODER = stringPreferencesKey("decoder")
     val CHANNEL_DECODER = stringSetPreferencesKey("channel_decoder")
     val BUFFER = stringPreferencesKey("buffer")
@@ -185,6 +187,7 @@ internal fun readPlayback(prefs: Preferences): PlaybackPreferences = PlaybackPre
     decoder = prefs[DECODER].toEnum(DecoderPreference.AUTO),
     decoderByChannel = channelDecoders(prefs),
     buffer = prefs[BUFFER].toEnum(BufferPreference.STANDARD),
+    nightListening = prefs[NIGHT_LISTENING] ?: false,
 )
 
 internal fun trackChoices(prefs: Preferences): Map<String, TrackChoice> =

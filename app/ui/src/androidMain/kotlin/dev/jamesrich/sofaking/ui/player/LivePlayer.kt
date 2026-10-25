@@ -66,6 +66,8 @@ internal class ExoLivePlayer(
 
     private val pauseClock = LivePauseClock()
 
+    private val nightListening = NightListening()
+
     private val _status = MutableStateFlow(PlayerStatus())
     private val _errors = MutableSharedFlow<PlayerError>(extraBufferCapacity = 8)
 
@@ -78,6 +80,9 @@ internal class ExoLivePlayer(
         }
 
         override fun onTracksChanged(tracks: Tracks) = this@ExoLivePlayer.tracks.onTracksChanged(tracks)
+
+        override fun onAudioSessionIdChanged(audioSessionId: Int) =
+            nightListening.update(preferences.nightListening, audioSessionId)
 
         override fun onCues(cueGroup: CueGroup) = tracks.onCues(cueGroup)
 
@@ -135,6 +140,7 @@ internal class ExoLivePlayer(
     override fun setPlaybackPreferences(preferences: PlaybackPreferences) {
         this.preferences = preferences
         tuning.setBuffer(preferences.buffer)
+        nightListening.update(preferences.nightListening, exo.audioSessionId)
     }
 
     override fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying?) {
@@ -191,6 +197,7 @@ internal class ExoLivePlayer(
 
     override fun release() {
         exo.removeListener(listener)
+        nightListening.release()
         exo.release()
     }
 }

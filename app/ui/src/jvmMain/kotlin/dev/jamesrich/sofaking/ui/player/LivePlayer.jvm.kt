@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.asComposeImageBitmap
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import kotlinx.coroutines.flow.update
@@ -146,6 +147,13 @@ internal class VlcLivePlayer(
         vlc.audio().setVolume((volume * VLC_FULL_VOLUME).roundToInt())
     }
 
+    @Volatile
+    private var nightListening = false
+
+    override fun setPlaybackPreferences(preferences: PlaybackPreferences) {
+        nightListening = preferences.nightListening
+    }
+
     override var playWhenReady: Boolean
         get() = mutableStatus.value.playWhenReady
         set(value) {
@@ -166,7 +174,9 @@ internal class VlcLivePlayer(
                 return@execute
             }
             commands.opened = opening
-            if (start) vlc.media().play(url) else vlc.media().startPaused(url)
+            // libVLC's compressor, as a media option, so it applies from the next stream opened.
+            val options = if (nightListening) arrayOf(NIGHT_LISTENING_OPTION) else emptyArray()
+            if (start) vlc.media().play(url, *options) else vlc.media().startPaused(url, *options)
             if (speed != 1f) vlc.controls().setRate(speed)
         }
     }
@@ -385,3 +395,6 @@ private const val VLC_LIVE_DELAY_MS = 15_000L
 /** libVLC's volume for the full level, and the cache it reports once full, both in percent. */
 private const val VLC_FULL_VOLUME = 100
 private const val VLC_FULL_CACHE = 100f
+
+/** libVLC's dynamic range compressor, with its defaults, for night listening. */
+private const val NIGHT_LISTENING_OPTION = ":audio-filter=compressor"

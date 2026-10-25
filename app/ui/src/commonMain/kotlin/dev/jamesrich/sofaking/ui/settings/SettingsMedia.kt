@@ -59,6 +59,8 @@ import dev.jamesrich.sofaking.resources.settings_hide_spoilers
 import dev.jamesrich.sofaking.resources.settings_hide_spoilers_help
 import dev.jamesrich.sofaking.resources.settings_match_frame_rate
 import dev.jamesrich.sofaking.resources.settings_match_frame_rate_help
+import dev.jamesrich.sofaking.resources.settings_night_listening
+import dev.jamesrich.sofaking.resources.settings_night_listening_help
 import dev.jamesrich.sofaking.resources.settings_section_captions
 import dev.jamesrich.sofaking.resources.settings_section_library
 import dev.jamesrich.sofaking.resources.settings_section_playback
@@ -90,6 +92,8 @@ import dev.jamesrich.sofaking.ui.player.CaptionPolicy
 import dev.jamesrich.sofaking.ui.player.captionTimingText
 import dev.jamesrich.sofaking.ui.rememberSystemCaptionSettings
 import dev.jamesrich.sofaking.ui.supportsCaptionSync
+import dev.jamesrich.sofaking.ui.supportsNightListening
+import dev.jamesrich.sofaking.ui.supportsPlaybackPreferences
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import org.jetbrains.compose.resources.stringResource
@@ -334,9 +338,22 @@ private fun CaptionTimingRow(stored: Int, onChange: (Int) -> Unit) {
     }
 }
 
-/** Playback, where the platform takes these: matching the frame rate, the decoder and the buffer. */
+/**
+ * Playback, where the platform takes these: night listening, matching the frame rate, the decoder and the buffer.
+ */
 internal fun LazyListScope.playbackSection(settings: AppSettings, actions: SettingsActions) {
     item { SectionHeader(stringResource(Res.string.settings_section_playback)) }
+    if (supportsNightListening) {
+        item {
+            SettingToggle(
+                label = stringResource(Res.string.settings_night_listening),
+                help = stringResource(Res.string.settings_night_listening_help),
+                stored = settings.playback.nightListening,
+                onChange = actions.onNightListeningChanged,
+            )
+        }
+    }
+    if (!supportsPlaybackPreferences) return
     item {
         SettingToggle(
             label = stringResource(Res.string.settings_match_frame_rate),

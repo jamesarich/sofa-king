@@ -172,4 +172,6 @@
     </plurals>
     <string name="channels_share">Share favorites across devices</string>
     <string name="channels_share_help">Keeps the favorites, their order and the hidden channels the same on every device of the household that has this on. Turning it on takes the household's list over when another device saved one.</string>
+    <string name="settings_night_listening">Night listening</string>
+    <string name="settings_night_listening_help">Brings quiet dialogue up and loud scenes down, for late nights. Audio passed through to a receiver is left as it is.</string>
 </resources>

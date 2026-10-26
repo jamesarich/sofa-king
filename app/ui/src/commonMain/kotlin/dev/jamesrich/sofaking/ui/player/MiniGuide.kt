@@ -57,6 +57,7 @@ import dev.jamesrich.sofaking.resources.mini_guide_next
 import dev.jamesrich.sofaking.resources.mini_guide_recent
 import dev.jamesrich.sofaking.resources.mini_guide_title
 import dev.jamesrich.sofaking.ui.ChannelLogo
+import dev.jamesrich.sofaking.ui.ProgressBar
 import dev.jamesrich.sofaking.ui.formatNumber
 import dev.jamesrich.sofaking.ui.noListingText
 import dev.jamesrich.sofaking.ui.panelEdgeMargin

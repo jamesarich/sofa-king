@@ -380,15 +380,6 @@ internal object SofaIcons {
     /** The caption timing's minus; the core set has Add but not Remove. */
     val Remove: ImageVector by lazy { pathIcon("Filled.Remove", "M19,13H5v-2h14v2z") }
 
-    /** A track row's mark: [Recordings] when picked, this ring when not. */
-    val RadioButtonUnchecked: ImageVector by lazy {
-        pathIcon(
-            "Filled.RadioButtonUnchecked",
-            "M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z" +
-                "M12,20c-4.42,0 -8,-3.58 -8,-8s3.58,-8 8,-8 8,3.58 8,8 -3.58,8 -8,8z",
-        )
-    }
-
     /** Multiview on the live player's bar: several pictures at once. */
     val Dashboard: ImageVector by lazy {
         pathIcon("Filled.Dashboard", "M3,13h8V3H3v10zm0,8h8v-6H3v6zm10,0h8V11h-8v10zm0,-18v6h8V3h-8z")

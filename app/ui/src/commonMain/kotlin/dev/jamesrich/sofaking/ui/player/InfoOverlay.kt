@@ -43,6 +43,7 @@ import dev.jamesrich.sofaking.resources.up_next
 import dev.jamesrich.sofaking.ui.ChannelLogo
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.ui.ProgramBadges
+import dev.jamesrich.sofaking.ui.ProgressBar
 import dev.jamesrich.sofaking.ui.RiseIn
 import dev.jamesrich.sofaking.ui.SinkOut
 import dev.jamesrich.sofaking.ui.episodeLine

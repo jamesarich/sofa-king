@@ -13,12 +13,17 @@ import androidx.compose.ui.graphics.Color
 /**
  * Material's list item colors for a row in a list the D-pad walks (Settings, a program's airings, On later), with the
  * focused row's container raised to `surfaceVariant`: Material's focus state layer alone is too faint to read from the
- * sofa. A selected row keeps Material's selected container when [tintSelected], else it looks like any other row.
+ * sofa. A selected row keeps Material's selected container when [tintSelected], else it looks like any other row. An
+ * unfocused row's container is [rest]: the page's surface, or clear over the picture.
  */
 @Composable
-internal fun listRowColors(interactions: InteractionSource, tintSelected: Boolean = true): ListItemColors {
+internal fun listRowColors(
+    interactions: InteractionSource,
+    tintSelected: Boolean = true,
+    rest: Color = MaterialTheme.colorScheme.surface,
+): ListItemColors {
     val focused by interactions.collectIsFocusedAsState()
-    val container = if (focused) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+    val container = if (focused) MaterialTheme.colorScheme.surfaceVariant else rest
     return ListItemDefaults.colors(
         containerColor = container,
         selectedContainerColor = if (tintSelected) Color.Unspecified else container,

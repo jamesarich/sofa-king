@@ -135,7 +135,7 @@ internal fun LibraryGridDestination(
             onGenre = {
                 libraryVm.openGrid(route.libraryId, shown?.sort ?: LibrarySort.TITLE, shown?.unwatched ?: false, it)
             },
-            onOpenItem = { shell.pushOver(route, Route.LibraryItem(it.id)) },
+            onOpenItem = { shell.nav = shell.nav.pushOver(route, Route.LibraryItem(it.id)) },
             onPlayItem = { shell.push(Route.Vod(it.id)) },
             onLoadMore = libraryVm::loadMore,
             onLoadThrough = libraryVm::loadThrough,

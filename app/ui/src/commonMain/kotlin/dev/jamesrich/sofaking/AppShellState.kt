@@ -76,11 +76,6 @@ internal class AppShellState(
         nav = nav.push(route, arrival)
     }
 
-    /** Opens [route] just above [page], closing what was open over it. */
-    fun pushOver(page: Route, route: Route) {
-        nav = nav.pushOver(page, route)
-    }
-
     /** Back one page. The player hands the guide the channel it was left on, which may not be the one it opened. */
     fun back() {
         nav = nav.pop(if (nav.top is Route.Player) history.watching else nav.top.focusKey)

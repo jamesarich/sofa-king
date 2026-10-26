@@ -44,7 +44,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.Program
@@ -267,7 +266,6 @@ private fun CellText(title: String, times: String?, compact: Boolean, modifier: 
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    lineHeight = if (compact) 16.sp else 22.sp,
                     lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
                 ),
             )

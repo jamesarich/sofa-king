@@ -1,16 +1,20 @@
 package dev.jamesrich.sofaking.backend.providers
 
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import java.time.Duration
 
 /**
  * Samsung TV Plus through Matt Huisman's published mirrors: the channel list from i.mjh.nz (gzip JSON, by
  * region), the XMLTV from the same host as an ordinary guide, and a `jmp2.uk/stvp-{id}` redirect per channel
- * whose target carries `{PSID}`-style ad macros. Channels with a `license_url` are DRM and left out.
+ * whose target carries `{PSID}`-style ad macros. Channels with a `license_url` are DRM and left out. When
+ * i.mjh.nz fails, the list comes from the mirror's GitHub repository, and when that fails too, the last list
+ * that loaded stands in. Samsung publishes no API of its own outside its apps.
  */
 class SamsungClient(private val context: ProviderContext) : ProviderClient {
     override val service: String get() = "samsung"
 
     private val channelsUrl = context.options["channelsUrl"] ?: CHANNELS_URL
+    private val fallbackUrl = context.options["fallbackUrl"] ?: FALLBACK_URL
     private val streamBase = context.options["streamBase"] ?: STREAM_BASE
     private val region = (context.options["region"] ?: "us").lowercase()
 
@@ -37,11 +41,13 @@ class SamsungClient(private val context: ProviderContext) : ProviderClient {
     }
 
     private suspend fun listed(): List<ProviderChannel> = context.cached(CHANNELS, CACHED_FOR) {
-        fetchChannels()
+        val fresh = runCatchingCancellable { fetchChannels(channelsUrl) }.takeIf { it.isSuccess }
+            ?: runCatchingCancellable { fetchChannels(fallbackUrl) }
+        context.lastListed(LISTED, fresh)
     }
 
-    private suspend fun fetchChannels(): List<ProviderChannel> {
-        val payload = context.http.get(channelsUrl, HEADERS).require("Samsung channel list").json()
+    private suspend fun fetchChannels(url: String): List<ProviderChannel> {
+        val payload = context.http.get(url, HEADERS).require("Samsung channel list").json()
         val channels =
             (
                 payload["regions"][region]
@@ -66,8 +72,11 @@ class SamsungClient(private val context: ProviderContext) : ProviderClient {
 
     companion object {
         private const val CHANNELS_URL = "https://i.mjh.nz/SamsungTVPlus/.channels.json.gz"
+        private const val FALLBACK_URL =
+            "https://raw.githubusercontent.com/matthuisman/i.mjh.nz/master/SamsungTVPlus/.channels.json.gz"
         private const val STREAM_BASE = "https://jmp2.uk/stvp-"
         private const val CHANNELS = "channels"
+        private const val LISTED = "listed"
 
         /** How long the listing is kept before it is fetched again. */
         private val CACHED_FOR: Duration = Duration.ofMinutes(30)

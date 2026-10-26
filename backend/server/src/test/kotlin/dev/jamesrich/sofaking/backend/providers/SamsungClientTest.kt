@@ -9,6 +9,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 private const val RAW_LIST = "/raw/.channels.json.gz"
+private const val GITHUB_LIST = "/github/SamsungTVPlus/.channels.json.gz"
 
 class SamsungClientTest {
     /** The options pointing the client at the fixture. */
@@ -16,6 +17,7 @@ class SamsungClientTest {
         get() = mapOf(
             "channelsUrl" to "${fixture.base}/SamsungTVPlus/.channels.json.gz",
             "streamBase" to "${fixture.base}/stvp-",
+            "fallbackUrl" to "${fixture.base}$GITHUB_LIST",
         )
 
     /** The client over the fixture's channel list and redirector, in the mjh shape. */
@@ -77,4 +79,38 @@ class SamsungClientTest {
             assertFailsWith<ProviderFailure> { client.resolve("USBA3000041ZP") }.let { assertFalse(it.transient) }
             assertEquals(1, fixture.hits(RAW_LIST) - 1, "an unknown id refreshes the list once")
         }
+
+    @Test fun `a failing mirror falls back to its GitHub copy, then to the last list that loaded`() =
+        providerTest("sofa-samsung-") {
+            val client = samsung()
+            fixture.route("/SamsungTVPlus/.channels.json.gz") { Canned("unavailable", 503, "text/plain") }
+            fixture.route(GITHUB_LIST) {
+                Canned(200, ProviderFixture.resourceBytes("samsung-channels.json.gz"), "application/octet-stream")
+            }
+            assertEquals(listOf("USBA370000104", "USBC39000171G"), client.channels().map { it.id })
+            assertEquals(1, fixture.hits(GITHUB_LIST))
+
+            fixture.route(GITHUB_LIST) { Canned("gone", 404, "text/plain") }
+            clock.now = clock.now.plus(Duration.ofHours(1))
+            val restarted = SamsungClient(context("samsung", options))
+            val kept = restarted.channels()
+            assertEquals(
+                listOf("USBA370000104", "USBC39000171G"),
+                kept.map {
+                    it.id
+                },
+                "the last list survives a restart",
+            )
+            assertEquals("News & Opinion", kept[0].group)
+            assertTrue(
+                restarted.resolve("USBA370000104").url.endsWith("service_id=USBA370000104"),
+                "a resolve finds the channel in the kept list",
+            )
+        }
+
+    @Test fun `with no list ever loaded, a failing mirror and copy fail the listing`() = providerTest("sofa-samsung-") {
+        samsung()
+        fixture.route("/SamsungTVPlus/.channels.json.gz") { Canned("unavailable", 503, "text/plain") }
+        assertFailsWith<ProviderFailure> { SamsungClient(context("samsung", options)).channels() }
+    }
 }

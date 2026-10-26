@@ -1,0 +1,231 @@
+{
+ "type": "page",
+ "title": "",
+ "collections": [
+  {
+   "type": "content",
+   "title": "Epg",
+   "features": {
+    "station": {
+     "title": "ABC News Live",
+     "shortName": "ABC News Live",
+     "displayNumber": "100",
+     "viewOptions": [
+      {
+       "providerId": "rokuavod"
+      }
+     ],
+     "tags": [
+      "do-not-show-mlt",
+      "news",
+      "rejected-for-banner"
+     ],
+     "meta": {
+      "id": "483af83e821059b8b3f0825ae2d43e31",
+      "mediaType": "livefeed",
+      "source": "roku",
+      "href": "https://content.sr.roku.com/content/v1/roku-trc/483af83e821059b8b3f0825ae2d43e31",
+      "hrefV2": "https://content-detail.sr.roku.com/content-detail/v1/roku-trc/483af83e821059b8b3f0825ae2d43e31"
+     },
+     "imageMap": {
+      "liveHudLogo": {
+       "aspectRatio": "16:9",
+       "path": "https://images.sr.roku.com/idType/roku-trc/context/trc/id/483af83e821059b8b3f0825ae2d43e31/https%3A%2F%2Fimage.roku.com%2Fbh-uploads%2Fproduction%2FinfoHUDLogo%2F1661385031918_INFOHUD.png"
+      },
+      "epgLogo": {
+       "aspectRatio": "4:3",
+       "path": "https://images.sr.roku.com/idType/roku-trc/context/trc/id/483af83e821059b8b3f0825ae2d43e31/https%3A%2F%2Fimage.roku.com%2Fbh-uploads%2Fproduction%2FepgLightLogo%2F1746125955344_ABCNL_ROKU_EPG_WHT.png"
+      }
+     }
+    }
+   }
+  },
+  {
+   "type": "content",
+   "title": "Epg",
+   "features": {
+    "station": {
+     "title": "LiveNOW from FOX",
+     "shortName": "LiveNOW from FOX",
+     "displayNumber": "103",
+     "viewOptions": [
+      {
+       "providerId": "rokuavod",
+       "dvrPausable": true
+      }
+     ],
+     "tags": [
+      "do-not-show-mlt",
+      "super_bowl_fast_2025"
+     ],
+     "meta": {
+      "id": "f9c0d48b540a55dcb98b04d2cc8abf25",
+      "mediaType": "livefeed",
+      "source": "roku",
+      "href": "https://content.sr.roku.com/content/v1/roku-trc/f9c0d48b540a55dcb98b04d2cc8abf25",
+      "hrefV2": "https://content-detail.sr.roku.com/content-detail/v1/roku-trc/f9c0d48b540a55dcb98b04d2cc8abf25"
+     },
+     "imageMap": {
+      "liveHudLogo": {
+       "aspectRatio": "16:9",
+       "path": "https://images.sr.roku.com/idType/roku-trc/context/trc/id/f9c0d48b540a55dcb98b04d2cc8abf25/https%3A%2F%2Fimage.roku.com%2Fbh-uploads%2Fproduction%2FinfoHUDLogo%2F1791311617245_LN-260x147-Roku-Info_HUD_Logo.png"
+      },
+      "epgLogo": {
+       "aspectRatio": "4:3",
+       "path": "https://images.sr.roku.com/idType/roku-trc/context/trc/id/f9c0d48b540a55dcb98b04d2cc8abf25/https%3A%2F%2Fimage.roku.com%2Fbh-uploads%2Fproduction%2FepgLightLogo%2F1791311617245_LN-114x60-Roku-EPG_Spine_Logo-LIght.png"
+      }
+     }
+    }
+   }
+  },
+  {
+   "type": "content",
+   "title": "Epg",
+   "features": {
+    "station": {
+     "title": "Ryz Sports Network",
+     "shortName": "Ryz Sports Network",
+     "displayNumber": "609",
+     "viewOptions": [
+      {
+       "providerId": "rokuavod"
+      }
+     ],
+     "tags": [
+      "do-not-show-mlt"
+     ],
+     "meta": {
+      "id": "5f9c59c52f0ad475d90a33fdfd14d651",
+      "mediaType": "livefeed",
+      "source": "roku",
+      "href": "https://content.sr.roku.com/content/v1/roku-trc/5f9c59c52f0ad475d90a33fdfd14d651",
+      "hrefV2": "https://content-detail.sr.roku.com/content-detail/v1/roku-trc/5f9c59c52f0ad475d90a33fdfd14d651"
+     },
+     "imageMap": {
+      "liveHudLogo": {
+       "aspectRatio": "16:9",
+       "path": "https://images.sr.roku.com/idType/roku-trc/context/trc/id/5f9c59c52f0ad475d90a33fdfd14d651/https%3A%2F%2Fimage.roku.com%2Fbh-uploads%2Fproduction%2FinfoHUDLogo%2F1755024648037_Ryz_Roku_EPG_DarkBG_V3.png"
+      },
+      "epgLogo": {
+       "aspectRatio": "4:3",
+       "path": "https://images.sr.roku.com/idType/roku-trc/context/trc/id/5f9c59c52f0ad475d90a33fdfd14d651/https%3A%2F%2Fimage.roku.com%2Fbh-uploads%2Fproduction%2FepgLightLogo%2F1754942978771_Ryz_Roku_EPG_DarkBG.png"
+      }
+     }
+    }
+   }
+  },
+  {
+   "type": "content",
+   "title": "Epg",
+   "features": {
+    "station": {
+     "title": "Team USA TV",
+     "shortName": "Team USA TV",
+     "displayNumber": "616",
+     "viewOptions": [
+      {
+       "providerId": "rokuavod"
+      }
+     ],
+     "tags": [
+      "do-not-show-mlt"
+     ],
+     "meta": {
+      "id": "257afd66cee15a1ca2125fc377e87cc2",
+      "mediaType": "livefeed",
+      "source": "roku",
+      "href": "https://content.sr.roku.com/content/v1/roku-trc/257afd66cee15a1ca2125fc377e87cc2",
+      "hrefV2": "https://content-detail.sr.roku.com/content-detail/v1/roku-trc/257afd66cee15a1ca2125fc377e87cc2"
+     },
+     "imageMap": {
+      "liveHudLogo": {
+       "aspectRatio": "16:9",
+       "path": "https://images.sr.roku.com/idType/roku-trc/context/trc/id/257afd66cee15a1ca2125fc377e87cc2/https%3A%2F%2Fimage.roku.com%2Fbh-uploads%2Fproduction%2FinfoHUDLogo%2F1718724430937_TeamUSATV_HUDLogo_260x147.png"
+      },
+      "epgLogo": {
+       "aspectRatio": "4:3",
+       "path": "https://images.sr.roku.com/idType/roku-trc/context/trc/id/257afd66cee15a1ca2125fc377e87cc2/https%3A%2F%2Fimage.roku.com%2Fbh-uploads%2Fproduction%2FepgLightLogo%2F1746484898100_TeamUSA_EPGLight_114x60.png"
+      }
+     }
+    }
+   }
+  },
+  {
+   "type": "content",
+   "title": "Epg",
+   "features": {
+    "station": {
+     "title": "Binge Fest",
+     "displayNumber": "6001",
+     "meta": {
+      "id": "b73a771a97e84bf5519dec639921535c",
+      "mediaType": "playlist",
+      "source": "roku-trc",
+      "hasViewOptions": false,
+      "href": "https://content.sr.roku.com/content/v1/roku-trc/b73a771a97e84bf5519dec639921535c",
+      "hrefV2": "https://content-detail.sr.roku.com/content-detail/v1/roku-trc/b73a771a97e84bf5519dec639921535c"
+     },
+     "imageMap": {
+      "liveHudLogo": {
+       "aspectRatio": "16:9",
+       "path": "https://images.sr.roku.com/idType/roku-trc/context/trc/id/b73a771a97e84bf5519dec639921535c/https%3A%2F%2Fimage.roku.com%2Fbh-uploads%2Fproduction%2Fepg_vod%2Fv3%2F1726521553003_Binge_Fest_info_hud.png"
+      },
+      "epgLogo": {
+       "aspectRatio": "NON_STANDARD",
+       "path": "https://images.sr.roku.com/idType/roku-trc/context/trc/id/b73a771a97e84bf5519dec639921535c/https%3A%2F%2Fimage.roku.com%2Fbh-uploads%2Fproduction%2Fepg_vod%2Fv3%2F1726521553003_Binge_Fest_light.png"
+      }
+     }
+    }
+   }
+  }
+ ],
+ "categoryMapping": [
+  {
+   "id": "roku.epg.category-allchannels",
+   "title": "All Channels",
+   "collectionIds": [
+    "483af83e821059b8b3f0825ae2d43e31",
+    "f9c0d48b540a55dcb98b04d2cc8abf25",
+    "5f9c59c52f0ad475d90a33fdfd14d651",
+    "257afd66cee15a1ca2125fc377e87cc2",
+    "b73a771a97e84bf5519dec639921535c"
+   ]
+  },
+  {
+   "id": "roku.epg.cat-epg-recommended",
+   "title": "Recommended",
+   "collectionIds": [
+    "f9c0d48b540a55dcb98b04d2cc8abf25",
+    "483af83e821059b8b3f0825ae2d43e31"
+   ]
+  },
+  {
+   "id": "roku.epg.category-favorites",
+   "title": "Favorites",
+   "collectionIds": []
+  },
+  {
+   "id": "roku.epg.cat-livefeed-tv",
+   "title": "TV Shows",
+   "collectionIds": [
+    "b73a771a97e84bf5519dec639921535c"
+   ]
+  },
+  {
+   "id": "roku.epg.cat-epg-news-opinion",
+   "title": "News & Opinion",
+   "collectionIds": [
+    "483af83e821059b8b3f0825ae2d43e31",
+    "f9c0d48b540a55dcb98b04d2cc8abf25"
+   ]
+  },
+  {
+   "id": "roku.epg.cat-sports-channels",
+   "title": "Sports",
+   "collectionIds": [
+    "5f9c59c52f0ad475d90a33fdfd14d651",
+    "257afd66cee15a1ca2125fc377e87cc2"
+   ]
+  }
+ ]
+}

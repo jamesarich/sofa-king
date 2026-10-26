@@ -22,6 +22,8 @@ import kotlinx.serialization.Serializable
     val household: Boolean = false,
     /** `/api/v1/multiview-sessions`: the server can composite channels into one picture now. */
     val multiview: Boolean = false,
+    /** Music libraries, listed to a client that asks for them with [Wire.Header.LIBRARY_KINDS]. */
+    val music: Boolean = false,
 )
 
 @Serializable data class Bootstrap(

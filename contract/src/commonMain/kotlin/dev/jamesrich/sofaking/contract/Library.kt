@@ -60,6 +60,17 @@ import kotlinx.serialization.Serializable
     val tvdbId: Int? = null,
     /** The IMDb id (`tt…`), from the name, the `.nfo` or TMDB's record. */
     val imdbId: String? = null,
+    /**
+     * For an album or a track, its album artist's id and name; for a track whose own artist differs, as on a
+     * compilation, [trackArtist] names that one.
+     */
+    val artistId: String? = null,
+    val artist: String? = null,
+    val trackArtist: String? = null,
+    /** For a track, its album's title (its album is [parentId]), its number on its disc and the disc's number. */
+    val album: String? = null,
+    val track: Int? = null,
+    val disc: Int? = null,
 )
 
 /**

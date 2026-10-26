@@ -8,10 +8,12 @@ import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.contract.OpenVodPlayback
 import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.UpdateVodPlayback
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Parameters
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.install
 import io.ktor.server.http.content.LocalPathContent
 import io.ktor.server.plugins.partialcontent.PartialContent
@@ -28,7 +30,7 @@ import io.ktor.server.routing.route
 /** The libraries as the app reads them, under `/api/v1/libraries` and `/api/v1/library`. */
 fun Route.libraryRoutes(libraries: LibraryService) {
     val catalog = libraries.catalog
-    get("/api/v1/libraries") { call.respond(catalog.libraries()) }
+    get("/api/v1/libraries") { call.respond(catalog.libraries(call.showsMusic())) }
     get("/api/v1/libraries/{id}/items") {
         val limit =
             call.request.queryParameters["limit"]?.let {
@@ -39,22 +41,36 @@ fun Route.libraryRoutes(libraries: LibraryService) {
         val unwatched = call.request.queryParameters["unwatched"] == "true"
         val query = call.request.queryParameters
         call.respond(
-            catalog.items(call.parameters["id"]!!, query["sort"], unwatched, query["cursor"], limit, query["genre"]),
+            catalog.items(
+                call.parameters["id"]!!,
+                query["sort"],
+                unwatched,
+                query["cursor"],
+                limit,
+                query["genre"],
+                call.showsMusic(),
+                query["kind"],
+            ),
         )
     }
-    get("/api/v1/library/home") { call.respond(catalog.home()) }
+    get("/api/v1/library/home") { call.respond(catalog.home(call.showsMusic())) }
     get("/api/v1/library/search") {
         val query =
             call.request.queryParameters["q"]?.takeIf { it.length <= QUERY_LIMIT }
                 ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "q is 1 to $QUERY_LIMIT characters")
-        call.respond(catalog.search(query, SEARCH_RESULTS))
+        call.respond(catalog.search(query, SEARCH_RESULTS, call.showsMusic()))
     }
     get("/api/v1/library/lookup") { call.respond(catalog.lookup(lookupIds(call.request.queryParameters))) }
-    get("/api/v1/library/items/{id}") { call.respond(catalog.item(call.parameters["id"]!!)) }
+    get("/api/v1/library/items/{id}") { call.respond(catalog.item(call.parameters["id"]!!, call.showsMusic())) }
     put("/api/v1/library/items/{id}/play-state") {
         call.respond(catalog.updatePlayState(call.parameters["id"]!!, call.appBody<UpdatePlayState>()))
     }
 }
+
+/** Whether the client names `music` in its [Wire.Header.LIBRARY_KINDS] header, so it may see Music libraries. */
+internal fun ApplicationCall.showsMusic(): Boolean = request.headers.getAll(Wire.Header.LIBRARY_KINDS).orEmpty()
+    .flatMap { it.split(',') }
+    .any { it.trim().equals(Wire.LibraryKind.MUSIC, ignoreCase = true) }
 
 /** The ids `GET /api/v1/library/lookup` asks for: at least one of `tmdb`, `tvdb` and `imdb`, each well formed. */
 private fun lookupIds(query: Parameters): ProviderIds {

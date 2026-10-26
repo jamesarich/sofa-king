@@ -18,22 +18,91 @@ private val PLAY_ORDER = compareBy<View>(
     { it.record.sortTitle },
 )
 
+/** An artist's albums, newest first, then by title. */
+private val ALBUM_ORDER = compareByDescending<View> { it.record.year ?: 0 }.thenBy { it.record.sortTitle }
+
 /** Every present item of every library as the store holds them now. */
 internal suspend fun buildSnapshot(store: BackendStore, revision: Long): Snapshot {
-    // The apps do not show music yet, and one that does not know it would play a track as a video.
-    val libraries = store.libraries().filter { it.kind != LibraryKind.MUSIC }
+    val libraries = store.libraries()
     val records = libraries.flatMap { library ->
         store.libraryItems(library.id).filter { it.missingSince == null }.map { library to it }
     }
     val facts = store.libraryMetadata(records.map { it.second.id })
     val shows = showsOf(records.map { it.second })
+    val music = MusicParents(records.map { it.second })
     val views = LinkedHashMap<String, View>()
-    // Shows first, so a season or episode can borrow its show's artwork.
-    for ((library, record) in records.sortedBy { if (it.second.kind == ItemKind.SHOW) 0 else 1 }) {
+    // Shows and albums first, so a season, an episode, a track or an artist can borrow their artwork.
+    for ((library, record) in records.sortedBy { if (it.second.kind in BORROWED) 0 else 1 }) {
         val show = shows[record.id]?.takeIf { it.id != record.id }
-        views[record.id] = itemView(library, record, facts[record.id], show, show?.let { views[it.id] })
+        val view = itemView(library, record, facts[record.id], show, show?.let { views[it.id] })
+        views[record.id] = if (library.kind == LibraryKind.MUSIC) music.view(view, library, views) else view
     }
     return arranged(revision, libraries, views, shows)
+}
+
+/** The kinds whose artwork others borrow. */
+private val BORROWED = setOf(ItemKind.SHOW, ItemKind.ALBUM)
+
+/** Who a music library's albums and tracks belong to, and the pictures they share. */
+private class MusicParents(records: List<LibraryItemRecord>) {
+    private val byId = records.associateBy { it.id }
+    private val albums = records.filter { it.kind == ItemKind.ALBUM }.groupBy { it.parentId }
+
+    /** The first track of each album holding a picture, by its album's id. */
+    private val pictured = records.filter { it.kind == ItemKind.TRACK && it.media?.picture == true }
+        .sortedBy { it.sortTitle }
+        .groupBy { it.parentId }
+
+    /** For an album without a cover file, the picture in its first track that holds one. */
+    private fun embedded(record: LibraryItemRecord, library: LibraryRecord): ArtSource? =
+        pictured[record.id]?.firstOrNull()?.takeIf { record.kind == ItemKind.ALBUM }?.let { track ->
+            ArtSource.Frame(Path.of(library.path), track.path!!, 0, "${track.size}-${track.modifiedAt}")
+        }
+
+    /**
+     * [view] of [library] with its album and artist, and their pictures: an album without a cover shows the picture in
+     * its first track that has one, a track its album's, an artist without its own its newest album's.
+     */
+    fun view(view: View, library: LibraryRecord, views: Map<String, View>): View {
+        val record = view.record
+        val album = when (record.kind) {
+            ItemKind.TRACK -> record.parentId?.let(byId::get)
+            ItemKind.ALBUM -> record
+            else -> null
+        }
+        val artist = album?.parentId?.let(byId::get)
+        // A borrowed picture is served from the item it belongs to, so every item showing it shares one image.
+        val borrowedFrom = when {
+            view.poster != null -> null
+
+            record.kind == ItemKind.TRACK -> album
+
+            record.kind == ItemKind.ARTIST -> albums[record.id].orEmpty().sortedByDescending { it.year ?: 0 }
+                .firstOrNull { views[it.id]?.poster != null }
+
+            else -> null
+        }
+        val poster = view.poster ?: borrowedFrom?.let { views[it.id]?.poster } ?: embedded(record, library)
+        val owner = borrowedFrom?.takeIf { views[it.id]?.poster != null } ?: record
+        return View(
+            record,
+            view.item.copy(
+                poster = poster?.let { artworkUrl(owner.id, "poster", it) },
+                artistId = artist?.id,
+                artist = artist?.title,
+                trackArtist = record.details?.artist.takeIf { record.kind == ItemKind.TRACK },
+                album = album?.title.takeIf { record.kind == ItemKind.TRACK },
+                track = record.details?.track,
+                disc = record.details?.disc,
+            ),
+            view.tagline,
+            view.studio,
+            view.cast,
+            view.directors,
+            poster,
+            view.backdrop,
+        )
+    }
 }
 
 /** The show each of [records] belongs to, by its id; a show belongs to itself. */
@@ -57,7 +126,9 @@ private fun arranged(
 ): Snapshot {
     val (extraViews, held) =
         views.values.filter { it.record.parentId != null }.partition { it.record.kind == ItemKind.EXTRA }
-    val children = held.groupBy { it.record.parentId!! }.mapValues { (_, list) -> list.sortedWith(PLAY_ORDER) }
+    val children = held.groupBy { it.record.parentId!! }.mapValues { (_, list) ->
+        list.sortedWith(if (list.first().record.kind == ItemKind.ALBUM) ALBUM_ORDER else PLAY_ORDER)
+    }
     val extras =
         extraViews.groupBy { it.record.parentId!! }.mapValues { (_, list) -> list.sortedBy { it.record.sortTitle } }
     val episodes = views.values.filter { it.record.kind == ItemKind.EPISODE }
@@ -86,6 +157,8 @@ private fun arranged(
         episodes.mapValues { it.value.fresh() },
         tops.mapValues { it.value.fresh() },
         extras.mapValues { it.value.fresh() },
+        views.values.filter { it.record.kind == ItemKind.ALBUM }.groupBy { it.record.libraryId }
+            .mapValues { it.value.fresh() },
     )
 }
 

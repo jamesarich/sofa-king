@@ -60,6 +60,21 @@ object Wire {
         const val MOVIES = "movies"
         const val SHOWS = "shows"
         const val VIDEOS = "videos"
+
+        /**
+         * Artists, their albums and the albums' tracks. A server lists these libraries only to a client that names
+         * this kind in [Header.LIBRARY_KINDS].
+         */
+        const val MUSIC = "music"
+    }
+
+    /** Request headers a client sends. */
+    object Header {
+        /**
+         * The library kinds beyond the first three that the client shows, comma separated, such as `music`. A client
+         * that does not send it never sees a library of those kinds or its items.
+         */
+        const val LIBRARY_KINDS = "Sofa-Library-Kinds"
     }
 
     /** What a library item is; shows and seasons are folders, the others play. */
@@ -72,6 +87,15 @@ object Wire {
 
         /** A trailer, featurette or other extra, listed in its movie's or show's [LibraryItemDetail.extras]. */
         const val EXTRA = "extra"
+
+        /** A music library's album artist; its children are its albums. */
+        const val ARTIST = "artist"
+
+        /** An album; its children are its tracks, in disc and track order. */
+        const val ALBUM = "album"
+
+        /** One song or piece of an album; it plays. */
+        const val TRACK = "track"
     }
 
     /**

@@ -32,8 +32,13 @@ import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.guide.OnLaterScreen
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.localDay
+import dev.jamesrich.sofaking.ui.player.ChannelChoices
+import dev.jamesrich.sofaking.ui.player.KeyLegendCount
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.MultiviewScreen
+import dev.jamesrich.sofaking.ui.player.PlayerBreaks
+import dev.jamesrich.sofaking.ui.player.PlayerCaptions
+import dev.jamesrich.sofaking.ui.player.PlayerRecording
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
 import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -198,27 +203,34 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
             shell.notice = formatTemplate(channelGone, channel.label())
             shell.back()
         },
-        captionsEnabled = prefs.captionsEnabled,
-        onCaptionsChange = vm::setCaptionsEnabled,
-        captionAdvanceFor = { prefs.captionAdvanceFor(it.guideId) },
-        onCaptionAdvanceChange = { channel, ms -> vm.setChannelCaptionAdvance(channel.guideId, ms) },
-        captionStyle = prefs.captionStyle,
-        smoothCaptions = prefs.smoothCaptions,
-        favorites = prefs.favorites,
-        favoritesOrder = prefs.favoritesOrder,
-        recentGuideIds = prefs.recentChannels,
-        onToggleFavorite = { vm.toggleFavorite(it.guideId) },
-        keyLegendShown = prefs.keyLegendShown,
-        onKeyLegendShow = vm::setKeyLegendShown,
-        recordingMarks = recordingMarks.takeIf { capabilities.recordings },
-        onRecord = vm::toggleRecording,
-        onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
+        captions = PlayerCaptions(
+            enabled = prefs.captionsEnabled,
+            onEnabledChange = vm::setCaptionsEnabled,
+            advanceFor = { prefs.captionAdvanceFor(it.guideId) },
+            onAdvanceChange = { channel, ms -> vm.setChannelCaptionAdvance(channel.guideId, ms) },
+            style = prefs.captionStyle,
+            smooth = prefs.smoothCaptions,
+        ),
+        choices = ChannelChoices(
+            favorites = prefs.favorites,
+            order = prefs.favoritesOrder,
+            recent = prefs.recentChannels,
+            onToggleFavorite = { vm.toggleFavorite(it.guideId) },
+        ),
+        keyLegend = KeyLegendCount(prefs.keyLegendShown, vm::setKeyLegendShown),
+        recording = PlayerRecording(
+            marks = recordingMarks.takeIf { capabilities.recordings },
+            onRecord = vm::toggleRecording,
+            onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
+        ),
         zoom = shell.videoZoom,
         onZoom = { shell.videoZoom = it },
-        liveBreaks = prefs.liveBreaks,
-        adsDodgedTodayMs = prefs.adsDodged.on(localDay()),
-        onAdsDodge = { vm.addAdsDodged(localDay(), it) },
-        programFacts = vm::programFacts,
+        breaks = PlayerBreaks(
+            mode = prefs.liveBreaks,
+            dodgedTodayMs = prefs.adsDodged.on(localDay()),
+            onDodge = { vm.addAdsDodged(localDay(), it) },
+            facts = vm::programFacts,
+        ),
         sleep = shell.sleep,
         onMultiview = { channel: Channel -> shell.push(Route.Multiview(listOf(channel.guideId))) }
             .takeIf { capabilities.multiview },

@@ -31,15 +31,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.contract.Wire
-import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
-import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.ProgramFacts
-import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.breakFacts
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.break_watching
@@ -103,38 +100,14 @@ fun PlayerScreen(
     onSearch: () -> Unit = onExit,
     reloadLineup: suspend () -> Lineup? = { null },
     onChannelMissing: (Channel) -> Unit = { onExit() },
-    captionsEnabled: Boolean = false,
-    onCaptionsChange: (Boolean) -> Unit = {},
-    captionAdvanceFor: (Channel) -> Int = { AppSettings.DEFAULT_CAPTION_ADVANCE_MS },
-    onCaptionAdvanceChange: (Channel, Int) -> Unit = { _, _ -> },
-    captionStyle: CaptionStyle = CaptionStyle.SYSTEM,
-    smoothCaptions: Boolean = true,
-    /** Starred channels, for the channel list's Favorites chip, in the order Settings gave them. */
-    favorites: Set<String> = emptySet(),
-    favoritesOrder: List<String> = emptyList(),
-    /** Channels watched lately, latest first, for the channel list's Recent chip; empty leaves the chip out. */
-    recentGuideIds: List<String> = emptyList(),
-    /** Stars or unstars a channel from the channel list; null leaves the star out. */
-    onToggleFavorite: ((Channel) -> Unit)? = null,
-    /** How many info bars have carried the key legend so far; it rides the first [AppSettings.KEY_LEGEND_BARS]. */
-    keyLegendShown: Int = AppSettings.KEY_LEGEND_BARS,
-    onKeyLegendShow: (Int) -> Unit = {},
-    /** The server's scheduled recordings, for the bar's Record; null where it does not record. */
-    recordingMarks: RecordingMarks? = null,
-    /** Records the program, or cancels its recording; false when the server did not take it. */
-    onRecord: suspend (Program) -> Boolean = { false },
-    /** Plays a recording still being written from its start; null hides Watch from start. */
-    onWatchFromStart: ((recordingId: String) -> Unit)? = null,
+    captions: PlayerCaptions = PlayerCaptions(),
+    choices: ChannelChoices = ChannelChoices(),
+    keyLegend: KeyLegendCount = KeyLegendCount(),
+    recording: PlayerRecording = PlayerRecording(),
     /** How the picture meets the screen, and the next one picked from the bar or the Zoom key. */
     zoom: VideoZoom = VideoZoom.FIT,
     onZoom: (VideoZoom) -> Unit = {},
-    /** Whether the break screen covers the ads a streaming channel marks, and whether their sound plays under it. */
-    liveBreaks: LiveBreaks = LiveBreaks.PLAY,
-    /** The ads the break screen covered today before now, and where each break screen's time goes when it closes. */
-    adsDodgedTodayMs: Long = 0,
-    onAdsDodge: (Long) -> Unit = {},
-    /** What TMDB says about a program, for the break screen's facts; null when nothing is known. */
-    programFacts: suspend (Program) -> ProgramFacts? = { null },
+    breaks: PlayerBreaks = PlayerBreaks(),
     /** The sleep timer, which leaves the player as Back does once it runs out. */
     sleep: SleepTimer = remember { SleepTimer() },
     /** Opens multiview on the channel; null where the server does not draw it. */
@@ -145,42 +118,42 @@ fun PlayerScreen(
         startIndex,
         previousGuideId,
         zapScope,
-        captionsEnabled,
+        captions.enabled,
         attended = !unattended,
-        keyLegendShown,
+        keyLegend.shown,
     )
     val ring = remember(lineup.channels, zapScope, state.widened) { zapRing(lineup.channels, zapScope, state.widened) }
     // As rememberUpdatedState does: the key handlers and effects read the ring and the lineup last composed.
     state.channels = ring
     state.lineupChannels = lineup.channels
     val now by rememberMinuteNow()
-    val parts = rememberLiveParts(state, player, sessions, liveBreaks.covers)
+    val parts = rememberLiveParts(state, player, sessions, breaks.mode.covers)
     val load: (Channel) -> Unit = { channel -> parts.tuner.load(channel, nowPlayingFor(lineup, channel, now)) }
     SleepExit(sleep, onExit)
     // A failure inside a break keeps the screen up under its card: a browser can fail at the seam between two ads, and
     // the card should not uncover the ad while the stream reconnects.
     val breakScreen = parts.cover.up && !LocalInPictureInPicture.current
-    val channelAdvance = state.captionAdvance(captionAdvanceFor)
+    val channelAdvance = state.captionAdvance(captions.advanceFor)
     val captionLead = if (state.captionsOn && player.supportsCaptionLead) channelAdvance * 1_000L else 0L
-    CaptionLeadEffect(player, captionLead, smoothCaptions)
-    LiveSessionEffects(player, state, parts.tuner, muted = breakScreen && liveBreaks.muted)
+    CaptionLeadEffect(player, captionLead, captions.smooth)
+    LiveSessionEffects(player, state, parts.tuner, muted = breakScreen && breaks.mode.muted)
     TuneEffects(state, parts.tuner, ring, lineup, now, onChannelChange)
     PlayerTimers(state, player)
     ReconnectEffect(state, reloadLineup, onChannelMissing, load)
-    KeyLegendEffect(state, LocalLastInput.current.kind == InputKind.POINTER, onKeyLegendShow)
+    KeyLegendEffect(state, LocalLastInput.current.kind == InputKind.POINTER, keyLegend.onShow)
     val controls = liveControls(
         parts,
         channelAdvance,
-        LiveExits(onGuide, onSearch, onExit, onCaptionsChange, onCaptionAdvanceChange),
+        LiveExits(onGuide, onSearch, onExit, captions.onEnabledChange, captions.onAdvanceChange),
         load,
         onRecord = {
             val program = state.currentChannel?.let { lineup.nowAndNext(it, now).first }
-            parts.notice.recordFor(program, recordingMarks, onRecord)?.onClick?.invoke()
+            parts.notice.recordFor(program, recording.marks, recording.onRecord)?.onClick?.invoke()
         },
         onZoom = { zoom.next().also(onZoom).let(parts.notice::zoomed) },
     )
-    LiveSurface(parts, controls, lineup, now, breakScreen, zoom, captionStyle, onExit, modifier) {
-        if (breakScreen) LiveBreakScreen(state, lineup, now, parts.cover, adsDodgedTodayMs, onAdsDodge, programFacts)
+    LiveSurface(parts, controls, lineup, now, breakScreen, zoom, captions.style, onExit, modifier) {
+        if (breakScreen) LiveBreakScreen(state, lineup, now, parts.cover, breaks)
         LiveOverlays(
             parts = parts,
             controls = controls,
@@ -190,8 +163,10 @@ fun PlayerScreen(
             ringSize = ring.size,
             sessions = sessions,
             captionAdvanceMs = channelAdvance.takeIf { player.supportsCaptionLead },
-            choices = ChannelChoices(favorites, favoritesOrder, recentGuideIds, onToggleFavorite),
-            record = { program -> parts.notice.recordFor(program, recordingMarks, onRecord, onWatchFromStart) },
+            choices = choices,
+            record = { program ->
+                parts.notice.recordFor(program, recording.marks, recording.onRecord, recording.onWatchFromStart)
+            },
             sleep = sleep,
             zoom = zoom,
             onExit = onExit,
@@ -199,14 +174,6 @@ fun PlayerScreen(
         )
     }
 }
-
-/** What the channel list offers: the starred channels in [order], the [recent] ones, and the star's toggle, if any. */
-internal data class ChannelChoices(
-    val favorites: Set<String>,
-    val order: List<String>,
-    val recent: List<String>,
-    val onToggleFavorite: ((Channel) -> Unit)?,
-)
 
 /**
  * The player surface, with the picture and its captions under [content]: it holds focus, names the channel and its
@@ -341,18 +308,15 @@ private fun Modifier.liveTouches(
 
 /** The break screen over the picture, with the program on now, facts about it and the time. */
 @Composable
-@Suppress("LongParameterList") // The player's parts the break screen draws from, and where its time goes.
 private fun LiveBreakScreen(
     state: PlayerState,
     lineup: Lineup,
     now: Instant,
     cover: BreakCover,
-    dodgedBeforeMs: Long,
-    onCover: (Long) -> Unit,
-    programFacts: suspend (Program) -> ProgramFacts?,
+    breaks: PlayerBreaks,
 ) {
     val (program, next) = state.currentChannel?.let { lineup.nowAndNext(it, now) } ?: (null to null)
-    val lookUp by rememberUpdatedState(programFacts)
+    val lookUp by rememberUpdatedState(breaks.facts)
     val facts by produceState<ProgramFacts?>(null, program) { value = program?.let { lookUp(it) } }
     val timeFormat = rememberTimeFormatter()
     BreakScreen(
@@ -361,8 +325,8 @@ private fun LiveBreakScreen(
         watching = program?.let { stringResource(Res.string.break_watching, it.title) },
         facts = breakFactLines(breakFacts(program, next, facts), timeFormat),
         clock = timeFormat.format(now),
-        dodgedBeforeMs = dodgedBeforeMs,
-        onCover = onCover,
+        dodgedBeforeMs = breaks.dodgedTodayMs,
+        onCover = breaks.onDodge,
     )
 }
 

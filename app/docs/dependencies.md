@@ -21,6 +21,8 @@ The app, the server and the [contract](../../contract/README.md) share that one 
 
 The open-source licenses page comes from [AboutLibraries](https://github.com/mikepenz/AboutLibraries) (`aboutlibraries` in the catalog, one version for its Gradle plugin and its Compose UI). The plugin's `exportLibraryDefinitions` task in `ui` lists every library each target resolves, tagged with the targets that use it, and downloads the license texts from SPDX, so its first run needs the network; the build cache keeps the result. The build syncs the list into the common resources as `files/aboutlibraries.json`, so a dependency change updates the page with nothing to regenerate by hand.
 
+Google TV's Continue watching row comes from the Engage SDK (`engage-tv`), Google's closed-source library, which brings Play services' Tasks and basement, WorkManager and Joda-Time. It writes the Watch Next row itself on an Android TV launcher that reads it, so it overrides `tvprovider`'s minimum SDK. Play services pins Fragment 1.1.0, whose activity results Android lint refuses, so the app depends on a current `androidx-fragment`.
+
 The catalog also pins the [formatting and static analysis](../../CONTRIBUTING.md#formatting-and-static-analysis) tools: Spotless and the ktlint version it runs (`ktlint`), and detekt with the Compose rules. detekt is on its 2.0 prerelease line (plugin id `dev.detekt`); Renovate proposes its updates like any other.
 
 Every version in the catalog is exact, and the wrapper has a pinned distribution checksum. Neither Gradle's resolved versions nor the Kotlin/JS and Kotlin/Wasm Yarn lockfiles are kept: Gradle resolves the pinned versions the same way on every machine, and Kotlin writes the Yarn lockfiles to the ignored `kotlin-js-store` on each build.

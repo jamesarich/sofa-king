@@ -4,7 +4,9 @@ import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.api.PolicyApplyResult
 import dev.jamesrich.sofaking.backend.api.PolicyStation
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
+import dev.jamesrich.sofaking.backend.health.HealthState
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
+import dev.jamesrich.sofaking.backend.store.allHealth
 import dev.jamesrich.sofaking.backend.store.ignoredAttention
 import dev.jamesrich.sofaking.backend.store.library
 import io.ktor.server.routing.get
@@ -34,6 +36,7 @@ internal class OverviewReader(private val portal: Portal) {
         val plex = portal.plexStatus?.status()
         val stations = applied?.stations
         val requiredOff = stations?.filter { it.required && !it.enabled }
+        val unverified = stations?.count { it.disabledReason == "unverified" }
         val all = (
             sourceAttention(now) + deviceAttention(plex) + tunerAttention(applied?.result, requiredOff.orEmpty()) +
                 lineupAttention(applied?.result, guide) + encoderAttention(runtime.vod?.encoders)
@@ -46,7 +49,8 @@ internal class OverviewReader(private val portal: Portal) {
             stations = entries.size, enabled = enabled.size, guide = guide,
             required = stations?.count { it.required }, requiredOff = requiredOff?.size,
             suggestions = applied?.result?.suggestedAliases?.size, findings = applied?.result?.findings?.size,
-            unverified = stations?.count { it.disabledReason == "unverified" },
+            unverified = unverified,
+            verifyEta = verifyEta(unverified),
             providersOk = providers.count { it.errorCode == null && it.lastSuccessAt != null },
             providersTotal = providers.size,
             plex = plex?.let {
@@ -63,6 +67,18 @@ internal class OverviewReader(private val portal: Portal) {
             playing = playingRows(),
             lastRun = applied?.result, policy = policy != null, setup = runtime.setup,
         )
+    }
+
+    /**
+     * How long until every source in the first two probe tiers (the sources of stations waiting for a verified one)
+     * has had its first probe; null with nothing waiting, no first probes left, or no rate yet.
+     */
+    private suspend fun verifyEta(unverified: Int?): Duration? {
+        val probes = runtime.probes ?: return null
+        val policy = runtime.policy ?: return null
+        if (unverified == null || unverified == 0) return null
+        val left = firstProbesLeft(policy.probeTargets(), runtime.store.allHealth())
+        return if (left == 0) null else probes.rate.timeFor(left, portal.clock.instant())
     }
 
     /** Imports that failed, or that the server still waits for. */
@@ -354,3 +370,7 @@ internal fun failingFor(lastSuccessAt: String?, now: Instant): String? {
     val days = Duration.between(since, now).toDays()
     return if (days < 1) null else "has failed for ${plural(days.toInt(), "day")}"
 }
+
+/** Sources in the first two probe tiers of [targets] that no probe has observed yet. */
+internal fun firstProbesLeft(targets: Map<String, Int>, states: Map<String, HealthState>): Int =
+    targets.count { (id, tier) -> tier <= 1 && states[id]?.lastObservationAt == null }

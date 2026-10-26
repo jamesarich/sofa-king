@@ -20,11 +20,12 @@ import platform.UIKit.UIDevice
 import platform.UIKit.UIViewController
 
 /**
- * Called once from the Swift app's init, before the first [mainViewController]. Not named `init…`: Kotlin/Native
- * exports such functions to Swift as `doInit…`, since Objective-C reserves the init family for initializers.
+ * Called once from the Swift app's init, before the first [mainViewController], with the host's Bonjour [browser] for
+ * Settings to list the servers on the network. Not named `init…`: Kotlin/Native exports such functions to Swift as
+ * `doInit…`, since Objective-C reserves the init family for initializers.
  */
 @OptIn(ExperimentalForeignApi::class)
-fun startSofaKingIos() {
+fun startSofaKingIos(browser: HostServerBrowser) {
     val support = NSFileManager.defaultManager.URLForDirectory(
         directory = NSApplicationSupportDirectory,
         inDomain = NSUserDomainMask,
@@ -39,6 +40,7 @@ fun startSofaKingIos() {
             },
             ClientInfo("ios", UIDevice.currentDevice.name),
         ),
+        HostServerDiscovery(browser),
     )
 }
 

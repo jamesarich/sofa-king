@@ -14,3 +14,6 @@ internal actual val supportsCaptionSync: Boolean = false
 
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit
+
+@Composable
+internal actual fun rememberSurroundTestPlayer(): SurroundTestPlayer? = null

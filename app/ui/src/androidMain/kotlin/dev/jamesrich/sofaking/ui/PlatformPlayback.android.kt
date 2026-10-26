@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.media3.session.MediaSession
 import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.ui.player.ExoSurroundTest
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.MatchExoDisplayFrameRate
 import dev.jamesrich.sofaking.ui.player.MediaSessionHandle
@@ -38,6 +39,14 @@ internal actual val supportsPlaybackPreferences: Boolean = true
 internal actual val supportsNightListening: Boolean = true
 
 internal actual val supportsCaptionSync: Boolean = true
+
+@Composable
+internal actual fun rememberSurroundTestPlayer(): SurroundTestPlayer? {
+    val context = LocalContext.current.applicationContext
+    val player = remember(context) { ExoSurroundTest(context) }
+    DisposableEffect(player) { onDispose { player.stop() } }
+    return player
+}
 
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) =

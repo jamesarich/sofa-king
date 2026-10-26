@@ -20,6 +20,20 @@ internal expect val supportsPlaybackPreferences: Boolean
 /** True where the player honors PlaybackPreferences.nightListening; Settings hides the switch elsewhere. */
 internal expect val supportsNightListening: Boolean
 
+/** Plays [dev.jamesrich.sofaking.ui.player.SurroundTone] through the platform's player, from the start each time. */
+internal interface SurroundTestPlayer {
+    fun play()
+
+    fun stop()
+}
+
+/**
+ * The surround test's player, stopped when it leaves composition (Media3 on Android, libVLC on a desktop), or null
+ * where the app has no surround output to test, so Settings leaves the row out.
+ */
+@Composable
+internal expect fun rememberSurroundTestPlayer(): SurroundTestPlayer?
+
 /**
  * True where captions are drawn through `CaptionSync` (Android's Media3), so smoothing and timing apply;
  * Settings hides those rows elsewhere.

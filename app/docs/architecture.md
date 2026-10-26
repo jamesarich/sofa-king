@@ -105,7 +105,7 @@ The app holds one `LivePlayer`. Preview and full-screen playback share it, so op
 | Platform | Player | Plays | Captions | Media session |
 | --- | --- | --- | --- | --- |
 | Android | Media3 ExoPlayer | MPEG-TS, HLS | CEA-608/708, drawn by the app with per-channel timing | MediaSession |
-| Desktop | libVLC through vlcj | MPEG-TS, HLS | Drawn into the picture by libVLC | None |
+| Desktop | libVLC through vlcj | MPEG-TS, HLS | Drawn into the picture by libVLC | On Linux, MPRIS on the session bus through dbus-java (`MprisSession`: metadata, play, pause, next, previous); none on Windows or macOS |
 | iOS | AVPlayer | HLS | Drawn by AVPlayerLayer in the iOS caption style | Now Playing with the channel logo, and remote commands |
 | Apple TV | AVPlayer in `AVPlayerViewController` | HLS; library files as MP4 or HLS | The system player's | The system player's; its transport bar carries the favorite toggle and a channel menu (recent, favorites, all) that tunes without leaving the player |
 | Web | `<video>`, drawn into the Compose canvas through WebGL | HLS where the browser plays it natively | The browser's in-band text tracks, drawn by the app in the canvas and by the browser in the element-view fallback; Safari exposes CEA-608, Chrome's built-in HLS exposes none | Page title and the Media Session API (metadata, play, pause, next, previous) |

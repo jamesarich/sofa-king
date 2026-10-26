@@ -49,4 +49,12 @@ class RecordingFailureTest {
         assertEquals(RecordingFailure.DISK_FULL, recording(RecordingState.FAILED, "DISK_FULL").failure)
         assertNull(recording(RecordingState.COMPLETED, "DISK_FULL").failure)
     }
+
+    @Test
+    fun `a kept recording with a reason ended early and one without ran to the end`() {
+        assertEquals(RecordingFailure.STOPPED, recording(RecordingState.COMPLETED, "STOPPED").endedEarly)
+        assertEquals(RecordingFailure.DISK_FULL, recording(RecordingState.COMPLETED, "DISK_FULL").endedEarly)
+        assertNull(recording(RecordingState.COMPLETED, null).endedEarly)
+        assertNull(recording(RecordingState.FAILED, "DISK_FULL").endedEarly)
+    }
 }

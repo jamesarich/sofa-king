@@ -129,6 +129,18 @@ private struct RecordingRow: View {
         }
     }
 
+    /// Why a kept recording ended before its program did, if it did.
+    private var endedEarly: String? {
+        guard let reason = recording.endedEarly else { return nil }
+        switch reason {
+        case .stopped: return "Stopped early"
+        case .diskFull: return "Ended early: the recordings disk filled up"
+        case .source, .noMedia: return "Ended early: lost the channel's source"
+        case .channelGone: return "Ended early: the channel left the lineup"
+        default: return "Ended early"
+        }
+    }
+
     private var status: String? {
         switch recording.state {
         case .recording:
@@ -144,9 +156,9 @@ private struct RecordingRow: View {
             default: return "Failed"
             }
         case .completed:
-            if recording.watched { return "Watched" }
-            if recording.inProgress { return "Started" }
-            return nil
+            let watch: String? = recording.watched ? "Watched" : recording.inProgress ? "Started" : nil
+            let parts = [endedEarly, watch].compactMap { $0 }
+            return parts.isEmpty ? nil : parts.joined(separator: " · ")
         default:
             return nil
         }

@@ -19,6 +19,11 @@ import dev.jamesrich.sofaking.resources.recordings_confirm_cancel
 import dev.jamesrich.sofaking.resources.recordings_confirm_delete
 import dev.jamesrich.sofaking.resources.recordings_confirm_stop
 import dev.jamesrich.sofaking.resources.recordings_delete
+import dev.jamesrich.sofaking.resources.recordings_ended_early
+import dev.jamesrich.sofaking.resources.recordings_ended_early_channel_gone
+import dev.jamesrich.sofaking.resources.recordings_ended_early_disk_full
+import dev.jamesrich.sofaking.resources.recordings_ended_early_source
+import dev.jamesrich.sofaking.resources.recordings_ended_early_stopped
 import dev.jamesrich.sofaking.resources.recordings_failed
 import dev.jamesrich.sofaking.resources.recordings_failed_channel_gone
 import dev.jamesrich.sofaking.resources.recordings_failed_disk_full
@@ -127,6 +132,7 @@ private fun recordingStatus(recording: DvrRecording, time: TimeFormatter): Strin
     RecordingState.FAILED -> stringResource(failureLabel(recording.failure))
 
     RecordingState.COMPLETED -> listOfNotNull(
+        recording.endedEarly?.let { stringResource(endedEarlyLabel(it)) },
         stringResource(Res.string.recordings_watched).takeIf { recording.watched },
         recording.bytes.takeIf { it > 0 }?.let(::formatBytes),
     ).joinToString(" · ").ifEmpty { null }
@@ -140,7 +146,15 @@ private fun failureLabel(failure: RecordingFailure?) = when (failure) {
     RecordingFailure.NO_MEDIA -> Res.string.recordings_failed_no_media
     RecordingFailure.SOURCE -> Res.string.recordings_failed_source
     RecordingFailure.CHANNEL_GONE -> Res.string.recordings_failed_channel_gone
-    RecordingFailure.OTHER, null -> Res.string.recordings_failed
+    RecordingFailure.STOPPED, RecordingFailure.OTHER, null -> Res.string.recordings_failed
+}
+
+private fun endedEarlyLabel(reason: RecordingFailure) = when (reason) {
+    RecordingFailure.STOPPED -> Res.string.recordings_ended_early_stopped
+    RecordingFailure.DISK_FULL -> Res.string.recordings_ended_early_disk_full
+    RecordingFailure.SOURCE, RecordingFailure.NO_MEDIA -> Res.string.recordings_ended_early_source
+    RecordingFailure.CHANNEL_GONE -> Res.string.recordings_ended_early_channel_gone
+    RecordingFailure.MISSED, RecordingFailure.OTHER -> Res.string.recordings_ended_early
 }
 
 private fun deleteLabel(state: RecordingState) = when (state) {

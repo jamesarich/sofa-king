@@ -25,6 +25,24 @@ final class TouchTests: XCTestCase {
         eventually("the app to release its session in the background") { server.sessions().isEmpty }
     }
 
+    /// Opens Settings' About page, whose version line reads the snapshot suffix from the app's resources. Compose's iOS
+    /// reader once threw on that file when it was empty, which stopped the app; the walk found it only by chance.
+    @MainActor
+    func testOpenAbout() throws {
+        let server = try FixtureServer.fromEnvironment(since: Date())
+        launch(["-serverUrl", server.url.absoluteString, "-apiToken", server.token])
+        let settings = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Settings")).firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 20), "No Settings\n\(screen)")
+        settings.tap()
+        let about = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "About")).firstMatch
+        XCTAssertTrue(about.waitForExistence(timeout: 20), "No About in Settings\n\(screen)")
+        about.tap()
+        eventually("the About page to open") { labeled("Open-source licenses").exists || app.state != .runningForeground }
+        RunLoop.current.run(until: Date().addingTimeInterval(2))
+        XCTAssertEqual(app.state, .runningForeground, "The app stopped on the About page")
+        XCTAssertTrue(labeled("Version ").exists, "No version line on the About page\n\(screen)")
+    }
+
     /// Random taps, swipes, back swipes from the screen's left edge and long presses against the fixture server, seeded
     /// so a walk replays from SOFAKING_WALK_SEED (and SOFAKING_WALK_STEPS, 150 by default). The app must keep running,
     /// and release its session once it is behind the home screen.

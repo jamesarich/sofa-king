@@ -20,7 +20,32 @@
       "Bash(gradle-queue --status *)",
       "mcp__claude-in-chrome__read_console_messages",
       "mcp__claude-in-chrome__get_page_text",
-      "mcp__claude-in-chrome__tabs_context_mcp"
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "Bash(curl -s *)",
+      "Bash(curl -sS *)",
+      "Bash(ktlint *)",
+      "Bash(java -jar /opt/detekt-cli.jar *)",
+      "Bash(./gradlew *)",
+      "Bash(git worktree add *)",
+      "Bash(git worktree remove *)",
+      "Bash(adb -s emulator-5554 *)",
+      "Bash(xcrun simctl *)",
+      "Bash(python3 app/scripts/fixture_server.py *)",
+      "Bash(python3 docs/site/stage.py)",
+      "Bash(mkdocs build --strict)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.kt|*.kts) command -v ktlint >/dev/null && ktlint --format \"$f\" >/dev/null 2>&1; esac; exit 0"
+          }
+        ]
+      }
     ]
   }
 }

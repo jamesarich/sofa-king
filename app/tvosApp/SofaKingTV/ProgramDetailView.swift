@@ -101,7 +101,8 @@ struct ProgramDetailView: View {
 }
 
 /// Record (Cancel recording once set) and Record series (Stop series once set) for a program that has not ended,
-/// on a server that records; a line says when the server did not take the change.
+/// on a server that records, and for a sports program Record each team it names (Stop recording once set); a line
+/// says when the server did not take the change.
 private struct RecordButtons: View {
     @Environment(AppModel.self) private var model
     let program: Program
@@ -118,6 +119,17 @@ private struct RecordButtons: View {
                     }
                     Button(mark.series ? "Stop series" : "Record series", systemImage: mark.series ? "xmark.circle" : "repeat.circle") {
                         change { try await model.core.toggleSeries(program: program) }
+                    }
+                }
+                let teams = model.core.teams(program: program)
+                if !teams.isEmpty {
+                    HStack(spacing: 24) {
+                        ForEach(teams, id: \.self) { team in
+                            let recorded = model.core.recordsTeam(mark: mark, team: team)
+                            Button(recorded ? "Stop recording \(team)" : "Record \(team)", systemImage: recorded ? "xmark.circle" : "sportscourt") {
+                                change { try await model.core.toggleTeam(team: team) }
+                            }
+                        }
                     }
                 }
                 if failed {

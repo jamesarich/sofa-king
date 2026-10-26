@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.libraryMetadata
 import dev.jamesrich.sofaking.backend.store.saveLibraryMetadata
 import org.slf4j.LoggerFactory
+import java.net.URLDecoder
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -40,7 +41,8 @@ private val EDITION = Regex(
  * title and artist are the album's own, editions aside. An artist without an id takes the one its matched albums are
  * credited to, and only failing that is searched by name. A match keeps the MusicBrainz id, the album's first release
  * year, the genres MusicBrainz votes for where the files name none, whether the Cover Art Archive has a cover for an
- * album with no picture of its own, and the artist's Wikidata item; nothing renames
+ * album with no picture of its own, and the artist's Wikidata item, with the first paragraph and the free picture of
+ * the English Wikipedia page it links to; nothing renames
  * what the tags call it. Lookups are kept and fetched again after [MUSIC_MATCHED_FOR]; a rate limit or three lookups
  * in a row that cannot reach MusicBrainz end the run, to resume on the next.
  */
@@ -124,11 +126,17 @@ class MusicMetadata internal constructor(
             return look(artist) {
                 val found = hint?.let { client.artist(it) } ?: searchArtist(artist.title)?.let { client.artist(it.id) }
                 found?.let {
+                    val wikidata = it.relations.firstOrNull { link -> link.type == "wikidata" }
+                        ?.url?.resource?.substringAfterLast('/')?.takeIf { id -> WIKIDATA_ID.matches(id) }
+                    val page = wikidata?.let { id -> client.wikipediaTitle(id) }
+                        ?.let { title -> client.wikipediaSummary(title) }
+                        ?.takeIf { summary -> summary.type != "disambiguation" }
                     MetadataFacts(
+                        overview = page?.extract?.trim()?.ifEmpty { null },
                         genres = genres(it.genres),
                         musicBrainzId = it.id,
-                        wikidata = it.relations.firstOrNull { link -> link.type == "wikidata" }
-                            ?.url?.resource?.substringAfterLast('/')?.takeIf { id -> id.startsWith("Q") },
+                        wikidata = wikidata,
+                        picture = page?.image?.source?.let(::commonsFile),
                     )
                 }
             }
@@ -155,7 +163,7 @@ class MusicMetadata internal constructor(
             when {
                 e.code == "MUSICBRAINZ_RATE_LIMITED" -> false.also { stopped = e.code }
 
-                e.code.startsWith("MUSICBRAINZ_UNREACHABLE") && ++unreachable >= MUSIC_UNREACHABLE_STOP ->
+                e.code.contains("_UNREACHABLE") && ++unreachable >= MUSIC_UNREACHABLE_STOP ->
                     false.also { stopped = e.code }
 
                 else -> true
@@ -183,6 +191,16 @@ class MusicMetadata internal constructor(
         }
     }
 }
+
+/** A Wikidata item's id. */
+private val WIKIDATA_ID = Regex("Q[0-9]{1,12}")
+
+/** An image of Wikimedia Commons, as Wikipedia links it; other pictures may not be free to show. */
+private val COMMONS_IMAGE = Regex("""https://upload\.wikimedia\.org/wikipedia/commons/[0-9a-f]/[0-9a-f]{2}/([^/?#]+)""")
+
+/** The Commons file name of the image at [url], spaced as Commons names it; null for one Commons does not hold. */
+private fun commonsFile(url: String): String? = COMMONS_IMAGE.matchEntire(url)?.groupValues?.get(1)
+    ?.let { URLDecoder.decode(it.replace("+", "%2B"), Charsets.UTF_8).replace('_', ' ') }
 
 private fun sameTitle(found: String, title: String): Boolean =
     musicKey(found.replace(EDITION, "").ifEmpty { found }) == musicKey(title)

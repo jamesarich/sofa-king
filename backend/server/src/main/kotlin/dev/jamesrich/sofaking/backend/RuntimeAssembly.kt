@@ -37,6 +37,7 @@ import dev.jamesrich.sofaking.backend.library.ScrubSheets
 import dev.jamesrich.sofaking.backend.library.TmdbClient
 import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.backend.library.ffprobeBeside
+import dev.jamesrich.sofaking.backend.library.sofaKingAgent
 import dev.jamesrich.sofaking.backend.logging.DebugWindow
 import dev.jamesrich.sofaking.backend.logging.applyLogLevel
 import dev.jamesrich.sofaking.backend.logos.LogoCache
@@ -383,6 +384,7 @@ internal class RuntimeAssembly(
             config.dataDirectory.resolve("artwork"),
             ffmpeg = config.ffmpeg,
             policy = upstream,
+            userAgent = sofaKingAgent(config.version),
         ),
         intros = IntroDetector(
             store,

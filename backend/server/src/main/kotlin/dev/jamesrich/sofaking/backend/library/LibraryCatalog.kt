@@ -42,7 +42,7 @@ private const val LATEST_FRAME_MS = 600_000L
 
 /**
  * Where an item's poster or backdrop comes from: a file in its library folder, a TMDB image path, a frame of a video
- * or a picture in a track, or the Cover Art Archive.
+ * or a picture in a track, the Cover Art Archive or Wikimedia Commons.
  */
 sealed interface ArtSource {
     /** [root] is the library folder; [relative] the image inside it. */
@@ -59,6 +59,9 @@ sealed interface ArtSource {
 
     /** The front cover the Cover Art Archive holds for the MusicBrainz release group [releaseGroupId]. */
     data class CoverArt(val releaseGroupId: String) : ArtSource
+
+    /** The Wikimedia Commons image [file], such as `Band live.jpg`. */
+    data class Commons(val file: String) : ArtSource
 
     val version: String get() = hash(toString()).take(12)
 }

@@ -16,6 +16,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.net.URLEncoder
 import java.time.Duration
 
 /**
@@ -73,29 +74,50 @@ private val musicBrainzJson = Json {
 
 @Serializable internal data class MbArtists(val artists: List<MbArtist> = emptyList())
 
+@Serializable internal data class WdSitelink(val title: String = "")
+
+@Serializable internal data class WdEntity(val sitelinks: Map<String, WdSitelink> = emptyMap())
+
+@Serializable internal data class WdEntities(val entities: Map<String, WdEntity> = emptyMap())
+
+@Serializable internal data class WpImage(val source: String = "")
+
+/** A Wikipedia page's summary: its first paragraph as plain text, and the picture at its top. */
+@Serializable internal data class WpSummary(
+    val type: String = "",
+    val extract: String? = null,
+    @SerialName("originalimage") val image: WpImage? = null,
+)
+
 /** Where the front covers of MusicBrainz releases are kept. */
 internal const val COVER_ART_ARCHIVE = "https://coverartarchive.org"
+
+/** The User-Agent MusicBrainz and Wikimedia ask a client to send: who it is, its [version] and where it comes from. */
+internal fun sofaKingAgent(version: String) = "SofaKing/$version ( https://github.com/jamesarich/sofa-king )"
 
 /** MusicBrainz asks for one request a second from each client; a little more leaves room for clock jitter. */
 internal val MUSICBRAINZ_PAUSE: Duration = Duration.ofMillis(1_100)
 
 /**
- * The few MusicBrainz web service calls a Music library needs, at most one a second as MusicBrainz asks, under a
- * User-Agent naming the server's [version] and where it comes from, as MusicBrainz requires.
+ * The few MusicBrainz web service calls a Music library needs, and the Cover Art Archive, Wikidata and Wikipedia ones
+ * for covers and artists' pictures and biographies, one at a time and MusicBrainz's at most one a second as it asks,
+ * under a User-Agent naming the server's [version] and where it comes from, as MusicBrainz and Wikimedia require.
  */
 internal class MusicBrainzClient(
     private val http: HttpClient,
     version: String,
     private val base: String = "https://musicbrainz.org/ws/2",
     private val coverArtArchive: String = COVER_ART_ARCHIVE,
+    private val wikidata: String = "https://www.wikidata.org/w/api.php",
+    private val wikipedia: String = "https://en.wikipedia.org/api/rest_v1",
     private val pause: Duration = MUSICBRAINZ_PAUSE,
 ) {
-    private val userAgent = "SofaKing/$version ( https://github.com/jamesarich/sofa-king )"
+    private val userAgent = sofaKingAgent(version)
     private val gate = Mutex()
     private var lastAt = 0L
 
     /** The release groups called [title] by [artist], best first, with MusicBrainz's score out of 100. */
-    suspend fun searchReleaseGroups(title: String, artist: String): List<MbReleaseGroup> = get<MbReleaseGroups>(
+    suspend fun searchReleaseGroups(title: String, artist: String): List<MbReleaseGroup> = mb<MbReleaseGroups>(
         "/release-group",
         "query" to "releasegroup:${quoted(title)} AND artist:${quoted(artist)}",
         "limit" to "5",
@@ -103,24 +125,29 @@ internal class MusicBrainzClient(
 
     /** The release group [id] with its artists and genres; null when MusicBrainz has no such group. */
     suspend fun releaseGroup(id: String): MbReleaseGroup? =
-        orNull { get("/release-group/$id", "inc" to "artist-credits genres") }
+        orNull { mb("/release-group/$id", "inc" to "artist-credits genres") }
 
     /** The release [id] with its release group; null when MusicBrainz has no such release. */
-    suspend fun release(id: String): MbRelease? = orNull { get("/release/$id", "inc" to "release-groups") }
+    suspend fun release(id: String): MbRelease? = orNull { mb("/release/$id", "inc" to "release-groups") }
 
     /** The artists called [name], best first. */
     suspend fun searchArtists(name: String): List<MbArtist> =
-        get<MbArtists>("/artist", "query" to "artist:${quoted(name)}", "limit" to "5").artists
+        mb<MbArtists>("/artist", "query" to "artist:${quoted(name)}", "limit" to "5").artists
 
     /** The artist [id] with its aliases, genres and links; null when MusicBrainz has no such artist. */
-    suspend fun artist(id: String): MbArtist? = orNull { get("/artist/$id", "inc" to "aliases genres url-rels") }
+    suspend fun artist(id: String): MbArtist? = orNull { mb("/artist/$id", "inc" to "aliases genres url-rels") }
 
     /**
      * Whether the Cover Art Archive holds a front cover for the release group [id]: it answers with a redirect to the
      * image, or 404 for none.
      */
     suspend fun hasCover(id: String): Boolean {
-        val status = request("$coverArtArchive/release-group/$id/front-250", emptyArray(), json = false).status
+        val status = request(
+            "$coverArtArchive/release-group/$id/front-250",
+            emptyArray(),
+            "COVERART",
+            json = false,
+        ).status
         return when {
             status == HttpStatusCode.OK || status.value in REDIRECT_STATUSES -> true
 
@@ -133,42 +160,66 @@ internal class MusicBrainzClient(
         }
     }
 
-    private suspend fun <T> orNull(call: suspend () -> T): T? = try {
-        call()
-    } catch (e: MusicBrainzFailure) {
-        if (e.code == "MUSICBRAINZ_HTTP_404") null else throw e
+    /** The English Wikipedia page the Wikidata item [id] (`Q…`) links to; null when it links none. */
+    suspend fun wikipediaTitle(id: String): String? = orNull {
+        get<WdEntities>(
+            "WIKIDATA",
+            wikidata,
+            "action" to "wbgetentities",
+            "ids" to id,
+            "props" to "sitelinks",
+            "sitefilter" to "enwiki",
+            "format" to "json",
+        )
+    }?.entities?.get(id)?.sitelinks?.get("enwiki")?.title?.ifEmpty { null }
+
+    /** The summary of the English Wikipedia page [title]; null when there is no such page. */
+    suspend fun wikipediaSummary(title: String): WpSummary? = orNull {
+        val page = URLEncoder.encode(title.replace(' ', '_'), Charsets.UTF_8).replace("+", "%20")
+        get("WIKIPEDIA", "$wikipedia/page/summary/$page")
     }
 
-    private suspend inline fun <reified T> get(path: String, vararg query: Pair<String, String>): T {
-        val response = request(base + path, query)
-        failureOf(response.status)?.let { throw MusicBrainzFailure(it) }
+    private suspend inline fun <reified T> mb(path: String, vararg query: Pair<String, String>): T =
+        get("MUSICBRAINZ", base + path, *query, "fmt" to "json")
+
+    /** [url] decoded as [T]; a failure's code starts with [service]. */
+    private suspend inline fun <reified T> get(service: String, url: String, vararg query: Pair<String, String>): T {
+        val response = request(url, query, service)
+        failureOf(response.status)?.let { throw MusicBrainzFailure(it.replace("MUSICBRAINZ", service)) }
         return runCatchingCancellable { musicBrainzJson.decodeFromString<T>(response.bodyAsText()) }
-            .getOrElse { throw MusicBrainzFailure("MUSICBRAINZ_BAD_RESPONSE") }
+            .getOrElse { throw MusicBrainzFailure("${service}_BAD_RESPONSE") }
     }
 
-    /** [url] asked, as JSON unless not [json], after the pause since the last call; no answer is unreachable. */
+    /** [url] of [service] asked, as JSON unless not [json], after MusicBrainz's pause since its last call. */
     private suspend fun request(
         url: String,
         query: Array<out Pair<String, String>>,
+        service: String,
         json: Boolean = true,
     ): HttpResponse = gate.withLock {
+        // Only MusicBrainz asks for a pause; the others take one call after another.
+        val paced = service == "MUSICBRAINZ"
         val wait = pause.toMillis() - (System.currentTimeMillis() - lastAt)
-        if (wait > 0) delay(wait)
+        if (paced && wait > 0) delay(wait)
         try {
             runCatchingCancellable {
                 http.get(url) {
                     header(HttpHeaders.UserAgent, userAgent)
-                    if (json) {
-                        header(HttpHeaders.Accept, "application/json")
-                        parameter("fmt", "json")
-                    }
+                    if (json) header(HttpHeaders.Accept, "application/json")
                     for ((name, value) in query) parameter(name, value)
                 }
-            }.getOrElse { throw MusicBrainzFailure("MUSICBRAINZ_UNREACHABLE (${it.javaClass.simpleName})") }
+            }.getOrElse { throw MusicBrainzFailure("${service}_UNREACHABLE (${it.javaClass.simpleName})") }
         } finally {
-            lastAt = System.currentTimeMillis()
+            if (paced) lastAt = System.currentTimeMillis()
         }
     }
+}
+
+/** What [call] answers, or null for a 404. */
+private suspend fun <T> orNull(call: suspend () -> T): T? = try {
+    call()
+} catch (e: MusicBrainzFailure) {
+    if (e.code.endsWith("_HTTP_404")) null else throw e
 }
 
 /** [text] as one Lucene phrase, its quotes and backslashes escaped. */

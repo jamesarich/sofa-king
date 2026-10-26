@@ -51,11 +51,15 @@ class MusicMetadataTest {
         status: HttpStatusCode = HttpStatusCode.OK,
     ) = HttpClient(
         MockEngine { request ->
-            val caa = request.url.host == "coverartarchive.org"
-            val path = if (caa) "caa:" + request.url.encodedPath else request.url.encodedPath.removePrefix("/ws/2")
-            calls += path + (request.url.parameters["query"]?.let { "?$it" } ?: "")
+            val url = request.url
+            val path = when (url.host) {
+                "coverartarchive.org" -> "caa:" + url.encodedPath
+                "www.wikidata.org" -> "wd:" + url.parameters["ids"]
+                "en.wikipedia.org" -> "wp:" + url.encodedPath.removePrefix("/api/rest_v1/page/summary/")
+                else -> url.encodedPath.removePrefix("/ws/2").also { assertEquals("json", url.parameters["fmt"]) }
+            }
+            calls += path + (url.parameters["query"]?.let { "?$it" } ?: "")
             assertTrue(request.headers[HttpHeaders.UserAgent].orEmpty().startsWith("SofaKing/test ("))
-            if (!caa) assertEquals("json", request.url.parameters["fmt"])
             val body = routes[path]
             when {
                 status != HttpStatusCode.OK -> respond("{}", status)
@@ -113,6 +117,10 @@ class MusicMetadataTest {
                 "/artist/$ARTIST" to
                     """{"id":"$ARTIST","name":"Band","genres":[{"name":"rock","count":2}],
                     "relations":[{"type":"wikidata","url":{"resource":"https://www.wikidata.org/wiki/Q42"}}]}""",
+                "wd:Q42" to """{"entities":{"Q42":{"sitelinks":{"enwiki":{"site":"enwiki","title":"Band Live"}}}}}""",
+                "wp:Band_Live" to
+                    """{"type":"standard","extract":"Band is a band. ","originalimage":
+                    {"source":"https://upload.wikimedia.org/wikipedia/commons/a/ab/Band%2C_live.jpg"}}""",
             ),
         )
         val s = scan(
@@ -131,11 +139,24 @@ class MusicMetadataTest {
         val artist = s.facts("Band")
         assertEquals(ARTIST, artist?.musicBrainzId)
         assertEquals("Q42", artist?.wikidata)
+        // The first paragraph and the free picture of the Wikipedia page Wikidata links it to.
+        assertEquals("Band is a band.", artist?.overview)
+        assertEquals("Band, live.jpg", artist?.picture)
+        assertEquals(ArtSource.Commons("Band, live.jpg"), s.poster("Band"))
         // The Cover Art Archive has no cover for it, so it keeps none.
         assertEquals(false, album?.coverArt)
         assertNull(s.poster("Record"))
         // The second scan finds both fresh, and asks for nothing.
-        assertEquals(listOf("/release-group/$GROUP", "caa:/release-group/$GROUP/front-250", "/artist/$ARTIST"), calls)
+        assertEquals(
+            listOf(
+                "/release-group/$GROUP",
+                "caa:/release-group/$GROUP/front-250",
+                "/artist/$ARTIST",
+                "wd:Q42",
+                "wp:Band_Live",
+            ),
+            calls,
+        )
         assertTrue(s.note.orEmpty().contains("MusicBrainz: 0 fetched"), s.note)
     }
 
@@ -260,6 +281,35 @@ class MusicMetadataTest {
         assertNull(artwork.image(ArtSource.CoverArt(OTHER)))
         assertTrue(asked.none { it.contains("127.0.0.1") }, asked.toString())
         assertNull(artwork.image(ArtSource.CoverArt("../../etc/passwd")))
+    }
+
+    @Test fun `a Commons picture is fetched 500 across through its redirect, as the server`() = runBlocking {
+        val asked = mutableListOf<String>()
+        val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0)
+        val http = HttpClient(
+            MockEngine { request ->
+                asked += request.url.toString()
+                assertEquals("SofaKing/test", request.headers[HttpHeaders.UserAgent])
+                when (request.url.host) {
+                    "commons.wikimedia.org" -> respond(
+                        "",
+                        HttpStatusCode.Found,
+                        headersOf(HttpHeaders.Location, "https://upload.wikimedia.org/thumb/500px-x.png"),
+                    )
+
+                    else -> respond(png, headers = headersOf(HttpHeaders.ContentType, "image/png"))
+                }
+            },
+        ) { followRedirects = false }
+        val artwork = LibraryArtwork(http, Files.createTempDirectory("sofa-art-"), userAgent = "SofaKing/test")
+        val picture = artwork.image(ArtSource.Commons("Band, live.png"))
+        assertEquals("image/png", picture?.contentType)
+        assertEquals(
+            "https://commons.wikimedia.org/wiki/Special:FilePath/Band%2C_live.png?width=500",
+            asked.first(),
+        )
+        assertNull(artwork.image(ArtSource.Commons("../x.png")))
+        assertEquals(2, asked.size)
     }
 
     private companion object {

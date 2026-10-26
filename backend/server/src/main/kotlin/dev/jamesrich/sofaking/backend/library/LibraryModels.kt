@@ -173,6 +173,8 @@ data class MetadataFacts(
     val coverArt: Boolean = false,
     /** For an artist, the Wikidata item MusicBrainz links it to (`Q…`). */
     val wikidata: String? = null,
+    /** For an artist, the Wikimedia Commons file of the picture atop their English Wikipedia page. */
+    val picture: String? = null,
 )
 
 /** One item's stored TMDB lookup, or MusicBrainz lookup for music. */

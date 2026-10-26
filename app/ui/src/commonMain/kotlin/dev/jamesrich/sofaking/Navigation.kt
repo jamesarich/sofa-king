@@ -66,6 +66,12 @@ internal sealed interface Route : NavKey {
         override val id: String get() = "vod:$itemId"
     }
 
+    /** The song the music plays, with its seek bar and buttons, over whichever tab it was opened from. */
+    @Serializable
+    data object NowPlaying : Route {
+        override val id: String get() = "now-playing"
+    }
+
     /** The Library tab's home. */
     @Serializable
     data object Library : Route {
@@ -140,6 +146,9 @@ internal sealed interface Route : NavKey {
 
     /** The full screen players, the only pages that ask the display for a frame rate. */
     val playsFullScreen: Boolean get() = this is Player || this is Multiview || this is Vod || this is Recording
+
+    /** The pages the navigation bar or rail gives way to: the players and Now Playing. */
+    val hidesTabs: Boolean get() = playsFullScreen || this is NowPlaying
 
     /** The pages under the tabs: the header (or, away from a TV, the navigation bar or rail) shows above them. */
     val hasTabs: Boolean get() = this is Guide || this is OnLater || this is Library || this is LibrarySearch ||

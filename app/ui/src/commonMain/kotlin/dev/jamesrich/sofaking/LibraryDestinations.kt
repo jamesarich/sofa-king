@@ -16,7 +16,6 @@ import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
-import dev.jamesrich.sofaking.data.PlayQueue
 import dev.jamesrich.sofaking.data.ScrubTiles
 import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialAudio
@@ -44,6 +43,7 @@ import dev.jamesrich.sofaking.ui.library.LibrarySearchActions
 import dev.jamesrich.sofaking.ui.library.LibrarySearchScreen
 import dev.jamesrich.sofaking.ui.library.stillOrBackdrop
 import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.player.MusicPlayback
 import dev.jamesrich.sofaking.ui.player.VodMarker
 import dev.jamesrich.sofaking.ui.player.VodMarkerKind
 import dev.jamesrich.sofaking.ui.player.VodPlayerScreen
@@ -65,6 +65,7 @@ internal fun LibraryHomeDestination(
     arrival: Arrival,
     shell: AppShellState,
     libraryVm: LibraryViewModel,
+    music: MusicPlayback,
     tabBack: () -> Unit,
     headerFocused: Boolean,
 ) {
@@ -74,7 +75,7 @@ internal fun LibraryHomeDestination(
         state = home,
         actions = LibraryHomeActions(
             onOpenItem = { shell.push(Route.LibraryItem(it.id)) },
-            onPlayItem = { shell.push(Route.Vod(it.id)) },
+            onPlayItem = { shell.playItem(music, it) },
             onOpenLibrary = { shell.push(Route.LibraryGrid(it.id)) },
             onRetry = libraryVm::refreshHome,
             onSearch = { voice -> shell.push(Route.LibrarySearch(), Arrival(search = voice)) },
@@ -93,12 +94,13 @@ internal fun LibrarySearchDestination(
     arrival: Arrival,
     shell: AppShellState,
     libraryVm: LibraryViewModel,
+    music: MusicPlayback,
 ) {
     LibrarySearchScreen(
         actions = LibrarySearchActions(
             search = libraryVm::search,
             onOpenItem = { shell.push(Route.LibraryItem(it.id)) },
-            onPlayItem = { shell.push(Route.Vod(it.id)) },
+            onPlayItem = { shell.playItem(music, it) },
             menu = cardMenu(shell, libraryVm),
         ),
         voice = arrival.search,
@@ -114,6 +116,7 @@ internal fun LibraryGridDestination(
     arrival: Arrival,
     shell: AppShellState,
     libraryVm: LibraryViewModel,
+    music: MusicPlayback,
 ) {
     val home by libraryVm.home.collectAsStateWithLifecycle()
     val grid by libraryVm.grid.collectAsStateWithLifecycle()
@@ -137,7 +140,7 @@ internal fun LibraryGridDestination(
                 libraryVm.openGrid(route.libraryId, shown?.sort ?: LibrarySort.TITLE, shown?.unwatched ?: false, it)
             },
             onOpenItem = { shell.nav = shell.nav.pushOver(route, Route.LibraryItem(it.id)) },
-            onPlayItem = { shell.push(Route.Vod(it.id)) },
+            onPlayItem = { shell.playItem(music, it) },
             onLoadMore = libraryVm::loadMore,
             onLoadThrough = libraryVm::loadThrough,
             menu = cardMenu(shell, libraryVm),
@@ -153,6 +156,7 @@ internal fun LibraryItemDestination(
     arrival: Arrival,
     shell: AppShellState,
     libraryVm: LibraryViewModel,
+    music: MusicPlayback,
     hideSpoilers: Boolean,
     page: ItemPageViewModel = viewModel { ItemPageViewModel(libraryVm::openItem, route.itemId) },
 ) {
@@ -168,10 +172,9 @@ internal fun LibraryItemDestination(
         selectedSeasonId = seasonId,
         actions = ItemDetailsActions(
             onPlay = { item, fromStart ->
-                // A song picked on its album's page plays on through the album; anything else plays alone.
-                val album = ready?.takeIf { item.kind == ItemKind.TRACK && it.item.kind == ItemKind.ALBUM }
-                libraryVm.queue(album?.let { PlayQueue.of(it.children) })
-                shell.push(Route.Vod(item.id, fromStart))
+                // A song picked on its album's page plays on through the album.
+                val album = ready?.takeIf { it.item.kind == ItemKind.ALBUM }?.children ?: listOf(item)
+                shell.playItem(music, item, fromStart, album)
             },
             onSetWatched = libraryVm::setWatched,
             onSelectSeason = { pickedSeason = it },
@@ -181,11 +184,7 @@ internal fun LibraryItemDestination(
             onOpenItem = { shell.push(Route.LibraryItem(it.id)) },
             onToggleWatchlist = libraryVm::toggleWatchlist,
             watchlisted = { item -> watchlist.has(item).takeIf { watchlist.offered } },
-            onShuffle = {
-                val queue = PlayQueue.of(ready?.children.orEmpty(), shuffled = true)
-                libraryVm.queue(queue)
-                queue.items.firstOrNull()?.let { shell.push(Route.Vod(it.id, fromStart = true)) }
-            },
+            onShuffle = { shell.shuffle(music, ready?.children.orEmpty()) },
         ),
         returnedFrom = arrival.returnedFrom,
         hideSpoilers = hideSpoilers,
@@ -241,7 +240,7 @@ internal fun VodDestination(
                 onStop = { position, duration -> libraryVm.stopped(item.id, position, duration) },
                 onExit = shell::back,
                 upNext = { libraryVm.upNext(item)?.also { next = it }?.upNext() },
-                onPlayNext = { next?.let { shell.replaceTop(Route.Vod(it.id, fromStart = it.kind.music)) } },
+                onPlayNext = { next?.let { shell.replaceTop(Route.Vod(it.id)) } },
                 skips = prefs.skips,
                 seekSteps = prefs.seekSteps,
                 subtitleLook = prefs.subtitleLook,
@@ -315,7 +314,6 @@ private fun MediaItem.vodTitle(intro: IntroSpan?, credits: IntroSpan?, scrub: Sc
         artworkUrl = backdrop ?: poster,
         markers = markers,
         scrub = scrub,
-        music = kind == ItemKind.TRACK,
     )
 }
 

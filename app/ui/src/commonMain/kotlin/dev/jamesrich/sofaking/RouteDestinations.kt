@@ -3,6 +3,8 @@ package dev.jamesrich.sofaking
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.player.MusicPlayback
+import dev.jamesrich.sofaking.ui.player.NowPlayingScreen
 import dev.jamesrich.sofaking.ui.settings.LicensesScreen
 
 /**
@@ -17,6 +19,7 @@ internal fun RouteDestination(
     libraryVm: LibraryViewModel,
     recordingsVm: RecordingsViewModel,
     player: LivePlayer,
+    music: MusicPlayback,
     offered: TabsOffered,
     chrome: TabChrome,
     hideSpoilers: Boolean,
@@ -40,10 +43,12 @@ internal fun RouteDestination(
 
         is Route.Recording -> RecordingDestination(route, shell, vm, recordingsVm, player)
 
-        is Route.LibraryItem -> LibraryItemDestination(route, arrival, shell, libraryVm, hideSpoilers)
+        is Route.LibraryItem -> LibraryItemDestination(route, arrival, shell, libraryVm, music, hideSpoilers)
+
+        Route.NowPlaying -> NowPlayingScreen(music, onClose = shell::back)
 
         Route.Guide, Route.OnLater, Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, Route.Recordings ->
-            TabDestination(route, arrival, shell, vm, libraryVm, recordingsVm, player, chrome, refreshing)
+            TabDestination(route, arrival, shell, vm, libraryVm, recordingsVm, player, music, chrome, refreshing)
     }
 }
 
@@ -57,6 +62,7 @@ private fun TabDestination(
     libraryVm: LibraryViewModel,
     recordingsVm: RecordingsViewModel,
     player: LivePlayer,
+    music: MusicPlayback,
     chrome: TabChrome,
     refreshing: Boolean,
 ) {
@@ -85,13 +91,13 @@ private fun TabDestination(
 
             Route.OnLater -> OnLaterDestination(shell, vm)
 
-            Route.Library -> LibraryHomeDestination(arrival, shell, libraryVm, tabBack, headerFocused)
+            Route.Library -> LibraryHomeDestination(arrival, shell, libraryVm, music, tabBack, headerFocused)
 
             Route.Recordings -> RecordingsDestination(arrival, shell, recordingsVm, tabBack, headerFocused)
 
-            is Route.LibrarySearch -> LibrarySearchDestination(route, arrival, shell, libraryVm)
+            is Route.LibrarySearch -> LibrarySearchDestination(route, arrival, shell, libraryVm, music)
 
-            is Route.LibraryGrid -> LibraryGridDestination(route, arrival, shell, libraryVm)
+            is Route.LibraryGrid -> LibraryGridDestination(route, arrival, shell, libraryVm, music)
 
             else -> Unit
         }

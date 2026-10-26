@@ -18,6 +18,7 @@ import dev.jamesrich.sofaking.ui.MatchDisplayFrameRate
 import dev.jamesrich.sofaking.ui.ReleaseOnPageExit
 import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.player.MusicPlayback
 import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.player.PlayerVolume
 import dev.jamesrich.sofaking.ui.player.rememberLivePlayer
@@ -113,19 +114,21 @@ internal fun PlayerPreferenceEffects(player: LivePlayer, settings: AppSettings?,
 /**
  * What [top] plays: the guide only where it [guidePlays], the library and Settings nothing. Without the preview band
  * (a phone, a short window) the guide plays nothing: the stream the full screen leaves behind stops and its session
- * goes free, rather than playing on unseen and holding a tuner.
+ * goes free, rather than playing on unseen and holding a tuner. The [music] plays on under the pages that play nothing
+ * of their own, and Settings, which may change the server, holds it.
  */
 @Composable
 internal fun RouteStreamEffects(
     shell: AppShellState,
     top: Route,
     playback: AppPlayback,
+    music: MusicPlayback,
     sessions: PlaybackSessions,
     guidePlays: Boolean,
 ) {
     val player = playback.player
     LaunchedEffect(top is Route.Guide, guidePlays) {
-        if (top is Route.Guide && !guidePlays) {
+        if (top is Route.Guide && !guidePlays && music.song == null) {
             player.stop()
             sessions.release(forget = true)
         }
@@ -138,17 +141,18 @@ internal fun RouteStreamEffects(
             Route.Guide -> playback.captionSync.advanceUs = 0L
 
             Route.Settings -> {
+                music.hold()
                 player.stop()
                 sessions.release(forget = true)
             }
 
-            is Route.Player, is Route.Multiview, is Route.Vod, is Route.Recording -> Unit
+            is Route.Player, is Route.Multiview, is Route.Vod, is Route.Recording, Route.NowPlaying -> Unit
 
             // The library, the recordings and On Later play nothing until one is picked, so the
             // guide's preview stops on the way in.
             Route.OnLater, Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, is Route.LibraryItem,
             Route.Recordings,
-            -> {
+            -> if (music.song == null) {
                 player.stop()
                 sessions.release(forget = true)
             }
@@ -163,11 +167,13 @@ internal fun RouteStreamEffects(
  * Stopped, not paused: the TV's one hardware decoder and the server's session go free while another app is in front.
  * The item and playWhenReady survive; on return, while the page [plays], a fresh session is opened for the same
  * channel and intent and the item is prepared at its URL, at the live edge or still paused. A library item's screen
- * reopens it itself, where it was, and the library's other pages hold no stream.
+ * reopens it itself, where it was, the library's other pages hold no stream, and the [music] waits where it was for
+ * Play.
  */
 @Composable
 internal fun ForegroundEffects(
     playback: AppPlayback,
+    music: MusicPlayback,
     sessions: PlaybackSessions,
     lifecycleOwner: LifecycleOwner,
     plays: Boolean,
@@ -177,6 +183,7 @@ internal fun ForegroundEffects(
     val scope = rememberCoroutineScope()
     val currentPlays by rememberUpdatedState(plays)
     LifecycleEventEffect(Lifecycle.Event.ON_STOP, lifecycleOwner) {
+        music.hold()
         player.stop()
         sessions.releaseAsync()
     }

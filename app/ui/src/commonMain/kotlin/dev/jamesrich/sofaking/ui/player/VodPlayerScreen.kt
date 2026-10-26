@@ -122,7 +122,7 @@ fun VodPlayerScreen(
     val state = parts.state
     SideEffect { state.steps = seekSteps }
     VodSessionEffects(parts.vod, title, open, stream)
-    VodEndingEffects(parts, sleep, autoplays, upNext, onStop, onEnd, onExit, title.music, onPlayNext)
+    VodEndingEffects(parts, sleep, autoplays, upNext, onStop, onEnd, onExit)
     UpNextCountdown(parts, autoplays, onPlayNext, onExit)
     VodClock(parts, title, sleep, skips, onPosition, onExit)
     LaunchedEffect(parts.picks.subtitle) { parts.picks.loadSubtitles(tracks) }
@@ -257,7 +257,6 @@ private fun VodSurface(
             .vodTouches(parts, LocalWindowFullScreen.current, LocalLastInput.current),
     ) {
         player.Video(Modifier.fillMaxSize(), zoom) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
-        if (title.music) NowPlayingCover(title)
         if (captions.on == true) {
             val windowHeightDp =
                 with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="music_now_playing">Now playing</string>
+    <string name="music_previous">Previous song</string>
+    <string name="music_next">Next song</string>
+    <string name="music_shuffle">Shuffle</string>
+    <string name="music_repeat">Repeat</string>
+    <string name="music_on">On</string>
+    <string name="music_off">Off</string>
+    <string name="music_repeat_all">All songs</string>
+    <string name="music_repeat_one">This song</string>
+</resources>

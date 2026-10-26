@@ -146,7 +146,7 @@ private fun Buttons(detail: MediaItemDetail, actions: ItemDetailsActions, primar
     val watched = isWatched(item)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (action != null) {
-            SofaButton(onClick = {
+            SofaButton(main = true, onClick = {
                 actions.onPlay(action.item, false)
             }, modifier = Modifier.focusRequester(primaryFocus)) {
                 Text(primaryLabel(action, playsItself = action.item.id == item.id))

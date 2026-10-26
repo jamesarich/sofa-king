@@ -443,11 +443,11 @@ private fun UpdateButtons(
             if (installer != null && update.latest.apkUrl != null) {
                 // Stays enabled while busy, since a disabled button drops focus to another
                 // row; install ignores the press.
-                SofaButton(onClick = { installer.install(update.latest) }) {
+                SofaButton(main = true, onClick = { installer.install(update.latest) }) {
                     Text(stringResource(Res.string.settings_update_install))
                 }
             } else if (onGet != null) {
-                SofaButton(onClick = onGet) {
+                SofaButton(main = true, onClick = onGet) {
                     Text(stringResource(Res.string.settings_update_get))
                 }
             }

@@ -262,7 +262,7 @@ private fun PairingFields(server: ServerFields, pairing: PairingUi) {
             imeAction = ImeAction.Done,
             onAction = pair,
         )
-        SofaButton(onClick = pair, enabled = server.canPair(pairing)) {
+        SofaButton(main = true, onClick = pair, enabled = server.canPair(pairing)) {
             Text(stringResource(if (pairing.busy) Res.string.settings_pairing else Res.string.settings_pair))
         }
         pairing.failure?.let { failure ->
@@ -302,7 +302,7 @@ private fun TokenFields(
         )
         HelpText(stringResource(Res.string.settings_api_token_help))
         Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            SofaButton(onClick = save, enabled = server.canSave(settings)) {
+            SofaButton(main = true, onClick = save, enabled = server.canSave(settings)) {
                 Text(stringResource(Res.string.settings_save))
             }
             if (settings.serverUrl.isNotEmpty()) {

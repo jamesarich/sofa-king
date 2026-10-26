@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.ui.LastInput
 import dev.jamesrich.sofaking.ui.LocalLastInput
+import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.rememberIsTelevision
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.launch
@@ -168,8 +169,10 @@ private class TvFocusNode(
 private const val CURSOR_MOVE_WINDOW_MS = 250L
 
 /**
- * A Material 3 button with the D-pad focus cue; every action button in the app is one. It rests tonal and fills
- * with the primary color only while focused, so a row of buttons shows at a glance which one OK will press.
+ * A Material 3 button with the D-pad focus cue; every action button in the app is one. On a TV it rests tonal and
+ * fills with the primary color only while focused, so a row of buttons shows at a glance which one OK will press.
+ * Away from a TV nothing is focused until a key moves, so the screen's [main] action (Play, Watch, Unlock) rests
+ * filled, as Material's common button is, and the others rest in Material's tonal colors.
  *
  * A disabled Material button cannot hold focus, so one turned off while focused (a press that starts a check, a wrong
  * PIN that empties its field) would drop focus to another row. This one keeps focus until the D-pad moves on: it
@@ -180,11 +183,13 @@ fun SofaButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    main: Boolean = false,
     content: @Composable RowScope.() -> Unit,
 ) {
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
     val scheme = MaterialTheme.colorScheme
+    val tv = LocalLayoutProfile.current.tv
     Button(
         onClick = { if (enabled) onClick() },
         modifier = modifier
@@ -194,13 +199,15 @@ fun SofaButton(
         colors = ButtonDefaults.buttonColors(
             containerColor = when {
                 !enabled -> scheme.onSurface.copy(alpha = DISABLED_CONTAINER_ALPHA)
-                focused -> scheme.primary
-                else -> scheme.surfaceVariant
+                focused || (main && !tv) -> scheme.primary
+                tv -> scheme.surfaceVariant
+                else -> scheme.secondaryContainer
             },
             contentColor = when {
                 !enabled -> scheme.onSurface.copy(alpha = DISABLED_CONTENT_ALPHA)
-                focused -> scheme.onPrimary
-                else -> scheme.onSurface
+                focused || (main && !tv) -> scheme.onPrimary
+                tv -> scheme.onSurface
+                else -> scheme.onSecondaryContainer
             },
         ),
         interactionSource = interactions,

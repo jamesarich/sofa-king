@@ -1,9 +1,7 @@
 package dev.jamesrich.sofaking.ui.settings
 
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -14,9 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemColors
 import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -34,10 +30,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.jamesrich.sofaking.ui.listRowColors
+import dev.jamesrich.sofaking.ui.listRowShapes
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 
 /** The width of a settings control column: a field, a switch row or a choice row, so the page reads as one column. */
@@ -101,7 +98,7 @@ internal fun ToggleRow(
     modifier: Modifier = Modifier,
     help: String? = null,
 ) {
-    val shapes = settingRowShapes()
+    val shapes = listRowShapes()
     val interactions = remember { MutableInteractionSource() }
     ListItem(
         checked = checked,
@@ -111,38 +108,9 @@ internal fun ToggleRow(
         supportingContent = help?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
         shapes = shapes,
         // The switch shows the state, so an on row keeps the plain container.
-        colors = settingRowColors(interactions, tintSelected = false),
+        colors = listRowColors(interactions, tintSelected = false),
         interactionSource = interactions,
     ) { Text(label, style = MaterialTheme.typography.titleSmall) }
-}
-
-/**
- * Material's list item colors for a settings row, with the focused row's container raised to `surfaceVariant`:
- * Material's focus state layer alone is too faint to read from the sofa. A selected row keeps Material's selected
- * container when [tintSelected], else it looks like any other row.
- */
-@Composable
-internal fun settingRowColors(interactions: InteractionSource, tintSelected: Boolean = true): ListItemColors {
-    val focused by interactions.collectIsFocusedAsState()
-    val container = if (focused) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
-    return ListItemDefaults.colors(
-        containerColor = container,
-        selectedContainerColor = if (tintSelected) Color.Unspecified else container,
-    )
-}
-
-/** One shape for a settings row in every state, so the D-pad's focus ring keeps the row's outline. */
-@Composable
-internal fun settingRowShapes(): ListItemShapes {
-    val shape = MaterialTheme.shapes.medium
-    return ListItemDefaults.shapes(
-        shape = shape,
-        selectedShape = shape,
-        pressedShape = shape,
-        focusedShape = shape,
-        hoveredShape = shape,
-        draggedShape = shape,
-    )
 }
 
 /**

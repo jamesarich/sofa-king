@@ -1,8 +1,6 @@
 package dev.jamesrich.sofaking.ui.guide
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,10 +11,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,7 +23,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,6 +50,8 @@ import dev.jamesrich.sofaking.resources.on_later_when
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.ProgramBadges
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.listRowColors
+import dev.jamesrich.sofaking.ui.listRowShapes
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -244,16 +241,12 @@ private fun OnLaterRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val shapes = listRowShapes()
     val interactions = remember { MutableInteractionSource() }
-    val focused by interactions.collectIsFocusedAsState()
-    val shape = MaterialTheme.shapes.medium
     val secondary = MaterialTheme.colorScheme.onSurfaceVariant
     ListItem(
-        modifier = modifier
-            .fillMaxWidth()
-            .tvFocus(shape, focusedScale = 1f)
-            .clip(shape)
-            .clickable(interactionSource = interactions, indication = ripple(), onClick = onClick),
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth().tvFocus(shapes.shape, focusedScale = 1f),
         supportingContent = { Text(whenText, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         trailingContent = {
             ProgramBadges(
@@ -264,13 +257,9 @@ private fun OnLaterRow(
                 outline = secondary,
             )
         },
-        colors = ListItemDefaults.colors(
-            containerColor = if (focused) {
-                MaterialTheme.colorScheme.surfaceVariant
-            } else {
-                MaterialTheme.colorScheme.surface
-            },
-        ),
+        shapes = shapes,
+        colors = listRowColors(interactions),
+        interactionSource = interactions,
     ) {
         Text(
             airing.program.title,

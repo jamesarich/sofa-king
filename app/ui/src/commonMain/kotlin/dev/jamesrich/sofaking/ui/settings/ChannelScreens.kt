@@ -65,6 +65,8 @@ import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.listRowColors
+import dev.jamesrich.sofaking.ui.listRowShapes
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
@@ -360,7 +362,7 @@ internal fun showsBackButton(): Boolean =
 /** A channel as one row, Material's single-selection list item: logo, number and name, tinted while selected. */
 @Composable
 private fun ChannelRow(channel: Channel, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val shapes = settingRowShapes()
+    val shapes = listRowShapes()
     val interactions = remember { MutableInteractionSource() }
     ListItem(
         selected = selected,
@@ -368,7 +370,7 @@ private fun ChannelRow(channel: Channel, selected: Boolean, onClick: () -> Unit,
         modifier = modifier.width(FIELD_WIDTH).tvFocus(shapes.shape, focusedScale = 1f),
         leadingContent = { ChannelLogo(channel, 64.dp, 40.dp) },
         shapes = shapes,
-        colors = settingRowColors(interactions),
+        colors = listRowColors(interactions),
         interactionSource = interactions,
     ) { Text(channel.label(), style = MaterialTheme.typography.titleSmall) }
 }

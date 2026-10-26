@@ -54,6 +54,7 @@ import dev.jamesrich.sofaking.ui.player.InfoOverlay
 import dev.jamesrich.sofaking.ui.player.MiniGuide
 import dev.jamesrich.sofaking.ui.player.PlayerButtonItem
 import dev.jamesrich.sofaking.ui.player.PlayerButtonRow
+import dev.jamesrich.sofaking.ui.player.PlayerCaptions
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
 import dev.jamesrich.sofaking.ui.player.UnavailableLivePlayer
 import dev.jamesrich.sofaking.ui.settings.SettingsLockScreen
@@ -421,7 +422,7 @@ class RenderSmokeTest {
                 sessions = PlaybackSessions(),
                 onExit = {},
                 onChannelChange = {},
-                captionsEnabled = true,
+                captions = PlayerCaptions(enabled = true),
             )
         }
         assertTrue(image.hasContent())

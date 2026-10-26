@@ -4,6 +4,8 @@ A self-hosted media center: live TV, recordings and media libraries on one serve
 
 Every build runs `spotlessCheck detekt` in CI (the `sofaking.lint` convention: ktlint through Spotless, detekt with the Compose rules). Run `./gradlew spotlessApply` before committing and fix detekt findings in the code: there is no baseline, no build turns a rule off, and a narrow `@Suppress` needs a comment saying why. A catch-all goes through `runCatchingCancellable`, never a bare `catch (e: Exception)`. CONTRIBUTING.md#formatting-and-static-analysis has both rules. Check a docs change with `python3 docs/site/stage.py && mkdocs build --strict` (in a venv from `docs/site/requirements.txt`).
 
+Run the checks for what you changed before you push, and push fixes together: a pull request is not where code first compiles. In a cloud container, `.claude/skills/cloud-build` says what builds there (the Android SDK, Maven Central's rate limit, the lint CLIs) and what only CI can check; `.claude/skills/ci-failure` reads a red run and lists the known flakes before a re-run; `.claude/skills/emulator-check` covers checks on an emulator or simulator, and turning one into a Maestro flow in `app/maestro/` that `tv-monkey.yml` runs every night.
+
 `CLAUDE.md` in each part only imports its `AGENTS.md`; edit the `AGENTS.md`. Commits, pull requests and GitHub comments carry no AI attribution (no `Co-Authored-By` or session trailers, no "Generated with" footers); `.claude/settings.json` turns it off for Claude Code.
 
 A wire change goes in `contract/` and lands with both sides in one pull request; the server must keep every field of the fixtures in `contract/src/jvmTest/resources/wire`, because the TV runs an older app than the server it talks to.

@@ -1,5 +1,5 @@
 """Stages the documentation for the site: every Markdown page and docs image Git tracks, and any image a page draws with
-an HTML <img>, at its repository path, plus the API reference page, into build/docs-src for mkdocs.yml. Agent instruction files and .github stay out. Run it from
+an HTML <img>, at its repository path, plus the API reference page, into build/docs-src for mkdocs.yml. Agent instruction files, .claude and .github stay out. Run it from
 the repository root before `mkdocs build`."""
 
 import pathlib
@@ -22,7 +22,7 @@ def tracked() -> list[str]:
 
 
 def wanted(path: str) -> bool:
-    if path.startswith(".github/") or pathlib.PurePosixPath(path).name in SKIP_NAMES:
+    if path.startswith((".github/", ".claude/")) or pathlib.PurePosixPath(path).name in SKIP_NAMES:
         return False
     return path.endswith(".md") or (path.startswith("docs/images/") and path.lower().endswith(IMAGES))
 

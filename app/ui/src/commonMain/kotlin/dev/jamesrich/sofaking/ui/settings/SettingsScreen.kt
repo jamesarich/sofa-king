@@ -224,7 +224,7 @@ fun SettingsScreen(
                 .focusRequester(focus.content)
                 .focusRestorer()
                 .focusGroup(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(SETTINGS_ROW_GAP),
         ) {
             item { ScreenTitle(page?.title(offer) ?: stringResource(Res.string.settings_title), onBack, focus.back) }
             when (page) {

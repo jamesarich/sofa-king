@@ -117,4 +117,30 @@ class MusicScanTest {
         assertEquals(s.byTitle.getValue("Demos").id, song.parentId)
         assertEquals(s.byTitle.getValue("Loner").id, s.byTitle.getValue("Demos").parentId)
     }
+
+    @Test fun `compilations tagged track by track, discs in album titles and artist spellings group as one`() {
+        val s = scan(
+            mapOf(
+                // Each track names its own artist as album artist: no artist has most, so it is Various Artists'.
+                "Various Artists/Jazz 9/01.flac" to AudioTags("One", "Ann", "Ann", "Jazz 9", 1),
+                "Various Artists/Jazz 9/02.flac" to AudioTags("Two", "Bob", "Bob", "Jazz 9", 2),
+                "Various Artists/Jazz 9/03.flac" to AudioTags("Three", "Cat", album = "Jazz 9", track = 3),
+                "Orb/World/01.flac" to AudioTags("Hum", "The Orb", album = "World CD 1", track = 1, disc = 1),
+                "Orb/World/02.flac" to AudioTags("Drone", "The Orb", album = "World (Disc 2)", track = 1, disc = 1),
+                "GY/A/01.flac" to AudioTags("Storm", "Godspeed You! Black Emperor", album = "A", track = 1),
+                "GY/A/02.flac" to AudioTags("Static", "Godspeed You! Black Emperor", album = "A", track = 2),
+                "GY/B/01.flac" to AudioTags("Moya", "Godspeed You Black Emperor!", album = "B", track = 1),
+                "Nujabes/Modal/01.flac" to AudioTags("Luv", "Nujabes", "VA", "Modal", 1),
+            ),
+        )
+        val artists = s.items.filter { it.kind == ItemKind.ARTIST }.map { it.title }.toSet()
+        assertEquals(setOf("Various Artists", "The Orb", "Godspeed You! Black Emperor"), artists)
+        assertEquals(listOf("One", "Two", "Three"), s.tracksOf("Jazz 9"))
+        assertEquals(listOf("Hum", "Drone"), s.tracksOf("World"))
+        assertEquals(2, s.byTitle.getValue("Drone").details?.disc)
+        val godspeed = s.byTitle.getValue("Godspeed You! Black Emperor").id
+        assertEquals(godspeed, s.byTitle.getValue("A").parentId)
+        assertEquals(godspeed, s.byTitle.getValue("B").parentId)
+        assertEquals(s.byTitle.getValue("Various Artists").id, s.byTitle.getValue("Modal").parentId)
+    }
 }

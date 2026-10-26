@@ -75,7 +75,7 @@ internal class TvParts {
     private val store = DataStoreSettingsStore(storage.settings)
 
     /** The server Settings names, its one playback session and the guide's record marks, for every ViewModel below. */
-    private val connection = ServerConnection(store.settings, scope, viewerSync = ViewerSync(store, storage.client))
+    val connection = ServerConnection(store.settings, scope, viewerSync = ViewerSync(store, storage.client))
 
     val viewModel =
         LineupViewModel(

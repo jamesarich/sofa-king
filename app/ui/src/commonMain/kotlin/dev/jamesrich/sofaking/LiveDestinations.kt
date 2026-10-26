@@ -13,7 +13,6 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.playerLineup
-import dev.jamesrich.sofaking.data.toggleTeam
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.channel_gone
 import dev.jamesrich.sofaking.resources.load_failed
@@ -55,8 +54,8 @@ internal fun GuideDestination(
     val settings by vm.settings.collectAsStateWithLifecycle()
     val prefs = settings ?: AppSettings()
     val capabilities by vm.capabilities.collectAsStateWithLifecycle()
-    val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
-    val watchlist by vm.watchlist.marks.collectAsStateWithLifecycle()
+    val recordingMarks by vm.recordingMarks.collectAsStateWithLifecycle()
+    val watchlist by vm.watchlistMarks.collectAsStateWithLifecycle()
     // With no server to talk to, Settings is the only thing to do, so it takes focus.
     val homeFocus = homeFocusFor(state)
     LaunchedEffect(homeFocus) {
@@ -93,11 +92,11 @@ internal fun GuideDestination(
                 onToggleFavorite = { vm.toggleFavorite(it.guideId) },
                 onFilterChange = vm::setGuideFilter,
                 onLoadGuideWindow = vm::loadGuideWindow,
-                onRecord = vm.recordings::toggle,
-                onRecordSeries = vm.recordings::toggleSeries,
-                onRecordTeam = vm.recordings::toggleTeam,
+                onRecord = vm::toggleRecording,
+                onRecordSeries = vm::toggleSeriesRecording,
+                onRecordTeam = vm::toggleTeamRecording,
                 onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
-                onToggleWatchlist = vm.watchlist::toggleTitle,
+                onToggleWatchlist = vm::toggleWatchlist,
                 watchlisted = { program -> watchlist.has(program).takeIf { watchlist.offered } },
                 onOnLater = { shell.push(Route.OnLater) }.takeIf { capabilities.onLater },
             ),
@@ -126,8 +125,8 @@ internal fun OnLaterDestination(shell: AppShellState, vm: LineupViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val prefs = settings ?: AppSettings()
     val capabilities by vm.capabilities.collectAsStateWithLifecycle()
-    val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
-    val watchlist by vm.watchlist.marks.collectAsStateWithLifecycle()
+    val recordingMarks by vm.recordingMarks.collectAsStateWithLifecycle()
+    val watchlist by vm.watchlistMarks.collectAsStateWithLifecycle()
     val visibleLineup = (state as? LineupState.Ready)?.visible
     if (visibleLineup == null) {
         MessageScreen(stringResource(Res.string.loading), loading = true)
@@ -143,14 +142,14 @@ internal fun OnLaterDestination(shell: AppShellState, vm: LineupViewModel) {
             onToggleFavorite = { vm.toggleFavorite(it.guideId) },
             onFilterChange = {},
             onLoadGuideWindow = {},
-            onRecord = vm.recordings::toggle,
-            onRecordSeries = vm.recordings::toggleSeries,
-            onRecordTeam = vm.recordings::toggleTeam,
+            onRecord = vm::toggleRecording,
+            onRecordSeries = vm::toggleSeriesRecording,
+            onRecordTeam = vm::toggleTeamRecording,
             onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
-            onToggleWatchlist = vm.watchlist::toggleTitle,
+            onToggleWatchlist = vm::toggleWatchlist,
             watchlisted = { program -> watchlist.has(program).takeIf { watchlist.offered } },
         ),
-        load = { vm.onLater.programs(it) },
+        load = vm::onLater,
         onWatch = watch,
     )
 }
@@ -172,7 +171,7 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
     val settings by vm.settings.collectAsStateWithLifecycle()
     val prefs = settings ?: AppSettings()
     val capabilities by vm.capabilities.collectAsStateWithLifecycle()
-    val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
+    val recordingMarks by vm.recordingMarks.collectAsStateWithLifecycle()
     val ready = state as? LineupState.Ready
     val playerLineup = ready?.let { playerLineup(it.lineup, it.visible, route.guideId, settings) }
     val channelGone = stringResource(Res.string.channel_gone)
@@ -212,7 +211,7 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
         keyLegendShown = prefs.keyLegendShown,
         onKeyLegendShow = vm::setKeyLegendShown,
         recordingMarks = recordingMarks.takeIf { capabilities.recordings },
-        onRecord = vm.recordings::toggle,
+        onRecord = vm::toggleRecording,
         onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
         zoom = shell.videoZoom,
         onZoom = { shell.videoZoom = it },

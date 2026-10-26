@@ -24,7 +24,7 @@ interface TvWatchlist {
 }
 
 internal class TvWatchlistCalls(private val parts: TvParts) : TvWatchlist {
-    private val book = parts.viewModel.watchlist
+    private val book = parts.connection.watchlist
 
     override fun watchWatchlist(onChange: (WatchlistMarks) -> Unit): Watch = parts.watch(book.marks, onChange)
 

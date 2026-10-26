@@ -35,6 +35,8 @@ import dev.jamesrich.sofaking.resources.settings_page_lock_on
 import dev.jamesrich.sofaking.resources.settings_page_playback
 import dev.jamesrich.sofaking.resources.settings_page_playback_night
 import dev.jamesrich.sofaking.resources.settings_page_playback_summary
+import dev.jamesrich.sofaking.ui.listRowColors
+import dev.jamesrich.sofaking.ui.listRowShapes
 import dev.jamesrich.sofaking.ui.supportsPlaybackPreferences
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.tvFocus
@@ -165,7 +167,7 @@ internal fun LinkRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shapes = settingRowShapes()
+    val shapes = listRowShapes()
     val interactions = remember { MutableInteractionSource() }
     ListItem(
         onClick = onClick,
@@ -174,7 +176,7 @@ internal fun LinkRow(
         trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
         supportingContent = { Text(summary, style = MaterialTheme.typography.bodySmall) },
         shapes = shapes,
-        colors = settingRowColors(interactions),
+        colors = listRowColors(interactions),
         interactionSource = interactions,
     ) { Text(label, style = MaterialTheme.typography.titleSmall) }
 }

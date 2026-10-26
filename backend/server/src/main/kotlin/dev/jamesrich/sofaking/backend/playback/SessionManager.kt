@@ -14,6 +14,7 @@ import dev.jamesrich.sofaking.contract.AdBreakState
 import dev.jamesrich.sofaking.contract.OpenPlayback
 import dev.jamesrich.sofaking.contract.PlaybackDescriptor
 import dev.jamesrich.sofaking.contract.PlaybackSession
+import dev.jamesrich.sofaking.contract.SessionHealth
 import dev.jamesrich.sofaking.contract.UpdatePlayback
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
@@ -85,8 +86,11 @@ internal class LiveSession(
         }
     }
 
-    /** The root token's suffix and MIME follow the offering's protocol, never the upstream path. */
-    fun descriptor(): PlaybackSession {
+    /**
+     * The root token's suffix and MIME follow the offering's protocol, never the upstream path. With [now], it carries
+     * the session's health as the relay has seen it up to then.
+     */
+    fun descriptor(now: Instant? = null): PlaybackSession {
         val hls = offering.protocol == "hls"
         val token = resource(offering.url, if (hls) "m3u8" else "ts")
         return PlaybackSession(
@@ -101,6 +105,7 @@ internal class LiveSession(
                 epoch,
             ),
             offering.providerId,
+            now?.let { SessionHealth(stats.bitrateKbps(it), stats.stalls.get(), stats.switches.get()) },
         )
     }
 
@@ -333,7 +338,7 @@ class SessionManager(
             session.restart()
             session.offering = refreshed
         }
-        session.descriptor()
+        session.descriptor(clock.instant())
     }
 
     suspend fun update(id: String, update: UpdatePlayback): PlaybackSession = table.mutex.withLock {
@@ -342,8 +347,9 @@ class SessionManager(
             throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Invalid playback intent")
         }
         update.intent?.let { session.intent = it }
-        session.expires = clock.instant().plus(lease(session.intent))
-        session.descriptor()
+        val now = clock.instant()
+        session.expires = now.plus(lease(session.intent))
+        session.descriptor(now)
     }
 
     /** Where the session's player is among the ads, given [aheadMs] of media it has loaded past the picture. */

@@ -427,6 +427,9 @@ class SessionManagerTest {
                     val stats = sessions.snapshot().single()
                     assertEquals(4, stats.sourceSwitches)
                     assertEquals("second", stats.offeringId)
+                    assertNull(opened.health, "an open says nothing of health yet")
+                    assertEquals(4, sessions.get(opened.id).health?.sourceSwitches, "a read carries the health")
+                    assertEquals(4, sessions.update(opened.id, UpdatePlayback()).health?.sourceSwitches)
 
                     store.setManuallyDisabled("first", true)
                     store.setManuallyDisabled("third", true)

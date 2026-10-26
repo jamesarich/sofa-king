@@ -23,6 +23,7 @@ private const val STANDARD_BIT_DEPTH = 8
  * on the default and the stream has to carry the pick.
  */
 internal fun vodMode(media: MediaInfo?, profile: ClientProfile, audio: AudioStream? = null): String {
+    if (media.audioOnly) return audioMode(media!!, profile)
     val video = media?.video ?: return Wire.VodMode.TRANSCODE
     val default = media.audio.firstOrNull { it.default } ?: media.audio.firstOrNull()
     val track = audio ?: default
@@ -36,6 +37,23 @@ internal fun vodMode(media: MediaInfo?, profile: ClientProfile, audio: AudioStre
         copied -> Wire.VodMode.AUDIO
         else -> Wire.VodMode.TRANSCODE
     }
+}
+
+/** True for a file of sound alone, such as a music track; a cover picture inside it is not video. */
+internal val MediaInfo?.audioOnly: Boolean get() = this != null && video == null && audio.isNotEmpty()
+
+/** The audio files a player opens as they are, by their container and the codec it must hold. */
+private val AUDIO_FILES = mapOf("flac" to setOf("flac"), "mp3" to setOf("mp3"), "ogg" to setOf("opus", "vorbis"))
+
+/**
+ * How to play a track: as it is when the client decodes its codec in its own file (FLAC, MP3, Ogg, or M4A when it
+ * opens MP4), else its sound converted to AAC.
+ */
+private fun audioMode(media: MediaInfo, profile: ClientProfile): String {
+    val codec = media.audio.first().codec
+    val container = containerOf(media.container)
+    val opens = if (container == "mp4") "mp4" in profile.containers else codec in AUDIO_FILES[container].orEmpty()
+    return if (opens && codec in profile.audioCodecs) Wire.VodMode.DIRECT else Wire.VodMode.AUDIO
 }
 
 /** Whether a client with [profile] decodes [video] as it is: its codec, height, HDR and bit depth. */
@@ -96,7 +114,7 @@ internal fun vodCommand(
     val seek = if (startMs > 0) listOf("-ss", seconds(startMs)) else emptyList()
     return buildList {
         addAll(listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error"))
-        if (!streams.copyVideo) addAll(encoder.inputArgs())
+        if (!streams.copyVideo && !media.audioOnly) addAll(encoder.inputArgs())
         addAll(seek)
         if (follow) addAll(listOf("-follow", "1", "-rw_timeout", "$FOLLOW_TIMEOUT_MICROS"))
         addAll(listOf("-i", file.toString()))
@@ -130,7 +148,14 @@ private class VodStreams(
     private val audio =
         audioIndex ?: media?.audio?.let { tracks -> (tracks.firstOrNull { it.default } ?: tracks.firstOrNull())?.index }
 
-    fun args(): List<String> = buildList {
+    fun args(): List<String> = if (media.audioOnly) {
+        // The sound alone: a cover picture inside the file is not sent as video.
+        listOf("-map", "0:${audio ?: "a:0"}", "-vn", "-sn", "-dn", "-c:a", "aac", "-ac", "2", "-b:a", "256k")
+    } else {
+        videoArgs()
+    }
+
+    private fun videoArgs(): List<String> = buildList {
         val subtitle = burn?.let { if (it.file == null) "0:${it.stream.index}" else "1:s:0" }
         if (subtitle == null) addAll(listOf("-map", "0:v:0?")) else addAll(encoder.overlayGraph(subtitle, media?.video))
         if (audio != null) addAll(listOf("-map", "0:$audio")) else add("-an")

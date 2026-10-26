@@ -36,6 +36,16 @@ class LibraryChoicesTest {
     }
 
     @Test
+    fun `an album plays its first track from the start and an artist has no first button`() {
+        val first = item("t1", ItemKind.TRACK, PlayProgress(60_000, 200_000, watched = false))
+        val album = MediaItemDetail(item("a", ItemKind.ALBUM), children = listOf(first, item("t2", ItemKind.TRACK)))
+        assertEquals(PrimaryAction.Play(first), primaryAction(album))
+        assertEquals(PrimaryAction.Play(first), primaryAction(MediaItemDetail(first)))
+        val artist = MediaItemDetail(item("r", ItemKind.ARTIST), children = listOf(item("a", ItemKind.ALBUM)))
+        assertNull(primaryAction(artist))
+    }
+
+    @Test
     fun `spoilers are hidden only on episodes not started yet`() {
         assertTrue(hidesSpoilers(item("e", ItemKind.EPISODE)))
         assertTrue(hidesSpoilers(item("e", ItemKind.EPISODE, PlayProgress(0, 600_000, watched = false))))

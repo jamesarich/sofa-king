@@ -1,10 +1,12 @@
 package dev.jamesrich.sofaking.data
 
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
@@ -48,13 +50,16 @@ class SessionRelease(val url: String, val token: String)
  * media URLs from a descriptor are resolved against the base and carry no token. Transport failures surface as
  * [IOException] on every platform, whatever the engine throws, so callers retry them the same way. Answers are
  * decoded on [background], off the caller's main thread. It holds its own client on [engine], the app's one pool
- * unless a test passes another; [close] it once its server is no longer used, which leaves the pool open.
+ * unless a test passes another; [close] it once its server is no longer used, which leaves the pool open. Every call
+ * names [libraryKinds], the library kinds beyond movies, shows and videos the client can show (`Wire.LibraryKind`
+ * values); the server leaves the others out.
  */
 class SofaKingApi(
     baseUrl: String,
     private val token: String,
     engine: HttpClientEngine = sharedHttpEngine,
     internal val background: CoroutineDispatcher = Dispatchers.Default,
+    libraryKinds: List<String> = emptyList(),
 ) : AutoCloseable {
     private val base: Url = Url(baseUrl.trimEnd('/'))
 
@@ -65,6 +70,7 @@ class SofaKingApi(
         defaultRequest {
             url("$base/api/v1/")
             if (token.isNotEmpty()) bearerAuth(token)
+            if (libraryKinds.isNotEmpty()) header(Wire.Header.LIBRARY_KINDS, libraryKinds.joinToString(","))
         }
     }
 

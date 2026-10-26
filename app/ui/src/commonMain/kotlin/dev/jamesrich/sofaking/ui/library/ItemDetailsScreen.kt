@@ -33,6 +33,7 @@ import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.hidesSpoilers
 import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.library_albums
 import dev.jamesrich.sofaking.resources.library_cast
 import dev.jamesrich.sofaking.resources.library_extras
 import dev.jamesrich.sofaking.resources.library_load_failed
@@ -95,7 +96,9 @@ private fun Details(
     val sides = insets.horizontalOnly()
     val primaryFocus = remember { FocusRequester() }
     val episodeFocus = remember { FocusRequester() }
-    val returnTo = returnedFrom?.takeIf { id -> episodes.any { it.id == id } }
+    val albums = detail.children.filter { it.kind == ItemKind.ALBUM }
+    val discs = hasDiscs(episodes)
+    val returnTo = returnedFrom?.takeIf { id -> episodes.any { it.id == id } || albums.any { it.id == id } }
     val returnToExtra = returnedFrom?.takeIf { id -> detail.extras.any { it.id == id } }
     val returnToRelated = returnedFrom?.takeIf { id -> detail.related.any { it.id == id } }
     // The first button takes focus once, when the page is in; a later refresh leaves focus where the viewer put it.
@@ -126,20 +129,22 @@ private fun Details(
                     item(key = "seasons") { Seasons(seasons, selectedSeasonId, actions.onSelectSeason, sides) }
                 }
                 if (seasons.isNotEmpty() && season is ItemDetailState.Failed) {
-                    item(key = "season-failed") {
-                        Text(
-                            season.message,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(sides),
-                        )
+                    item(key = "season-failed") { SeasonFailed(season.message, sides) }
+                }
+                if (albums.isNotEmpty()) {
+                    item(key = "albums") {
+                        Albums(albums, actions, sides, ReturnFocus(returnTo, episodeFocus), primaryFocus)
                     }
                 }
-                items(episodes, key = { it.id }, contentType = { "episode" }) { episode ->
-                    val modifier = if (episode.id == returnTo) Modifier.focusRequester(episodeFocus) else Modifier
-                    EpisodeRow(episode, hideSpoilers && hidesSpoilers(episode), onClick = {
-                        actions.onPlay(episode, false)
-                    }, menu = episodeMenu, modifier = Modifier.padding(sides).then(modifier))
+                items(episodes, key = { it.id }, contentType = { it.kind }) { episode ->
+                    val focus = if (episode.id == returnTo) Modifier.focusRequester(episodeFocus) else Modifier
+                    val modifier = Modifier.padding(sides).then(focus)
+                    if (episode.kind == ItemKind.TRACK) {
+                        TrackRow(episode, item, discs, { actions.onPlay(episode, true) }, modifier)
+                    } else {
+                        val hidden = hideSpoilers && hidesSpoilers(episode)
+                        EpisodeRow(episode, hidden, { actions.onPlay(episode, false) }, modifier, episodeMenu)
+                    }
                 }
                 extrasAndRelated(detail, actions, sides, returnedFrom, episodeFocus)
             }
@@ -204,6 +209,44 @@ private fun LazyListScope.extrasAndRelated(
             )
         }
     }
+}
+
+/** The child the viewer came back from, [id], which takes [requester]; null [id] when they came from elsewhere. */
+private class ReturnFocus(val id: String?, val requester: FocusRequester)
+
+/**
+ * An artist's albums, newest first as the server sends them; OK opens one. The album the viewer came [back] from takes
+ * focus; otherwise, since an artist's page has no buttons, the first takes the [primaryFocus] they would.
+ */
+@Composable
+private fun Albums(
+    albums: List<MediaItem>,
+    actions: ItemDetailsActions,
+    sides: PaddingValues,
+    back: ReturnFocus,
+    primaryFocus: FocusRequester,
+) {
+    ItemRow(
+        stringResource(Res.string.library_albums),
+        albums,
+        CardStyle.SQUARE,
+        sides,
+        onOpen = actions.onOpenItem,
+        onPlay = { actions.onPlay(it, true) },
+        focusItem = back.id ?: albums.first().id,
+        focusRequester = if (back.id != null) back.requester else primaryFocus,
+    )
+}
+
+/** Why a show's season did not load, under its chips. */
+@Composable
+private fun SeasonFailed(message: String, sides: PaddingValues) {
+    Text(
+        message,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(sides),
+    )
 }
 
 /** How far clear of the screen's edges, outside the overscan, focus keeps what it lands on. */

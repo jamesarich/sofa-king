@@ -53,7 +53,8 @@ internal class FakeHttp(
         ),
     ) { expectSuccess = false }
 
-    fun api(token: String = "secret", base: String = FAKE_BASE) = SofaKingApi(base, token, client.engine, dispatcher)
+    fun api(token: String = "secret", base: String = FAKE_BASE, libraryKinds: List<String> = emptyList()) =
+        SofaKingApi(base, token, client.engine, dispatcher, libraryKinds)
 
     fun requestsOfKind(method: String) = requests.filter { it.method == method }.map { it.toString() }
 

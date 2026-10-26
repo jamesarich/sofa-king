@@ -285,12 +285,13 @@ private fun vodTracks(
 }
 
 /**
- * What the player shows for a library item: an episode under its show and number, a movie with its year,
- * its [intro] and [credits], and its [scrub] thumbnails.
+ * What the player shows for a library item: an episode under its show and number, a track under its artist and
+ * album, a movie with its year, its [intro] and [credits], and its [scrub] thumbnails.
  */
 private fun MediaItem.vodTitle(intro: IntroSpan?, credits: IntroSpan?, scrub: ScrubTiles?): VodTitle {
     val subtitle = when (kind) {
         ItemKind.EPISODE -> listOfNotNull(showTitle, episodeLabel).joinToString(" · ").ifEmpty { null }
+        ItemKind.TRACK -> listOfNotNull(trackArtist ?: artist, album).joinToString(" · ").ifEmpty { null }
         else -> year?.toString()
     }
     val markers = listOfNotNull(

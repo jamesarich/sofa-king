@@ -41,6 +41,7 @@ import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_add_to_watchlist
 import dev.jamesrich.sofaking.resources.library_directors
 import dev.jamesrich.sofaking.resources.library_episodes
+import dev.jamesrich.sofaking.resources.library_go_to_artist
 import dev.jamesrich.sofaking.resources.library_go_to_show
 import dev.jamesrich.sofaking.resources.library_mark_unwatched
 import dev.jamesrich.sofaking.resources.library_mark_watched
@@ -53,6 +54,7 @@ import dev.jamesrich.sofaking.resources.library_resume
 import dev.jamesrich.sofaking.resources.library_resume_episode
 import dev.jamesrich.sofaking.resources.library_seasons
 import dev.jamesrich.sofaking.resources.library_subtitles
+import dev.jamesrich.sofaking.resources.library_tracks
 import dev.jamesrich.sofaking.resources.tagline
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.ui.announcesChanges
@@ -98,12 +100,16 @@ internal fun Summary(
 ) {
     val item = detail.item
     Column(modifier.widthIn(max = 760.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (item.kind == ItemKind.EPISODE && item.showTitle != null) {
-            Text(
-                listOfNotNull(item.showTitle, item.episodeLabel).joinToString(DETAIL_SEPARATOR),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
+        val over = when {
+            item.kind == ItemKind.EPISODE && item.showTitle != null ->
+                listOfNotNull(item.showTitle, item.episodeLabel).joinToString(DETAIL_SEPARATOR)
+
+            item.kind == ItemKind.ALBUM || item.kind == ItemKind.TRACK -> item.artist
+
+            else -> null
+        }
+        if (over != null) {
+            Text(over, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
         }
         Text(item.title, style = MaterialTheme.typography.displaySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
         MetaLine(detail)
@@ -150,11 +156,15 @@ private fun Buttons(detail: MediaItemDetail, actions: ItemDetailsActions, primar
                 }) { Text(stringResource(Res.string.library_play_from_start)) }
             }
         }
-        SofaButton(
-            onClick = { actions.onSetWatched(item, !watched) },
-            modifier = (if (action == null) Modifier.focusRequester(primaryFocus) else Modifier).announcesChanges(),
-        ) {
-            Text(stringResource(if (watched) Res.string.library_mark_unwatched else Res.string.library_mark_watched))
+        if (!item.kind.music) {
+            SofaButton(
+                onClick = { actions.onSetWatched(item, !watched) },
+                modifier = (if (action == null) Modifier.focusRequester(primaryFocus) else Modifier).announcesChanges(),
+            ) {
+                Text(
+                    stringResource(if (watched) Res.string.library_mark_unwatched else Res.string.library_mark_watched),
+                )
+            }
         }
         val listed = actions.watchlisted(item)?.takeIf { item.kind in WATCHLIST_KINDS }
         if (listed != null) {
@@ -169,6 +179,13 @@ private fun Buttons(detail: MediaItemDetail, actions: ItemDetailsActions, primar
         val showId = item.showId?.takeIf { item.kind == ItemKind.EPISODE || item.kind == ItemKind.SEASON }
         if (showId != null) {
             SofaButton(onClick = { actions.onOpenShow(showId) }) { Text(stringResource(Res.string.library_go_to_show)) }
+        }
+        val artistId = item.artistId?.takeIf { item.kind == ItemKind.ALBUM || item.kind == ItemKind.TRACK }
+        if (artistId != null) {
+            SofaButton(
+                onClick = { actions.onOpenShow(artistId) },
+                modifier = if (action == null) Modifier.focusRequester(primaryFocus) else Modifier,
+            ) { Text(stringResource(Res.string.library_go_to_artist)) }
         }
     }
 }
@@ -246,6 +263,11 @@ private fun MetaLine(detail: MediaItemDetail) {
             item.kind == ItemKind.SEASON -> add(
                 pluralStringResource(Res.plurals.library_episodes, detail.children.size, detail.children.size),
             )
+
+            item.kind == ItemKind.ALBUM -> {
+                add(pluralStringResource(Res.plurals.library_tracks, detail.children.size, detail.children.size))
+                runtime(detail.children.sumOf { it.durationMs ?: 0 })?.let { add(it.hoursAndMinutes()) }
+            }
 
             else -> runtime(item.durationMs)?.let { add(it.hoursAndMinutes()) }
         }

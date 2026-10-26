@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.LibraryGrid
 import dev.jamesrich.sofaking.data.LetterJump
+import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.resources.Res
@@ -60,7 +61,7 @@ internal fun GridHeader(
                 )
             }
         }
-        SortChips(grid, actions)
+        SortChips(library?.kind, grid, actions)
         GenreChips(grid, actions, letterRow)
         if (letterRow != null) LetterChips(grid, letterRow, onLetter)
     }
@@ -71,22 +72,25 @@ internal fun GridHeader(
  * one.
  */
 @Composable
-private fun SortChips(grid: LibraryGrid?, actions: LibraryGridActions) {
+private fun SortChips(kind: LibraryKind?, grid: LibraryGrid?, actions: LibraryGridActions) {
     val sort = grid?.sort ?: LibrarySort.TITLE
+    val sorts = gridSorts(kind)
     val selectedSort = remember { FocusRequester() }
     LazyRow(Modifier.focusRestorer(selectedSort), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(LibrarySort.entries.size) { i ->
-            val option = LibrarySort.entries[i]
+        items(sorts.size) { i ->
+            val option = sorts[i]
             val focus = if (option == sort) Modifier.focusRequester(selectedSort) else Modifier
             SofaChip(selected = option == sort, onClick = {
                 actions.onSort(option)
             }, label = stringResource(option.label()), modifier = focus)
         }
-        item {
-            val unwatched = grid?.unwatched == true
-            SofaChip(selected = unwatched, onClick = {
-                actions.onUnwatched(!unwatched)
-            }, label = stringResource(Res.string.library_filter_unwatched))
+        if (gridFiltersUnwatched(kind)) {
+            item {
+                val unwatched = grid?.unwatched == true
+                SofaChip(selected = unwatched, onClick = {
+                    actions.onUnwatched(!unwatched)
+                }, label = stringResource(Res.string.library_filter_unwatched))
+            }
         }
     }
 }

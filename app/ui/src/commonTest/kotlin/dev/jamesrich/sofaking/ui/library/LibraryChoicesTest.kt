@@ -2,6 +2,8 @@ package dev.jamesrich.sofaking.ui.library
 
 import dev.jamesrich.sofaking.data.CONTINUE_SHELF
 import dev.jamesrich.sofaking.data.ItemKind
+import dev.jamesrich.sofaking.data.LibraryKind
+import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaShelf
 import dev.jamesrich.sofaking.data.PlayProgress
@@ -71,6 +73,55 @@ class LibraryChoicesTest {
         assertEquals("amber", sections.query)
         assertEquals(CardStyle.WIDE, SearchGroup.EPISODES.style)
         assertFalse(searchSections(emptyList(), "amber").found)
+    }
+
+    @Test
+    fun `music rows and grids are square and search groups artists albums and songs after the rest`() {
+        val album = item("a", ItemKind.ALBUM).copy(title = "Amber", artist = "The Band", year = 2001)
+        assertEquals(CardStyle.SQUARE, cardStyleFor(MediaShelf("r", "Recent", listOf(album))))
+        assertEquals(CardStyle.SQUARE, gridStyleFor(LibraryKind.MUSIC))
+        assertEquals(CardStyle.WIDE, gridStyleFor(LibraryKind.VIDEOS))
+        assertEquals(CardStyle.POSTER, gridStyleFor(LibraryKind.MOVIES))
+        val sections = searchSections(
+            listOf(
+                item("t", ItemKind.TRACK).copy(title = "Ambergris"),
+                album,
+                item("r", ItemKind.ARTIST).copy(title = "Amber Arcades"),
+                item("m", ItemKind.MOVIE).copy(title = "Amber Road"),
+            ),
+            "amber",
+        )
+        assertEquals(
+            listOf(SearchGroup.MOVIES, SearchGroup.ARTISTS, SearchGroup.ALBUMS, SearchGroup.TRACKS),
+            sections.rows.map { it.group },
+        )
+        assertEquals("The Band · 2001", squareSubtitle(album))
+        assertNull(squareSubtitle(item("r", ItemKind.ARTIST)))
+    }
+
+    @Test
+    fun `a music grid sorts by name or date added and has no unwatched filter`() {
+        assertEquals(listOf(LibrarySort.TITLE, LibrarySort.ADDED), gridSorts(LibraryKind.MUSIC))
+        assertFalse(gridFiltersUnwatched(LibraryKind.MUSIC))
+        assertEquals(LibrarySort.entries, gridSorts(LibraryKind.SHOWS))
+        assertTrue(gridFiltersUnwatched(LibraryKind.SHOWS))
+    }
+
+    @Test
+    fun `a track's number carries its disc only on an album of several`() {
+        val one = item("1", ItemKind.TRACK).copy(track = 5, disc = 1)
+        val two = item("2", ItemKind.TRACK).copy(track = 3, disc = 2)
+        assertFalse(hasDiscs(listOf(one, one.copy(track = 6))))
+        assertTrue(hasDiscs(listOf(one, two)))
+        assertEquals("5", trackNumber(one, discs = false))
+        assertEquals("2-03", trackNumber(two, discs = true))
+        assertNull(trackNumber(item("3", ItemKind.TRACK), discs = true))
+    }
+
+    @Test
+    fun `a song's card has no menu entries to mark it watched or play it from the start`() {
+        val track = item("t", ItemKind.TRACK, PlayProgress(60_000, 200_000, watched = false))
+        assertEquals(emptyList(), cardMenuEntries(track, playFromStart = true))
     }
 
     @Test

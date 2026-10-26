@@ -39,7 +39,11 @@ class ServerConnection(
     scope: CoroutineScope,
     /** The one playback session the app holds; screens tune through it and the host releases it when stopped. */
     val sessions: PlaybackSessions = PlaybackSessions(scope + Dispatchers.Default + logFailures),
-    internal val newApi: (url: String, token: String) -> SofaKingApi = ::SofaKingApi,
+    /** The library kinds beyond movies, shows and videos the client shows, which every API call names. */
+    libraryKinds: List<String> = emptyList(),
+    internal val newApi: (url: String, token: String) -> SofaKingApi = { url, token ->
+        SofaKingApi(url, token, libraryKinds = libraryKinds)
+    },
     /** Keeps the synced preferences in step with the server; null leaves them on this device only. */
     viewerSync: ViewerSync? = null,
     /** Keeps the favorites and hidden channels in step with the household's, while this device shares them. */

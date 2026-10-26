@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking
 
+import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.DataStoreSettingsStore
 import dev.jamesrich.sofaking.data.HouseholdSync
@@ -47,6 +48,7 @@ internal class AppGraph(
         ServerConnection(
             settings = settings.settings,
             scope = scope,
+            libraryKinds = listOf(Wire.LibraryKind.MUSIC),
             viewerSync = ViewerSync(settings, storage.client),
             householdSync = HouseholdSync(settings),
         )

@@ -56,6 +56,17 @@ class SofaKingApiTest {
     }
 
     @Test
+    fun `every call names the library kinds the client shows and none when it shows only the first three`() = runTest {
+        val http = FakeHttp(this) { json("""{"revision":"r1","channels":[]}""") }
+
+        http.api(libraryKinds = listOf("music")).catalog(etag = null)
+        http.api().catalog(etag = null)
+
+        assertEquals("music", http.requests[0].headers["Sofa-Library-Kinds"])
+        assertNull(http.requests[1].headers["Sofa-Library-Kinds"])
+    }
+
+    @Test
     fun `a base address with a path keeps it in front of the API`() = runTest {
         val http = FakeHttp(this) { json("""{"revision":"r1","channels":[]}""") }
 

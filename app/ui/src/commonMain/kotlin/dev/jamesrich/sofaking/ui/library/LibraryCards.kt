@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -161,13 +160,18 @@ private fun ItemCard(
     picture: @Composable BoxScope.() -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
-    val focus = if (focusScale == null) Modifier.tvFocus(CardShape) else Modifier.tvFocus(CardShape, focusScale)
+    val focus = if (focusScale ==
+        null
+    ) {
+        Modifier.tvFocus(CardDefaults.shape)
+    } else {
+        Modifier.tvFocus(CardDefaults.shape, focusScale)
+    }
     Box {
         Card(
-            shape = CardShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatio).playKey(onPlay)
-                .then(focus).clip(CardShape)
+                .then(focus).clip(CardDefaults.shape)
                 .clickOrHoldForMenu(onClick, menu?.let { { open = true } })
                 .semantics { contentDescription = label },
         ) {
@@ -255,8 +259,6 @@ internal fun Modifier.playKey(onPlay: (() -> Unit)?): Modifier = if (onPlay == n
         play
     }
 }
-
-internal val CardShape = RoundedCornerShape(12.dp)
 
 /** About six posters across a 1080p set inside its overscan. */
 internal val POSTER_WIDTH = 132.dp

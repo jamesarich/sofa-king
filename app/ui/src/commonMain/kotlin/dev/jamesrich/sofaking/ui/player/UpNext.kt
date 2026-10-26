@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -60,7 +59,7 @@ internal fun BoxScope.UpNextCard(
             .align(Alignment.BottomEnd)
             .screenPadding()
             .width(420.dp)
-            .background(SofaOverlayScrim, CardShape)
+            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
             .padding(16.dp)
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -73,7 +72,7 @@ internal fun BoxScope.UpNextCard(
         Box(
             Modifier.fillMaxWidth().aspectRatio(
                 WIDESCREEN,
-            ).clip(CardShape).background(MaterialTheme.colorScheme.surfaceVariant),
+            ).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
             Artwork(next.artworkUrl, next.title)
         }
@@ -137,8 +136,6 @@ private fun UpNextActions(pointerDriven: Boolean, stillWatching: Boolean, onPlay
         )
     }
 }
-
-private val CardShape = RoundedCornerShape(8.dp)
 
 /** How long the Up next card waits before playing the next item. */
 internal const val UP_NEXT_SECONDS = 10

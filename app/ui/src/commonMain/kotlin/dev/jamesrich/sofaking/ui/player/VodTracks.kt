@@ -143,7 +143,7 @@ internal fun BoxScope.TracksCard(
             .align(Alignment.CenterEnd)
             .screenPadding()
             .width(420.dp)
-            .background(SofaOverlayScrim, OverlayShape)
+            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
             .padding(24.dp)
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -227,7 +227,7 @@ internal fun BoxScope.SubtitleText(text: String, bottom: Dp, look: SubtitleLook 
         lineHeight = base.lineHeight * look.size.scale,
         shadow = if (look.box) null else SUBTITLE_SHADOW,
     )
-    val surface = if (look.box) Modifier.background(SofaOverlayScrim, OverlayShape) else Modifier
+    val surface = if (look.box) Modifier.background(SofaOverlayScrim, MaterialTheme.shapes.small) else Modifier
     Box(Modifier.align(Alignment.BottomCenter).screenPadding().padding(bottom = bottom)) {
         Text(
             text,

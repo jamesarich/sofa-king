@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,8 +29,6 @@ import dev.jamesrich.sofaking.resources.preview_live
 import dev.jamesrich.sofaking.resources.program_new
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
-
-private val BadgeShape = RoundedCornerShape(4.dp)
 
 /** The episode label and title, for example "S2 E5  The Pilot", or null when the guide has neither. */
 internal fun Program.episodeLine(): String? = listOfNotNull(episode, subTitle).joinToString("  ").ifEmpty { null }
@@ -96,7 +93,7 @@ internal fun ProgramBadges(
                 style = MaterialTheme.typography.bodySmall,
                 color = outline,
                 maxLines = 1,
-                modifier = Modifier.border(1.dp, outline, BadgeShape).padding(horizontal = 6.dp),
+                modifier = Modifier.border(1.dp, outline, MaterialTheme.shapes.extraSmall).padding(horizontal = 6.dp),
             )
         }
     }
@@ -109,6 +106,9 @@ private fun FilledBadge(text: String, fill: Color, onFill: Color) {
         style = MaterialTheme.typography.bodySmall,
         color = onFill,
         maxLines = 1,
-        modifier = Modifier.background(fill, BadgeShape).padding(horizontal = 6.dp, vertical = 1.dp),
+        modifier = Modifier.background(
+            fill,
+            MaterialTheme.shapes.extraSmall,
+        ).padding(horizontal = 6.dp, vertical = 1.dp),
     )
 }

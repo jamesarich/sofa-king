@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -29,7 +29,6 @@ import kotlin.math.roundToInt
 /** How wide a scrub thumbnail is drawn; its height follows the file's shape. */
 private val SCRUB_THUMBNAIL_WIDTH = 200.dp
 private val SCRUB_THUMBNAIL_GAP = 12.dp
-private val ScrubThumbnailShape = RoundedCornerShape(8.dp)
 
 internal const val SCRUB_THUMBNAIL_TAG = "scrub-thumbnail"
 
@@ -50,7 +49,7 @@ internal fun ScrubThumbnail(tiles: ScrubTiles, targetMs: Long, modifier: Modifie
         modifier
             .testTag(SCRUB_THUMBNAIL_TAG)
             .size(SCRUB_THUMBNAIL_WIDTH, height)
-            .clip(ScrubThumbnailShape)
+            .clip(MaterialTheme.shapes.small)
             .background(Color.Black),
     ) {
         // The tile filter pads the last sheet to the full grid, so every sheet is columns by rows tiles.

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -188,8 +187,6 @@ internal val SKIP_BUTTONS = setOf(VodButton.SKIP_BREAK, VodButton.SKIP_INTRO, Vo
 private val STAYING_BUTTONS =
     setOf(VodButton.CAPTIONS, VodButton.ZOOM, VodButton.SLEEP, VodButton.SPEED, VodButton.TRACKS)
 
-private val BarShape = RoundedCornerShape(8.dp)
-
 /**
  * The info bar's panel: the title and how the item plays, the seek bar and the times, and the buttons. [buttons] are
  * the bar's buttons, which a press runs through [press]; a finger or a mouse also gets the transport and the volume.
@@ -211,7 +208,7 @@ internal fun BoxScope.VodInfoBar(
                 .onSizeChanged { parts.barHeight = with(density) { it.height.toDp() } }
                 .widthIn(max = 1200.dp)
                 .fillMaxWidth()
-                .background(SofaOverlayScrim, BarShape)
+                .background(SofaOverlayScrim, MaterialTheme.shapes.small)
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {

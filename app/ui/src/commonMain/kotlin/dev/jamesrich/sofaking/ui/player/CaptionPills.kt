@@ -60,7 +60,7 @@ internal fun captionTimingText(ms: Int): String = when (CaptionPolicy.timingDire
 internal fun CaptionToastPill(outcome: CaptionToggleOutcome, timingMs: Int?) {
     Column(
         Modifier
-            .background(SofaOverlayScrim, OverlayShape)
+            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(2.dp),

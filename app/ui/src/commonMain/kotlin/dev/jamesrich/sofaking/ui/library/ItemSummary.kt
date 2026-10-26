@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -218,10 +217,10 @@ private fun Overview(text: String) {
             onClick = {
                 expanded = !expanded
             },
-            shape = OverviewShape,
+            shape = MaterialTheme.shapes.small,
             color = Color.Transparent,
             modifier = Modifier.tvFocus(
-                OverviewShape,
+                MaterialTheme.shapes.small,
                 focusedScale = 1f,
             ),
         ) {
@@ -233,7 +232,6 @@ private fun Overview(text: String) {
 }
 
 private const val OVERVIEW_LINES = 4
-private val OverviewShape = RoundedCornerShape(8.dp)
 
 /** Year, length or seasons, rating and the picture's badges on one line. */
 @Composable
@@ -310,7 +308,11 @@ private fun OutlinedBadge(text: String) {
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
-        modifier = Modifier.border(1.dp, outline, BadgeShape).padding(horizontal = 6.dp, vertical = 1.dp),
+        modifier = Modifier.border(
+            1.dp,
+            outline,
+            MaterialTheme.shapes.extraSmall,
+        ).padding(horizontal = 6.dp, vertical = 1.dp),
     )
 }
 
@@ -335,4 +337,3 @@ private const val HD_HEIGHT = 720
 private const val BACKDROP_FADE_AT = 0.55f
 private const val BACKDROP_FADE_ALPHA = 0.6f
 private const val BACKDROP_FLOOR_AT = 0.4f
-private val BadgeShape = RoundedCornerShape(4.dp)

@@ -83,7 +83,7 @@ internal fun BoxScope.StreamCard(
             .align(Alignment.TopEnd)
             .screenPadding()
             .width(400.dp)
-            .background(SofaOverlayScrim, OverlayShape)
+            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
             .padding(24.dp)
             .then(if (tracks.isEmpty()) Modifier.focusRequester(focusRequester) else Modifier)
             .focusable(),
@@ -175,8 +175,8 @@ internal fun TrackRow(label: String, selected: Boolean, onClick: () -> Unit, mod
     Row(
         modifier
             .fillMaxWidth()
-            .tvFocus(OverlayShape, focusedScale = 1f)
-            .background(if (focused) colors.primary else Color.Transparent, OverlayShape)
+            .tvFocus(MaterialTheme.shapes.small, focusedScale = 1f)
+            .background(if (focused) colors.primary else Color.Transparent, MaterialTheme.shapes.small)
             .selectable(
                 selected = selected,
                 interactionSource = interactions,

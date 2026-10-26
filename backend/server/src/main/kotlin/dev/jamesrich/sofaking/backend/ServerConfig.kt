@@ -149,6 +149,8 @@ data class ServerConfig(
      * rate, not only on a stall; off by default.
      */
     val qualityFloors: Boolean = false,
+    /** `SOFA_MUSICBRAINZ`: look Music libraries' albums and artists up on MusicBrainz after scans; on by default. */
+    val musicBrainz: Boolean = true,
 ) {
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
@@ -283,6 +285,7 @@ data class ServerConfig(
                 libraryPathMap = pathMappings(environment["SOFA_LIBRARY_PATH_MAP"]),
                 historyDays = env.number("SOFA_HISTORY_DAYS", DEFAULT_HISTORY_DAYS, RETENTION_DAYS_RANGE),
                 qualityFloors = env.flag("SOFA_QUALITY_FLOORS", false),
+                musicBrainz = env.flag("SOFA_MUSICBRAINZ", true),
             )
         }
 

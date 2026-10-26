@@ -6,8 +6,16 @@ import java.nio.file.Path
 private const val DISC_SORT_DIGITS = 3
 private const val TRACK_SORT_DIGITS = 4
 
-/** A disc's own folder inside its album's: `CD1`, `Disc 2`. */
-private val DISC_FOLDER = Regex("""(?i)^(?:cd|disc|disk)[\s._-]*(\d{1,2})$""")
+/**
+ * A disc's own folder inside its album's: `CD1`, `Disc 2`, or a medium and its number as MusicBrainz Picard names
+ * them, `12" Vinyl 01`, `Digital Media 02`.
+ */
+private val DISC_FOLDER = Regex(
+    """(?i)^(?:\d{1,2}"?\s*)?(?:cd|disc|disk|vinyl|lp|dvd|sacd|cassette|digital media)[\s._-]*(\d{1,2})$""",
+)
+
+/** `Artist - Album - 03 - Title`, as Picard and Lidarr name files. */
+private val NAMED_IN_FULL = Regex("""^.+ - .+ - (?<track>\d{1,3}) - (?<title>.+)$""")
 
 /** A track number before the title in a file name: `03 - Title`, `03. Title`, `1-03 Title`. */
 private val NUMBERED = Regex("""^(?:(?<disc>\d)[-.])?(?<track>\d{1,3})(?:\s*[-.]\s*|[\s_]+)(?<title>.+)$""")
@@ -43,9 +51,17 @@ internal class MusicItems(private val libraryId: String, private val root: Path)
 
     private class Album(var record: LibraryItemRecord, val tracks: MutableList<LibraryItemRecord> = ArrayList())
 
+    /** The album artist of each album folder and album title whose tracks have no album artist tag. */
+    private var untaggedAlbums: Map<Pair<String, String>, String> = emptyMap()
+
     /** The artists, then the albums, then the tracks. */
     fun items(items: List<LibraryItemRecord>): List<LibraryItemRecord> {
-        items.filter { it.kind == ItemKind.TRACK }.forEach(::add)
+        val tracks = items.filter { it.kind == ItemKind.TRACK && it.path != null }
+        untaggedAlbums =
+            tracks.filter { it.media?.tags?.let { tags -> tags.album != null && tags.albumArtist == null } == true }
+                .groupBy { albumFolderOf(it.path!!) to key(it.media!!.tags!!.album!!) }
+                .mapValues { (_, group) -> albumArtistOf(group.map { it.media!!.tags!! }) }
+        tracks.forEach(::add)
         val grouped = albums.values.map { album -> album.record to album.tracks }
         return artists.values + grouped.map { (album, tracks) -> summed(album, tracks) } + grouped.flatMap { it.second }
     }
@@ -86,6 +102,7 @@ internal class MusicItems(private val libraryId: String, private val root: Path)
         val albumFolders = if (discFolder != null) folders.dropLast(1) else folders
         val artist = tags?.albumArtist
             ?: VARIOUS_ARTISTS.takeIf { tags?.compilation == true }
+            ?: tags?.album?.let { untaggedAlbums[albumFolders.joinToString("/") to key(it)] }
             ?: tags?.artist
             ?: albumFolders.getOrNull(albumFolders.size - 2)
             ?: UNKNOWN_ARTIST
@@ -152,13 +169,39 @@ private class TrackName(val title: String, val track: Int?, val disc: Int?) {
     companion object {
         /** [folderDisc] is the disc a `CD2` folder names. */
         fun of(stem: String, tags: AudioTags?, folderDisc: Int?): TrackName {
-            val numbered = NUMBERED.matchEntire(stem)?.groups
+            val full = NAMED_IN_FULL.matchEntire(stem)?.groups
+            val short = if (full == null) NUMBERED.matchEntire(stem)?.groups else null
+            val numbered = full ?: short
             return TrackName(
                 tags?.title ?: numbered?.get("title")?.value?.trim() ?: stem,
                 tags?.track ?: numbered?.get("track")?.value?.toIntOrNull(),
-                tags?.disc ?: folderDisc ?: numbered?.get("disc")?.value?.toIntOrNull(),
+                tags?.disc ?: folderDisc ?: short?.get("disc")?.value?.toIntOrNull(),
             )
         }
+    }
+}
+
+/** The folder holding [relative]'s album: its own, or the one above a disc folder. */
+private fun albumFolderOf(relative: String): String {
+    val folders = relative.split('/').dropLast(1)
+    return (if (folders.lastOrNull()?.let(DISC_FOLDER::matches) == true) folders.dropLast(1) else folders)
+        .joinToString("/")
+}
+
+/**
+ * Who an album whose tracks name no album artist is by: the artist of most of its tracks, as when one has a guest
+ * (`Band feat. Guest`), or Various Artists when no artist has most of them or a track says it is a compilation.
+ */
+private fun albumArtistOf(tracks: List<AudioTags>): String {
+    if (tracks.any { it.compilation }) return VARIOUS_ARTISTS
+    val (top, count) = tracks.mapNotNull { it.artist }.groupingBy(::key).eachCount().maxByOrNull { it.value }
+        ?: return UNKNOWN_ARTIST
+    return if (count * 2 >
+        tracks.size
+    ) {
+        tracks.first { it.artist != null && key(it.artist) == top }.artist!!
+    } else {
+        VARIOUS_ARTISTS
     }
 }
 

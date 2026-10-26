@@ -86,6 +86,8 @@ dependencies {
     implementation(libs.androidx.core)
     implementation(libs.androidx.profileinstaller)
     implementation(libs.androidx.tvprovider)
+    implementation(libs.engage.tv)
+    implementation(libs.androidx.fragment)
     baselineProfile(project(":baselineprofile"))
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)

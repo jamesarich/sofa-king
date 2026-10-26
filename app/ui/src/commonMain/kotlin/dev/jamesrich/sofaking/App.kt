@@ -186,7 +186,9 @@ private fun SofaKingApp(
  */
 @Composable
 private fun rememberTabEntries(nav: Navigation, page: @Composable (Route) -> Unit): Map<Tab, List<NavEntry<Route>>> {
-    val entryProvider: (Route) -> NavEntry<Route> = { route -> NavEntry(route, contentKey = route.id) { page(route) } }
+    val entryProvider: (Route) -> NavEntry<Route> = { route ->
+        NavEntry(route, contentKey = route.id, metadata = panesOf(route)) { page(route) }
+    }
     return Tab.entries.associateWith { tab ->
         rememberDecoratedNavEntries(
             nav.stack(tab),
@@ -196,7 +198,10 @@ private fun rememberTabEntries(nav: Navigation, page: @Composable (Route) -> Uni
     }
 }
 
-/** The tabs around the open tab's back stack, shown over Live's so Back from a tab's root lands on the guide. */
+/**
+ * The tabs around the open tab's back stack, shown over Live's so Back from a tab's root lands on the guide. On a wide
+ * window the library's grid and the title picked from it share it ([rememberLibraryPanes]).
+ */
 @Composable
 private fun AppNavDisplay(
     shell: AppShellState,
@@ -222,6 +227,7 @@ private fun AppNavDisplay(
             modifier = Modifier.appKeys(shell, volume, windowFullScreen).playerVolumeWheel(volume) {
                 shell.nav.top.playsFullScreen
             },
+            sceneStrategy = rememberLibraryPanes(chrome.tv),
             onBack = shell::back,
             transitionSpec = cut,
             popTransitionSpec = cut,

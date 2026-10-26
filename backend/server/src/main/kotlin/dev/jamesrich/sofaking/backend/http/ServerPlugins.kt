@@ -96,6 +96,8 @@ internal fun Application.installCors(origins: List<CorsOrigin>) {
         allowHeader(HttpHeaders.IfNoneMatch)
         allowHeader(HttpHeaders.IfMatch)
         allowHeader(HttpHeaders.XRequestId)
+        // The web app names the library kinds it shows, music among them, on every API call.
+        allowHeader(Wire.Header.LIBRARY_KINDS)
         exposeHeader(HttpHeaders.ETag)
         exposeHeader(HttpHeaders.XRequestId)
         maxAgeInSeconds = CORS_MAX_AGE_SECONDS

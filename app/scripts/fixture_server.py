@@ -36,6 +36,8 @@ NAMES = ['News Now', 'Sofa Sports', 'Movies', 'Kids', 'Local 4', 'Weather', 'Mus
 # The channel filed under Kids, which kids mode shows, and the games on Sofa Sports, which a team rule records.
 KIDS = 3
 TEAMS = ['Bears at Packers', 'Lions at Vikings', 'Packers at Lions']
+# The virtual channel --virtual adds.
+VIRTUAL = 'Sofa Live'
 # The fixture clip's length, and the most the endless channels send at a time.
 CLIP_SECONDS = 10
 FPS = 25
@@ -392,16 +394,20 @@ def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=F
 
 
 def virtual_channel(base):
-    """Adds a virtual channel to the lineup that airs Sofa Sports live from the start of this hour, its live slot, and
-    the Drama genre for the rest of the day, then adopts it."""
+    """Adds a virtual channel to the lineup that airs Sofa Sports live for two hours from the start of this one, its
+    live slot, and the Drama genre (the --movies fixture) for the rest of the day, then adopts it with its guide."""
     sports = next(c['id'] for c in request(base, '/api/v1/channels')['channels'] if c['name'] == NAMES[1])
     hour = datetime.now().astimezone().replace(minute=0, second=0, microsecond=0)
     slot = lambda kind, value, start: {'source': {'kind': kind, 'value': value}, 'shuffle': False, 'start': start.strftime('%H:%M')}
-    request(base, '/api/v1/admin/virtual-channels', 'POST', {
-        'name': 'Sofa Live', 'number': '20', 'padMinutes': 0,
-        'slots': [slot('channel', sports, hour), slot('genre', 'Drama', hour + timedelta(hours=1))]})
+    created = request(base, '/api/v1/admin/virtual-channels', 'POST', {
+        'name': VIRTUAL, 'number': '20', 'padMinutes': 0,
+        'slots': [slot('channel', sports, hour), slot('genre', 'Drama', hour + timedelta(hours=2))]})
     # The virtual provider lists the new channel once it has imported again.
     wait_for('the virtual channel', lambda: request(base, '/api/v1/admin/lineup/adopt', 'POST', {'providerId': 'virtual'})['added'], 60)
+    # Adopting maps an entry to a guide only when the guide's import already lists its channel, which the virtual
+    # guide's may not yet, so the entry is mapped by hand.
+    entry = next(c['id'] for c in request(base, '/api/v1/channels')['channels'] if c['name'] == VIRTUAL)
+    request(base, f'/api/v1/admin/lineup/{entry}', 'PATCH', {'guide': {'guideId': 'virtual', 'channelId': created['id']}})
 
 
 def stop(*_):

@@ -162,9 +162,14 @@ class WatchlistService internal constructor(
 private fun StoredWatchlistEntry.toWire(item: LibraryItem?, next: Program?) =
     WatchlistEntry(id, kind, item?.title ?: title, itemId, channelId, addedAt, item, next)
 
-/** The items [ids] names that the libraries still hold, as the app reads them, in the order given. */
+/**
+ * The items [ids] names that the libraries still hold, as the app reads them, in the order given. Music is listened
+ * to rather than watched, so the list holds none of it.
+ */
 private suspend fun LibraryCatalog.present(ids: List<String>): List<LibraryItem> {
     val snapshot = snapshot()
     val states = playStates()
-    return ids.mapNotNull { snapshot.views[it]?.out(snapshot, states) }
+    return ids.mapNotNull { id ->
+        snapshot.views[id]?.takeIf { snapshot.shows(it, music = false) }?.out(snapshot, states)
+    }
 }

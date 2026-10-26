@@ -35,6 +35,9 @@ internal fun frameAt(durationMs: Long?): Long =
     durationMs?.let { (it / FRAME_SHARE).coerceAtMost(LATEST_FRAME_MS) } ?: 0
 
 private const val FRAME_SHARE = 10
+
+/** The items under others that search finds, in the order it lists them, after the movies, shows and artists. */
+private val SEARCHED_CHILDREN = listOf(ItemKind.EPISODE, ItemKind.ALBUM, ItemKind.TRACK)
 private const val LATEST_FRAME_MS = 600_000L
 
 /** Where an item's poster or backdrop comes from: a file in its library folder, or a TMDB image path. */
@@ -79,7 +82,28 @@ internal class Snapshot(
     val tops: Map<String, List<View>>,
     /** A movie's or show's extras, in their kinds' order and then by title. */
     val extras: Map<String, List<View>> = emptyMap(),
+    /** The albums of each music library. */
+    val albums: Map<String, List<View>> = emptyMap(),
 ) {
+    private val musicLibraries = libraries.filter { it.kind == LibraryKind.MUSIC }.mapTo(HashSet()) { it.id }
+
+    /**
+     * The libraries a client sees: Music ones only when it shows [music], as an older app would play a track as a
+     * video.
+     */
+    fun visible(music: Boolean): List<LibraryRecord> =
+        if (music) libraries else libraries.filter { it.id !in musicLibraries }
+
+    /** What [library]'s grid lists: its top items, or with [kind] `album` a Music library's albums. */
+    fun listed(library: LibraryRecord, kind: String?): List<View> = when {
+        kind == null -> tops[library.id].orEmpty()
+        kind == ItemKind.ALBUM && library.kind == LibraryKind.MUSIC -> albums[library.id].orEmpty()
+        else -> throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "kind is album, in a Music library")
+    }
+
+    /** Whether a client that shows [music] or not sees [view]. */
+    fun shows(view: View, music: Boolean): Boolean = music || view.record.libraryId !in musicLibraries
+
     /** Where [view]'s file is: a movie, episode or video inside its library's folder; null for anything else. */
     fun fileOf(view: View): Path? {
         val relative =
@@ -146,12 +170,16 @@ class LibraryCatalog internal constructor(
         return store.playStates().also { states = wanted to it }
     }
 
-    suspend fun libraries(): List<Library> {
+    /** The libraries a client sees, Music ones only when it shows [music]; a Music library counts its artists. */
+    suspend fun libraries(music: Boolean = false): List<Library> {
         val snapshot = snapshot()
-        return snapshot.libraries.map { Library(it.id, it.name, it.kind.wire, snapshot.tops[it.id].orEmpty().size) }
+        return snapshot.visible(music).map {
+            Library(it.id, it.name, it.kind.wire, snapshot.tops[it.id].orEmpty().size)
+        }
     }
 
-    suspend fun home(): LibraryHome {
+    /** The home rows; a Music library's Recently added row lists albums, and only when the client shows [music]. */
+    suspend fun home(music: Boolean = false): LibraryHome {
         val snapshot = snapshot()
         val states = playStates()
         val shelves = ArrayList<LibraryShelf>()
@@ -160,12 +188,15 @@ class LibraryCatalog internal constructor(
             shelves +=
                 LibraryShelf(Wire.ShelfId.CONTINUE, "Continue watching", continuing.map { it.out(snapshot, states) })
         }
-        val listed = store.watchlist().mapNotNull { it.itemId?.let(snapshot.views::get) }.take(SHELF_SIZE)
+        val listed = store.watchlist().mapNotNull { it.itemId?.let(snapshot.views::get) }
+            .filter { snapshot.shows(it, music = false) }
+            .take(SHELF_SIZE)
         if (listed.isNotEmpty()) {
             shelves += LibraryShelf(Wire.ShelfId.WATCHLIST, "Watchlist", listed.map { it.out(snapshot, states) })
         }
-        for (library in snapshot.libraries) {
-            val recent = snapshot.tops[library.id].orEmpty().sortedWith(snapshot.byAdded).take(SHELF_SIZE)
+        for (library in snapshot.visible(music)) {
+            val held = if (library.kind == LibraryKind.MUSIC) snapshot.albums[library.id] else snapshot.tops[library.id]
+            val recent = held.orEmpty().sortedWith(snapshot.byAdded).take(SHELF_SIZE)
             if (recent.isNotEmpty()) {
                 shelves +=
                     LibraryShelf(
@@ -178,13 +209,15 @@ class LibraryCatalog internal constructor(
                     )
             }
         }
-        return LibraryHome(shelves, libraries())
+        return LibraryHome(shelves, libraries(music))
     }
 
     /**
-     * The movies, shows or videos of [libraryId], sorted by [sort] (`title`, `added`, `year`, `rating`, or `watched`
-     * for the most recently watched first), with [genre] only when given, [limit] after [cursor]. The page lists every
-     * genre in the library, for the filter, and the first page in title order counts the items under each first letter.
+     * The movies, shows, videos or artists of [libraryId] (a Music library's albums with [kind] `album`), sorted by
+     * [sort] (`title`, `added`, `year`, `rating`, or `watched` for the most recently watched first), with [genre] only
+     * when given, [limit] after [cursor]. The page lists every genre in the library, for the filter, and the first page
+     * in title order counts the items under each first letter. A Music library is found only by a client that shows
+     * [music].
      */
     suspend fun items(
         libraryId: String,
@@ -193,14 +226,15 @@ class LibraryCatalog internal constructor(
         cursor: String?,
         limit: Int,
         genre: String? = null,
+        music: Boolean = false,
+        kind: String? = null,
     ): LibraryPage {
         val snapshot = snapshot()
-        if (snapshot.libraries.none { it.id == libraryId }) {
-            throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
-        }
+        val library = snapshot.visible(music).firstOrNull { it.id == libraryId }
+            ?: throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
         val states = playStates()
         val order = itemOrder(sort ?: "title", snapshot, states, libraryId)
-        val tops = snapshot.tops[libraryId].orEmpty()
+        val tops = snapshot.listed(library, kind)
         val wanted = genre?.trim()?.ifEmpty { null }
         val all = tops
             .filter { view -> wanted == null || view.item.genres.any { it.equals(wanted, ignoreCase = true) } }
@@ -221,9 +255,11 @@ class LibraryCatalog internal constructor(
         return LibraryPage(page.map { it.second }, all.size, next, genres, letters)
     }
 
-    suspend fun item(id: String): LibraryItemDetail {
+    /** An item's page; one in a Music library is found only by a client that shows [music]. */
+    suspend fun item(id: String, music: Boolean = false): LibraryItemDetail {
         val snapshot = snapshot()
-        val view = snapshot.views[id] ?: throw ApiFailure(HttpStatusCode.NotFound, "ITEM_NOT_FOUND", "No such item")
+        val view = snapshot.views[id]?.takeIf { snapshot.shows(it, music) }
+            ?: throw ApiFailure(HttpStatusCode.NotFound, "ITEM_NOT_FOUND", "No such item")
         val states = playStates()
         val media = view.record.media
         // Subtitle files beside the video, read now so a file added since the scan shows.
@@ -256,20 +292,24 @@ class LibraryCatalog internal constructor(
         )
     }
 
-    /** Movies, shows and videos whose title holds [query], then episodes; at most [limit]. */
-    suspend fun search(query: String, limit: Int): LibraryPage {
+    /**
+     * Movies, shows, videos and artists whose title holds [query], then episodes, albums and tracks; at most [limit].
+     * Music is searched only for a client that shows [music].
+     */
+    suspend fun search(query: String, limit: Int, music: Boolean = false): LibraryPage {
         val needle = query.trim().lowercase()
         if (needle.isEmpty()) throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "q is required")
         val snapshot = snapshot()
         val states = playStates()
-        val matches = snapshot.views.values.filter { needle in it.item.title.lowercase() }
+        val matches = snapshot.views.values.filter { needle in it.item.title.lowercase() && snapshot.shows(it, music) }
         val (tops, rest) = matches.partition { it.record.parentId == null }
         val credited = snapshot.views.values.filter { view ->
             view.record.parentId == null && needle !in view.item.title.lowercase() &&
                 (view.cast + view.directors).any { needle in it.lowercase() }
         }
         val found = tops.sortedBy { sortTitle(it.item.title) } + credited.sortedBy { sortTitle(it.item.title) } +
-            rest.filter { it.record.kind == ItemKind.EPISODE }.sortedBy { sortTitle(it.item.title) }
+            rest.filter { it.record.kind in SEARCHED_CHILDREN }
+                .sortedWith(compareBy({ SEARCHED_CHILDREN.indexOf(it.record.kind) }, { sortTitle(it.item.title) }))
         return LibraryPage(found.take(limit).map { it.out(snapshot, states) }, found.size)
     }
 

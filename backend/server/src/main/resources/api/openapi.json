@@ -37,6 +37,7 @@
       "mediaBrowserToken": { "type": "apiKey", "in": "header", "name": "X-MediaBrowser-Token", "description": "A hook token or SOFA_API_TOKEN, as Sonarr's and Radarr's Emby / Jellyfin connection sends its API key; X-Emby-Token works too" }
     },
     "parameters": {
+      "libraryKinds": { "name": "Sofa-Library-Kinds", "in": "header", "description": "The library kinds beyond movies, shows and videos the client shows, comma separated: music. Without music, Music libraries and their items are left out.", "schema": { "type": "string" } },
       "id": { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
       "clientId": { "name": "clientId", "in": "path", "required": true, "description": "The client's own stable id: 1 to 64 letters, digits, dots, dashes or underscores.", "schema": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" } },
       "outputName": { "name": "name", "in": "path", "required": true, "description": "A named output: 1 to 32 lowercase letters, digits and hyphens.", "schema": { "type": "string" } }
@@ -159,7 +160,7 @@
       "PairingResult": { "type": "object", "required": ["apiToken"], "properties": { "apiToken": { "type": "string", "description": "The device's own token; empty when the server runs without an API token." }, "serverId": { "type": "string" } } },
       "Library": {
         "type": "object", "required": ["id", "name", "kind"],
-        "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "kind": { "type": "string", "enum": ["movies", "shows", "videos"] }, "items": { "type": "integer", "description": "Its movies, shows or videos." } }
+        "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "kind": { "type": "string", "enum": ["movies", "shows", "videos", "music"] }, "items": { "type": "integer", "description": "Its movies, shows or videos." } }
       },
       "PlayState": {
         "type": "object",
@@ -168,7 +169,7 @@
       "LibraryItem": {
         "type": "object", "required": ["id", "libraryId", "kind", "title"],
         "properties": {
-          "id": { "type": "string" }, "libraryId": { "type": "string" }, "kind": { "type": "string", "enum": ["movie", "show", "season", "episode", "video", "extra"] }, "title": { "type": "string" },
+          "id": { "type": "string" }, "libraryId": { "type": "string" }, "kind": { "type": "string", "enum": ["movie", "show", "season", "episode", "video", "extra", "artist", "album", "track"] }, "title": { "type": "string" },
           "parentId": { "type": ["string", "null"] }, "showId": { "type": ["string", "null"] }, "showTitle": { "type": ["string", "null"] },
           "year": { "type": ["integer", "null"] }, "season": { "type": ["integer", "null"] }, "episode": { "type": ["integer", "null"] }, "episodeEnd": { "type": ["integer", "null"] },
           "aired": { "type": ["string", "null"] }, "overview": { "type": ["string", "null"] }, "durationMs": { "type": ["integer", "null"] },
@@ -181,7 +182,10 @@
           "extra": { "type": ["string", "null"], "enum": ["trailer", "featurette", "behind_the_scenes", "deleted_scene", "interview", "scene", "short", "other", null], "description": "An extra's kind; null for anything else. A client shows a kind it does not know as other." },
           "tmdbId": { "type": ["integer", "null"], "description": "A movie's or show's TMDB id, from its name, its .nfo or the TMDB match." },
           "tvdbId": { "type": ["integer", "null"], "description": "The TheTVDB id, from the name, the .nfo or TMDB's record of a show." },
-          "imdbId": { "type": ["string", "null"], "description": "The IMDb id, tt and digits, from the name, the .nfo or TMDB's record." }
+          "imdbId": { "type": ["string", "null"], "description": "The IMDb id, tt and digits, from the name, the .nfo or TMDB's record." },
+          "artistId": { "type": ["string", "null"], "description": "An album's or track's album artist." }, "artist": { "type": ["string", "null"], "description": "The album artist's name." },
+          "trackArtist": { "type": ["string", "null"], "description": "A track's own artist when it differs from its album's, as on a compilation." },
+          "album": { "type": ["string", "null"], "description": "A track's album title; the album is its parentId." }, "track": { "type": ["integer", "null"] }, "disc": { "type": ["integer", "null"] }
         }
       },
       "LibraryPage": {
@@ -930,16 +934,16 @@
         "responses": { "200": { "description": "PNG, JPEG, WebP, GIF or SVG" }, "304": { "description": "Unchanged" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/libraries": {
-      "get": { "tags": ["Library"], "summary": "Every media library", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Library"], "summary": "Every media library", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Library" } } } } } } }
     },
     "/api/v1/libraries/{id}/items": {
       "get": { "tags": ["Library"], "summary": "One page of a library's movies, shows or videos", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
-        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "sort", "in": "query", "schema": { "type": "string", "enum": ["title", "added", "year", "rating", "watched"], "default": "title" } }, { "name": "unwatched", "in": "query", "schema": { "type": "boolean" } }, { "name": "genre", "in": "query", "schema": { "type": "string" } }, { "name": "cursor", "in": "query", "schema": { "type": "string" } }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 } }],
+        "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }, { "name": "kind", "in": "query", "description": "album lists a Music library's albums instead of its artists.", "schema": { "type": "string", "enum": ["album"] } }, { "name": "sort", "in": "query", "schema": { "type": "string", "enum": ["title", "added", "year", "rating", "watched"], "default": "title" } }, { "name": "unwatched", "in": "query", "schema": { "type": "boolean" } }, { "name": "genre", "in": "query", "schema": { "type": "string" } }, { "name": "cursor", "in": "query", "schema": { "type": "string" } }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "LIBRARY_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/home": {
-      "get": { "tags": ["Library"], "summary": "Continue watching, Recently added per library, and the libraries", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Library"], "summary": "Continue watching, Recently added per library, and the libraries", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryHome" } } } } } }
     },
     "/api/v1/library/lookup": {
@@ -953,11 +957,11 @@
     },
     "/api/v1/library/search": {
       "get": { "tags": ["Library"], "summary": "Titles holding q: movies, shows and videos, then episodes", "description": "Movies, shows and videos whose title holds q, then those with a cast member or director whose name holds it, then episodes by title. At most 50.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
-        "parameters": [{ "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 100 } }],
+        "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 100 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/library/items/{id}": {
-      "get": { "tags": ["Library"], "summary": "An item with its seasons or episodes, a show's next episode and a file's tracks", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "get": { "tags": ["Library"], "summary": "An item with its seasons or episodes, a show's next episode and a file's tracks", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItemDetail" } } } }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/play-state": {

@@ -105,7 +105,8 @@ internal fun continueWatching(snapshot: Snapshot, states: Map<String, PlayStateR
     for (state in states.values) {
         if (state.positionMs == 0L || state.dismissed) continue
         val view = snapshot.views[state.itemId]
-        if (view != null && view.record.kind != ItemKind.EXTRA) {
+        // Music has no resume: a track starts over.
+        if (view != null && view.record.kind != ItemKind.EXTRA && view.record.kind != ItemKind.TRACK) {
             picks[view.record.id] = view to state.updatedAt
         }
     }

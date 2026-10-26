@@ -30,7 +30,7 @@ struct ChannelListView: View {
             Section(starred.isEmpty ? "" : "All channels") { rows(shown) }
         }
         .searchable(text: $query, prompt: "Channel name or number")
-        .navigationTitle("Sofa King")
+        .navigationTitle(model.settings?.kidsMode == true ? "Sofa King Kids" : "Sofa King")
         .navigationDestination(item: $detail) { channel in
             ProgramDetailView(lineup: lineup, channel: channel) { playing = channel }
         }

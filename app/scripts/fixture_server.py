@@ -33,7 +33,7 @@ SERVER = ROOT / 'backend/server/build/install/server/bin/server'
 TOKEN = 'local-fixture-token-' * 3
 CHANNELS = 8
 NAMES = ['News Now', 'Sofa Sports', 'Movies', 'Kids', 'Local 4', 'Weather', 'Music', 'Classics']
-# The fixture clip's length, and the MPEG-TS packets the endless channels send at a time.
+# The fixture clip's length, and the most the endless channels send at a time.
 CLIP_SECONDS = 10
 PIECE = 188 * 64
 # How many segments a live HLS playlist lists.
@@ -63,22 +63,23 @@ class Upstream(http.server.SimpleHTTPRequestHandler):
             return self.live()
         if not self.path.startswith('/endless/'):
             return super().do_GET()
-        clip = (Path(self.directory) / 'clip.ts').read_bytes()
-        pieces = [clip[at:at + PIECE] for at in range(0, len(clip), PIECE)]
-        every = CLIP_SECONDS / len(pieces)
+        # FFmpeg loops the clip with its timestamps carried on, as a broadcast's keep rising; the clip's own bytes
+        # repeated would jump back to the start every loop, which a player takes for a broken stream.
+        loop = subprocess.Popen(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-re', '-stream_loop', '-1', '-i',
+                                 str(Path(self.directory) / 'clip.ts'), '-c', 'copy', '-f', 'mpegts', 'pipe:1'],
+                                stdout=subprocess.PIPE)
         try:
             self.send_response(200)
             self.send_header('Content-Type', 'video/mp2t')
             self.end_headers()
-            due = time.monotonic()
-            while True:
-                for piece in pieces:
-                    self.wfile.write(piece)
-                    self.wfile.flush()
-                    due += every
-                    time.sleep(max(0.0, due - time.monotonic()))
+            while piece := loop.stdout.read1(PIECE):
+                self.wfile.write(piece)
+                self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError):
             pass
+        finally:
+            loop.kill()
+            loop.wait()
 
     def live(self):
         """/live/<n>.m3u8 as a live HLS playlist that loops the segments in live-<n>/ (each listed with its length in

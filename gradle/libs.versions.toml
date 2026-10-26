@@ -35,6 +35,10 @@ core-pip = "1.0.0-alpha04"
 media3 = "1.11.1"
 profileinstaller = "1.4.1"
 tvprovider = "1.1.0"
+# Google TV's Continue watching row (the Engage SDK), which replaces the Watch Next API that tvprovider writes.
+engage-tv = "1.1.0"
+# Play services (through engage-tv) brings Fragment 1.1.0, whose activity results lint refuses; this raises it.
+androidx-fragment = "1.9.1"
 # Macrobenchmark and the Baseline Profile plugin release together.
 benchmark = "1.5.0"
 uiautomator = "2.4.0"
@@ -119,6 +123,8 @@ media3-ui-compose = { module = "androidx.media3:media3-ui-compose", version.ref 
 media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
 androidx-tvprovider = { module = "androidx.tvprovider:tvprovider", version.ref = "tvprovider" }
+androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "androidx-fragment" }
+engage-tv = { module = "com.google.android.engage:engage-tv", version.ref = "engage-tv" }
 screenshot-validation-api = { module = "com.android.tools.screenshot:screenshot-validation-api", version.ref = "screenshot" }
 androidx-benchmark-macro-junit4 = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "benchmark" }
 androidx-uiautomator = { module = "androidx.test.uiautomator:uiautomator", version.ref = "uiautomator" }

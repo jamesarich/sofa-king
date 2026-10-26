@@ -18,10 +18,11 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Keeps the Android TV home screen's Watch Next row in step with the library's Continue watching shelf: one entry
- * per item, keyed by the item's id, that plays it through a `sofaking://vod` link. An entry the viewer removed from
- * the row stays removed while its item is on the shelf. Writes run one at a time on their own thread, and a shelf
- * that arrives while one is written replaces any still waiting.
+ * Keeps the Android TV home screen's Continue watching row in step with the library's shelf. Where Google TV's Engage
+ * service takes the row, [EngagePublisher] hands it the shelf and the app's own Watch Next entries go. Elsewhere the
+ * Watch Next row gets one entry per item, keyed by the item's id, that plays it through a `sofaking://vod` link; an
+ * entry the viewer removed from the row stays removed while its item is on the shelf. Writes run one at a time on
+ * their own thread, and a shelf that arrives while one is written replaces any still waiting.
  *
  * Lint reads the program classes' getters and builder setters as restricted, because tvprovider declares them on
  * restricted base classes; they are the library's public API on `WatchNextProgram`, as its own samples call them.
@@ -30,12 +31,22 @@ import java.util.concurrent.atomic.AtomicReference
 internal class WatchNextPublisher(private val context: Context) : WatchNext {
     private val writer = Executors.newSingleThreadExecutor { Thread(it, "watch-next") }
     private val waiting = AtomicReference<List<MediaItem>?>(null)
+    private val engage = EngagePublisher(context)
+
+    /** Whether the Engage service had the last shelf, so the app's own Watch Next entries are gone. */
+    private var engaged = false
 
     override fun publish(items: List<MediaItem>) {
         if (waiting.getAndSet(items) == null) writer.execute { waiting.getAndSet(null)?.let(::write) }
     }
 
     private fun write(items: List<MediaItem>) {
+        if (engage.available()) {
+            // Before the first write, since on a launcher that reads Watch Next the SDK writes the row there itself.
+            if (!engaged) clear()
+            engaged = engage.publish(items)
+            if (engaged) return
+        }
         runCatchingCancellable {
             val resolver = context.contentResolver
             // The provider answers with this app's own entries only.
@@ -75,6 +86,13 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
             // A launcher without the TV provider, or one that refuses this app's writes, leaves the row as it was.
             Log.w(TAG, "watch next: the row was not updated: $it")
         }
+    }
+
+    /** Removes every entry of this app's from the Watch Next row. */
+    private fun clear() {
+        runCatchingCancellable {
+            context.contentResolver.delete(WatchNextPrograms.CONTENT_URI, null, null)
+        }.onFailure { Log.w(TAG, "watch next: the row was not cleared: $it") }
     }
 
     /**

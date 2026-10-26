@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -186,43 +187,47 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
     }
     val start = playerLineup.channels.indexOfFirst { it.guideId == route.guideId }.coerceAtLeast(0)
     val previousGuideId = remember(route) { shell.history.previousFor(route.guideId) }
-    PlayerScreen(
-        lineup = playerLineup,
-        startIndex = start,
-        previousGuideId = previousGuideId,
-        zapScope = route.scope,
-        unattended = route.unattended,
-        player = player,
-        sessions = vm.sessions,
-        onExit = shell::back,
-        onGuide = { shell.toGuide(Arrival(atNow = true)) },
-        onSearch = { shell.toGuide(Arrival(search = true)) },
-        onChannelChange = { shell.history = shell.history.tuned(it.guideId) },
-        reloadLineup = vm::reloadLineup,
-        onChannelMissing = { channel ->
-            shell.notice = formatTemplate(channelGone, channel.label())
-            shell.back()
-        },
-        captions = playerCaptions(prefs, vm),
-        choices = ChannelChoices(
-            favorites = prefs.favorites,
-            order = prefs.favoritesOrder,
-            recent = prefs.recentChannels,
-            onToggleFavorite = { vm.toggleFavorite(it.guideId) },
-        ),
-        keyLegend = KeyLegendCount(prefs.keyLegendShown, vm::setKeyLegendShown),
-        recording = PlayerRecording(
-            marks = recordingMarks.takeIf { capabilities.recordings },
-            onRecord = vm::toggleRecording,
-            onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
-        ),
-        zoom = shell.videoZoom,
-        onZoom = { shell.videoZoom = it },
-        breaks = playerBreaks(prefs, vm),
-        sleep = shell.sleep,
-        onMultiview = { channel: Channel -> shell.push(Route.Multiview(listOf(channel.guideId))) }
-            .takeIf { capabilities.multiview },
-    )
+    // A `sofaking://live` link or multiview's way back replaces the route in place, under the same entry; a new
+    // channel starts a new player state, which reads its start channel only once.
+    key(route.guideId) {
+        PlayerScreen(
+            lineup = playerLineup,
+            startIndex = start,
+            previousGuideId = previousGuideId,
+            zapScope = route.scope,
+            unattended = route.unattended,
+            player = player,
+            sessions = vm.sessions,
+            onExit = shell::back,
+            onGuide = { shell.toGuide(Arrival(atNow = true)) },
+            onSearch = { shell.toGuide(Arrival(search = true)) },
+            onChannelChange = { shell.history = shell.history.tuned(it.guideId) },
+            reloadLineup = vm::reloadLineup,
+            onChannelMissing = { channel ->
+                shell.notice = formatTemplate(channelGone, channel.label())
+                shell.back()
+            },
+            captions = playerCaptions(prefs, vm),
+            choices = ChannelChoices(
+                favorites = prefs.favorites,
+                order = prefs.favoritesOrder,
+                recent = prefs.recentChannels,
+                onToggleFavorite = { vm.toggleFavorite(it.guideId) },
+            ),
+            keyLegend = KeyLegendCount(prefs.keyLegendShown, vm::setKeyLegendShown),
+            recording = PlayerRecording(
+                marks = recordingMarks.takeIf { capabilities.recordings },
+                onRecord = vm::toggleRecording,
+                onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
+            ),
+            zoom = shell.videoZoom,
+            onZoom = { shell.videoZoom = it },
+            breaks = playerBreaks(prefs, vm),
+            sleep = shell.sleep,
+            onMultiview = { channel: Channel -> shell.push(Route.Multiview(listOf(channel.guideId))) }
+                .takeIf { capabilities.multiview },
+        )
+    }
 }
 
 /** The live player's captions as [prefs] set them, with [vm] keeping the viewer's changes. */

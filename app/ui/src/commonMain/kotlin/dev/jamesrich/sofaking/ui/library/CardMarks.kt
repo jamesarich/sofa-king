@@ -3,15 +3,12 @@ package dev.jamesrich.sofaking.ui.library
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,8 +20,8 @@ import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_watched
+import dev.jamesrich.sofaking.ui.ProgressBar
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
-import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
 import org.jetbrains.compose.resources.stringResource
 
 /** The progress bar along the bottom, the watched tick and a show's unwatched count. */
@@ -49,21 +46,8 @@ internal fun BoxScope.ItemMarks(item: MediaItem) {
         )
     }
     if (progress != null && progress.inProgress) {
-        progress.fraction?.let { ProgressStrip(it, Modifier.align(Alignment.BottomCenter)) }
+        progress.fraction?.let { ProgressBar(it, Modifier.align(Alignment.BottomCenter)) }
     }
-}
-
-/** How far into an item playback is, as a thin bar across the bottom of its picture. */
-@Composable
-internal fun ProgressStrip(fraction: Float, modifier: Modifier = Modifier) {
-    LinearProgressIndicator(
-        progress = { fraction },
-        color = MaterialTheme.colorScheme.primary,
-        trackColor = SofaOverlayTrack,
-        drawStopIndicator = {},
-        gapSize = 0.dp,
-        modifier = modifier.fillMaxWidth().height(4.dp),
-    )
 }
 
 @Composable

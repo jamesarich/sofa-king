@@ -31,6 +31,7 @@ import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_spoiler_hidden
 import dev.jamesrich.sofaking.ui.Artwork
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
+import dev.jamesrich.sofaking.ui.ProgressBar
 import dev.jamesrich.sofaking.ui.WIDESCREEN
 import dev.jamesrich.sofaking.ui.hoursAndMinutes
 import dev.jamesrich.sofaking.ui.theme.tvFocus
@@ -88,7 +89,7 @@ private fun EpisodeThumb(episode: MediaItem, spoilersHidden: Boolean) {
         val progress = episode.progress
         if (progress?.watched == true) WatchedTick(Modifier.align(Alignment.TopEnd).padding(6.dp))
         if (progress != null && progress.inProgress) {
-            progress.fraction?.let { ProgressStrip(it, Modifier.align(Alignment.BottomCenter)) }
+            progress.fraction?.let { ProgressBar(it, Modifier.align(Alignment.BottomCenter)) }
         }
     }
 }

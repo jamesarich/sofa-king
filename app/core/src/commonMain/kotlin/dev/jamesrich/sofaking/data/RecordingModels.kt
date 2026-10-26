@@ -17,6 +17,48 @@ enum class RecordingState(internal val wire: String?) {
     }
 }
 
+/**
+ * Why a recording failed, from the server's reason code; [OTHER] stands for a code this app doesn't know, which
+ * includes a newer server's and an unexpected error's.
+ */
+enum class RecordingFailure {
+    /** Its window passed before it started: the server was off, or busy with other recordings. */
+    MISSED,
+
+    /** The recordings disk filled up. */
+    DISK_FULL,
+
+    /** The channel sent nothing to record. */
+    NO_MEDIA,
+
+    /** The channel's source couldn't be reached, or dropped and never came back. */
+    SOURCE,
+
+    /** The channel left the lineup. */
+    CHANNEL_GONE,
+
+    OTHER,
+    ;
+
+    internal companion object {
+        fun of(reason: String?): RecordingFailure = when (reason) {
+            "MISSED" -> MISSED
+
+            "DISK_FULL" -> DISK_FULL
+
+            "NO_MEDIA" -> NO_MEDIA
+
+            "SOURCE_UNAVAILABLE", "SESSION_ENDED", "UPSTREAM_UNAVAILABLE", "UPSTREAM_STATUS", "NO_SOURCES",
+            "SOURCE_NOT_FOUND", "NO_OTHER_SOURCE",
+            -> SOURCE
+
+            "CHANNEL_NOT_FOUND", "LINEUP_ENTRY_NOT_FOUND" -> CHANNEL_GONE
+
+            else -> OTHER
+        }
+    }
+}
+
 /** A commercial break the server found, from [startMs] to [endMs] after the start of the file. */
 data class CommercialBreak(val startMs: Long, val endMs: Long)
 
@@ -46,6 +88,9 @@ data class DvrRecording(
 ) {
     /** True once something is written: a running recording plays as it grows. */
     val playable: Boolean get() = state == RecordingState.RECORDING || state == RecordingState.COMPLETED
+
+    /** Why it failed, once it has; null in every other state. */
+    val failure: RecordingFailure? get() = if (state == RecordingState.FAILED) RecordingFailure.of(reason) else null
 
     /** Started and not finished: playing resumes rather than starts. */
     val inProgress: Boolean get() = positionMs > 0 && !watched

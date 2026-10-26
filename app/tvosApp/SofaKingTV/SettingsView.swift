@@ -1,7 +1,7 @@
 import SwiftUI
 import SofaKingCore
 
-/// The server address and token, and what covers live ads. The address must be a usable URL before the lineup loads.
+/// The server address and token, what covers live ads, and whether the favorites follow the household's. The address must be a usable URL before the lineup loads.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -67,6 +67,18 @@ struct SettingsView: View {
                 Text("Live TV")
             } footer: {
                 Text("On streaming channels that mark their ads, such as Pluto TV and Tubi, a bouncing logo covers them. Show picture brings the picture back.")
+            }
+            if model.capabilities?.household == true {
+                Section {
+                    Toggle("Share favorites across devices", isOn: Binding(
+                        get: { model.settings?.shareFavorites ?? false },
+                        set: { model.core.setShareFavorites(on: $0) }
+                    ))
+                } header: {
+                    Text("Channels")
+                } footer: {
+                    Text("Keeps the favorites, their order and the hidden channels the same on every device of the household that has this on. Turning it on takes the household's list over when another device saved one.")
+                }
             }
             Section {
                 SkipModePicker(title: "Skip intros", kind: .intros)

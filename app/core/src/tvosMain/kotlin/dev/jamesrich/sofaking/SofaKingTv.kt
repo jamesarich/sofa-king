@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.DataStoreSettingsStore
+import dev.jamesrich.sofaking.data.HouseholdSync
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.ServerConnection
@@ -76,12 +77,16 @@ internal class TvParts {
 
     private val store = DataStoreSettingsStore(storage.settings)
 
-    /** The server Settings names, its one playback session and the guide's record marks, for every ViewModel below. */
+    /**
+     * The server Settings names, its one playback session and the guide's record marks, for every ViewModel below; it
+     * keeps the favorites in step with the household's while Settings shares them.
+     */
     val connection = ServerConnection(
         store.settings,
         scope,
         libraryKinds = listOf(Wire.LibraryKind.MUSIC),
         viewerSync = ViewerSync(store, storage.client),
+        householdSync = HouseholdSync(store),
     )
 
     val viewModel =

@@ -14,6 +14,8 @@ import kotlin.test.assertTrue
 class RokuClientTest {
     private val liveNow = "f9c0d48b540a55dcb98b04d2cc8abf25"
     private val teamUsa = "257afd66cee15a1ca2125fc377e87cc2"
+    private val ryz = "5f9c59c52f0ad475d90a33fdfd14d651"
+    private val abcNews = "483af83e821059b8b3f0825ae2d43e31"
 
     private fun ProviderFixture.roku() {
         route("/Roku/.channels.json.gz") {
@@ -52,6 +54,7 @@ class RokuClientTest {
                 Canned("""{"viewOptions":[{"playId":"s-locked.Zml4dHVyZQ=="}]}""")
             },
         )
+        route("/api/v4/epg", guarded { Canned(ProviderFixture.resource("roku-epg.json")) })
         route(
             "/api/v3/playback",
             guarded {
@@ -130,4 +133,47 @@ class RokuClientTest {
                 client.resolve("483af83e821059b8b3f0825ae2d43e31")
             }.let { assertFalse(it.transient) }
         }
+
+    @Test fun `without the mirror the list is Roku's own live stations, grouped by guide category`() =
+        providerTest("sofa-roku-") {
+            fixture.roku()
+            fixture.route("/Roku/.channels.json.gz") { Canned("unavailable", 503, "text/plain") }
+            val channels = RokuClient(context("roku", options(fixture))).channels()
+            assertEquals(
+                listOf(abcNews, liveNow, ryz, teamUsa),
+                channels.map { it.id },
+                "a playlist is not a live station",
+            )
+            assertEquals("LiveNOW from FOX", channels[1].name)
+            assertEquals("103", channels[1].number)
+            assertEquals("News & Opinion", channels[1].group, "Recommended is not a genre")
+            assertEquals("Sports", channels[3].group)
+            assertTrue(channels[1].logo!!.startsWith("https://images.sr.roku.com/"))
+            assertTrue(fixture.lastHeaders["/api/v4/epg"]!!["x-roku-device-id"]!!.isNotBlank())
+        }
+
+    @Test fun `after a mirror load, Roku's list keeps its channels and groups, then the last list stands in`() =
+        providerTest("sofa-roku-") {
+            fixture.roku()
+            RokuClient(context("roku", options(fixture))).channels()
+            fixture.route("/Roku/.channels.json.gz") { Canned("unavailable", 503, "text/plain") }
+            val fallback = RokuClient(context("roku", options(fixture))).channels()
+            assertEquals(listOf(liveNow, ryz, teamUsa), fallback.map { it.id }, "the mirror never listed ABC News Live")
+            assertEquals("News", fallback[0].group)
+            assertEquals("Olympics", fallback[2].group)
+
+            fixture.route("/api/v4/epg") { Canned("Forbidden", 403, "text/plain") }
+            val kept = RokuClient(context("roku", options(fixture))).channels()
+            assertEquals(listOf(liveNow, ryz, teamUsa), kept.map { it.id })
+            assertEquals("103", kept[0].number)
+        }
+
+    @Test fun `with no list ever loaded, a failing mirror and station list fail the listing`() = providerTest(
+        "sofa-roku-",
+    ) {
+        fixture.roku()
+        fixture.route("/Roku/.channels.json.gz") { Canned("unavailable", 503, "text/plain") }
+        fixture.route("/api/v4/epg") { Canned("unavailable", 503, "text/plain") }
+        assertFailsWith<ProviderFailure> { RokuClient(context("roku", options(fixture))).channels() }
+    }
 }

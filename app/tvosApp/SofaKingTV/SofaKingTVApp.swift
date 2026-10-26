@@ -85,7 +85,8 @@ final class AppModel {
         watches.append(core.watchWatchlist { [weak self] in self?.watchlist = $0 })
     }
 
-    var lineup: Lineup? { (state as? LineupStateReady)?.lineup }
+    /** The lineup as this device shows it: without the channels it hides, the household's included. */
+    var lineup: Lineup? { (state as? LineupStateReady)?.visible }
 
     /// Plays the songs among `tracks` from `start` (the first when nil), shuffled with `shuffled`, and opens Now playing.
     func playMusic(_ tracks: [MediaItem], from start: MediaItem?, shuffled: Bool = false) {
@@ -317,7 +318,7 @@ struct ContentView: View {
         NavigationStack {
             switch model.state {
             case let ready as LineupStateReady:
-                ChannelListView(lineup: ready.lineup)
+                ChannelListView(lineup: ready.visible)
             case is LineupStateUnconfigured:
                 SettingsView()
             case let failed as LineupStateFailed:

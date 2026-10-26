@@ -1,8 +1,10 @@
 package dev.jamesrich.sofaking.ui
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
@@ -95,6 +97,27 @@ internal fun screenInsets(): WindowInsets = if (LocalLayoutProfile.current.tv) {
 internal fun Modifier.screenPadding(
     sides: WindowInsetsSides = WindowInsetsSides.Horizontal + WindowInsetsSides.Vertical,
 ): Modifier = windowInsetsPadding(screenInsets().only(sides))
+
+/** A scrolling list's [screenPadding], split between the list itself ([modifier]) and its [content]. */
+@Immutable
+internal class ListScreenPadding(val modifier: Modifier, val content: PaddingValues)
+
+/**
+ * The [screenPadding] of [sides] for a scrolling list. Off a TV the list runs edge to edge and its content padding
+ * keeps the first and last rows clear of the system bars, so rows scroll under the bars. A TV pads the list itself,
+ * so a focused row never rests in the overscan.
+ */
+@Composable
+internal fun listScreenPadding(
+    sides: WindowInsetsSides = WindowInsetsSides.Horizontal + WindowInsetsSides.Vertical,
+): ListScreenPadding {
+    val insets = screenInsets().only(sides)
+    return if (LocalLayoutProfile.current.tv) {
+        ListScreenPadding(Modifier.windowInsetsPadding(insets), PaddingValues())
+    } else {
+        ListScreenPadding(Modifier, insets.asPaddingValues())
+    }
+}
 
 /**
  * The vertical margin at a panel's edge inside the screen, where no system bar or cutout reaches: the overscan's on

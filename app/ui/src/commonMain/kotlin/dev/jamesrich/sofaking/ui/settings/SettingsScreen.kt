@@ -86,9 +86,9 @@ import dev.jamesrich.sofaking.resources.settings_version
 import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
+import dev.jamesrich.sofaking.ui.listScreenPadding
 import dev.jamesrich.sofaking.ui.rememberUpdateInstaller
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
-import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.supportsNightListening
 import dev.jamesrich.sofaking.ui.supportsPlaybackPreferences
 import dev.jamesrich.sofaking.ui.theme.SofaButton
@@ -216,14 +216,16 @@ fun SettingsScreen(
         playback = supportsPlaybackPreferences || supportsNightListening,
     )
     // Focus scrolls only to show what it lands on, so the first setting taking focus keeps the title on screen.
+    val padding = listScreenPadding()
     ScrollOnlyWhenHidden(SETTINGS_FOCUS_EDGE) {
         LazyColumn(
             modifier = modifier
                 .fillMaxSize()
-                .screenPadding()
+                .then(padding.modifier)
                 .focusRequester(focus.content)
                 .focusRestorer()
                 .focusGroup(),
+            contentPadding = padding.content,
             verticalArrangement = Arrangement.spacedBy(SETTINGS_ROW_GAP),
         ) {
             item { ScreenTitle(page?.title(offer) ?: stringResource(Res.string.settings_title), onBack, focus.back) }

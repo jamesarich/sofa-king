@@ -68,8 +68,8 @@ import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.listRowColors
 import dev.jamesrich.sofaking.ui.listRowShapes
+import dev.jamesrich.sofaking.ui.listScreenPadding
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
-import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.stringResource
@@ -110,9 +110,12 @@ fun ChannelManagerScreen(
     LaunchedEffect(Unit) { requestFocusWhenAttached(firstFocus) }
 
     // Focus scrolls only to show what it lands on, so the first row taking focus keeps the title on screen.
+    val padding = listScreenPadding()
     ScrollOnlyWhenHidden(SETTINGS_FOCUS_EDGE) {
         LazyColumn(
-            modifier = modifier.fillMaxSize().screenPadding().focusRequester(contentFocus).focusRestorer().focusGroup(),
+            modifier = modifier.fillMaxSize().then(padding.modifier).focusRequester(contentFocus).focusRestorer()
+                .focusGroup(),
+            contentPadding = padding.content,
             verticalArrangement = Arrangement.spacedBy(SETTINGS_ROW_GAP),
         ) {
             item { ScreenTitle(stringResource(Res.string.channels_title), onBack, backFocus) }
@@ -313,8 +316,11 @@ fun ChannelPickerScreen(
         }
     }
 
+    val padding = listScreenPadding()
     LazyColumn(
-        modifier = modifier.fillMaxSize().screenPadding().focusRequester(contentFocus).focusRestorer().focusGroup(),
+        modifier = modifier.fillMaxSize().then(padding.modifier).focusRequester(contentFocus).focusRestorer()
+            .focusGroup(),
+        contentPadding = padding.content,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item { ScreenTitle(stringResource(Res.string.settings_startup), onBack, backFocus) }

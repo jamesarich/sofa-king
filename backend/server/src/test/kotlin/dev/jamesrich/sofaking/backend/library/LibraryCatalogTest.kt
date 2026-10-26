@@ -372,7 +372,10 @@ class LibraryCatalogTest {
         )
         s.service.scan(library.id)
 
-        assertEquals(listOf("Weaver Story", "Alien"), s.service.catalog.search("weaver", 10).items.map { it.title })
+        val weaver = s.service.catalog.search("weaver", 10)
+        assertEquals(listOf("Weaver Story", "Alien"), weaver.items.map { it.title })
+        assertEquals(listOf("Sigourney Weaver"), weaver.people, "the person the credited titles were found by")
         assertEquals(listOf("Heat"), s.service.catalog.search("michael mann", 10).items.map { it.title })
+        assertEquals(emptyList(), s.service.catalog.search("heat", 10).people, "a title match names nobody")
     }
 }

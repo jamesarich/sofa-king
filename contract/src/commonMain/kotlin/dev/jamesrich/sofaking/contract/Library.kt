@@ -76,7 +76,8 @@ import kotlinx.serialization.Serializable
 /**
  * One page of a library's items, in the order asked for; [next] is the cursor for the page after, null on the last, and
  * [genres] every genre in the library, for a filter. The first page in title order also counts the items under each
- * first letter in [letters], in order, so a client can jump to one.
+ * first letter in [letters], in order, so a client can jump to one. A search names in [people] the cast and directors
+ * whose names hold the query, the most credited first, for the titles it found by them.
  */
 @Serializable data class LibraryPage(
     val items: List<LibraryItem>,
@@ -84,6 +85,7 @@ import kotlinx.serialization.Serializable
     val next: String? = null,
     val genres: List<String> = emptyList(),
     val letters: List<LetterCount>? = null,
+    val people: List<String> = emptyList(),
 )
 
 /**

@@ -246,6 +246,16 @@ data class MediaPage(
     val letters: List<LetterJump>? = null,
 )
 
+/**
+ * What a search found: [items] in the server's order, and the cast and directors whose names hold the query, the most
+ * credited first, in [people]; a server that does not name them leaves it empty.
+ */
+data class SearchResults(val items: List<MediaItem>, val people: List<String> = emptyList()) {
+    companion object {
+        val None = SearchResults(emptyList())
+    }
+}
+
 /** The first item in title order whose title starts with [letter] is at [offset] in the grid. */
 data class LetterJump(val letter: String, val offset: Int)
 

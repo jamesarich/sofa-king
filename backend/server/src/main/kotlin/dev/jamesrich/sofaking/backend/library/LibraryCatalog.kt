@@ -40,6 +40,9 @@ private const val FRAME_SHARE = 10
 private val SEARCHED_CHILDREN = listOf(ItemKind.EPISODE, ItemKind.ALBUM, ItemKind.TRACK)
 private const val LATEST_FRAME_MS = 600_000L
 
+/** How many of the people a search found by it names. */
+private const val SEARCH_PEOPLE = 10
+
 /**
  * Where an item's poster or backdrop comes from: a file in its library folder, a TMDB image path, a frame of a video
  * or a picture in a track, the Cover Art Archive or Wikimedia Commons.
@@ -302,8 +305,9 @@ class LibraryCatalog internal constructor(
     }
 
     /**
-     * Movies, shows, videos and artists whose title holds [query], then episodes, albums and tracks; at most [limit].
-     * Music is searched only for a client that shows [music].
+     * Movies, shows, videos and artists whose title holds [query], then the ones credited to people whose names hold
+     * it, then episodes, albums and tracks; at most [limit]. Music is searched only for a client that shows [music].
+     * The page names those people, the most credited first.
      */
     suspend fun search(query: String, limit: Int, music: Boolean = false): LibraryPage {
         val needle = query.trim().lowercase()
@@ -319,7 +323,13 @@ class LibraryCatalog internal constructor(
         val found = tops.sortedBy { sortTitle(it.item.title) } + credited.sortedBy { sortTitle(it.item.title) } +
             rest.filter { it.record.kind in SEARCHED_CHILDREN }
                 .sortedWith(compareBy({ SEARCHED_CHILDREN.indexOf(it.record.kind) }, { sortTitle(it.item.title) }))
-        return LibraryPage(found.take(limit).map { it.out(snapshot, states) }, found.size)
+        val people = credited.flatMap { view ->
+            (view.cast + view.directors).filter { needle in it.lowercase() }.distinct()
+        }
+            .groupingBy { it }.eachCount().entries
+            .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+            .take(SEARCH_PEOPLE).map { it.key }
+        return LibraryPage(found.take(limit).map { it.out(snapshot, states) }, found.size, people = people)
     }
 
     /**

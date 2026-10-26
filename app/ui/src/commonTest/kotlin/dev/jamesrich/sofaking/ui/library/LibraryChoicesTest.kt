@@ -58,6 +58,7 @@ class LibraryChoicesTest {
                     item("e1", ItemKind.EPISODE).copy(title = "Amber returns"),
                 ),
                 " amber ",
+                listOf("Amber Heard"),
             )
         assertEquals(
             listOf(
@@ -71,6 +72,7 @@ class LibraryChoicesTest {
         )
         assertEquals(listOf("c"), sections.rows.single { it.group == SearchGroup.CAST_AND_CREW }.items.map { it.id })
         assertEquals("amber", sections.query)
+        assertEquals(listOf("Amber Heard"), sections.people)
         assertEquals(CardStyle.WIDE, SearchGroup.EPISODES.style)
         assertFalse(searchSections(emptyList(), "amber").found)
     }

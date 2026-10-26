@@ -26,7 +26,9 @@ class LibraryRepository(private val api: SofaKingApi) {
         genre: String? = null,
     ): MediaPage = api.mediaPage(api.libraryItems(libraryId, sort.wire, unwatched, cursor, limit, genre))
 
-    suspend fun search(query: String): List<MediaItem> = api.mediaPage(api.librarySearch(query)).items
+    suspend fun search(query: String): SearchResults = api.librarySearch(query).let { dto ->
+        SearchResults(dto.items.map { api.mediaItem(it) }, dto.people)
+    }
 
     suspend fun detail(id: String): MediaItemDetail = api.libraryItem(id).let { dto ->
         MediaItemDetail(

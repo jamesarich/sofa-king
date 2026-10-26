@@ -35,8 +35,15 @@ internal enum class SearchGroup(val style: CardStyle) {
 /** One [SearchGroup]'s results, in the order the server sent them. */
 internal class SearchSection(val group: SearchGroup, val items: List<MediaItem>)
 
-/** Search results for [query] as the search draws them, the groups that found nothing left out. */
-internal class SearchSections(val query: String, val rows: List<SearchSection>) {
+/**
+ * Search results for [query] as the search draws them, the groups that found nothing left out; [people] are the cast
+ * and directors the server found [SearchGroup.CAST_AND_CREW]'s titles by, when it names them.
+ */
+internal class SearchSections(
+    val query: String,
+    val rows: List<SearchSection>,
+    val people: List<String> = emptyList(),
+) {
     /** Whether the search found anything. */
     val found: Boolean get() = rows.isNotEmpty()
 }
@@ -45,7 +52,11 @@ internal class SearchSections(val query: String, val rows: List<SearchSection>) 
  * [results] for [query] in their groups. The server matches titles, then cast and directors, then episode titles, so a
  * movie, show or video whose title lacks [query] was found by the people in it. Music goes by kind alone.
  */
-internal fun searchSections(results: List<MediaItem>, query: String): SearchSections {
+internal fun searchSections(
+    results: List<MediaItem>,
+    query: String,
+    people: List<String> = emptyList(),
+): SearchSections {
     val needle = query.trim().lowercase()
     val groups = results.groupBy { item ->
         when {
@@ -60,7 +71,7 @@ internal fun searchSections(results: List<MediaItem>, query: String): SearchSect
         }
     }
     val rows = SearchGroup.entries.mapNotNull { group -> groups[group]?.let { SearchSection(group, it) } }
-    return SearchSections(query.trim(), rows)
+    return SearchSections(query.trim(), rows, people)
 }
 
 /** Continue watching and a row of episodes or videos are wide, a row of music square; anything else shows posters. */

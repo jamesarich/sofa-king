@@ -5,7 +5,7 @@ import SofaKingCore
 
 /// The guide's preview, as on the other apps: the focused channel plays muted after 350 ms, its sound comes on after
 /// 5 seconds of rest (unless Settings turns preview sound off), and after the rest Settings sets (10 seconds unless
-/// changed, or never) it opens full screen through `open`, continuing the preview's stream and session. Each move
+/// changed, or never) it opens full screen through `openFullScreen`, continuing the preview's stream and session. Each move
 /// of focus starts the rest again, muted. The channel just watched does not open by itself again until focus moves to another,
 /// nor does any while VoiceOver runs or the preview failed. It plays on the app's one live `AVPlayer`, which the full
 /// screen player takes over.
@@ -23,7 +23,7 @@ final class GuidePreview {
     /// The channel the player was just left on, which does not open by itself until focus moves.
     var suppressed: String?
     @ObservationIgnored private weak var model: AppModel?
-    @ObservationIgnored var open: (String) -> Void = { _ in }
+    @ObservationIgnored var openFullScreen: (String) -> Void = { _ in }
     @ObservationIgnored private var tuning: Task<Void, Never>?
     @ObservationIgnored private var resting: Task<Void, Never>?
     /// The preview item's captions, which follow the CC setting as the full screen's do.
@@ -103,7 +103,7 @@ final class GuidePreview {
             try? await Task.sleep(for: .milliseconds(max(openAfterMs - 5000, 0)))
             guard !Task.isCancelled, self.active, self.channelId == channelId, self.playingId == channelId,
                   !self.failed, self.suppressed != channelId, !UIAccessibility.isVoiceOverRunning else { return }
-            self.open(channelId)
+            self.openFullScreen(channelId)
         }
     }
 }
@@ -117,7 +117,7 @@ struct PreviewBand: View {
     var body: some View {
         let channel = preview.channelId.flatMap { id in lineup.channels.first { $0.guideId == id } }
         HStack(alignment: .top, spacing: 40) {
-            PreviewVideo(player: model.livePlayer)
+            LivePicture(player: model.livePlayer)
                 .frame(width: 427, height: 240)
                 .background(.black)
                 .clipShape(.rect(cornerRadius: 16))
@@ -147,8 +147,8 @@ struct PreviewBand: View {
     }
 }
 
-/// The live player's picture, without controls.
-private struct PreviewVideo: UIViewRepresentable {
+/// A player's picture, without controls: the guide's preview and the multiview.
+struct LivePicture: UIViewRepresentable {
     let player: AVPlayer
 
     func makeUIView(context: Context) -> PlayerLayerView {

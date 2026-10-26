@@ -37,6 +37,10 @@ struct PlayerView: View {
     @State private var factsTitle: String?
     /// The recording of the program on now, played from its start over the live player; the channel waits under it.
     @State private var fromStart: VodRequest?
+    /// The multiview opened from this channel; the channel waits under it, and tunes again when it closes.
+    @State private var multiview: Channel?
+    /// The channel the multiview's click picked to watch full screen.
+    @State private var multiviewPick: Channel?
 
     init(channel: Channel) {
         _channel = State(initialValue: channel)
@@ -51,6 +55,9 @@ struct PlayerView: View {
         }
         .fullScreenCover(item: $fromStart, onDismiss: { Task { await tune() } }) { request in
             VodPlayerView(request: request)
+        }
+        .fullScreenCover(item: $multiview, onDismiss: returnFromMultiview) { from in
+            MultiviewView(from: from) { multiviewPick = $0 }
         }
         .task { await tune() }
         .task {
@@ -269,7 +276,7 @@ struct PlayerView: View {
             Date(timeIntervalSince1970: Double(model.core.endEpochMs(program: $0)) / 1000)
         }
         let sleep = model.sleepMenu(endTitle: programEnd == nil ? nil : "End of this program", endsAt: programEnd)
-        let items: [UIMenuElement?] = [fromStartAction, recordAction, star, channels, sleep]
+        let items: [UIMenuElement?] = [fromStartAction, recordAction, star, channels, multiviewAction, sleep]
         return items.compactMap { $0 }
     }
 
@@ -304,6 +311,28 @@ struct PlayerView: View {
         }
     }
 
+    /// Multiview, on a server that draws it: the live stream stops and the multiview's list opens.
+    private var multiviewAction: UIAction? {
+        guard model.capabilities?.multiview == true, (model.lineup?.channels.count ?? 0) >= 2 else { return nil }
+        return UIAction(title: "Multiview", image: UIImage(systemName: "rectangle.split.2x2")) { [channel] _ in
+            reconnect?.cancel()
+            reconnect = nil
+            stopCovering()
+            itemObservers.removeAll()
+            player.replaceCurrentItem(with: nil)
+            multiview = channel
+        }
+    }
+
+    /// Back from the multiview: the channel its click picked, or the one it was opened on, plays again.
+    private func returnFromMultiview() {
+        if let pick = multiviewPick { channel = pick }
+        multiviewPick = nil
+        attempts = 0
+        failure = nil
+        Task { await tune() }
+    }
+
     private func channelMenu(_ title: String, _ channels: [Channel], inline: Bool) -> UIMenu? {
         guard !channels.isEmpty else { return nil }
         let actions = channels.map { other in
@@ -335,7 +364,7 @@ struct PlayerView: View {
             let stream = try await model.core.watchChannel(channelId: channel.guideId)
             // Left while the session opened: the view is gone, and leaving released the session. A switch or a
             // reconnect runs in a task of its own that leaving does not cancel, so the view's presence decides too.
-            guard !Task.isCancelled, shown, fromStart == nil else { return }
+            guard !Task.isCancelled, shown, fromStart == nil, multiview == nil else { return }
             play(stream)
         } catch {
             guard !Task.isCancelled, shown else { return }
@@ -347,7 +376,7 @@ struct PlayerView: View {
     /// Plays `stream` and watches its item: a failure or a stall reopens the channel.
     private func play(_ stream: PlaybackStream) {
         // The recording played from its start holds the session; the channel tunes again when it closes.
-        guard fromStart == nil, let url = URL(string: stream.url) else { return }
+        guard fromStart == nil, multiview == nil, let url = URL(string: stream.url) else { return }
         // The preview's item, when it plays this stream already, carries on without reloading.
         let current = player.currentItem.flatMap { ($0.asset as? AVURLAsset)?.url == url ? $0 : nil }
         let item = current ?? AVPlayerItem(url: url)
@@ -367,7 +396,7 @@ struct PlayerView: View {
     /// Reopens the channel after 2, 4, 8 … seconds, up to a minute between tries; the server hands back the held session
     /// or a new one when the old stream is gone.
     private func scheduleReconnect() {
-        guard shown, fromStart == nil, reconnect == nil || reconnect?.isCancelled == true else { return }
+        guard shown, fromStart == nil, multiview == nil, reconnect == nil || reconnect?.isCancelled == true else { return }
         let delay = min(60, 2 << min(attempts, 5))
         attempts += 1
         reconnect = Task {

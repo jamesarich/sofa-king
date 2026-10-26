@@ -63,10 +63,14 @@ struct SettingsView: View {
                     Text("Logo, muted").tag(LiveBreaks.screenMuted)
                     Text("Logo, sound on").tag(LiveBreaks.screen)
                 }
+                Toggle("Captions", isOn: Binding(
+                    get: { model.settings?.captionsEnabled ?? false },
+                    set: { model.core.setCaptionsEnabled(enabled: $0) }
+                ))
             } header: {
                 Text("Live TV")
             } footer: {
-                Text("On streaming channels that mark their ads, such as Pluto TV and Tubi, a bouncing logo covers them. Show picture brings the picture back.")
+                Text("On streaming channels that mark their ads, such as Pluto TV and Tubi, a bouncing logo covers them. Show picture brings the picture back. Captions shows a channel's or a recording's closed captions, in the look set in the Apple TV's Settings › Accessibility › Subtitles and Captioning; the player's Subtitles panel turns them on and off too.")
             }
             if model.capabilities?.household == true {
                 Section {

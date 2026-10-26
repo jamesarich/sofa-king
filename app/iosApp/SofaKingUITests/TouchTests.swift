@@ -25,8 +25,8 @@ final class TouchTests: XCTestCase {
         eventually("the app to release its session in the background") { server.sessions().isEmpty }
     }
 
-    /// Opens Settings' About page, whose version line reads the snapshot suffix from the app's resources. Compose's iOS
-    /// reader once threw on that file when it was empty, which stopped the app; the walk found it only by chance.
+    /// Scrolls Settings down to About, whose version line reads the snapshot suffix from the app's resources. Compose's
+    /// iOS reader once threw on that file when it was empty, which stopped the app; the walk found it only by chance.
     @MainActor
     func testOpenAbout() throws {
         let server = try FixtureServer.fromEnvironment(since: Date())
@@ -34,19 +34,16 @@ final class TouchTests: XCTestCase {
         let settings = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Settings")).firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 20), "No Settings\n\(screen)")
         settings.tap()
-        let about = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "About")).firstMatch
-        // In landscape the list of pages shows only a few rows above the tab bar, so it is dragged within that band.
+        // In landscape Settings shows only a few rows above the tab bar, so it is dragged within that band.
+        let version = labeled("Version ")
         let low = app.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.7))
         let high = app.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.3))
-        for _ in 0..<10 where !about.waitForExistence(timeout: 2) || !about.isHittable {
+        for _ in 0..<10 where !version.waitForExistence(timeout: 2) && app.state == .runningForeground {
             low.press(forDuration: 0.1, thenDragTo: high)
         }
-        XCTAssertTrue(about.waitForExistence(timeout: 20), "No About in Settings\n\(screen)")
-        about.tap()
-        eventually("the About page to open") { labeled("Open-source licenses").exists || app.state != .runningForeground }
         RunLoop.current.run(until: Date().addingTimeInterval(2))
-        XCTAssertEqual(app.state, .runningForeground, "The app stopped on the About page")
-        XCTAssertTrue(labeled("Version ").exists, "No version line on the About page\n\(screen)")
+        XCTAssertEqual(app.state, .runningForeground, "The app stopped on reaching About")
+        XCTAssertTrue(version.exists, "No version line in About\n\(screen)")
     }
 
     /// Random taps, swipes, back swipes from the screen's left edge and long presses against the fixture server, seeded

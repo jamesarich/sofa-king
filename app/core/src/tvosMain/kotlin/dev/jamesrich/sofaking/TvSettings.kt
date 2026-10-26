@@ -13,6 +13,9 @@ interface TvSettings {
     /** Whether an episode not started yet keeps its overview back and its still blurred. */
     fun setHideSpoilers(enabled: Boolean)
 
+    /** Whether live channels and recordings show their closed captions. */
+    fun setCaptionsEnabled(enabled: Boolean)
+
     /** Whether the break screen covers the ads a streaming channel marks, and whether their sound plays under it. */
     fun setLiveBreaks(mode: LiveBreaks)
 
@@ -45,6 +48,8 @@ internal class TvSettingCalls(parts: TvParts) : TvSettings {
     override fun setHideSpoilers(enabled: Boolean) = viewModel.setHideSpoilers(enabled)
 
     override fun setLiveBreaks(mode: LiveBreaks) = viewModel.setLiveBreaks(mode)
+
+    override fun setCaptionsEnabled(enabled: Boolean) = viewModel.setCaptionsEnabled(enabled)
 
     override fun addAdsDodged(day: String, ms: Long) = viewModel.addAdsDodged(day, ms)
 

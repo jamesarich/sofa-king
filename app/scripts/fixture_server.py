@@ -33,8 +33,16 @@ SERVER = ROOT / 'backend/server/build/install/server/bin/server'
 TOKEN = 'local-fixture-token-' * 3
 CHANNELS = 8
 NAMES = ['News Now', 'Sofa Sports', 'Movies', 'Kids', 'Local 4', 'Weather', 'Music', 'Classics']
+# The channel filed under Kids, which kids mode shows, and the games on Sofa Sports, which a team rule records.
+KIDS = 3
+TEAMS = ['Bears at Packers', 'Lions at Vikings', 'Packers at Lions']
 # The fixture clip's length, and the most the endless channels send at a time.
 CLIP_SECONDS = 10
+FPS = 25
+# The clip's captions: a new one this often, in seconds, which CLIP_SECONDS divides.
+CAPTION_SECONDS = 2
+# The start code and type of an H.264 access unit delimiter, which x264 writes before each frame when asked.
+DELIMITER = b'\x00\x00\x00\x01\x09'
 PIECE = 188 * 64
 # How many segments a live HLS playlist lists.
 LIVE_WINDOW = 5
@@ -138,18 +146,22 @@ def wait_for(what, check, seconds):
 
 
 def fixtures(media, upstream, library=None, quiet=False):
-    """A ten-second clip for the TS channels, the same clip as HLS for the first channel, an M3U and six hours of guide.
-    The clip's tone is silent when [quiet], for a simulator that plays through the Mac's speakers."""
-    subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=25',
-                    '-f', 'lavfi', '-i', f'sine=frequency=440:sample_rate=48000,volume={0 if quiet else 1}', '-t', str(CLIP_SECONDS), '-c:v', 'libx264',
-                    '-preset', 'ultrafast', '-g', '25', '-c:a', 'aac', '-f', 'mpegts', str(media / 'clip.ts')],
-                   check=True, timeout=60)
+    """A ten-second clip with captions for the TS channels, the same clip as HLS for the first channel, an M3U and six
+    hours of guide. The clip's tone is silent when [quiet], for a simulator that plays through the Mac's speakers."""
+    video = subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', f'testsrc2=size=640x360:rate={FPS}',
+                            '-t', str(CLIP_SECONDS), '-c:v', 'libx264', '-preset', 'ultrafast', '-g', str(FPS),
+                            '-x264-params', 'aud=1', '-f', 'h264', 'pipe:1'], check=True, timeout=60, capture_output=True).stdout
+    (media / 'clip.h264').write_bytes(captioned(video))
+    subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-framerate', str(FPS), '-f', 'h264', '-i', str(media / 'clip.h264'),
+                    '-f', 'lavfi', '-i', f'sine=frequency=440:sample_rate=48000,volume={0 if quiet else 1}', '-t', str(CLIP_SECONDS),
+                    '-c:v', 'copy', '-c:a', 'aac', '-f', 'mpegts', str(media / 'clip.ts')], check=True, timeout=60)
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', str(media / 'clip.ts'), '-c', 'copy',
                     '-hls_time', '2', '-hls_playlist_type', 'vod', str(media / 'live.m3u8')], check=True, timeout=60)
     playlist = ['#EXTM3U']
     for i in range(CHANNELS):
         url = f'{upstream}/live.m3u8' if i == 0 else f'{upstream}/endless/{i}.ts'
-        playlist += [f'#EXTINF:-1 tvg-id="c{i}" tvg-chno="{i + 2}" group-title="{"News" if i % 2 == 0 else "Sports"}",{NAMES[i]}', url]
+        group = 'Kids' if i == KIDS else 'News' if i % 2 == 0 else 'Sports'
+        playlist += [f'#EXTINF:-1 tvg-id="c{i}" tvg-chno="{i + 2}" group-title="{group}",{NAMES[i]}', url]
     (media / 'feed.m3u').write_text('\n'.join(playlist) + '\n')
     start = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
     stamp = lambda t: t.strftime('%Y%m%d%H%M%S +0000')
@@ -157,9 +169,63 @@ def fixtures(media, upstream, library=None, quiet=False):
     for i in range(CHANNELS):
         for slot in range(12):
             begin = start + timedelta(minutes=30 * slot)
+            title, extra = program(i, slot)
+            sub = f'<sub-title>{TEAMS[slot % len(TEAMS)]}</sub-title>' if i == 1 else ''
             programs.append(f'<programme channel="c{i}" start="{stamp(begin)}" stop="{stamp(begin + timedelta(minutes=30))}">'
-                              f'<title>{NAMES[i]} show {slot + 1}</title><desc>A fixture program.</desc></programme>')
+                              f'<title>{title}</title>{sub}<desc>A fixture program.</desc>{extra}</programme>')
     (media / 'guide.xml').write_text('<tv>' + ''.join(programs) + '</tv>')
+
+
+def program(channel, slot):
+    """The title of [channel]'s program in [slot], and the XMLTV elements after its description, which give On later
+    each of its kinds: games on Sofa Sports (whose sub-titles name the teams), movies, a kids' channel and premieres on
+    Local 4; and Classics repeats three titles, so a program has other airings."""
+    if channel == 1:
+        return f'{NAMES[channel]} show {slot + 1}', '<category>Sports</category>'
+    if channel == 2:
+        return f'{NAMES[channel]} show {slot + 1}', '<category>Movie</category><category>Drama</category>'
+    if channel == KIDS:
+        return f'{NAMES[channel]} show {slot + 1}', '<category>Children</category>'
+    if channel == 4 and slot % 3 == 2:
+        return f'{NAMES[channel]} show {slot + 1}', '<category>Premiere</category><new/>'
+    if channel == 7:
+        return f'{NAMES[channel]} show {slot % 3 + 1}', '<previously-shown/>' if slot >= 3 else ''
+    return f'{NAMES[channel]} show {slot + 1}', ''
+
+
+def captioned(video):
+    """[video], an H.264 stream with an access unit delimiter before each frame, with CEA-608 captions in it as players
+    read them from a broadcast: a pop-on caption every [CAPTION_SECONDS], one byte pair a frame in an SEI message after
+    each delimiter."""
+    frames = video.split(DELIMITER)
+    pairs = []
+    for k in range(CLIP_SECONDS // CAPTION_SECONDS):
+        start = k * CAPTION_SECONDS * FPS
+        text = f'Fixture caption {k + 1}'.encode()
+        text += b' ' * (len(text) % 2)
+        codes = [(0x14, 0x20), (0x14, 0x2E), (0x14, 0x60)] + list(zip(text[::2], text[1::2])) + [(0x14, 0x2F)]
+        pairs += [None] * (start - len(pairs)) + codes
+    out = [frames[0]]
+    for n, frame in enumerate(frames[1:]):
+        pair = pairs[n] if n < len(pairs) else None
+        # The delimiter's own byte, then the caption.
+        out.append(DELIMITER + frame[:1] + sei(pair) + frame[1:])
+    return b''.join(out)
+
+
+def sei(pair):
+    """An SEI NAL unit carrying one CEA-608 byte pair on field 1 as ATSC A/53 caption data, or padding for None."""
+    odd = lambda b: b | (0x80 if bin(b).count('1') % 2 == 0 else 0)
+    cc = bytes([0xFC, odd(pair[0]), odd(pair[1])]) if pair else bytes([0xF8, 0x80, 0x80])
+    payload = bytes([0xB5, 0x00, 0x31]) + b'GA94' + bytes([0x03, 0x40 | 1, 0xFF]) + cc + bytes([0xFF])
+    rbsp = bytes([0x04, len(payload)]) + payload + bytes([0x80])
+    escaped = bytearray()
+    for b in rbsp:
+        # Emulation prevention: no 00 00 followed by 00 to 03 inside a NAL unit.
+        if len(escaped) >= 2 and escaped[-1] == 0 and escaped[-2] == 0 and b <= 3:
+            escaped.append(3)
+        escaped.append(b)
+    return b'\x00\x00\x00\x01\x06' + bytes(escaped)
 
 
 def tune(a, b, seconds):
@@ -255,10 +321,11 @@ def show_episodes(base):
 
 @contextlib.contextmanager
 def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=False, movies_library=False, quiet=False,
-          **settings):
+          virtual=False, **settings):
     """Starts the fixture channels and the server, with its log in <out>/server.log and any further `SOFA_` [settings],
     and yields the server's base URL once the lineup is adopted, with [shows] the fixture show's intros found, with
-    [short] the short show scanned, and with [movies_library] the fixture movies scanned; stops both on the way out.
+    [short] the short show scanned, with [movies_library] the fixture movies scanned, and with [virtual] a virtual channel
+    in the lineup (see virtual_channel); stops both on the way out.
     [build] writes the channels' files, playlist and guide into the folder it is given and serves them from the address
     it is given, the [channels] the lineup then holds, and the server's media folder, which it fills for [libraries]; the
     fixture channels by default, silent when [quiet]. Each of [libraries], a (name, kind, folder) triple, is added from
@@ -282,8 +349,10 @@ def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=F
             short_show(library / 'short')
         titles = movies(library / 'movies') if movies_library else 0
         sources = directory / 'sources.json'
-        sources.write_text(json.dumps({'providers': [
-            {'id': 'fixture', 'playlistUrl': upstream + '/feed.m3u', 'guideUrl': upstream + '/guide.xml', 'probe': False}]}))
+        providers = [{'id': 'fixture', 'playlistUrl': upstream + '/feed.m3u', 'guideUrl': upstream + '/guide.xml', 'probe': False}]
+        if virtual:
+            providers.append({'id': 'virtual', 'type': 'native', 'service': 'virtual'})
+        sources.write_text(json.dumps({'providers': providers}))
         with socket.socket() as probe:
             probe.bind(('127.0.0.1', 0))
             port = probe.getsockname()[1]
@@ -299,6 +368,8 @@ def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=F
             wait_for('the fixture import', lambda: all(p['lastSuccessAt'] for p in request(base, '/api/v1/providers')), 60)
             request(base, '/api/v1/admin/lineup/adopt', 'POST', {'providerId': 'fixture'})
             wait_for('the lineup', lambda: len(request(base, '/api/v1/channels')['channels']) == channels, 30)
+            if virtual:
+                virtual_channel(base)
             for name, kind, folder in libraries:
                 added = request(base, '/api/v1/admin/libraries', 'POST', {'name': name, 'kind': kind, 'path': str(library / folder)})
                 request(base, f'/api/v1/admin/libraries/{added["id"]}/scan', 'POST', timeout=300)
@@ -320,6 +391,19 @@ def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=F
             fixture.shutdown()
 
 
+def virtual_channel(base):
+    """Adds a virtual channel to the lineup that airs Sofa Sports live from the start of this hour, its live slot, and
+    the Drama genre for the rest of the day, then adopts it."""
+    sports = next(c['id'] for c in request(base, '/api/v1/channels')['channels'] if c['name'] == NAMES[1])
+    hour = datetime.now().astimezone().replace(minute=0, second=0, microsecond=0)
+    slot = lambda kind, value, start: {'source': {'kind': kind, 'value': value}, 'shuffle': False, 'start': start.strftime('%H:%M')}
+    request(base, '/api/v1/admin/virtual-channels', 'POST', {
+        'name': 'Sofa Live', 'number': '20', 'padMinutes': 0,
+        'slots': [slot('channel', sports, hour), slot('genre', 'Drama', hour + timedelta(hours=1))]})
+    # The virtual provider lists the new channel once it has imported again.
+    wait_for('the virtual channel', lambda: request(base, '/api/v1/admin/lineup/adopt', 'POST', {'providerId': 'virtual'})['added'], 60)
+
+
 def stop(*_):
     """Stopping the script stops the server too."""
     raise SystemExit(0)
@@ -331,13 +415,14 @@ def main():
     parser.add_argument('--shows', action='store_true', help='also serve a TV shows library whose episodes have an intro')
     parser.add_argument('--movies', action='store_true', help='also serve a Movies library of 84 titles with genres and a trailer')
     parser.add_argument('--quiet', action='store_true', help="silence the channels' tone")
+    parser.add_argument('--virtual', action='store_true', help='also put a virtual channel with a live slot in the lineup')
     args = parser.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     ready = out / 'server.env'
     ready.unlink(missing_ok=True)
     signal.signal(signal.SIGTERM, stop)
-    with serve(out, shows=args.shows, movies_library=args.movies, quiet=args.quiet) as base:
+    with serve(out, shows=args.shows, movies_library=args.movies, quiet=args.quiet, virtual=args.virtual) as base:
         ready.write_text(f'SOFAKING_SERVER={base}\nSOFAKING_TOKEN={TOKEN}\n')
         print(f'Serving {base}', flush=True)
         try:

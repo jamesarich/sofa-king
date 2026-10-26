@@ -3,8 +3,9 @@ package dev.jamesrich.sofaking
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.core.content.edit
 import androidx.core.net.toUri
-import com.google.android.engage.common.datamodel.ClusterType
+import com.google.android.engage.common.datamodel.AccountProfile
 import com.google.android.engage.common.datamodel.ContinuationCluster
 import com.google.android.engage.common.datamodel.Entity
 import com.google.android.engage.common.datamodel.Image
@@ -12,7 +13,6 @@ import com.google.android.engage.common.datamodel.PlatformSpecificUri
 import com.google.android.engage.common.datamodel.PlatformType
 import com.google.android.engage.service.AppEngagePublishClient
 import com.google.android.engage.service.PublishContinuationClusterRequest
-import com.google.android.engage.service.ServiceAvailabilityRequest
 import com.google.android.engage.video.datamodel.MovieEntity
 import com.google.android.engage.video.datamodel.TvEpisodeEntity
 import com.google.android.engage.video.datamodel.WatchNextType
@@ -22,6 +22,7 @@ import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.itemLink
 import dev.jamesrich.sofaking.data.runCatchingCancellable
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
@@ -34,6 +35,19 @@ import java.util.concurrent.TimeUnit
  */
 internal class EngagePublisher(private val context: Context) {
     private val client = AppEngagePublishClient(context)
+    private var wasAvailable: Boolean? = null
+
+    /**
+     * The household on this device as the service knows it: a random id kept for the install, since the app has no
+     * accounts. Google TV refuses a Continue watching row without one. The row stays on this device: nothing syncs to
+     * the viewer's Google account.
+     */
+    private val account by lazy {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val id = prefs.getString(ACCOUNT, null)
+            ?: UUID.randomUUID().toString().also { prefs.edit { putString(ACCOUNT, it) } }
+        AccountProfile.Builder().setAccountId(id).build()
+    }
 
     /** Hands [items] to the Engage service, or removes the row when there are none; false when it refused them. */
     fun publish(items: List<MediaItem>): Boolean = runCatchingCancellable {
@@ -43,9 +57,9 @@ internal class EngagePublisher(private val context: Context) {
             entity(item, engagedAt = now - index * ENGAGEMENT_STEP_MS)
         }.take(MAX_ENTITIES)
         if (entities.isEmpty()) {
-            await(client.deleteContinuationCluster())
+            await(client.deleteContinuationCluster(account))
         } else {
-            val cluster = ContinuationCluster.Builder()
+            val cluster = ContinuationCluster.Builder().setAccountProfile(account).setSyncAcrossDevices(false)
             entities.forEach(cluster::addEntity)
             val request = PublishContinuationClusterRequest.Builder().setContinuationCluster(cluster.build())
             await(client.publishContinuationCluster(request.build()))
@@ -55,11 +69,21 @@ internal class EngagePublisher(private val context: Context) {
         Log.w(TAG, "engage: Continue watching was not published: $it")
     }.isSuccess
 
-    /** Whether the Engage service takes this app's Continue watching row; false where there is no Play Store. */
+    /**
+     * Whether the Engage service takes this app's rows; false where there is no Play Store. The per-cluster form of
+     * the check answers false for Continue watching even where the service takes the row (seen with Google's Engage
+     * verification app, 2026-10), so this asks the plain one; a publish the service refuses falls back to Watch Next.
+     */
     fun available(): Boolean = runCatchingCancellable {
-        val request = ServiceAvailabilityRequest.Builder().addIntendedClusterType(ClusterType.TYPE_CONTINUATION).build()
-        await(client.isServiceAvailable(request))[ClusterType.TYPE_CONTINUATION] == true
-    }.getOrDefault(false)
+        // Deprecated for the per-cluster form, which wrongly answers false; see above.
+        @Suppress("DEPRECATION")
+        await(client.isServiceAvailable())
+    }.getOrDefault(false).also { available ->
+        if (available != wasAvailable) {
+            Log.i(TAG, if (available) "engage: publishing Continue watching" else "engage: writing Watch Next instead")
+        }
+        wasAvailable = available
+    }
 
     /**
      * [item]'s card: an episode of its show, or a movie, for anything else the shelf plays. Null for an item without
@@ -130,6 +154,8 @@ internal class EngagePublisher(private val context: Context) {
 }
 
 private const val TAG = "SofaKing"
+private const val PREFS = "watch_next"
+private const val ACCOUNT = "engage_account"
 
 /** Google TV shows at most this many of one app's cards. */
 private const val MAX_ENTITIES = 10

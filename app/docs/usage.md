@@ -52,7 +52,7 @@ On a phone, tablet, desktop or browser window 840 dp or wider, a library's grid 
 
 ### Back and Watch Next
 
-Back goes from an item's page to where you opened it and from a library's grid to the Library tab; on the Library tab it moves focus up to the tab in the header, and from there opens Live with focus on its tab, where one more Back exits. On Android TV, the home screen's Watch Next row (Continue watching on Google TV) carries the same list: selecting an entry plays it in the app from where you stopped, and Back returns to the Library tab. An entry removed from the row stays off it until it leaves Continue watching. Google TV reads the row through its Engage service once Google enrolls the app; until then the app writes the Watch Next row itself, which Google TV shows until it drops Watch Next in the second half of 2027.
+Back goes from an item's page to where you opened it and from a library's grid to the Library tab; on the Library tab it moves focus up to the tab in the header, and from there opens Live with focus on its tab, where one more Back exits. On Android TV, the home screen's Watch Next row (Continue watching on Google TV) carries the same list: selecting an entry plays it in the app from where you stopped, and Back returns to the Library tab. An entry removed from the row stays off it until it leaves Continue watching. Google TV reads the row through its Engage service once Google enrolls the app, kept on the TV and not synced to a Google account; until then the app writes the Watch Next row itself, which Google TV shows until it drops Watch Next in the second half of 2027.
 
 ### Item pages
 

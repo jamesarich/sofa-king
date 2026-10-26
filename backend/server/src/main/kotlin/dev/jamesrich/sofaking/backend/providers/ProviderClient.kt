@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import dev.jamesrich.sofaking.backend.catalog.ProgramRating
+import kotlinx.serialization.Serializable
 import java.net.URLEncoder
 import java.time.Instant
 
@@ -11,6 +12,7 @@ import java.time.Instant
  * A channel as its service lists it. [id] is the service's own stable identifier and doubles as the
  * channel id in the service's guide, so a lineup entry made from it maps its guide automatically.
  */
+@Serializable
 data class ProviderChannel(
     val id: String,
     val name: String,

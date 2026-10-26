@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.providers
 
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -8,9 +9,11 @@ import java.time.Duration
 
 /**
  * The Roku Channel's live TV. The channel list is Matt Huisman's i.mjh.nz mirror, which carries only the channels
- * that play without DRM, and its XMLTV is the provider's implicit guide. A resolve runs the therokuchannel.roku.com
- * web client's own steps: an anonymous session (cookies and a csrf token), the content proxy for the channel's
- * `playId`, and the `playback` API, which answers an OSM HLS URL.
+ * that play without DRM, and its XMLTV is the provider's implicit guide. When the mirror fails, the list is the web
+ * client's own station list, narrowed to the channels the mirror last listed, and when that fails too, the last list
+ * that loaded stands in. A resolve runs the therokuchannel.roku.com web client's own steps: an anonymous session
+ * (cookies and a csrf token), the content proxy for the channel's `playId`, and the `playback` API, which answers an
+ * OSM HLS URL.
  */
 class RokuClient(private val context: ProviderContext) : ProviderClient {
     override val service: String get() = "roku"
@@ -60,6 +63,50 @@ class RokuClient(private val context: ProviderContext) : ProviderClient {
     }
 
     private suspend fun fetchChannels(): List<ProviderChannel> {
+        val mirrored = runCatchingCancellable { mirrorChannels() }
+        // The mirror's list, or the last one it answered: the channels that play without DRM, with its groups.
+        val known = runCatchingCancellable { context.lastListed(MIRRORED, mirrored) }
+        if (mirrored.isSuccess) return mirrored.getOrThrow()
+        return runCatchingCancellable { stations(known.getOrNull()) }.getOrElse { failure ->
+            known.getOrElse { throw failure }
+        }
+    }
+
+    /**
+     * The web client's live stations with the groups of its guide's categories. With [known], only the channels it
+     * lists, under its groups, since the station list does not say which channels need DRM.
+     */
+    private suspend fun stations(known: List<ProviderChannel>?): List<ProviderChannel> {
+        val deviceId = context.deviceId()
+        val epg = session {
+            context.http.get("$webBase/api/v4/epg", apiHeaders(it) + ("x-roku-device-id" to deviceId))
+        }.require("Roku station list").json()
+        val groups = HashMap<String, String>()
+        for (category in epg["categoryMapping"].array.filter { it.str("id") !in UNTHEMED }) {
+            val title = category.str("title") ?: continue
+            category["collectionIds"].array.mapNotNull { it.string }.forEach { groups.putIfAbsent(it, title) }
+        }
+        val knownGroups = known?.associate { it.id to it.group }
+        val result = epg["collections"].array.map { it["features"]["station"] }.filter { station ->
+            station["meta"].str("mediaType") == "livefeed" && station["viewOptions"][0].str("providerId") == PROVIDER
+        }.mapNotNull { station ->
+            val id = station["meta"].str("id")?.takeIf { knownGroups == null || it in knownGroups }
+            val name = station.str("title")
+            if (id == null || name == null) return@mapNotNull null
+            ProviderChannel(
+                id,
+                name,
+                station.str("displayNumber"),
+                httpOrNull(station["imageMap"]["liveHudLogo"].str("path")),
+                knownGroups?.get(id) ?: groups[id],
+                listOf("us"),
+            )
+        }.sortedBy { it.number?.toLongOrNull() ?: Long.MAX_VALUE }
+        if (result.isEmpty()) throw ProviderFailure("Roku station list is empty")
+        return result
+    }
+
+    private suspend fun mirrorChannels(): List<ProviderChannel> {
         val channels = context.http.get(channelsUrl, MIRROR_HEADERS).require("Roku channel list").json()["channels"].obj
             ?: throw ProviderFailure("Roku channel list has no channels")
         val result = channels.entries.mapNotNull { (id, channel) ->
@@ -117,6 +164,19 @@ class RokuClient(private val context: ProviderContext) : ProviderClient {
         private const val WEB_BASE = "https://therokuchannel.roku.com"
         private const val CONTENT_BASE = "https://content.sr.roku.com/content/v1/roku-trc/"
         private const val CHANNELS = "channels"
+        private const val MIRRORED = "mirrored"
+        private const val PROVIDER = "rokuavod"
+
+        /** Guide categories that are not a genre: every channel, the personal rows and the catch-alls. */
+        private val UNTHEMED = setOf(
+            "roku.epg.category-allchannels",
+            "roku.epg.cat-epg-recommended",
+            "roku.epg.category-favorites",
+            "roku.epg.category-recents",
+            "roku.epg.category-hidden",
+            "roku.epg.cat-epg-newly-added",
+            "roku.epg.cat-livefeed-tv",
+        )
 
         /** How long the listing is kept before it is fetched again. */
         private val CACHED_FOR: Duration = Duration.ofMinutes(30)

@@ -35,9 +35,11 @@ data class MetadataResult(
     val unmatched: Int,
     val failed: Int,
     val stopped: String? = null,
+    /** Who was asked: TMDB, or MusicBrainz for a Music library. */
+    val source: String = "TMDB",
 ) {
     val note: String get() = buildString {
-        append("TMDB: $fetched fetched, $matched matched, $unmatched not found")
+        append("$source: $fetched fetched, $matched matched, $unmatched not found")
         if (failed > 0) append(", $failed failed")
         if (stopped != null) append(", stopped: $stopped")
     }

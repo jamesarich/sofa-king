@@ -35,7 +35,8 @@ internal suspend fun buildSnapshot(store: BackendStore, revision: Long): Snapsho
     for ((library, record) in records.sortedBy { if (it.second.kind in BORROWED) 0 else 1 }) {
         val show = shows[record.id]?.takeIf { it.id != record.id }
         val view = itemView(library, record, facts[record.id], show, show?.let { views[it.id] })
-        views[record.id] = if (library.kind == LibraryKind.MUSIC) music.view(view, library, views) else view
+        views[record.id] =
+            if (library.kind == LibraryKind.MUSIC) music.view(view, library, views, facts[record.id]?.facts) else view
     }
     return arranged(revision, libraries, views, shows)
 }
@@ -61,9 +62,10 @@ private class MusicParents(records: List<LibraryItemRecord>) {
 
     /**
      * [view] of [library] with its album and artist, and their pictures: an album without a cover shows the picture in
-     * its first track that has one, a track its album's, an artist without its own its newest album's.
+     * its first track that has one, else the Cover Art Archive's cover its [facts] found, a track its album's, an
+     * artist without its own the Wikipedia picture its [facts] found, else its newest album's.
      */
-    fun view(view: View, library: LibraryRecord, views: Map<String, View>): View {
+    fun view(view: View, library: LibraryRecord, views: Map<String, View>, facts: MetadataFacts?): View {
         val record = view.record
         val album = when (record.kind) {
             ItemKind.TRACK -> record.parentId?.let(byId::get)
@@ -71,9 +73,10 @@ private class MusicParents(records: List<LibraryItemRecord>) {
             else -> null
         }
         val artist = album?.parentId?.let(byId::get)
+        val own = view.poster ?: facts?.picture?.takeIf { record.kind == ItemKind.ARTIST }?.let(ArtSource::Commons)
         // A borrowed picture is served from the item it belongs to, so every item showing it shares one image.
         val borrowedFrom = when {
-            view.poster != null -> null
+            own != null -> null
 
             record.kind == ItemKind.TRACK -> album
 
@@ -82,7 +85,10 @@ private class MusicParents(records: List<LibraryItemRecord>) {
 
             else -> null
         }
-        val poster = view.poster ?: borrowedFrom?.let { views[it.id]?.poster } ?: embedded(record, library)
+        val poster = own ?: borrowedFrom?.let { views[it.id]?.poster } ?: embedded(record, library)
+            ?: facts?.musicBrainzId?.takeIf {
+                facts.coverArt && record.kind == ItemKind.ALBUM
+            }?.let(ArtSource::CoverArt)
         val owner = borrowedFrom?.takeIf { views[it.id]?.poster != null } ?: record
         return View(
             record,

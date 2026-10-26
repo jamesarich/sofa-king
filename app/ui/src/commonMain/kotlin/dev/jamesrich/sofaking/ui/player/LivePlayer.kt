@@ -79,6 +79,7 @@ data class AudioTrack(val id: String, val label: String, val selected: Boolean)
 /**
  * What the engine knows about the stream it holds, read for the stream card; a field the engine cannot report is
  * null. [bitrateBps] is the video track's declared bitrate, or the whole stream's where that is all the engine has.
+ * [audioOutput] is what the engine sends the device's audio output.
  */
 @Immutable
 data class StreamInfo(
@@ -88,7 +89,19 @@ data class StreamInfo(
     val frameRate: Float? = null,
     val bitrateBps: Int? = null,
     val audioCodec: String? = null,
+    val audioOutput: AudioOutput? = null,
 )
+
+/**
+ * How the audio leaves the app: [PassedThrough] sends the encoded stream ([codec], when the engine names it) to a
+ * receiver or TV that decodes it; [Decoded] sends [channels] channels of PCM, decoded here.
+ */
+@Immutable
+sealed interface AudioOutput {
+    data class PassedThrough(val codec: String?) : AudioOutput
+
+    data class Decoded(val channels: Int) : AudioOutput
+}
 
 /** The system media session the full screen holds; [publish] swaps its metadata without touching the stream. */
 interface MediaSessionHandle : AutoCloseable {

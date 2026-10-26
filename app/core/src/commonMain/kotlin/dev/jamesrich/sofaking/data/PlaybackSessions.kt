@@ -38,6 +38,12 @@ enum class PlaybackIntent(internal val wire: String) {
 data class AdBreakNow(val remainingMs: Long?)
 
 /**
+ * A live session's media as the server's relay sent it: the rate over the last ten seconds or so, the media requests
+ * the source refused or dropped, and how often the server moved the session to another source.
+ */
+data class StreamHealth(val bitrateKbps: Int, val stalls: Long, val sourceSwitches: Int)
+
+/**
  * The stream the player should hold for [channelId], or for the library item [itemId]. [url] changes whenever the
  * server replaces the stream.
  */
@@ -97,6 +103,12 @@ interface LiveSessions {
      * [intent].
      */
     suspend fun setIntent(channelId: String, intent: PlaybackIntent)
+
+    /**
+     * What the server's relay has seen of the held live channel's session, for the stream card; null for anything
+     * else held, before a server is set, and from a server that does not say.
+     */
+    suspend fun health(): StreamHealth?
 }
 
 /** A library item's or a recording's session, as the library player holds it. */
@@ -272,6 +284,13 @@ internal class LiveTuning(private val hold: SessionHold) : LiveSessions {
         val held = hold.current.value?.takeIf { it.itemId == null && !it.seekable && !it.isMultiview } ?: return null
         val state = api.adBreak(held.sessionId, aheadMs)
         return if (state.inBreak) AdBreakNow(state.remainingMs) else null
+    }
+
+    override suspend fun health(): StreamHealth? {
+        val api = hold.api ?: return null
+        val held = hold.current.value?.takeIf { it.itemId == null && !it.seekable && !it.isMultiview } ?: return null
+        val health = api.session(held.sessionId).health ?: return null
+        return StreamHealth(health.bitrateKbps, health.stalls, health.sourceSwitches)
     }
 
     override suspend fun setIntent(channelId: String, intent: PlaybackIntent) {

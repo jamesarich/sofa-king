@@ -66,6 +66,8 @@ class LibraryService(
     private val every: Duration = SCAN_EVERY,
     /** TMDB lookups after each scan, when `SOFA_TMDB_TOKEN` is set. */
     val metadata: LibraryMetadata? = null,
+    /** MusicBrainz lookups after each scan of a Music library, unless `SOFA_MUSICBRAINZ` turns them off. */
+    private val musicMetadata: MusicMetadata? = null,
     /** The posters and backdrops `/artwork` serves. */
     val artwork: LibraryArtwork? = null,
     /** Finds TV episodes' intros after each scan of a TV shows library. */
@@ -200,7 +202,11 @@ class LibraryService(
             val items = store.libraryItems(library.id)
             events.libraryAdded(library, plan.save, before.mapTo(HashSet()) { it.id }, items)
             // Off the scan lock, so removing a library never waits for TMDB.
-            val looked = if (plan.result.unavailable) null else metadata?.refresh(library, items)
+            val looked = when {
+                plan.result.unavailable -> null
+                library.kind == LibraryKind.MUSIC -> musicMetadata?.refresh(library, items)
+                else -> metadata?.refresh(library, items)
+            }
             val note = listOfNotNull(plan.result.note, looked?.note).joinToString("; ")
             scanLock.withLock {
                 // Removed during the TMDB pass, which then saved details for items that are gone.

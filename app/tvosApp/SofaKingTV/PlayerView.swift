@@ -352,7 +352,7 @@ struct PlayerView: View {
                 failure = nil
                 attempts = 0
             },
-        ]
+        ] + StreamCaptions.follow(item, on: player, model: model)
         player.replaceCurrentItem(with: item)
         player.play()
     }

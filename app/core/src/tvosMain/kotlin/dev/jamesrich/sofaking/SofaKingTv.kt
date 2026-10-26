@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.DataStoreSettingsStore
+import dev.jamesrich.sofaking.data.HouseholdSync
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.ServerConnection
@@ -14,6 +15,7 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSFileManager
@@ -40,6 +42,7 @@ class SofaKingTv private constructor(private val parts: TvParts) :
     TvRecordingMarks by TvRecordingMarkCalls(parts),
     TvWatchlist by TvWatchlistCalls(parts),
     TvSettings by TvSettingCalls(parts),
+    TvParentalControls by TvParentalCalls(parts),
     TvText by TvTextCalls {
     constructor() : this(TvParts())
 
@@ -74,8 +77,16 @@ internal class TvParts {
 
     private val store = DataStoreSettingsStore(storage.settings)
 
-    /** The server Settings names, its one playback session and the guide's record marks, for every ViewModel below. */
-    val connection = ServerConnection(store.settings, scope, viewerSync = ViewerSync(store, storage.client))
+    /**
+     * The server Settings names, its one playback session and the guide's record marks, for every ViewModel below; it
+     * keeps the favorites in step with the household's while Settings shares them.
+     */
+    val connection = ServerConnection(
+        store.settings,
+        scope,
+        viewerSync = ViewerSync(store, storage.client),
+        householdSync = HouseholdSync(store),
+    )
 
     val viewModel =
         LineupViewModel(
@@ -85,7 +96,13 @@ internal class TvParts {
             client = storage.client,
         )
 
-    val library = LibraryViewModel(connection.api, connection.sessions, watchlist = connection.watchlist)
+    /** The libraries, down to the titles kids mode shows while it is on. */
+    val library = LibraryViewModel(
+        connection.api,
+        connection.sessions,
+        watchlist = connection.watchlist,
+        kidsMode = store.settings.map { it.kidsMode },
+    )
 
     val recordings = RecordingsViewModel(connection.recordings, connection.sessions)
 

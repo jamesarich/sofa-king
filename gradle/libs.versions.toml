@@ -48,6 +48,8 @@ androidx-test-orchestrator = "1.6.1"
 # Compose Preview Screenshot Testing's engine and validation API, run by the androidApp screenshot test suite.
 screenshot = "0.0.1-alpha16"
 vlcj = "4.12.1"
+# The desktop app's MPRIS media session on Linux, over the session bus.
+dbus-java = "5.2.2"
 coil = "3.6.3"
 # The open-source licenses screen: its Gradle plugin lists the dependencies at build time, its Compose UI draws them.
 aboutlibraries = "15.3.0"
@@ -134,6 +136,8 @@ androidx-test-orchestrator = { module = "androidx.test:orchestrator", version.re
 
 # Desktop
 vlcj = { module = "uk.co.caprica:vlcj", version.ref = "vlcj" }
+dbus-java-core = { module = "com.github.hypfvieh:dbus-java-core", version.ref = "dbus-java" }
+dbus-java-transport-unixsocket = { module = "com.github.hypfvieh:dbus-java-transport-native-unixsocket", version.ref = "dbus-java" }
 
 # Server
 ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }

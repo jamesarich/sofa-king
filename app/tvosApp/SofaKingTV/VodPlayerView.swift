@@ -282,6 +282,8 @@ struct VodPlayerView: View {
             },
             NotificationCenter.default.publisher(for: .AVPlayerItemFailedToPlayToEndTime, object: item).sink { _ in endedEarly() },
         ]
+        // A recording carries the channel's closed captions; a library item's subtitles are picked in its menu.
+        if request.libraryItem == nil { itemObservers += StreamCaptions.follow(item, on: player, model: model) }
         player.replaceCurrentItem(with: item)
         player.play()
     }

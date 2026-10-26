@@ -7,7 +7,9 @@ import kotlinx.serialization.json.contentOrNull
 
 /**
  * A music file's tags as FFprobe names them, from the file and from its audio stream (where Ogg and Opus keep them);
- * [track] and [disc] are the numbers before any `/total`, and the gains ReplayGain's in dB.
+ * [track] and [disc] are the numbers before any `/total`, and the gains ReplayGain's in dB. The MusicBrainz ids are
+ * those Picard (or another tagger) writes: the release (one edition of an album), its release group (the album over
+ * all its editions), the album artist, the track's artist and its recording.
  */
 @Serializable
 data class AudioTags(
@@ -22,6 +24,11 @@ data class AudioTags(
     val compilation: Boolean = false,
     val trackGain: Double? = null,
     val albumGain: Double? = null,
+    val releaseId: String? = null,
+    val releaseGroupId: String? = null,
+    val albumArtistId: String? = null,
+    val artistId: String? = null,
+    val recordingId: String? = null,
 )
 
 /** The tags of an audio-only file: the container's, then its audio stream's for any the container lacks. */
@@ -47,6 +54,11 @@ internal fun audioTags(format: JsonObject?, stream: JsonObject?): AudioTags? {
         compilation = tags["compilation"].let { it == "1" || it.equals("true", ignoreCase = true) },
         trackGain = tags["replaygain_track_gain"]?.let(::decibels),
         albumGain = tags["replaygain_album_gain"]?.let(::decibels),
+        releaseId = tags["musicbrainz_albumid"]?.let(::musicBrainzId),
+        releaseGroupId = tags["musicbrainz_releasegroupid"]?.let(::musicBrainzId),
+        albumArtistId = tags["musicbrainz_albumartistid"]?.let(::musicBrainzId),
+        artistId = tags["musicbrainz_artistid"]?.let(::musicBrainzId),
+        recordingId = tags["musicbrainz_trackid"]?.let(::musicBrainzId),
     )
     return found.takeUnless { it == AudioTags() }
 }
@@ -59,7 +71,20 @@ private val TAG_ALIASES = mapOf(
     "discnumber" to "disc",
     "year" to "date",
     "tcmp" to "compilation",
+    // Vorbis comments carry MusicBrainz ids as MUSICBRAINZ_ALBUMID; ID3 and MP4 as `MusicBrainz Album Id`.
+    "musicbrainz album id" to "musicbrainz_albumid",
+    "musicbrainz release group id" to "musicbrainz_releasegroupid",
+    "musicbrainz album artist id" to "musicbrainz_albumartistid",
+    "musicbrainz artist id" to "musicbrainz_artistid",
+    "musicbrainz track id" to "musicbrainz_trackid",
 )
+
+/** A MusicBrainz id: a lowercase UUID. */
+private val MUSICBRAINZ_ID = Regex("""^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$""")
+
+/** The first MusicBrainz id in [text], which holds several for a track by several artists; null for anything else. */
+private fun musicBrainzId(text: String): String? =
+    text.split('/', ';', '\u0000').map { it.trim().lowercase() }.firstOrNull(MUSICBRAINZ_ID::matches)
 
 /** `3` of `3/12` or `03`; null when it does not start with a positive number. */
 private fun leadingNumber(text: String): Int? = text.takeWhile { it.isDigit() }.toIntOrNull()?.takeIf { it > 0 }

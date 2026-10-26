@@ -13,6 +13,7 @@ import dev.jamesrich.sofaking.contract.Channel
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -78,6 +79,26 @@ class ProviderContext(
         onFailure = { state(key)?.let { runCatching { stateJson.decodeFromString(MAP, it) }.getOrNull() }.orEmpty() },
     )
 
+    /**
+     * [fresh] when it loaded, kept under [key]; when it failed, the list the last load kept, across restarts too.
+     * Rethrows the failure before any load. For a channel list whose only source can go away for a while: resolves
+     * look channels up in it, so without it every channel stops playing until the source is back.
+     */
+    suspend fun lastListed(key: String, fresh: Result<List<ProviderChannel>>): List<ProviderChannel> = fresh.fold(
+        onSuccess = { value ->
+            value.also {
+                val encoded = stateJson.encodeToString(CHANNELS, it)
+                if (state(key) != encoded) saveState(key, encoded, null)
+            }
+        },
+        onFailure = { failure ->
+            state(key)?.let { runCatching { stateJson.decodeFromString(CHANNELS, it) }.getOrNull() }
+                ?.takeIf { it.isNotEmpty() }
+                ?.also { log.warn("{} listing failed, using the last good one: {}", providerId, failure.message) }
+                ?: throw failure
+        },
+    )
+
     /** The value [fetch] produced within [ttl], else a fresh one; concurrent callers share one fetch. */
     suspend fun <T : Any> cached(key: String, ttl: Duration, fetch: suspend () -> T): T =
         fresh(key, ttl) ?: cacheLocks.computeIfAbsent(key) { Mutex() }.withLock {
@@ -98,6 +119,8 @@ class ProviderContext(
     companion object {
         const val DEVICE_ID = "device_id"
         private val MAP = MapSerializer(String.serializer(), String.serializer())
+        private val CHANNELS = ListSerializer(ProviderChannel.serializer())
+        private val log = LoggerFactory.getLogger(ProviderContext::class.java)
         private val stateJson = Json
     }
 }

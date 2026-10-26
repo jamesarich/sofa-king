@@ -37,8 +37,8 @@ These routes take no token: `/healthz`, `/readyz`, the [web app](deploy.md#serve
 | POST | `/api/v1/guide/query` | Programs overlapping a requested channel/time window |
 | GET | `/api/v1/guide/on-later?kind=movie` | Movies, sports, kids' programs or premieres coming up on the enabled channels |
 | POST | `/api/v1/playback-sessions` | Create a preview or watch session |
-| GET | `/api/v1/playback-sessions/{id}` | Read the current playback descriptor |
-| PATCH | `/api/v1/playback-sessions/{id}` | Renew the lease and optionally change intent |
+| GET | `/api/v1/playback-sessions/{id}` | Read the current playback descriptor, with the session's `health`: `bitrateKbps`, `stalls` and `sourceSwitches`, as on the portal's Watching now |
+| PATCH | `/api/v1/playback-sessions/{id}` | Renew the lease and optionally change intent; the answer carries `health` too |
 | GET | `/api/v1/program-facts?title=&movie=` | What TMDB says about a live program, found by its exact guide title, for the break screen: `kind` (`show` or `movie`), `year`, `endYear`, `studio`, `seasons`, `episodes`, `cast`, `creators`, `tagline` and `rating`. `movie=true` searches movies first. Every field is empty when TMDB lists no such title or the server has no TMDB token; see [libraries](libraries.md#details-from-tmdb) |
 | GET | `/api/v1/playback-sessions/{id}/ad-break?aheadMs=` | Whether the session's player shows an ad: `inBreak` and, when the stream planned the break, `remainingMs`. `aheadMs` is how much the player has loaded past the picture; see [architecture](architecture.md#playback) |
 | DELETE | `/api/v1/playback-sessions/{id}` | Release the session; returns 204 |
@@ -127,7 +127,7 @@ curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/a
   }'
 ```
 
-The server picks the entry's first selectable source, in the [selection order](source-health.md#source-selection). The response contains `id`, `expiresAt`, a `descriptor` with `protocol`, `mimeType`, relative `url`, and `epoch`, and the `providerId` of the source the server picked. Resolve the URL against the server address and give it to the player.
+The server picks the entry's first selectable source, in the [selection order](source-health.md#source-selection). The response contains `id`, `expiresAt`, a `descriptor` with `protocol`, `mimeType`, relative `url`, and `epoch`, the `providerId` of the source the server picked, and a fresh `health`. Resolve the URL against the server address and give it to the player.
 
 The descriptor's `protocol`, `mimeType` and URL suffix (`.m3u8` or `.ts`) come from the source's protocol, not from the upstream path. That protocol is the one a probe or media fetch detected in the stream body and stored in the database; a source without a detection yet uses the import's protocol. If a media fetch finds the other protocol (an M3U behind an extensionless URL, or MPEG-TS behind a `.m3u8` path), the server stores it, increments the epoch and answers `410 STREAM_CHANGED`; fetch the session and open the new URL. Every later session on that source, including after a restart, starts with the detected protocol.
 

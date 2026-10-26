@@ -231,7 +231,12 @@ internal class VlcLivePlayer(
         commands.command { vlc.controls().setRate(rate) }
     }
 
-    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = NoMediaSession
+    /** On Linux, MPRIS on the session bus; elsewhere none, which Windows and macOS would need native code for. */
+    private val mediaSessions = NewestMediaSession { onZapStep ->
+        MprisSession.open(this, onZapStep, APP_NAME) ?: NoMediaSession
+    }
+
+    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = mediaSessions.open(onZapStep)
 
     @Composable
     override fun Video(modifier: Modifier, zoom: VideoZoom, shutter: @Composable () -> Unit) {
@@ -388,6 +393,9 @@ internal class VlcLivePlayer(
 
 /** The code a desktop without libVLC fails every tune with; the failure card tells the viewer to install VLC. */
 internal const val VLC_NOT_INSTALLED = "VLC_NOT_INSTALLED"
+
+/** The name the desktop's media controls show for the player. */
+private const val APP_NAME = "Sofa King"
 
 /** libVLC's default `adaptive-livedelay`: how far behind the newest segment of a live HLS playlist it plays. */
 private const val VLC_LIVE_DELAY_MS = 15_000L

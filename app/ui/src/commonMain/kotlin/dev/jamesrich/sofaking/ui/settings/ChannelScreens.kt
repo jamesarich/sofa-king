@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -359,7 +360,10 @@ internal fun ScreenTitle(title: String, onBack: () -> Unit, backFocus: FocusRequ
 internal fun showsBackButton(): Boolean =
     !LocalLayoutProfile.current.tv || LocalLastInput.current.kind == InputKind.POINTER
 
-/** A channel as one row, Material's single-selection list item: logo, number and name, tinted while selected. */
+/**
+ * A channel as one row, Material's single-selection list item: logo, number and name, with a radio button that marks
+ * the picked one, since the TV guidelines ask for a selection icon rather than a tint alone.
+ */
 @Composable
 private fun ChannelRow(channel: Channel, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val shapes = listRowShapes()
@@ -369,6 +373,7 @@ private fun ChannelRow(channel: Channel, selected: Boolean, onClick: () -> Unit,
         onClick = onClick,
         modifier = modifier.width(FIELD_WIDTH).tvFocus(shapes.shape, focusedScale = 1f),
         leadingContent = { ChannelLogo(channel, 64.dp, 40.dp) },
+        trailingContent = { RadioButton(selected = selected, onClick = null) },
         shapes = shapes,
         colors = listRowColors(interactions),
         interactionSource = interactions,

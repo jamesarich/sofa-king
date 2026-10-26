@@ -33,6 +33,7 @@ import kotlinx.html.sub
 import kotlinx.html.summary
 import kotlinx.html.title
 import kotlinx.html.ul
+import java.time.Duration
 import java.time.Instant
 
 /**
@@ -79,6 +80,8 @@ internal class OverviewView(
     val suggestions: Int?,
     val findings: Int?,
     val unverified: Int?,
+    /** How long until the waiting channels' sources have all had a first probe; null when unknown. */
+    val verifyEta: Duration? = null,
     val providersOk: Int,
     val providersTotal: Int,
     /** Null when Plex sync is not configured. */
@@ -97,7 +100,7 @@ internal class OverviewView(
     /** [view] with a stop confirmation, or asking to confirm the starter lineup. */
     constructor(view: OverviewView, stop: StopConfirm? = null, confirmStarter: Boolean = false) : this(
         view.attention, view.ignored, view.stations, view.enabled, view.guide, view.required, view.requiredOff,
-        view.suggestions, view.findings, view.unverified,
+        view.suggestions, view.findings, view.unverified, view.verifyEta,
         view.providersOk, view.providersTotal, view.plex, view.sessions, view.playing, view.lastRun, view.policy, stop,
         view.setup, confirmStarter,
     )
@@ -296,7 +299,8 @@ private fun DIV.lineupTiles(view: OverviewView) {
         span("sub") {
             +(
                 if (view.unverified != null) {
-                    "${thousands(view.unverified)} channels waiting for a verified source"
+                    "${thousands(view.unverified)} channels waiting for a verified source" +
+                        view.verifyEta?.let { ", about ${hoursAndMinutes(it)} to check" }.orEmpty()
                 } else {
                     "Channel and guide imports"
                 }

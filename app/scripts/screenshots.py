@@ -352,10 +352,9 @@ def wait_served(out, path, before, seconds=90):
 
 
 def tour(base, start, out, channel=True):
-    """The guide with its preview, a channel full screen, the Library tab, a show's page and a movie's page, and on the
-    web and desktop a library grid with a title beside it: by keys where the platform is driven by keys, by taps where
-    it takes them, and otherwise as far as settings reach; without [channel], a platform that cannot start on a channel
-    skips it."""
+    """The guide with its preview, a channel full screen, the Library tab, a show's page and a movie's page: by keys
+    where the platform is driven by keys, by taps where it takes them, and otherwise as far as settings reach; without
+    [channel], a platform that cannot start on a channel skips it."""
     before = served(out, '/api/v1/guide/query')
     with start(startup='GUIDE') as app:
         wait_served(out, '/api/v1/guide/query', before)
@@ -410,19 +409,6 @@ def tour(base, start, out, channel=True):
             app.keys('ArrowUp', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'Enter')
         time.sleep(4)
         app.shoot('movie')
-    if app.tap or app.touch:
-        return
-    # The web and desktop windows are wide enough for a grid with the title picked from it beside it.
-    before = served(out, '/api/v1/library/home')
-    with start(startup='LIBRARY', last_tab='LIBRARY') as app:
-        wait_served(out, '/api/v1/library/home', before)
-        time.sleep(3)
-        # From the tab in the rail: Search, then the Movies chip, its grid, and the grid's first title.
-        app.keys('ArrowRight', 'ArrowRight', 'Enter')
-        time.sleep(4)
-        app.keys('Enter')
-        time.sleep(4)
-        app.shoot('panes')
 
 
 def main():

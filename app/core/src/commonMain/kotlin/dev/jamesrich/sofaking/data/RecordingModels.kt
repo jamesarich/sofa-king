@@ -18,8 +18,8 @@ enum class RecordingState(internal val wire: String?) {
 }
 
 /**
- * Why a recording failed, from the server's reason code; [OTHER] stands for a code this app doesn't know, which
- * includes a newer server's and an unexpected error's.
+ * Why a recording failed or ended early, from the server's reason code; [OTHER] stands for a code this app doesn't
+ * know, which includes a newer server's and an unexpected error's.
  */
 enum class RecordingFailure {
     /** Its window passed before it started: the server was off, or busy with other recordings. */
@@ -37,6 +37,9 @@ enum class RecordingFailure {
     /** The channel left the lineup. */
     CHANNEL_GONE,
 
+    /** Someone stopped it, or the server shut down, before its end. */
+    STOPPED,
+
     OTHER,
     ;
 
@@ -53,6 +56,8 @@ enum class RecordingFailure {
             -> SOURCE
 
             "CHANNEL_NOT_FOUND", "LINEUP_ENTRY_NOT_FOUND" -> CHANNEL_GONE
+
+            "STOPPED" -> STOPPED
 
             else -> OTHER
         }
@@ -91,6 +96,10 @@ data class DvrRecording(
 
     /** Why it failed, once it has; null in every other state. */
     val failure: RecordingFailure? get() = if (state == RecordingState.FAILED) RecordingFailure.of(reason) else null
+
+    /** Why a kept recording ended before its program did; null when it ran to the end, or isn't finished. */
+    val endedEarly: RecordingFailure?
+        get() = if (state == RecordingState.COMPLETED && reason != null) RecordingFailure.of(reason) else null
 
     /** Started and not finished: playing resumes rather than starts. */
     val inProgress: Boolean get() = positionMs > 0 && !watched

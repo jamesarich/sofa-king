@@ -26,14 +26,14 @@ Every feature is in the one free build. There is no paid tier, so nothing below 
 | Source code | Open, GPL-3.0 | Closed | Open, GPL-2.0 | Closed | Closed |
 | Merges sources into one lineup, with failover | Yes | No | No | No | No |
 | Own apps for TV, phone, desktop and web | Yes, one codebase | Yes | Clients from several projects | Yes | Yes |
-| Library | Movies and TV | Movies, TV, music, photos | Movies, TV, music, books, photos | Movies, TV, music, books, photos | Imported videos |
+| Library | Movies, TV, music | Movies, TV, music, photos | Movies, TV, music, books, photos | Movies, TV, music, books, photos | Imported videos |
 
 ## What Sofa King does not do
 
 Say no early rather than after an install:
 
 - **No relay for watching away from home.** The server has no cloud service and opens no port. Reach it from outside through your own VPN, as [remote access](../backend/docs/deploy.md#remote-access) describes.
-- **No music, photos or books.** Libraries hold movies, TV shows and other videos.
+- **No photos or books.** Libraries hold movies, TV shows, other videos and music; the Apple TV app does not play music yet.
 - **No offline downloads** to a phone or tablet.
 - **No user accounts or profiles.** The household shares one set of favorites and watch progress; kids mode limits one device.
 - **No Watch Together.**

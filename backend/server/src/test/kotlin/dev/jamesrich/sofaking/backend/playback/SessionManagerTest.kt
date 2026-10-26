@@ -21,6 +21,7 @@ import dev.jamesrich.sofaking.backend.store.setManuallyDisabled
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.contract.OpenPlayback
+import dev.jamesrich.sofaking.contract.SessionHealth
 import dev.jamesrich.sofaking.contract.UpdatePlayback
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.HttpClient
@@ -427,7 +428,7 @@ class SessionManagerTest {
                     val stats = sessions.snapshot().single()
                     assertEquals(4, stats.sourceSwitches)
                     assertEquals("second", stats.offeringId)
-                    assertNull(opened.health, "an open says nothing of health yet")
+                    assertEquals(SessionHealth(), opened.health, "an open starts with a clean health")
                     assertEquals(4, sessions.get(opened.id).health?.sourceSwitches, "a read carries the health")
                     assertEquals(4, sessions.update(opened.id, UpdatePlayback()).health?.sourceSwitches)
 
@@ -548,7 +549,7 @@ class SessionManagerTest {
                 Offering("o", "c", "p", "http://example.test/resolve?id=1", "hls"),
                 Instant.MAX,
             )
-        val root = session.descriptor().descriptor.url.substringAfterLast('/')
+        val root = session.descriptor(Instant.MAX).descriptor.url.substringAfterLast('/')
         assertTrue(root.endsWith(".m3u8"))
         val variant = session.resource("http://example.test/v/index.m3u8")
         val first = session.resource("http://example.test/v/seg0.ts")

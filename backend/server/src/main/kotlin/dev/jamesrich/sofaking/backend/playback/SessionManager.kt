@@ -87,10 +87,10 @@ internal class LiveSession(
     }
 
     /**
-     * The root token's suffix and MIME follow the offering's protocol, never the upstream path. With [now], it carries
-     * the session's health as the relay has seen it up to then.
+     * The root token's suffix and MIME follow the offering's protocol, never the upstream path. It carries the
+     * session's health as the relay has seen it up to [now].
      */
-    fun descriptor(now: Instant? = null): PlaybackSession {
+    fun descriptor(now: Instant): PlaybackSession {
         val hls = offering.protocol == "hls"
         val token = resource(offering.url, if (hls) "m3u8" else "ts")
         return PlaybackSession(
@@ -105,7 +105,7 @@ internal class LiveSession(
                 epoch,
             ),
             offering.providerId,
-            now?.let { SessionHealth(stats.bitrateKbps(it), stats.stalls.get(), stats.switches.get()) },
+            SessionHealth(stats.bitrateKbps(now), stats.stalls.get(), stats.switches.get()),
         )
     }
 
@@ -261,7 +261,7 @@ class SessionManager(
                     "Key already used for another request",
                 )
             }
-            return@withLock sessions[id]?.descriptor()
+            return@withLock sessions[id]?.descriptor(clock.instant())
                 ?: throw ApiFailure(
                     HttpStatusCode.Gone,
                     Wire.ErrorCode.SESSION_EXPIRED,
@@ -300,7 +300,7 @@ class SessionManager(
         table.add(session)
         keys[request.idempotencyKey] = request to session.id
         while (keys.size > REMEMBERED_KEYS) keys.remove(keys.keys.first())
-        session.descriptor()
+        session.descriptor(clock.instant())
     }
 
     suspend fun count(): Int = table.mutex.withLock {

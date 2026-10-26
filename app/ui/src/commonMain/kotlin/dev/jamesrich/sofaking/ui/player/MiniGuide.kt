@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -24,10 +23,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemColors
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -42,7 +42,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.Channel
@@ -59,6 +58,7 @@ import dev.jamesrich.sofaking.resources.mini_guide_title
 import dev.jamesrich.sofaking.ui.ChannelLogo
 import dev.jamesrich.sofaking.ui.ProgressBar
 import dev.jamesrich.sofaking.ui.formatNumber
+import dev.jamesrich.sofaking.ui.listRowShapes
 import dev.jamesrich.sofaking.ui.noListingText
 import dev.jamesrich.sofaking.ui.panelEdgeMargin
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
@@ -232,81 +232,92 @@ private fun MiniGuideRowItem(
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
     val channel = row.channel
-    // The focused row is primary with on-primary text, the same focus the guide grid uses.
-    val colors = MaterialTheme.colorScheme
-    val primary = if (focused) colors.onPrimary else colors.onSurface
-    Row(
-        modifier
-            .fillMaxWidth()
-            .tvFocus(MaterialTheme.shapes.small, focusedScale = 1f)
-            .background(if (focused) colors.primary else Color.Transparent, MaterialTheme.shapes.small)
-            // The row playing now reads as selected; OK on any row tunes it.
-            .selectable(
-                selected = current,
-                interactionSource = interactions,
-                indication = ripple(),
-                role = Role.Button,
-                onClick = onClick,
-            )
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    val shapes = listRowShapes()
+    // The row playing now reads as selected; OK on any row tunes it.
+    ListItem(
+        selected = current,
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth().tvFocus(shapes.shape, focusedScale = 1f),
+        leadingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    channel.number.formatNumber(),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.width(96.dp),
+                )
+                ChannelLogo(channel, 64.dp, 40.dp)
+            }
+        },
+        overlineContent = if (row.pinnedLast) {
+            { Text(stringResource(Res.string.mini_guide_last_channel), style = MaterialTheme.typography.labelLarge) }
+        } else {
+            null
+        },
+        supportingContent = { MiniGuideListing(channel, program, nextLine, guideLoading, now, focused) },
+        shapes = shapes,
+        colors = miniGuideRowColors(focused),
+        interactionSource = interactions,
     ) {
         Text(
-            channel.number.formatNumber(),
+            channel.name,
             style = MaterialTheme.typography.titleMedium,
-            color = primary,
-            modifier = Modifier.width(96.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
-        ChannelLogo(channel, 64.dp, 40.dp, Modifier.padding(end = 16.dp))
-        MiniGuideRowText(row, program, nextLine, guideLoading, now, focused)
     }
 }
 
-/** A row's name and listing: the last-channel tag, the name, what is on with its progress, and what is next. */
+/**
+ * Material's list item colors over the picture: clear at rest, and the focused row primary with on-primary text, the
+ * same focus the guide grid uses. The row playing now looks like any other, as its selection is read out, not shown.
+ */
 @Composable
-private fun RowScope.MiniGuideRowText(
-    row: MiniGuideRow,
+private fun miniGuideRowColors(focused: Boolean): ListItemColors {
+    val colors = MaterialTheme.colorScheme
+    val container = if (focused) colors.primary else Color.Transparent
+    val content = if (focused) colors.onPrimary else colors.onSurface
+    val overline = if (focused) colors.onPrimary else colors.primary
+    val supporting = if (focused) colors.onPrimary else colors.onSurfaceVariant
+    return ListItemDefaults.colors(
+        containerColor = container,
+        contentColor = content,
+        leadingContentColor = content,
+        overlineContentColor = overline,
+        supportingContentColor = supporting,
+        selectedContainerColor = container,
+        selectedContentColor = content,
+        selectedLeadingContentColor = content,
+        selectedOverlineContentColor = overline,
+        selectedSupportingContentColor = supporting,
+    )
+}
+
+/** What is on with its progress, and what is next; the colors come from the row. */
+@Composable
+private fun MiniGuideListing(
+    channel: Channel,
     program: Program?,
     nextLine: String?,
     guideLoading: Boolean,
     now: Instant,
     focused: Boolean,
 ) {
-    val channel = row.channel
-    val colors = MaterialTheme.colorScheme
-    val primary = if (focused) colors.onPrimary else colors.onSurface
-    val secondary = if (focused) colors.onPrimary else colors.onSurfaceVariant
-    Column(Modifier.weight(1f)) {
-        if (row.pinnedLast) {
-            Text(
-                stringResource(Res.string.mini_guide_last_channel),
-                style = MaterialTheme.typography.labelLarge,
-                color = if (focused) colors.onPrimary else colors.primary,
-            )
-        }
-        Text(
-            channel.name,
-            style = MaterialTheme.typography.titleMedium,
-            color = primary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+    Column {
         Text(
             program?.title ?: channel.noListingText(guideLoading),
             style = MaterialTheme.typography.bodyMedium,
-            color = secondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         if (program != null) {
             Spacer(Modifier.height(4.dp))
-            ProgressBar(programProgress(program.start, program.stop, now), color = primary)
+            val bar = if (focused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+            ProgressBar(programProgress(program.start, program.stop, now), color = bar)
         }
         if (nextLine != null) {
             Text(
                 nextLine,
                 style = MaterialTheme.typography.bodySmall,
-                color = secondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

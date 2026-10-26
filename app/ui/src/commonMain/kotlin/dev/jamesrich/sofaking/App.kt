@@ -25,6 +25,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
@@ -178,9 +179,10 @@ private fun SofaKingApp(
 }
 
 /**
- * One back stack per tab, each with its own saved state, so a tab opens again where it was left. Each page keeps its
- * entry's own lifecycle; the players read the app's (LocalAppLifecycleOwner) to save their place and free the stream
- * only when the app leaves the foreground, not on every Back.
+ * One back stack per tab, each with its own saved state, so a tab opens again where it was left. Each page has its
+ * own ViewModels, cleared when it leaves the back stack, and keeps its entry's own lifecycle; the players read the
+ * app's (LocalAppLifecycleOwner) to save their place and free the stream only when the app leaves the foreground, not
+ * on every Back.
  */
 @Composable
 private fun rememberTabEntries(nav: Navigation, page: @Composable (Route) -> Unit): Map<Tab, List<NavEntry<Route>>> {
@@ -188,7 +190,7 @@ private fun rememberTabEntries(nav: Navigation, page: @Composable (Route) -> Uni
     return Tab.entries.associateWith { tab ->
         rememberDecoratedNavEntries(
             nav.stack(tab),
-            listOf(rememberSaveableStateHolderNavEntryDecorator()),
+            listOf(rememberSaveableStateHolderNavEntryDecorator(), rememberViewModelStoreNavEntryDecorator()),
             entryProvider,
         )
     }

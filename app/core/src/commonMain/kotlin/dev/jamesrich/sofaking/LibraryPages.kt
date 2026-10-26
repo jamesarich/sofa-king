@@ -243,42 +243,81 @@ internal class ShownState<T>(initial: T, private val present: (T) -> T) {
     }
 }
 
-/** Each item's page, loaded from [repository] in [scope] the first time it is asked for. */
+/**
+ * One item's page, open until [close]: loaded when first opened, and again when its watch state changes or with
+ * [refresh]. Every open handle of the same item shares one page.
+ */
+class ItemPage internal constructor(
+    val id: String,
+    val state: StateFlow<ItemDetailState>,
+    private val pages: ItemPages,
+) : AutoCloseable {
+    private var closed = false
+
+    /** Loads the page again; one on screen stays when the load fails. */
+    fun refresh() {
+        if (!closed) pages.reload(listOf(id))
+    }
+
+    /** Lets the page go; once no handle holds it, it is forgotten and its load canceled. */
+    override fun close() {
+        if (closed) return
+        closed = true
+        pages.release(id)
+    }
+}
+
+/** The item pages someone holds open, loaded from [repository] in [scope]; read and written on the main thread. */
 internal class ItemPages(private val scope: CoroutineScope, private val repository: () -> LibraryRepository?) {
-    private val details = HashMap<String, MutableStateFlow<ItemDetailState>>()
+    private class Open(val state: MutableStateFlow<ItemDetailState>) {
+        var holders = 0
 
-    /** The load of each item page, so a newer one cancels the one before it; read and written on the main thread. */
-    private val jobs = HashMap<String, Job>()
-
-    /** As [LibraryBrowsing.detail]. */
-    fun detail(id: String, refresh: Boolean): StateFlow<ItemDetailState> {
-        val state = details.getOrPut(id) { MutableStateFlow(ItemDetailState.Loading) }
-        if (refresh || state.value !is ItemDetailState.Ready) load(id, state)
-        return state.asStateFlow()
+        /** The load in flight, so a newer one cancels the one before it. */
+        var job: Job? = null
     }
 
-    /** Reloads the pages of [ids] that were opened. */
+    private val open = HashMap<String, Open>()
+
+    /** As [LibraryBrowsing.openItem]. */
+    fun open(id: String): ItemPage {
+        val page = open.getOrPut(id) { Open(MutableStateFlow(ItemDetailState.Loading)) }
+        page.holders++
+        if (page.job == null || page.state.value is ItemDetailState.Failed) load(id, page)
+        return ItemPage(id, page.state.asStateFlow(), this)
+    }
+
+    /** One holder of [id] let it go. */
+    fun release(id: String) {
+        val page = open[id] ?: return
+        if (--page.holders > 0) return
+        page.job?.cancel()
+        open.remove(id)
+    }
+
+    /** Reloads the pages of [ids] that are open. */
     fun reload(ids: Collection<String>) {
-        ids.forEach { id -> details[id]?.let { load(id, it) } }
+        ids.forEach { id -> open[id]?.let { load(id, it) } }
     }
 
-    /** Another server: every page is forgotten. */
-    fun clear() {
-        jobs.values.forEach { it.cancel() }
-        jobs.clear()
-        details.clear()
+    /** Another server: every open page loads again from it. */
+    fun reset() {
+        open.forEach { (id, page) ->
+            page.job?.cancel()
+            page.state.value = ItemDetailState.Loading
+            load(id, page)
+        }
     }
 
-    private fun load(id: String, state: MutableStateFlow<ItemDetailState>) {
+    private fun load(id: String, page: Open) {
         val repository = repository() ?: return
-        jobs[id]?.cancel()
-        jobs[id] = scope.launch {
+        page.job?.cancel()
+        page.job = scope.launch {
             runCatchingCancellable {
-                state.value = ItemDetailState.Ready(repository.detail(id))
+                page.state.value = ItemDetailState.Ready(repository.detail(id))
             }.onFailure { e ->
                 log.w { "library item failed: ${e.describe()}" }
                 // A page on screen stays when a refresh fails.
-                if (state.value !is ItemDetailState.Ready) state.value = ItemDetailState.Failed(e.describe())
+                if (page.state.value !is ItemDetailState.Ready) page.state.value = ItemDetailState.Failed(e.describe())
             }
         }
     }

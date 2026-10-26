@@ -1,5 +1,9 @@
 package dev.jamesrich.sofaking
 
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.jamesrich.sofaking.data.ExtraKind
 import dev.jamesrich.sofaking.data.FAKE_BASE
 import dev.jamesrich.sofaking.data.IntroSpan
@@ -521,9 +525,9 @@ class LibraryViewModelTest {
             val model = viewModel(server)
             runCurrent()
             model.openGrid("lib")
-            val season = model.detail("s1")
-            model.detail("e1")
-            model.detail("show")
+            val season = model.openItem("s1").state
+            model.openItem("e1")
+            model.openItem("show")
             runCurrent()
             fun gets(id: String) = server.requests.count { it == "GET /api/v1/library/items/$id" }
             assertEquals(listOf(1, 1, 1), listOf(gets("e1"), gets("s1"), gets("show")))
@@ -618,11 +622,11 @@ class LibraryViewModelTest {
         val model = viewModel(server)
         runCurrent()
 
-        val page = model.detail("m1")
+        val page = model.openItem("m1")
         runCurrent()
-        model.detail("m1", refresh = true)
+        page.refresh()
         advanceTimeBy(10.seconds)
-        assertEquals("New", assertIs<ItemDetailState.Ready>(page.value).detail.item.title)
+        assertEquals("New", assertIs<ItemDetailState.Ready>(page.state.value).detail.item.title)
     }
 
     @Test
@@ -645,8 +649,8 @@ class LibraryViewModelTest {
             }
             val model = viewModel(server)
             runCurrent()
-            val first = model.detail("e1")
-            val second = model.detail("e2")
+            val first = model.openItem("e1").state
+            val second = model.openItem("e2").state
             runCurrent()
             advanceTimeBy(1.seconds)
             assertEquals(IntroSpan(600, 53_100), assertIs<ItemDetailState.Ready>(first.value).detail.intro)
@@ -670,7 +674,7 @@ class LibraryViewModelTest {
             }
             val model = viewModel(server)
             runCurrent()
-            val page = model.detail("m1")
+            val page = model.openItem("m1").state
             runCurrent()
             advanceTimeBy(1.seconds)
             val tiles = assertNotNull(assertIs<ItemDetailState.Ready>(page.value).detail.scrub)
@@ -707,7 +711,7 @@ class LibraryViewModelTest {
         }
         val model = viewModel(server)
         runCurrent()
-        val page = model.detail("m1")
+        val page = model.openItem("m1").state
         runCurrent()
         advanceTimeBy(1.seconds)
         val detail = assertIs<ItemDetailState.Ready>(page.value).detail
@@ -722,5 +726,70 @@ class LibraryViewModelTest {
         assertTrue(detail.extras.all { it.kind.playable })
         assertEquals(listOf("m2"), detail.related.map { it.id })
         assertNull(detail.item.extra)
+    }
+
+    @Test
+    fun `an item page open twice loads once and is forgotten once both let it go`() = fixture.viewModelTest {
+        val server = RouteServer(this) { _, path, _ ->
+            when (path) {
+                "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+                "/api/v1/library/items/m1" -> 200 to """{"item":${item("m1")}}"""
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+        fun gets() = server.requests.count { it == "GET /api/v1/library/items/m1" }
+
+        val first = model.openItem("m1")
+        val second = model.openItem("m1")
+        runCurrent()
+        assertEquals(1, gets(), "two holders share one load")
+        first.close()
+        first.close()
+        model.openItem("m1").use { runCurrent() }
+        assertEquals(1, gets(), "a page someone still holds is not loaded again")
+        assertIs<ItemDetailState.Ready>(second.state.value)
+
+        second.close()
+        val again = model.openItem("m1")
+        runCurrent()
+        assertEquals(2, gets(), "a page nobody held loads afresh")
+        assertIs<ItemDetailState.Ready>(again.state.value)
+    }
+
+    @Test
+    fun `an item screen holds its page and the season it lists until the screen is cleared`() = fixture.viewModelTest {
+        val server = RouteServer(this) { _, path, _ ->
+            val id = path.removePrefix("/api/v1/library/items/")
+            when {
+                path == "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+                id in setOf("show", "s1", "s2") -> 200 to """{"item":${item(id, "show")}}"""
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+        fun gets(id: String) = server.requests.count { it == "GET /api/v1/library/items/$id" }
+        fun reopen(id: String) = model.openItem(id).use { runCurrent() }
+
+        val store = ViewModelStore()
+        val factory = viewModelFactory { initializer { ItemPageViewModel(model, "show") } }
+        val screen = ViewModelProvider.create(store, factory)[ItemPageViewModel::class]
+        screen.season("s1")
+        runCurrent()
+        val season = screen.season("s2")
+        runCurrent()
+        assertIs<ItemDetailState.Ready>(screen.detail.value)
+        assertIs<ItemDetailState.Ready>(season.value)
+
+        reopen("s1")
+        reopen("s2")
+        assertEquals(listOf(1, 2, 1), listOf(gets("show"), gets("s1"), gets("s2")), "only the season listed stays")
+
+        store.clear()
+        reopen("show")
+        reopen("s2")
+        assertEquals(listOf(2, 2), listOf(gets("show"), gets("s2")), "a cleared screen lets its pages go")
     }
 }

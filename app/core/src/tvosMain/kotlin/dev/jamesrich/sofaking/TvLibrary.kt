@@ -3,7 +3,8 @@ package dev.jamesrich.sofaking
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.Subtitles
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 
 /** The media libraries' pages, as the Apple TV app browses them. */
 interface TvLibrary {
@@ -12,7 +13,7 @@ interface TvLibrary {
     /** The grid [openGrid] opened last, as its pages load. */
     fun watchLibraryGrid(onChange: (LibraryGrid?) -> Unit): Watch
 
-    /** [id]'s page, loaded on the first watch. */
+    /** [id]'s page, loaded on the first watch and held open until the last watch of it is canceled. */
     fun watchItem(id: String, onChange: (ItemDetailState) -> Unit): Watch
 
     fun refreshLibrary()
@@ -46,13 +47,11 @@ internal class TvLibraryCalls(private val parts: TvParts) : TvLibrary {
     override fun watchLibraryGrid(onChange: (LibraryGrid?) -> Unit): Watch = parts.watch(library.grid, onChange)
 
     override fun watchItem(id: String, onChange: (ItemDetailState) -> Unit): Watch =
-        parts.watch(library.detail(id), onChange)
+        parts.watch(flow { library.openItem(id).use { emitAll(it.state) } }, onChange)
 
     override fun refreshLibrary() = library.refreshHome()
 
-    override fun refreshItem(id: String) {
-        library.detail(id, refresh = true)
-    }
+    override fun refreshItem(id: String) = library.openItem(id).use(ItemPage::refresh)
 
     override fun openGrid(libraryId: String, sort: LibrarySort, unwatched: Boolean, genre: String?) =
         library.openGrid(libraryId, sort, unwatched, genre)

@@ -60,8 +60,9 @@ internal class TvItemCalls(private val parts: TvParts) : TvItemPlayback {
 
     @Throws(Exception::class)
     override suspend fun playItem(item: MediaItem, fromStart: Boolean, startMs: Long): PlaybackStream = parts.opening {
-        val state =
-            withTimeoutOrNull(DETAIL_WAIT_MS) { library.detail(item.id).first { it !is ItemDetailState.Loading } }
+        val state = library.openItem(item.id).use { page ->
+            withTimeoutOrNull(DETAIL_WAIT_MS) { page.state.first { it !is ItemDetailState.Loading } }
+        }
         val detail = (state as? ItemDetailState.Ready)?.detail
         val choice = trackChoice(item)
         val audio = detail?.let { initialAudio(it, choice) }?.takeIf { it.index != detail.let(::defaultAudio)?.index }

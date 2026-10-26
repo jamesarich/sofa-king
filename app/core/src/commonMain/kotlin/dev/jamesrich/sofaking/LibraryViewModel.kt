@@ -106,8 +106,11 @@ interface LibraryBrowsing {
      */
     fun loadThrough(offset: Int)
 
-    /** [id]'s page, loaded the first time it is asked for and again with [refresh]. */
-    fun detail(id: String, refresh: Boolean = false): StateFlow<ItemDetailState>
+    /**
+     * Opens [id]'s page, which stays loaded and follows changes to what was watched until the [ItemPage] is closed. A
+     * screen holds one for as long as it is on the back stack.
+     */
+    fun openItem(id: String): ItemPage
 
     /** Items whose title, show or cast match [query]; empty when the server cannot be reached. */
     suspend fun search(query: String): List<MediaItem>
@@ -243,7 +246,7 @@ internal class LibraryParts(
         scope.launch {
             apis.collect { api ->
                 repository = api?.let(newRepository)
-                pages.clear()
+                pages.reset()
                 grids.clear()
                 if (api == null) shelves.unconfigured() else shelves.refresh()
             }
@@ -286,7 +289,7 @@ internal class LibraryBrowser(
 
     override fun loadThrough(offset: Int) = grids.loadThrough(offset)
 
-    override fun detail(id: String, refresh: Boolean): StateFlow<ItemDetailState> = pages.detail(id, refresh)
+    override fun openItem(id: String): ItemPage = pages.open(id)
 
     override suspend fun search(query: String): List<MediaItem> {
         val repository = repository() ?: return emptyList()

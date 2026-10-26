@@ -86,6 +86,7 @@ datastore-preferences-core = { module = "androidx.datastore:datastore-preference
 lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle-multiplatform" }
 lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle-multiplatform" }
 lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle-multiplatform" }
+lifecycle-viewmodel-navigation3 = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "lifecycle-multiplatform" }
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 
 # Compose Multiplatform

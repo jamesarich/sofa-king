@@ -276,8 +276,8 @@ class VodSessions(
             request.wholePlaylist && mode == Wire.VodMode.TRANSCODE && !growing && durationMs != null && durationMs > 0
         return table.locked {
             table.reap()
-            val converting = table.sessions.values.count { it.mode != Wire.VodMode.DIRECT } + others()
-            if (mode != Wire.VodMode.DIRECT && converting >= maxConverting) {
+            val converting = table.sessions.values.count { heavy(it.mode, it.media) } + others()
+            if (heavy(mode, media) && converting >= maxConverting) {
                 throw ApiFailure(
                     HttpStatusCode.ServiceUnavailable,
                     Wire.ErrorCode.CAPACITY_EXHAUSTED,
@@ -355,6 +355,12 @@ class VodSessions(
     private fun secret(): String = HexFormat.of().formatHex(ByteArray(SECRET_BYTES).also(random::nextBytes))
 }
 
+/**
+ * Whether a session in [mode] takes one of the conversions `SOFA_MAX_TRANSCODES` allows: converting sound alone costs
+ * little, so music never waits for one or holds one.
+ */
+private fun heavy(mode: String, media: MediaInfo?) = mode != Wire.VodMode.DIRECT && !media.audioOnly
+
 /** Drawing subtitles into the picture means encoding it, and a file still recording is never played directly. */
 private fun modeOf(
     request: OpenVodPlayback,
@@ -387,13 +393,28 @@ internal fun containerOf(format: String?): String = when {
     else -> format.substringBefore(',')
 }
 
-internal fun extension(media: MediaInfo?): String = containerOf(media?.container).ifEmpty { "bin" }
+internal fun extension(media: MediaInfo?): String = when {
+    media.audioOnly && containerOf(media?.container) == "mp4" -> "m4a"
+    else -> containerOf(media?.container).ifEmpty { "bin" }
+}
 
-internal fun directType(media: MediaInfo?): String = when (containerOf(media?.container)) {
-    "mkv" -> "video/x-matroska"
-    "mp4" -> "video/mp4"
-    "webm" -> "video/webm"
-    "ts" -> "video/mp2t"
-    "avi" -> "video/x-msvideo"
+internal fun directType(media: MediaInfo?): String = if (media.audioOnly) {
+    audioType(media)
+} else {
+    when (containerOf(media?.container)) {
+        "mkv" -> "video/x-matroska"
+        "mp4" -> "video/mp4"
+        "webm" -> "video/webm"
+        "ts" -> "video/mp2t"
+        "avi" -> "video/x-msvideo"
+        else -> "application/octet-stream"
+    }
+}
+
+private fun audioType(media: MediaInfo?): String = when (containerOf(media?.container)) {
+    "flac" -> "audio/flac"
+    "mp3" -> "audio/mpeg"
+    "mp4" -> "audio/mp4"
+    "ogg" -> "audio/ogg"
     else -> "application/octet-stream"
 }

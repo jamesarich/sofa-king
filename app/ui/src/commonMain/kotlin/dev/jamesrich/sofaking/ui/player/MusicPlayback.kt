@@ -50,8 +50,8 @@ internal fun PlaybackSessions.songs(): SongSessions = object : SongSessions {
 /**
  * The music the app plays on the shared [player], apart from any page: the [queue], and each song's session, so a
  * song plays on while the viewer browses and the next starts when it ends. Anything else that takes the player (a
- * channel, a movie) ends the music; a stop for Settings or the app leaving the foreground only [hold]s it, and Play
- * opens the song again where it was.
+ * channel, a movie) ends the music; Settings, or the app leaving the foreground while the song is paused, only
+ * [hold]s it, and Play opens the song again where it was.
  */
 @Stable
 internal class MusicPlayback(
@@ -81,6 +81,9 @@ internal class MusicPlayback(
 
     /** The shared player's state, for the play and pause button. */
     val status: StateFlow<PlayerStatus> get() = player.status
+
+    /** True while the player plays the song, or is about to: it plays on behind the app. */
+    val playingOn: Boolean get() = loaded && player.playWhenReady && player.status.value.state != PlaybackState.IDLE
 
     /** True while a song is stopped for now ([hold]), or not yet open: Play opens it. */
     val held: Boolean get() = song != null && !loaded

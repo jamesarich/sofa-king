@@ -8,6 +8,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.ui.player.MediaSessionHandle
 import kotlinx.browser.document
 import kotlinx.browser.window
 import kotlinx.coroutines.delay
@@ -83,3 +84,7 @@ private fun sendRelease(url: String, token: String) {
             "headers: token ? { 'Authorization': 'Bearer ' + token } : {} }).catch(function () {});",
     )
 }
+
+/** A browser plays a hidden tab's sound on its own. */
+@Composable
+internal actual fun KeepPlayingInBackground(session: MediaSessionHandle?) = Unit

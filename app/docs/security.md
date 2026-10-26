@@ -14,6 +14,8 @@ The token is sent only in the `Authorization` header of requests to the server's
 
 The server is on the local network, which Android 17 opens to an app only with the `ACCESS_LOCAL_NETWORK` permission, part of Nearby devices. The Android app declares it and asks for it at its first start on Android 17; denied, it cannot reach or find the server until the permission is allowed in the system's app settings. Apple TV and iOS ask for local network access the first time the app reaches the server. Settings browses for servers over mDNS (`_sofaking._tcp`) only while its server fields are open.
 
+The Android app declares `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_MEDIA_PLAYBACK` for `MusicService`, which runs only while a song is loaded. The service is exported, as Media3 requires, so that the system's media controls and other controllers can bind to it; they reach only the music's session, which plays, pauses and steps through the queue already playing.
+
 ## Cleartext HTTP
 
 The app allows cleartext HTTP (`network_security_config.xml` on Android, `NSAllowsArbitraryLoads` on iOS and Apple TV) so it can reach a Sofa King server on your LAN, which serves plain HTTP. A web app served over HTTPS cannot call a plain-HTTP server; browsers block the mixed content. Traffic to that server, including the token and the streams, is readable by anyone who can observe the network path.

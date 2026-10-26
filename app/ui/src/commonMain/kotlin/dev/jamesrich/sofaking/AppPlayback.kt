@@ -167,8 +167,8 @@ internal fun RouteStreamEffects(
  * Stopped, not paused: the TV's one hardware decoder and the server's session go free while another app is in front.
  * The item and playWhenReady survive; on return, while the page [plays], a fresh session is opened for the same
  * channel and intent and the item is prepared at its URL, at the live edge or still paused. A library item's screen
- * reopens it itself, where it was, the library's other pages hold no stream, and the [music] waits where it was for
- * Play.
+ * reopens it itself, where it was, and the library's other pages hold no stream. A song that plays goes on playing;
+ * a paused one waits where it was for Play.
  */
 @Composable
 internal fun ForegroundEffects(
@@ -183,6 +183,8 @@ internal fun ForegroundEffects(
     val scope = rememberCoroutineScope()
     val currentPlays by rememberUpdatedState(plays)
     LifecycleEventEffect(Lifecycle.Event.ON_STOP, lifecycleOwner) {
+        // A song plays on behind the app; paused, it lets its session go like anything else.
+        if (music.playingOn) return@LifecycleEventEffect
         music.hold()
         player.stop()
         sessions.releaseAsync()

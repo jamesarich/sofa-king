@@ -192,7 +192,7 @@ fun SettingsScreen(
     val focus = remember { SettingsFocus() }
 
     BackHandler { onBack() }
-    ArrivalFocus(returnedFrom, focus, if (settings.serverUrl.isEmpty()) server.serverFocus else focus.first())
+    ArrivalFocus(returnedFrom, focus, if (settings.serverUrl.isEmpty()) server.serverFocus else focus.first(page))
 
     val serverSection: LazyListScope.() -> Unit = {
         serverSection(
@@ -220,6 +220,7 @@ fun SettingsScreen(
             backFocus = focus.back,
             modifier = modifier,
             listModifier = Modifier.focusRequester(focus.content).focusRestorer().focusGroup(),
+            topLevel = page == null,
         ) {
             when (page) {
                 null -> {
@@ -290,9 +291,9 @@ private class SettingsFocus {
 
     fun page(page: SettingsPage): FocusRequester = pages.getValue(page)
 
-    /** Back, or where no Back button is drawn, the first setting. */
+    /** Back, or where no Back button is drawn, the first setting; Settings itself is [page] null. */
     @Composable
-    fun first(): FocusRequester = if (showsBackButton()) back else content
+    fun first(page: SettingsPage?): FocusRequester = if (showsBackButton(topLevel = page == null)) back else content
 }
 
 /** Focus on arrival: the button of the page the viewer came back from, else [initial]. */

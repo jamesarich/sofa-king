@@ -359,13 +359,14 @@ internal fun TitledList(
     modifier: Modifier = Modifier,
     listModifier: Modifier = Modifier,
     state: LazyListState = rememberLazyListState(),
+    topLevel: Boolean = false,
     content: LazyListScope.() -> Unit,
 ) {
     Column(
         modifier.fillMaxSize().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
         verticalArrangement = Arrangement.spacedBy(SETTINGS_ROW_GAP),
     ) {
-        ScreenTitle(title, onBack, backFocus)
+        ScreenTitle(title, onBack, backFocus, topLevel)
         val padding = listScreenPadding(WindowInsetsSides.Bottom)
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth().then(padding.modifier).then(listModifier),
@@ -379,14 +380,19 @@ internal fun TitledList(
 
 /**
  * The logo, the page's title and, where [showsBackButton], its Back button; [backFocus] is the requester a page that
- * opens on Back attaches to it.
+ * opens on Back attaches to it. A [topLevel] page is one the navigation bar or rail opens.
  */
 @Composable
-internal fun ScreenTitle(title: String, onBack: () -> Unit, backFocus: FocusRequester? = null) {
+internal fun ScreenTitle(
+    title: String,
+    onBack: () -> Unit,
+    backFocus: FocusRequester? = null,
+    topLevel: Boolean = false,
+) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         LogoMark(40.dp)
         Text(title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-        if (showsBackButton()) {
+        if (showsBackButton(topLevel)) {
             SofaButton(
                 onClick = onBack,
                 modifier = if (backFocus == null) {
@@ -400,12 +406,17 @@ internal fun ScreenTitle(title: String, onBack: () -> Unit, backFocus: FocusRequ
 }
 
 /**
- * Whether a page draws its own Back button: everywhere but a TV driven by its remote, whose Back key is the way back
- * (the TV design guidelines: "Don't display a back button"); a TV shows it again once a mouse or finger is used.
+ * Whether a page draws its own Back button. A TV driven by its remote doesn't, as its Back key is the way back (the TV
+ * design guidelines: "Don't display a back button"), and shows it once a mouse or finger is used. Elsewhere every page
+ * does but a [topLevel] one, which the navigation bar or rail opens and marks, as Material's navigation guidance has
+ * no Up on a top-level destination.
  */
 @Composable
-internal fun showsBackButton(): Boolean =
-    !LocalLayoutProfile.current.tv || LocalLastInput.current.kind == InputKind.POINTER
+internal fun showsBackButton(topLevel: Boolean = false): Boolean = if (LocalLayoutProfile.current.tv) {
+    LocalLastInput.current.kind == InputKind.POINTER
+} else {
+    !topLevel
+}
 
 /**
  * A channel as one row, Material's single-selection list item: logo, number and name, with a radio button that marks

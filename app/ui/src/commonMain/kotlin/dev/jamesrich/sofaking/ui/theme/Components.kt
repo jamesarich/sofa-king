@@ -8,26 +8,16 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusEventModifierNode
 import androidx.compose.ui.focus.FocusRequesterModifierNode
 import androidx.compose.ui.focus.FocusState
 import androidx.compose.ui.focus.requestFocus
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.ContentDrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -35,7 +25,6 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
-import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.PointerInputModifierNode
@@ -44,7 +33,6 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.ui.LastInput
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.rememberIsTelevision
@@ -55,44 +43,38 @@ import kotlinx.coroutines.launch
 const val TV_FOCUS_SCALE = 1.1f
 
 /**
- * A D-pad focus cue for Material components, whose own focus state layer is too faint across a room: the control
- * scales by [focusedScale] on the theme's spatial spring and draws an outline ring in [shape] while it has focus.
- * The cue lives in a modifier node, so a focus move redraws the control without recomposing its caller.
+ * TV focus's growth for a Material component: the control scales by [focusedScale] on the theme's spatial spring while
+ * it has focus. The ring is Material's own inset focus ring, which the theme turns on for every ripple; a control
+ * with its own `ripple` passes it `focusRingShape`. The cue lives in a modifier node, so a focus move redraws the
+ * control without recomposing its caller.
  *
  * On a TV, a mouse or a pointer remote's cursor moving over the control focuses it, so the cue shows what a click
  * will press and the D-pad carries on from there.
  */
 @Composable
-fun Modifier.tvFocus(shape: Shape, focusedScale: Float = TV_FOCUS_SCALE): Modifier = this then TvFocusElement(
-    shape = shape,
+fun Modifier.tvFocus(focusedScale: Float = TV_FOCUS_SCALE): Modifier = this then TvFocusElement(
     focusedScale = focusedScale,
-    ring = MaterialTheme.colorScheme.onSurface,
     spec = MaterialTheme.motionScheme.fastSpatialSpec(),
     cursor = if (rememberIsTelevision()) LocalLastInput.current else null,
 )
 
 private data class TvFocusElement(
-    val shape: Shape,
     val focusedScale: Float,
-    val ring: Color,
     val spec: FiniteAnimationSpec<Float>,
     val cursor: LastInput?,
 ) : ModifierNodeElement<TvFocusNode>() {
-    override fun create() = TvFocusNode(shape, focusedScale, ring, spec, cursor)
+    override fun create() = TvFocusNode(focusedScale, spec, cursor)
 
-    override fun update(node: TvFocusNode) = node.update(shape, focusedScale, ring, spec, cursor)
+    override fun update(node: TvFocusNode) = node.update(focusedScale, spec, cursor)
 
     override fun InspectorInfo.inspectableProperties() {
         name = "tvFocus"
-        properties["shape"] = shape
         properties["focusedScale"] = focusedScale
     }
 }
 
 private class TvFocusNode(
-    shape: Shape,
     private var focusedScale: Float,
-    ring: Color,
     private var spec: FiniteAnimationSpec<Float>,
     /** Where a TV's cursor last moved; null off a TV, where hovering focuses nothing. */
     private var cursor: LastInput?,
@@ -100,20 +82,13 @@ private class TvFocusNode(
     FocusEventModifierNode,
     FocusRequesterModifierNode,
     PointerInputModifierNode,
-    LayoutModifierNode,
-    DrawModifierNode {
+    LayoutModifierNode {
     private val scale = Animatable(1f)
+    private var focused = false
 
-    // Snapshot state, so a change redraws the layer that records the ring.
-    private var focused by mutableStateOf(false)
-    private var shape by mutableStateOf(shape)
-    private var ring by mutableStateOf(ring)
-
-    fun update(shape: Shape, focusedScale: Float, ring: Color, spec: FiniteAnimationSpec<Float>, cursor: LastInput?) {
+    fun update(focusedScale: Float, spec: FiniteAnimationSpec<Float>, cursor: LastInput?) {
         val rescale = focusedScale != this.focusedScale
-        this.shape = shape
         this.focusedScale = focusedScale
-        this.ring = ring
         this.spec = spec
         this.cursor = cursor
         if (rescale) animate()
@@ -150,16 +125,6 @@ private class TvFocusNode(
             }
         }
     }
-
-    override fun ContentDrawScope.draw() {
-        drawContent()
-        if (!focused) return
-        // The layer placed in measure scales the ring with the content.
-        val stroke = 3.dp.toPx()
-        val inset = stroke / 2
-        val outline = shape.createOutline(Size(size.width - stroke, size.height - stroke), layoutDirection, this)
-        translate(inset, inset) { drawOutline(outline, ring, style = Stroke(stroke)) }
-    }
 }
 
 /** How recently the cursor must have moved for a hover to take focus. */
@@ -186,7 +151,7 @@ fun SofaButton(
     Button(
         onClick = { if (enabled) onClick() },
         modifier = modifier
-            .tvFocus(ButtonDefaults.shape)
+            .tvFocus()
             .semantics { if (!enabled) disabled() },
         enabled = enabled || focused,
         colors = ButtonDefaults.buttonColors(
@@ -219,6 +184,6 @@ internal fun SofaChip(selected: Boolean, onClick: () -> Unit, label: String, mod
         selected = selected,
         onClick = onClick,
         label = { Text(label, style = MaterialTheme.typography.labelLarge) },
-        modifier = modifier.tvFocus(FilterChipDefaults.shape),
+        modifier = modifier.tvFocus(),
     )
 }

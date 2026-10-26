@@ -251,9 +251,13 @@ private fun OnLaterRow(
     ListItem(
         modifier = modifier
             .fillMaxWidth()
-            .tvFocus(shape, focusedScale = 1f)
+            .tvFocus(focusedScale = 1f)
             .clip(shape)
-            .clickable(interactionSource = interactions, indication = ripple(), onClick = onClick),
+            .clickable(
+                interactionSource = interactions,
+                indication = ripple(focusRingShape = shape),
+                onClick = onClick,
+            ),
         supportingContent = { Text(whenText, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         trailingContent = {
             ProgramBadges(

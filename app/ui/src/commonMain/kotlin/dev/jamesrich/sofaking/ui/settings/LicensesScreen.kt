@@ -3,6 +3,8 @@ package dev.jamesrich.sofaking.ui.settings
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -150,7 +153,6 @@ private fun LibraryList(
     onOpen: (Library) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = MaterialTheme.shapes.medium
     LibrariesContainer(
         libraries = libs,
         modifier = modifier.focusRequester(focus.list).focusRestorer().focusGroup(),
@@ -169,7 +171,7 @@ private fun LibraryList(
                 style = style,
                 modifier = Modifier
                     .then(if (library.uniqueId == lastOpen) Modifier.focusRequester(focus.row) else Modifier)
-                    .tvFocus(shape, focusedScale = 1f)
+                    .tvFocus(focusedScale = 1f)
                     .onFocusChanged { if (it.hasFocus) onFocus(library) },
             )
         },
@@ -187,10 +189,11 @@ private fun LicenseText(library: Library, focusRequester: FocusRequester, modifi
     // A new library starts at the top of its license.
     LaunchedEffect(library.uniqueId) { scroll.scrollTo(0) }
     val shape = MaterialTheme.shapes.medium
+    val interactions = remember { MutableInteractionSource() }
     Column(
         modifier
             .focusRequester(focusRequester)
-            .tvFocus(shape, focusedScale = 1f)
+            .tvFocus(focusedScale = 1f)
             .onPreviewKeyEvent { event ->
                 val step = licenseScrollStep(event.key, scroll.value, scroll.maxValue, scroll.viewportSize)
                 if (step != null && event.type == KeyEventType.KeyDown) {
@@ -198,7 +201,9 @@ private fun LicenseText(library: Library, focusRequester: FocusRequester, modifi
                 }
                 step != null
             }
-            .focusable()
+            // Material's focus ring, as on every other control; the text itself has no ripple to draw it.
+            .indication(interactions, ripple(focusRingShape = shape))
+            .focusable(interactionSource = interactions)
             .verticalScroll(scroll)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),

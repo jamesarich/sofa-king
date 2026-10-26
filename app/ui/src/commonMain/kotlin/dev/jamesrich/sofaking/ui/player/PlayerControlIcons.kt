@@ -50,14 +50,14 @@ internal fun ControlIcon(
     if (primary) {
         FilledIconButton(
             onClick = onClick,
-            modifier = modifier.size(IconButtonDefaults.mediumContainerSize()).tvFocus(IconButtonDefaults.filledShape),
+            modifier = modifier.size(IconButtonDefaults.mediumContainerSize()).tvFocus(),
         ) {
             Icon(icon, contentDescription = label, modifier = Modifier.size(IconButtonDefaults.mediumIconSize))
         }
     } else {
         FilledTonalIconButton(
             onClick = onClick,
-            modifier = modifier.size(size).tvFocus(IconButtonDefaults.filledShape),
+            modifier = modifier.size(size).tvFocus(),
         ) {
             Icon(icon, contentDescription = label)
         }

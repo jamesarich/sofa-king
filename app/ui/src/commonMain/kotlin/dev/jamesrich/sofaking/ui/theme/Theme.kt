@@ -1,10 +1,13 @@
 package dev.jamesrich.sofaking.ui.theme
 
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.LocalRippleThemeConfiguration
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
+import androidx.compose.material3.RippleDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 
 /**
  * Surface and background share one color so a surface never differs from the window background.
@@ -43,13 +46,15 @@ private val SofaKingColors: ColorScheme = darkColorScheme(
 
 /**
  * Sofa King's dark Material 3 Expressive theme with expressive motion and Material's standard type scale; the same on
- * every platform.
+ * every platform. Focus shows as Material's inset focus ring rather than its faint focus state layer, so a D-pad's
+ * focus reads from across a room.
  */
 @Composable
 fun SofaKingTheme(content: @Composable () -> Unit) {
-    MaterialExpressiveTheme(
-        colorScheme = SofaKingColors,
-        motionScheme = MotionScheme.expressive(),
-        content = content,
-    )
+    MaterialExpressiveTheme(colorScheme = SofaKingColors, motionScheme = MotionScheme.expressive()) {
+        CompositionLocalProvider(
+            LocalRippleThemeConfiguration provides RippleDefaults.InsetFocusRingThemeConfiguration,
+            content = content,
+        )
+    }
 }

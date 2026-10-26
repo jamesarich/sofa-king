@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -334,7 +333,7 @@ internal fun LaterRow(item: GuideListItem.Later, env: GuideRowEnv, firstFocus: F
                     },
                     modifier = Modifier
                         .then(if (index == 0) Modifier.focusRequester(firstFocus) else Modifier)
-                        .tvFocus(AssistChipDefaults.shape),
+                        .tvFocus(),
                 )
             }
         }

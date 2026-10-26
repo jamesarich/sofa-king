@@ -220,10 +220,7 @@ private fun Overview(text: String) {
             },
             shape = OverviewShape,
             color = Color.Transparent,
-            modifier = Modifier.tvFocus(
-                OverviewShape,
-                focusedScale = 1f,
-            ),
+            modifier = Modifier.tvFocus(focusedScale = 1f),
         ) {
             body(Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
         }

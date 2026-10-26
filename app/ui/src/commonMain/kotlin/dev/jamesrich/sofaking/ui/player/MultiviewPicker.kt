@@ -77,7 +77,7 @@ internal fun MultiviewPicker(
                 Button(
                     onClick = onWatch,
                     enabled = picked.size in MULTIVIEW_MIN_TILES..Wire.MULTIVIEW_MAX_TILES,
-                    modifier = Modifier.tvFocus(MaterialTheme.shapes.extraLarge),
+                    modifier = Modifier.tvFocus(),
                 ) { Text(stringResource(Res.string.multiview_watch, picked.size)) }
             }
             LazyColumn(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -110,13 +110,13 @@ private fun PickRow(
     ListItem(
         modifier = modifier
             .fillMaxWidth()
-            .tvFocus(shape, focusedScale = 1f)
+            .tvFocus(focusedScale = 1f)
             .clip(shape)
             .toggleable(
                 value = checked,
                 enabled = enabled,
                 interactionSource = interactions,
-                indication = ripple(),
+                indication = ripple(focusRingShape = shape),
                 role = Role.Checkbox,
                 onValueChange = { onToggle() },
             ),

@@ -240,13 +240,13 @@ private fun MiniGuideRowItem(
     Row(
         modifier
             .fillMaxWidth()
-            .tvFocus(RowShape, focusedScale = 1f)
+            .tvFocus(focusedScale = 1f)
             .background(if (focused) colors.primary else Color.Transparent, RowShape)
             // The row playing now reads as selected; OK on any row tunes it.
             .selectable(
                 selected = current,
                 interactionSource = interactions,
-                indication = ripple(),
+                indication = ripple(focusRingShape = RowShape),
                 role = Role.Button,
                 onClick = onClick,
             )

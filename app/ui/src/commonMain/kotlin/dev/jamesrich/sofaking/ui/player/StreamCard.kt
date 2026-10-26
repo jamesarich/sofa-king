@@ -175,12 +175,12 @@ internal fun TrackRow(label: String, selected: Boolean, onClick: () -> Unit, mod
     Row(
         modifier
             .fillMaxWidth()
-            .tvFocus(OverlayShape, focusedScale = 1f)
+            .tvFocus(focusedScale = 1f)
             .background(if (focused) colors.primary else Color.Transparent, OverlayShape)
             .selectable(
                 selected = selected,
                 interactionSource = interactions,
-                indication = ripple(),
+                indication = ripple(focusRingShape = OverlayShape),
                 role = Role.RadioButton,
                 onClick = onClick,
             )

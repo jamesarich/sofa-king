@@ -15,6 +15,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -161,14 +163,14 @@ private fun ItemCard(
     picture: @Composable BoxScope.() -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
-    val focus = if (focusScale == null) Modifier.tvFocus(CardShape) else Modifier.tvFocus(CardShape, focusScale)
+    val focus = if (focusScale == null) Modifier.tvFocus() else Modifier.tvFocus(focusScale)
     Box {
         Card(
             shape = CardShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatio).playKey(onPlay)
                 .then(focus).clip(CardShape)
-                .clickOrHoldForMenu(onClick, menu?.let { { open = true } })
+                .clickOrHoldForMenu(CardShape, onClick, menu?.let { { open = true } })
                 .semantics { contentDescription = label },
         ) {
             Box(Modifier.fillMaxSize()) {
@@ -183,10 +185,10 @@ private fun ItemCard(
 /**
  * OK or a tap runs [onClick]; holding OK, a long touch or a right click runs [onMenu]. The menu is a window of its own,
  * so a held OK runs it once the key comes up: the whole press ends here, whose click would otherwise wait for a key-up
- * that went to the menu and ignore the next OK. A long touch or a right click runs it at once.
+ * that went to the menu and ignore the next OK. A long touch or a right click runs it at once. Focus rings [shape].
  */
 @Composable
-internal fun Modifier.clickOrHoldForMenu(onClick: () -> Unit, onMenu: (() -> Unit)?): Modifier {
+internal fun Modifier.clickOrHoldForMenu(shape: Shape, onClick: () -> Unit, onMenu: (() -> Unit)?): Modifier {
     var okDown by remember { mutableStateOf(false) }
     var openOnRelease by remember { mutableStateOf(false) }
     return onPreviewKeyEvent { event ->
@@ -200,6 +202,8 @@ internal fun Modifier.clickOrHoldForMenu(onClick: () -> Unit, onMenu: (() -> Uni
         }
         false
     }.combinedClickable(
+        interactionSource = null,
+        indication = ripple(focusRingShape = shape),
         onClick = onClick,
         onLongClickLabel = if (onMenu != null) stringResource(Res.string.library_card_menu) else null,
         onLongClick = onMenu?.let { { if (okDown) openOnRelease = true else it() } },

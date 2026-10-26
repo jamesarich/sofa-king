@@ -106,7 +106,7 @@ internal fun ToggleRow(
     ListItem(
         checked = checked,
         onCheckedChange = onCheckedChange,
-        modifier = modifier.width(FIELD_WIDTH).tvFocus(shapes.shape, focusedScale = 1f),
+        modifier = modifier.width(FIELD_WIDTH).tvFocus(focusedScale = 1f),
         trailingContent = { Switch(checked = checked, onCheckedChange = null) },
         supportingContent = help?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
         shapes = shapes,
@@ -180,7 +180,7 @@ internal fun <T> ChoiceRow(
                     modifier = Modifier
                         .fillMaxHeight()
                         .then(if (choice == selected) Modifier.focusRequester(selectedFocus) else Modifier)
-                        .tvFocus(shape, focusedScale = 1f),
+                        .tvFocus(focusedScale = 1f),
                 ) {
                     Text(choiceLabel(choice), textAlign = TextAlign.Center)
                 }

@@ -365,7 +365,7 @@ private fun ChannelRow(channel: Channel, selected: Boolean, onClick: () -> Unit,
     ListItem(
         selected = selected,
         onClick = onClick,
-        modifier = modifier.width(FIELD_WIDTH).tvFocus(shapes.shape, focusedScale = 1f),
+        modifier = modifier.width(FIELD_WIDTH).tvFocus(focusedScale = 1f),
         leadingContent = { ChannelLogo(channel, 64.dp, 40.dp) },
         shapes = shapes,
         colors = settingRowColors(interactions),

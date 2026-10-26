@@ -285,7 +285,7 @@ private fun HeaderTab(label: String, selected: Boolean, tabFocus: FocusRequester
         },
         modifier = Modifier.semantics {
             this.selected = selected
-        }.then(if (selected) Modifier.focusRequester(tabFocus) else Modifier).tvFocus(CircleShape),
+        }.then(if (selected) Modifier.focusRequester(tabFocus) else Modifier).tvFocus(),
     ) {
         Text(
             label,

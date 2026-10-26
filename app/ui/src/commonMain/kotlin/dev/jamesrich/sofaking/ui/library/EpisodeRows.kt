@@ -55,8 +55,8 @@ internal fun EpisodeRow(
         Card(
             shape = RowShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-            modifier = Modifier.fillMaxWidth().playKey(onClick).tvFocus(RowShape, focusedScale = 1f).clip(RowShape)
-                .clickOrHoldForMenu(onClick, menu?.let { { open = true } }),
+            modifier = Modifier.fillMaxWidth().playKey(onClick).tvFocus(focusedScale = 1f).clip(RowShape)
+                .clickOrHoldForMenu(RowShape, onClick, menu?.let { { open = true } }),
         ) {
             Row(
                 Modifier.padding(12.dp),

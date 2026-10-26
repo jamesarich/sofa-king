@@ -169,7 +169,7 @@ internal fun LinkRow(
     val interactions = remember { MutableInteractionSource() }
     ListItem(
         onClick = onClick,
-        modifier = modifier.width(FIELD_WIDTH).tvFocus(shapes.shape, focusedScale = 1f),
+        modifier = modifier.width(FIELD_WIDTH).tvFocus(focusedScale = 1f),
         leadingContent = { Icon(icon, contentDescription = null) },
         trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
         supportingContent = { Text(summary, style = MaterialTheme.typography.bodySmall) },

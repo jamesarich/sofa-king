@@ -165,6 +165,8 @@ internal fun openExoSession(
     forwarding.onZapStep = onZapStep
     val session = MediaSession.Builder(context, forwarding).setId("player-${sessionIds.incrementAndGet()}").build()
     return object : MediaSessionHandle {
+        override val platformSession: Any get() = session
+
         override fun publish(nowPlaying: NowPlaying) = forwarding.publishNowPlaying(nowPlaying.toMetadata())
 
         override fun close() {

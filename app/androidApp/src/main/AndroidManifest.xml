@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Android 17 asks for it before the app reaches the server, or finds it, on the local network. -->
@@ -12,6 +13,10 @@
     <uses-permission android:name="com.android.providers.tv.permission.WRITE_EPG_DATA" />
     <!-- A restart drops the home screen's grant to read the row's artwork; the app grants it again. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Music plays on behind the app through a media playback service (MusicService) and its notification. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -90,5 +95,18 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <!-- Holds the music's media session while a song plays, so it plays on behind the app. Exported, as Media3
+             asks, so the system's media controls (the notification, Assistant, a Bluetooth headset) can bind to it;
+             the session itself decides which controllers it accepts. -->
+        <service
+            android:name="dev.jamesrich.sofaking.ui.player.MusicService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback"
+            tools:ignore="ExportedService">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

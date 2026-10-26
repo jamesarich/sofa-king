@@ -93,6 +93,9 @@ data class StreamInfo(
 /** The system media session the full screen holds; [publish] swaps its metadata without touching the stream. */
 interface MediaSessionHandle : AutoCloseable {
     fun publish(nowPlaying: NowPlaying)
+
+    /** The platform's own session object behind the handle, where one exists (Media3's `MediaSession` on Android). */
+    val platformSession: Any? get() = null
 }
 
 /**
@@ -107,6 +110,8 @@ internal class NewestMediaSession(private val openSession: (onZapStep: (Int) -> 
         newest?.close()
         val session = openSession(onZapStep)
         return object : MediaSessionHandle {
+            override val platformSession: Any? get() = session.platformSession
+
             override fun publish(nowPlaying: NowPlaying) {
                 if (newest === this) session.publish(nowPlaying)
             }

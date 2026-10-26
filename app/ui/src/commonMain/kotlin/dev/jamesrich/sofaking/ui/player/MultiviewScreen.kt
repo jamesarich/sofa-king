@@ -241,7 +241,9 @@ private fun produceLabels(touched: Int): androidx.compose.runtime.State<Boolean>
 @Composable
 private fun TileLabel(channel: Channel, sound: Boolean, full: Boolean) {
     Row(
-        Modifier.padding(12.dp).background(SofaOverlayScrim, OverlayShape).padding(horizontal = 8.dp, vertical = 4.dp),
+        Modifier.padding(
+            12.dp,
+        ).background(SofaOverlayScrim, MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -276,7 +278,7 @@ private fun MultiviewStatus(play: MultiviewPlay, hint: Boolean, modifier: Modifi
         else -> return
     }
     Column(
-        modifier.padding(24.dp).background(SofaOverlayScrim, OverlayShape).padding(16.dp),
+        modifier.padding(24.dp).background(SofaOverlayScrim, MaterialTheme.shapes.small).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         lines.forEachIndexed { index, line ->

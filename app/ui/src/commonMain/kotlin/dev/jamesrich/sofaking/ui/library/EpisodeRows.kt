@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -53,9 +52,10 @@ internal fun EpisodeRow(
     var open by remember { mutableStateOf(false) }
     Box(modifier.fillMaxWidth()) {
         Card(
-            shape = RowShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-            modifier = Modifier.fillMaxWidth().playKey(onClick).tvFocus(RowShape, focusedScale = 1f).clip(RowShape)
+            modifier = Modifier.fillMaxWidth().playKey(
+                onClick,
+            ).tvFocus(CardDefaults.shape, focusedScale = 1f).clip(CardDefaults.shape)
                 .clickOrHoldForMenu(onClick, menu?.let { { open = true } }),
         ) {
             Row(
@@ -76,7 +76,7 @@ internal fun EpisodeRow(
 private fun EpisodeThumb(episode: MediaItem, spoilersHidden: Boolean) {
     Box(
         Modifier.width(EPISODE_THUMB_WIDTH).aspectRatio(WIDESCREEN)
-            .background(MaterialTheme.colorScheme.surfaceVariant, CardShape),
+            .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium),
     ) {
         Artwork(
             episode.stillOrBackdrop(),
@@ -148,4 +148,3 @@ internal fun MediaItem.stillOrBackdrop(): String? = if (kind == ItemKind.EPISODE
 }
 
 private val EPISODE_THUMB_WIDTH = 176.dp
-private val RowShape = RoundedCornerShape(12.dp)

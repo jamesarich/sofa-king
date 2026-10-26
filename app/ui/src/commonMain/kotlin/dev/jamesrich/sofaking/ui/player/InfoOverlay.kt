@@ -72,7 +72,7 @@ internal fun InfoOverlay(
         modifier
             .widthIn(max = 720.dp)
             .fillMaxWidth()
-            .background(SofaOverlayScrim, OverlayShape)
+            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
             .padding(24.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
     ) {
@@ -158,7 +158,7 @@ private fun CaptionTimingBadge(captionAdvanceMs: Int) {
         color = MaterialTheme.colorScheme.onPrimary,
         maxLines = 1,
         modifier = Modifier
-            .background(MaterialTheme.colorScheme.primary, OverlayShape)
+            .background(MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small)
             .padding(horizontal = 8.dp, vertical = 2.dp)
             .semantics { contentDescription = advanceDescription },
     )
@@ -216,7 +216,7 @@ private fun NowPlaying(current: Program, now: Instant) {
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.padding(
                         start = 16.dp,
-                    ).size(width = 160.dp, height = 90.dp).clip(OverlayShape),
+                    ).size(width = 160.dp, height = 90.dp).clip(MaterialTheme.shapes.small),
                 )
             }
         }

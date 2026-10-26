@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
@@ -60,8 +59,6 @@ import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
 
-internal val OverlayShape = RoundedCornerShape(8.dp)
-
 /**
  * A short status over the video, announced to screen readers; stack several in a Column. [busy] leads with the loader.
  */
@@ -69,7 +66,7 @@ internal val OverlayShape = RoundedCornerShape(8.dp)
 internal fun StatusPill(text: String, style: TextStyle = MaterialTheme.typography.titleMedium, busy: Boolean = false) {
     Row(
         Modifier
-            .background(SofaOverlayScrim, OverlayShape)
+            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
@@ -109,7 +106,7 @@ internal fun DigitsBadge(text: String) {
         color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier
             .screenPadding()
-            .background(SofaOverlayScrim, OverlayShape)
+            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
             .padding(horizontal = 16.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
     )

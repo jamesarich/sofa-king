@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -145,7 +144,7 @@ internal fun PreviewDetails(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.padding(
                     start = 16.dp,
-                ).size(width = DETAIL_IMAGE_WIDTH, height = DETAIL_IMAGE_HEIGHT).clip(RoundedCornerShape(8.dp)),
+                ).size(width = DETAIL_IMAGE_WIDTH, height = DETAIL_IMAGE_HEIGHT).clip(MaterialTheme.shapes.small),
             )
         }
     }
@@ -320,7 +319,7 @@ private fun BoxScope.TuningBadge(visible: Boolean) {
     ) {
         Row(
             Modifier
-                .background(SofaOverlayScrim, RoundedCornerShape(8.dp))
+                .background(SofaOverlayScrim, MaterialTheme.shapes.small)
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),

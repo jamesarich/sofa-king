@@ -25,7 +25,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -218,8 +217,6 @@ private val FocusedRowOnTop = object : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = offset
 }
 
-private val RowShape = RoundedCornerShape(8.dp)
-
 @Composable
 private fun MiniGuideRowItem(
     row: MiniGuideRow,
@@ -240,8 +237,8 @@ private fun MiniGuideRowItem(
     Row(
         modifier
             .fillMaxWidth()
-            .tvFocus(RowShape, focusedScale = 1f)
-            .background(if (focused) colors.primary else Color.Transparent, RowShape)
+            .tvFocus(MaterialTheme.shapes.small, focusedScale = 1f)
+            .background(if (focused) colors.primary else Color.Transparent, MaterialTheme.shapes.small)
             // The row playing now reads as selected; OK on any row tunes it.
             .selectable(
                 selected = current,

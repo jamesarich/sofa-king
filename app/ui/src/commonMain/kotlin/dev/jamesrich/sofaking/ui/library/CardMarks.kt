@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
@@ -43,7 +42,10 @@ internal fun BoxScope.ItemMarks(item: MediaItem) {
                 Alignment.TopEnd,
             ).padding(
                 8.dp,
-            ).background(MaterialTheme.colorScheme.primary, BadgeShape).padding(horizontal = 8.dp, vertical = 2.dp),
+            ).background(
+                MaterialTheme.colorScheme.primary,
+                MaterialTheme.shapes.small,
+            ).padding(horizontal = 8.dp, vertical = 2.dp),
         )
     }
     if (progress != null && progress.inProgress) {
@@ -75,5 +77,3 @@ internal fun WatchedTick(modifier: Modifier = Modifier) {
         )
     }
 }
-
-private val BadgeShape = RoundedCornerShape(8.dp)

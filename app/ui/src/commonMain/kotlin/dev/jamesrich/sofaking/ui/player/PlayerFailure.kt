@@ -72,7 +72,7 @@ internal fun BoxScope.FailureCard(code: String, live: Boolean = true, retryInSec
     Column(
         Modifier
             .align(Alignment.Center)
-            .background(SofaOverlayScrim, OverlayShape)
+            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
             .padding(24.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(4.dp),

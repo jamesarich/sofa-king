@@ -16,7 +16,7 @@ The server also issues tokens of its own, each starting `sk_`, stored only as a 
 
 `SOFA_API_TOKEN` stays valid beside them, for scripts and devices set up by hand, and opens the hooks too.
 
-These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id}/{role}`, `/artwork/{id}/scrub/{sheet}`, `POST /api/v1/pair` (a [pairing code](#pair-a-client) stands in for the token) and the session media URLs under `/media/sessions/` and `/media/vod/`, which work until the session ends or its epoch changes. The HDHomeRun routes take none either and admit clients by address. `/output/*` takes the output token, and the admin portal its own session after the sign-in page. A browser page on another origin can call the API when `SOFA_CORS_ORIGINS` lists its origin. The whole model is in [security](security.md#credentials-and-the-routes-they-open).
+These routes take no token: `/healthz`, `/readyz`, the [web app](deploy.md#serve-the-web-app) under `/app/` (and `/`, which redirects there), `/logos/{key}`, `/artwork/{id}/{role}`, `/artwork/{id}/scrub/{sheet}`, `POST /api/v1/pair` (a [pairing code](#pair-a-client) stands in for the token) and the session media URLs under `/media/sessions/` and `/media/vod/`, which work until the session ends or its epoch changes. The HDHomeRun routes take none either and admit clients by address. `/output/*` takes the output token, and the admin portal its own session after the sign-in page. A browser page on another origin can call the API when `SOFA_CORS_ORIGINS` lists its origin. The whole model is in [security](security.md#credentials-and-the-routes-they-open).
 
 ## Endpoints
 

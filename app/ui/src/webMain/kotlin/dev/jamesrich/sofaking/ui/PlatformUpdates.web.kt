@@ -12,3 +12,6 @@ internal actual fun rememberUpdateInstaller(): UpdateInstaller? = null
 
 internal actual val pageServerUrl: String? =
     window.location.takeIf { it.protocol == "http:" || it.protocol == "https:" }?.origin
+
+internal actual val updatesWithServer: Boolean =
+    pageServerUrl != null && window.location.pathname.startsWith("/app/")

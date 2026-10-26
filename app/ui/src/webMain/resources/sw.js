@@ -1,7 +1,8 @@
-// The web app's service worker: it keeps a copy of the app's own files (never the server's API, video or logos),
-// read from the network first so an update shows on the next load, and served from the copy when the network fails.
+// The web app's service worker: it keeps a copy of the app's own files, never the server's API, video, logos or admin
+// portal, which are in its scope when a proxy serves the app at its root. It reads from the network first so an update
+// shows on the next load, and serves the copy when the network fails.
 const CACHE = 'sofaking-app';
-const SERVER_PATHS = ['/api/', '/media/', '/logos/'];
+const SERVER_PATHS = ['/api/', '/media/', '/logos/', '/admin'];
 
 self.addEventListener('install', () => self.skipWaiting());
 

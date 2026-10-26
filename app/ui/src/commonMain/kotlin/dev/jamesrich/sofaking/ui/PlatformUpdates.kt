@@ -22,3 +22,9 @@ internal expect fun rememberUpdateInstaller(): UpdateInstaller?
  * API beside it; null elsewhere.
  */
 internal expect val pageServerUrl: String?
+
+/**
+ * Whether this app came with the server and updates with it, so Settings checks GitHub for no newer build: the web app
+ * the server serves at `/app/`; false elsewhere.
+ */
+internal expect val updatesWithServer: Boolean

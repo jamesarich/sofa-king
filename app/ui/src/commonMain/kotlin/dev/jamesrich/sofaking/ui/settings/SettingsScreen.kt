@@ -81,6 +81,7 @@ import dev.jamesrich.sofaking.resources.settings_update_more
 import dev.jamesrich.sofaking.resources.settings_update_no_package
 import dev.jamesrich.sofaking.resources.settings_update_unknown
 import dev.jamesrich.sofaking.resources.settings_update_whats_new
+import dev.jamesrich.sofaking.resources.settings_update_with_server
 import dev.jamesrich.sofaking.resources.settings_version
 import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.ui.BackHandler
@@ -92,6 +93,7 @@ import dev.jamesrich.sofaking.ui.supportsNightListening
 import dev.jamesrich.sofaking.ui.supportsPlaybackPreferences
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.updateDownloadUrl
+import dev.jamesrich.sofaking.ui.updatesWithServer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -330,7 +332,7 @@ private fun AboutBlock(
     val version = BuildInfo.VERSION + suffix.orEmpty()
     val currentOnCheckForUpdate by rememberUpdatedState(onCheckForUpdate)
     // The suffix file is read before the check, so a snapshot compares as one.
-    LaunchedEffect(suffix) { if (suffix != null) currentOnCheckForUpdate(version, false) }
+    LaunchedEffect(suffix) { if (suffix != null && !updatesWithServer) currentOnCheckForUpdate(version, false) }
     // A TV scrolls only as far as the focused button, so the TMDB notice sits above the update check's
     // buttons, which end the page, and focus anywhere in About brings the whole block into view.
     val about = remember { BringIntoViewRequester() }
@@ -360,7 +362,11 @@ private fun AboutBlock(
         SofaButton(onClick = actions.onOpenLicenses, modifier = Modifier.focusRequester(licensesFocus)) {
             Text(stringResource(Res.string.licenses_title))
         }
-        UpdateRow(update = update, onCheckAgain = { onCheckForUpdate(version, true) }, keepInView = about)
+        if (updatesWithServer) {
+            Text(stringResource(Res.string.settings_update_with_server), style = MaterialTheme.typography.bodyMedium)
+        } else {
+            UpdateRow(update = update, onCheckAgain = { onCheckForUpdate(version, true) }, keepInView = about)
+        }
     }
 }
 

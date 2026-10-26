@@ -5,7 +5,8 @@ console logged, a failed request, a crashed page or a blank screen.
 
 Needs Playwright for Python, FFmpeg and the server's distribution (`./gradlew :server:installDist` in backend/), and
 the web build: `./gradlew :ui:wasmJsBrowserDistribution` or `:ui:jsBrowserDistribution`. Writes the console, the server
-log, the keys and the last screen to --out.
+log, the keys and the last screen to --out. With --served the server serves the build at /app/, as the image does;
+otherwise a static server on another origin does, through SOFA_CORS_ORIGINS.
 """
 import argparse
 import functools
@@ -62,18 +63,24 @@ def main():
     parser.add_argument('--keys', type=int, default=int(os.environ.get('SOFAKING_WEB_FUZZ_KEYS') or 400))
     parser.add_argument('--seed', type=int, default=int(os.environ.get('SOFAKING_WEB_FUZZ_SEED') or time.time()))
     parser.add_argument('--channel', help="a browser Playwright runs by channel, such as chrome, which plays H.264")
+    parser.add_argument('--served', action='store_true', help='have the server serve the build at /app/ (SOFA_WEB_DIR)')
     args = parser.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     print(f'Seed {args.seed}, {args.keys} keys, {args.dist}', flush=True)
 
-    static = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Static, directory=args.dist))
-    threading.Thread(target=static.serve_forever, daemon=True).start()
-    page_url = f'http://127.0.0.1:{static.server_port}/'
+    if args.served:
+        page_url, env = None, {'SOFA_WEB_DIR': str(Path(args.dist).resolve())}
+    else:
+        static = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Static, directory=args.dist))
+        threading.Thread(target=static.serve_forever, daemon=True).start()
+        page_url = f'http://127.0.0.1:{static.server_port}/'
+        env = {'SOFA_CORS_ORIGINS': page_url.rstrip('/')}
 
     errors, console = [], []
     pressed = []
-    with serve(out, SOFA_CORS_ORIGINS=page_url.rstrip('/')) as base, sync_playwright() as playwright:
+    with serve(out, **env) as base, sync_playwright() as playwright:
+        page_url = page_url or f'{base}/app/'
         browser = playwright.chromium.launch(channel=args.channel)
         page = browser.new_page(viewport={'width': 1280, 'height': 720})
         page.on('pageerror', lambda error: errors.append(f'page error: {error}'))

@@ -16,3 +16,5 @@ internal actual fun rememberUpdateInstaller(): UpdateInstaller? {
 }
 
 internal actual val pageServerUrl: String? = null
+
+internal actual val updatesWithServer: Boolean = false

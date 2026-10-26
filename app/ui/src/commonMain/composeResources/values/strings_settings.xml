@@ -170,6 +170,7 @@
     <string name="settings_update_failed_installer">Android didn't install the update: %1$s</string>
     <string name="settings_update_failed_installer_silent">Android didn't install the update.</string>
     <string name="settings_update_address">Nothing on this device opens the address, so download it elsewhere: %1$s. On a TV, install the package with adb.</string>
+    <string name="settings_update_with_server">This web app comes with the server and updates when the server does.</string>
     <string name="settings_update_no_package">No package is published for this platform; build it from the source at that snapshot.</string>
     <plurals name="settings_channels_loaded">
         <item quantity="one">%1$d channel loaded</item>

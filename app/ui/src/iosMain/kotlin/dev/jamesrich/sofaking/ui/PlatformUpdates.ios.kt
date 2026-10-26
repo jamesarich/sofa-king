@@ -10,3 +10,5 @@ internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = null
 internal actual fun rememberUpdateInstaller(): UpdateInstaller? = null
 
 internal actual val pageServerUrl: String? = null
+
+internal actual val updatesWithServer: Boolean = false

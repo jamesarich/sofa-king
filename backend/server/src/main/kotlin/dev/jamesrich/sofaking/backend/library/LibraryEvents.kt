@@ -37,8 +37,15 @@ internal fun ServerEvents?.libraryAdded(
     )
 }
 
-/** An episode as its show and number, `Show S01E02`; anything else by its own title and year. */
+/**
+ * An episode as its show and number, `Show S01E02`; a track as its album and artist, `Album – Artist`; anything else
+ * by its own title and year.
+ */
 private fun name(item: LibraryItemRecord, byId: Map<String, LibraryItemRecord>): String {
+    if (item.kind == ItemKind.TRACK) {
+        val album = item.parentId?.let(byId::get) ?: return item.title
+        return listOfNotNull(album.title, album.parentId?.let(byId::get)?.title).joinToString(" – ")
+    }
     if (item.kind != ItemKind.EPISODE) return item.year?.let { "${item.title} ($it)" } ?: item.title
     val season = item.parentId?.let(byId::get)
     val show = (season?.parentId?.let(byId::get) ?: season)?.takeIf { it.kind == ItemKind.SHOW }

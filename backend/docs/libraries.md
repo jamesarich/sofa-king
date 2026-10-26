@@ -27,10 +27,15 @@ The scan reads the same names Plex, Jellyfin and Kodi read, so a collection alre
 | Movies | `Title (Year)/Title (Year).mkv`, or a loose `Title (Year).mkv`. Tags after the year are ignored: `Alien (1979) [1080p]`, `Alien (1979) {tmdb-348}`, `Alien (1979) {imdb-tt0078748}`, and dotted release names such as `Alien.1979.1080p.BluRay.mkv`. A collection's order number before the title, `01 - Alien (1979)` or `3 - Alien (1979)`, is dropped too |
 | TV shows | `Show (Year)/Season 01/Show - S01E02 - Title.mkv`. `S01E02E03` and `1x02` work too, `Specials` (or `Season 00`) is season 0, and a date-based show reads `Show/Season 2026/Show - 2026-10-17 - Title.ts`. The quality and release group Sonarr appends are dropped from the title: `Title [WEBDL-1080p][x264]-GROUP` and `Title WEBDL-1080p` read as Title |
 | Other videos | Any layout; each file is one video titled by its name |
+| Music | Any layout of tagged files; untagged ones as `Artist/Album/01 - Title.flac`, with a disc's tracks in a `CD1` or `Disc 2` folder of the album's |
 
 Each show is one top folder of a TV library. An episode's season comes from its `.nfo`, then its season folder, then its file name, then its air date's year.
 
 The scan skips hidden files and folders (a name starting with `.`), samples (a `Sample` or `Samples` folder, or a name ending in `-sample`), and NAS folders such as `@eaDir` and `#recycle`. Extras are listed on the page of the movie or show they belong to, not in its library's grid, search or home rows: the files in a movie's folder or a show's folder (a season's included) under `Trailers`, `Featurettes`, `Behind The Scenes`, `Deleted Scenes`, `Interviews`, `Scenes`, `Shorts`, `Extras` or `Other`, and a movie's files named for it with `-trailer`, `-featurette`, `-behindthescenes`, `-deleted`, `-interview`, `-scene`, `-short` or `-other`, such as `Alien (1979)-trailer.mkv`. An extra in a folder of loose movies, or anywhere in an Other videos library, is left out. It reads these containers: `mkv`, `mp4`, `m4v`, `mov`, `avi`, `ts`, `m2ts`, `mts`, `webm`, `wmv`, `mpg`, `mpeg`, `flv`, `ogv` and `3gp`.
+
+## Music
+
+A Music library groups its tracks by their tags, as Plex, Jellyfin and Navidrome do: the album artist (else `Various Artists` for a file tagged as part of a compilation, else the artist) makes the artist, and the album artist with the album makes the album, so a compilation's tracks or an album split across folders still make one album. Names group without regard to case, spacing or a leading "The", "A" or "An". A track's title, track and disc numbers, date and genres come from its tags; a file without tags takes its artist and album from its folders and its number and title from its name, `03 - Title.mp3`. The scan reads `flac`, `mp3`, `m4a`, `aac`, `alac`, `opus`, `ogg`, `oga`, `wav`, `aiff`, `aif`, `wma`, `ape` and `wv` files, and no `.nfo`, extras or TMDB lookups. An album's cover is `cover`, `folder`, `front` or `album` in a folder of its tracks, and an artist's picture `artist` or `folder` in the folder above an album's. The apps do not show Music libraries yet.
 
 ## Details and artwork
 

@@ -6,6 +6,10 @@ import dev.jamesrich.sofaking.contract.LetterCount
 internal val VIDEO_EXTENSIONS =
     setOf("mkv", "mp4", "m4v", "mov", "avi", "ts", "m2ts", "mts", "webm", "wmv", "mpg", "mpeg", "flv", "ogv", "3gp")
 
+/** The audio files a music library scan picks up, by lower-case extension. */
+internal val AUDIO_EXTENSIONS =
+    setOf("flac", "mp3", "m4a", "aac", "alac", "opus", "ogg", "oga", "wav", "aiff", "aif", "wma", "ape", "wv")
+
 /** Folders Plex and Jellyfin treat as extras, by the [ExtraKind] of what they hold. */
 private val EXTRA_FOLDERS = mapOf(
     "trailers" to ExtraKind.TRAILER, "featurettes" to ExtraKind.FEATURETTE,
@@ -60,6 +64,10 @@ internal fun isVideoFile(fileName: String): Boolean {
     if (extension !in VIDEO_EXTENSIONS) return false
     return !fileName.substringBeforeLast('.').lowercase().endsWith("-sample")
 }
+
+/** Whether [fileName] is audio a music library scan lists: a known extension, not hidden. */
+internal fun isAudioFile(fileName: String): Boolean =
+    !fileName.startsWith('.') && fileName.substringAfterLast('.', "").lowercase() in AUDIO_EXTENSIONS
 
 /** A title and the year in its trailing `(1999)`, as Plex and Jellyfin name movie and show folders. */
 internal data class TitleYear(val title: String, val year: Int?)

@@ -107,6 +107,69 @@ class LibraryServiceTest {
         assertEquals(items.values.map { it.id }.toSet(), s.store.libraryItems(library.id).map { it.id }.toSet())
     }
 
+    @Test fun `a music library groups tracks by their tags, and untagged files by their folders`() = runBlocking {
+        val dir = Files.createTempDirectory("sofa-music-")
+        val root = Files.createDirectories(dir.resolve("media"))
+        val clock = MutableClock()
+        val store = openStore(dir.resolve("data"), clock)
+        fun audio(tags: AudioTags?) =
+            MediaInfo("flac", durationMs = 200_000, audio = listOf(AudioStream(0, "flac")), tags = tags)
+        val tags = mapOf(
+            "Band/Record/01 Opening.flac" to AudioTags("Opening", "Band", album = "Record", track = 1, date = "1999"),
+            // Tagged under another folder, and spelled without its article: still the same album.
+            "Misc/02.flac" to AudioTags("Second", "The Band", album = "record", track = 2, genres = listOf("Rock")),
+            "Mix/CD2/01 - Duet.flac" to AudioTags("Duet", "Guest", "Various Artists", "Mix", 1, 2),
+            "Loner/Demos/CD1/03 - Untagged Song.mp3" to null,
+        )
+        val music = Files.createDirectories(root.resolve("Music"))
+        for (path in tags.keys) music.file(path)
+        music.file("Band/Record/cover.jpg")
+        music.file("Band/artist.jpg")
+        music.file("Band/Record/notes.txt")
+        val scanner = LibraryScanner({ file -> audio(tags[music.relativize(file).joinToString("/")]) })
+        val service = LibraryService(store, clock, listOf(MediaRoot("Media", root)), scanner, Jobs(clock))
+        val library = service.create("Music", LibraryKind.MUSIC, music.toString())
+
+        val result = service.scan(library.id)
+        assertEquals(4, result.files)
+        val items = store.libraryItems(library.id)
+        val byTitle = items.associateBy { it.title }
+        assertEquals(
+            setOf("Band", "Various Artists", "Loner"),
+            items.filter {
+                it.kind == ItemKind.ARTIST
+            }.map { it.title }.toSet(),
+        )
+        assertEquals("Band/artist.jpg", byTitle.getValue("Band").poster)
+        val record = byTitle.getValue("Record")
+        assertEquals(ItemKind.ALBUM, record.kind)
+        assertEquals(byTitle.getValue("Band").id, record.parentId)
+        assertEquals("Band/Record/cover.jpg", record.poster)
+        assertEquals(1999, record.year)
+        assertEquals(400_000, record.durationMs)
+        assertEquals(listOf("Rock"), record.details?.genres)
+        assertEquals(
+            listOf("Opening", "Second"),
+            items.filter { it.parentId == record.id }.sortedBy { it.sortTitle }.map { it.title },
+        )
+        val duet = byTitle.getValue("Duet")
+        assertEquals("Guest", duet.details?.artist)
+        assertEquals(2, duet.details?.disc)
+        // No tags: the artist and album from the folders above its disc folder, the number and title from its name.
+        val untagged = byTitle.getValue("Untagged Song")
+        assertEquals(3, untagged.details?.track)
+        assertEquals(1, untagged.details?.disc)
+        val demos = byTitle.getValue("Demos")
+        assertEquals(demos.id, untagged.parentId)
+        assertEquals(byTitle.getValue("Loner").id, demos.parentId)
+
+        // A rescan keeps every id.
+        service.scan(library.id)
+        assertEquals(items.map { it.id }.toSet(), store.libraryItems(library.id).map { it.id }.toSet())
+        // The apps do not list music yet.
+        assertTrue(service.catalog.libraries().none { it.id == library.id })
+    }
+
     @Test fun `a show library builds shows, seasons and episodes, including date-based recordings`() = runBlocking {
         val s = setup()
         val tv = Files.createDirectories(s.root.resolve("tv"))
@@ -178,7 +241,7 @@ class LibraryServiceTest {
             val movies = Files.createDirectories(s.root.resolve("Movies"))
             val shows = Files.createDirectories(s.root.resolve("TV_Shows"))
             Files.createDirectories(s.root.resolve("Films/Movies"))
-            Files.createDirectories(s.root.resolve("Music"))
+            Files.createDirectories(s.root.resolve("Downloads"))
             val suggested = s.service.folders.suggestions()
             assertEquals(
                 listOf(

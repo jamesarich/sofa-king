@@ -27,6 +27,10 @@ data class MediaInfo(
     val video: VideoStream? = null,
     val audio: List<AudioStream> = emptyList(),
     val subtitles: List<SubtitleStream> = emptyList(),
+    /** An audio file's tags; null for a file with video. */
+    val tags: AudioTags? = null,
+    /** Whether the file holds a picture, such as an album's cover, as an attached picture stream. */
+    val picture: Boolean = false,
 )
 
 @Serializable
@@ -118,6 +122,8 @@ internal fun parseProbe(text: String): MediaInfo? {
         video = video,
         audio = audio,
         subtitles = streams.filter { it.str("codec_type") == "subtitle" }.map(::subtitleOf),
+        tags = if (video == null) audioTags(format, streams.firstOrNull { it.str("codec_type") == "audio" }) else null,
+        picture = streams.any { it.disposition("attached_pic") },
     )
 }
 

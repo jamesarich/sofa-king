@@ -199,7 +199,7 @@
       },
       "LibraryPage": {
         "type": "object", "required": ["items"],
-        "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" } }, "total": { "type": "integer" }, "next": { "type": ["string", "null"], "description": "The cursor for the next page; null on the last." }, "genres": { "type": "array", "items": { "type": "string" }, "description": "Every genre in the library; empty on search results." } }
+        "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" } }, "total": { "type": "integer" }, "next": { "type": ["string", "null"], "description": "The cursor for the next page; null on the last." }, "genres": { "type": "array", "items": { "type": "string" }, "description": "Every genre in the library; empty on search results." }, "people": { "type": "array", "items": { "type": "string" }, "description": "On search results, the cast and directors whose names hold the query, the most credited first; at most 10." } }
       },
       "LibraryHome": {
         "type": "object", "required": ["shelves"],

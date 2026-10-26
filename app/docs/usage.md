@@ -42,7 +42,7 @@ When the server keeps media libraries, the app shows a Library tab beside Live. 
 
 The Library tab opens with a Search chip and a chip for each library at the top, then Continue watching (what you stopped partway through and the next episode of a show you are watching), the household's Watchlist, newest first, and each library's recent additions. Holding OK on a Continue watching card (a long touch or a right click elsewhere) offers Remove from Continue watching, which takes it off the shelf for the whole household until someone plays it again.
 
-Search finds movies, shows, episodes and videos by title, show or cast across every library as you type, in rows of Movies, Shows, With and the name searched (what that actor or director is in), Episodes and Videos; the remote's Search key on the Library tab starts it by voice, and Back returns to the Library tab. A card without a poster shows a frame from the video, or the library mark when there is none.
+Search finds movies, shows, episodes and videos by title, show or cast across every library as you type, in rows of Movies, Shows, With and the people found (what the actors and directors whose names hold the search are in, named by the server, or by the search itself on an older server), Episodes and Videos; the remote's Search key on the Library tab starts it by voice, and Back returns to the Library tab. A card without a poster shows a frame from the video, or the library mark when there is none.
 
 ### Library grids
 

@@ -14,6 +14,7 @@ import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.SearchResults
 import dev.jamesrich.sofaking.data.SofaKingApi
 import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.data.WatchNext
@@ -112,8 +113,8 @@ interface LibraryBrowsing {
      */
     fun openItem(id: String): ItemPage
 
-    /** Items whose title, show or cast match [query]; empty when the server cannot be reached. */
-    suspend fun search(query: String): List<MediaItem>
+    /** Items whose title, show or cast match [query]; none when the server cannot be reached. */
+    suspend fun search(query: String): SearchResults
 
     /** Marks [item] watched or not; a show or season marks every episode in it. The screens that show it reload. */
     fun setWatched(item: MediaItem, watched: Boolean)
@@ -291,14 +292,16 @@ internal class LibraryBrowser(
 
     override fun openItem(id: String): ItemPage = pages.open(id)
 
-    override suspend fun search(query: String): List<MediaItem> {
-        val repository = repository() ?: return emptyList()
-        if (query.isBlank()) return emptyList()
+    override suspend fun search(query: String): SearchResults {
+        val repository = repository() ?: return SearchResults.None
+        if (query.isBlank()) return SearchResults.None
         return runCatchingCancellable {
-            repository.search(query.trim()).let { found -> if (kids()) found.filter(KidsMode::allows) else found }
+            repository.search(query.trim()).let { found ->
+                if (kids()) found.copy(items = found.items.filter(KidsMode::allows)) else found
+            }
         }.getOrElse { e ->
             log.w { "library search failed: ${e.describe()}" }
-            emptyList()
+            SearchResults.None
         }
     }
 

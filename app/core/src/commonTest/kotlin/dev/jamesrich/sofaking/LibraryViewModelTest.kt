@@ -87,13 +87,13 @@ class LibraryViewModelTest {
         assertEquals(listOf(listOf("g")), shelves.map { shelf -> shelf.items.map { it.id } }, "empty shelves go")
         assertEquals(listOf("g"), assertNotNull(model.grid.value).items.map { it.id })
         assertEquals(1, assertNotNull(model.grid.value).total)
-        assertEquals(listOf("g"), model.search("film").map { it.id })
+        assertEquals(listOf("g"), model.search("film").items.map { it.id })
 
         kids.value = false
         runCurrent()
         assertEquals(listOf("g", "r"), assertNotNull(model.grid.value).items.map { it.id })
         assertEquals(2, assertIs<LibraryHomeState.Ready>(model.home.value).home.shelves.size)
-        assertEquals(listOf("g", "r"), model.search("film").map { it.id })
+        assertEquals(listOf("g", "r"), model.search("film").items.map { it.id })
     }
 
     @Test
@@ -590,12 +590,12 @@ class LibraryViewModelTest {
         val model = viewModel(server)
         runCurrent()
 
-        assertEquals(emptyList(), model.search("   "))
+        assertEquals(emptyList(), model.search("   ").items)
         assertTrue(server.requests.none { "/library/search" in it }, "a blank query is not sent")
-        assertEquals(listOf("m1"), model.search("  dune ").map { it.id })
+        assertEquals(listOf("m1"), model.search("  dune ").items.map { it.id })
         assertEquals("q=dune", server.http.requests.last().query)
         fail = true
-        assertEquals(emptyList(), model.search("dune"))
+        assertEquals(emptyList(), model.search("dune").items)
     }
 
     @Test

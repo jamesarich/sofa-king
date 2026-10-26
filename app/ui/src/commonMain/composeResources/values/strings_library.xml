@@ -10,6 +10,8 @@
     <string name="library_search_movies">Movies</string>
     <string name="library_search_shows">Shows</string>
     <string name="library_search_people">With %1$s</string>
+    <string name="library_search_people_two">With %1$s and %2$s</string>
+    <string name="library_search_people_more">With %1$s, %2$s and others</string>
     <string name="library_search_episodes">Episodes</string>
     <string name="library_search_videos">Videos</string>
     <string name="library_search_artists">Artists</string>

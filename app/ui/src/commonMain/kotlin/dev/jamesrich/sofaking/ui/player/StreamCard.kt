@@ -31,16 +31,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.StreamHealth
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.stream_card_audio
 import dev.jamesrich.sofaking.resources.stream_card_audio_codec
 import dev.jamesrich.sofaking.resources.stream_card_buffered
 import dev.jamesrich.sofaking.resources.stream_card_fps
+import dev.jamesrich.sofaking.resources.stream_card_health
 import dev.jamesrich.sofaking.resources.stream_card_mbps
 import dev.jamesrich.sofaking.resources.stream_card_seconds
 import dev.jamesrich.sofaking.resources.stream_card_session
 import dev.jamesrich.sofaking.resources.stream_card_size
 import dev.jamesrich.sofaking.resources.stream_card_source
+import dev.jamesrich.sofaking.resources.stream_card_stalls
+import dev.jamesrich.sofaking.resources.stream_card_switches
 import dev.jamesrich.sofaking.resources.stream_card_title
 import dev.jamesrich.sofaking.resources.stream_card_unknown
 import dev.jamesrich.sofaking.resources.stream_card_video
@@ -53,6 +57,7 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.tvFocus
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.DurationUnit
@@ -68,6 +73,7 @@ internal fun BoxScope.StreamCard(
     stream: PlaybackStream?,
     bufferedMs: Long,
     onSelectTrack: (String) -> Unit,
+    health: StreamHealth? = null,
 ) {
     // Focus starts on the playing track's row, so OK and Up/Down act on the tracks at once; with
     // none, the card itself holds it.
@@ -106,15 +112,18 @@ internal fun BoxScope.StreamCard(
                 )
             }
         }
-        StreamStats(info, stream, bufferedMs)
+        StreamStats(info, stream, bufferedMs, health)
         Spacer(Modifier.height(4.dp))
         KeyLegend()
     }
 }
 
-/** What the engine knows about the video and audio, how much is buffered, and the server's source and session. */
+/**
+ * What the engine knows about the video and audio, how much is buffered, the server's source and session, and what the
+ * server's relay has seen of the session's media when it says.
+ */
 @Composable
-private fun StreamStats(info: StreamInfo, stream: PlaybackStream?, bufferedMs: Long) {
+private fun StreamStats(info: StreamInfo, stream: PlaybackStream?, bufferedMs: Long, health: StreamHealth?) {
     val unknown = stringResource(Res.string.stream_card_unknown)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val video = listOfNotNull(
@@ -141,6 +150,20 @@ private fun StreamStats(info: StreamInfo, stream: PlaybackStream?, bufferedMs: L
             stream?.providerId?.takeIf { it.isNotEmpty() } ?: unknown,
         )
         StatLine(stringResource(Res.string.stream_card_session), stream?.sessionId?.take(n = 8) ?: unknown)
+        if (health != null) {
+            StatLine(
+                stringResource(Res.string.stream_card_health),
+                listOf(
+                    stringResource(Res.string.stream_card_mbps, oneDecimal(health.bitrateKbps / KBPS_PER_MBPS)),
+                    pluralStringResource(Res.plurals.stream_card_stalls, health.stalls.toInt(), health.stalls.toInt()),
+                    pluralStringResource(
+                        Res.plurals.stream_card_switches,
+                        health.sourceSwitches,
+                        health.sourceSwitches,
+                    ),
+                ).joinToString(DETAIL_SEPARATOR),
+            )
+        }
     }
 }
 
@@ -181,3 +204,5 @@ internal fun TrackRow(label: String, selected: Boolean, onClick: () -> Unit, mod
         interactionSource = interactions,
     ) { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
 }
+
+private const val KBPS_PER_MBPS = 1_000.0

@@ -73,7 +73,8 @@ data class GuideQuery(val channelIds: List<String>, val from: String, val to: St
 
 /**
  * [providerId] names the source the server picked for the session, for the app's stream
- * card; older servers leave it empty.
+ * card; older servers leave it empty. [health] is what the server's relay has seen of the session's media, on a read
+ * or a renewal; null when a session opens and from older servers.
  */
 @Serializable data class PlaybackSession(
     val id: String,
@@ -82,7 +83,14 @@ data class GuideQuery(val channelIds: List<String>, val from: String, val to: St
     val expiresAt: String = "",
     val descriptor: PlaybackDescriptor,
     val providerId: String = "",
+    val health: SessionHealth? = null,
 )
+
+/**
+ * A live session's media as the server's relay sent it: the rate over the last ten seconds or so, the media requests
+ * the source refused or dropped, and how often the server moved the session to another source.
+ */
+@Serializable data class SessionHealth(val bitrateKbps: Int = 0, val stalls: Long = 0, val sourceSwitches: Int = 0)
 
 /**
  * Whether the session's player shows an ad, for a player that cannot read the playlist's [AdRun] marks: the server

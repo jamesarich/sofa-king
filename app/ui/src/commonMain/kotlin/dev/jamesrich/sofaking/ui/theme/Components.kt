@@ -5,6 +5,8 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
@@ -220,5 +222,18 @@ internal fun SofaChip(selected: Boolean, onClick: () -> Unit, label: String, mod
         onClick = onClick,
         label = { Text(label, style = MaterialTheme.typography.labelLarge) },
         modifier = modifier.tvFocus(FilterChipDefaults.shape),
+    )
+}
+
+/**
+ * A Material 3 assist chip in the label type, with the D-pad focus cue: a chip that acts or goes somewhere rather than
+ * filtering, such as the guide's Now, a library to open or a cast member to search for.
+ */
+@Composable
+internal fun SofaActionChip(onClick: () -> Unit, label: String, modifier: Modifier = Modifier) {
+    AssistChip(
+        onClick = onClick,
+        label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+        modifier = modifier.tvFocus(AssistChipDefaults.shape),
     )
 }

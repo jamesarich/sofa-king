@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -24,18 +26,21 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.ui.listRowColors
 import dev.jamesrich.sofaking.ui.listRowShapes
 import dev.jamesrich.sofaking.ui.theme.tvFocus
+import kotlinx.coroutines.launch
 
 /** The width of a settings control column: a field, a switch row or a choice row, so the page reads as one column. */
 internal val FIELD_WIDTH = 640.dp
@@ -128,7 +133,16 @@ internal fun <T> ChoiceRow(
     /** Wider than a field for four or more segments with longer names, so each name keeps one line. */
     width: Dp = FIELD_WIDTH,
 ) {
-    Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Focus lands on a segment, so the row brings itself into view too, or its label could stay under the title.
+    val keepInView = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    Column(
+        Modifier
+            .width(width)
+            .bringIntoViewRequester(keepInView)
+            .onFocusChanged { if (it.hasFocus) scope.launch { keepInView.bringIntoView() } },
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         Text(label, style = MaterialTheme.typography.titleSmall)
         val selectedFocus = remember { FocusRequester() }
         // Where a name wraps (a phone), every segment takes the tallest one's height, so the row keeps one outline.

@@ -58,6 +58,7 @@ import dev.jamesrich.sofaking.resources.refreshing
 import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.KidsBadge
 import dev.jamesrich.sofaking.ui.LocalKidsMode
+import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
@@ -337,8 +338,12 @@ private fun Header(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LogoMark(40.dp)
-        Text(stringResource(Res.string.app_name), style = MaterialTheme.typography.headlineSmall, maxLines = 1)
+        // A phone on its side has height for only a few guide rows, so the mark and name give theirs to the page.
+        val profile = LocalLayoutProfile.current
+        if (profile.tv || !profile.compactHeight) {
+            LogoMark(40.dp)
+            Text(stringResource(Res.string.app_name), style = MaterialTheme.typography.headlineSmall, maxLines = 1)
+        }
         if (LocalKidsMode.current) KidsBadge()
         tabs?.let { HeaderTabs(it, tabFocus) }
         // Status sits right of the tabs in whatever Settings leaves, so a long notice ellipsizes rather than

@@ -263,6 +263,7 @@ private fun VodSurface(
             Captions(
                 player,
                 captions.style,
+                zoom,
                 CaptionPolicy.bottomPaddingFraction(windowHeightDp),
                 Modifier.fillMaxSize(),
             )

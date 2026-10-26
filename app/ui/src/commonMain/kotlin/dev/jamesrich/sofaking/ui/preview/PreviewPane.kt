@@ -232,7 +232,7 @@ internal fun PreviewVideo(
         player.Video(Modifier.fillMaxSize(), VideoZoom.FIT) { PreviewCard(channel, failed) }
         // No overscan inset: the box sits inside the guide's margins already.
         if (showPreviewCaptions(captionsEnabled, channel != null, failed)) {
-            Captions(player, captionStyle, bottomFraction = 0f, Modifier.fillMaxSize())
+            Captions(player, captionStyle, VideoZoom.FIT, bottomFraction = 0f, Modifier.fillMaxSize())
         }
         if (failed) {
             PreviewCard(channel, failed = true)

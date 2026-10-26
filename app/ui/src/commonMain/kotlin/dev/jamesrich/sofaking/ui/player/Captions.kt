@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -23,6 +24,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.data.CaptionStyle
 import kotlin.math.roundToInt
@@ -80,6 +84,22 @@ internal object CaptionGeometry {
     /** Line pitch as a multiple of the text size. */
     const val LINE_SPACING = 1.2f
 
+    /**
+     * Where the picture shows inside a [box]: a [video] of that size scaled by [zoom]'s content scale and centered,
+     * then cropped to the box. The whole box while the size is unknown.
+     */
+    fun pictureRect(box: IntSize, video: IntSize?, zoom: VideoZoom): IntRect {
+        val whole = IntRect(IntOffset.Zero, box)
+        if (video == null || video.isEmpty() || box.isEmpty()) return whole
+        val source = Size(video.width.toFloat(), video.height.toFloat())
+        val scale = zoom.contentScale.computeScaleFactor(source, Size(box.width.toFloat(), box.height.toFloat()))
+        val width = (source.width * scale.scaleX).roundToInt()
+        val height = (source.height * scale.scaleY).roundToInt()
+        val left = (box.width - width) / 2
+        val top = (box.height - height) / 2
+        return IntRect(left, top, left + width, top + height).intersect(whole)
+    }
+
     fun left(position: Float, positionAnchor: Int, textWidth: Int, parentWidth: Int): Int {
         if (position == CaptionCue.DIMEN_UNSET) return (parentWidth - textWidth) / 2
         val anchor = position * parentWidth
@@ -113,21 +133,32 @@ internal object CaptionGeometry {
 }
 
 /**
- * Text captions drawn in Compose: each cue at its 608/708 row and column, in [style]'s appearance, clear of the
- * overscan band ([bottomFraction] of the height) at the top and bottom.
+ * Text captions drawn in Compose: each cue at its 608/708 row and column of the picture as [zoom] shows it (a 4:3
+ * channel's captions stay inside its pillars), in [style]'s appearance, clear of the overscan band ([bottomFraction]
+ * of the height) at the top and bottom.
  */
 @Composable
-internal fun Captions(player: LivePlayer, style: CaptionStyle, bottomFraction: Float, modifier: Modifier = Modifier) {
+internal fun Captions(
+    player: LivePlayer,
+    style: CaptionStyle,
+    zoom: VideoZoom,
+    bottomFraction: Float,
+    modifier: Modifier = Modifier,
+) {
     val appearance = rememberCaptionAppearance(style)
     val cues by player.cues.collectAsStateWithLifecycle()
+    val videoSize by player.videoSize.collectAsStateWithLifecycle()
     if (cues.isEmpty()) return
     val density = LocalDensity.current
     BoxWithConstraints(modifier) {
+        val box = IntSize(constraints.maxWidth, constraints.maxHeight)
+        val picture = CaptionGeometry.pictureRect(box, videoSize, zoom)
         // The overscan band is kept clear at the top as well as the bottom.
-        val inset = (constraints.maxHeight * bottomFraction).roundToInt()
-        val parentHeight = constraints.maxHeight - 2 * inset
-        val parentWidth = constraints.maxWidth
-        val fontPx = constraints.maxHeight * CaptionGeometry.TEXT_SIZE_FRACTION * appearance.scale
+        val inset = (box.height * bottomFraction).roundToInt()
+        val areaTop = maxOf(picture.top, inset)
+        val parentHeight = (minOf(picture.bottom, box.height - inset) - areaTop).coerceAtLeast(0)
+        val parentWidth = picture.width
+        val fontPx = picture.height * CaptionGeometry.TEXT_SIZE_FRACTION * appearance.scale
         val lineHeightPx = fontPx * CaptionGeometry.LINE_SPACING
         val textStyle = with(density) {
             TextStyle(
@@ -149,8 +180,9 @@ internal fun Captions(player: LivePlayer, style: CaptionStyle, bottomFraction: F
                 )
                 layout(constraints.maxWidth, constraints.maxHeight) {
                     placeable.place(
-                        CaptionGeometry.left(cue.position, cue.positionAnchor, placeable.width, parentWidth),
-                        inset + CaptionGeometry.top(
+                        picture.left +
+                            CaptionGeometry.left(cue.position, cue.positionAnchor, placeable.width, parentWidth),
+                        areaTop + CaptionGeometry.top(
                             cue.line,
                             cue.lineType,
                             cue.lineAnchor,
@@ -221,3 +253,5 @@ internal fun cueString(text: AnnotatedString, appearance: CaptionAppearance): An
 }
 
 private const val PAD = ' '
+
+private fun IntSize.isEmpty(): Boolean = width <= 0 || height <= 0

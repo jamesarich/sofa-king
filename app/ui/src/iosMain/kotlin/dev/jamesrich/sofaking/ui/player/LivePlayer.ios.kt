@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.UIKitView
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -19,6 +20,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryAmbient
@@ -54,6 +57,7 @@ import platform.AVFoundation.errorLog
 import platform.AVFoundation.loadedTimeRanges
 import platform.AVFoundation.pause
 import platform.AVFoundation.play
+import platform.AVFoundation.presentationSize
 import platform.AVFoundation.rate
 import platform.AVFoundation.replaceCurrentItemWithPlayerItem
 import platform.AVFoundation.seekToTime
@@ -74,6 +78,7 @@ import platform.QuartzCore.CATransaction
 import platform.UIKit.UIColor
 import platform.UIKit.UIView
 import platform.darwin.NSObjectProtocol
+import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.DurationUnit
 
@@ -106,6 +111,8 @@ internal class AvLivePlayer(
     private var reportedFailure: AVPlayerItem? = null
 
     private val hasFrame = MutableStateFlow(false)
+    private val mutableVideoSize = MutableStateFlow<IntSize?>(null)
+    override val videoSize: StateFlow<IntSize?> = mutableVideoSize.asStateFlow()
 
     private val wake = Channel<Unit>(Channel.CONFLATED)
 
@@ -326,6 +333,9 @@ internal class AvLivePlayer(
         // Like Android's shutter, it covers only from a reset until the first frame, not each rebuffer.
         val shown = item != null && playerLayer.readyForDisplay
         hasFrame.value = shown
+        mutableVideoSize.value = item?.presentationSize?.useContents {
+            if (width > 0 && height > 0) IntSize(width.roundToInt(), height.roundToInt()) else null
+        }
         return when {
             item == null || ended || item.status == AVPlayerItemStatusFailed -> true
             playWhenReady -> playing && shown

@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -15,6 +16,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
@@ -33,6 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.roundToInt
 
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
@@ -74,6 +77,9 @@ internal class ExoLivePlayer(
     override val status: StateFlow<PlayerStatus> = _status.asStateFlow()
     override val errors: SharedFlow<PlayerError> = _errors.asSharedFlow()
 
+    private val _videoSize = MutableStateFlow(exo.videoSize.displaySize())
+    override val videoSize: StateFlow<IntSize?> = _videoSize.asStateFlow()
+
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             _status.value = PlayerStatus(stateOf(exo.playbackState), exo.isPlaying, exo.playWhenReady)
@@ -85,6 +91,10 @@ internal class ExoLivePlayer(
             nightListening.update(preferences.nightListening, audioSessionId)
 
         override fun onCues(cueGroup: CueGroup) = tracks.onCues(cueGroup)
+
+        override fun onVideoSizeChanged(videoSize: VideoSize) {
+            _videoSize.value = videoSize.displaySize()
+        }
 
         override fun onPlayerError(error: PlaybackException) {
             // Run past the buffer: re-prepare at the live edge rather than report it.
@@ -201,6 +211,10 @@ internal class ExoLivePlayer(
         exo.release()
     }
 }
+
+/** The picture's size with its pixel aspect applied, as the surface shows it; null while unknown. */
+private fun VideoSize.displaySize(): IntSize? =
+    if (width > 0 && height > 0) IntSize((width * pixelWidthHeightRatio).roundToInt(), height) else null
 
 /** Numbers the process's media sessions, as each needs its own id. */
 internal val sessionIds = AtomicInteger()

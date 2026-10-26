@@ -8,6 +8,9 @@ enum class LibraryKind(internal val wire: String?) {
     MOVIES(Wire.LibraryKind.MOVIES),
     SHOWS(Wire.LibraryKind.SHOWS),
     VIDEOS(Wire.LibraryKind.VIDEOS),
+
+    /** Artists, their albums and the albums' tracks. */
+    MUSIC(Wire.LibraryKind.MUSIC),
     OTHER(null),
     ;
 
@@ -16,7 +19,10 @@ enum class LibraryKind(internal val wire: String?) {
     }
 }
 
-/** What an item is. Shows and seasons are folders; the rest play. [OTHER] stands for a kind a newer server added. */
+/**
+ * What an item is. Shows, seasons, artists and albums are folders; the rest play. [OTHER] stands for a kind a newer
+ * server added.
+ */
 enum class ItemKind(internal val wire: String?) {
     MOVIE(Wire.ItemKind.MOVIE),
     SHOW(Wire.ItemKind.SHOW),
@@ -26,11 +32,22 @@ enum class ItemKind(internal val wire: String?) {
 
     /** A movie's or show's trailer, featurette or other extra, listed on its page. */
     EXTRA(Wire.ItemKind.EXTRA),
+
+    /** A music library's artist, whose children are its albums. */
+    ARTIST(Wire.ItemKind.ARTIST),
+
+    /** An album, whose children are its tracks in disc and track order. */
+    ALBUM(Wire.ItemKind.ALBUM),
+    TRACK(Wire.ItemKind.TRACK),
     OTHER(null),
     ;
 
     /** True for an item a VOD session can play. */
-    val playable: Boolean get() = this == MOVIE || this == EPISODE || this == VIDEO || this == EXTRA
+    val playable: Boolean
+        get() = this == MOVIE || this == EPISODE || this == VIDEO || this == EXTRA || this == TRACK
+
+    /** True for a music library's artist, album or track, which has no watched state, resume or watchlist. */
+    val music: Boolean get() = this == ARTIST || this == ALBUM || this == TRACK
 
     internal companion object {
         fun fromWire(value: String) = entries.firstOrNull { it.wire == value } ?: OTHER
@@ -52,7 +69,7 @@ data class MediaLibrary(
     val id: String,
     val name: String,
     val kind: LibraryKind,
-    /** The movies, shows or videos in it. */
+    /** The movies, shows, videos or artists in it. */
     val itemCount: Int,
 )
 
@@ -66,8 +83,9 @@ data class PlayProgress(val positionMs: Long, val durationMs: Long?, val watched
 }
 
 /**
- * One movie, show, season, episode or video. [poster] and [backdrop] are absolute image URLs that need no token.
- * An episode carries its show's id and title; a show or season counts [children] and its [unwatched] episodes.
+ * One movie, show, season, episode, video, artist, album or track. [poster] and [backdrop] are absolute image URLs that
+ * need no token. An episode carries its show's id and title; a show or season counts [children] and its [unwatched]
+ * episodes. An album or track carries its artist's id and name, and a track its album's title and its own numbers.
  */
 data class MediaItem(
     val id: String,
@@ -100,6 +118,15 @@ data class MediaItem(
     val progress: PlayProgress? = null,
     /** For an [ItemKind.EXTRA], what kind of extra it is. */
     val extra: ExtraKind? = null,
+    /** The album's or track's artist. */
+    val artistId: String? = null,
+    val artist: String? = null,
+    /** A track's own artist where it differs from the album's, as on a compilation. */
+    val trackArtist: String? = null,
+    /** A track's album title. */
+    val album: String? = null,
+    val track: Int? = null,
+    val disc: Int? = null,
 ) {
     /** A label such as `S2 E5` or `S1 E1–E2`; null for anything but an episode with numbers. */
     val episodeLabel: String?

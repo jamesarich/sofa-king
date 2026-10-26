@@ -2,15 +2,23 @@ package dev.jamesrich.sofaking.ui.library
 
 import dev.jamesrich.sofaking.data.CONTINUE_SHELF
 import dev.jamesrich.sofaking.data.ItemKind
+import dev.jamesrich.sofaking.data.LibraryKind
+import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaShelf
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
-/** How a row draws its items: 2:3 posters for movies and shows, 16:9 cards for episodes and what is being watched. */
-internal enum class CardStyle { POSTER, WIDE }
+/**
+ * How a row draws its items: 2:3 posters for movies and shows, 16:9 cards for episodes and what is being watched,
+ * square covers for music.
+ */
+internal enum class CardStyle { POSTER, WIDE, SQUARE }
 
-/** A row of search results: movies, shows, what the query's person is in, episodes and videos, in that order. */
+/**
+ * A row of search results: movies, shows, what the query's person is in, episodes, videos, then artists, albums and
+ * tracks, in that order.
+ */
 internal enum class SearchGroup(val style: CardStyle) {
     MOVIES(CardStyle.POSTER),
     SHOWS(CardStyle.POSTER),
@@ -19,6 +27,9 @@ internal enum class SearchGroup(val style: CardStyle) {
     CAST_AND_CREW(CardStyle.POSTER),
     EPISODES(CardStyle.WIDE),
     VIDEOS(CardStyle.WIDE),
+    ARTISTS(CardStyle.SQUARE),
+    ALBUMS(CardStyle.SQUARE),
+    TRACKS(CardStyle.SQUARE),
 }
 
 /** One [SearchGroup]'s results, in the order the server sent them. */
@@ -32,12 +43,15 @@ internal class SearchSections(val query: String, val rows: List<SearchSection>) 
 
 /**
  * [results] for [query] in their groups. The server matches titles, then cast and directors, then episode titles, so a
- * movie, show or video whose title lacks [query] was found by the people in it.
+ * movie, show or video whose title lacks [query] was found by the people in it. Music goes by kind alone.
  */
 internal fun searchSections(results: List<MediaItem>, query: String): SearchSections {
     val needle = query.trim().lowercase()
     val groups = results.groupBy { item ->
         when {
+            item.kind == ItemKind.ARTIST -> SearchGroup.ARTISTS
+            item.kind == ItemKind.ALBUM -> SearchGroup.ALBUMS
+            item.kind == ItemKind.TRACK -> SearchGroup.TRACKS
             item.kind == ItemKind.EPISODE -> SearchGroup.EPISODES
             needle.isNotEmpty() && needle !in item.title.lowercase() -> SearchGroup.CAST_AND_CREW
             item.kind == ItemKind.SHOW -> SearchGroup.SHOWS
@@ -49,9 +63,11 @@ internal fun searchSections(results: List<MediaItem>, query: String): SearchSect
     return SearchSections(query.trim(), rows)
 }
 
-/** Continue watching and a row of episodes or videos are wide; anything else shows posters. */
+/** Continue watching and a row of episodes or videos are wide, a row of music square; anything else shows posters. */
 internal fun cardStyleFor(shelf: MediaShelf): CardStyle = when {
     shelf.id == CONTINUE_SHELF -> CardStyle.WIDE
+
+    shelf.items.isNotEmpty() && shelf.items.all { it.kind.music } -> CardStyle.SQUARE
 
     shelf.items.isNotEmpty() && shelf.items.all {
         it.kind == ItemKind.EPISODE || it.kind == ItemKind.VIDEO
@@ -65,6 +81,29 @@ internal fun runtime(durationMs: Long?): Duration? {
     val minutes = ((durationMs ?: return null) + 30_000) / 60_000
     return minutes.takeIf { it > 0 }?.minutes
 }
+
+/** How a library's grid draws its items: wide for videos, square for music, posters for the rest. */
+internal fun gridStyleFor(kind: LibraryKind?): CardStyle = when (kind) {
+    LibraryKind.VIDEOS -> CardStyle.WIDE
+    LibraryKind.MUSIC -> CardStyle.SQUARE
+    else -> CardStyle.POSTER
+}
+
+/** The orders a library's grid offers: music has no ratings or watched dates, so only by name and by date added. */
+internal fun gridSorts(kind: LibraryKind?): List<LibrarySort> = if (kind == LibraryKind.MUSIC) {
+    listOf(LibrarySort.TITLE, LibrarySort.ADDED)
+} else {
+    LibrarySort.entries
+}
+
+/** Whether a library's grid offers the Unwatched filter: not for music, which has no watched state. */
+internal fun gridFiltersUnwatched(kind: LibraryKind?): Boolean = kind != LibraryKind.MUSIC
+
+/** A square card's second line: an album's or track's artist, then the year, when known. */
+internal fun squareSubtitle(item: MediaItem): String? = listOfNotNull(
+    item.trackArtist ?: item.artist,
+    item.year?.toString(),
+).joinToString(" · ").ifEmpty { null }
 
 /** What a card's menu offers, in order. */
 internal enum class CardMenuEntry { DETAILS, PLAY_FROM_START, MARK_WATCHED, MARK_UNWATCHED, REMOVE_FROM_CONTINUE }
@@ -88,9 +127,13 @@ internal fun cardMenuEntries(
 ): List<CardMenuEntry> = listOfNotNull(
     CardMenuEntry.DETAILS.takeIf { details },
     CardMenuEntry.PLAY_FROM_START.takeIf {
-        playFromStart && item.kind.playable && item.progress?.inProgress == true
+        playFromStart && item.kind.playable && item.progress?.inProgress == true && !item.kind.music
     },
-    if (isWatched(item)) CardMenuEntry.MARK_UNWATCHED else CardMenuEntry.MARK_WATCHED,
+    when {
+        item.kind.music -> null
+        isWatched(item) -> CardMenuEntry.MARK_UNWATCHED
+        else -> CardMenuEntry.MARK_WATCHED
+    },
     CardMenuEntry.REMOVE_FROM_CONTINUE.takeIf { removeFromContinue },
 )
 

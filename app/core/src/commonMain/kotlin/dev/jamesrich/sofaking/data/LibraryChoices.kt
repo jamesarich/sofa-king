@@ -15,12 +15,17 @@ sealed interface PrimaryAction {
 
 /**
  * The page's first button: the item itself when it plays, resumed when it is in progress; for a show or a season
- * the episode the server names next, resumed the same way. Null when there is nothing to play yet.
+ * the episode the server names next, resumed the same way; for an album its first track. Music always plays from the
+ * start. Null when there is nothing to play yet.
  */
 fun primaryAction(detail: MediaItemDetail): PrimaryAction? {
-    val target = if (detail.item.kind.playable) detail.item else detail.next?.takeIf { it.kind.playable } ?: return null
+    val target = when {
+        detail.item.kind.playable -> detail.item
+        detail.item.kind == ItemKind.ALBUM -> detail.children.firstOrNull { it.kind == ItemKind.TRACK }
+        else -> detail.next?.takeIf { it.kind.playable }
+    } ?: return null
     val progress = target.progress
-    return if (progress != null && progress.inProgress) {
+    return if (progress != null && progress.inProgress && !target.kind.music) {
         PrimaryAction.Resume(target, progress.positionMs)
     } else {
         PrimaryAction.Play(target)

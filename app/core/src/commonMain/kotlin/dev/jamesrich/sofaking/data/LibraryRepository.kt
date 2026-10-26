@@ -135,4 +135,10 @@ private fun SofaKingApi.mediaItem(dto: LibraryItemDto) = MediaItem(
     unwatched = dto.unwatched,
     progress = dto.playState?.let { PlayProgress(it.positionMs, it.durationMs, it.watched) },
     extra = dto.extra?.let(ExtraKind::fromWire) ?: ExtraKind.OTHER.takeIf { dto.kind == Wire.ItemKind.EXTRA },
+    artistId = dto.artistId,
+    artist = dto.artist,
+    trackArtist = dto.trackArtist,
+    album = dto.album,
+    track = dto.track,
+    disc = dto.disc,
 )

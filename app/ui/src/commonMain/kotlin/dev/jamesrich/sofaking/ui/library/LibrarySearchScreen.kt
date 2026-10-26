@@ -37,12 +37,15 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.library_search_albums
+import dev.jamesrich.sofaking.resources.library_search_artists
 import dev.jamesrich.sofaking.resources.library_search_episodes
 import dev.jamesrich.sofaking.resources.library_search_hint
 import dev.jamesrich.sofaking.resources.library_search_movies
 import dev.jamesrich.sofaking.resources.library_search_none
 import dev.jamesrich.sofaking.resources.library_search_people
 import dev.jamesrich.sofaking.resources.library_search_shows
+import dev.jamesrich.sofaking.resources.library_search_tracks
 import dev.jamesrich.sofaking.resources.library_search_videos
 import dev.jamesrich.sofaking.resources.library_search_voice_prompt
 import dev.jamesrich.sofaking.ui.SofaLoader
@@ -146,6 +149,9 @@ private fun searchGroupTitle(group: SearchGroup, query: String): String = when (
     SearchGroup.CAST_AND_CREW -> stringResource(Res.string.library_search_people, query)
     SearchGroup.EPISODES -> stringResource(Res.string.library_search_episodes)
     SearchGroup.VIDEOS -> stringResource(Res.string.library_search_videos)
+    SearchGroup.ARTISTS -> stringResource(Res.string.library_search_artists)
+    SearchGroup.ALBUMS -> stringResource(Res.string.library_search_albums)
+    SearchGroup.TRACKS -> stringResource(Res.string.library_search_tracks)
 }
 
 /** Where focus goes around a search: the field, the first result, and the result the viewer came back from. */

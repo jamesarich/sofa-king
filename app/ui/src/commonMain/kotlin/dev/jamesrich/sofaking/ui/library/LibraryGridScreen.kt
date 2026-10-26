@@ -42,7 +42,6 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.LibraryGrid
 import dev.jamesrich.sofaking.data.LetterJump
-import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.resources.Res
@@ -70,7 +69,7 @@ internal fun LibraryGridScreen(
     returnedFrom: String? = null,
 ) {
     val insets = screenInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).asPaddingValues()
-    val style = if (library?.kind == LibraryKind.VIDEOS) CardStyle.WIDE else CardStyle.POSTER
+    val style = gridStyleFor(library?.kind)
     val state = rememberLazyGridState()
     val direction = LocalLayoutDirection.current
     val focus = remember { FocusRequester() }
@@ -86,7 +85,13 @@ internal fun LibraryGridScreen(
     val letterRow = letters.takeIf { grid != null && showsLetters(grid) }
     LoadMoreNearEnd(state, grid, actions.onLoadMore)
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(if (style == CardStyle.WIDE) WIDE_WIDTH else POSTER_WIDTH),
+        columns = GridCells.Adaptive(
+            when (style) {
+                CardStyle.WIDE -> WIDE_WIDTH
+                CardStyle.SQUARE -> SQUARE_WIDTH
+                CardStyle.POSTER -> POSTER_WIDTH
+            },
+        ),
         state = state,
         contentPadding = PaddingValues(
             start = insets.calculateStartPadding(direction),

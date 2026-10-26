@@ -53,7 +53,7 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * [item] as a [style] card, as every library page draws one: OK opens it with [onOpen], and the remote's Play key
- * plays an item that plays with [onPlay].
+ * plays an item that plays with [onPlay]. Music has nothing to mark watched, so its cards have no [menu].
  */
 @Composable
 internal fun LibraryCard(
@@ -65,12 +65,46 @@ internal fun LibraryCard(
     modifier: Modifier = Modifier,
 ) {
     val play = if (item.kind.playable) ({ onPlay(item) }) else null
+    val cardMenu = menu.takeUnless { item.kind.music }
     when (style) {
         CardStyle.POSTER -> PosterCard(item, onClick = {
             onOpen(item)
-        }, onPlay = play, modifier = modifier, menu = menu)
+        }, onPlay = play, modifier = modifier, menu = cardMenu)
 
-        CardStyle.WIDE -> WideCard(item, onClick = { onOpen(item) }, onPlay = play, modifier = modifier, menu = menu)
+        CardStyle.WIDE -> WideCard(item, onClick = {
+            onOpen(item)
+        }, onPlay = play, modifier = modifier, menu = cardMenu)
+
+        // A track has no page of its own worth opening, so OK plays it.
+        CardStyle.SQUARE -> SquareCard(
+            item,
+            onClick = { if (item.kind == ItemKind.TRACK) onPlay(item) else onOpen(item) },
+            onPlay = play,
+            modifier = modifier,
+        )
+    }
+}
+
+/**
+ * An artist, album or track as a square cover with its name underneath: an album's or track's artist and year under
+ * it. OK calls [onClick]; the remote's Play key calls [onPlay] for a track.
+ */
+@Composable
+private fun SquareCard(item: MediaItem, onClick: () -> Unit, onPlay: (() -> Unit)?, modifier: Modifier = Modifier) {
+    val subtitle = squareSubtitle(item)
+    Column(modifier.width(SQUARE_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ItemCard(
+            item,
+            cardLabel(item.title, subtitle),
+            onClick,
+            onPlay,
+            menu = null,
+            aspectRatio = 1f,
+            focusScale = null,
+        ) {
+            Artwork(item.poster, label = null)
+        }
+        CardLabel(item.title, subtitle)
     }
 }
 
@@ -262,6 +296,9 @@ internal fun Modifier.playKey(onPlay: (() -> Unit)?): Modifier = if (onPlay == n
 
 /** About six posters across a 1080p set inside its overscan. */
 internal val POSTER_WIDTH = 132.dp
+
+/** About five covers across. */
+internal val SQUARE_WIDTH = 160.dp
 
 /** About four wide cards across. */
 internal val WIDE_WIDTH = 200.dp

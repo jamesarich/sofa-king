@@ -102,7 +102,7 @@ Each part comes on two channels:
 | Stable, from the first release | `ghcr.io/jamesarich/sofa-king:latest` (or `:X.Y` to stay on one minor version) | The [latest release](https://github.com/jamesarich/sofa-king/releases/latest), one per `v*` tag |
 | Snapshot | `ghcr.io/jamesarich/sofa-king:main` | The [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), built from the latest `main` |
 
-The app is published for Android, Linux, macOS, Windows and the web. [Getting started](backend/docs/getting-started.md) takes a Docker host to a playing channel, and the [app's getting started](app/docs/getting-started.md) installs it and connects it to the server. The server image is public on GitHub Container Registry; anyone can pull it or build it from this repository. Each README lists what is missing: [server](backend/README.md#limitations), [app](app/README.md#limitations).
+The app is published for Android, Linux, macOS, Windows and the web, and the server serves its own copy of the web app at `/app/`. [Getting started](backend/docs/getting-started.md) takes a Docker host to a playing channel, and the [app's getting started](app/docs/getting-started.md) installs it and connects it to the server. The server image is public on GitHub Container Registry; anyone can pull it or build it from this repository. Each README lists what is missing: [server](backend/README.md#limitations), [app](app/README.md#limitations).
 
 | Part | What it is |
 | --- | --- |

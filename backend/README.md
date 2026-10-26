@@ -32,6 +32,8 @@ Live TV:
 - HLS and MPEG-TS relayed through the server, and an MPEG-TS remux for Plex
 - M3U and XMLTV outputs for players, and an HDHomeRun emulation for Plex Live TV
 - A logo cache, so every client loads logos from this server
+- [Virtual channels](docs/virtual-channels.md) that play your library on a schedule, with live slots and breaks you choose
+- [Multiview](docs/api.md#multiview): two to four channels drawn into one picture on the server
 
 Recordings and media libraries:
 
@@ -42,7 +44,9 @@ Recordings and media libraries:
 Running it:
 
 - A JSON API whose live TV, recording and library types the app shares ([API](docs/api.md))
-- An [admin portal](docs/admin.md) at `/admin` that shows what needs attention, sets up the sources and a starter lineup, edits channels, merges, groups and provider priority, manages recordings and series rules, adds media libraries, pairs devices with a code, and asks the host's updater for a new image
+- An [admin portal](docs/admin.md) at `/admin` that shows what needs attention, sets up the sources and a starter lineup, edits channels, merges, groups and provider priority, manages recordings and series rules, adds media libraries, pairs devices with a code, keeps database backups, and asks the host's updater for a new image
+- The Sofa King [web app](docs/deploy.md#serve-the-web-app) at `/app/`, built from the same commit as the server
+- [Notifications](docs/notifications.md) to ntfy, Apprise or a webhook when a recording fails, a source breaks or an update is published
 - A Docker image for `linux/amd64` and `linux/arm64`, with an SBOM and build provenance
 
 ## Clients
@@ -52,7 +56,7 @@ Only Plex and the Sofa King app have been tested. The others speak the same HDHo
 | Client | Status | Connect with |
 | --- | --- | --- |
 | Plex Live TV & DVR | Tested | HDHomeRun at `SERVER_HOST:9193`, guide `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN` ([Plex setup](docs/live-tv.md#plex-live-tv)) |
-| [Sofa King app](../app/README.md) | Tested | Server `http://SERVER_HOST:9193` and the API token, or a [pairing code](docs/admin.md#devices); the web app [behind a proxy](docs/deploy.md#serve-the-web-app) |
+| [Sofa King app](../app/README.md) | Tested | Server `http://SERVER_HOST:9193` and the API token, or a [pairing code](docs/admin.md#devices); in a browser, the [web app](docs/deploy.md#serve-the-web-app) at `http://SERVER_HOST:9193/app/` |
 | Jellyfin, Emby | Should work, untested | HDHomeRun tuner at `http://SERVER_HOST:9193`, or an M3U tuner with the playlist below; the XMLTV guide below |
 | Channels DVR | Should work, untested | Custom channels source with the M3U playlist and XMLTV guide below |
 | TiviMate, Kodi (IPTV Simple Client) | Should work, untested | The M3U playlist and XMLTV guide below |

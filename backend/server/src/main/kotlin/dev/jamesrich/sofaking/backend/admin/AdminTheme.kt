@@ -107,7 +107,7 @@ internal val NAV: List<Section> = listOf(
         listOf("/admin/recordings", "/admin/recordings/calendar", "/admin/recordings/wanted"),
     ),
     Section("/admin/viewers", "Players", "players", listOf("/admin/viewers", "/admin/history", "/admin/plex")),
-    Section("/admin/library", "Library"),
+    Section("/admin/library", "Library", pages = listOf("/admin/library", "/admin/library/unmatched")),
     Section("/admin/settings", "Settings", pages = listOf("/admin/settings", "/admin/connect")),
     Section(
         "/admin/system/about",

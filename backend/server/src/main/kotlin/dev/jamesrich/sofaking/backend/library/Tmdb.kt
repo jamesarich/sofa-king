@@ -47,6 +47,7 @@ private val tmdbJson = Json {
     @SerialName("original_title") val originalTitle: String = "",
     @SerialName("release_date") val releaseDate: String? = null,
     val popularity: Double = 0.0,
+    val overview: String? = null,
 )
 
 @Serializable internal data class TmdbShowResult(
@@ -55,6 +56,7 @@ private val tmdbJson = Json {
     @SerialName("original_name") val originalName: String = "",
     @SerialName("first_air_date") val firstAirDate: String? = null,
     val popularity: Double = 0.0,
+    val overview: String? = null,
 )
 
 /** What `/find/{id}` answers for a TheTVDB or IMDb id. */

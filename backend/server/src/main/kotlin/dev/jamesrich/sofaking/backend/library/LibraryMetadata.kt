@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.store.libraryMatches
 import dev.jamesrich.sofaking.backend.store.libraryMetadata
 import dev.jamesrich.sofaking.backend.store.saveLibraryMetadata
 import kotlinx.coroutines.delay
@@ -62,7 +63,8 @@ class LibraryMetadata internal constructor(
         val client = tmdb
         if (client == null || library.kind == LibraryKind.VIDEOS) return null
         val present = items.filter { it.missingSince == null }
-        val run = Run(client, present.groupBy { it.parentId }, store.libraryMetadata(present.map { it.id }))
+        val ids = present.map { it.id }
+        val run = Run(client, present.groupBy { it.parentId }, store.libraryMetadata(ids), store.libraryMatches(ids))
         for (item in present.filter { it.kind == ItemKind.MOVIE || it.kind == ItemKind.SHOW }) {
             if (!run.lookUp(item)) break
         }
@@ -74,6 +76,8 @@ class LibraryMetadata internal constructor(
         private val client: TmdbClient,
         private val children: Map<String?, List<LibraryItemRecord>>,
         private val known: Map<String, MetadataRecord>,
+        /** The TMDB ids chosen by hand, which win over a `.nfo`, a tag and a search. */
+        private val chosen: Map<String, Int>,
     ) {
         private val now = clock.instant()
         private var fetched = 0
@@ -87,7 +91,7 @@ class LibraryMetadata internal constructor(
 
         /** Looks up the movie or show [item] unless its row is fresh; false once the run has to stop. */
         suspend fun lookUp(item: LibraryItemRecord): Boolean {
-            val hint = item.details?.tmdbId
+            val hint = chosen[item.id] ?: item.details?.tmdbId
             val row = known[item.id]?.takeIf { row ->
                 (hint == null || row.tmdbId == hint) && pinnedAs(item, row) &&
                     Instant.parse(row.checkedAt).plus(if (row.tmdbId == null) UNMATCHED_FOR else MATCHED_FOR) > now
@@ -237,7 +241,28 @@ class LibraryMetadata internal constructor(
     )
 
     private suspend fun pause() = delay(pause.toMillis())
+
+    /** What TMDB finds for [query] among movies, or shows for a show [kind]; fails with `TMDB_OFF` without a token. */
+    internal suspend fun candidates(kind: String, query: String, year: Int?): List<TmdbCandidate> {
+        val client = tmdb ?: throw TmdbFailure("TMDB_OFF")
+        return if (kind == ItemKind.SHOW) {
+            client.searchShows(query, year).map { TmdbCandidate(it.id, it.name, yearOf(it.firstAirDate), it.overview) }
+        } else {
+            client.searchMovies(query, year).map {
+                TmdbCandidate(it.id, it.title, yearOf(it.releaseDate), it.overview)
+            }
+        }
+    }
+
+    /** The title of TMDB's movie or show [id], as [kind] says; fails with `TMDB_HTTP_404` when TMDB has none. */
+    internal suspend fun titleOf(kind: String, id: Int): String {
+        val client = tmdb ?: throw TmdbFailure("TMDB_OFF")
+        return if (kind == ItemKind.SHOW) client.show(id).name else client.movie(id).title
+    }
 }
+
+/** One TMDB search result offered for a movie or show the scan could not match. */
+internal class TmdbCandidate(val id: Int, val title: String, val year: Int?, val overview: String?)
 
 /** Letters and digits only, lower case, so `Alien³` and `Alien 3` or `Mr. Robot` and `Mr Robot` compare equal. */
 internal fun normalized(title: String): String = title.lowercase().filter { it.isLetterOrDigit() }

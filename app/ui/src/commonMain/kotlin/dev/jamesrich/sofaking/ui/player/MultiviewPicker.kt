@@ -2,7 +2,6 @@ package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,24 +13,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.Channel
@@ -40,7 +32,10 @@ import dev.jamesrich.sofaking.resources.multiview_pick_hint
 import dev.jamesrich.sofaking.resources.multiview_title
 import dev.jamesrich.sofaking.resources.multiview_watch
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.listRowColors
+import dev.jamesrich.sofaking.ui.listRowShapes
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrimDense
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.stringResource
@@ -74,10 +69,9 @@ internal fun MultiviewPicker(
             Text(stringResource(Res.string.multiview_title), style = MaterialTheme.typography.headlineSmall)
             Text(stringResource(Res.string.multiview_pick_hint), style = MaterialTheme.typography.bodyMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Button(
+                SofaButton(
                     onClick = onWatch,
                     enabled = picked.size in MULTIVIEW_MIN_TILES..Wire.MULTIVIEW_MAX_TILES,
-                    modifier = Modifier.tvFocus(MaterialTheme.shapes.extraLarge),
                 ) { Text(stringResource(Res.string.multiview_watch, picked.size)) }
             }
             LazyColumn(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -104,29 +98,16 @@ private fun PickRow(
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val shapes = listRowShapes()
     val interactions = remember { MutableInteractionSource() }
-    val focused by interactions.collectIsFocusedAsState()
-    val shape = MaterialTheme.shapes.medium
     ListItem(
-        modifier = modifier
-            .fillMaxWidth()
-            .tvFocus(shape, focusedScale = 1f)
-            .clip(shape)
-            .toggleable(
-                value = checked,
-                enabled = enabled,
-                interactionSource = interactions,
-                indication = ripple(),
-                role = Role.Checkbox,
-                onValueChange = { onToggle() },
-            ),
+        checked = checked,
+        onCheckedChange = { onToggle() },
+        modifier = modifier.fillMaxWidth().tvFocus(shapes.shape, focusedScale = 1f),
+        enabled = enabled,
         leadingContent = { Checkbox(checked = checked, onCheckedChange = null, enabled = enabled) },
-        colors = ListItemDefaults.colors(
-            containerColor = if (focused) {
-                MaterialTheme.colorScheme.surfaceVariant
-            } else {
-                MaterialTheme.colorScheme.surface
-            },
-        ),
+        shapes = shapes,
+        colors = listRowColors(interactions, tintSelected = false),
+        interactionSource = interactions,
     ) { Text(channel.label(), style = MaterialTheme.typography.titleSmall) }
 }

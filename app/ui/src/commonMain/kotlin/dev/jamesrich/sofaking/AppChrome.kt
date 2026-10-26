@@ -1,19 +1,24 @@
 package dev.jamesrich.sofaking
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
@@ -32,14 +37,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.resources.Res
@@ -63,6 +67,7 @@ import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.material3.Tab as MaterialTab
 
 /**
  * A page under the tabs: the header above [content], with the TV's tabs in it. [content] gets whether the header
@@ -240,13 +245,13 @@ private fun NavigationLabel(text: String) {
 }
 
 /**
- * The TV's destinations as pills in the header: the open one filled, every one with the D-pad focus cue. Focus
- * coming up from the page lands on the open one ([tabFocus]).
+ * The TV's destinations in the header, as Google TV shows them: Material tabs, the open one on a pill, every one with
+ * the D-pad focus cue. Focus coming up from the page lands on the open one ([tabFocus]).
  */
 @Composable
 private fun HeaderTabs(tabs: TabsModel, tabFocus: FocusRequester) {
     Row(
-        Modifier.focusProperties { onEnter = { tabFocus.requestFocus() } }.focusGroup(),
+        Modifier.focusProperties { onEnter = { tabFocus.requestFocus() } }.focusGroup().selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -272,27 +277,29 @@ private fun HeaderTabs(tabs: TabsModel, tabFocus: FocusRequester) {
     }
 }
 
+/**
+ * One destination, Material's tab: the open one sits on a pill in the secondary container. A tab row's indicator is
+ * an underline across the whole row, so the pill is drawn behind the tab. As wide as its label and as tall as a
+ * button, so the header keeps its layout and height.
+ */
 @Composable
 private fun HeaderTab(label: String, selected: Boolean, tabFocus: FocusRequester, onClick: () -> Unit) {
-    Surface(
+    val colors = MaterialTheme.colorScheme
+    MaterialTab(
+        selected = selected,
         onClick = onClick,
-        shape = CircleShape,
-        color = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
-        contentColor = if (selected) {
-            MaterialTheme.colorScheme.onSecondaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        },
-        modifier = Modifier.semantics {
-            this.selected = selected
-        }.then(if (selected) Modifier.focusRequester(tabFocus) else Modifier).tvFocus(CircleShape),
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-        )
-    }
+        modifier = Modifier
+            .then(if (selected) Modifier.focusRequester(tabFocus) else Modifier)
+            .tvFocus(CircleShape)
+            // A tab fills the width it is given, as it would in a tab row; here it is as wide as its label.
+            .width(IntrinsicSize.Max)
+            .height(ButtonDefaults.MinHeight)
+            .clip(CircleShape)
+            .background(if (selected) colors.secondaryContainer else Color.Transparent),
+        selectedContentColor = colors.onSecondaryContainer,
+        unselectedContentColor = colors.onSurfaceVariant,
+        text = { Text(label, style = MaterialTheme.typography.titleMedium) },
+    )
 }
 
 /**

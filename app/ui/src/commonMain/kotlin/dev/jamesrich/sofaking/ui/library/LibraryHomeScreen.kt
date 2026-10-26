@@ -49,7 +49,7 @@ import dev.jamesrich.sofaking.resources.unconfigured_hint
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
-import dev.jamesrich.sofaking.ui.theme.SofaChip
+import dev.jamesrich.sofaking.ui.theme.SofaActionChip
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -176,7 +176,7 @@ private fun LibraryChips(
                     Modifier
                 }
                 ).focusRequester(searchFocus)
-            SofaChip(selected = false, onClick = {
+            SofaActionChip(onClick = {
                 actions.onSearch(false)
             }, label = stringResource(Res.string.library_search), modifier = focus)
         }
@@ -186,8 +186,7 @@ private fun LibraryChips(
             } else {
                 Modifier
             }
-            SofaChip(
-                selected = false,
+            SofaActionChip(
                 onClick = { actions.onOpenLibrary(library) },
                 label = stringResource(Res.string.library_library_chip, library.name, library.itemCount),
                 modifier = focus,

@@ -38,6 +38,7 @@ import dev.jamesrich.sofaking.resources.library_sort_title
 import dev.jamesrich.sofaking.resources.library_sort_watched
 import dev.jamesrich.sofaking.resources.library_sort_year
 import dev.jamesrich.sofaking.resources.loading
+import dev.jamesrich.sofaking.ui.theme.SofaActionChip
 import dev.jamesrich.sofaking.ui.theme.SofaChip
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -137,8 +138,7 @@ private fun LetterChips(grid: LibraryGrid?, letterRow: FocusRequester, onLetter:
         itemsIndexed(grid?.letters.orEmpty(), key = { _, jump -> jump.letter }) { i, letter ->
             val description = stringResource(Res.string.library_letter_jump, letter.letter)
             val focus = if (i == 0) Modifier.focusRequester(firstLetter) else Modifier
-            SofaChip(
-                selected = false,
+            SofaActionChip(
                 onClick = { onLetter(letter) },
                 label = letter.letter,
                 modifier = focus.semantics { contentDescription = description },

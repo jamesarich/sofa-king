@@ -49,6 +49,7 @@ import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.horizontalFadingEdges
+import dev.jamesrich.sofaking.ui.theme.SofaActionChip
 import dev.jamesrich.sofaking.ui.theme.SofaChip
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.stringResource
@@ -121,7 +122,7 @@ internal fun FilterChipRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item(key = "now") {
-            SofaChip(selected = false, onClick = onNow, label = stringResource(Res.string.guide_now))
+            SofaActionChip(onClick = onNow, label = stringResource(Res.string.guide_now))
         }
         item(key = "search") {
             SofaChip(
@@ -143,7 +144,7 @@ internal fun FilterChipRow(
         // Last, so the fixed chips before the filters keep their places.
         if (onOnLater != null) {
             item(key = "on-later") {
-                SofaChip(selected = false, onClick = onOnLater, label = stringResource(Res.string.on_later))
+                SofaActionChip(onClick = onOnLater, label = stringResource(Res.string.on_later))
             }
         }
     }

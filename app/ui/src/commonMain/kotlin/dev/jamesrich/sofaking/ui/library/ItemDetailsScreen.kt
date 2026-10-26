@@ -46,6 +46,7 @@ import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
+import dev.jamesrich.sofaking.ui.theme.SofaActionChip
 import dev.jamesrich.sofaking.ui.theme.SofaChip
 import org.jetbrains.compose.resources.stringResource
 
@@ -331,7 +332,7 @@ private fun Cast(cast: List<String>, onPerson: (String) -> Unit, sides: PaddingV
         ) {
             items(cast, key = {
                 it
-            }) { person -> SofaChip(selected = false, onClick = { onPerson(person) }, label = person) }
+            }) { person -> SofaActionChip(onClick = { onPerson(person) }, label = person) }
         }
     }
 }

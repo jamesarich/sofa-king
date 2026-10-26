@@ -56,10 +56,10 @@ private fun audioMode(media: MediaInfo, profile: ClientProfile): String {
     return if (opens && codec in profile.audioCodecs) Wire.VodMode.DIRECT else Wire.VodMode.AUDIO
 }
 
-/** Whether a client with [profile] decodes [video] as it is: its codec, height, HDR and bit depth. */
+/** Whether a client with [profile] decodes [video] as it is: its codec, height, HDR, chroma and bit depth. */
 private fun fits(video: VideoStream, profile: ClientProfile): Boolean =
     video.codec in profile.videoCodecs && (profile.maxHeight?.let { (video.height ?: 0) <= it } ?: true) &&
-        (video.transfer == null || profile.hdr) &&
+        (video.transfer == null || profile.hdr) && !fullChroma(video) &&
         (!deepColor(video) || video.codec in (profile.deepColor ?: profile.videoCodecs - "h264"))
 
 /** Whether a client with [profile] opens [media]'s container with [video] in it. */
@@ -69,6 +69,16 @@ private fun fitsContainer(media: MediaInfo, video: VideoStream, profile: ClientP
     return (container in profile.containers && !(container == "mp4" && video.codec == "hevc" && video.tag == "hev1")) ||
         (container == "mkv" && "webm" in profile.containers && video.codec in setOf("vp8", "vp9", "av1"))
 }
+
+/** Pixel formats that keep more color than 4:2:0, such as `yuv444p`, `yuv422p10le` and `gbrp`. */
+private val FULL_CHROMA_PIXEL_FORMAT = Regex("""^(yuvj?4(22|44)|gbr|rgb|bgr|nv16|nv24)""")
+
+/**
+ * True when [video] keeps more color than 4:2:0, as H.264 High 4:4:4 does. Phone, TV and browser decoders take 4:2:0
+ * only, so such a file is transcoded, which writes 4:2:0.
+ */
+internal fun fullChroma(video: VideoStream): Boolean =
+    video.pixelFormat?.let { FULL_CHROMA_PIXEL_FORMAT.containsMatchIn(it) } == true
 
 /** Pixel formats with more than 8 bits a sample, such as `yuv420p10le` and `p010le`. */
 private val DEEP_PIXEL_FORMAT = Regex("""(p9|p1[0-6]|p01[0-6])(le|be)?$""")

@@ -41,6 +41,7 @@ import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.ui.theme.SofaActionChip
 import dev.jamesrich.sofaking.ui.theme.SofaChip
 import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -56,7 +57,7 @@ internal fun GridHeader(
             Text(library?.name.orEmpty(), style = MaterialTheme.typography.headlineMedium, maxLines = 1)
             grid?.takeIf { !it.loading || it.items.isNotEmpty() }?.let {
                 Text(
-                    stringResource(Res.string.library_items_count, it.total),
+                    pluralStringResource(Res.plurals.library_items_count, it.total, it.total),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

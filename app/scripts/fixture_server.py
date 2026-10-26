@@ -187,7 +187,7 @@ def show(library):
         sound = tune(13 + 2 * n, 1 + 3 * n, COLD_OPEN) + tune(7, 3, THEME) + tune(11 + 2 * n, 5 + n, body) + tune(5, 9, CREDITS)
         subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', *picture, *sound, '-filter_complex',
                         '[1:a][2:a][3:a][4:a]concat=n=4:v=0:a=1[a]', '-map', '0:v', '-map', '[a]', '-c:v', 'libx264',
-                        '-preset', 'ultrafast', '-g', '20', '-c:a', 'aac', str(season / f'{name}.mkv')], check=True, timeout=180)
+                        '-pix_fmt', 'yuv420p', '-preset', 'ultrafast', '-g', '20', '-c:a', 'aac', str(season / f'{name}.mkv')], check=True, timeout=180)
         cues = [f'{k + 1}\n{clock(at)} --> {clock(at + 4)}\nLine {k + 1} of episode {n}\n' for k, at in enumerate(range(0, EPISODE, 5))]
         (season / f'{name}.en.srt').write_text('\n'.join(cues))
         (season / f'{name}.nfo').write_text(f'<episodedetails><title>Episode {n}</title><season>1</season><episode>{n}</episode>'
@@ -210,7 +210,8 @@ def movies(library):
     clip = library / 'clip.mp4'
     library.mkdir(parents=True)
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=10',
-                    '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo', '-t', '4', '-c:v', 'libx264', '-preset', 'ultrafast',
+                    '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo', '-t', '4', '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+                    '-preset', 'ultrafast',
                     '-c:a', 'aac', '-movflags', '+faststart', str(clip)], check=True, timeout=60)
     titles = [f'{word} {part}' for word in MOVIE_WORDS for part in ('Road', 'House', 'Sky')]
     titles[1], titles[4] = 'The ' + titles[1], 'A ' + titles[4]

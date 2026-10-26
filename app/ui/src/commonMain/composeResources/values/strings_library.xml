@@ -23,7 +23,10 @@
     <string name="library_empty_hint">The server adds what it finds on its next library scan.</string>
     <string name="library_pick_title">Pick a title to see it here</string>
     <string name="library_load_failed">The library didn't load</string>
-    <string name="library_items_count">%1$d items</string>
+    <plurals name="library_items_count">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
     <string name="library_sort_title">Title</string>
     <string name="library_sort_added">Recently added</string>
     <string name="library_sort_year">Year</string>

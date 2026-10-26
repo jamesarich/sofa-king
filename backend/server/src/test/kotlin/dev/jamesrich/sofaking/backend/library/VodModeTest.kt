@@ -84,6 +84,18 @@ class VodModeTest {
         assertFalse(deepColor(VideoStream("h264", pixelFormat = "yuvj420p")))
     }
 
+    @Test fun `video with more color than 4 2 0 is transcoded`() {
+        fun chroma(format: String) = media("mov,mp4,m4a,3gp,3g2,mj2", "h264", "aac").let {
+            it.copy(video = it.video!!.copy(pixelFormat = format))
+        }
+        assertEquals(Wire.VodMode.TRANSCODE, vodMode(chroma("yuv444p"), tv), "H.264 High 4:4:4")
+        assertEquals(Wire.VodMode.TRANSCODE, vodMode(chroma("yuv422p10le"), tv))
+        assertEquals(Wire.VodMode.DIRECT, vodMode(chroma("yuvj420p"), tv))
+        assertTrue(fullChroma(VideoStream("h264", pixelFormat = "gbrp")))
+        assertFalse(fullChroma(VideoStream("hevc", pixelFormat = "p010le")))
+        assertFalse(fullChroma(VideoStream("h264")))
+    }
+
     @Test fun `a picked audio stream decides the audio`() {
         val file = media("mov,mp4,m4a,3gp,3g2,mj2", "h264", "truehd")
         assertEquals(Wire.VodMode.AUDIO, vodMode(file, browser))

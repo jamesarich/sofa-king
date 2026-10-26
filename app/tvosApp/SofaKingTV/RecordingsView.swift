@@ -135,7 +135,14 @@ private struct RecordingRow: View {
             let end = Date(timeIntervalSince1970: Double(model.core.recordingEndMs(recording: recording)) / 1000)
             return "Recording until \(end.formatted(date: .omitted, time: .shortened))"
         case .failed:
-            return recording.reason.map { "Failed: \($0)" } ?? "Failed"
+            switch recording.failure {
+            case .missed: return "Missed: the server was off or busy with other recordings"
+            case .diskFull: return "Failed: the recordings disk filled up"
+            case .noMedia: return "Failed: the channel sent nothing to record"
+            case .source: return "Failed: couldn't reach the channel's source"
+            case .channelGone: return "Failed: the channel left the lineup"
+            default: return "Failed"
+            }
         case .completed:
             if recording.watched { return "Watched" }
             if recording.inProgress { return "Started" }

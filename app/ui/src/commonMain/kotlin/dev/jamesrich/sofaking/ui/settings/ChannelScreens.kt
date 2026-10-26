@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -315,10 +317,13 @@ fun ChannelPickerScreen(
     BackHandler { onBack() }
     // The chosen channel takes focus when there is one, else Back (or the first channel where Back isn't drawn), so
     // the list opens where the user left it.
+    // The list composes only the rows on screen, so it first scrolls to the chosen one (the help is item 0, so this
+    // leaves the row above it in view).
+    val listState = rememberLazyListState()
     LaunchedEffect(Unit) {
-        if (selected == null || channels.none { it.guideId == selected } || !requestFocusWhenAttached(selectedFocus)) {
-            requestFocusWhenAttached(firstFocus)
-        }
+        val index = channels.indexOfFirst { it.guideId == selected }
+        if (index >= 0) listState.scrollToItem(index)
+        if (index < 0 || !requestFocusWhenAttached(selectedFocus)) requestFocusWhenAttached(firstFocus)
     }
 
     TitledList(
@@ -326,6 +331,7 @@ fun ChannelPickerScreen(
         onBack = onBack,
         backFocus = backFocus,
         modifier = modifier,
+        state = listState,
         listModifier = Modifier.focusRequester(contentFocus).focusRestorer().focusGroup(),
     ) {
         item { HelpText(stringResource(Res.string.settings_startup_pick_help)) }
@@ -352,6 +358,7 @@ internal fun TitledList(
     backFocus: FocusRequester?,
     modifier: Modifier = Modifier,
     listModifier: Modifier = Modifier,
+    state: LazyListState = rememberLazyListState(),
     content: LazyListScope.() -> Unit,
 ) {
     Column(
@@ -362,6 +369,7 @@ internal fun TitledList(
         val padding = listScreenPadding(WindowInsetsSides.Bottom)
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth().then(padding.modifier).then(listModifier),
+            state = state,
             contentPadding = padding.content,
             verticalArrangement = Arrangement.spacedBy(SETTINGS_ROW_GAP),
             content = content,

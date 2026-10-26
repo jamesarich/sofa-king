@@ -378,7 +378,12 @@ internal class RuntimeAssembly(
         musicMetadata = MusicBrainzClient(http, config.version)
             .takeIf { config.musicBrainz }
             ?.let { MusicMetadata(store, it, clock) },
-        artwork = LibraryArtwork(http, config.dataDirectory.resolve("artwork"), ffmpeg = config.ffmpeg),
+        artwork = LibraryArtwork(
+            http,
+            config.dataDirectory.resolve("artwork"),
+            ffmpeg = config.ffmpeg,
+            policy = upstream,
+        ),
         intros = IntroDetector(
             store,
             clock,

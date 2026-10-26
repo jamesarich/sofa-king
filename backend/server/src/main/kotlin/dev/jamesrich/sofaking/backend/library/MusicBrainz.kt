@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
+import dev.jamesrich.sofaking.backend.upstream.REDIRECT_STATUSES
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -72,6 +73,9 @@ private val musicBrainzJson = Json {
 
 @Serializable internal data class MbArtists(val artists: List<MbArtist> = emptyList())
 
+/** Where the front covers of MusicBrainz releases are kept. */
+internal const val COVER_ART_ARCHIVE = "https://coverartarchive.org"
+
 /** MusicBrainz asks for one request a second from each client; a little more leaves room for clock jitter. */
 internal val MUSICBRAINZ_PAUSE: Duration = Duration.ofMillis(1_100)
 
@@ -83,6 +87,7 @@ internal class MusicBrainzClient(
     private val http: HttpClient,
     version: String,
     private val base: String = "https://musicbrainz.org/ws/2",
+    private val coverArtArchive: String = COVER_ART_ARCHIVE,
     private val pause: Duration = MUSICBRAINZ_PAUSE,
 ) {
     private val userAgent = "SofaKing/$version ( https://github.com/jamesarich/sofa-king )"
@@ -110,6 +115,24 @@ internal class MusicBrainzClient(
     /** The artist [id] with its aliases, genres and links; null when MusicBrainz has no such artist. */
     suspend fun artist(id: String): MbArtist? = orNull { get("/artist/$id", "inc" to "aliases genres url-rels") }
 
+    /**
+     * Whether the Cover Art Archive holds a front cover for the release group [id]: it answers with a redirect to the
+     * image, or 404 for none.
+     */
+    suspend fun hasCover(id: String): Boolean {
+        val status = request("$coverArtArchive/release-group/$id/front-250", emptyArray(), json = false).status
+        return when {
+            status == HttpStatusCode.OK || status.value in REDIRECT_STATUSES -> true
+
+            status == HttpStatusCode.NotFound -> false
+
+            status == HttpStatusCode.ServiceUnavailable || status == HttpStatusCode.TooManyRequests ->
+                throw MusicBrainzFailure("COVERART_RATE_LIMITED")
+
+            else -> throw MusicBrainzFailure("COVERART_HTTP_${status.value}")
+        }
+    }
+
     private suspend fun <T> orNull(call: suspend () -> T): T? = try {
         call()
     } catch (e: MusicBrainzFailure) {
@@ -117,22 +140,28 @@ internal class MusicBrainzClient(
     }
 
     private suspend inline fun <reified T> get(path: String, vararg query: Pair<String, String>): T {
-        val response = request(path, query)
+        val response = request(base + path, query)
         failureOf(response.status)?.let { throw MusicBrainzFailure(it) }
         return runCatchingCancellable { musicBrainzJson.decodeFromString<T>(response.bodyAsText()) }
             .getOrElse { throw MusicBrainzFailure("MUSICBRAINZ_BAD_RESPONSE") }
     }
 
-    /** [path] asked as JSON, after the pause since the last call; one that never gets an answer is unreachable. */
-    private suspend fun request(path: String, query: Array<out Pair<String, String>>): HttpResponse = gate.withLock {
+    /** [url] asked, as JSON unless not [json], after the pause since the last call; no answer is unreachable. */
+    private suspend fun request(
+        url: String,
+        query: Array<out Pair<String, String>>,
+        json: Boolean = true,
+    ): HttpResponse = gate.withLock {
         val wait = pause.toMillis() - (System.currentTimeMillis() - lastAt)
         if (wait > 0) delay(wait)
         try {
             runCatchingCancellable {
-                http.get(base + path) {
+                http.get(url) {
                     header(HttpHeaders.UserAgent, userAgent)
-                    header(HttpHeaders.Accept, "application/json")
-                    parameter("fmt", "json")
+                    if (json) {
+                        header(HttpHeaders.Accept, "application/json")
+                        parameter("fmt", "json")
+                    }
                     for ((name, value) in query) parameter(name, value)
                 }
             }.getOrElse { throw MusicBrainzFailure("MUSICBRAINZ_UNREACHABLE (${it.javaClass.simpleName})") }

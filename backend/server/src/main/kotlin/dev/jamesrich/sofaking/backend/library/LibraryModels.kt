@@ -169,6 +169,8 @@ data class MetadataFacts(
     val musicBrainzId: String? = null,
     /** For an album, the MusicBrainz artist its match is credited to first. */
     val artistId: String? = null,
+    /** For an album with no picture of its own, whether the Cover Art Archive holds a front cover for its match. */
+    val coverArt: Boolean = false,
     /** For an artist, the Wikidata item MusicBrainz links it to (`Q…`). */
     val wikidata: String? = null,
 )

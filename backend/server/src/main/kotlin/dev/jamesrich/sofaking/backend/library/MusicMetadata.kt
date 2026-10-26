@@ -39,7 +39,8 @@ private val EDITION = Regex(
  * with pin the match; an album without them is searched by its title and artist, and kept only when MusicBrainz's
  * title and artist are the album's own, editions aside. An artist without an id takes the one its matched albums are
  * credited to, and only failing that is searched by name. A match keeps the MusicBrainz id, the album's first release
- * year, the genres MusicBrainz votes for where the files name none, and the artist's Wikidata item; nothing renames
+ * year, the genres MusicBrainz votes for where the files name none, whether the Cover Art Archive has a cover for an
+ * album with no picture of its own, and the artist's Wikidata item; nothing renames
  * what the tags call it. Lookups are kept and fetched again after [MUSIC_MATCHED_FOR]; a rate limit or three lookups
  * in a row that cannot reach MusicBrainz end the run, to resume on the next.
  */
@@ -68,6 +69,10 @@ class MusicMetadata internal constructor(
         private val byId = present.associateBy { it.id }
         private val albumsOf = present.filter { it.kind == ItemKind.ALBUM }.groupBy { it.parentId }
 
+        /** The albums with a track holding a picture. */
+        private val pictured = present.filter { it.kind == ItemKind.TRACK && it.media?.picture == true }
+            .mapNotNullTo(HashSet()) { it.parentId }
+
         /** The MusicBrainz artists each album's match is credited to first, by album id. */
         private val credited = HashMap<String, String>()
         private var fetched = 0
@@ -95,7 +100,7 @@ class MusicMetadata internal constructor(
                         client.release(details.musicBrainzId)?.releaseGroup?.id?.let { client.releaseGroup(it) }
 
                     else -> null
-                } ?: search(album)
+                } ?: search(album)?.let { found -> client.releaseGroup(found.id) ?: found }
                 group?.let {
                     val artistId = it.artistCredit.firstOrNull()?.artist?.id?.ifEmpty { null }
                     artistId?.let { id -> credited[album.id] = id }
@@ -104,6 +109,7 @@ class MusicMetadata internal constructor(
                         genres = if (details?.genres.isNullOrEmpty()) genres(it.genres) else emptyList(),
                         musicBrainzId = it.id,
                         artistId = artistId,
+                        coverArt = album.poster == null && album.id !in pictured && client.hasCover(it.id),
                     )
                 }
             }

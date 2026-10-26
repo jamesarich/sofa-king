@@ -6,8 +6,14 @@ import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
+import dev.jamesrich.sofaking.backend.upstream.Hop
+import dev.jamesrich.sofaking.backend.upstream.REDIRECT_STATUSES
+import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
+import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
+import dev.jamesrich.sofaking.backend.upstream.followRedirects
 import io.ktor.client.HttpClient
 import io.ktor.client.request.prepareGet
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -19,6 +25,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.io.readByteArray
 import org.slf4j.LoggerFactory
+import java.net.URI
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
@@ -38,21 +45,25 @@ private const val ARTWORK_LIMIT = 8 * MIB
 /** A TMDB image path as its API returns one: a slash, then letters, digits, `_` or `-`, and an image extension. */
 private val TMDB_IMAGE_PATH = Regex("""/[A-Za-z0-9_-]{1,128}\.(jpg|jpeg|png|webp)""")
 private val TMDB_IMAGE_SIZE = Regex("w[0-9]{2,4}|original")
+private val MUSICBRAINZ_ID = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
 /** An image ready to serve: the file and its type. */
 class Artwork(val file: Path, val contentType: String)
 
 /**
- * The posters and backdrops behind `/artwork`: a library's own image files, read in place, and TMDB's images,
- * downloaded once into [directory] (which can be deleted at any time; images are fetched again as they are asked for).
+ * The posters and backdrops behind `/artwork`: a library's own image files, read in place, and TMDB's images and the
+ * Cover Art Archive's covers, downloaded once into [directory] (which can be deleted at any time; images are fetched
+ * again as they are asked for).
  */
 class LibraryArtwork(
     private val http: HttpClient?,
     private val directory: Path,
     private val tmdbImages: String = "https://image.tmdb.org/t/p",
+    private val coverArtArchive: String = COVER_ART_ARCHIVE,
     private val maxBytes: Int = ARTWORK_LIMIT,
     /** FFmpeg, which takes a frame for a file with no picture; null takes none. */
     private val ffmpeg: String? = null,
+    private val policy: UpstreamPolicy = UpstreamPolicy(),
 ) {
     /** One lock per stripe of keys, so a key always has the same one and two fetches of it never run at once. */
     private val locks = Array(LOCK_STRIPES) { Mutex() }
@@ -64,6 +75,14 @@ class LibraryArtwork(
         is ArtSource.Local -> local(source)
         is ArtSource.Tmdb -> tmdb(source)
         is ArtSource.Frame -> frame(source)
+        is ArtSource.CoverArt -> coverArt(source)
+    }
+
+    /** The release group's front cover, 500 across, fetched once through the Cover Art Archive's redirects. */
+    private suspend fun coverArt(source: ArtSource.CoverArt): Artwork? {
+        if (http == null || !MUSICBRAINZ_ID.matches(source.releaseGroupId)) return null
+        val key = hash("coverart-500-${source.releaseGroupId}")
+        return fetched(key, "$coverArtArchive/release-group/${source.releaseGroupId}/front-500", "image/jpeg")
     }
 
     /** A JPEG of the video's frame, 640 wide, taken once and kept beside the TMDB images. */
@@ -127,12 +146,16 @@ class LibraryArtwork(
     private suspend fun tmdb(source: ArtSource.Tmdb): Artwork? {
         if (http == null || !TMDB_IMAGE_PATH.matches(source.path) || !source.size.matches(TMDB_IMAGE_SIZE)) return null
         val type = typeOf(source.path) ?: return null
-        val key = hash("${source.size}${source.path}")
+        return fetched(hash("${source.size}${source.path}"), "$tmdbImages/${source.size}${source.path}", type)
+    }
+
+    /** The image at [url], downloaded once as [key] in the directory; [type] is what its name says it is. */
+    private suspend fun fetched(key: String, url: String, type: String): Artwork? {
         val file = directory.resolve(key)
         if (withContext(Dispatchers.IO) { Files.isRegularFile(file) }) return Artwork(file, type)
         return lockFor(key).withLock {
             if (withContext(Dispatchers.IO) { Files.isRegularFile(file) }) return@withLock Artwork(file, type)
-            val bytes = download("$tmdbImages/${source.size}${source.path}") ?: return@withLock null
+            val bytes = download(url) ?: return@withLock null
             withContext(Dispatchers.IO) {
                 Files.createDirectories(directory)
                 atomicWrite(file, bytes, sync = false)
@@ -141,19 +164,33 @@ class LibraryArtwork(
         }
     }
 
+    /** The picture at [url], following the redirects the Cover Art Archive answers with, to hosts [policy] allows. */
     private suspend fun download(url: String): ByteArray? = runCatchingCancellable {
-        http!!.prepareGet(url).execute { response ->
-            if (response.status != HttpStatusCode.OK) {
-                log.info("artwork fetch failed status={}", response.status.value)
-                return@execute null
+        followRedirects(URI(url), reject = { throw UpstreamRejectedException(it.message) }) { target ->
+            policy.check(target)
+            http!!.prepareGet(target.toString()).execute { response ->
+                val location = response.headers[HttpHeaders.Location]
+                if (response.status.value in REDIRECT_STATUSES &&
+                    location != null
+                ) {
+                    return@execute Hop.Redirect(location)
+                }
+                Hop.Done(picture(response))
             }
-            response.headers[HttpHeaders.ContentLength]?.toLongOrNull()?.let { if (it > maxBytes) return@execute null }
-            val bytes = response.bodyAsChannel().readBuffer(maxBytes.toLong() + 1).readByteArray()
-            bytes.takeIf { it.size <= maxBytes && LogoCache.rasterType(it) != null }
         }
     }.getOrElse { e ->
         log.info("artwork fetch failed class={}", e.javaClass.simpleName)
         null
+    }
+
+    private suspend fun picture(response: HttpResponse): ByteArray? {
+        if (response.status != HttpStatusCode.OK) {
+            log.info("artwork fetch failed status={}", response.status.value)
+            return null
+        }
+        response.headers[HttpHeaders.ContentLength]?.toLongOrNull()?.let { if (it > maxBytes) return null }
+        val bytes = response.bodyAsChannel().readBuffer(maxBytes.toLong() + 1).readByteArray()
+        return bytes.takeIf { it.size <= maxBytes && LogoCache.rasterType(it) != null }
     }
 
     private fun typeOf(name: String): String? = when (name.substringAfterLast('.').lowercase()) {

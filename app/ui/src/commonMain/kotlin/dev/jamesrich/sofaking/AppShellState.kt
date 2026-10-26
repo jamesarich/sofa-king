@@ -16,8 +16,14 @@ import dev.jamesrich.sofaking.ui.player.SleepTimer
 import dev.jamesrich.sofaking.ui.player.VideoZoom
 import dev.jamesrich.sofaking.ui.settings.SettingsLock
 
-/** Which header button takes focus when a tab's page comes back: its tab (after Back to Live) or Settings. */
-internal enum class HeaderReturn { TAB, SETTINGS }
+/**
+ * Which header button takes focus when a tab's page comes back: its tab (after Back to Live), Settings, or the song
+ * playing (after Now playing opened from it).
+ */
+internal enum class HeaderReturn { TAB, SETTINGS, NOW_PLAYING }
+
+/** What Back from Now playing focuses: the song picked on the page below ([item]), or the header's song button. */
+internal data class NowPlayingReturn(val item: String? = null, val header: Boolean = false)
 
 /**
  * The app shell's UI state and the moves between pages, kept out of the composables so it can be tested: where the
@@ -76,9 +82,23 @@ internal class AppShellState(
         nav = nav.push(route, arrival)
     }
 
-    /** Back one page. The player hands the guide the channel it was left on, which may not be the one it opened. */
+    /** What Back from Now playing focuses, set as it opens ([openNowPlaying]). */
+    var nowPlayingReturn = NowPlayingReturn()
+
+    /**
+     * Back one page. The player hands the guide the channel it was left on, which may not be the one it opened, and
+     * Now playing the song it was opened on.
+     */
     fun back() {
-        nav = nav.pop(if (nav.top is Route.Player) history.watching else nav.top.focusKey)
+        val top = nav.top
+        if (top is Route.NowPlaying && nowPlayingReturn.header) headerReturn = HeaderReturn.NOW_PLAYING
+        nav = nav.pop(
+            when (top) {
+                is Route.Player -> history.watching
+                Route.NowPlaying -> nowPlayingReturn.item
+                else -> top.focusKey
+            },
+        )
     }
 
     /** From the player to the guide by its Guide or Search key: the guide opens at Now or with search open. */

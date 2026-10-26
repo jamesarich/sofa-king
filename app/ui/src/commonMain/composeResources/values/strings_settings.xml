@@ -11,6 +11,8 @@
     <string name="settings_server_use_page">Use this page's address</string>
     <string name="settings_server_change">Change</string>
     <string name="settings_server_cancel">Cancel</string>
+    <string name="settings_manage_server">Manage server</string>
+    <string name="settings_manage_server_summary">Sources, devices and recordings, in the admin portal</string>
     <string name="settings_server_url">Server address</string>
     <string name="settings_discovered_servers">Servers on this network</string>
     <string name="settings_discovered_server">%1$s at %2$s</string>

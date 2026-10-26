@@ -16,3 +16,14 @@ fun parsePairingLink(link: String): PairingRequest? {
     val code = url.parameters["code"]?.let(ServerAddress::normalizeCode) ?: return null
     return PairingRequest(server, code)
 }
+
+/**
+ * Reads the `#pair=DIGITS` fragment the admin portal's Open the web app adds to the web app's address, served at
+ * [pageOrigin], into a [PairingRequest] for that origin; null for any other fragment or a code that is not six digits.
+ */
+fun parsePairingFragment(fragment: String, pageOrigin: String): PairingRequest? {
+    val code = fragment.removePrefix("#").split('&').firstOrNull { it.startsWith("pair=") }?.removePrefix("pair=")
+        ?.let(ServerAddress::normalizeCode) ?: return null
+    val server = ServerAddress.normalizeUrl(pageOrigin) ?: return null
+    return PairingRequest(server, code)
+}

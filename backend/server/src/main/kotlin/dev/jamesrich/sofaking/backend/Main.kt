@@ -21,9 +21,11 @@ fun main(): Unit = runBlocking<Unit> {
     val ports = listOf(config.port) + if (config.hdhr.enabled) config.hdhr.extraPorts else emptyList()
     val plexStatus = runtime.plex?.let { sync -> PlexStatusSource { sync.status() } }
     val mdns = if (config.mdns) MdnsAdvertiser(config.hdhr.friendlyName, config.port, config.version) else null
-    // Both Ktor's shutdown hook and main's finally close; whichever comes second waits for the first to finish,
-    // so the hook cannot return (and the JVM halt) while main is still closing the store.
+    // Both Ktor's shutdown hook and main's finally close, each only once the server has stopped; whichever comes
+    // second waits for the first to finish, so the hook cannot return (and the JVM halt) while main is still closing
+    // the store. The log lines come from here alone, so they stay in order whichever path gets here first.
     val closing = lazy {
+        log.info("shutdown: server stopped")
         mdns?.close()
         runBlocking { runtime.close() }
         log.info("shutdown: runtime closed")
@@ -46,10 +48,7 @@ fun main(): Unit = runBlocking<Unit> {
                 config,
             )
             // Ktor's own shutdown hook stops the server, which raises this before the hook returns and the JVM halts.
-            monitor.subscribe(ApplicationStopped) {
-                log.info("shutdown: server stopped")
-                close()
-            }
+            monitor.subscribe(ApplicationStopped) { close() }
         }
     // JmDNS probes for its names before it answers, so it starts beside the server instead of delaying it.
     if (mdns != null) Thread.ofPlatform().daemon().name("mdns-start").start { mdns.start() }

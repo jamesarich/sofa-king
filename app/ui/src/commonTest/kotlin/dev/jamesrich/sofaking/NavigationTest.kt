@@ -26,6 +26,21 @@ class NavigationTest {
     }
 
     @Test
+    fun `a title picked from the grid takes the place of the titles open over it`() {
+        val grid = Route.LibraryGrid("shows")
+        val open = start.open(Tab.LIBRARY).push(grid).push(Route.LibraryItem("s1")).push(Route.LibraryItem("e1"))
+        val nav = open.pushOver(grid, Route.LibraryItem("m2"))
+        assertEquals(listOf(Route.Library, grid, Route.LibraryItem("m2")), nav.stack(Tab.LIBRARY))
+    }
+
+    @Test
+    fun `a title picked from the grid on top opens over it`() {
+        val grid = Route.LibraryGrid("movies")
+        val nav = start.open(Tab.LIBRARY).push(grid).pushOver(grid, Route.LibraryItem("m1"))
+        assertEquals(listOf(Route.Library, grid, Route.LibraryItem("m1")), nav.stack(Tab.LIBRARY))
+    }
+
+    @Test
     fun `back from a recording focuses it on the recordings page`() {
         val nav = start.open(Tab.RECORDINGS).push(Route.Recording("r5")).pop()
         assertEquals(Route.Recordings, nav.top)

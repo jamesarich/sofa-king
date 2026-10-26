@@ -18,6 +18,7 @@
     <string name="library_unavailable_hint">Add a movies or shows folder in the admin portal, under Library.</string>
     <string name="library_empty">Nothing here yet</string>
     <string name="library_empty_hint">The server adds what it finds on its next library scan.</string>
+    <string name="library_pick_title">Pick a title to see it here</string>
     <string name="library_load_failed">The library didn't load</string>
     <string name="library_items_count">%1$d items</string>
     <string name="library_sort_title">Title</string>

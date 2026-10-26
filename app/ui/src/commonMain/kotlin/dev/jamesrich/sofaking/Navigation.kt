@@ -209,6 +209,17 @@ internal data class Navigation(
         return copy(stacks = stacks + (tab to next), arrival = arrival)
     }
 
+    /**
+     * Opens [route] just above [page], closing what was open over it: a title picked from the library grid takes the
+     * place of the one shown beside the grid on a wide window. Where [page] is the page on top, this is [push].
+     */
+    fun pushOver(page: Route, route: Route, arrival: Arrival = Arrival()): Navigation {
+        val stack = stack(tab)
+        val at = stack.indexOfLast { it.id == page.id }
+        if (at < 0) return push(route, arrival)
+        return copy(stacks = stacks + (tab to stack.take(at + 1)), arrival = arrival).push(route, arrival)
+    }
+
     /** Swaps the page on top for [route], as the next episode takes the player's place. */
     fun replaceTop(route: Route, arrival: Arrival = Arrival()): Navigation =
         pop(returnedFrom = null).push(route, arrival)

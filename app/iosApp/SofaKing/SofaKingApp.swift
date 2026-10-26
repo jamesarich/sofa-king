@@ -4,7 +4,7 @@ import SofaKingUi
 @main
 struct SofaKingApp: App {
     init() {
-        MainViewControllerKt.startSofaKingIos()
+        MainViewControllerKt.startSofaKingIos(browser: BonjourBrowser())
         #if DEBUG
         // `xcrun simctl launch booted dev.jamesrich.sofaking -serverUrl http://host:port -apiToken TOKEN -muted YES`
         // saves a server and mutes the player without touching the simulator; the UI tests launch the app this way.

@@ -71,7 +71,7 @@ The [security page](docs/security.md) describes what the app stores, where the t
 
 ## Limitations
 
-- iPhone, iPad and the web app do not discover the server; enter its address by hand. Android, Android TV, desktops and Apple TV list the servers on their network.
+- The web app does not discover the server; enter its address by hand. Android, Android TV, desktops, iPhone, iPad and Apple TV list the servers on their network.
 - iOS, Apple TV and the web play HLS channels only; MPEG-TS needs Android or a desktop. Library files and recordings play on every platform, since the server converts what a player cannot take.
 - The desktop app needs VLC 3. The `.deb` installs it through apt; on macOS and Windows install it first.
 - The web app fills in its page's origin as the server address and needs an origin the server allows, as [getting started](docs/getting-started.md#web) describes.

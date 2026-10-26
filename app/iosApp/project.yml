@@ -35,6 +35,8 @@ targets:
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
         NSLocalNetworkUsageDescription: Sofa King connects to your Sofa King server on this network.
+        # Settings lists the servers that advertise this type; iOS browses only for types listed here.
+        NSBonjourServices: [_sofaking._tcp]
         # Music plays on behind the app and on the lock screen.
         UIBackgroundModes: [audio]
         # The admin portal's QR code pairs the app with `sofaking://pair?server=…&code=…`; `sofaking://live` and `sofaking://vod` links play.

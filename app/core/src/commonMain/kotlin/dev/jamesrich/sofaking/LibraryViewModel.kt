@@ -11,7 +11,6 @@ import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaHome
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
-import dev.jamesrich.sofaking.data.PlayQueue
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
@@ -139,14 +138,10 @@ interface LibraryPlayback {
     ): PlaybackStream
 
     /**
-     * The episode to offer when [item] ends: the next in its season, else the first of the next season; for a song,
-     * the next in the [queue] that holds it, else in its album. Null for anything else, after a show's last episode or
-     * an album's last song, or when the server cannot be reached.
+     * The episode to offer when [item] ends: the next in its season, else the first of the next season. Null for
+     * anything but an episode, after a show's last episode, or when the server cannot be reached.
      */
     suspend fun upNext(item: MediaItem): MediaItem?
-
-    /** Plays songs from here on in [queue]'s order, as an album page's Play or Shuffle sets it; null drops it. */
-    fun queue(queue: PlayQueue?)
 
     /**
      * Plays [item] again from [positionMs] with the audio track [audioIndex] and the picture subtitle track
@@ -364,14 +359,7 @@ internal class LibraryPlayer(
         return sessions.play(item.id, profile, start, audioIndex, subtitleIndex)
     }
 
-    private var queue: PlayQueue? = null
-
-    override fun queue(queue: PlayQueue?) {
-        this.queue = queue
-    }
-
     override suspend fun upNext(item: MediaItem): MediaItem? {
-        if (item.kind == ItemKind.TRACK) return songAfter(item)
         val repository = repository()
         val parent = item.parentId
         if (repository == null || parent == null || item.kind != ItemKind.EPISODE) return null
@@ -383,27 +371,6 @@ internal class LibraryPlayer(
         }.getOrElse { e ->
             log.w { "up next failed: ${e.describe()}" }
             null
-        }
-    }
-
-    /**
-     * The song after [item] in the queue when it holds [item], else in [item]'s album as the server lists it; null
-     * after the last or when the server cannot be reached.
-     */
-    private suspend fun songAfter(item: MediaItem): MediaItem? {
-        val inQueue = queue?.takeIf { q -> q.items.any { it.id == item.id } }
-        val repository = repository()
-        val album = item.parentId
-        return when {
-            inQueue != null -> inQueue.after(item.id)
-
-            repository == null || album == null -> null
-
-            else -> runCatchingCancellable { PlayQueue.of(repository.detail(album).children).after(item.id) }
-                .getOrElse { e ->
-                    log.w { "next song failed: ${e.describe()}" }
-                    null
-                }
         }
     }
 

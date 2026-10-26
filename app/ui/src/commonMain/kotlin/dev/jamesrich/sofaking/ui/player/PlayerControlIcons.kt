@@ -71,6 +71,7 @@ internal fun PlayPauseControl(
     failed: Boolean,
     onPlayPause: () -> Unit,
     onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
     primary: Boolean = false,
     size: Dp = CONTROL_SIZE,
 ) {
@@ -79,6 +80,7 @@ internal fun PlayPauseControl(
             Icons.Filled.Refresh,
             stringResource(Res.string.player_control_retry),
             onRetry,
+            modifier = modifier,
             primary = primary,
             size = size,
         )
@@ -87,6 +89,7 @@ internal fun PlayPauseControl(
             if (paused) Icons.Filled.PlayArrow else SofaIcons.Pause,
             stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause),
             onPlayPause,
+            modifier = modifier,
             primary = primary,
             size = size,
         )

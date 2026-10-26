@@ -23,11 +23,6 @@ data class VodTitle(
     val markers: List<VodMarker> = emptyList(),
     /** Thumbnails shown over the seek bar while scrubbing, for a library file the server has made them for. */
     val scrub: ScrubTiles? = null,
-    /**
-     * A song: the screen shows its cover and names under the bar's, and the next song plays as this one ends, with no
-     * Up next card.
-     */
-    val music: Boolean = false,
 )
 
 /** A span of the item from [startMs] to [endMs]. */

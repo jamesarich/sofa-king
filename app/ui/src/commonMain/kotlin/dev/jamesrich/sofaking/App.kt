@@ -6,6 +6,7 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -48,6 +49,8 @@ import dev.jamesrich.sofaking.ui.guide.GuideShortcut
 import dev.jamesrich.sofaking.ui.guide.LocalGuideDensity
 import dev.jamesrich.sofaking.ui.guide.guideShortcut
 import dev.jamesrich.sofaking.ui.player.LocalPlayerVolume
+import dev.jamesrich.sofaking.ui.player.MiniPlayer
+import dev.jamesrich.sofaking.ui.player.MusicPlayback
 import dev.jamesrich.sofaking.ui.player.PlayerVolume
 import dev.jamesrich.sofaking.ui.player.volumeKey
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
@@ -143,8 +146,10 @@ private fun SofaKingApp(
     PlayerPreferenceEffects(playback.player, settings, top)
     val inPictureInPicture = rememberPlayerWindow(playback.player, active = top.playsFullScreen)
     val guidePlays = PREVIEW_ENABLED && LocalLayoutProfile.current.showsPreviewBand
-    RouteStreamEffects(shell, top, playback, sessions, guidePlays)
-    ForegroundEffects(playback, sessions, lifecycleOwner, plays = if (top is Route.Guide) guidePlays else top.playsLive)
+    val music = rememberMusicPlayback(playback, sessions, lifecycleOwner)
+    RouteStreamEffects(shell, top, playback, music, sessions, guidePlays)
+    val plays = if (top is Route.Guide) guidePlays else top.playsLive
+    ForegroundEffects(playback, music, sessions, lifecycleOwner, plays)
 
     val chrome = rememberTabChrome(shell, offered, LocalLayoutProfile.current.tv, libraryVm::refreshHome)
     val refreshing = shell.nav.tab == Tab.LIVE && loading && state is LineupState.Ready
@@ -159,6 +164,7 @@ private fun SofaKingApp(
             libraryVm,
             recordingsVm,
             playback.player,
+            music,
             offered,
             chrome,
             hideSpoilers,
@@ -174,7 +180,7 @@ private fun SofaKingApp(
         LocalPlayerVolume provides playback.volume,
         LocalKidsMode provides kids,
     ) {
-        AppNavDisplay(shell, chrome, entries, playback.volume)
+        AppNavDisplay(shell, chrome, entries, playback.volume, music)
     }
 }
 
@@ -208,6 +214,7 @@ private fun AppNavDisplay(
     chrome: TabChrome,
     entries: Map<Tab, List<NavEntry<Route>>>,
     volume: PlayerVolume,
+    music: MusicPlayback,
 ) {
     val nav = shell.nav
     val top = nav.top
@@ -216,23 +223,29 @@ private fun AppNavDisplay(
     TopLevel(
         tv = chrome.tv,
         tabs = chrome.tabs,
-        shown = !top.playsFullScreen,
+        shown = !top.hidesTabs,
         settingsOpen = top.isSettings,
         onSettings = chrome.onSettings,
         settingsFocus = chrome.settingsFocus,
         tabFocus = chrome.tabFocus,
     ) {
-        NavDisplay(
-            entries = entries.getValue(Tab.LIVE) + if (nav.tab == Tab.LIVE) emptyList() else entries.getValue(nav.tab),
-            modifier = Modifier.appKeys(shell, volume, windowFullScreen).playerVolumeWheel(volume) {
-                shell.nav.top.playsFullScreen
-            },
-            sceneStrategies = listOf(rememberLibraryPanes(chrome.tv)),
-            onBack = shell::back,
-            transitionSpec = cut,
-            popTransitionSpec = cut,
-            predictivePopTransitionSpec = { cut() },
-        )
+        Column {
+            NavDisplay(
+                entries = entries.getValue(Tab.LIVE) +
+                    if (nav.tab == Tab.LIVE) emptyList() else entries.getValue(nav.tab),
+                modifier = Modifier.weight(1f).appKeys(shell, volume, windowFullScreen).playerVolumeWheel(volume) {
+                    shell.nav.top.playsFullScreen
+                },
+                sceneStrategies = listOf(rememberLibraryPanes(chrome.tv)),
+                onBack = shell::back,
+                transitionSpec = cut,
+                popTransitionSpec = cut,
+                predictivePopTransitionSpec = { cut() },
+            )
+            // The music playing on while the viewer browses; a TV has no room under its pages, so its music shows
+            // on Now Playing alone.
+            if (!chrome.tv && !top.hidesTabs) MiniPlayer(music, onOpen = { shell.push(Route.NowPlaying) })
+        }
     }
 }
 

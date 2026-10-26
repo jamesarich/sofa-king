@@ -94,8 +94,7 @@ internal fun VodSessionEffects(
 /**
  * The item's end: [onStop] gets the end, then the [sleep] timer leaves, or [upNext] names what plays next and the Up
  * next card counts down to it ([onPlayNext]), or [onEnd] runs when nothing does. After [autoplays] says the card has
- * played enough by itself, it asks "Still watching?" and leaves through [onExit] instead. A song ([music]) goes on to
- * the next at once, with no card.
+ * played enough by itself, it asks "Still watching?" and leaves through [onExit] instead.
  */
 @Composable
 internal fun VodEndingEffects(
@@ -106,8 +105,6 @@ internal fun VodEndingEffects(
     onStop: (positionMs: Long, durationMs: Long?) -> Unit,
     onEnd: () -> Unit,
     onExit: () -> Unit,
-    music: Boolean = false,
-    onPlayNext: () -> Unit = {},
 ) {
     val state = parts.state
     val ending = parts.ending
@@ -116,7 +113,6 @@ internal fun VodEndingEffects(
     val currentOnEnd by rememberUpdatedState(onEnd)
     val currentOnExit by rememberUpdatedState(onExit)
     val currentUpNext by rememberUpdatedState(upNext)
-    val currentOnPlayNext by rememberUpdatedState(onPlayNext)
     // Its own effect, so the player's next state change (the app stopping it, say) cannot cancel the lookup.
     LaunchedEffect(state.ended) {
         if (!state.ended) return@LaunchedEffect
@@ -127,10 +123,6 @@ internal fun VodEndingEffects(
             return@LaunchedEffect
         }
         val next = currentUpNext()
-        if (music && next != null) {
-            currentOnPlayNext()
-            return@LaunchedEffect
-        }
         ending.stillWatching = next != null && autoplays.askStillWatching(lastInput.atMs)
         state.next = next
         if (next == null) currentOnEnd()

@@ -223,8 +223,26 @@ jobs:
           # Booted before the tests, so the first launch does not race the simulator's own start on a busy runner.
           xcrun simctl bootstatus "$device" -b
           cd iosApp
+          # Built for the tests first. Now and then xcodebuild sees no simulators at all just after a boot and fails
+          # before building anything, so that, and only that, is tried again.
+          for attempt in 1 2 3; do
+            if xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug -destination "id=$device" \
+              CODE_SIGNING_ALLOWED=NO -quiet build-for-testing > "../$out/build-for-testing.log" 2>&1; then
+              break
+            fi
+            cat "../$out/build-for-testing.log"
+            grep -q "Unable to find a device matching" "../$out/build-for-testing.log" && [ "$attempt" -lt 3 ] || exit 1
+            echo "::warning::xcodebuild did not find the booted simulator; trying again"
+            sleep 15
+          done
+          # The build's Gradle daemons (the app's holds up to 4 GB after the Kotlin/Native links) and the Kotlin
+          # daemon would otherwise sit through the tests in the runner's 7 GB beside the simulator and the server.
+          (cd .. && ./gradlew --stop)
+          pkill -f KotlinCompileDaemon || true
+          # The processes holding the most memory, for reading a slow run.
+          ps -axm -o rss=,comm= | head -8 || true
           xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug -destination "id=$device" \
-            CODE_SIGNING_ALLOWED=NO -resultBundlePath "../build/ios-ui/TouchTests.xcresult" test
+            CODE_SIGNING_ALLOWED=NO -resultBundlePath "../$out/TouchTests.xcresult" test-without-building
       # A failure's screenshots, as PNG files beside the result bundle in the artifact.
       - name: Export the touch tests' screenshots
         if: failure()

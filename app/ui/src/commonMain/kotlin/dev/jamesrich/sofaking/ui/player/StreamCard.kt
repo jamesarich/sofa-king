@@ -35,10 +35,17 @@ import dev.jamesrich.sofaking.data.StreamHealth
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.stream_card_audio
 import dev.jamesrich.sofaking.resources.stream_card_audio_codec
+import dev.jamesrich.sofaking.resources.stream_card_audio_output
 import dev.jamesrich.sofaking.resources.stream_card_buffered
+import dev.jamesrich.sofaking.resources.stream_card_decoded_channels
+import dev.jamesrich.sofaking.resources.stream_card_decoded_layout
+import dev.jamesrich.sofaking.resources.stream_card_decoded_mono
+import dev.jamesrich.sofaking.resources.stream_card_decoded_stereo
 import dev.jamesrich.sofaking.resources.stream_card_fps
 import dev.jamesrich.sofaking.resources.stream_card_health
 import dev.jamesrich.sofaking.resources.stream_card_mbps
+import dev.jamesrich.sofaking.resources.stream_card_passed_through
+import dev.jamesrich.sofaking.resources.stream_card_passed_through_as
 import dev.jamesrich.sofaking.resources.stream_card_seconds
 import dev.jamesrich.sofaking.resources.stream_card_session
 import dev.jamesrich.sofaking.resources.stream_card_size
@@ -138,6 +145,7 @@ private fun StreamStats(info: StreamInfo, stream: PlaybackStream?, bufferedMs: L
         )
         StatLine(stringResource(Res.string.stream_card_video), video.joinToString(DETAIL_SEPARATOR).ifEmpty { unknown })
         StatLine(stringResource(Res.string.stream_card_audio_codec), info.audioCodec ?: unknown)
+        info.audioOutput?.let { StatLine(stringResource(Res.string.stream_card_audio_output), audioOutputText(it)) }
         StatLine(
             stringResource(Res.string.stream_card_buffered),
             stringResource(
@@ -166,6 +174,24 @@ private fun StreamStats(info: StreamInfo, stream: PlaybackStream?, bufferedMs: L
         }
     }
 }
+
+/** A receiver decodes what passes through; what the app decodes is named by its channel layout. */
+@Composable
+private fun audioOutputText(output: AudioOutput): String = when (output) {
+    is AudioOutput.PassedThrough -> output.codec?.let { stringResource(Res.string.stream_card_passed_through_as, it) }
+        ?: stringResource(Res.string.stream_card_passed_through)
+
+    is AudioOutput.Decoded -> when (output.channels) {
+        1 -> stringResource(Res.string.stream_card_decoded_mono)
+        2 -> stringResource(Res.string.stream_card_decoded_stereo)
+        SURROUND_5_1 -> stringResource(Res.string.stream_card_decoded_layout, "5.1")
+        SURROUND_7_1 -> stringResource(Res.string.stream_card_decoded_layout, "7.1")
+        else -> pluralStringResource(Res.plurals.stream_card_decoded_channels, output.channels, output.channels)
+    }
+}
+
+private const val SURROUND_5_1 = 6
+private const val SURROUND_7_1 = 8
 
 @Composable
 private fun StatLine(label: String, value: String) {

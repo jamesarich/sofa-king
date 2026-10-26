@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
+import android.media.AudioFormat
+import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import org.junit.Assert.assertEquals
@@ -34,5 +36,19 @@ class AudioTracksTest {
         assertEquals(StreamInfo("H.264", 1920, 1080, 29.97f, 8_000_000, "E-AC-3"), streamInfoOf(video, audio))
         assertEquals(StreamInfo(), streamInfoOf(Format.Builder().build(), null))
         assertEquals(StreamInfo(), streamInfoOf(null, null))
+    }
+
+    @Test
+    fun `linear PCM was decoded and anything else passes through`() {
+        assertEquals(AudioOutput.Decoded(2), audioOutputOf(C.ENCODING_PCM_16BIT, AudioFormat.CHANNEL_OUT_STEREO))
+        assertEquals(AudioOutput.Decoded(6), audioOutputOf(C.ENCODING_PCM_FLOAT, AudioFormat.CHANNEL_OUT_5POINT1))
+        assertEquals(
+            AudioOutput.PassedThrough("E-AC-3"),
+            audioOutputOf(C.ENCODING_E_AC3, AudioFormat.CHANNEL_OUT_5POINT1),
+        )
+        assertEquals(
+            AudioOutput.PassedThrough(null),
+            audioOutputOf(C.ENCODING_DTS_UHD_P2, AudioFormat.CHANNEL_OUT_STEREO),
+        )
     }
 }

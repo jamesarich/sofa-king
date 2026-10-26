@@ -92,6 +92,10 @@ data class ItemDetails(
     /** A track's number on its disc, and the disc's in the album. */
     val track: Int? = null,
     val disc: Int? = null,
+    /** From its tracks' tags: an artist's MusicBrainz id, an album's release's, or a track's recording's. */
+    val musicBrainzId: String? = null,
+    /** An album's MusicBrainz release group, the album over all its editions. */
+    val releaseGroupId: String? = null,
 )
 
 /**
@@ -161,9 +165,19 @@ data class MetadataFacts(
     val runtimeMinutes: Int? = null,
     val poster: String? = null,
     val backdrop: String? = null,
+    /** For an album or an artist in a Music library, the MusicBrainz release group or artist it was matched to. */
+    val musicBrainzId: String? = null,
+    /** For an album, the MusicBrainz artist its match is credited to first. */
+    val artistId: String? = null,
+    /** For an album with no picture of its own, whether the Cover Art Archive holds a front cover for its match. */
+    val coverArt: Boolean = false,
+    /** For an artist, the Wikidata item MusicBrainz links it to (`Q…`). */
+    val wikidata: String? = null,
+    /** For an artist, the Wikimedia Commons file of the picture atop their English Wikipedia page. */
+    val picture: String? = null,
 )
 
-/** One item's stored TMDB lookup. */
+/** One item's stored TMDB lookup, or MusicBrainz lookup for music. */
 data class MetadataRecord(
     val itemId: String,
     val tmdbId: Int?,

@@ -143,4 +143,50 @@ class MusicScanTest {
         assertEquals(godspeed, s.byTitle.getValue("B").parentId)
         assertEquals(s.byTitle.getValue("Various Artists").id, s.byTitle.getValue("Modal").parentId)
     }
+
+    @Test fun `MusicBrainz ids group a release and an artist whatever their names, and are kept`() {
+        val release = "9e1a5d1c-8f2b-4a5e-9c3d-1b2a3c4d5e6f"
+        val group = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+        val band = "11111111-2222-4333-8444-555555555555"
+        val recording = "22222222-3333-4444-8555-666666666666"
+        fun tagged(title: String, artist: String, album: String, track: Int) = AudioTags(
+            title, artist, artist, album, track,
+            releaseId = release, releaseGroupId = group, albumArtistId = band, artistId = band,
+            recordingId = recording.takeIf { track == 1 },
+        )
+        val s = scan(
+            mapOf(
+                "Beyonce/Lemonade/01.flac" to tagged("Pray", "Beyoncé", "Lemonade", 1),
+                "Beyonce/Lemonade/02.flac" to tagged("Hold Up", "Beyoncé", "Lemonade", 2),
+                // Another edition's title, elsewhere, on the same release id.
+                "Misc/03.flac" to tagged("Sorry", "Beyoncé", "Lemonade (Deluxe)", 3),
+                // The same artist id spelled without the accent, on an album of its own.
+                "Beyonce/4/01.flac" to tagged("Love", "Beyonce", "4", 1).copy(
+                    releaseId = null,
+                    releaseGroupId = null,
+                ),
+                "Picard/Mix/01.flac" to AudioTags(
+                    "Hit",
+                    "Ann",
+                    "Various Artists",
+                    "Mix",
+                    1,
+                    albumArtistId = "89ad4ac3-39f7-470e-963a-56509c546377",
+                ),
+            ),
+        )
+        val artists = s.items.filter { it.kind == ItemKind.ARTIST }
+        assertEquals(setOf("Beyoncé", "Various Artists"), artists.map { it.title }.toSet())
+        val beyonce = s.byTitle.getValue("Beyoncé")
+        assertEquals(band, beyonce.details?.musicBrainzId)
+        assertEquals(null, s.byTitle.getValue("Various Artists").details?.musicBrainzId)
+        assertEquals(listOf("Pray", "Hold Up", "Sorry"), s.tracksOf("Lemonade"))
+        val lemonade = s.byTitle.getValue("Lemonade")
+        assertEquals(beyonce.id, lemonade.parentId)
+        assertEquals(release, lemonade.details?.musicBrainzId)
+        assertEquals(group, lemonade.details?.releaseGroupId)
+        assertEquals(beyonce.id, s.byTitle.getValue("4").parentId)
+        assertEquals(recording, s.byTitle.getValue("Pray").details?.musicBrainzId)
+        assertEquals(s.byTitle.getValue("Various Artists").id, s.byTitle.getValue("Mix").parentId)
+    }
 }

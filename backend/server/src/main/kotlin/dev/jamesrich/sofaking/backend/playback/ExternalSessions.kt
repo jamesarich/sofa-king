@@ -33,7 +33,7 @@ class ExternalSessions internal constructor(
                     client = client,
                 )
             table.add(session)
-            session.descriptor()
+            session.descriptor(now)
         }
 
     /**
@@ -45,6 +45,6 @@ class ExternalSessions internal constructor(
         table.sessions.values
             .firstOrNull { it.shareable && it.request.channelId == channelId && it.offering.protocol == "hls" }
             ?.also { it.expires = clock.instant().plus(SessionManager.EXTERNAL_IDLE) }
-            ?.descriptor()
+            ?.descriptor(clock.instant())
     }
 }

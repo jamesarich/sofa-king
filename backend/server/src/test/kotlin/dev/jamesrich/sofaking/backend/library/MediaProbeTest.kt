@@ -57,6 +57,29 @@ class MediaProbeTest {
         assertEquals(-6.54, tags.trackGain!!, 0.001)
     }
 
+    @Test fun `MusicBrainz ids come from Vorbis comments and from ID3 and MP4 tags`() {
+        val flac = parseProbe(
+            """{"streams":[{"index":0,"codec_name":"flac","codec_type":"audio"}],"format":{"format_name":"flac","tags":{
+              "ALBUM":"Record","MUSICBRAINZ_ALBUMID":"9E1A5D1C-8F2B-4A5E-9C3D-1B2A3C4D5E6F",
+              "MUSICBRAINZ_RELEASEGROUPID":"0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+              "MUSICBRAINZ_ALBUMARTISTID":"11111111-2222-4333-8444-555555555555",
+              "MUSICBRAINZ_ARTISTID":"11111111-2222-4333-8444-555555555555; 66666666-7777-4888-9999-000000000000",
+              "MUSICBRAINZ_TRACKID":"not an id"}}}""",
+        )!!.tags!!
+        assertEquals("9e1a5d1c-8f2b-4a5e-9c3d-1b2a3c4d5e6f", flac.releaseId)
+        assertEquals("0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", flac.releaseGroupId)
+        assertEquals("11111111-2222-4333-8444-555555555555", flac.albumArtistId)
+        assertEquals("11111111-2222-4333-8444-555555555555", flac.artistId)
+        assertNull(flac.recordingId)
+        val mp3 = parseProbe(
+            """{"streams":[{"index":0,"codec_name":"mp3","codec_type":"audio"}],"format":{"format_name":"mp3","tags":{
+              "album":"Record","MusicBrainz Album Id":"9e1a5d1c-8f2b-4a5e-9c3d-1b2a3c4d5e6f",
+              "MusicBrainz Album Artist Id":"11111111-2222-4333-8444-555555555555"}}}""",
+        )!!.tags!!
+        assertEquals("9e1a5d1c-8f2b-4a5e-9c3d-1b2a3c4d5e6f", mp3.releaseId)
+        assertEquals("11111111-2222-4333-8444-555555555555", mp3.albumArtistId)
+    }
+
     @Test fun `a video's tags are not read as music`() {
         val info = parseProbe(
             """{"streams":[{"index":0,"codec_name":"h264","codec_type":"video"}],

@@ -159,7 +159,7 @@ class SessionMedia internal constructor(
         session.restart()
         session.offering = next
         session.stats.switches.incrementAndGet()
-        session.descriptor()
+        session.descriptor(clock.instant())
     }
 
     /**

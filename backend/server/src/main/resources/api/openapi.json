@@ -129,6 +129,15 @@
               "protocol": { "type": "string", "enum": ["hls", "mpegts"] }, "mimeType": { "type": "string" },
               "url": { "type": "string", "description": "Relative; resolve against the server address" }, "epoch": { "type": "integer" }
             }
+          },
+          "providerId": { "type": "string", "description": "The provider of the source the server picked" },
+          "health": {
+            "type": ["object", "null"], "description": "What the relay has seen of the session's media, on a read or a renewal; null when the session opens",
+            "properties": {
+              "bitrateKbps": { "type": "integer", "description": "The rate media went to the player over the last 10 seconds or so" },
+              "stalls": { "type": "integer", "description": "Media requests the upstream refused or dropped before anything was answered" },
+              "sourceSwitches": { "type": "integer", "description": "Moves to another source, on a failure or by hand" }
+            }
           }
         }
       },

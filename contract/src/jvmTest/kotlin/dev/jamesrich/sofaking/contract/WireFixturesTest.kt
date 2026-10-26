@@ -37,10 +37,9 @@ class WireFixturesTest {
                 fixture("v1/guide-window.json"),
             ).channels.single().programs.single().title,
         )
-        assertEquals(
-            "hls",
-            client.decodeFromString<PlaybackSession>(fixture("v1/playback-session.json")).descriptor.protocol,
-        )
+        val session = client.decodeFromString<PlaybackSession>(fixture("v1/playback-session.json"))
+        assertEquals("hls", session.descriptor.protocol)
+        assertEquals(4200, session.health?.bitrateKbps)
         assertEquals(Wire.ErrorCode.AUTH_REQUIRED, client.decodeFromString<ApiError>(fixture("v1/api-error.json")).code)
         assertEquals(64, client.decodeFromString<PairingResult>(fixture("v1/pairing-result.json")).apiToken.length)
         assertEquals(

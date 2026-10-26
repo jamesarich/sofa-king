@@ -547,9 +547,9 @@
         "type": "object",
         "required": ["id", "name", "kind", "path", "createdAt"],
         "properties": {
-          "id": { "type": "string" }, "name": { "type": "string" }, "kind": { "type": "string", "enum": ["movies", "shows", "videos"] }, "path": { "type": "string" },
+          "id": { "type": "string" }, "name": { "type": "string" }, "kind": { "type": "string", "enum": ["movies", "shows", "videos", "music"] }, "path": { "type": "string" },
           "createdAt": { "type": "string", "format": "date-time" },
-          "items": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "Present items by kind: movie, show, season, episode or video." },
+          "items": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "Present items by kind: movie, show, season, episode, video, artist, album or track." },
           "scannedAt": { "type": ["string", "null"], "format": "date-time" },
           "scanOk": { "type": ["boolean", "null"], "description": "False when the last scan found the folder missing, or empty while the library held files." },
           "scanNote": { "type": ["string", "null"] }
@@ -558,7 +558,7 @@
       "CreateLibrary": {
         "type": "object",
         "required": ["name", "kind", "path"],
-        "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 100 }, "kind": { "type": "string", "enum": ["movies", "shows", "videos"] }, "path": { "type": "string" } }
+        "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 100 }, "kind": { "type": "string", "enum": ["movies", "shows", "videos", "music"] }, "path": { "type": "string" } }
       },
       "UpdateLibrary": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 100 } } },
       "LibraryScanInfo": {

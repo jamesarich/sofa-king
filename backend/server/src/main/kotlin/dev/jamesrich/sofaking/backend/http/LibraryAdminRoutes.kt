@@ -47,7 +47,7 @@ internal fun Route.libraryAdminRoutes(libraries: LibraryService?) {
         val request = call.body<CreateLibrary>()
         val kind =
             LibraryKind.of(request.kind)
-                ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "kind is movies, shows or videos")
+                ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "kind is $KINDS")
         call.respond(HttpStatusCode.Created, loaded().create(request.name, kind, request.path).info(emptyMap()))
     }
     get("/libraries/{id}") {
@@ -88,3 +88,6 @@ internal fun Route.libraryAdminRoutes(libraries: LibraryService?) {
 
 internal fun LibraryRecord.info(items: Map<String, Int>) =
     LibraryInfo(id, name, kind.wire, path, createdAt, items, scannedAt, scanOk, scanNote)
+
+/** The library kinds, as the error for an unknown one lists them. */
+private val KINDS = LibraryKind.entries.map { it.wire }.let { it.dropLast(1).joinToString(", ") + " or " + it.last() }

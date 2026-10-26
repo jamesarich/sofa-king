@@ -178,7 +178,7 @@ class LibraryServiceTest {
             val movies = Files.createDirectories(s.root.resolve("Movies"))
             val shows = Files.createDirectories(s.root.resolve("TV_Shows"))
             Files.createDirectories(s.root.resolve("Films/Movies"))
-            Files.createDirectories(s.root.resolve("Music"))
+            Files.createDirectories(s.root.resolve("Downloads"))
             val suggested = s.service.folders.suggestions()
             assertEquals(
                 listOf(

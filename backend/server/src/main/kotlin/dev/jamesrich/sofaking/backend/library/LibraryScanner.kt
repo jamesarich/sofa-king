@@ -62,16 +62,21 @@ class LibraryScanner(
     private val missingGrace: Duration = MISSING_GRACE,
 ) {
     suspend fun scan(library: LibraryRecord, root: Path, existing: List<LibraryItemRecord>, now: Instant): ScanPlan {
-        val files = withContext(Dispatchers.IO) { listFiles(root) }
+        val files = withContext(Dispatchers.IO) { listFiles(root, library.kind) }
         val present = existing.count { it.missingSince == null && it.path != null }
         // An empty or absent folder that held files is an unmounted disk, not a library whose every file was deleted.
         if (files == null || (files.isEmpty() && present > 0)) {
             return ScanPlan(emptyList(), emptyList(), emptyList(), ScanResult(0, 0, 0, 0, 0, unavailable = true))
         }
-        val built = withContext(Dispatchers.IO) { items(library, root, files) }
         val byId = existing.associateBy { it.id }
         val probing = Probing(byId, root, now)
-        val saved = withNewestAdds(probing.all(built))
+        // A music library groups its tracks by their tags, so it probes them before it knows its artists and albums.
+        val saved = if (library.kind == LibraryKind.MUSIC) {
+            val tracks = probing.all(files.map { trackItem(library.id, it) })
+            withNewestAdds(withContext(Dispatchers.IO) { MusicItems(library.id, root).items(tracks) })
+        } else {
+            withNewestAdds(probing.all(withContext(Dispatchers.IO) { items(library, root, files) }))
+        }
         val seen = saved.mapTo(HashSet()) { it.id }
         val gone = existing.filter { it.id !in seen }
         val missing = gone.filter { it.missingSince == null }.map { it.id }
@@ -83,7 +88,7 @@ class LibraryScanner(
             probing.updated.get(),
             missing.count { byId[it]?.path != null },
             delete.size,
-            built.count { it.path != null },
+            saved.count { it.path != null },
         )
         // An unchanged row is not rewritten, so a rescan of a big library is not one long write
         // on the database's only thread.
@@ -97,6 +102,7 @@ class LibraryScanner(
             LibraryKind.MOVIES -> mainFiles.map { movieItem(library.id, root, it) }
             LibraryKind.SHOWS -> ShowItems(library.id, root).apply { mainFiles.forEach(::add) }.items()
             LibraryKind.VIDEOS -> mainFiles.map { videoItem(library.id, root, it) }
+            LibraryKind.MUSIC -> error("A music library's items come from MusicItems")
         }
         return main + extras(library, main, extraFiles)
     }
@@ -139,8 +145,12 @@ class LibraryScanner(
         }
     }
 
-    /** Every video under [root] with its size and change time, or null when [root] is not a readable folder. */
-    internal fun listFiles(root: Path): List<FoundFile>? {
+    /**
+     * Every video under [root] (every audio file for a [LibraryKind.MUSIC] library) with its size and change time, or
+     * null when [root] is not a readable folder.
+     */
+    internal fun listFiles(root: Path, kind: LibraryKind = LibraryKind.MOVIES): List<FoundFile>? {
+        val music = kind == LibraryKind.MUSIC
         if (!Files.isDirectory(root)) return null
         val found = ArrayList<FoundFile>()
         try {
@@ -158,15 +168,16 @@ class LibraryScanner(
 
                     override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                         // Links are not followed, so nothing outside the library folder is ever listed.
-                        if (attrs.isRegularFile && isVideoFile(file.fileName.toString())) {
-                            found +=
-                                found(
-                                    root.relativize(file).map {
-                                        it.toString()
-                                    },
-                                    attrs.size(),
-                                    attrs.lastModifiedTime().toInstant().toString(),
-                                )
+                        val name = file.fileName.toString()
+                        if (attrs.isRegularFile && (if (music) isAudioFile(name) else isVideoFile(name))) {
+                            val segments = root.relativize(file).map { it.toString() }
+                            val modifiedAt = attrs.lastModifiedTime().toInstant().toString()
+                            // Music has no extras: a track in a folder named Other is still a track.
+                            found += if (music) {
+                                FoundFile(segments.joinToString("/"), attrs.size(), modifiedAt)
+                            } else {
+                                found(segments, attrs.size(), modifiedAt)
+                            }
                         }
                         return FileVisitResult.CONTINUE
                     }

@@ -61,7 +61,7 @@ class LibraryMetadata internal constructor(
 
     suspend fun refresh(library: LibraryRecord, items: List<LibraryItemRecord>): MetadataResult? {
         val client = tmdb
-        if (client == null || library.kind == LibraryKind.VIDEOS) return null
+        if (client == null || library.kind == LibraryKind.VIDEOS || library.kind == LibraryKind.MUSIC) return null
         val present = items.filter { it.missingSince == null }
         val ids = present.map { it.id }
         val run = Run(client, present.groupBy { it.parentId }, store.libraryMetadata(ids), store.libraryMatches(ids))

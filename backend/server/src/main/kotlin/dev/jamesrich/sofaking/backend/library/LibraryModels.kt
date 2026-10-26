@@ -13,6 +13,9 @@ enum class LibraryKind(val wire: String, val label: String) {
 
     /** Any videos, titled by their file names: home videos, concerts, clips. */
     VIDEOS("videos", "Other videos"),
+
+    /** Audio files grouped by their tags into artists and albums, untagged ones by `Artist/Album/Track.ext` folders. */
+    MUSIC("music", "Music"),
     ;
 
     companion object {
@@ -20,7 +23,7 @@ enum class LibraryKind(val wire: String, val label: String) {
     }
 }
 
-/** What an item is; shows and seasons are folders, the others are files. */
+/** What an item is; shows, seasons, artists and albums group the others, which are files. */
 object ItemKind {
     const val MOVIE = "movie"
     const val SHOW = "show"
@@ -30,6 +33,11 @@ object ItemKind {
 
     /** A trailer, featurette or other extra of the movie or show it belongs to, listed only on that item's page. */
     const val EXTRA = "extra"
+
+    /** A music library's album artist, and the album and track under it. */
+    const val ARTIST = "artist"
+    const val ALBUM = "album"
+    const val TRACK = "track"
 }
 
 /**
@@ -79,11 +87,17 @@ data class ItemDetails(
     val nfo: Boolean = false,
     /** An extra's [ExtraKind] wire value. */
     val extra: String? = null,
+    /** A track's own artist, which on a compilation differs from its album's. */
+    val artist: String? = null,
+    /** A track's number on its disc, and the disc's in the album. */
+    val track: Int? = null,
+    val disc: Int? = null,
 )
 
 /**
- * One movie, show, season, episode or video. Ids derive from the library and the item's relative path, so a rescan,
- * a removed and re-added library or a restored database gives a file the same id and keeps its watch state.
+ * One movie, show, season, episode, video, artist, album or track. Ids derive from the library and the item's relative
+ * path, so a rescan, a removed and re-added library or a restored database gives a file the same id and keeps its
+ * watch state.
  * [poster] and [backdrop] are paths relative to the library folder.
  */
 data class LibraryItemRecord(

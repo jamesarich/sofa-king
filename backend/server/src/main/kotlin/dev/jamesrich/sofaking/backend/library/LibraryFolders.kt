@@ -20,6 +20,7 @@ private val SUGGESTED_KINDS = mapOf(
     "series" to LibraryKind.SHOWS,
     "tv series" to LibraryKind.SHOWS, "television" to LibraryKind.SHOWS,
     "videos" to LibraryKind.VIDEOS, "home videos" to LibraryKind.VIDEOS, "music videos" to LibraryKind.VIDEOS,
+    "music" to LibraryKind.MUSIC,
 )
 
 /** The folders under [roots] a library may be added from, and the ones whose names suggest one. */

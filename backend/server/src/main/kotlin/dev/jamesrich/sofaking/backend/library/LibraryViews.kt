@@ -20,7 +20,8 @@ private val PLAY_ORDER = compareBy<View>(
 
 /** Every present item of every library as the store holds them now. */
 internal suspend fun buildSnapshot(store: BackendStore, revision: Long): Snapshot {
-    val libraries = store.libraries()
+    // The apps do not show music yet, and one that does not know it would play a track as a video.
+    val libraries = store.libraries().filter { it.kind != LibraryKind.MUSIC }
     val records = libraries.flatMap { library ->
         store.libraryItems(library.id).filter { it.missingSince == null }.map { library to it }
     }

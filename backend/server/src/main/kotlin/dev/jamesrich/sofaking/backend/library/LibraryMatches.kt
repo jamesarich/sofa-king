@@ -36,7 +36,8 @@ class LibraryMatches internal constructor(
     private val rescan: (String) -> Unit,
 ) {
     /** Every present movie and show a lookup found nothing for or someone chose a match for, by library and title. */
-    internal suspend fun rows(): List<MatchRow> = store.libraries().filter { it.kind != LibraryKind.VIDEOS }
+    internal suspend fun rows(): List<MatchRow> = store.libraries()
+        .filter { it.kind == LibraryKind.MOVIES || it.kind == LibraryKind.SHOWS }
         .sortedBy { it.name.lowercase() }
         .flatMap { library ->
             val items = store.libraryItems(library.id).filter {

@@ -187,7 +187,7 @@ internal class ShowItems(private val libraryId: String, private val root: Path) 
 private fun minutesMs(minutes: Int): Long = TimeUnit.MINUTES.toMillis(minutes.toLong())
 
 /** The first of [bases] that exists with an image extension, relative to [root]; null when none does. */
-private fun art(root: Path, vararg bases: Path?): String? {
+internal fun art(root: Path, vararg bases: Path?): String? {
     for (base in bases.filterNotNull()) {
         val found = ART_EXTENSIONS.map { base.resolveSibling("${base.fileName}.$it") }
             .firstOrNull { Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS) }

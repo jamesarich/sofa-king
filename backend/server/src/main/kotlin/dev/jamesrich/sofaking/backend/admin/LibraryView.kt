@@ -37,8 +37,18 @@ internal fun librarySummary(kind: LibraryKind, counts: Map<String, Int>): String
     fun n(key: String) = counts[key] ?: 0
     val main = when (kind) {
         LibraryKind.MOVIES -> plural(n(ItemKind.MOVIE), "movie")
+
         LibraryKind.SHOWS -> "${plural(n(ItemKind.SHOW), "show")}, ${plural(n(ItemKind.EPISODE), "episode")}"
+
         LibraryKind.VIDEOS -> plural(n(ItemKind.VIDEO), "video")
+
+        LibraryKind.MUSIC ->
+            listOf(
+                plural(n(ItemKind.ARTIST), "artist"),
+                plural(n(ItemKind.ALBUM), "album"),
+                plural(n(ItemKind.TRACK), "track"),
+            )
+                .joinToString(", ")
     }
     return if (n(ItemKind.EXTRA) > 0) "$main, ${plural(n(ItemKind.EXTRA), "extra")}" else main
 }

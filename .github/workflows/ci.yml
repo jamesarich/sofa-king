@@ -174,6 +174,9 @@ jobs:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ steps.kotlin.outputs.version }}
           restore-keys: konan-${{ runner.os }}-
+      # XcodeGen generates the iOS host's project; FFmpeg makes the touch tests' fixture channels.
+      - name: Install XcodeGen and FFmpeg
+        run: brew install xcodegen ffmpeg
       # The device targets cannot run tests here, so they only compile. The UI's iOS tests run only for main: linking
       # their test binary takes about five minutes, and the check job already compiles them for every pull request.
       # The data layer's watchOS tests run only for main too, since watchOS has no code of its own; pull requests
@@ -186,21 +189,28 @@ jobs:
           :core:compileKotlinIosArm64 :core:compileKotlinTvosArm64 :core:compileKotlinWatchosArm64
           :ui:compileKotlinIosArm64
           :ui:linkDebugFrameworkIosSimulatorArm64
-      # The SwiftUI host compiles against the framework linked above; its pre-build script reuses that Gradle work.
-      - name: Install XcodeGen
-        run: brew install xcodegen
-      - name: Build the iOS host
+      # The iPhone boots in the background while the host and the server build, rather than inside the test step;
+      # booting it beside Homebrew installs slowed them, so both tools install before Gradle.
+      - name: Boot the iPhone simulator
+        run: |
+          # The newest iOS runtime's first iPhone.
+          device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".iOS-" in runtime for d in devices[runtime] if d["name"].startswith("iPhone")))')
+          echo "IOS_DEVICE=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device"
+      # The SwiftUI host and its touch tests compile against the framework linked above; the host's pre-build script
+      # reuses that Gradle work. They are built once here, and the touch tests run without building.
+      - name: Build the iOS host and its touch tests
         working-directory: app/iosApp
         run: >-
           xcodegen && xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug
-          -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO -quiet build
-      # The touch tests run against the server's installed distribution serving fixture channels, which FFmpeg makes.
-      - name: Install FFmpeg
-        run: brew install ffmpeg
+          -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO -quiet build-for-testing
       - name: Build the server distribution
         working-directory: backend
         run: ./gradlew --console=plain :server:installDist
-      # The touch tests drive the iOS app in an iPhone simulator against a fresh fixture server.
+      # The touch tests drive the iOS app in an iPhone simulator against a fresh fixture server, which serves fixture
+      # channels made with FFmpeg from the server's installed distribution.
       - name: Test the iOS app by touch
         run: |
           out=build/ios-ui
@@ -216,33 +226,28 @@ jobs:
           export TEST_RUNNER_SOFAKING_SERVER="$SOFAKING_SERVER" TEST_RUNNER_SOFAKING_TOKEN="$SOFAKING_TOKEN"
           # A pull request walks 60 touches; main walks the full 150.
           if [ "${{ github.event_name }}" = pull_request ]; then export TEST_RUNNER_SOFAKING_WALK_STEPS=60; fi
-          # The newest iOS runtime's first iPhone.
-          device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
-          devices = json.load(sys.stdin)["devices"]
-          print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".iOS-" in runtime for d in devices[runtime] if d["name"].startswith("iPhone")))')
-          # Booted before the tests, so the first launch does not race the simulator's own start on a busy runner.
-          xcrun simctl bootstatus "$device" -b
-          cd iosApp
-          # Built for the tests first. Now and then xcodebuild sees no simulators at all just after a boot and fails
-          # before building anything, so that, and only that, is tried again.
-          for attempt in 1 2 3; do
-            if xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug -destination "id=$device" \
-              CODE_SIGNING_ALLOWED=NO -quiet build-for-testing > "../$out/build-for-testing.log" 2>&1; then
-              break
-            fi
-            cat "../$out/build-for-testing.log"
-            grep -q "Unable to find a device matching" "../$out/build-for-testing.log" && [ "$attempt" -lt 3 ] || exit 1
-            echo "::warning::xcodebuild did not find the booted simulator; trying again"
-            sleep 15
-          done
+          # Fully booted before the tests, so the first launch does not race the simulator's own start.
+          xcrun simctl bootstatus "$IOS_DEVICE"
           # The build's Gradle daemons (the app's holds up to 4 GB after the Kotlin/Native links) and the Kotlin
           # daemon would otherwise sit through the tests in the runner's 7 GB beside the simulator and the server.
           (cd .. && ./gradlew --stop)
           pkill -f KotlinCompileDaemon || true
           # The processes holding the most memory, for reading a slow run.
-          ps -axm -o rss=,comm= | head -8 || true
-          xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug -destination "id=$device" \
-            CODE_SIGNING_ALLOWED=NO -resultBundlePath "../$out/TouchTests.xcresult" test-without-building
+          ps -axm -o rss=,comm= | sed -n 1,8p
+          cd iosApp
+          # Now and then xcodebuild sees no simulators at all just after a boot and fails before any test runs, so
+          # that, and only that, is tried again.
+          for attempt in 1 2 3; do
+            rm -rf "../$out/TouchTests.xcresult"
+            if xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug -destination "id=$IOS_DEVICE" \
+              CODE_SIGNING_ALLOWED=NO -resultBundlePath "../$out/TouchTests.xcresult" test-without-building 2>&1 \
+              | tee "../$out/xcodebuild.log"; then
+              break
+            fi
+            grep -q "Unable to find a device matching" "../$out/xcodebuild.log" && [ "$attempt" -lt 3 ] || exit 1
+            echo "::warning::xcodebuild did not find the booted simulator; trying again"
+            sleep 15
+          done
       # A failure's screenshots, as PNG files beside the result bundle in the artifact.
       - name: Export the touch tests' screenshots
         if: failure()

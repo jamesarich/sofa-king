@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.IntroSpan
 import dev.jamesrich.sofaking.data.ItemKind
@@ -152,12 +153,13 @@ internal fun LibraryItemDestination(
     shell: AppShellState,
     libraryVm: LibraryViewModel,
     hideSpoilers: Boolean,
+    page: ItemPageViewModel = viewModel { ItemPageViewModel(libraryVm::openItem, route.itemId) },
 ) {
-    val detail by remember(route.itemId) { libraryVm.detail(route.itemId) }.collectAsStateWithLifecycle()
+    val detail by page.detail.collectAsStateWithLifecycle()
     val ready = (detail as? ItemDetailState.Ready)?.detail
     var pickedSeason by rememberSaveable(route.itemId) { mutableStateOf<String?>(null) }
     val seasonId = pickedSeason ?: ready?.let(::initialSeasonId)
-    val season = seasonId?.let { id -> remember(id) { libraryVm.detail(id) }.collectAsStateWithLifecycle().value }
+    val season = seasonId?.let { id -> remember(id) { page.season(id) }.collectAsStateWithLifecycle().value }
     val watchlist by libraryVm.watchlistMarks.collectAsStateWithLifecycle()
     ItemDetailsScreen(
         state = detail,
@@ -167,7 +169,7 @@ internal fun LibraryItemDestination(
             onPlay = { item, fromStart -> shell.push(Route.Vod(item.id, fromStart)) },
             onSetWatched = libraryVm::setWatched,
             onSelectSeason = { pickedSeason = it },
-            onRetry = { libraryVm.detail(route.itemId, refresh = true) },
+            onRetry = page::retry,
             onPerson = { shell.push(Route.LibrarySearch(query = it)) },
             onOpenShow = { shell.push(Route.LibraryItem(it)) },
             onOpenItem = { shell.push(Route.LibraryItem(it.id)) },
@@ -190,10 +192,11 @@ internal fun VodDestination(
     vm: LineupViewModel,
     libraryVm: LibraryViewModel,
     player: LivePlayer,
+    page: ItemPageViewModel = viewModel { ItemPageViewModel(libraryVm::openItem, route.itemId) },
 ) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val prefs = settings ?: AppSettings()
-    val detail by remember(route.itemId) { libraryVm.detail(route.itemId) }.collectAsStateWithLifecycle()
+    val detail by page.detail.collectAsStateWithLifecycle()
     val ready = (detail as? ItemDetailState.Ready)?.detail
     when {
         // Keyed by the item, so the next episode starts a fresh screen rather than inheriting this one's end.
@@ -242,7 +245,7 @@ internal fun VodDestination(
         detail is ItemDetailState.Failed -> MessageScreen(
             message = stringResource(Res.string.library_load_failed),
             detail = (detail as ItemDetailState.Failed).message,
-            onRetry = { libraryVm.detail(route.itemId, refresh = true) },
+            onRetry = page::retry,
         )
 
         else -> MessageScreen(stringResource(Res.string.library_loading), loading = true)

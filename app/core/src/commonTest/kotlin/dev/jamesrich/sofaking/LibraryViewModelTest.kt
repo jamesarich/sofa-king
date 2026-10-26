@@ -521,9 +521,9 @@ class LibraryViewModelTest {
             val model = viewModel(server)
             runCurrent()
             model.openGrid("lib")
-            val season = model.detail("s1")
-            model.detail("e1")
-            model.detail("show")
+            val season = model.openItem("s1").state
+            model.openItem("e1")
+            model.openItem("show")
             runCurrent()
             fun gets(id: String) = server.requests.count { it == "GET /api/v1/library/items/$id" }
             assertEquals(listOf(1, 1, 1), listOf(gets("e1"), gets("s1"), gets("show")))
@@ -618,11 +618,11 @@ class LibraryViewModelTest {
         val model = viewModel(server)
         runCurrent()
 
-        val page = model.detail("m1")
+        val page = model.openItem("m1")
         runCurrent()
-        model.detail("m1", refresh = true)
+        page.refresh()
         advanceTimeBy(10.seconds)
-        assertEquals("New", assertIs<ItemDetailState.Ready>(page.value).detail.item.title)
+        assertEquals("New", assertIs<ItemDetailState.Ready>(page.state.value).detail.item.title)
     }
 
     @Test
@@ -645,8 +645,8 @@ class LibraryViewModelTest {
             }
             val model = viewModel(server)
             runCurrent()
-            val first = model.detail("e1")
-            val second = model.detail("e2")
+            val first = model.openItem("e1").state
+            val second = model.openItem("e2").state
             runCurrent()
             advanceTimeBy(1.seconds)
             assertEquals(IntroSpan(600, 53_100), assertIs<ItemDetailState.Ready>(first.value).detail.intro)
@@ -670,7 +670,7 @@ class LibraryViewModelTest {
             }
             val model = viewModel(server)
             runCurrent()
-            val page = model.detail("m1")
+            val page = model.openItem("m1").state
             runCurrent()
             advanceTimeBy(1.seconds)
             val tiles = assertNotNull(assertIs<ItemDetailState.Ready>(page.value).detail.scrub)
@@ -707,7 +707,7 @@ class LibraryViewModelTest {
         }
         val model = viewModel(server)
         runCurrent()
-        val page = model.detail("m1")
+        val page = model.openItem("m1").state
         runCurrent()
         advanceTimeBy(1.seconds)
         val detail = assertIs<ItemDetailState.Ready>(page.value).detail

@@ -118,6 +118,7 @@ kotlin {
                 implementation(libs.coil.network.ktor3)
                 implementation(libs.lifecycle.viewmodel.compose)
                 implementation(libs.lifecycle.runtime.compose)
+                implementation(libs.lifecycle.viewmodel.navigation3)
                 implementation(libs.kermit)
                 implementation(libs.kotlinx.datetime)
             }

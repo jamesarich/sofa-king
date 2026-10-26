@@ -125,7 +125,7 @@ struct GuideGrid: View {
     /// The times along the top, one per half hour, with the day before them once the window leaves today.
     private func timeline(area: CGFloat) -> some View {
         let start = Date(timeIntervalSince1970: Double(windowStart) / 1000)
-        let slots = Array(stride(from: windowStart, to: windowEnd, by: GuideWindow.step))
+        let slots = Array(stride(from: windowStart, to: windowEnd, by: Int(GuideWindow.step)))
         return HStack(spacing: 0) {
             Text(Calendar.current.isDateInToday(start) ? "Today" : start.formatted(.dateTime.weekday(.wide)))
                 .frame(width: Self.channelWidth + Self.edgeWidth, alignment: .leading)

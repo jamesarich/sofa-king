@@ -244,7 +244,7 @@ private fun AppNavDisplay(
             )
             // The music playing on while the viewer browses; a TV has no room under its pages, so its music shows
             // on Now Playing alone.
-            if (!chrome.tv && !top.hidesTabs) MiniPlayer(music, onOpen = { shell.push(Route.NowPlaying) })
+            if (!chrome.tv && !top.hidesTabs) MiniPlayer(music, onOpen = { shell.openNowPlaying() })
         }
     }
 }

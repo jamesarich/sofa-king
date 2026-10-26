@@ -96,12 +96,18 @@ internal fun TabPage(
     var pageFocused by remember { mutableStateOf(false) }
     val currentOnHeaderFocusRequest by rememberUpdatedState(onHeaderFocusRequest)
     // Keyed on nothing, so clearing the flag does not cancel the request; it runs on each return here.
+    val nowPlayingFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         val target = headerReturn
         if (target != null) {
-            val button = if (target == HeaderReturn.SETTINGS) settingsFocus else tabFocus
+            val button = when (target) {
+                HeaderReturn.SETTINGS -> settingsFocus
+                HeaderReturn.NOW_PLAYING -> nowPlayingFocus
+                HeaderReturn.TAB -> tabFocus
+            }
             if (showsTabs) {
-                requestFocusWhenAttached(button)
+                // The song button is gone once the music has ended, so its tab takes focus instead.
+                if (!requestFocusWhenAttached(button)) requestFocusWhenAttached(tabFocus)
             } else {
                 // The rail or bar keeps focus only when the page takes none of its own, as on a first arrival below.
                 repeat(IDLE_FOCUS_FRAMES) { withFrameNanos { } }
@@ -133,6 +139,7 @@ internal fun TabPage(
             tabs = tabs.takeIf { showsTabs },
             tabFocus = tabFocus,
             nowPlaying = nowPlaying.takeIf { showsTabs },
+            nowPlayingFocus = nowPlayingFocus,
             onNowPlaying = onNowPlaying,
         )
         content(showsTabs, tabBack, headerFocused)
@@ -322,6 +329,7 @@ private fun Header(
     tabs: TabsModel? = null,
     tabFocus: FocusRequester = remember { FocusRequester() },
     nowPlaying: MediaItem? = null,
+    nowPlayingFocus: FocusRequester = remember { FocusRequester() },
     onNowPlaying: () -> Unit = {},
 ) {
     Row(
@@ -368,7 +376,10 @@ private fun Header(
         }
         // A TV has no bar under its pages for the music, so the song playing has a button here that opens Now playing.
         nowPlaying?.let {
-            SofaButton(onClick = onNowPlaying, modifier = Modifier.widthIn(max = NOW_PLAYING_WIDTH)) {
+            SofaButton(
+                onClick = onNowPlaying,
+                modifier = Modifier.widthIn(max = NOW_PLAYING_WIDTH).focusRequester(nowPlayingFocus),
+            ) {
                 Icon(SofaIcons.Audiotrack, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
                 Text(it.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }

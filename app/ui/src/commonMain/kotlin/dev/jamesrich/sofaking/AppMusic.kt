@@ -53,7 +53,7 @@ internal fun rememberMusicPlayback(playback: AppPlayback, sessions: PlaybackSess
 
 /**
  * Plays [item] where it plays: a song as music, on through [album] (its album's songs, as its page lists them)
- * shuffled or not, with Now Playing opened over the page; anything else full screen.
+ * shuffled or not, with Now Playing opened over the page (Back from it focuses [item]); anything else full screen.
  */
 internal fun AppShellState.playItem(
     music: MusicPlayback,
@@ -66,12 +66,18 @@ internal fun AppShellState.playItem(
         return
     }
     MusicQueue.of(album, start = item.id)?.let(music::play)
-    push(Route.NowPlaying)
+    openNowPlaying(returnTo = item.id)
 }
 
 /** Plays [songs] shuffled, from a random one, with Now Playing opened over the page. */
 internal fun AppShellState.shuffle(music: MusicPlayback, songs: List<MediaItem>) {
     val queue = MusicQueue.of(songs, shuffled = true) ?: return
     music.play(queue)
+    openNowPlaying()
+}
+
+/** Opens Now playing; Back focuses [returnTo] on the page below, or, [fromHeader], the header's song button. */
+internal fun AppShellState.openNowPlaying(returnTo: String? = null, fromHeader: Boolean = false) {
+    nowPlayingReturn = NowPlayingReturn(returnTo, fromHeader)
     push(Route.NowPlaying)
 }

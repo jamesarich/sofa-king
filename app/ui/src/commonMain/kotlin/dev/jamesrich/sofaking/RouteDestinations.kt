@@ -79,7 +79,7 @@ private fun TabDestination(
         onBackToLive = shell::backToLive,
         focusHeaderIfIdle = (route == Route.Library || route == Route.Recordings) && arrival.returnedFrom == null,
         nowPlaying = music.song,
-        onNowPlaying = { shell.push(Route.NowPlaying) },
+        onNowPlaying = { shell.openNowPlaying(fromHeader = true) },
     ) { showsTabs, tabBack, headerFocused ->
         when (route) {
             Route.Guide -> GuideDestination(

@@ -35,6 +35,12 @@ final class TouchTests: XCTestCase {
         XCTAssertTrue(settings.waitForExistence(timeout: 20), "No Settings\n\(screen)")
         settings.tap()
         let about = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "About")).firstMatch
+        // In landscape the list of pages shows only a few rows above the tab bar, so it is dragged within that band.
+        let low = app.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.7))
+        let high = app.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.3))
+        for _ in 0..<10 where !about.waitForExistence(timeout: 2) || !about.isHittable {
+            low.press(forDuration: 0.1, thenDragTo: high)
+        }
         XCTAssertTrue(about.waitForExistence(timeout: 20), "No About in Settings\n\(screen)")
         about.tap()
         eventually("the About page to open") { labeled("Open-source licenses").exists || app.state != .runningForeground }

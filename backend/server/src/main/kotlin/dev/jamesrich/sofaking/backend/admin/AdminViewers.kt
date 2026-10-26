@@ -7,6 +7,7 @@ import io.ktor.http.encodeURLParameter
 import kotlinx.html.A
 import kotlinx.html.ButtonType
 import kotlinx.html.FlowContent
+import kotlinx.html.FormMethod
 import kotlinx.html.TR
 import kotlinx.html.a
 import kotlinx.html.address
@@ -19,7 +20,9 @@ import kotlinx.html.dd
 import kotlinx.html.div
 import kotlinx.html.dl
 import kotlinx.html.dt
+import kotlinx.html.form
 import kotlinx.html.hidden
+import kotlinx.html.hiddenInput
 import kotlinx.html.id
 import kotlinx.html.label
 import kotlinx.html.link
@@ -41,7 +44,13 @@ internal class PairingView(val code: IssuedCode, val serverUrl: String) {
     val link: String get() = pairingLink(serverUrl, code.code)
 }
 
-internal class ViewersView(val viewers: List<Viewer>, val pairing: PairingView?, val serverUrl: String)
+/** [webApp] says whether this server serves the web app, which this browser can open paired. */
+internal class ViewersView(
+    val viewers: List<Viewer>,
+    val pairing: PairingView?,
+    val serverUrl: String,
+    val webApp: Boolean = false,
+)
 
 /** The `sofaking://pair` link for [serverUrl] and [code]; the app reads the same two query parameters. */
 internal fun pairingLink(serverUrl: String, code: String): String =
@@ -58,6 +67,7 @@ internal fun viewersPage(chrome: Chrome, view: ViewersView): String = layout("De
     )
     tabs(chrome, "/admin/viewers", PLAYER_TABS)
     pairPanel(chrome, view.pairing)
+    if (view.webApp) webAppPanel(chrome)
     devicesPanel(chrome, view)
 }
 
@@ -76,6 +86,29 @@ private fun FlowContent.pairPanel(chrome: Chrome, pairing: PairingView?) = panel
         }
     } else {
         pairingCode(chrome, pairing)
+    }
+}
+
+private fun FlowContent.webAppPanel(chrome: Chrome) = panel("Watch in this browser", id = "web-app") {
+    p("mt-0") {
+        +(
+            "This server serves the Sofa King web app. Open it in a new tab, paired as a device of its own with a " +
+                "new code, which replaces any code above. Bookmark the tab or install it from the address bar."
+            )
+    }
+    div("actions") {
+        // A plain post in a new tab: the answer is the app's page, not a portal fragment to swap in.
+        form(action = "/admin/viewers/open-app", method = FormMethod.post, classes = "inline") {
+            attributes["hx-boost"] = "false"
+            attributes["target"] = "_blank"
+            hiddenInput(name = "csrf") { value = chrome.session.csrf }
+            button(type = ButtonType.submit, classes = "primary") { +"Open the web app" }
+        }
+        a(href = "/app/", classes = "btn quiet") {
+            attributes["hx-boost"] = "false"
+            attributes["target"] = "_blank"
+            +"Open without pairing"
+        }
     }
 }
 

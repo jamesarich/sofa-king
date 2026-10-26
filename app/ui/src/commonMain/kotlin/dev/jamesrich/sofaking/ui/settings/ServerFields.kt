@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.PairingFailure
@@ -38,6 +39,8 @@ import dev.jamesrich.sofaking.resources.settings_api_token_help
 import dev.jamesrich.sofaking.resources.settings_api_token_invalid
 import dev.jamesrich.sofaking.resources.settings_discovered_server
 import dev.jamesrich.sofaking.resources.settings_discovered_servers
+import dev.jamesrich.sofaking.resources.settings_manage_server
+import dev.jamesrich.sofaking.resources.settings_manage_server_summary
 import dev.jamesrich.sofaking.resources.settings_pair
 import dev.jamesrich.sofaking.resources.settings_pairing
 import dev.jamesrich.sofaking.resources.settings_pairing_code
@@ -60,8 +63,10 @@ import dev.jamesrich.sofaking.resources.settings_server_use_page
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.pageServerUrl
+import dev.jamesrich.sofaking.ui.rememberIsTelevision
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.SofaButton
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -150,6 +155,7 @@ internal fun LazyListScope.serverSection(
     item { SectionHeader(stringResource(Res.string.settings_section_server)) }
     if (!open) {
         item { ServerStatusRow(server, settings, unreachable, reloading, onReload) }
+        item { ManageServerRow(settings) }
         return
     }
     // Picking a server found on the network fills the address; the pairing code is next.
@@ -170,6 +176,23 @@ internal fun LazyListScope.serverSection(
     // The pairing code is the designed path; the token below it is the fallback.
     item { PairingFields(server, pairing) }
     item { TokenFields(server, settings, pairing, onSave) }
+}
+
+/**
+ * Manage server: the server's admin portal in a browser, where its sources, devices and recordings are set. A TV has
+ * no browser to open it in, so it shows none.
+ */
+@Composable
+private fun ManageServerRow(settings: AppSettings) {
+    val portal = ServerAddress.normalizeUrl(settings.serverUrl)?.let { "$it/admin" } ?: return
+    if (rememberIsTelevision()) return
+    val uriHandler = LocalUriHandler.current
+    LinkRow(
+        label = stringResource(Res.string.settings_manage_server),
+        summary = stringResource(Res.string.settings_manage_server_summary),
+        icon = SofaIcons.Dashboard,
+        onClick = { uriHandler.openUri(portal) },
+    )
 }
 
 /** The server in use, whether it answers, and Change, the page's own server where that may help, and Reload. */

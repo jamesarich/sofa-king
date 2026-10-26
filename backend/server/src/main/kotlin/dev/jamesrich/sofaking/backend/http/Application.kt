@@ -25,7 +25,6 @@ import io.ktor.util.cio.ChannelIOException
 import io.ktor.utils.io.ClosedByteChannelException
 import io.ktor.utils.io.ConnectionClosedException
 import java.time.Clock
-import kotlin.io.path.isRegularFile
 
 /**
  * Every request body is capped at [CONTROL_BODY_LIMIT], except the policy writes, which may carry a whole policy file.
@@ -77,8 +76,7 @@ fun Application.backendModule(
     portal?.watchAttention(this)
     routing {
         healthRoutes(store, clock, runtime)
-        // A folder without the page, as a local image built with an empty web/ has, serves no web app.
-        config?.webDirectory?.takeIf { it.resolve("index.html").isRegularFile() }?.let { webAppRoutes(it) }
+        config?.takeIf { it.servesWebApp() }?.webDirectory?.let { webAppRoutes(it) }
         if (runtime != null) {
             liveRoutes(runtime)
             adminRoutes(runtime, clock, config?.revision ?: "unknown", hdhr.enabled)

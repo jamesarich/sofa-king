@@ -1,7 +1,9 @@
 package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.http.publicBase
+import dev.jamesrich.sofaking.backend.http.servesWebApp
 import dev.jamesrich.sofaking.backend.http.viewersWithTokens
+import dev.jamesrich.sofaking.backend.http.webAppPairingPath
 import dev.jamesrich.sofaking.backend.store.forgetViewer
 import dev.jamesrich.sofaking.backend.store.viewers
 import io.ktor.http.parameters
@@ -20,6 +22,11 @@ internal class ViewerPages(private val portal: Portal) {
         route.action("/viewers/pair") { session, _ ->
             runtime.pairing.issue()
             call.html(viewersPage(chrome(call, session), viewersView(call)))
+        }
+        // A new code, claimed by the web app this browser opens: the browser leaves the portal for the app's page.
+        route.action("/viewers/open-app") { _, _ ->
+            if (config?.servesWebApp() != true) return@action seeOther(call, "/admin/viewers")
+            seeOther(call, webAppPairingPath(runtime.pairing.issue().code))
         }
         route.action("/viewers/cancel") { session, _ ->
             runtime.pairing.cancel()
@@ -44,6 +51,11 @@ internal class ViewerPages(private val portal: Portal) {
     /** The viewers the server knows and the live pairing code, with the address this request reached the server at. */
     private suspend fun viewersView(call: ApplicationCall): ViewersView {
         val base = publicBase(call)
-        return ViewersView(runtime.viewersWithTokens(), runtime.pairing.current()?.let { PairingView(it, base) }, base)
+        return ViewersView(
+            runtime.viewersWithTokens(),
+            runtime.pairing.current()?.let { PairingView(it, base) },
+            base,
+            webApp = portal.config?.servesWebApp() == true,
+        )
     }
 }

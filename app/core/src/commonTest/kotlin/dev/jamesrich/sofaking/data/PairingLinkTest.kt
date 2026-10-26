@@ -31,4 +31,23 @@ class PairingLinkTest {
         assertNull(parsePairingLink("sofaking://pair?server=http://192.168.1.3:9193"))
         assertNull(parsePairingLink(""))
     }
+
+    @Test
+    fun `the web app's pairing fragment pairs with the page's own server`() {
+        assertEquals(
+            PairingRequest("http://192.168.1.3:9193", "123456"),
+            parsePairingFragment("#pair=123456", "http://192.168.1.3:9193"),
+        )
+        assertEquals(
+            PairingRequest("https://tv.example.org", "000001"),
+            parsePairingFragment("pair=000001", "https://tv.example.org"),
+        )
+    }
+
+    @Test
+    fun `other fragments are not pairing`() {
+        assertNull(parsePairingFragment("", "http://192.168.1.3:9193"))
+        assertNull(parsePairingFragment("#pair=12345", "http://192.168.1.3:9193"))
+        assertNull(parsePairingFragment("#guide", "http://192.168.1.3:9193"))
+    }
 }

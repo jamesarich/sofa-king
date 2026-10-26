@@ -15,6 +15,7 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.content
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.date
@@ -34,6 +35,7 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** The ads, watching now, API, viewers, library and recordings pages. */
@@ -183,6 +185,33 @@ class AdminPortalPagesTest : AdminPortalCase() {
             )) {
                 assertTrue(path in paths, path)
             }
+        }
+    }
+
+    @Test
+    fun `a server that serves the web app opens it paired from the devices page`() = testApplication {
+        val web = java.nio.file.Files.createTempDirectory("sofa-portal-web-")
+        java.nio.file.Files.writeString(web.resolve("index.html"), "<!doctype html><title>Sofa King</title>")
+        portal(show = { it.copy(webDirectory = web) }) {
+            browser.signIn()
+            val page = browser.get("/admin/viewers").bodyAsText()
+            assertTrue(page.contains("Open the web app"))
+            val opened = browser.post("/admin/viewers/open-app", "csrf" to field(page, "csrf"))
+            assertEquals(HttpStatusCode.SeeOther, opened.status)
+            val code = runtime.pairing.current()!!.code
+            assertEquals("/app/#pair=$code", opened.headers[HttpHeaders.Location], "the code rides in the fragment")
+        }
+    }
+
+    @Test
+    fun `a server without the web app offers none`() = testApplication {
+        portal {
+            browser.signIn()
+            val page = browser.get("/admin/viewers").bodyAsText()
+            assertFalse(page.contains("Open the web app"))
+            val opened = browser.post("/admin/viewers/open-app", "csrf" to field(page, "csrf"))
+            assertEquals("/admin/viewers", opened.headers[HttpHeaders.Location])
+            assertNull(runtime.pairing.current(), "no code is issued for an app that is not there")
         }
     }
 

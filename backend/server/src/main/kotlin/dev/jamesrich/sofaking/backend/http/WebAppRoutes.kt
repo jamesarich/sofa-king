@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.http
 
+import dev.jamesrich.sofaking.backend.ServerConfig
 import io.ktor.http.CacheControl
 import io.ktor.http.ContentType
 import io.ktor.server.application.install
@@ -12,6 +13,7 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.route
 import java.nio.file.Path
+import kotlin.io.path.isRegularFile
 
 /** Where the server serves the Sofa King web app: under a path of its own, so its service worker's scope ends there. */
 internal const val WEB_APP_PATH = "/app"
@@ -25,6 +27,18 @@ internal const val WEB_APP_CSP =
     "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
         "img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https:; worker-src 'self'; " +
         "frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+
+/**
+ * Whether the server serves the web app: [ServerConfig.webDirectory] holds its page. A folder without it, as a local
+ * image built with an empty `web/` has, serves none.
+ */
+internal fun ServerConfig.servesWebApp(): Boolean = webDirectory?.resolve("index.html")?.isRegularFile() == true
+
+/**
+ * The web app's address that pairs it with [code] as it opens. The code rides in the fragment, which no request
+ * carries, so it reaches no log or `Referer`.
+ */
+internal fun webAppPairingPath(code: String): String = "$WEB_APP_PATH/#pair=$code"
 
 /** A bundle file named by its content's hash, as webpack names the `.wasm` files, which never changes in place. */
 private val HASHED_NAME = Regex("[0-9a-f]{16,}\\.wasm")

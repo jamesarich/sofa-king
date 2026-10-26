@@ -61,9 +61,14 @@ struct ItemDetailView: View {
             VStack(alignment: .leading, spacing: 48) {
                 HStack(alignment: .top, spacing: 60) {
                     Artwork(url: item.poster, title: item.title)
-                        .frame(width: 300, height: 450)
+                        .frame(width: item.kind.music ? 450 : 300, height: 450)
                         .clipShape(.rect(cornerRadius: 16))
-                    summary(detail)
+                    if item.kind.music { musicSummary(detail) } else { summary(detail) }
+                }
+                if item.kind == .artist {
+                    albums(detail.children)
+                } else if item.kind == .album {
+                    songs(detail.children, album: item)
                 }
                 let seasons = detail.children.filter { $0.kind == .season }
                 if !seasons.isEmpty {
@@ -170,6 +175,77 @@ struct ItemDetailView: View {
         }
     }
 
+    /// An artist's or album's names, its year, songs and length, and for an album, Play and Shuffle.
+    private func musicSummary(_ detail: MediaItemDetail) -> some View {
+        let item = detail.item
+        let songs = item.kind == .track ? [item] : detail.children.filter { $0.kind == .track }
+        return VStack(alignment: .leading, spacing: 20) {
+            if item.kind == .album, let artist = item.artist {
+                Text(artist).font(.headline).foregroundStyle(.secondary)
+            }
+            Text(item.title).font(.title).bold()
+            let meta = musicMeta(item, songs: songs)
+            if !meta.isEmpty {
+                Text(meta).foregroundStyle(.secondary)
+            }
+            if let overview = item.overview, !overview.isEmpty {
+                Text(overview).lineLimit(6)
+            }
+            if !songs.isEmpty {
+                HStack(spacing: 24) {
+                    Button("Play", systemImage: "play.fill") { model.playMusic(songs, from: nil) }
+                    Button("Shuffle", systemImage: "shuffle") { model.playMusic(songs, from: nil, shuffled: true) }
+                }
+            }
+        }
+    }
+
+    /// An album's year, number of songs and length; an artist's number of albums.
+    private func musicMeta(_ item: MediaItem, songs: [MediaItem]) -> String {
+        var parts: [String] = []
+        if let year = item.year { parts.append(String(year.intValue)) }
+        if item.kind == .artist, item.children > 0 {
+            parts.append(item.children == 1 ? "1 album" : "\(item.children) albums")
+        }
+        if !songs.isEmpty {
+            parts.append(songs.count == 1 ? "1 song" : "\(songs.count) songs")
+            let ms = songs.compactMap { $0.durationMs?.int64Value }.reduce(0, +)
+            if ms >= 60_000 {
+                parts.append(Duration.milliseconds(ms).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated)))
+            }
+        }
+        if !item.genres.isEmpty { parts.append(item.genres.prefix(3).joined(separator: ", ")) }
+        return parts.joined(separator: " · ")
+    }
+
+    /// An artist's albums, newest first, as square covers that open the album.
+    private func albums(_ albums: [MediaItem]) -> some View {
+        Section {
+            CardRow {
+                ForEach(albums) { album in
+                    NavigationLink(value: album) { LibraryCard(item: album, wide: false) }
+                        .buttonStyle(.card)
+                }
+            }
+        } header: {
+            Text("Albums").font(.title3)
+        }
+    }
+
+    /// An album's songs in disc and track order; one selected plays the album from it.
+    private func songs(_ children: [MediaItem], album: MediaItem) -> some View {
+        let songs = children.filter { $0.kind == .track }
+        let discs = Set(songs.compactMap { $0.disc?.intValue }).count > 1
+        return LazyVStack(alignment: .leading, spacing: 12) {
+            ForEach(songs) { song in
+                Button { model.playMusic(songs, from: song) } label: {
+                    SongRow(song: song, albumArtist: album.artist, showsDisc: discs)
+                }
+                .buttonStyle(.card)
+            }
+        }
+    }
+
     private func seasonPicker(_ seasons: [MediaItem]) -> some View {
         ScrollView(.horizontal) {
             HStack(spacing: 20) {
@@ -232,6 +308,39 @@ struct ItemDetailView: View {
             return episode.map { "Resume \($0)" } ?? "Resume from \(playTime(resume.positionMs))"
         }
         return episode.map { "Play \($0)" } ?? "Play"
+    }
+}
+
+/// A song's number (with its disc's on an album of several), title, its own artist when that is not the album's, and
+/// its length.
+private struct SongRow: View {
+    let song: MediaItem
+    let albumArtist: String?
+    let showsDisc: Bool
+
+    var body: some View {
+        HStack(spacing: 32) {
+            Text(number).font(.headline).monospacedDigit().foregroundStyle(.secondary).frame(width: 80, alignment: .trailing)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(song.title).font(.headline).lineLimit(1)
+                if let artist = song.trackArtist, artist != albumArtist {
+                    Text(artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+            if let ms = song.durationMs?.int64Value {
+                Text(playTime(ms)).font(.caption).monospacedDigit().foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .frame(width: 1500, alignment: .leading)
+    }
+
+    private var number: String {
+        guard let track = song.track?.intValue else { return "" }
+        guard showsDisc, let disc = song.disc?.intValue else { return String(track) }
+        return String(format: "%d-%02d", disc, track)
     }
 }
 

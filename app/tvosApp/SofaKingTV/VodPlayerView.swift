@@ -139,6 +139,8 @@ struct VodPlayerView: View {
         }
         .task { await open() }
         .onAppear {
+            // A movie, an episode or a recording ends the music.
+            model.music.stop()
             // A renewal that finds the stream replaced hands back the new URL for the same item.
             replaced = model.core.watchReplaced { s in
                 if s.itemId == request.id { load(s) }

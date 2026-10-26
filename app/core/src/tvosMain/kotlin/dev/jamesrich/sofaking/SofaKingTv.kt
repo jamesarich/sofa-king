@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking
 
+import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.DataStoreSettingsStore
 import dev.jamesrich.sofaking.data.PlaybackProfile
@@ -36,6 +37,7 @@ class SofaKingTv private constructor(private val parts: TvParts) :
     TvChannels by TvChannelCalls(parts),
     TvLibrary by TvLibraryCalls(parts),
     TvItemPlayback by TvItemCalls(parts),
+    TvMusic by TvMusicCalls(parts),
     TvRecordings by TvRecordingCalls(parts),
     TvRecordingMarks by TvRecordingMarkCalls(parts),
     TvWatchlist by TvWatchlistCalls(parts),
@@ -75,7 +77,12 @@ internal class TvParts {
     private val store = DataStoreSettingsStore(storage.settings)
 
     /** The server Settings names, its one playback session and the guide's record marks, for every ViewModel below. */
-    val connection = ServerConnection(store.settings, scope, viewerSync = ViewerSync(store, storage.client))
+    val connection = ServerConnection(
+        store.settings,
+        scope,
+        libraryKinds = listOf(Wire.LibraryKind.MUSIC),
+        viewerSync = ViewerSync(store, storage.client),
+    )
 
     val viewModel =
         LineupViewModel(

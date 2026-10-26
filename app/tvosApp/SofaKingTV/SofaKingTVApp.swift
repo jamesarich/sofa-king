@@ -17,7 +17,7 @@ struct SofaKingTVApp: App {
 @MainActor
 @Observable
 final class AppModel {
-    let core = SofaKingTv()
+    let core: SofaKingTv
     private(set) var state: LineupState = LineupStateLoading.shared
     private(set) var settings: AppSettings?
     private(set) var capabilities: ServerCapabilities?
@@ -29,6 +29,10 @@ final class AppModel {
     private(set) var watchlist: WatchlistMarks?
     /// The library item the player shows, from whichever library page asked for it.
     var vod: VodRequest?
+    /// The music, which plays apart from any page.
+    let music: MusicPlayer
+    /// Whether Now playing is open over the tabs.
+    var nowPlayingShown = false
     /// The players' sleep timer, which lasts through Up next until the viewer leaves the player.
     var sleep = SleepTimer()
     /// The items Up next played by itself since the viewer last pressed anything, for "Still watching?".
@@ -51,6 +55,9 @@ final class AppModel {
     private var publishedContinue: [TopShelfItem]?
 
     init() {
+        let core = SofaKingTv()
+        self.core = core
+        music = MusicPlayer(core: core)
         #if DEBUG
         // `xcrun simctl launch booted dev.jamesrich.sofaking.tv -serverUrl http://host:port -apiToken TOKEN`
         // saves a server without typing on the simulator's keyboard.
@@ -79,6 +86,13 @@ final class AppModel {
     }
 
     var lineup: Lineup? { (state as? LineupStateReady)?.lineup }
+
+    /// Plays the songs among `tracks` from `start` (the first when nil), shuffled with `shuffled`, and opens Now playing.
+    func playMusic(_ tracks: [MediaItem], from start: MediaItem?, shuffled: Bool = false) {
+        guard let queue = core.musicQueue(tracks: tracks, startId: start?.id, shuffled: shuffled) else { return }
+        music.play(queue)
+        nowPlayingShown = true
+    }
 
     /// Pairs with the server a `sofaking://pair` link names; success shows as the lineup loading, failure as an alert.
     func pair(_ request: PairingRequest) {
@@ -220,6 +234,7 @@ struct ContentView: View {
     @State private var restored: AppTab?
 
     var body: some View {
+        @Bindable var model = model
         // The tab bar waits for the start's tab: UIKit can fail on a bar that gains a tab and selects it at once, or
         // loses the tab it is leaving, with a navigation bar assertion.
         Group {
@@ -247,6 +262,7 @@ struct ContentView: View {
                 model.pair(request)
             }
         }
+        .fullScreenCover(isPresented: $model.nowPlayingShown) { NowPlayingView() }
         .alert("Pairing failed", isPresented: Binding(get: { model.pairingFailure != nil }, set: { if !$0 { model.pairingFailure = nil } })) {
             Button("OK") {}
         } message: {

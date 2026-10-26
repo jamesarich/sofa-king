@@ -71,6 +71,8 @@ struct PlayerView: View {
         }
         .onAppear {
             shown = true
+            // A channel ends the music.
+            model.music.stop()
             replaced = model.core.watchReplaced { stream in play(stream) }
         }
         .onDisappear {

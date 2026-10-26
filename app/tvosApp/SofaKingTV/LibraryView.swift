@@ -3,7 +3,8 @@ import SofaKingCore
 
 /// The Library tab: Continue watching, each library's recent additions, then the libraries themselves. Selecting a
 /// card opens its page; the remote's play/pause button plays a movie or episode straight from its card, and holding the
-/// touch surface on a Continue watching card offers Remove from Continue watching.
+/// touch surface on a Continue watching card offers Remove from Continue watching. While music plays, Now playing
+/// heads the page and opens the song's page again.
 struct LibraryHomeView: View {
     @Environment(AppModel.self) private var model
 
@@ -57,6 +58,11 @@ struct LibraryHomeView: View {
     private func shelves(_ home: MediaHome) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 48) {
+                if let song = model.music.song {
+                    Button { model.nowPlayingShown = true } label: {
+                        Label("Now playing: \(song.title)", systemImage: "music.note").lineLimit(1)
+                    }
+                }
                 ForEach(home.shelves, id: \.key) { shelf in
                     let wide = shelf.isWide
                     Section {
@@ -106,6 +112,8 @@ struct LibraryGridView: View {
     @State private var genre: String?
 
     private static let sorts: [(LibrarySort, String)] = [(.title, "Title"), (.added, "Added"), (.year, "Year"), (.rating, "Rating"), (.watched, "Watched")]
+    /// A music library's artists, by name or by when they were added.
+    private static let musicSorts: [(LibrarySort, String)] = [(.title, "Name"), (.added, "Added")]
     private let columns = Array(repeating: GridItem(.fixed(240), spacing: 48), count: 6)
 
     var body: some View {
@@ -114,10 +122,13 @@ struct LibraryGridView: View {
             VStack(alignment: .leading, spacing: 32) {
                 HStack(spacing: 24) {
                     Picker("Sort", selection: $sort) {
-                        ForEach(Self.sorts, id: \.0) { Text($0.1).tag($0.0) }
+                        ForEach(library.kind == .music ? Self.musicSorts : Self.sorts, id: \.0) { Text($0.1).tag($0.0) }
                     }
                     .pickerStyle(.segmented)
-                    Toggle("Unwatched", isOn: $unwatched)
+                    // Music has no watched state.
+                    if library.kind != .music {
+                        Toggle("Unwatched", isOn: $unwatched)
+                    }
                     if let genres = shown?.genres, !genres.isEmpty {
                         Menu(genre ?? "All genres") {
                             Button("All genres") { genre = nil }
@@ -183,7 +194,7 @@ struct CardRow<Content: View>: View {
     }
 }
 
-/// A poster (2:3) or a wide (16:9) card with the title below, a bar for how far in, and a tick or the unwatched count.
+/// A poster (2:3), a square cover for music, or a wide (16:9) card with the title below, a bar for how far in, and a tick or the unwatched count.
 struct LibraryCard: View {
     let item: MediaItem
     let wide: Bool
@@ -191,7 +202,7 @@ struct LibraryCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Artwork(url: wide ? item.backdrop ?? item.poster : item.poster ?? item.backdrop, title: item.title)
-                .frame(width: wide ? 400 : 240, height: wide ? 225 : 360)
+                .frame(width: wide ? 400 : 240, height: wide ? 225 : item.kind.music ? 240 : 360)
                 .overlay(alignment: .bottom) { ProgressStrip(progress: item.progress) }
                 .overlay(alignment: .topTrailing) { WatchBadge(item: item) }
                 .clipped()
@@ -220,7 +231,7 @@ private struct LibraryTile: View {
         }
         .padding(24)
         .frame(width: 400, height: 225, alignment: .leading)
-        .background(library.kind == .shows ? Color.teal.opacity(0.35) : Color.indigo.opacity(0.35))
+        .background(library.kind == .shows ? Color.teal.opacity(0.35) : library.kind == .music ? Color.pink.opacity(0.35) : Color.indigo.opacity(0.35))
     }
 }
 
@@ -272,7 +283,8 @@ private struct WatchBadge: View {
 }
 
 extension View {
-    /// The remote's play/pause button plays [item] straight from its card, from where the household stopped.
+    /// The remote's play/pause button plays [item] straight from its card, from where the household stopped; a song
+    /// plays alone in Now playing.
     func playsOnPlayPause(_ item: MediaItem) -> some View {
         modifier(PlayOnPlayPause(item: item))
     }
@@ -284,7 +296,11 @@ private struct PlayOnPlayPause: ViewModifier {
 
     func body(content: Content) -> some View {
         content.onPlayPauseCommand {
-            if item.kind.playable { model.vod = VodRequest(item: item, fromStart: false) }
+            if item.kind == .track {
+                model.playMusic([item], from: item)
+            } else if item.kind.playable {
+                model.vod = VodRequest(item: item, fromStart: false)
+            }
         }
     }
 }

@@ -78,6 +78,8 @@ private fun TabDestination(
         onSettings = chrome.onSettings,
         onBackToLive = shell::backToLive,
         focusHeaderIfIdle = (route == Route.Library || route == Route.Recordings) && arrival.returnedFrom == null,
+        nowPlaying = music.song,
+        onNowPlaying = { shell.push(Route.NowPlaying) },
     ) { showsTabs, tabBack, headerFocused ->
         when (route) {
             Route.Guide -> GuideDestination(

@@ -1,5 +1,8 @@
 package dev.jamesrich.sofaking.ui.player
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Icon
@@ -18,7 +22,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -27,11 +33,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -49,7 +60,6 @@ import dev.jamesrich.sofaking.resources.music_repeat_all
 import dev.jamesrich.sofaking.resources.music_repeat_one
 import dev.jamesrich.sofaking.resources.music_shuffle
 import dev.jamesrich.sofaking.ui.Artwork
-import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -58,11 +68,12 @@ import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
+import kotlin.random.Random
 
 /**
  * The song [music] plays: its cover, its title and artist, the seek bar, and previous, play or pause, next, shuffle
- * and repeat. Beside the cover on a wide window, under it on a tall one. It closes ([onClose]) once the music ends,
- * as Back on a TV ends it.
+ * and repeat. Beside the cover on a wide window, under it on a tall one. It closes ([onClose]) once the music ends.
+ * On a TV it rests after a while without a key, so a still cover does not mark the screen.
  */
 @Composable
 internal fun NowPlayingScreen(music: MusicPlayback, onClose: () -> Unit) {
@@ -70,9 +81,15 @@ internal fun NowPlayingScreen(music: MusicPlayback, onClose: () -> Unit) {
     val currentOnClose by rememberUpdatedState(onClose)
     LaunchedEffect(song == null) { if (song == null) currentOnClose() }
     if (song == null) return
-    // A TV has no bar under its pages to come back to the music from, so Back there ends it, and the page with it.
-    if (LocalLayoutProfile.current.tv) BackHandler(onBack = music::stop)
-    BoxWithConstraints(Modifier.fillMaxSize().screenPadding()) {
+    RestWhenIdle(LocalLayoutProfile.current.tv) { rest ->
+        NowPlayingLayout(music, song, rest)
+    }
+}
+
+/** The cover beside the song's controls on a wide window, above them on a tall one. */
+@Composable
+private fun NowPlayingLayout(music: MusicPlayback, song: MediaItem, modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier.fillMaxSize().screenPadding()) {
         val wide = maxWidth > maxHeight
         val side = if (wide) min(maxHeight * COVER_SHARE, maxWidth * 0.45f) else min(maxWidth, maxHeight * 0.45f)
         if (wide) {
@@ -142,6 +159,41 @@ private fun SongControls(music: MusicPlayback, song: MediaItem, modifier: Modifi
         }
         MusicButtons(music)
     }
+}
+
+/**
+ * Gives [content] a modifier that, once [enabled] and [REST_AFTER_MS] have passed without a key, dims the page and
+ * moves it a little every [DRIFT_MS], as a screen saver does, so nothing stays lit in one place. The next key wakes it
+ * and does nothing else.
+ */
+@Composable
+private fun RestWhenIdle(enabled: Boolean, content: @Composable (rest: Modifier) -> Unit) {
+    var keys by remember { mutableIntStateOf(0) }
+    var resting by remember { mutableStateOf(false) }
+    var drift by remember { mutableStateOf(DpOffset.Zero) }
+    LaunchedEffect(enabled, keys) {
+        resting = false
+        drift = DpOffset.Zero
+        if (!enabled) return@LaunchedEffect
+        delay(REST_AFTER_MS)
+        resting = true
+        while (true) {
+            drift = DpOffset(DRIFT.times(Random.nextFloat() * 2 - 1), DRIFT.times(Random.nextFloat() * 2 - 1))
+            delay(DRIFT_MS)
+        }
+    }
+    val alpha by animateFloatAsState(if (resting) REST_ALPHA else 1f, tween(FADE_MS))
+    val x by animateDpAsState(drift.x, tween(FADE_MS))
+    val y by animateDpAsState(drift.y, tween(FADE_MS))
+    val rest = Modifier
+        .onPreviewKeyEvent {
+            val woke = resting
+            if (it.type == KeyEventType.KeyDown) keys++
+            woke
+        }
+        .offset(x, y)
+        .graphicsLayer { this.alpha = alpha }
+    content(rest)
 }
 
 /** Shuffle, previous, play or pause, next and repeat, in one row. */
@@ -220,6 +272,13 @@ internal fun rememberMusicPosition(music: MusicPlayback): Long {
 }
 
 private const val POSITION_READ_MS = 250L
+
+/** How long Now playing on a TV waits for a key before it rests, how often it moves then, and how far. */
+private const val REST_AFTER_MS = 30_000L
+private const val DRIFT_MS = 60_000L
+private val DRIFT = 32.dp
+private const val REST_ALPHA = 0.35f
+private const val FADE_MS = 2_000
 
 /** The cover's side as a share of a wide window's height. */
 private const val COVER_SHARE = 0.7f

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -46,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
 import dev.jamesrich.sofaking.resources.nav_dvr
@@ -86,6 +88,8 @@ internal fun TabPage(
     onSettings: () -> Unit,
     onBackToLive: () -> Unit,
     focusHeaderIfIdle: Boolean,
+    nowPlaying: MediaItem?,
+    onNowPlaying: () -> Unit,
     content: @Composable (showsTabs: Boolean, tabBack: () -> Unit, headerFocused: Boolean) -> Unit,
 ) {
     val showsTabs = tv
@@ -128,6 +132,8 @@ internal fun TabPage(
             settingsFocus = settingsFocus,
             tabs = tabs.takeIf { showsTabs },
             tabFocus = tabFocus,
+            nowPlaying = nowPlaying.takeIf { showsTabs },
+            onNowPlaying = onNowPlaying,
         )
         content(showsTabs, tabBack, headerFocused)
     }
@@ -315,6 +321,8 @@ private fun Header(
     modifier: Modifier = Modifier,
     tabs: TabsModel? = null,
     tabFocus: FocusRequester = remember { FocusRequester() },
+    nowPlaying: MediaItem? = null,
+    onNowPlaying: () -> Unit = {},
 ) {
     Row(
         modifier.fillMaxWidth().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
@@ -358,7 +366,14 @@ private fun Header(
                 )
             }
         }
-        // Settings is the header's one button; the lineup, library and recordings reload by themselves, and
+        // A TV has no bar under its pages for the music, so the song playing has a button here that opens Now playing.
+        nowPlaying?.let {
+            SofaButton(onClick = onNowPlaying, modifier = Modifier.widthIn(max = NOW_PLAYING_WIDTH)) {
+                Icon(SofaIcons.Audiotrack, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                Text(it.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        // Settings is the header's other button; the lineup, library and recordings reload by themselves, and
         // Settings › Server has Reload.
         onSettings?.let {
             SofaButton(onClick = it, modifier = Modifier.focusRequester(settingsFocus)) {
@@ -368,6 +383,9 @@ private fun Header(
         }
     }
 }
+
+/** The widest the header's Now playing button gets, so a long song title leaves room for the status. */
+private val NOW_PLAYING_WIDTH = 320.dp
 
 /** The header the tab pages and the top level share: the tabs, the focus on them and on Settings, and Settings. */
 internal class TabChrome(

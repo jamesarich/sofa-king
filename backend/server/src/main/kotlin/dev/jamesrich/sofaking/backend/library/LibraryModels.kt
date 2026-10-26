@@ -92,6 +92,10 @@ data class ItemDetails(
     /** A track's number on its disc, and the disc's in the album. */
     val track: Int? = null,
     val disc: Int? = null,
+    /** From its tracks' tags: an artist's MusicBrainz id, an album's release's, or a track's recording's. */
+    val musicBrainzId: String? = null,
+    /** An album's MusicBrainz release group, the album over all its editions. */
+    val releaseGroupId: String? = null,
 )
 
 /**

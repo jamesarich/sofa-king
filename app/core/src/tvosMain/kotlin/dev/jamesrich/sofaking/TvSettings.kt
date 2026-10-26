@@ -32,6 +32,9 @@ interface TvSettings {
     fun refresh()
 
     fun toggleFavorite(guideId: String)
+
+    /** Keeps the favorites and hidden channels in step with the household's devices, on a server that shares them. */
+    fun setShareFavorites(on: Boolean)
 }
 
 internal class TvSettingCalls(parts: TvParts) : TvSettings {
@@ -54,4 +57,6 @@ internal class TvSettingCalls(parts: TvParts) : TvSettings {
     override fun refresh() = viewModel.refresh()
 
     override fun toggleFavorite(guideId: String) = viewModel.toggleFavorite(guideId)
+
+    override fun setShareFavorites(on: Boolean) = viewModel.setShareFavorites(on)
 }

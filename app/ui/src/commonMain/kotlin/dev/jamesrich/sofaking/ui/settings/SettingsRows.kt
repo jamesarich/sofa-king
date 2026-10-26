@@ -6,8 +6,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -43,6 +43,9 @@ import dev.jamesrich.sofaking.ui.theme.tvFocus
 /** The width of a settings control column: a field, a switch row or a choice row, so the page reads as one column. */
 internal val FIELD_WIDTH = 640.dp
 
+/** The gap between a settings page's rows: Material's list items already carry their own padding. */
+internal val SETTINGS_ROW_GAP = 8.dp
+
 /** How far clear of a settings page's edges focus keeps what it lands on, so the rows around it show. */
 internal val SETTINGS_FOCUS_EDGE = 16.dp
 
@@ -69,13 +72,17 @@ internal fun HelpText(text: String) {
     )
 }
 
-/** A label with its control(s) beside it; one focus group so Left/Right stay inside the row. */
+/**
+ * A label with its control(s) beside it, wrapping onto the next line where a phone is too narrow for them all; one
+ * focus group so Left/Right stay inside the row.
+ */
 @Composable
 internal fun SettingRow(label: String, controls: @Composable () -> Unit) {
-    Row(
+    FlowRow(
         modifier = Modifier.focusGroup(),
-        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, style = MaterialTheme.typography.titleSmall)
         controls()

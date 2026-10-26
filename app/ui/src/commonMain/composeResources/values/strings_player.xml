@@ -158,7 +158,10 @@
     <string name="vod_control_back_to_live">Back to live</string>
     <string name="multiview_title">Multiview</string>
     <string name="multiview_pick_hint">Pick 2 to 4 channels to watch at once.</string>
-    <string name="multiview_watch">Watch %1$d channels</string>
+    <plurals name="multiview_watch">
+        <item quantity="one">Watch %1$d channel</item>
+        <item quantity="other">Watch %1$d channels</item>
+    </plurals>
     <string name="multiview_keys_hint">Arrows move the sound. OK watches it full screen. Back changes the channels.</string>
     <string name="multiview_touch_hint">Tap a picture for its sound. Double-tap to watch it full screen.</string>
     <string name="multiview_sound">%1$s, playing sound</string>

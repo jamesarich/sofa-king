@@ -38,6 +38,7 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrimDense
 import dev.jamesrich.sofaking.ui.theme.tvFocus
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 /** The picker's width; the picture plays on beside it. */
@@ -72,7 +73,7 @@ internal fun MultiviewPicker(
                 SofaButton(
                     onClick = onWatch,
                     enabled = picked.size in MULTIVIEW_MIN_TILES..Wire.MULTIVIEW_MAX_TILES,
-                ) { Text(stringResource(Res.string.multiview_watch, picked.size)) }
+                ) { Text(pluralStringResource(Res.plurals.multiview_watch, picked.size, picked.size)) }
             }
             LazyColumn(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 itemsIndexed(choices, key = { _, channel -> channel.guideId }) { index, channel ->

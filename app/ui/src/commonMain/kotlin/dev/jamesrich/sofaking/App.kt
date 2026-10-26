@@ -227,7 +227,7 @@ private fun AppNavDisplay(
             modifier = Modifier.appKeys(shell, volume, windowFullScreen).playerVolumeWheel(volume) {
                 shell.nav.top.playsFullScreen
             },
-            sceneStrategy = rememberLibraryPanes(chrome.tv),
+            sceneStrategies = listOf(rememberLibraryPanes(chrome.tv)),
             onBack = shell::back,
             transitionSpec = cut,
             popTransitionSpec = cut,

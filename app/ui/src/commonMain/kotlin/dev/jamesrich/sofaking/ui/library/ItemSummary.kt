@@ -53,6 +53,7 @@ import dev.jamesrich.sofaking.resources.library_remove_from_watchlist
 import dev.jamesrich.sofaking.resources.library_resume
 import dev.jamesrich.sofaking.resources.library_resume_episode
 import dev.jamesrich.sofaking.resources.library_seasons
+import dev.jamesrich.sofaking.resources.library_shuffle
 import dev.jamesrich.sofaking.resources.library_subtitles
 import dev.jamesrich.sofaking.resources.library_tracks
 import dev.jamesrich.sofaking.resources.tagline
@@ -155,6 +156,8 @@ private fun Buttons(detail: MediaItemDetail, actions: ItemDetailsActions, primar
                     actions.onPlay(action.item, true)
                 }) { Text(stringResource(Res.string.library_play_from_start)) }
             }
+            val shuffle = actions.onShuffle?.takeIf { item.kind == ItemKind.ALBUM }
+            if (shuffle != null) SofaButton(onClick = shuffle) { Text(stringResource(Res.string.library_shuffle)) }
         }
         if (!item.kind.music) {
             SofaButton(

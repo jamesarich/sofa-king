@@ -35,6 +35,12 @@ interface TvSettings {
 
     /** Keeps the favorites and hidden channels in step with the household's devices, on a server that shares them. */
     fun setShareFavorites(on: Boolean)
+
+    /** Locks Settings behind the four digits of [pin], or removes the lock, and kids mode with it, for null. */
+    fun setSettingsPin(pin: String?)
+
+    /** Turns kids mode on, once a PIN is set, or off. */
+    fun setKidsMode(on: Boolean)
 }
 
 internal class TvSettingCalls(parts: TvParts) : TvSettings {
@@ -59,4 +65,8 @@ internal class TvSettingCalls(parts: TvParts) : TvSettings {
     override fun toggleFavorite(guideId: String) = viewModel.toggleFavorite(guideId)
 
     override fun setShareFavorites(on: Boolean) = viewModel.setShareFavorites(on)
+
+    override fun setSettingsPin(pin: String?) = viewModel.setSettingsPin(pin)
+
+    override fun setKidsMode(on: Boolean) = viewModel.setKidsMode(on)
 }

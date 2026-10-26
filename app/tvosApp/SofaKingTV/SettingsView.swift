@@ -92,6 +92,7 @@ struct SettingsView: View {
             } footer: {
                 Text("Automatically, Skip intro or Skip credits counts down 5 seconds and then skips; pausing stops it. With a button, it waits for a press. Off, intros and credits play. Hide spoilers keeps back the summaries of episodes you have not started and blurs their pictures.")
             }
+            ParentalControlsSection()
             Section("About") {
                 // TMDB's terms ask apps that show its data to say so.
                 Text("Movie and show details and images can come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.")

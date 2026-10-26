@@ -4,11 +4,12 @@ import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * One library item's screen: its page, and on a show the page of the season it lists. Each is held open for as long
- * as the screen is on the back stack, so returning to it shows what it showed, and let go when the screen leaves.
+ * One library item's screen: its page, and on a show the page of the season it lists, each opened with [open]
+ * ([LibraryBrowsing.openItem]). Each is held open for as long as the screen is on the back stack, so returning to it
+ * shows what it showed, and let go when the screen leaves.
  */
-class ItemPageViewModel(private val library: LibraryBrowsing, itemId: String) : ViewModel() {
-    private val page = library.openItem(itemId)
+class ItemPageViewModel(private val open: (id: String) -> ItemPage, itemId: String) : ViewModel() {
+    private val page = open(itemId)
     private var seasonPage: ItemPage? = null
 
     init {
@@ -24,10 +25,10 @@ class ItemPageViewModel(private val library: LibraryBrowsing, itemId: String) : 
 
     /** The page of the season [id] the show lists; the season listed before it is let go. */
     fun season(id: String): StateFlow<ItemDetailState> {
-        val open = seasonPage?.takeIf { it.id == id } ?: library.openItem(id).also {
+        val season = seasonPage?.takeIf { it.id == id } ?: open(id).also {
             seasonPage?.close()
             seasonPage = it
         }
-        return open.state
+        return season.state
     }
 }

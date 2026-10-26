@@ -153,8 +153,8 @@ internal fun LibraryItemDestination(
     shell: AppShellState,
     libraryVm: LibraryViewModel,
     hideSpoilers: Boolean,
+    page: ItemPageViewModel = viewModel { ItemPageViewModel(libraryVm::openItem, route.itemId) },
 ) {
-    val page = viewModel { ItemPageViewModel(libraryVm, route.itemId) }
     val detail by page.detail.collectAsStateWithLifecycle()
     val ready = (detail as? ItemDetailState.Ready)?.detail
     var pickedSeason by rememberSaveable(route.itemId) { mutableStateOf<String?>(null) }
@@ -192,10 +192,10 @@ internal fun VodDestination(
     vm: LineupViewModel,
     libraryVm: LibraryViewModel,
     player: LivePlayer,
+    page: ItemPageViewModel = viewModel { ItemPageViewModel(libraryVm::openItem, route.itemId) },
 ) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val prefs = settings ?: AppSettings()
-    val page = viewModel { ItemPageViewModel(libraryVm, route.itemId) }
     val detail by page.detail.collectAsStateWithLifecycle()
     val ready = (detail as? ItemDetailState.Ready)?.detail
     when {

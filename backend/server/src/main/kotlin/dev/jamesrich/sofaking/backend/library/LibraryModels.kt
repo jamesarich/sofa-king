@@ -165,9 +165,15 @@ data class MetadataFacts(
     val runtimeMinutes: Int? = null,
     val poster: String? = null,
     val backdrop: String? = null,
+    /** For an album or an artist in a Music library, the MusicBrainz release group or artist it was matched to. */
+    val musicBrainzId: String? = null,
+    /** For an album, the MusicBrainz artist its match is credited to first. */
+    val artistId: String? = null,
+    /** For an artist, the Wikidata item MusicBrainz links it to (`Q…`). */
+    val wikidata: String? = null,
 )
 
-/** One item's stored TMDB lookup. */
+/** One item's stored TMDB lookup, or MusicBrainz lookup for music. */
 data class MetadataRecord(
     val itemId: String,
     val tmdbId: Int?,

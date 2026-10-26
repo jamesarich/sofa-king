@@ -30,6 +30,8 @@ import dev.jamesrich.sofaking.backend.library.LibraryScanner
 import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.library.MediaProbe
 import dev.jamesrich.sofaking.backend.library.MediaRoot
+import dev.jamesrich.sofaking.backend.library.MusicBrainzClient
+import dev.jamesrich.sofaking.backend.library.MusicMetadata
 import dev.jamesrich.sofaking.backend.library.ProgramFactsLookup
 import dev.jamesrich.sofaking.backend.library.ScrubSheets
 import dev.jamesrich.sofaking.backend.library.TmdbClient
@@ -373,6 +375,9 @@ internal class RuntimeAssembly(
         listOf(MediaRoot("Media", config.mediaDirectory), MediaRoot("Recordings", config.recordingsDirectory)),
         LibraryScanner(MediaProbe(ffprobeBeside(config.ffmpeg))::probe), jobs,
         metadata = config.tmdb?.let { LibraryMetadata(store, TmdbClient(http, it), clock, it.region) },
+        musicMetadata = MusicBrainzClient(http, config.version)
+            .takeIf { config.musicBrainz }
+            ?.let { MusicMetadata(store, it, clock) },
         artwork = LibraryArtwork(http, config.dataDirectory.resolve("artwork"), ffmpeg = config.ffmpeg),
         intros = IntroDetector(
             store,

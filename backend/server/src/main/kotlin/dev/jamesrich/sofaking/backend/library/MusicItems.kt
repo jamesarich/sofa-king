@@ -97,12 +97,13 @@ internal class MusicItems(private val libraryId: String, private val root: Path)
         }
             .filter { (id, _) -> id != VARIOUS_ARTISTS_ID }
             .groupBy({ it.first }, { it.second }).values
-            .flatMap { names -> mostUsed(names).let { top -> names.map { key(it) to top } } }
+            .flatMap { names -> mostUsed(names).let { top -> names.map { musicKey(it) to top } } }
             .toMap()
-        albumArtists = tagged.groupBy({ (path, tags) -> albumFolderOf(path) to key(albumTitle(tags.album!!).first) })
+        albumArtists = tagged
+            .groupBy({ (path, tags) -> albumFolderOf(path) to musicKey(albumTitle(tags.album!!).first) })
             .mapValues { (_, group) -> albumArtistOf(group.map { it.second }) }
         spellings = (albumArtists.values + tagged.mapNotNull { it.second.artist })
-            .groupBy(::key).mapValues { (_, names) -> names.groupingBy { it }.eachCount().maxBy { it.value }.key }
+            .groupBy(::musicKey).mapValues { (_, names) -> mostUsed(names) }
         tracks.forEach(::add)
         val named = artists.map { (key, artist) ->
             artistIds[key]?.let { artist.copy(details = ItemDetails(musicBrainzId = it)) } ?: artist
@@ -114,15 +115,16 @@ internal class MusicItems(private val libraryId: String, private val root: Path)
         val relative = probed.path ?: return
         val tags = probed.media?.tags
         val place = placeOf(relative, tags)
-        val artistKey = key(place.artist)
+        val artistKey = musicKey(place.artist)
         val artistName = spellings[artistKey] ?: place.artist
         val artist = artists.getOrPut(artistKey) { artist(artistKey, artistName, place.albumFolder) }
-        val albumKey = "$artistKey\u0000${key(place.album)}"
+        val albumKey = "$artistKey\u0000${musicKey(place.album)}"
         val album = albums.getOrPut(albumKey) { Album(album(albumKey, place.album, artist, place.albumFolder)) }
         if (album.releaseId == null && tags?.releaseId != null) {
             album.releaseId = tags.releaseId
             album.releaseGroupId = tags.releaseGroupId
         }
+        if (album.releaseGroupId == null) album.releaseGroupId = tags?.releaseGroupId
         artistIdOf(tags, artistKey)?.let { artistIds.putIfAbsent(artistKey, it) }
         val named = TrackName.of(relative.substringAfterLast('/').substringBeforeLast('.'), tags, place)
         album.tracks += probed.copy(
@@ -132,7 +134,7 @@ internal class MusicItems(private val libraryId: String, private val root: Path)
             year = yearOf(tags?.date),
             details = ItemDetails(
                 genres = tags?.genres.orEmpty(),
-                artist = tags?.artist?.takeIf { key(it) != artistKey },
+                artist = tags?.artist?.takeIf { musicKey(it) != artistKey },
                 track = named.track,
                 disc = named.disc,
                 musicBrainzId = tags?.recordingId,
@@ -165,13 +167,13 @@ internal class MusicItems(private val libraryId: String, private val root: Path)
             ?: ((albumFolders.lastOrNull() ?: UNKNOWN_ALBUM) to null)
         val album = release?.title ?: title
         val artist = release?.artist
-            ?: tags?.album?.let { albumArtists[albumFolders.joinToString("/") to key(album)] }
+            ?: tags?.album?.let { albumArtists[albumFolders.joinToString("/") to musicKey(album)] }
             ?: tags?.albumArtist
             ?: tags?.artist
             ?: albumFolders.getOrNull(albumFolders.size - 2)
             ?: UNKNOWN_ARTIST
         return Place(
-            aliases[key(artist)] ?: artist,
+            aliases[musicKey(artist)] ?: artist,
             album,
             albumFolders.takeIf { it.isNotEmpty() }?.let { root.resolve(it.joinToString("/")) },
             discFolder?.groupValues?.get(1)?.toIntOrNull(),
@@ -217,10 +219,10 @@ internal class MusicItems(private val libraryId: String, private val root: Path)
      * artist tag, the track artist's when that is the album's artist. Various Artists has none worth looking up.
      */
     private fun artistIdOf(tags: AudioTags?, artistKey: String): String? {
-        if (tags == null || artistKey == key(VARIOUS_ARTISTS)) return null
+        if (tags == null || artistKey == musicKey(VARIOUS_ARTISTS)) return null
         val id = when {
             tags.albumArtist != null || tags.albumArtistId != null -> tags.albumArtistId
-            tags.artist?.let { key(aliases[key(it)] ?: it) } == artistKey -> tags.artistId
+            tags.artist?.let { musicKey(aliases[musicKey(it)] ?: it) } == artistKey -> tags.artistId
             else -> null
         }
         return id?.takeIf { it != VARIOUS_ARTISTS_ID }
@@ -278,8 +280,8 @@ private fun albumFolderOf(relative: String): String {
 private fun albumArtistOf(tracks: List<AudioTags>): String {
     if (tracks.any { it.compilation || it.albumArtistId == VARIOUS_ARTISTS_ID }) return VARIOUS_ARTISTS
     val names = tracks.mapNotNull { it.albumArtist ?: it.artist }
-    val (top, count) = names.groupingBy(::key).eachCount().maxByOrNull { it.value } ?: return UNKNOWN_ARTIST
-    return if (count * 2 > tracks.size && top !in VARIOUS) names.first { key(it) == top } else VARIOUS_ARTISTS
+    val (top, count) = names.groupingBy(::musicKey).eachCount().maxByOrNull { it.value } ?: return UNKNOWN_ARTIST
+    return if (count * 2 > tracks.size && top !in VARIOUS) names.first { musicKey(it) == top } else VARIOUS_ARTISTS
 }
 
 /** MusicBrainz's own Various Artists, the album artist of a compilation Picard tagged. */
@@ -289,7 +291,7 @@ private const val VARIOUS_ARTISTS_ID = "89ad4ac3-39f7-470e-963a-56509c546377"
 private fun mostUsed(names: List<String>): String = names.groupingBy { it }.eachCount().maxBy { it.value }.key
 
 /** The keys of the names taggers give a various-artists album. */
-private val VARIOUS = setOf(key(VARIOUS_ARTISTS), key("VA"), key("Various"))
+private val VARIOUS = setOf(musicKey(VARIOUS_ARTISTS), musicKey("VA"), musicKey("Various"))
 
 /** An album's title without a disc named at its end, and that disc: `Album CD 2` is disc 2 of `Album`. */
 private fun albumTitle(tag: String): Pair<String, Int?> {
@@ -301,7 +303,7 @@ private fun albumTitle(tag: String): Pair<String, Int?> {
  * A name as it groups: case, spacing, punctuation and a leading "The" ignored, so `The Beatles` and `Beatles` are one
  * artist, as are `Windows 96` and `Windows96`. A name of punctuation alone keeps it.
  */
-private fun key(name: String): String {
+internal fun musicKey(name: String): String {
     val sorted = sortTitle(name.replace(Regex("""\s+"""), " "))
     return sorted.filter { it.isLetterOrDigit() }.ifEmpty { sorted }
 }

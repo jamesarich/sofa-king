@@ -16,4 +16,6 @@ internal class ItemDetailsActions(
     val onToggleWatchlist: (MediaItem) -> Unit = {},
     /** Whether an item is on the household's watchlist; null on a server without one, which hides the button. */
     val watchlisted: (MediaItem) -> Boolean? = { null },
+    /** Plays an album's songs in a random order; null hides Shuffle. */
+    val onShuffle: (() -> Unit)? = null,
 )

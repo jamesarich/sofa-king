@@ -16,6 +16,7 @@ import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
+import dev.jamesrich.sofaking.data.PlayQueue
 import dev.jamesrich.sofaking.data.ScrubTiles
 import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialAudio
@@ -166,7 +167,12 @@ internal fun LibraryItemDestination(
         season = season,
         selectedSeasonId = seasonId,
         actions = ItemDetailsActions(
-            onPlay = { item, fromStart -> shell.push(Route.Vod(item.id, fromStart)) },
+            onPlay = { item, fromStart ->
+                // A song picked on its album's page plays on through the album; anything else plays alone.
+                val album = ready?.takeIf { item.kind == ItemKind.TRACK && it.item.kind == ItemKind.ALBUM }
+                libraryVm.queue(album?.let { PlayQueue.of(it.children) })
+                shell.push(Route.Vod(item.id, fromStart))
+            },
             onSetWatched = libraryVm::setWatched,
             onSelectSeason = { pickedSeason = it },
             onRetry = page::retry,
@@ -175,6 +181,11 @@ internal fun LibraryItemDestination(
             onOpenItem = { shell.push(Route.LibraryItem(it.id)) },
             onToggleWatchlist = libraryVm::toggleWatchlist,
             watchlisted = { item -> watchlist.has(item).takeIf { watchlist.offered } },
+            onShuffle = {
+                val queue = PlayQueue.of(ready?.children.orEmpty(), shuffled = true)
+                libraryVm.queue(queue)
+                queue.items.firstOrNull()?.let { shell.push(Route.Vod(it.id, fromStart = true)) }
+            },
         ),
         returnedFrom = arrival.returnedFrom,
         hideSpoilers = hideSpoilers,
@@ -230,7 +241,7 @@ internal fun VodDestination(
                 onStop = { position, duration -> libraryVm.stopped(item.id, position, duration) },
                 onExit = shell::back,
                 upNext = { libraryVm.upNext(item)?.also { next = it }?.upNext() },
-                onPlayNext = { next?.let { shell.replaceTop(Route.Vod(it.id)) } },
+                onPlayNext = { next?.let { shell.replaceTop(Route.Vod(it.id, fromStart = it.kind.music)) } },
                 skips = prefs.skips,
                 seekSteps = prefs.seekSteps,
                 subtitleLook = prefs.subtitleLook,
@@ -298,7 +309,14 @@ private fun MediaItem.vodTitle(intro: IntroSpan?, credits: IntroSpan?, scrub: Sc
         intro?.let { VodMarker(it.startMs, it.endMs, VodMarkerKind.INTRO) },
         credits?.let { VodMarker(it.startMs, it.endMs, VodMarkerKind.CREDITS) },
     )
-    return VodTitle(title, subtitle, artworkUrl = backdrop ?: poster, markers = markers, scrub = scrub)
+    return VodTitle(
+        title,
+        subtitle,
+        artworkUrl = backdrop ?: poster,
+        markers = markers,
+        scrub = scrub,
+        music = kind == ItemKind.TRACK,
+    )
 }
 
 /** The Up next card for an episode: its number and title under the show, with its still. */

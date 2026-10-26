@@ -7,8 +7,10 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.v2.runDesktopComposeUiTest
 import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.scene.SceneStrategyScope
 import androidx.navigation3.ui.NavDisplay
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 @OptIn(ExperimentalTestApi::class)
 class LibraryPanesTest {
@@ -29,6 +31,21 @@ class LibraryPanesTest {
         setContent { Pages(listOf(Route.Library, grid, item)) }
         onNodeWithText(grid.toString()).assertIsDisplayed()
         onNodeWithText(item.toString()).assertIsDisplayed()
+    }
+
+    @Test
+    fun `Back from a title beside its grid closes only the title`() = runDesktopComposeUiTest(1280, 800) {
+        var previous: List<Any>? = null
+        setContent {
+            val strategy = rememberLibraryPanes(tv = false)
+            val entries = listOf(Route.Library, grid, item).map { route ->
+                NavEntry(route, contentKey = route.id, metadata = panesOf(route)) { Text(route.toString()) }
+            }
+            previous = with(strategy) { SceneStrategyScope<Route>().calculateScene(entries) }
+                ?.previousEntries?.map { it.contentKey }
+        }
+        waitForIdle()
+        assertEquals(listOf<Any>(Route.Library.id, grid.id), previous)
     }
 
     @Test

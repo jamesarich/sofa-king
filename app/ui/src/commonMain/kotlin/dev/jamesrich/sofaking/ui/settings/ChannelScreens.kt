@@ -110,7 +110,7 @@ fun ChannelManagerScreen(
     ScrollOnlyWhenHidden(SETTINGS_FOCUS_EDGE) {
         LazyColumn(
             modifier = modifier.fillMaxSize().screenPadding().focusRequester(contentFocus).focusRestorer().focusGroup(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(SETTINGS_ROW_GAP),
         ) {
             item { ScreenTitle(stringResource(Res.string.channels_title), onBack, backFocus) }
             if (shareFavorites != null) shareSection(shareFavorites, onShareFavoritesChange)

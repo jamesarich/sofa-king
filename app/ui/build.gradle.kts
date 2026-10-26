@@ -151,8 +151,10 @@ kotlin {
     }
 }
 
-// The snapshot suffix, `-dev.BUILD+COMMIT` or empty, read by the About row at runtime. A custom resource directory
-// replaces the source set's default one, so the common resources are synced beside the generated file.
+// The snapshot suffix, `-dev.BUILD+COMMIT` or empty, read by the About row at runtime, which trims it. A custom resource
+// directory replaces the source set's default one, so the common resources are synced beside the generated file. The
+// file ends in a newline so it is never empty: Compose's iOS reader throws on an empty resource (it pins element 0 of
+// the empty array), which stopped the app on opening About in every build without a suffix.
 val versionSuffixResources = layout.buildDirectory.dir("generated/versionSuffix")
 val generateVersionSuffix = tasks.register("generateVersionSuffix") {
     // Locals, so the action captures values rather than this script, which the configuration cache cannot store.
@@ -163,7 +165,7 @@ val generateVersionSuffix = tasks.register("generateVersionSuffix") {
     doLast {
         val file = output.get()
         file.parentFile.mkdirs()
-        file.writeText(suffix)
+        file.writeText("$suffix\n")
     }
 }
 // The open-source licenses screen's list: every library each target ships, with the targets that ship it, so a

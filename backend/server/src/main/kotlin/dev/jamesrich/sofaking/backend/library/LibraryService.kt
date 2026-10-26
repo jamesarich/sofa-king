@@ -86,6 +86,9 @@ class LibraryService(
     /** The folders a library may be added from. */
     val folders = LibraryFolders(store, roots)
 
+    /** The movies and shows TMDB could not match, and the matches chosen by hand; null without a TMDB token. */
+    val matches = metadata?.let { LibraryMatches(store, clock, it) { id -> requestScan(id) } }
+
     private val trigger = Channel<Unit>(Channel.CONFLATED)
     private val pending = ConcurrentHashMap.newKeySet<String>()
 

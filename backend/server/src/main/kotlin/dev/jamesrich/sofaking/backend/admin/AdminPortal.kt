@@ -106,6 +106,7 @@ class AdminPortal(
             RecordingPages(portal).install(this)
             WantedPages(portal).install(this)
             LibraryPages(portal).install(this)
+            MatchPages(portal).install(this)
             ViewerPages(portal).install(this)
             HistoryPages(portal).install(this)
             PlexPages(portal).install(this)

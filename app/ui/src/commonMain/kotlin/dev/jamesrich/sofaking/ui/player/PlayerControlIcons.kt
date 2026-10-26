@@ -35,7 +35,8 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * One player control, for a finger, a mouse or the D-pad: the icon carries the label as its description. The center
- * touch control is [primary] and larger; [size] is the tonal button's, 48 dp unless the row it sits in is tighter.
+ * touch control is [primary], Material's medium icon button; [size] is the tonal button's, 48 dp unless the row it
+ * sits in is tighter.
  */
 @Composable
 internal fun ControlIcon(
@@ -47,8 +48,11 @@ internal fun ControlIcon(
     size: Dp = CONTROL_SIZE,
 ) {
     if (primary) {
-        FilledIconButton(onClick = onClick, modifier = modifier.size(64.dp).tvFocus(IconButtonDefaults.filledShape)) {
-            Icon(icon, contentDescription = label, modifier = Modifier.size(32.dp))
+        FilledIconButton(
+            onClick = onClick,
+            modifier = modifier.size(IconButtonDefaults.mediumContainerSize()).tvFocus(IconButtonDefaults.filledShape),
+        ) {
+            Icon(icon, contentDescription = label, modifier = Modifier.size(IconButtonDefaults.mediumIconSize))
         }
     } else {
         FilledTonalIconButton(

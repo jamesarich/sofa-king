@@ -203,14 +203,7 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
             shell.notice = formatTemplate(channelGone, channel.label())
             shell.back()
         },
-        captions = PlayerCaptions(
-            enabled = prefs.captionsEnabled,
-            onEnabledChange = vm::setCaptionsEnabled,
-            advanceFor = { prefs.captionAdvanceFor(it.guideId) },
-            onAdvanceChange = { channel, ms -> vm.setChannelCaptionAdvance(channel.guideId, ms) },
-            style = prefs.captionStyle,
-            smooth = prefs.smoothCaptions,
-        ),
+        captions = playerCaptions(prefs, vm),
         choices = ChannelChoices(
             favorites = prefs.favorites,
             order = prefs.favoritesOrder,
@@ -225,17 +218,30 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
         ),
         zoom = shell.videoZoom,
         onZoom = { shell.videoZoom = it },
-        breaks = PlayerBreaks(
-            mode = prefs.liveBreaks,
-            dodgedTodayMs = prefs.adsDodged.on(localDay()),
-            onDodge = { vm.addAdsDodged(localDay(), it) },
-            facts = vm::programFacts,
-        ),
+        breaks = playerBreaks(prefs, vm),
         sleep = shell.sleep,
         onMultiview = { channel: Channel -> shell.push(Route.Multiview(listOf(channel.guideId))) }
             .takeIf { capabilities.multiview },
     )
 }
+
+/** The live player's captions as [prefs] set them, with [vm] keeping the viewer's changes. */
+private fun playerCaptions(prefs: AppSettings, vm: LineupViewModel) = PlayerCaptions(
+    enabled = prefs.captionsEnabled,
+    onEnabledChange = vm::setCaptionsEnabled,
+    advanceFor = { prefs.captionAdvanceFor(it.guideId) },
+    onAdvanceChange = { channel, ms -> vm.setChannelCaptionAdvance(channel.guideId, ms) },
+    style = prefs.captionStyle,
+    smooth = prefs.smoothCaptions,
+)
+
+/** The live player's break screen as [prefs] set it, counting today's dodged ads through [vm]. */
+private fun playerBreaks(prefs: AppSettings, vm: LineupViewModel) = PlayerBreaks(
+    mode = prefs.liveBreaks,
+    dodgedTodayMs = prefs.adsDodged.on(localDay()),
+    onDodge = { vm.addAdsDodged(localDay(), it) },
+    facts = vm::programFacts,
+)
 
 /**
  * Multiview over the channels the guide shows, opened from the player; watching one full screen takes the player's

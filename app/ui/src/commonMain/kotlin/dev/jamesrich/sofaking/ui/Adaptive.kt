@@ -102,10 +102,13 @@ internal fun Modifier.screenPadding(
 @Immutable
 internal class ListScreenPadding(val modifier: Modifier, val content: PaddingValues)
 
+/** Room inside a TV list for a focused control's ring and scale, which the list would otherwise clip at its ends. */
+private val TV_FOCUS_ROOM = 8.dp
+
 /**
  * The [screenPadding] of [sides] for a scrolling list. Off a TV the list runs edge to edge and its content padding
  * keeps the first and last rows clear of the system bars, so rows scroll under the bars. A TV pads the list itself,
- * so a focused row never rests in the overscan.
+ * so a focused row never rests in the overscan, and keeps a little room at the list's ends for the focus ring.
  */
 @Composable
 internal fun listScreenPadding(
@@ -113,7 +116,7 @@ internal fun listScreenPadding(
 ): ListScreenPadding {
     val insets = screenInsets().only(sides)
     return if (LocalLayoutProfile.current.tv) {
-        ListScreenPadding(Modifier.windowInsetsPadding(insets), PaddingValues())
+        ListScreenPadding(Modifier.windowInsetsPadding(insets), PaddingValues(vertical = TV_FOCUS_ROOM))
     } else {
         ListScreenPadding(Modifier, insets.asPaddingValues())
     }

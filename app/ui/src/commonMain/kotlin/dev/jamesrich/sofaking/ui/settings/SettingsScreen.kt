@@ -4,9 +4,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -86,7 +84,6 @@ import dev.jamesrich.sofaking.resources.settings_version
 import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
-import dev.jamesrich.sofaking.ui.listScreenPadding
 import dev.jamesrich.sofaking.ui.rememberUpdateInstaller
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.supportsNightListening
@@ -215,20 +212,15 @@ fun SettingsScreen(
         recordings = recordingsOffered,
         playback = supportsPlaybackPreferences || supportsNightListening,
     )
-    // Focus scrolls only to show what it lands on, so the first setting taking focus keeps the title on screen.
-    val padding = listScreenPadding()
+    // Focus scrolls only to show what it lands on, so the list holds still while focus walks inside it.
     ScrollOnlyWhenHidden(SETTINGS_FOCUS_EDGE) {
-        LazyColumn(
-            modifier = modifier
-                .fillMaxSize()
-                .then(padding.modifier)
-                .focusRequester(focus.content)
-                .focusRestorer()
-                .focusGroup(),
-            contentPadding = padding.content,
-            verticalArrangement = Arrangement.spacedBy(SETTINGS_ROW_GAP),
+        TitledList(
+            title = page?.title(offer) ?: stringResource(Res.string.settings_title),
+            onBack = onBack,
+            backFocus = focus.back,
+            modifier = modifier,
+            listModifier = Modifier.focusRequester(focus.content).focusRestorer().focusGroup(),
         ) {
-            item { ScreenTitle(page?.title(offer) ?: stringResource(Res.string.settings_title), onBack, focus.back) }
             when (page) {
                 null -> {
                     // A device with no server starts here; a configured one keeps the server under the pages, as it

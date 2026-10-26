@@ -3,8 +3,11 @@ package dev.jamesrich.sofaking.ui.settings
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -70,6 +73,7 @@ import dev.jamesrich.sofaking.ui.listRowColors
 import dev.jamesrich.sofaking.ui.listRowShapes
 import dev.jamesrich.sofaking.ui.listScreenPadding
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.stringResource
@@ -109,16 +113,15 @@ fun ChannelManagerScreen(
     BackHandler { onBack() }
     LaunchedEffect(Unit) { requestFocusWhenAttached(firstFocus) }
 
-    // Focus scrolls only to show what it lands on, so the first row taking focus keeps the title on screen.
-    val padding = listScreenPadding()
+    // Focus scrolls only to show what it lands on, so the list holds still while focus walks inside it.
     ScrollOnlyWhenHidden(SETTINGS_FOCUS_EDGE) {
-        LazyColumn(
-            modifier = modifier.fillMaxSize().then(padding.modifier).focusRequester(contentFocus).focusRestorer()
-                .focusGroup(),
-            contentPadding = padding.content,
-            verticalArrangement = Arrangement.spacedBy(SETTINGS_ROW_GAP),
+        TitledList(
+            title = stringResource(Res.string.channels_title),
+            onBack = onBack,
+            backFocus = backFocus,
+            modifier = modifier,
+            listModifier = Modifier.focusRequester(contentFocus).focusRestorer().focusGroup(),
         ) {
-            item { ScreenTitle(stringResource(Res.string.channels_title), onBack, backFocus) }
             if (shareFavorites != null) shareSection(shareFavorites, onShareFavoritesChange)
             favoritesSection(ordered, orderIds, onFavoritesOrderChange)
             hiddenSection(
@@ -238,11 +241,13 @@ private fun GroupRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        // Weighted, so on a narrow screen the row gives way to the button rather than pushing it off the edge.
         ToggleRow(
             label = group.name,
             help = stringResource(Res.string.channels_group_shown, group.shown, group.total),
             checked = group.anyShown,
             onCheckedChange = onShownChange,
+            modifier = Modifier.weight(1f, fill = false),
         )
         SofaButton(
             onClick = { onExpandedChange(!expanded) },
@@ -316,14 +321,13 @@ fun ChannelPickerScreen(
         }
     }
 
-    val padding = listScreenPadding()
-    LazyColumn(
-        modifier = modifier.fillMaxSize().then(padding.modifier).focusRequester(contentFocus).focusRestorer()
-            .focusGroup(),
-        contentPadding = padding.content,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    TitledList(
+        title = stringResource(Res.string.settings_startup),
+        onBack = onBack,
+        backFocus = backFocus,
+        modifier = modifier,
+        listModifier = Modifier.focusRequester(contentFocus).focusRestorer().focusGroup(),
     ) {
-        item { ScreenTitle(stringResource(Res.string.settings_startup), onBack, backFocus) }
         item { HelpText(stringResource(Res.string.settings_startup_pick_help)) }
         items(channels, key = { it.guideId }) { channel ->
             ChannelRow(
@@ -333,6 +337,35 @@ fun ChannelPickerScreen(
                 modifier = if (channel.guideId == selected) Modifier.focusRequester(selectedFocus) else Modifier,
             )
         }
+    }
+}
+
+/**
+ * A page of settings: its [ScreenTitle] pinned at the top, as an app bar is, over a list that scrolls beneath it, so
+ * the title stays on screen however far focus walks and no row scrolls under the status bar. [listModifier] goes on
+ * the list, for its focus.
+ */
+@Composable
+internal fun TitledList(
+    title: String,
+    onBack: () -> Unit,
+    backFocus: FocusRequester?,
+    modifier: Modifier = Modifier,
+    listModifier: Modifier = Modifier,
+    content: LazyListScope.() -> Unit,
+) {
+    Column(
+        modifier.fillMaxSize().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+        verticalArrangement = Arrangement.spacedBy(SETTINGS_ROW_GAP),
+    ) {
+        ScreenTitle(title, onBack, backFocus)
+        val padding = listScreenPadding(WindowInsetsSides.Bottom)
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth().then(padding.modifier).then(listModifier),
+            contentPadding = padding.content,
+            verticalArrangement = Arrangement.spacedBy(SETTINGS_ROW_GAP),
+            content = content,
+        )
     }
 }
 

@@ -7,6 +7,7 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.util.Util
 import androidx.media3.exoplayer.ExoPlayer
 import java.util.Locale
 
@@ -84,4 +85,29 @@ internal fun codecName(codecs: String?, mimeType: String?): String? {
         null -> codec
         else -> mime.substringAfter('/').uppercase()
     }
+}
+
+/**
+ * The audio output an [encoding] (one of Media3's `C.ENCODING_*`) and Android [channelConfig] mask describe: linear PCM
+ * was decoded here, anything else passes through encoded.
+ */
+@OptIn(UnstableApi::class)
+internal fun audioOutputOf(encoding: Int, channelConfig: Int): AudioOutput = if (Util.isEncodingLinearPcm(encoding)) {
+    AudioOutput.Decoded(Integer.bitCount(channelConfig))
+} else {
+    AudioOutput.PassedThrough(
+        when (encoding) {
+            C.ENCODING_AC3 -> "AC-3"
+            C.ENCODING_E_AC3 -> "E-AC-3"
+            C.ENCODING_E_AC3_JOC -> "E-AC-3 Atmos"
+            C.ENCODING_AC4 -> "AC-4"
+            C.ENCODING_DTS -> "DTS"
+            C.ENCODING_DTS_HD -> "DTS-HD"
+            C.ENCODING_DOLBY_TRUEHD -> "Dolby TrueHD"
+            C.ENCODING_MP3 -> "MP3"
+            C.ENCODING_AAC_LC, C.ENCODING_AAC_HE_V1, C.ENCODING_AAC_HE_V2 -> "AAC"
+            C.ENCODING_OPUS -> "Opus"
+            else -> null
+        },
+    )
 }

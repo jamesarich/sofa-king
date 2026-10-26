@@ -29,6 +29,16 @@
     <string name="stream_card_video">Video</string>
     <string name="stream_card_audio_codec">Audio codec</string>
     <string name="stream_card_buffered">Buffered</string>
+    <string name="stream_card_audio_output">Audio out</string>
+    <string name="stream_card_passed_through">Passed through</string>
+    <string name="stream_card_passed_through_as">Passed through as %1$s</string>
+    <string name="stream_card_decoded_mono">Decoded to mono</string>
+    <string name="stream_card_decoded_stereo">Decoded to stereo</string>
+    <string name="stream_card_decoded_layout">Decoded to %1$s</string>
+    <plurals name="stream_card_decoded_channels">
+        <item quantity="one">Decoded to %1$d channel</item>
+        <item quantity="other">Decoded to %1$d channels</item>
+    </plurals>
     <string name="stream_card_source">Source</string>
     <string name="stream_card_session">Session</string>
     <string name="stream_card_health">Health</string>

@@ -10,6 +10,8 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.hls.HlsManifest
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
@@ -62,6 +64,22 @@ internal class ExoTracks(private val exo: ExoPlayer) : PlayerTracks {
     override val cues: StateFlow<List<CaptionCue>> = _cues.asStateFlow()
     override val audioTracks: StateFlow<List<AudioTrack>> = _audioTracks.asStateFlow()
 
+    /** What the audio sink last opened its output with; Media3 reports it each time it opens one. */
+    @Volatile private var audioOutput: AudioOutput? = null
+
+    init {
+        exo.addAnalyticsListener(
+            object : AnalyticsListener {
+                override fun onAudioTrackInitialized(
+                    eventTime: AnalyticsListener.EventTime,
+                    audioTrackConfig: AudioSink.AudioTrackConfig,
+                ) {
+                    audioOutput = audioOutputOf(audioTrackConfig.encoding, audioTrackConfig.channelConfig)
+                }
+            },
+        )
+    }
+
     override val hasTextTrack: Boolean
         get() = exo.currentTracks.groups.any { it.type == C.TRACK_TYPE_TEXT }
 
@@ -71,7 +89,11 @@ internal class ExoTracks(private val exo: ExoPlayer) : PlayerTracks {
 
     override fun selectAudioTrack(id: String) = selectAudioTrack(exo, id)
 
-    override fun streamInfo(): StreamInfo = streamInfoOf(exo.videoFormat, exo.audioFormat)
+    override fun streamInfo(): StreamInfo = streamInfoOf(exo.videoFormat, exo.audioFormat).copy(
+        audioOutput = audioOutput.takeIf {
+            exo.audioFormat != null
+        },
+    )
 
     /** The preferred caption track is chosen again on every track change, as ad breaks drop 708. */
     fun onTracksChanged(tracks: Tracks) {

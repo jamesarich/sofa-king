@@ -57,6 +57,8 @@ class WebAppRoutesTest {
         val policy = page.headers["Content-Security-Policy"].orEmpty()
         assertTrue("script-src 'self' 'wasm-unsafe-eval'" in policy, policy)
         assertTrue("frame-ancestors 'none'" in policy, policy)
+        // Coil decodes artwork in a worker from a blob: address.
+        assertTrue("worker-src 'self' blob:" in policy, policy)
         assertEquals("no-cache", page.headers[HttpHeaders.CacheControl])
         assertEquals("nosniff", page.headers["X-Content-Type-Options"])
 

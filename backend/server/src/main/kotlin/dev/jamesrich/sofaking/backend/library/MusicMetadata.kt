@@ -51,6 +51,8 @@ class MusicMetadata internal constructor(
     private val store: BackendStore,
     private val client: MusicBrainzClient,
     private val clock: Clock,
+    /** fanart.tv, for artists' pictures and backdrops and albums' covers; null without a key. */
+    private val fanart: FanartClient? = null,
 ) {
     /** The libraries whose lookups were asked for again ([forget]) and are not yet marked stale in the store. */
     private val forgotten: MutableSet<String> = ConcurrentHashMap.newKeySet()
@@ -108,6 +110,12 @@ class MusicMetadata internal constructor(
         private var unreachable = 0
         private var stopped: String? = null
 
+        /** The rows this run saved, by item id. */
+        private val saved = HashMap<String, MetadataRecord>()
+
+        /** Whether fanart.tv is still asked in this run; a refused key stops it. */
+        private var fanartOn = fanart != null
+
         fun result() = MetadataResult(fetched, matched, unmatched, failed, stopped, source = "MusicBrainz")
 
         /** Looks [album] up unless its row is fresh and pinned as its tags pin it now; false once the run stops. */
@@ -136,6 +144,8 @@ class MusicMetadata internal constructor(
                         musicBrainzId = it.id,
                         artistId = artistId,
                         coverArt = album.poster == null && album.id !in pictured && client.hasCover(it.id),
+                        // The cover its artist's fanart.tv lookup found stays until that lookup is made again.
+                        fanart = known[album.id]?.facts?.takeIf { facts -> facts.musicBrainzId == it.id }?.fanart,
                     )
                 }
             }
@@ -146,7 +156,12 @@ class MusicMetadata internal constructor(
             // The id the tags give, else the one most of its matched albums are credited to.
             val hint = artist.details?.musicBrainzId ?: albumsOf[artist.id].orEmpty().mapNotNull { credited[it.id] }
                 .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
-            if (fresh(artist, hint) != null) return true
+            // A fresh match fanart.tv was never asked about, as before a key was added, is looked up again, as is one
+            // looked up before its year, country and members were kept.
+            val row = fresh(artist, hint)
+            val matched = row?.facts?.takeIf { it.musicBrainzId != null }
+            val unasked = matched != null && (!matched.described || (fanartOn && !matched.fanartAsked))
+            if (row != null && !unasked) return true
             return look(artist) {
                 val found = hint?.let { client.artist(it) } ?: searchArtist(artist.title)?.let { client.artist(it.id) }
                 found?.let {
@@ -155,15 +170,48 @@ class MusicMetadata internal constructor(
                     val page = wikidata?.let { id -> client.wikipediaTitle(id) }
                         ?.let { title -> client.wikipediaSummary(title) }
                         ?.takeIf { summary -> summary.type != "disambiguation" }
+                    val art = fanartOf(it.id)
+                    art?.images?.let { images -> covers(artist, images.covers) }
                     MetadataFacts(
                         overview = page?.extract?.trim()?.ifEmpty { null },
                         genres = genres(it.genres),
+                        year = it.lifeSpan?.begin?.take(YEAR_DIGITS)?.toIntOrNull(),
+                        studio = it.area?.name?.ifEmpty { null },
+                        cast = members(it),
+                        described = true,
                         musicBrainzId = it.id,
                         wikidata = wikidata,
                         picture = page?.image?.source?.let(::commonsFile),
+                        fanart = art?.images?.picture,
+                        fanartBackdrop = art?.images?.backdrop,
+                        fanartAsked = art != null,
                     )
                 }
             }
+        }
+
+        /** What fanart.tv holds for the MusicBrainz artist [id]; null when it was not asked or could not answer. */
+        private suspend fun fanartOf(id: String): Fanarted? {
+            val client = fanart?.takeIf { fanartOn } ?: return null
+            return try {
+                Fanarted(client.artist(id))
+            } catch (e: FanartFailure) {
+                log.warn("fanart.tv lookup failed code={}", e.code)
+                if (e.code == "FANART_AUTH") fanartOn = false
+                null
+            }
+        }
+
+        /** Gives each of [artist]'s albums with no cover of its own or the Cover Art Archive's the one in [covers]. */
+        private suspend fun covers(artist: LibraryItemRecord, covers: Map<String, String>) {
+            val rows = albumsOf[artist.id].orEmpty().filter { it.poster == null && it.id !in pictured }.mapNotNull {
+                val row = saved[it.id] ?: known[it.id] ?: return@mapNotNull null
+                val facts = row.facts?.takeIf { facts -> !facts.coverArt } ?: return@mapNotNull null
+                val cover = covers[facts.musicBrainzId]
+                row.copy(facts = facts.copy(fanart = cover)).takeIf { cover != facts.fanart }
+            }
+            if (rows.isNotEmpty()) store.saveLibraryMetadata(rows)
+            rows.forEach { saved[it.itemId] = it }
         }
 
         /** [item]'s stored row when it is still fresh and was matched to [pinned], the id its tags or albums name. */
@@ -181,7 +229,9 @@ class MusicMetadata internal constructor(
             fetched++
             unreachable = 0
             if (facts == null) unmatched++ else matched++
-            store.saveLibraryMetadata(listOf(MetadataRecord(item.id, null, now.toString(), facts)))
+            val record = MetadataRecord(item.id, null, now.toString(), facts)
+            store.saveLibraryMetadata(listOf(record))
+            saved[item.id] = record
             true
         } catch (e: MusicBrainzFailure) {
             failed++
@@ -222,11 +272,14 @@ class MusicMetadata internal constructor(
 private val WIKIDATA_ID = Regex("Q[0-9]{1,12}")
 
 /**
- * An image of Wikimedia Commons, as Wikipedia links it, with any query Wikipedia adds (`?utm_source=…`); other
- * pictures may not be free to show.
+ * An image of Wikimedia Commons, as Wikipedia links it: the file itself, or for a large one a thumbnail of it
+ * (`thumb.wikimedia.org/…/commons/thumb/a/ab/File.jpg/3840px-File.jpg`), with any query Wikipedia adds
+ * (`?utm_source=…`); other pictures may not be free to show.
  */
-private val COMMONS_IMAGE =
-    Regex("""https://upload\.wikimedia\.org/wikipedia/commons/[0-9a-f]/[0-9a-f]{2}/([^/?#]+)(?:[?#].*)?""")
+private val COMMONS_IMAGE = Regex(
+    """https://(?:upload|thumb)\.wikimedia\.org/wikipedia/commons/(?:thumb/)?[0-9a-f]/[0-9a-f]{2}/([^/?#]+)""" +
+        """(?:/[^/?#]+)?(?:[?#].*)?""",
+)
 
 /** The Commons file name of the image at [url], spaced as Commons names it; null for one Commons does not hold. */
 private fun commonsFile(url: String): String? = COMMONS_IMAGE.matchEntire(url)?.groupValues?.get(1)
@@ -241,5 +294,18 @@ private fun creditedTo(group: MbReleaseGroup, artist: String): Boolean {
     return musicKey(credit) == musicKey(artist) || group.artistCredit.any { musicKey(it.name) == musicKey(artist) }
 }
 
+private const val YEAR_DIGITS = 4
+
+/** A band's members, as MusicBrainz credits them: those still in it first, each once. */
+private fun members(artist: MbArtist): List<String> = artist.relations
+    .filter { it.type == "member of band" && it.direction == "backward" && it.artist != null }
+    .sortedBy { it.ended }
+    .distinctBy { it.artist!!.id }
+    .map { it.artist!!.name }
+    .filter { it.isNotEmpty() }
+
 private fun genres(genres: List<MbGenre>): List<String> =
     genres.sortedByDescending { it.count }.take(GENRE_LIMIT).map { it.name.replaceFirstChar(Char::uppercase) }
+
+/** fanart.tv's answer for an artist: its [images], null when it holds none. */
+private class Fanarted(val images: FanartArtist?)

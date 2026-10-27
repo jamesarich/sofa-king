@@ -53,7 +53,7 @@ import dev.jamesrich.sofaking.ui.FIRST_FOCUS_FRAMES
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.formatNumber
 import dev.jamesrich.sofaking.ui.formatTemplate
-import dev.jamesrich.sofaking.ui.theme.tvFocus
+import dev.jamesrich.sofaking.ui.theme.TvFocusControl
 import kotlin.math.roundToInt
 import kotlin.time.Instant
 
@@ -328,20 +328,23 @@ internal fun LaterRow(item: GuideListItem.Later, env: GuideRowEnv, firstFocus: F
         }
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             item.programs.forEachIndexed { index, program ->
-                AssistChip(
-                    onClick = { env.onJumpTo(item.channel, program) },
-                    label = {
-                        Text(
-                            "${env.timeFormat.format(program.start)}  ${program.title}",
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    modifier = Modifier
-                        .then(if (index == 0) Modifier.focusRequester(firstFocus) else Modifier)
-                        .tvFocus(AssistChipDefaults.shape),
-                )
+                TvFocusControl(
+                    AssistChipDefaults.shape,
+                    if (index == 0) Modifier.focusRequester(firstFocus) else Modifier,
+                ) { ringed ->
+                    AssistChip(
+                        onClick = { env.onJumpTo(item.channel, program) },
+                        label = {
+                            Text(
+                                "${env.timeFormat.format(program.start)}  ${program.title}",
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        modifier = ringed,
+                    )
+                }
             }
         }
     }

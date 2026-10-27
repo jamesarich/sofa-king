@@ -1,3 +1,4 @@
+import AVKit
 import SwiftUI
 import TVServices
 import SofaKingCore
@@ -18,6 +19,8 @@ struct SofaKingTVApp: App {
 @Observable
 final class AppModel {
     let core: SofaKingTv
+    /// The one live player: the guide's preview plays on it, and the full screen player takes its stream over.
+    let livePlayer = AVPlayer()
     private(set) var state: LineupState = LineupStateLoading.shared
     private(set) var settings: AppSettings?
     private(set) var capabilities: ServerCapabilities?

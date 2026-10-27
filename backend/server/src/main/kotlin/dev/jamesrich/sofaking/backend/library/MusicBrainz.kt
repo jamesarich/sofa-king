@@ -61,7 +61,19 @@ private val musicBrainzJson = Json {
 
 @Serializable internal data class MbUrl(val resource: String = "")
 
-@Serializable internal data class MbRelation(val type: String = "", val url: MbUrl? = null)
+/** A link from an artist: to a page ([url]) or to another [artist], which `backward` points from them to it. */
+@Serializable internal data class MbRelation(
+    val type: String = "",
+    val url: MbUrl? = null,
+    val direction: String = "",
+    val artist: MbArtistRef? = null,
+    val ended: Boolean = false,
+)
+
+@Serializable internal data class MbArea(val name: String = "")
+
+/** When an artist was born or formed ([begin], as `1991` or `1991-05-22`). */
+@Serializable internal data class MbLifeSpan(val begin: String? = null)
 
 @Serializable internal data class MbArtist(
     val id: String,
@@ -70,6 +82,8 @@ private val musicBrainzJson = Json {
     val aliases: List<MbAlias> = emptyList(),
     val genres: List<MbGenre> = emptyList(),
     val relations: List<MbRelation> = emptyList(),
+    val area: MbArea? = null,
+    @SerialName("life-span") val lifeSpan: MbLifeSpan? = null,
 )
 
 @Serializable internal data class MbArtists(val artists: List<MbArtist> = emptyList())
@@ -147,8 +161,9 @@ internal class MusicBrainzClient(
     suspend fun searchArtists(name: String): List<MbArtist> =
         mb<MbArtists>("/artist", "query" to "artist:${quoted(name)}", "limit" to "5").artists
 
-    /** The artist [id] with its aliases, genres and links; null when MusicBrainz has no such artist. */
-    suspend fun artist(id: String): MbArtist? = orNull { mb("/artist/$id", "inc" to "aliases genres url-rels") }
+    /** The artist [id] with its aliases, genres, links and members; null when MusicBrainz has no such artist. */
+    suspend fun artist(id: String): MbArtist? =
+        orNull { mb("/artist/$id", "inc" to "aliases genres url-rels artist-rels") }
 
     /**
      * Whether the Cover Art Archive holds a front cover for the release group [id]: it answers with a redirect to the

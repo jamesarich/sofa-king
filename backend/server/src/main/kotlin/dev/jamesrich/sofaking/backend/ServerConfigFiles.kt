@@ -90,3 +90,16 @@ internal fun savedTmdb(
     log("secrets: SOFA_TMDB_TOKEN from ${file.path}, saved from the portal")
     return tmdbConfig(EnvironmentReader(resolved + ("SOFA_TMDB_TOKEN" to token)))
 }
+
+/** The fanart.tv key saved from the portal into [SecretsFile], marked [SecretOrigin.SAVED] in [origins]. */
+internal fun savedFanartKey(
+    directory: Path,
+    origins: MutableMap<String, SecretOrigin>,
+    log: (String) -> Unit,
+): String? {
+    val file = SecretsFile(directory.resolve(SecretsFile.NAME))
+    val key = file.stored(SecretsFile.FANART_KEY) ?: return null
+    origins["SOFA_FANART_KEY"] = SecretOrigin.SAVED
+    log("secrets: SOFA_FANART_KEY from ${file.path}, saved from the portal")
+    return key
+}

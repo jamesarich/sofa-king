@@ -37,6 +37,8 @@ data class NowNext(val now: Program?, val next: Program?)
  */
 class SofaKingTv private constructor(private val parts: TvParts) :
     TvChannels by TvChannelCalls(parts),
+    TvGuide by TvGuideCalls(parts),
+    TvMultiview by TvMultiviewCalls(parts),
     TvLibrary by TvLibraryCalls(parts),
     TvItemPlayback by TvItemCalls(parts),
     TvMusic by TvMusicCalls(parts),
@@ -44,6 +46,7 @@ class SofaKingTv private constructor(private val parts: TvParts) :
     TvRecordingMarks by TvRecordingMarkCalls(parts),
     TvWatchlist by TvWatchlistCalls(parts),
     TvSettings by TvSettingCalls(parts),
+    TvLiveSettings by TvLiveSettingCalls(parts),
     TvParentalControls by TvParentalCalls(parts),
     TvText by TvTextCalls {
     constructor() : this(TvParts())

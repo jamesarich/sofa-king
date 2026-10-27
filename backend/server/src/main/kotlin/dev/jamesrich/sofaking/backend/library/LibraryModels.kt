@@ -175,6 +175,20 @@ data class MetadataFacts(
     val wikidata: String? = null,
     /** For an artist, the Wikimedia Commons file of the picture atop their English Wikipedia page. */
     val picture: String? = null,
+    /**
+     * fanart.tv's most liked picture of an artist, or cover of an album its artist's lookup found, as a path under
+     * [FANART_ASSETS].
+     */
+    val fanart: String? = null,
+    /** For an artist, fanart.tv's most liked backdrop, as a path under [FANART_ASSETS]. */
+    val fanartBackdrop: String? = null,
+    /** For an artist, whether fanart.tv was asked, so a key added later asks it on the next scan. */
+    val fanartAsked: Boolean = false,
+    /**
+     * For an artist, whether its lookup kept the year they were born or formed ([year]), where ([studio], the country
+     * MusicBrainz names) and a band's members ([cast]), so a lookup made before they were kept is made again.
+     */
+    val described: Boolean = false,
 )
 
 /** One item's stored TMDB lookup, or MusicBrainz lookup for music. */

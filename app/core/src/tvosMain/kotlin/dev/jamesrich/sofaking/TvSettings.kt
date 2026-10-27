@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking
 
-import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.SkipKind
 import dev.jamesrich.sofaking.data.SkipMode
 import dev.jamesrich.sofaking.data.TopLevelTab
@@ -12,12 +11,6 @@ interface TvSettings {
 
     /** Whether an episode not started yet keeps its overview back and its still blurred. */
     fun setHideSpoilers(enabled: Boolean)
-
-    /** Whether live channels and recordings show their closed captions. */
-    fun setCaptionsEnabled(enabled: Boolean)
-
-    /** Whether the break screen covers the ads a streaming channel marks, and whether their sound plays under it. */
-    fun setLiveBreaks(mode: LiveBreaks)
 
     /**
      * Counts [ms] more of ads the break screen covered on [day], a local date as `2026-10-22`, toward Ads dodged today.
@@ -46,10 +39,6 @@ internal class TvSettingCalls(parts: TvParts) : TvSettings {
     override fun setSkip(kind: SkipKind, mode: SkipMode) = viewModel.setSkip(kind, mode)
 
     override fun setHideSpoilers(enabled: Boolean) = viewModel.setHideSpoilers(enabled)
-
-    override fun setLiveBreaks(mode: LiveBreaks) = viewModel.setLiveBreaks(mode)
-
-    override fun setCaptionsEnabled(enabled: Boolean) = viewModel.setCaptionsEnabled(enabled)
 
     override fun addAdsDodged(day: String, ms: Long) = viewModel.addAdsDodged(day, ms)
 

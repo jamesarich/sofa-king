@@ -28,6 +28,12 @@ internal class LibraryView(
     val tmdbSettable: Boolean = false,
     /** Why the last token was not saved. */
     val tmdbError: String? = null,
+    /** Whether a fanart.tv key is set (`SOFA_FANART_KEY`, or a key saved here). */
+    val fanart: Boolean = false,
+    /** Whether the page may save a fanart.tv key: setup is available and the environment does not set one. */
+    val fanartSettable: Boolean = false,
+    /** Why the last fanart.tv key was not saved. */
+    val fanartError: String? = null,
     /** Folders whose names say what they hold, each one click from a library. */
     val suggestions: List<LibrarySuggestion> = emptyList(),
 )

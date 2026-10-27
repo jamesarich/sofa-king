@@ -1,0 +1,35 @@
+# Settings > Playback > Test surround sound names each speaker in turn while its tone plays, and Stop ends it. Starts on
+# any tab (a player left open is left first), since every tab's top bar has Settings, and ends back on that tab.
+appId: dev.jamesrich.sofaking
+name: Surround sound test
+---
+- runFlow:
+    when:
+      visible:
+        id: "player"
+    commands:
+      - pressKey: Back
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 15000
+- tapOn: "Settings"
+- tapOn: "Playback"
+- scrollUntilVisible:
+    element: "Test surround sound"
+- tapOn: "Play"
+- extendedWaitUntil:
+    visible: "Front left"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Center"
+    timeout: 5000
+- tapOn: "Stop"
+- extendedWaitUntil:
+    visible: "Play"
+    timeout: 5000
+- assertNotVisible: "Center"
+- pressKey: Back
+- pressKey: Back
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 15000

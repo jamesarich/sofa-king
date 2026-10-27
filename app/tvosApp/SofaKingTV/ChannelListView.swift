@@ -1,17 +1,20 @@
 import SwiftUI
 import SofaKingCore
 
-/// The Live tab: the guide grid under All, Favorites and Recent, and On later on a server that offers it, with
-/// search by channel name or number. Selecting a program on now plays its channel full screen, and Menu from the
+/// The Live tab: the guide grid under All, Favorites and Recent, On later on a server that offers it, and Search,
+/// a page that finds a channel by name or number. Selecting a program on now plays its channel full screen, and Menu from the
 /// player comes back to the guide on the channel just watched; a later program, or a long press (or the play/pause
 /// button's context menu) on any, opens its details. A cold start opens the last watched channel, and a
 /// `sofaking://channel/<guideId>` link from the Top Shelf opens that one.
 struct ChannelListView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     let lineup: Lineup
+    @State private var preview = GuidePreview()
+    /// Whether the guide is the page on top of the Live tab.
+    @State private var visible = false
     @State private var playing: Channel?
     @State private var detail: ProgramChoice?
-    @State private var query = ""
     @State private var filter = ChannelFilter.all
     /// The channel the guide focuses next: the last one at first, the one just watched after the player.
     @State private var arrival: String?
@@ -36,16 +39,9 @@ struct ChannelListView: View {
         }
     }
 
-    private var shown: [Channel] {
-        let trimmed = query.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return filtered }
-        return filtered.filter {
-            $0.name.localizedCaseInsensitiveContains(trimmed) || $0.number.formatted().hasPrefix(trimmed)
-        }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
+            PreviewBand(lineup: lineup, preview: preview)
             HStack(spacing: 32) {
                 Picker("Channels", selection: $filter) {
                     Text("All").tag(ChannelFilter.all)
@@ -54,6 +50,11 @@ struct ChannelListView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 720)
+                NavigationLink {
+                    ChannelSearchView(lineup: lineup) { playing = $0 }
+                } label: {
+                    Label("Search", systemImage: "magnifyingglass")
+                }
                 if model.capabilities?.onLater == true {
                     NavigationLink {
                         OnLaterView(lineup: lineup)
@@ -62,24 +63,43 @@ struct ChannelListView: View {
                     }
                 }
             }
-            let channels = shown
+            let channels = filtered
             if channels.isEmpty {
                 Text(emptyText).foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                GuideGrid(lineup: lineup, channels: channels, arrival: $arrival) { channel in
-                    playing = channel
-                } details: { channel, program in
-                    detail = ProgramChoice(channel: channel, program: program)
-                }
+                GuideGrid(
+                    lineup: lineup,
+                    channels: channels,
+                    arrival: $arrival,
+                    play: { playing = $0 },
+                    details: { channel, program in detail = ProgramChoice(channel: channel, program: program) },
+                    onFocus: { channel, program in preview.focus(channel?.guideId, program: program) }
+                )
             }
         }
-        .searchable(text: $query, prompt: "Channel name or number")
         .navigationTitle(model.settings?.kidsMode == true ? "Sofa King Kids" : "Sofa King")
         .navigationDestination(item: $detail) { choice in
             ProgramDetailView(lineup: lineup, channel: choice.channel, airing: choice.program) { playing = choice.channel }
         }
         .fullScreenCover(item: $playing, onDismiss: returnFromPlayer) { channel in
             PlayerView(channel: channel)
+        }
+        .onAppear {
+            visible = true
+            preview.openFullScreen = { id in playing = lineup.channels.first { $0.guideId == id } }
+            if playing == nil { preview.activate(model) }
+        }
+        .onDisappear {
+            visible = false
+            preview.deactivate(handoff: playing != nil)
+        }
+        .onChange(of: playing) { _, now in
+            // The full screen takes the preview's stream and session over as they are.
+            if now != nil { preview.deactivate(handoff: true) }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard visible, playing == nil else { return }
+            if phase == .background { preview.deactivate(handoff: false) } else if phase == .active { preview.activate(model) }
         }
         .onAppear {
             // Once per process, as the Compose app's launch decision: the last channel (or the chosen one) opens
@@ -102,21 +122,54 @@ struct ChannelListView: View {
     }
 
     private var emptyText: String {
-        if !query.trimmingCharacters(in: .whitespaces).isEmpty { return "No channel matches." }
         return filter == .favorites
             ? "No favorites yet. Hold the touch surface on a program and choose Add to favorites."
             : "No channels."
     }
 
-    /// Back from the player focuses the channel watched, the last one switched to included; a filter or search that
-    /// hides it gives way to All, as on the other apps.
+    /// Back from the player focuses the channel watched, the last one switched to included; a filter that hides it
+    /// gives way to All, as on the other apps.
     private func returnFromPlayer() {
+        if visible { preview.activate(model) }
         guard let watched = model.settings?.lastChannel else { return }
-        if !shown.contains(where: { $0.guideId == watched }) {
-            filter = .all
-            query = ""
-        }
+        preview.suppressed = watched
+        if !filtered.contains(where: { $0.guideId == watched }) { filter = .all }
         arrival = watched
+    }
+}
+
+/// Finds a channel by name or number, with what is on it now; selecting one plays it full screen. It is a page of its
+/// own because tvOS draws a searchable view as a search screen, keyboard on top, which would hold the guide under it.
+private struct ChannelSearchView: View {
+    @Environment(AppModel.self) private var model
+    let lineup: Lineup
+    let play: (Channel) -> Void
+    @State private var query = ""
+
+    private var matches: [Channel] {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return lineup.channels }
+        return lineup.channels.filter {
+            $0.name.localizedCaseInsensitiveContains(trimmed) || $0.number.formatted().hasPrefix(trimmed)
+        }
+    }
+
+    var body: some View {
+        List(matches) { channel in
+            Button { play(channel) } label: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(channel.number.formatted()) \(channel.name)")
+                    if let now = model.core.nowAndNext(lineup: lineup, channel: channel).now {
+                        Text(now.title).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .overlay {
+            if matches.isEmpty { Text("No channel matches.").foregroundStyle(.secondary) }
+        }
+        .searchable(text: $query, prompt: "Channel name or number")
+        .navigationTitle("Search")
     }
 }
 

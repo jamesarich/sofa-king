@@ -22,10 +22,10 @@ class Lyrics(lines: List<LyricLine>) {
 }
 
 /** A `[mm:ss.xx]` time tag; minutes may run past 59, and the fraction may have one to three digits. */
-private val TIME_TAG = Regex("""\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?]""")
+private val TIME_TAG = Regex("""\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]""")
 
 /** A metadata tag such as `[ar:Band]` or `[offset:+250]`. */
-private val META_TAG = Regex("""^\[([a-z#]+):([^]]*)]\s*$""", RegexOption.IGNORE_CASE)
+private val META_TAG = Regex("""^\[([a-z#]+):([^\]]*)\]\s*$""", RegexOption.IGNORE_CASE)
 
 private const val MS_PER_SECOND = 1_000L
 private const val SECONDS_PER_MINUTE = 60L

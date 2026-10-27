@@ -38,6 +38,7 @@ import dev.jamesrich.sofaking.resources.library_cast
 import dev.jamesrich.sofaking.resources.library_extras
 import dev.jamesrich.sofaking.resources.library_load_failed
 import dev.jamesrich.sofaking.resources.library_loading
+import dev.jamesrich.sofaking.resources.library_members
 import dev.jamesrich.sofaking.resources.library_related
 import dev.jamesrich.sofaking.resources.library_season
 import dev.jamesrich.sofaking.resources.library_specials
@@ -124,7 +125,7 @@ private fun Details(
             ) {
                 item(key = "summary") { Summary(detail, actions, primaryFocus, hideSpoilers, Modifier.padding(sides)) }
                 if (detail.cast.isNotEmpty()) {
-                    item(key = "cast") { Cast(detail.cast.take(CAST_SHOWN), actions.onPerson, sides) }
+                    item(key = "cast") { Cast(detail, actions.onPerson, sides) }
                 }
                 if (seasons.size > 1) {
                     item(key = "seasons") { Seasons(seasons, selectedSeasonId, actions.onSelectSeason, sides) }
@@ -315,12 +316,15 @@ private fun ItemRow(
     }
 }
 
-/** The cast as chips; OK on one searches the libraries for what else they are in. */
+/** The cast, or a band's members, as chips; OK on one searches the libraries for what else they are in. */
 @Composable
-private fun Cast(cast: List<String>, onPerson: (String) -> Unit, sides: PaddingValues) {
+private fun Cast(detail: MediaItemDetail, onPerson: (String) -> Unit, sides: PaddingValues) {
+    val cast = detail.cast.take(CAST_SHOWN)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            stringResource(Res.string.library_cast),
+            stringResource(
+                if (detail.item.kind == ItemKind.ARTIST) Res.string.library_members else Res.string.library_cast,
+            ),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(sides),

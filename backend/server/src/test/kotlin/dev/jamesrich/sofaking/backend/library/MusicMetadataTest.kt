@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.libraryMetadata
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.store.saveLibraryMetadata
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -88,8 +89,8 @@ class MusicMetadataTest {
 
     /**
      * Scans a Music library of [tags]' files and the [others], twice, looking each up on [http]; [refresh] asks for its
-     * details again an hour later, runs [beforeRefresh] and scans a third time, and [restart] scans once more as a
-     * restarted server.
+     * details again an hour later, runs [beforeRefresh] and scans a third time, and [restart] runs [beforeRestart] and
+     * scans once more as a restarted server.
      */
     private fun scan(
         http: HttpClient,
@@ -98,6 +99,7 @@ class MusicMetadataTest {
         refresh: Boolean = false,
         restart: Boolean = false,
         beforeRefresh: () -> Unit = {},
+        beforeRestart: suspend (BackendStore, String) -> Unit = { _, _ -> },
         fanart: Boolean = false,
         fanartAfterRestart: Boolean = fanart,
     ): Scanned = runBlocking {
@@ -143,6 +145,7 @@ class MusicMetadataTest {
             service.scan(library.id)
         }
         if (restart) {
+            beforeRestart(store, library.id)
             service = service(fanartAfterRestart)
             service.scan(library.id)
         }
@@ -350,6 +353,45 @@ class MusicMetadataTest {
         )
         val s = scan(http, mapOf("Band/Record/01.flac" to AudioTags("One", "Band", album = "Record", track = 1)))
         assertEquals("Band! live.jpg", s.facts("Band")?.picture)
+    }
+
+    /** MusicBrainz's answers for Record by Band, who formed in 1991 and whose members it lists. */
+    private val described = mapOf(
+        "/release-group/$GROUP" to
+            """{"id":"$GROUP","title":"Record","artist-credit":[{"name":"Band","artist":{"id":"$ARTIST"}}]}""",
+        "/artist/$ARTIST" to """{"id":"$ARTIST","name":"Band","type":"Group",
+            "area":{"name":"United Kingdom"},"life-span":{"begin":"1991-05-22","ended":false},
+            "relations":[
+            {"type":"member of band","direction":"backward","ended":true,"artist":{"id":"m3","name":"Old"}},
+            {"type":"member of band","direction":"backward","artist":{"id":"m1","name":"Singer"}},
+            {"type":"member of band","direction":"backward","artist":{"id":"m1","name":"Singer"}},
+            {"type":"member of band","direction":"forward","artist":{"id":"m4","name":"Supergroup"}},
+            {"type":"supporting musician","direction":"backward","artist":{"id":"m5","name":"Producer"}},
+            {"type":"member of band","direction":"backward","artist":{"id":"m2","name":"Drummer"}}]}""",
+    )
+
+    @Test fun `an artist keeps the year it formed, its country and its members, those still in it first`() {
+        val calls = mutableListOf<String>()
+        val s = scan(musicBrainz(calls, described), pinned)
+        val band = s.facts("Band")
+        assertEquals(1991, band?.year)
+        assertEquals("United Kingdom", band?.studio)
+        assertEquals(listOf("Singer", "Drummer", "Old"), band?.cast)
+        assertEquals(1, calls.count { it == "/artist/$ARTIST" }, calls.toString())
+    }
+
+    @Test fun `an artist looked up before its members were kept is looked up again, once`() {
+        val calls = mutableListOf<String>()
+        val s = scan(musicBrainz(calls, described), pinned, restart = true, beforeRestart = { store, library ->
+            val ids = store.libraryItems(library).filter { it.kind == ItemKind.ARTIST }.map { it.id }
+            store.saveLibraryMetadata(
+                store.libraryMetadata(ids).values.map {
+                    it.copy(facts = it.facts?.copy(described = false, year = null, studio = null, cast = emptyList()))
+                },
+            )
+        })
+        assertEquals(2, calls.count { it == "/artist/$ARTIST" }, calls.toString())
+        assertEquals(listOf("Singer", "Drummer", "Old"), s.facts("Band")?.cast)
     }
 
     /** MusicBrainz, Wikipedia and fanart.tv answers for one album, Record, by one artist, Band. */

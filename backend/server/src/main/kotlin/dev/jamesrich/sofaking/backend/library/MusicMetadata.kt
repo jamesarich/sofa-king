@@ -156,9 +156,11 @@ class MusicMetadata internal constructor(
             // The id the tags give, else the one most of its matched albums are credited to.
             val hint = artist.details?.musicBrainzId ?: albumsOf[artist.id].orEmpty().mapNotNull { credited[it.id] }
                 .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
-            // A fresh match fanart.tv was never asked about, as before a key was added, is looked up again.
+            // A fresh match fanart.tv was never asked about, as before a key was added, is looked up again, as is one
+            // looked up before its year, country and members were kept.
             val row = fresh(artist, hint)
-            val unasked = fanartOn && row?.facts?.musicBrainzId != null && !row.facts.fanartAsked
+            val matched = row?.facts?.takeIf { it.musicBrainzId != null }
+            val unasked = matched != null && (!matched.described || (fanartOn && !matched.fanartAsked))
             if (row != null && !unasked) return true
             return look(artist) {
                 val found = hint?.let { client.artist(it) } ?: searchArtist(artist.title)?.let { client.artist(it.id) }
@@ -173,6 +175,10 @@ class MusicMetadata internal constructor(
                     MetadataFacts(
                         overview = page?.extract?.trim()?.ifEmpty { null },
                         genres = genres(it.genres),
+                        year = it.lifeSpan?.begin?.take(YEAR_DIGITS)?.toIntOrNull(),
+                        studio = it.area?.name?.ifEmpty { null },
+                        cast = members(it),
+                        described = true,
                         musicBrainzId = it.id,
                         wikidata = wikidata,
                         picture = page?.image?.source?.let(::commonsFile),
@@ -287,6 +293,16 @@ private fun creditedTo(group: MbReleaseGroup, artist: String): Boolean {
     val credit = group.artistCredit.joinToString(" ") { it.name }
     return musicKey(credit) == musicKey(artist) || group.artistCredit.any { musicKey(it.name) == musicKey(artist) }
 }
+
+private const val YEAR_DIGITS = 4
+
+/** A band's members, as MusicBrainz credits them: those still in it first, each once. */
+private fun members(artist: MbArtist): List<String> = artist.relations
+    .filter { it.type == "member of band" && it.direction == "backward" && it.artist != null }
+    .sortedBy { it.ended }
+    .distinctBy { it.artist!!.id }
+    .map { it.artist!!.name }
+    .filter { it.isNotEmpty() }
 
 private fun genres(genres: List<MbGenre>): List<String> =
     genres.sortedByDescending { it.count }.take(GENRE_LIMIT).map { it.name.replaceFirstChar(Char::uppercase) }

@@ -43,12 +43,14 @@ class MusicMetadataTest {
     /**
      * A MusicBrainz stand-in answering [routes] by path, after `/ws/2`, and the Cover Art Archive's under `caa:`, where
      * [COVER] answers a redirect to the image; [calls] gets each path, with its search query. Every request must name
-     * the server in its User-Agent, and every MusicBrainz one ask for JSON.
+     * the server in its User-Agent, and every MusicBrainz one ask for JSON. A path in [throttled] answers 503 as many
+     * times as it maps to before it answers.
      */
     private fun musicBrainz(
         calls: MutableList<String>,
         routes: Map<String, String>,
         status: HttpStatusCode = HttpStatusCode.OK,
+        throttled: MutableMap<String, Int> = mutableMapOf(),
     ) = HttpClient(
         MockEngine { request ->
             val url = request.url
@@ -61,7 +63,10 @@ class MusicMetadataTest {
             calls += path + (url.parameters["query"]?.let { "?$it" } ?: "")
             assertTrue(request.headers[HttpHeaders.UserAgent].orEmpty().startsWith("SofaKing/test ("))
             val body = routes[path]
+            val throttle = throttled[path] ?: 0
+            if (throttle > 0) throttled[path] = throttle - 1
             when {
+                throttle > 0 -> respond("{}", HttpStatusCode.ServiceUnavailable)
                 status != HttpStatusCode.OK -> respond("{}", status)
                 body == null -> respond("""{"error":"Not Found"}""", HttpStatusCode.NotFound)
                 body == COVER -> respond("", HttpStatusCode.TemporaryRedirect, headersOf(HttpHeaders.Location, IMAGE))
@@ -88,7 +93,8 @@ class MusicMetadataTest {
                 tags = tags[music.relativize(file).joinToString("/")],
             )
         })
-        val metadata = MusicMetadata(store, MusicBrainzClient(http, "test", pause = Duration.ZERO), clock)
+        val metadata =
+            MusicMetadata(store, MusicBrainzClient(http, "test", pause = Duration.ZERO, backoff = Duration.ZERO), clock)
         val service = LibraryService(
             store,
             clock,
@@ -212,7 +218,7 @@ class MusicMetadataTest {
         assertTrue(calls.none { it.startsWith("/artist/") }, calls.toString())
     }
 
-    @Test fun `a rate limit ends the run and keeps nothing, so the next scan asks again`() {
+    @Test fun `a rate limit that outlasts the retries ends the run and keeps nothing, so the next scan asks again`() {
         val calls = mutableListOf<String>()
         val http = musicBrainz(calls, emptyMap(), HttpStatusCode.ServiceUnavailable)
         val s = scan(
@@ -222,10 +228,42 @@ class MusicMetadataTest {
                 "Band/Other/01.flac" to AudioTags("Two", "Band", album = "Other", track = 1),
             ),
         )
-        // One call a scan: the first album's search, then the run stops.
-        assertEquals(2, calls.size)
+        // Five calls a scan: the first album's search and its four retries, then the run stops.
+        assertEquals(10, calls.size)
         assertTrue(s.items.none { s.looked(it.title) })
         assertTrue(s.note.orEmpty().contains("stopped: MUSICBRAINZ_RATE_LIMITED"), s.note)
+    }
+
+    @Test fun `a throttled call waits and asks again`() {
+        val calls = mutableListOf<String>()
+        val http = musicBrainz(
+            calls,
+            mapOf("/release-group" to """{"release-groups":[]}""", "/artist" to """{"artists":[]}"""),
+            throttled = mutableMapOf("/release-group" to 2),
+        )
+        val s = scan(http, mapOf("Band/Record/01.flac" to AudioTags("One", "Band", album = "Record", track = 1)))
+        assertTrue(s.looked("Record"))
+        assertTrue(s.looked("Band"))
+        assertEquals(3, calls.count { it.startsWith("/release-group?") }, calls.toString())
+    }
+
+    @Test fun `each artist is looked up after its own albums, before the next artist's`() {
+        val calls = mutableListOf<String>()
+        val http = musicBrainz(
+            calls,
+            mapOf("/release-group" to """{"release-groups":[]}""", "/artist" to """{"artists":[]}"""),
+        )
+        scan(
+            http,
+            mapOf(
+                "Alpha/Record/01.flac" to AudioTags("One", "Alpha", album = "Record", track = 1),
+                "Beta/Other/01.flac" to AudioTags("Two", "Beta", album = "Other", track = 1),
+            ),
+        )
+        val first = calls.indexOfFirst { it.startsWith("/artist?") }
+        val other = if ("Alpha" in calls[first]) "Beta" else "Alpha"
+        val otherAlbum = calls.indexOfFirst { it.startsWith("/release-group?") && other in it }
+        assertTrue(first < otherAlbum, calls.toString())
     }
 
     @Test fun `an album with no picture of its own shows the Cover Art Archive's, and its artist borrows it`() {

@@ -99,6 +99,18 @@ internal fun sofaKingAgent(version: String) = "SofaKing/$version ( https://githu
 internal val MUSICBRAINZ_PAUSE: Duration = Duration.ofMillis(1_100)
 
 /**
+ * The first wait after MusicBrainz throttles a call, doubled for each try after it. MusicBrainz throttles a busy
+ * address or a busy service with a 503 well under one call a second, so a call waits and asks again before it fails.
+ */
+internal val MUSICBRAINZ_BACKOFF: Duration = Duration.ofSeconds(2)
+
+/** Tries a throttled MusicBrainz call gets after its first, waiting 2, 4, 8 and 16 seconds. */
+private const val MUSICBRAINZ_RETRIES = 4
+
+/** The longest wait a Retry-After from MusicBrainz is kept to. */
+private const val RETRY_AFTER_MAX_SECONDS = 60L
+
+/**
  * The few MusicBrainz web service calls a Music library needs, and the Cover Art Archive, Wikidata and Wikipedia ones
  * for covers and artists' pictures and biographies, one at a time and MusicBrainz's at most one a second as it asks,
  * under a User-Agent naming the server's [version] and where it comes from, as MusicBrainz and Wikimedia require.
@@ -111,6 +123,7 @@ internal class MusicBrainzClient(
     private val wikidata: String = "https://www.wikidata.org/w/api.php",
     private val wikipedia: String = "https://en.wikipedia.org/api/rest_v1",
     private val pause: Duration = MUSICBRAINZ_PAUSE,
+    private val backoff: Duration = MUSICBRAINZ_BACKOFF,
 ) {
     private val userAgent = sofaKingAgent(version)
     private val gate = Mutex()
@@ -190,28 +203,48 @@ internal class MusicBrainzClient(
             .getOrElse { throw MusicBrainzFailure("${service}_BAD_RESPONSE") }
     }
 
-    /** [url] of [service] asked, as JSON unless not [json], after MusicBrainz's pause since its last call. */
+    /**
+     * [url] of [service] asked, as JSON unless not [json], after MusicBrainz's pause since its last call. A throttled
+     * MusicBrainz call is asked again, after a wait that doubles each time (or as long as its Retry-After says, up to a
+     * minute), and its last answer stands once the tries run out.
+     */
     private suspend fun request(
         url: String,
         query: Array<out Pair<String, String>>,
         service: String,
         json: Boolean = true,
-    ): HttpResponse = gate.withLock {
+    ): HttpResponse {
         // Only MusicBrainz asks for a pause; the others take one call after another.
         val paced = service == "MUSICBRAINZ"
-        val wait = pause.toMillis() - (System.currentTimeMillis() - lastAt)
-        if (paced && wait > 0) delay(wait)
-        try {
-            runCatchingCancellable {
-                http.get(url) {
-                    header(HttpHeaders.UserAgent, userAgent)
-                    if (json) header(HttpHeaders.Accept, "application/json")
-                    for ((name, value) in query) parameter(name, value)
-                }
-            }.getOrElse { throw MusicBrainzFailure("${service}_UNREACHABLE (${it.javaClass.simpleName})") }
-        } finally {
-            if (paced) lastAt = System.currentTimeMillis()
+
+        suspend fun once(): HttpResponse = gate.withLock {
+            val wait = pause.toMillis() - (System.currentTimeMillis() - lastAt)
+            if (paced && wait > 0) delay(wait)
+            try {
+                runCatchingCancellable {
+                    http.get(url) {
+                        header(HttpHeaders.UserAgent, userAgent)
+                        if (json) header(HttpHeaders.Accept, "application/json")
+                        for ((name, value) in query) parameter(name, value)
+                    }
+                }.getOrElse { throw MusicBrainzFailure("${service}_UNREACHABLE (${it.javaClass.simpleName})") }
+            } finally {
+                if (paced) lastAt = System.currentTimeMillis()
+            }
         }
+
+        var response = once()
+        var wait = backoff.toMillis()
+        var tries = 0
+        while (paced && tries < MUSICBRAINZ_RETRIES && failureOf(response.status) == "MUSICBRAINZ_RATE_LIMITED") {
+            val asked = response.headers[HttpHeaders.RetryAfter]?.toLongOrNull()
+                ?.coerceIn(0, RETRY_AFTER_MAX_SECONDS)?.times(MILLIS_PER_SECOND)
+            delay(asked ?: wait)
+            wait *= 2
+            tries++
+            response = once()
+        }
+        return response
     }
 }
 
@@ -221,6 +254,8 @@ private suspend fun <T> orNull(call: suspend () -> T): T? = try {
 } catch (e: MusicBrainzFailure) {
     if (e.code.endsWith("_HTTP_404")) null else throw e
 }
+
+private const val MILLIS_PER_SECOND = 1_000L
 
 /** [text] as one Lucene phrase, its quotes and backslashes escaped. */
 private fun quoted(text: String): String = "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"") + "\""

@@ -1,0 +1,56 @@
+# On later lists programs of each kind the fixture guide files: Movies, Sports, Kids and Premieres. Starts on the guide
+# (a player the rest opened is left first) and ends on the guide. Back from the grid puts focus on the chips, and Right
+# stops at On later, the last chip, so enough presses reach it whatever chips the lineup adds. Only remote keys.
+appId: dev.jamesrich.sofaking
+name: On later lists every kind
+---
+- runFlow:
+    when:
+      visible:
+        id: "player"
+    commands:
+      - pressKey: Back
+- extendedWaitUntil:
+    visible:
+      id: "guide"
+    timeout: 30000
+# After a flow that tapped, the first key only brings focus back, to the header; Down from anywhere ends in the grid,
+# where Back moves focus to the chips.
+- repeat:
+    times: 3
+    commands:
+      - pressKey: Remote Dpad Down
+- pressKey: Back
+- repeat:
+    times: 15
+    commands:
+      - pressKey: Remote Dpad Right
+- pressKey: Remote Dpad Center
+# The guide's cells carry the same titles, so On later must have replaced it.
+- extendedWaitUntil:
+    notVisible:
+      id: "guide"
+    timeout: 15000
+- extendedWaitUntil:
+    visible: "Movies show \\d+"
+    timeout: 15000
+- pressKey: Remote Dpad Right
+- pressKey: Remote Dpad Center
+- extendedWaitUntil:
+    visible: "Sofa Sports show \\d+"
+    timeout: 15000
+- pressKey: Remote Dpad Right
+- pressKey: Remote Dpad Center
+- extendedWaitUntil:
+    visible: "Kids show \\d+"
+    timeout: 15000
+- pressKey: Remote Dpad Right
+- pressKey: Remote Dpad Center
+- extendedWaitUntil:
+    visible: "Local 4 show \\d+"
+    timeout: 15000
+- pressKey: Back
+- extendedWaitUntil:
+    visible:
+      id: "guide"
+    timeout: 15000

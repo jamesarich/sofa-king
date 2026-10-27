@@ -1,0 +1,39 @@
+# Classics repeats its titles, so a program's details offer its other airings. Starts on the guide (a player the rest
+# opened is left first) and ends on the guide with the Classics row focused. Down stops at the last row, Classics, so
+# enough presses reach it; a held OK opens the details, which Maestro sends as a long press on the focused cell.
+appId: dev.jamesrich.sofaking
+name: More airings of a repeated program
+---
+- runFlow:
+    when:
+      visible:
+        id: "player"
+    commands:
+      - pressKey: Back
+- extendedWaitUntil:
+    visible:
+      id: "guide"
+    timeout: 30000
+- repeat:
+    times: 10
+    commands:
+      - pressKey: Remote Dpad Down
+- longPressOn: "Classics, Classics show \\d+, .*airing now"
+- extendedWaitUntil:
+    visible: "More airings \\(\\d+\\)"
+    timeout: 15000
+- tapOn: "More airings \\(\\d+\\)"
+- extendedWaitUntil:
+    visible: "More airings"
+    timeout: 15000
+# Each airing's day reads Today, Tomorrow or a weekday, by the hour the run starts.
+- assertVisible: "(Today|Tomorrow|[A-Z][a-z]+) \\d+:\\d+ (AM|PM)"
+- assertVisible:
+    text: "(Today|Tomorrow|[A-Z][a-z]+) \\d+:\\d+ (AM|PM)"
+    index: 1
+- pressKey: Back
+- pressKey: Back
+- extendedWaitUntil:
+    visible:
+      id: "guide"
+    timeout: 15000

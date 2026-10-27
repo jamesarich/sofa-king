@@ -15,10 +15,11 @@ name: Stream card on a live channel
     visible:
       id: "player"
     timeout: 30000
-# Right shows the bar, Right again moves into its buttons, and Right walks along them to Stream info, wherever the
-# Previous channel button puts it. The button names itself to the remote, and its name also shows under the row while
-# it has focus, so a second "Stream info" on screen marks it focused.
-- pressKey: Remote Dpad Right
+# Pausing holds the bar up and the picture still, since Maestro reads the screen slower than the bar's 5 seconds
+# while video plays. Right then moves into the bar's buttons and walks along them to Stream info, wherever the Previous
+# channel button puts it. The button names itself to the remote, and its name also shows under the row while it has
+# focus, so a second "Stream info" on screen marks it focused.
+- pressKey: Remote Media Play Pause
 - extendedWaitUntil:
     visible: "Stream info"
     timeout: 5000

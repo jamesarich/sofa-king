@@ -101,6 +101,10 @@ class Fixture : AutoCloseable {
     /** How long `/live.ts` waits after a connection before it answers. */
     @Volatile var tsStartDelayMs = 0L
 
+    /** How long `/segment.ts` waits before it answers, and how many requests for it arrived. */
+    @Volatile var segmentDelayMs = 0L
+    val segmentRequests = AtomicInteger()
+
     /** Raw query string of the last media playlist request, for delivery-directive checks. */
     @Volatile var lastMediaQuery: String? = null
 
@@ -114,6 +118,10 @@ class Fixture : AutoCloseable {
         server.createContext("/") { exchange ->
             val path = exchange.requestURI.path
             if (path == "/media.m3u8") lastMediaQuery = exchange.requestURI.rawQuery
+            if (path == "/segment.ts") {
+                segmentRequests.incrementAndGet()
+                if (segmentDelayMs > 0) Thread.sleep(segmentDelayMs)
+            }
             if (path == "/loop") {
                 exchange.responseHeaders.set("Location", "$base/loop")
                 exchange.sendResponseHeaders(302, -1)

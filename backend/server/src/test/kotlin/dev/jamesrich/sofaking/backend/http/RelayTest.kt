@@ -40,6 +40,7 @@ import io.ktor.http.path
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -221,6 +222,40 @@ class RelayTest {
                 store.close()
                 dir.toFile().deleteRecursively()
             }
+        }
+    }
+
+    @Test fun `a segment in flight when its session is released or switched answers 410, not 500`() = relay(
+        { listOf(it.feed) },
+    ) {
+        fixture.segmentDelayMs = 2_000
+        for (release in listOf(true, false)) {
+            val session = open("Station", if (release) "release" else "switch")
+            val variant = client.get(session.descriptor.url).bodyAsText().lineSequence().first {
+                it.startsWith("/media/")
+            }
+            val segment = client.get(variant).bodyAsText().lineSequence().first { it.startsWith("/media/") }
+            val before = fixture.segmentRequests.get()
+            val answered = coroutineScope {
+                val media = async { client.get(segment) }
+                // The player zaps away while the upstream has yet to answer the segment.
+                pollUntil(20_000, 20) { fixture.segmentRequests.get() > before }
+                if (release) {
+                    assertEquals(
+                        HttpStatusCode.NoContent,
+                        client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(TOKEN) }.status,
+                    )
+                } else {
+                    // Any move to a new epoch (a source switch, a failover, a corrected protocol) lets it go too.
+                    runtime.sessions.media.protocolObserved(session.id, session.descriptor.epoch, "hls", Job())
+                }
+                withTimeout(20_000) { media.await() }
+            }
+            assertEquals(HttpStatusCode.Gone, answered.status)
+            assertEquals(
+                if (release) Wire.ErrorCode.SESSION_EXPIRED else Wire.ErrorCode.STREAM_CHANGED,
+                Json.decodeFromString<ApiError>(answered.bodyAsText()).code,
+            )
         }
     }
 

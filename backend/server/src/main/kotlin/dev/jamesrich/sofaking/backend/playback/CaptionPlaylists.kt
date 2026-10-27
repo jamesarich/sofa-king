@@ -101,7 +101,11 @@ internal class CaptionPlaylists(
     }
 
     companion object {
-        /** The caption group a declared playlist names: CC1, the one broadcasts carry the main captions in. */
+        /**
+         * The caption group a declared playlist names: CC1, the one broadcasts carry the main captions in. It is named
+         * English, as CEA-608 CC1 nearly always is: the Apple TV's Subtitles panel cannot turn on captions without a
+         * language until something else has selected them.
+         */
         const val GROUP = "sofa-cc"
 
         /**
@@ -110,8 +114,9 @@ internal class CaptionPlaylists(
          */
         const val MEDIA = "#sofa-captioned-media"
 
-        private const val MEDIA_TAG = "#EXT-X-MEDIA:TYPE=CLOSED-CAPTIONS,GROUP-ID=\"$GROUP\",NAME=\"CC1\"," +
-            "INSTREAM-ID=\"CC1\",DEFAULT=NO,AUTOSELECT=YES"
+        private const val MEDIA_TAG =
+            "#EXT-X-MEDIA:TYPE=CLOSED-CAPTIONS,GROUP-ID=\"$GROUP\",NAME=\"CC1\",LANGUAGE=\"en\"," +
+                "INSTREAM-ID=\"CC1\",DEFAULT=NO,AUTOSELECT=YES"
 
         /** What the one variant of a [captionedMaster] says it needs; a single variant is never switched from. */
         private const val BANDWIDTH = 8_000_000

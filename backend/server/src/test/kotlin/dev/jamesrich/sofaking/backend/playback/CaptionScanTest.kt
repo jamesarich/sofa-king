@@ -31,7 +31,8 @@ class CaptionScanTest {
         val master = CaptionPlaylists.captionedMaster(URI("https://cdn.example.test/live/index.m3u8"))
         assertEquals(
             "#EXTM3U\n" +
-                "#EXT-X-MEDIA:TYPE=CLOSED-CAPTIONS,GROUP-ID=\"sofa-cc\",NAME=\"CC1\",INSTREAM-ID=\"CC1\"," +
+                "#EXT-X-MEDIA:TYPE=CLOSED-CAPTIONS,GROUP-ID=\"sofa-cc\",NAME=\"CC1\",LANGUAGE=\"en\"," +
+                "INSTREAM-ID=\"CC1\"," +
                 "DEFAULT=NO,AUTOSELECT=YES\n" +
                 "#EXT-X-STREAM-INF:BANDWIDTH=8000000,CLOSED-CAPTIONS=\"sofa-cc\"\n" +
                 "https://cdn.example.test/live/index.m3u8#sofa-captioned-media\n",
@@ -45,7 +46,8 @@ class CaptionScanTest {
             "#EXT-X-STREAM-INF:BANDWIDTH=2,RESOLUTION=1280x720\nhigh.m3u8\n"
         assertEquals(
             "#EXTM3U\n#EXT-X-INDEPENDENT-SEGMENTS\n" +
-                "#EXT-X-MEDIA:TYPE=CLOSED-CAPTIONS,GROUP-ID=\"sofa-cc\",NAME=\"CC1\",INSTREAM-ID=\"CC1\"," +
+                "#EXT-X-MEDIA:TYPE=CLOSED-CAPTIONS,GROUP-ID=\"sofa-cc\",NAME=\"CC1\",LANGUAGE=\"en\"," +
+                "INSTREAM-ID=\"CC1\"," +
                 "DEFAULT=NO,AUTOSELECT=YES\n" +
                 "#EXT-X-STREAM-INF:BANDWIDTH=1,CLOSED-CAPTIONS=\"sofa-cc\"\nlow.m3u8\n" +
                 "#EXT-X-STREAM-INF:BANDWIDTH=2,RESOLUTION=1280x720,CLOSED-CAPTIONS=\"sofa-cc\"\nhigh.m3u8\n",

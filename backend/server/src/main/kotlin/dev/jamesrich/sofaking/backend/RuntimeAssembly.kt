@@ -26,10 +26,12 @@ import dev.jamesrich.sofaking.backend.library.FfmpegFingerprinter
 import dev.jamesrich.sofaking.backend.library.FfmpegSheetMaker
 import dev.jamesrich.sofaking.backend.library.IntroDetector
 import dev.jamesrich.sofaking.backend.library.LibraryArtwork
+import dev.jamesrich.sofaking.backend.library.LibraryLyrics
 import dev.jamesrich.sofaking.backend.library.LibraryMetadata
 import dev.jamesrich.sofaking.backend.library.LibraryScanner
 import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.library.ListenBrainzClient
+import dev.jamesrich.sofaking.backend.library.LrclibClient
 import dev.jamesrich.sofaking.backend.library.MediaProbe
 import dev.jamesrich.sofaking.backend.library.MediaRoot
 import dev.jamesrich.sofaking.backend.library.MusicBrainzClient
@@ -406,6 +408,12 @@ internal class RuntimeAssembly(
             .also { it.start(scope) },
         pathMap = config.libraryPathMap,
         events = events,
+        lyrics = LibraryLyrics(
+            store,
+            LrclibClient(http, config.version).takeIf { config.musicBrainz },
+            config.dataDirectory.resolve("lyrics"),
+            clock,
+        ),
     ).also { it.start(scope) }
 
     /**

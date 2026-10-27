@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.data.KidsMode
 import dev.jamesrich.sofaking.data.LetterJump
 import dev.jamesrich.sofaking.data.LibraryRepository
 import dev.jamesrich.sofaking.data.LibrarySort
+import dev.jamesrich.sofaking.data.Lyrics
 import dev.jamesrich.sofaking.data.MediaHome
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
@@ -159,6 +160,9 @@ interface LibraryPlayback {
 
     /** [itemId]'s text subtitle track [index], or null when the server cannot give it. */
     suspend fun subtitles(itemId: String, index: Int): Subtitles?
+
+    /** The song [itemId]'s lyrics, or null when it has none or the server cannot give them. */
+    suspend fun lyrics(itemId: String): Lyrics? = null
 
     /**
      * The player is at [positionMs] in [itemId]: remembered for a reopen, and saved on the server every save
@@ -384,6 +388,14 @@ internal class LibraryPlayer(
         audioIndex: Int?,
         subtitleIndex: Int?,
     ): PlaybackStream = sessions.play(item.id, profile, positionMs, audioIndex, subtitleIndex)
+
+    override suspend fun lyrics(itemId: String): Lyrics? {
+        val repository = repository() ?: return null
+        return runCatchingCancellable { repository.lyrics(itemId) }.getOrElse { e ->
+            log.w { "lyrics failed: ${e.describe()}" }
+            null
+        }
+    }
 
     override suspend fun subtitles(itemId: String, index: Int): Subtitles? {
         val repository = repository() ?: return null

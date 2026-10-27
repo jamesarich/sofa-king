@@ -65,6 +65,9 @@ class LibraryRepository(private val api: SofaKingApi) {
     /** Text subtitle track [index] of [id], with its cues in the item's time. */
     suspend fun subtitles(id: String, index: Int): Subtitles = parseWebVtt(api.librarySubtitles(id, index))
 
+    /** The song [id]'s lyrics; null when it has none. */
+    suspend fun lyrics(id: String): Lyrics? = api.libraryLyrics(id)?.let(::parseLrc)?.takeIf { it.lines.isNotEmpty() }
+
     /** Saves [positionMs] into [id]; the server marks it watched past 90% and clears a position under 5%. */
     suspend fun savePosition(id: String, positionMs: Long, durationMs: Long?): MediaItem = api.mediaItem(
         api.updatePlayState(

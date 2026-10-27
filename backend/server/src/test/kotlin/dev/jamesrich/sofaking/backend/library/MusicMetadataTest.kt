@@ -126,7 +126,8 @@ class MusicMetadataTest {
                 "wd:Q42" to """{"entities":{"Q42":{"sitelinks":{"enwiki":{"site":"enwiki","title":"Band Live"}}}}}""",
                 "wp:Band_Live" to
                     """{"type":"standard","extract":"Band is a band. ","originalimage":
-                    {"source":"https://upload.wikimedia.org/wikipedia/commons/a/ab/Band%2C_live.jpg"}}""",
+                    {"source":"https://upload.wikimedia.org/wikipedia/commons/a/ab/Band%2C_live.jpg""" +
+                    """?utm_source=en.wikipedia.org&utm_campaign=api"}}""",
             ),
         )
         val s = scan(

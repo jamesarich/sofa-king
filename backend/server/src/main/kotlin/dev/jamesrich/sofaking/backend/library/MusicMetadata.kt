@@ -150,7 +150,9 @@ class MusicMetadata internal constructor(
         /** [item]'s stored row when it is still fresh and was matched to [pinned], the id its tags or albums name. */
         private fun fresh(item: LibraryItemRecord, pinned: String?): MetadataRecord? = known[item.id]?.takeIf { row ->
             val id = row.facts?.musicBrainzId
-            val keep = if (id == null) MUSIC_UNMATCHED_FOR else MUSIC_MATCHED_FOR
+            // An artist with a Wikidata item but no picture is asked again as soon as a miss, in case one is added.
+            val pictureless = row.facts?.wikidata != null && row.facts.picture == null
+            val keep = if (id == null || pictureless) MUSIC_UNMATCHED_FOR else MUSIC_MATCHED_FOR
             (pinned == null || id == pinned) && Instant.parse(row.checkedAt).plus(keep) > now
         }
 
@@ -200,8 +202,12 @@ class MusicMetadata internal constructor(
 /** A Wikidata item's id. */
 private val WIKIDATA_ID = Regex("Q[0-9]{1,12}")
 
-/** An image of Wikimedia Commons, as Wikipedia links it; other pictures may not be free to show. */
-private val COMMONS_IMAGE = Regex("""https://upload\.wikimedia\.org/wikipedia/commons/[0-9a-f]/[0-9a-f]{2}/([^/?#]+)""")
+/**
+ * An image of Wikimedia Commons, as Wikipedia links it, with any query Wikipedia adds (`?utm_source=…`); other
+ * pictures may not be free to show.
+ */
+private val COMMONS_IMAGE =
+    Regex("""https://upload\.wikimedia\.org/wikipedia/commons/[0-9a-f]/[0-9a-f]{2}/([^/?#]+)(?:[?#].*)?""")
 
 /** The Commons file name of the image at [url], spaced as Commons names it; null for one Commons does not hold. */
 private fun commonsFile(url: String): String? = COMMONS_IMAGE.matchEntire(url)?.groupValues?.get(1)

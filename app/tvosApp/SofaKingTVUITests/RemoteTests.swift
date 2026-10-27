@@ -19,7 +19,7 @@ final class RemoteTests: XCTestCase {
     @MainActor
     func testPlayerTransportMenu() throws {
         try launchToList()
-        // Sofa Sports is live (News Now is a ten-second HLS clip that ends): the second row, below the search field.
+        // Sofa Sports is live (News Now is a ten-second HLS clip that ends): the second row, below the filters.
         let sports = row("Sofa Sports")
         focus(sports, by: Array(repeating: XCUIRemote.Button.down, count: 5) + Array(repeating: XCUIRemote.Button.up, count: 8))
         remote.press(.select)

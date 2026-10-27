@@ -73,6 +73,12 @@ class Fixture : AutoCloseable {
     val proxyStreamUrl = "$base/dlhd/https%3A%2F%2Fexample.test%2Fstream%3Fid%3D521?token=abc"
     val proxyRequests = AtomicInteger()
 
+    /** A channel whose source is a bare live media playlist with CEA-608 captions in its segment. */
+    val captionedFeed = FeedConfig("captioned", "$base/captioned-feed.m3u", probe = false)
+
+    /** Requests for the captioned channel's segment. */
+    val captionedSegments = AtomicInteger()
+
     /** The station with a `tvg-logo` naming this fixture's PNG, for the logo cache. */
     val logoFeed = FeedConfig("logo", "$base/branded-feed.m3u", probe = false)
     val logoUrl = "$base/logo.png"
@@ -143,6 +149,12 @@ class Fixture : AutoCloseable {
                             ).toByteArray(),
                     )
                 }
+                return@createContext
+            }
+            if (path == "/cc-segment.ts") {
+                captionedSegments.incrementAndGet()
+                exchange.sendResponseHeaders(200, CAPTIONED_SEGMENT.size.toLong())
+                exchange.responseBody.use { it.write(CAPTIONED_SEGMENT) }
                 return@createContext
             }
             if (path == "/live.ts" || path == "/fake.m3u8") {
@@ -286,6 +298,12 @@ class Fixture : AutoCloseable {
                 "/alt-feed.m3u" ->
                     "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" " +
                         "group-title=\"News\",Station\n$base/alt.m3u8\n"
+
+                "/captioned-feed.m3u" ->
+                    "#EXTM3U\n#EXTINF:-1 tvg-id=\"captioned\" tvg-chno=\"13\",Captioned\n$base/captioned.m3u8\n"
+
+                "/captioned.m3u8" ->
+                    "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:2,\ncc-segment.ts\n"
 
                 "/ts-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"ts-station\" tvg-chno=\"6\",TS Station\n$base/live.ts\n"
 
@@ -438,6 +456,17 @@ class Fixture : AutoCloseable {
         /** An SVG with a script element, which the server must store and serve byte for byte and never run. */
         const val SVG = "<?xml version=\"1.0\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" " +
             "height=\"1\"><script>alert(1)</script><rect width=\"1\" height=\"1\"/></svg>"
+
+        /**
+         * MPEG-TS packets of video whose second packet carries an SEI message of A/53 caption data with one CEA-608
+         * pair on field 1, as broadcasts send it.
+         */
+        val CAPTIONED_SEGMENT: ByteArray = tsPacket(0) + tsPacket(1).also { packet ->
+            val sei =
+                byteArrayOf(0, 0, 1, 6, 4, 14, 0xB5.toByte(), 0, 0x31, 0x47, 0x41, 0x39, 0x34, 3, 0x41, 0xFF.toByte()) +
+                    byteArrayOf(0xFC.toByte(), 0xC1.toByte(), 0xC2.toByte(), 0xFF.toByte(), 0x80.toByte())
+            sei.copyInto(packet, 4)
+        } + tsPacket(2)
 
         /** A PID 0x100 packet whose payload is the packet number. */
         fun tsPacket(number: Int): ByteArray = ByteArray(188) { index ->

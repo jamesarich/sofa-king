@@ -69,6 +69,8 @@ class MediaRelay(
     }
     internal val shared = SharedStreams(scope, fanout)
 
+    private val captions = CaptionPlaylists(http, feeds.upstream)
+
     suspend fun serve(call: ApplicationCall, id: String, epoch: Int, token: String) {
         try {
             serveWithin(call, id, epoch, token)
@@ -212,6 +214,19 @@ class MediaRelay(
         )
     }
 
+    /** A media playlist of [resource] from [source]: held over a lapse, failed over when stalled, its ads marked. */
+    private suspend fun edited(
+        resource: MediaResource,
+        text: String,
+        source: URI,
+        id: String,
+        epoch: Int,
+        job: Job,
+    ): String {
+        failOverStalled(resource, text, source, id, epoch, job)
+        return resource.playlists.steady(text, source).let { resource.ads?.annotate(it, source) ?: it }
+    }
+
     private suspend fun serveDirect(
         call: ApplicationCall,
         id: String,
@@ -220,10 +235,12 @@ class MediaRelay(
         resource: MediaResource,
         stream: ResolvedStream,
     ) {
-        // The root token maps to the offering's own URL, which for a native source is the resolved one;
-        // children are absolute already.
+        // The root token maps to the offering's own URL, which for a native source is the resolved one, and so does
+        // the media playlist inside a root that declares captions; children are absolute already.
         val root = resource.url == resource.offering.url
-        val url = if (root) stream.url else resource.url
+        val rootMedia = root || resource.url.endsWith(CaptionPlaylists.MEDIA)
+        val url = if (rootMedia) stream.url else resource.url
+        val declaring = declaresCaptions(call, resource)
         val ads = resource.ads
         var tapped: TappedSegment? = null
         countStalls(call, job, resource.stats) {
@@ -233,11 +250,20 @@ class MediaRelay(
                     path = { sessions.media.resourcePath(id, epoch, it) },
                     sent = { resource.stats.bytes.addAndGet(it) },
                     manifest = { text, source ->
-                        failOverStalled(resource, text, source, id, epoch, job)
-                        resource.playlists.steady(text, source).let { ads?.annotate(it, source) ?: it }
+                        val declared = if (declaring) {
+                            captions.declared(
+                                resource.offering.id,
+                                text,
+                                source,
+                                stream,
+                            )
+                        } else {
+                            null
+                        }
+                        declared ?: edited(resource, text, source, id, epoch, job)
                     },
                     sniffed = { protocol ->
-                        if (root && protocol == "mpegts") protocolMismatch(id, epoch, job, "mpegts")
+                        if (rootMedia && protocol == "mpegts") protocolMismatch(id, epoch, job, "mpegts")
                     },
                     tap = ads?.let { { found -> tapped = found } },
                     keepBytes = audio != null && ads?.listening == true,
@@ -274,6 +300,14 @@ private inline fun <T> countStalls(call: ApplicationCall, job: Job, stats: Sessi
 
 /** Whether a media request that failed was still wanted and had answered nothing yet. */
 private fun stalled(call: ApplicationCall, job: Job): Boolean = job.isActive && !call.response.isCommitted
+
+/**
+ * Whether [call] gets the captions in [resource] declared (see [CaptionPlaylists]): on the root playlist of the app's
+ * own sessions, to AVFoundation, whose media requests say `AppleCoreMedia/1.0.0…` in their `User-Agent`.
+ */
+private fun declaresCaptions(call: ApplicationCall, resource: MediaResource): Boolean =
+    resource.url == resource.offering.url && resource.ads != null &&
+        call.request.headers[HttpHeaders.UserAgent].orEmpty().contains("AppleCoreMedia")
 
 /** How much of a segment read for cues passes through at a time. */
 private const val SEGMENT_READ = 64 * 1024

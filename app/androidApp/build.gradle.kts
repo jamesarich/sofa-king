@@ -88,6 +88,7 @@ dependencies {
     implementation(libs.androidx.tvprovider)
     implementation(libs.engage.tv)
     implementation(libs.androidx.fragment)
+    implementation(libs.androidx.work.runtime)
     baselineProfile(project(":baselineprofile"))
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)

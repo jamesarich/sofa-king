@@ -34,10 +34,13 @@ import io.ktor.utils.io.copyTo
 import io.ktor.utils.io.readAvailable
 import io.ktor.utils.io.readBuffer
 import io.ktor.utils.io.writeFully
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -66,7 +69,20 @@ class MediaRelay(
     }
     internal val shared = SharedStreams(scope, fanout)
 
-    suspend fun serve(call: ApplicationCall, id: String, epoch: Int, token: String) = coroutineScope {
+    suspend fun serve(call: ApplicationCall, id: String, epoch: Int, token: String) {
+        try {
+            serveWithin(call, id, epoch, token)
+        } catch (e: CancellationException) {
+            // The session let this request go (released, retuned, or replaced by the player's next request), which
+            // cancels only its scope; the call itself still runs, and a bare cancellation would answer 500. Once the
+            // player has had part of the answer, there is nothing left to tell it.
+            currentCoroutineContext().ensureActive()
+            if (call.response.isCommitted) throw e
+            throw withContext(NonCancellable) { sessions.media.letGo(id) }
+        }
+    }
+
+    private suspend fun serveWithin(call: ApplicationCall, id: String, epoch: Int, token: String) = coroutineScope {
         val job = coroutineContext[Job]!!
         val resource = sessions.media.acquire(id, epoch, token, job, call.request.origin.remoteAddress)
         try {

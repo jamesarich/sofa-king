@@ -1,0 +1,50 @@
+# The fixture clip carries CEA-608 captions, a new one every 2 s, and the player shows them once captions are on.
+# Starts on the guide (a player the rest opened is left first) and ends on the guide with captions off again, so the
+# next flows see the default. Captions go on in Settings, since Maestro has no CC key and a tap on the player's
+# Captions button reaches the player behind it; channel 2, the HLS channel, opens by its link.
+appId: dev.jamesrich.sofaking
+name: Captions on a live channel
+---
+- runFlow:
+    when:
+      visible:
+        id: "player"
+    commands:
+      - pressKey: Back
+- extendedWaitUntil:
+    visible:
+      id: "guide"
+    timeout: 30000
+- tapOn: "Settings"
+- tapOn: "Captions off"
+- tapOn: "Closed captions"
+- pressKey: Back
+- extendedWaitUntil:
+    visible: "Captions on"
+    timeout: 10000
+- pressKey: Back
+- openLink: "sofaking://live/2"
+- extendedWaitUntil:
+    visible:
+      id: "player"
+    timeout: 30000
+- extendedWaitUntil:
+    visible: ".*Fixture caption \\d+.*"
+    timeout: 30000
+- pressKey: Back
+- extendedWaitUntil:
+    visible:
+      id: "guide"
+    timeout: 15000
+- tapOn: "Settings"
+- tapOn: "Captions on"
+- tapOn: "Closed captions"
+- pressKey: Back
+- extendedWaitUntil:
+    visible: "Captions off"
+    timeout: 10000
+- pressKey: Back
+- extendedWaitUntil:
+    visible:
+      id: "guide"
+    timeout: 15000

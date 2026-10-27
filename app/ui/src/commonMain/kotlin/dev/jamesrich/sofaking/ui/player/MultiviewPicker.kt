@@ -72,6 +72,7 @@ internal fun MultiviewPicker(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SofaButton(
                     onClick = onWatch,
+                    main = true,
                     enabled = picked.size in MULTIVIEW_MIN_TILES..Wire.MULTIVIEW_MAX_TILES,
                 ) { Text(pluralStringResource(Res.plurals.multiview_watch, picked.size, picked.size)) }
             }

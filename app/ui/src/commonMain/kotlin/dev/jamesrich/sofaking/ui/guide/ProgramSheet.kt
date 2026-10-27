@@ -382,7 +382,7 @@ private fun SheetButtons(
     onDismiss: () -> Unit,
 ) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SofaButton(onClick = { onWatch(channel) }, modifier = Modifier.focusRequester(watchFocus)) {
+        SofaButton(main = true, onClick = { onWatch(channel) }, modifier = Modifier.focusRequester(watchFocus)) {
             Text(stringResource(Res.string.guide_details_watch), maxLines = 1)
         }
         if (fromStart != null) {

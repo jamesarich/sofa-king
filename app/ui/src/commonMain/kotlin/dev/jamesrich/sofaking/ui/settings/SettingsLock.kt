@@ -219,7 +219,9 @@ private fun PinEntry(
         PinField(pin, pinFocus, ImeAction.Done, onAction = unlock)
         if (error != null) ErrorText(error)
         Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            SofaButton(onClick = unlock, enabled = canUnlock) { Text(stringResource(Res.string.lock_unlock)) }
+            SofaButton(main = true, onClick = unlock, enabled = canUnlock) {
+                Text(stringResource(Res.string.lock_unlock))
+            }
             SofaButton(onClick = onRecover) { Text(stringResource(Res.string.lock_forgot)) }
         }
     }
@@ -391,7 +393,7 @@ private fun NewPinFields(
             ErrorText(stringResource(Res.string.settings_lock_pin_mismatch))
         }
         Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            SofaButton(onClick = set, enabled = canSet) {
+            SofaButton(main = true, onClick = set, enabled = canSet) {
                 Text(stringResource(Res.string.settings_lock_confirm))
             }
             SofaButton(onClick = onCancel) { Text(stringResource(Res.string.settings_lock_cancel)) }

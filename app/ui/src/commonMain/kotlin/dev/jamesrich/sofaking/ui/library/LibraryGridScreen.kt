@@ -187,7 +187,7 @@ private fun GridFooter(grid: LibraryGrid, onRetry: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                SofaButton(onClick = onRetry) { Text(stringResource(Res.string.retry)) }
+                SofaButton(main = true, onClick = onRetry) { Text(stringResource(Res.string.retry)) }
             }
 
             else -> Text(

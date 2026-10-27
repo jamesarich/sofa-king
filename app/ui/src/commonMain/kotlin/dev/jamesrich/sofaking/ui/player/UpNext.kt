@@ -113,7 +113,7 @@ internal fun BoxScope.UpNextCard(
 private fun UpNextActions(pointerDriven: Boolean, stillWatching: Boolean, onPlay: () -> Unit, onCancel: () -> Unit) {
     if (pointerDriven) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SofaButton(onClick = onPlay) {
+            SofaButton(main = true, onClick = onPlay) {
                 Text(
                     stringResource(
                         if (stillWatching) Res.string.vod_still_watching_keep else Res.string.vod_up_next_play,

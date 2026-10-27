@@ -168,8 +168,10 @@ private class TvFocusNode(
 private const val CURSOR_MOVE_WINDOW_MS = 250L
 
 /**
- * A Material 3 button with the D-pad focus cue; every action button in the app is one. It rests tonal and fills
- * with the primary color only while focused, so a row of buttons shows at a glance which one OK will press.
+ * A Material 3 button with the D-pad focus cue; every action button in the app is one. It follows Material's button
+ * hierarchy: the screen's [main] action (Play, Watch, Unlock) rests filled in the primary color, as Material's common
+ * button is, and the others rest in Material's tonal colors. The focused button turns white, as androidx.tv.material3's
+ * Button does, so a row of buttons shows at a glance which one OK will press, even beside a filled one.
  *
  * A disabled Material button cannot hold focus, so one turned off while focused (a press that starts a check, a wrong
  * PIN that empties its field) would drop focus to another row. This one keeps focus until the D-pad moves on: it
@@ -180,6 +182,7 @@ fun SofaButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    main: Boolean = false,
     content: @Composable RowScope.() -> Unit,
 ) {
     val interactions = remember { MutableInteractionSource() }
@@ -194,13 +197,15 @@ fun SofaButton(
         colors = ButtonDefaults.buttonColors(
             containerColor = when {
                 !enabled -> scheme.onSurface.copy(alpha = DISABLED_CONTAINER_ALPHA)
-                focused -> scheme.primary
-                else -> scheme.surfaceVariant
+                focused -> scheme.onSurface
+                main -> scheme.primary
+                else -> scheme.secondaryContainer
             },
             contentColor = when {
                 !enabled -> scheme.onSurface.copy(alpha = DISABLED_CONTENT_ALPHA)
-                focused -> scheme.onPrimary
-                else -> scheme.onSurface
+                focused -> scheme.inverseOnSurface
+                main -> scheme.onPrimary
+                else -> scheme.onSecondaryContainer
             },
         ),
         interactionSource = interactions,

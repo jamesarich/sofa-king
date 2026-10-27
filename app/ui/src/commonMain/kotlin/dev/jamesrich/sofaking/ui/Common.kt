@@ -91,7 +91,7 @@ fun MessageScreen(
                 val retryFocus = remember { FocusRequester() }
                 LaunchedEffect(Unit) { requestFocusWhenAttached(retryFocus) }
                 Spacer(Modifier.height(4.dp))
-                SofaButton(onClick = onRetry, modifier = Modifier.focusRequester(retryFocus)) {
+                SofaButton(main = true, onClick = onRetry, modifier = Modifier.focusRequester(retryFocus)) {
                     Text(stringResource(Res.string.retry))
                 }
             }

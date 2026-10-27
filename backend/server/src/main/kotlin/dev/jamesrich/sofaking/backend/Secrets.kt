@@ -25,7 +25,14 @@ enum class SecretOrigin {
 
 /** The secrets that `NAME_FILE` can supply instead of `NAME`. */
 internal val FILE_SECRETS =
-    listOf("SOFA_API_TOKEN", "SOFA_ADMIN_TOKEN", "SOFA_OUTPUT_TOKEN", "SOFA_PLEX_TOKEN", "SOFA_TMDB_TOKEN")
+    listOf(
+        "SOFA_API_TOKEN",
+        "SOFA_ADMIN_TOKEN",
+        "SOFA_OUTPUT_TOKEN",
+        "SOFA_PLEX_TOKEN",
+        "SOFA_TMDB_TOKEN",
+        "SOFA_FANART_KEY",
+    )
 
 /**
  * [environment] with each `NAME_FILE` replaced by `NAME` holding the file's contents without trailing line breaks,
@@ -138,6 +145,9 @@ internal class SecretsFile(val path: Path, private val random: SecureRandom = Se
 
         /** The TMDB token the portal saved; `SOFA_TMDB_TOKEN` wins over it. */
         const val TMDB_TOKEN = "tmdbToken"
+
+        /** The fanart.tv key the portal saved; `SOFA_FANART_KEY` wins over it. */
+        const val FANART_KEY = "fanartKey"
 
         /** A generated token holds 256 random bits. */
         private const val TOKEN_BYTES = 32

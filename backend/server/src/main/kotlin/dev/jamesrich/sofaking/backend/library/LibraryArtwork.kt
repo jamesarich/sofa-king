@@ -62,8 +62,8 @@ class Artwork(val file: Path, val contentType: String)
 
 /**
  * The posters and backdrops behind `/artwork`: a library's own image files, read in place, and TMDB's images, the
- * Cover Art Archive's covers and Wikimedia Commons' pictures, downloaded once into [directory] (which can be deleted
- * at any time; images are fetched again as they are asked for).
+ * Cover Art Archive's covers, Wikimedia Commons' pictures and fanart.tv's, downloaded once into [directory] (which can
+ * be deleted at any time; images are fetched again as they are asked for).
  */
 class LibraryArtwork(
     private val http: HttpClient?,
@@ -71,6 +71,7 @@ class LibraryArtwork(
     private val tmdbImages: String = "https://image.tmdb.org/t/p",
     private val coverArtArchive: String = COVER_ART_ARCHIVE,
     private val commonsFiles: String = "https://commons.wikimedia.org/wiki",
+    private val fanartAssets: String = FANART_ASSETS,
     private val maxBytes: Int = ARTWORK_LIMIT,
     /** FFmpeg, which takes a frame for a file with no picture; null takes none. */
     private val ffmpeg: String? = null,
@@ -86,10 +87,19 @@ class LibraryArtwork(
     /** The image [source] names, or null when it is gone, outside its library folder, or TMDB could not supply it. */
     suspend fun image(source: ArtSource): Artwork? = when (source) {
         is ArtSource.Local -> local(source)
+
         is ArtSource.Tmdb -> tmdb(source)
+
         is ArtSource.Frame -> frame(source)
+
         is ArtSource.CoverArt -> coverArt(source)
+
         is ArtSource.Commons -> commons(source)
+
+        // The fanart.tv image as fanart.tv serves it, fetched once.
+        is ArtSource.Fanart -> source.path.takeIf { http != null && FANART_PATH.matches(it) }?.let {
+            fetched(hash("fanart-$it"), fanartAssets + it, typeOf(it) ?: "image/jpeg")
+        }
     }
 
     /** The Commons image, 500 across, fetched once through Commons' redirect to its thumbnail. */

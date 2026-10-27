@@ -45,7 +45,7 @@ private const val SEARCH_PEOPLE = 10
 
 /**
  * Where an item's poster or backdrop comes from: a file in its library folder, a TMDB image path, a frame of a video
- * or a picture in a track, the Cover Art Archive or Wikimedia Commons.
+ * or a picture in a track, the Cover Art Archive, Wikimedia Commons or fanart.tv.
  */
 sealed interface ArtSource {
     /** [root] is the library folder; [relative] the image inside it. */
@@ -65,6 +65,9 @@ sealed interface ArtSource {
 
     /** The Wikimedia Commons image [file], such as `Band live.jpg`. */
     data class Commons(val file: String) : ArtSource
+
+    /** The fanart.tv image at [path] under [FANART_ASSETS]. */
+    data class Fanart(val path: String) : ArtSource
 
     val version: String get() = hash(toString()).take(12)
 }

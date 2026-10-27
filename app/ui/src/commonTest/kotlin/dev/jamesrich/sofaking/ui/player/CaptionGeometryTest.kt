@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -114,5 +116,26 @@ class CaptionGeometryTest {
     fun `an unset position centers the cue and a wide cue stays inside the frame`() {
         assertEquals(660, CaptionGeometry.left(CaptionCue.DIMEN_UNSET, CaptionCue.TYPE_UNSET, 600, width))
         assertEquals(1920 - 1800, CaptionGeometry.left(0.9f, CaptionCue.ANCHOR_TYPE_START, 1800, width))
+    }
+
+    @Test
+    fun `a pillarboxed 4 by 3 picture keeps its captions between the pillars`() {
+        val rect = CaptionGeometry.pictureRect(IntSize(1920, 1080), IntSize(640, 480), VideoZoom.FIT)
+        assertEquals(IntRect(240, 0, 1680, 1080), rect)
+    }
+
+    @Test
+    fun `a filled or stretched or unknown picture gives the captions the whole box`() {
+        val box = IntSize(1920, 1080)
+        val whole = IntRect(0, 0, 1920, 1080)
+        assertEquals(whole, CaptionGeometry.pictureRect(box, IntSize(640, 480), VideoZoom.FILL))
+        assertEquals(whole, CaptionGeometry.pictureRect(box, IntSize(640, 480), VideoZoom.STRETCH))
+        assertEquals(whole, CaptionGeometry.pictureRect(box, null, VideoZoom.FIT))
+    }
+
+    @Test
+    fun `a wide picture in a tall window is letterboxed`() {
+        val rect = CaptionGeometry.pictureRect(IntSize(1080, 1920), IntSize(1920, 1080), VideoZoom.FIT)
+        assertEquals(IntRect(0, 656, 1080, 1264), rect)
     }
 }

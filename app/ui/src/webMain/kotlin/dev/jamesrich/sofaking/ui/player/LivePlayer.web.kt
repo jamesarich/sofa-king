@@ -26,6 +26,8 @@ import dev.jamesrich.sofaking.resources.app_name
 import kotlinx.browser.document
 import kotlinx.browser.window
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.jetbrains.compose.resources.stringResource
@@ -83,6 +85,8 @@ internal class HtmlLivePlayer(
     private var loaded = false
 
     private val frameSize = MutableStateFlow(IntSize(1, 1))
+    private val mutableVideoSize = MutableStateFlow<IntSize?>(null)
+    override val videoSize: StateFlow<IntSize?> = mutableVideoSize.asStateFlow()
 
     /** False from a reset until the new stream's first frame is on screen; rebuffering keeps the last frame. */
     private val hasFrame = MutableStateFlow(false)
@@ -285,6 +289,7 @@ internal class HtmlLivePlayer(
     private fun updateFrameSize() {
         if (video.videoWidth > 0 && video.videoHeight > 0) {
             frameSize.value = IntSize(video.videoWidth, video.videoHeight)
+            mutableVideoSize.value = frameSize.value
         }
     }
 }

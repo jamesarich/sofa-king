@@ -52,23 +52,27 @@ class MusicMetadata internal constructor(
     private val client: MusicBrainzClient,
     private val clock: Clock,
 ) {
-    /** When each library's lookups were asked for again ([forget]), until a pass gets through. */
-    private val forgotten = ConcurrentHashMap<String, Instant>()
+    /** The libraries whose lookups were asked for again ([forget]) and are not yet marked stale in the store. */
+    private val forgotten: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     /**
-     * Has [libraryId]'s next pass look up again every album and artist looked up before now, however fresh; a pass a
-     * rate limit cuts short carries on with the rest on the next.
+     * Has [libraryId]'s next pass look up again every album and artist looked up before now, however fresh. The pass
+     * first marks the stored lookups stale, keeping what they found, so one a rate limit or a restart cuts short
+     * carries on with the rest on the next.
      */
     fun forget(libraryId: String) {
-        forgotten.putIfAbsent(libraryId, clock.instant())
+        forgotten.add(libraryId)
     }
 
     suspend fun refresh(library: LibraryRecord, items: List<LibraryItemRecord>): MetadataResult? {
         if (library.kind != LibraryKind.MUSIC) return null
         val present = items.filter { it.missingSince == null }
-        val since = forgotten[library.id]
-        val known = store.libraryMetadata(present.map { it.id })
-            .filterValues { since == null || !Instant.parse(it.checkedAt).isBefore(since) }
+        var known = store.libraryMetadata(present.map { it.id })
+        if (library.id in forgotten) {
+            known = known.mapValues { (_, row) -> row.copy(checkedAt = Instant.EPOCH.toString()) }
+            store.saveLibraryMetadata(known.values.toList())
+            forgotten.remove(library.id)
+        }
         val run = Run(present, known)
         // Each artist right after its albums, whose credits name it, so a run a rate limit ends has done some of both.
         val albums = present.filter { it.kind == ItemKind.ALBUM }.groupBy { it.parentId }
@@ -82,7 +86,7 @@ class MusicMetadata internal constructor(
             val going = if (item.kind == ItemKind.ALBUM) run.album(item) else run.artist(item)
             if (!going) break
         }
-        return run.result().also { if (since != null && it.stopped == null) forgotten.remove(library.id, since) }
+        return run.result()
     }
 
     /** One refresh of the [present] items, which were looked up as [known]. */

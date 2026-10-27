@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.unit.IntSize
 import dev.jamesrich.sofaking.data.AdBreakNow
 import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackProfile
@@ -295,6 +296,12 @@ interface LivePlayer :
     fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle
 
     /**
+     * The picture's shape as [Video] draws it, in pixels with any non-square pixels applied; null before the first
+     * frame and where the engine cannot tell. Captions lay out against the picture, not the bars beside it.
+     */
+    val videoSize: StateFlow<IntSize?> get() = UnknownVideoSize.flow
+
+    /**
      * The picture in [modifier]'s bounds as [zoom] says, cropped to them; [shutter] covers it from a
      * reset until the next first frame.
      */
@@ -309,6 +316,11 @@ interface LivePlayer :
  */
 @Composable
 expect fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer
+
+/** An object rather than a top-level value, which would clash with the Android source set's `LivePlayerKt`. */
+private object UnknownVideoSize {
+    val flow: StateFlow<IntSize?> = MutableStateFlow(null)
+}
 
 /** Tracks the live-resume rule for engines that pause by simply stopping the clock. */
 class LivePauseClock {

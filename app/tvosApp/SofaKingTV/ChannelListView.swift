@@ -91,7 +91,7 @@ struct ChannelListView: View {
         }
         .onAppear {
             visible = true
-            preview.open = { id in playing = lineup.channels.first { $0.guideId == id } }
+            preview.openFullScreen = { id in playing = lineup.channels.first { $0.guideId == id } }
             if playing == nil { preview.activate(model) }
         }
         .onDisappear {

@@ -38,6 +38,7 @@ data class NowNext(val now: Program?, val next: Program?)
 class SofaKingTv private constructor(private val parts: TvParts) :
     TvChannels by TvChannelCalls(parts),
     TvGuide by TvGuideCalls(parts),
+    TvMultiview by TvMultiviewCalls(parts),
     TvLibrary by TvLibraryCalls(parts),
     TvItemPlayback by TvItemCalls(parts),
     TvMusic by TvMusicCalls(parts),

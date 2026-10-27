@@ -76,12 +76,13 @@ internal class LiveSession(
 
     fun resource(url: String, suffix: String? = null): String {
         resources.tokenFor(url)?.let { return it }
-        return resourceToken(url, suffix).also {
+        val playlist = url.endsWith(CaptionPlaylists.MEDIA)
+        return resourceToken(url, suffix ?: "m3u8".takeIf { playlist }).also {
             resources.put(
                 it,
                 url,
                 pinned =
-                it.endsWith(".m3u8") || url == offering.url,
+                it.endsWith(".m3u8") || url == offering.url || playlist,
             )
         }
     }

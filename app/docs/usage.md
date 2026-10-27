@@ -184,7 +184,7 @@ Enable captions with the CC key, the Captions button on the player's bar or in S
 Where captions are drawn depends on the platform:
 
 - On Android, the app draws them in the selected caption style.
-- On a desktop, libVLC draws them into the picture, and on iOS and Apple TV, AVPlayer draws them in the system's caption style. The app's caption style does not apply.
+- On a desktop, libVLC draws them into the picture, and on iOS and Apple TV, AVPlayer draws them in the system's caption style. The app's caption style does not apply. AVPlayer shows only the captions a channel's playlist declares, so the server declares the CEA-608 captions it finds in a stream whose playlist leaves them out.
 - In a browser, the app draws them in the selected style while it draws the video into its own canvas. When it falls back to the browser's video element, without WebGL2 or when the server sends no CORS headers on media, the browser draws them. Chrome's built-in HLS player shows none.
 
 On Android, caption timing shifts captions against the picture so live captions align with speech. Press CC, then within three seconds use Right to show them earlier or Left to show them later, in half-second steps, up to 8 seconds either way; each press keeps the window open and the toast shows the timing. The info bar shows the channel's timing as "CC 2.0 s early" or "CC 1.5 s late". Timing is saved per channel; Settings sets the default timing, in the same steps and range. Showing captions earlier buffers the video by that much, so it also means a longer wait when a channel starts; showing them later does not.

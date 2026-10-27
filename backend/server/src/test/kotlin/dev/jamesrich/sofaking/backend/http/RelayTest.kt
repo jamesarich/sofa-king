@@ -532,6 +532,38 @@ class RelayTest {
         assertEquals(1, stats.sourceSwitches)
     }
 
+    @Test fun `an Apple player gets a captioned source's bare media playlist inside one that names CC1`() = relay(
+        { listOf(it.captionedFeed, it.feed) },
+    ) {
+        val opened = open("Captioned", "apple", intent = "watch")
+        val master = client.get(opened.descriptor.url) { header(HttpHeaders.UserAgent, APPLE) }.bodyAsText()
+        assertTrue(master.contains("CLOSED-CAPTIONS=\"sofa-cc\"") && master.contains("INSTREAM-ID=\"CC1\""), master)
+        val variant = master.lines().single { it.startsWith("/media/") }
+        assertTrue(variant.endsWith(".m3u8"), variant)
+        val media = client.get(variant) { header(HttpHeaders.UserAgent, APPLE) }.bodyAsText()
+        assertTrue(media.contains("#EXTINF:2,") && !media.contains("STREAM-INF"), media)
+        val segment = client.get(media.lines().single { it.startsWith("/media/") })
+        assertEquals(HttpStatusCode.OK, segment.status)
+        release(opened)
+        // The check read the segment once, and the next session's root goes by what it found.
+        val checks = fixture.captionedSegments.get()
+        val again = open("Captioned", "apple-again", intent = "watch")
+        assertTrue(
+            client.get(again.descriptor.url) { header(HttpHeaders.UserAgent, APPLE) }.bodyAsText()
+                .contains("CLOSED-CAPTIONS"),
+        )
+        assertEquals(checks, fixture.captionedSegments.get())
+        release(again)
+
+        val other = open("Captioned", "exo", intent = "watch")
+        val bare = client.get(other.descriptor.url) { header(HttpHeaders.UserAgent, "ExoPlayer") }.bodyAsText()
+        assertTrue(bare.contains("#EXTINF") && !bare.contains("CLOSED-CAPTIONS"), bare)
+        release(other)
+        val station = open("Station", "apple-station", intent = "watch")
+        val plain = client.get(station.descriptor.url) { header(HttpHeaders.UserAgent, APPLE) }.bodyAsText()
+        assertTrue(plain.contains("STREAM-INF") && !plain.contains("CLOSED-CAPTIONS"), plain)
+    }
+
     private suspend fun assertStreamChanged(response: HttpResponse) {
         assertEquals(HttpStatusCode.Gone, response.status)
         assertEquals("STREAM_CHANGED", Json.decodeFromString<ApiError>(response.bodyAsText()).code)
@@ -558,6 +590,10 @@ class RelayTest {
                     setBody(Json.encodeToString(OpenPlayback(channel.id, intent, key)))
                 }.bodyAsText(),
             )
+        }
+
+        suspend fun release(session: PlaybackSession) {
+            client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(TOKEN) }
         }
 
         suspend fun session(id: String): PlaybackSession =
@@ -591,5 +627,6 @@ class RelayTest {
 
     private companion object {
         val TOKEN = "secret".repeat(8)
+        const val APPLE = "AppleCoreMedia/1.0.0.21J354 (Apple TV; U; CPU OS 17_0 like Mac OS X; en_us)"
     }
 }

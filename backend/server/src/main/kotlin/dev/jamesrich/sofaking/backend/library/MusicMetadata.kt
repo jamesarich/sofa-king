@@ -43,8 +43,8 @@ private val EDITION = Regex(
  * year, the genres MusicBrainz votes for where the files name none, whether the Cover Art Archive has a cover for an
  * album with no picture of its own, and the artist's Wikidata item, with the first paragraph and the free picture of
  * the English Wikipedia page it links to; nothing renames
- * what the tags call it. Lookups are kept and fetched again after [MUSIC_MATCHED_FOR]; a rate limit or three lookups
- * in a row that cannot reach MusicBrainz end the run, to resume on the next.
+ * what the tags call it. Lookups are kept and fetched again after [MUSIC_MATCHED_FOR]; a rate limit that outlasts the
+ * client's retries or three lookups in a row that cannot reach MusicBrainz end the run, to resume on the next.
  */
 class MusicMetadata internal constructor(
     private val store: BackendStore,
@@ -55,12 +55,17 @@ class MusicMetadata internal constructor(
         if (library.kind != LibraryKind.MUSIC) return null
         val present = items.filter { it.missingSince == null }
         val run = Run(present, store.libraryMetadata(present.map { it.id }))
-        for (album in present.filter { it.kind == ItemKind.ALBUM }) {
-            if (!run.album(album)) return run.result()
-        }
-        val artists = present.filter { it.kind == ItemKind.ARTIST && musicKey(it.title) != musicKey(VARIOUS_ARTISTS) }
-        for (artist in artists) {
-            if (!run.artist(artist)) break
+        // Each artist right after its albums, whose credits name it, so a run a rate limit ends has done some of both.
+        val albums = present.filter { it.kind == ItemKind.ALBUM }.groupBy { it.parentId }
+        val artists = present.filter { it.kind == ItemKind.ARTIST }
+        val ids = artists.mapTo(HashSet()) { it.id }
+        val order = artists.flatMap { artist ->
+            albums[artist.id].orEmpty() +
+                listOfNotNull(artist.takeIf { musicKey(it.title) != musicKey(VARIOUS_ARTISTS) })
+        } + albums.filterKeys { it !in ids }.values.flatten()
+        for (item in order) {
+            val going = if (item.kind == ItemKind.ALBUM) run.album(item) else run.artist(item)
+            if (!going) break
         }
         return run.result()
     }

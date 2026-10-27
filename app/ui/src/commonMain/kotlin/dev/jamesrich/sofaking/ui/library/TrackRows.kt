@@ -24,8 +24,9 @@ import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 
 /**
- * One of [album]'s tracks as a row: its number, with its disc's when the album has [discs], its title with its own
- * artist under it when that differs from the album's, and its length. OK or the remote's Play key calls [onClick].
+ * One of [album]'s tracks as a row: its [number], with its disc's when the album has [discs], its title with what is
+ * [under] it (its own artist when that differs from the album's), and its length. OK or the remote's Play key calls
+ * [onClick].
  */
 @Composable
 internal fun TrackRow(
@@ -34,9 +35,10 @@ internal fun TrackRow(
     discs: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    number: String? = trackNumber(track, discs),
+    under: String? = track.trackArtist?.takeIf { it != album.artist },
 ) {
-    val number = trackNumber(track, discs)
-    val artist = track.trackArtist?.takeIf { it != album.artist }
+    val artist = under
     val length = track.durationMs?.let(::formatPlayTime)
     val label = listOfNotNull(number, track.title, artist, length).joinToString(", ")
     Card(

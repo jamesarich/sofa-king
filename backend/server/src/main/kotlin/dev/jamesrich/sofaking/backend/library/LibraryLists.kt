@@ -77,10 +77,16 @@ private fun lastWatched(views: List<View>, states: Map<String, PlayStateRecord>)
     .maxOrNull()
 
 /**
- * Others of [view]'s library, a movie, show or video, that share its genres: the most shared first, then the best
- * rated.
+ * Others of [view]'s library, a movie, show, video or artist, that share its genres: the most shared first, then the
+ * best rated; an artist's similar artists first.
  */
 internal fun related(snapshot: Snapshot, view: View): List<View> {
+    // An artist's similar artists, as ListenBrainz's listeners play them, come before those sharing their genres.
+    val similar = view.similar.mapNotNull { snapshot.views[it] }
+    return (similar + sharingGenres(snapshot, view)).distinctBy { it.record.id }.take(RELATED_SIZE)
+}
+
+private fun sharingGenres(snapshot: Snapshot, view: View): List<View> {
     val genres = view.item.genres.mapTo(HashSet()) { it.lowercase() }
     if (view.record.parentId != null || genres.isEmpty()) return emptyList()
     return snapshot.tops[view.record.libraryId].orEmpty()

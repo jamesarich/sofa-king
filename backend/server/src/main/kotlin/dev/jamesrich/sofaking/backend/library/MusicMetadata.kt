@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.libraryMetadata
 import dev.jamesrich.sofaking.backend.store.saveLibraryMetadata
@@ -53,6 +54,8 @@ class MusicMetadata internal constructor(
     private val clock: Clock,
     /** fanart.tv, for artists' pictures and backdrops and albums' covers; null without a key. */
     private val fanart: FanartClient? = null,
+    /** ListenBrainz, for an artist's most played songs and the artists like them; null asks it nothing. */
+    private val listenBrainz: ListenBrainzClient? = null,
 ) {
     /** The libraries whose lookups were asked for again ([forget]) and are not yet marked stale in the store. */
     private val forgotten: MutableSet<String> = ConcurrentHashMap.newKeySet()
@@ -157,20 +160,18 @@ class MusicMetadata internal constructor(
             val hint = artist.details?.musicBrainzId ?: albumsOf[artist.id].orEmpty().mapNotNull { credited[it.id] }
                 .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
             // A fresh match fanart.tv was never asked about, as before a key was added, is looked up again, as is one
-            // looked up before its year, country and members were kept.
+            // looked up before its year, country and members were kept, or before ListenBrainz was asked.
             val row = fresh(artist, hint)
-            val matched = row?.facts?.takeIf { it.musicBrainzId != null }
-            val unasked = matched != null && (!matched.described || (fanartOn && !matched.fanartAsked))
-            if (row != null && !unasked) return true
+            if (row != null && !incomplete(row.facts, fanartOn, listenBrainz != null)) return true
             return look(artist) {
                 val found = hint?.let { client.artist(it) } ?: searchArtist(artist.title)?.let { client.artist(it.id) }
                 found?.let {
-                    val wikidata = it.relations.firstOrNull { link -> link.type == "wikidata" }
-                        ?.url?.resource?.substringAfterLast('/')?.takeIf { id -> WIKIDATA_ID.matches(id) }
+                    val wikidata = wikidataOf(it)
                     val page = wikidata?.let { id -> client.wikipediaTitle(id) }
                         ?.let { title -> client.wikipediaSummary(title) }
                         ?.takeIf { summary -> summary.type != "disambiguation" }
                     val art = fanartOf(it.id)
+                    val listens = listens(listenBrainz, it.id)
                     art?.images?.let { images -> covers(artist, images.covers) }
                     MetadataFacts(
                         overview = page?.extract?.trim()?.ifEmpty { null },
@@ -185,6 +186,9 @@ class MusicMetadata internal constructor(
                         fanart = art?.images?.picture,
                         fanartBackdrop = art?.images?.backdrop,
                         fanartAsked = art != null,
+                        similar = listens?.similar.orEmpty(),
+                        popular = listens?.popular.orEmpty(),
+                        listened = listens != null,
                     )
                 }
             }
@@ -271,6 +275,18 @@ class MusicMetadata internal constructor(
 /** A Wikidata item's id. */
 private val WIKIDATA_ID = Regex("Q[0-9]{1,12}")
 
+/** The Wikidata item MusicBrainz links [artist] to. */
+private fun wikidataOf(artist: MbArtist): String? = artist.relations.firstOrNull { it.type == "wikidata" }
+    ?.url?.resource?.substringAfterLast('/')?.takeIf { WIKIDATA_ID.matches(it) }
+
+/**
+ * Whether a fresh artist match's [facts] lack what a lookup now keeps: fanart.tv's images once there is a key
+ * ([fanartOn]), ListenBrainz's statistics when it is asked ([listening]), or the year, country and members.
+ */
+private fun incomplete(facts: MetadataFacts?, fanartOn: Boolean, listening: Boolean): Boolean =
+    facts?.musicBrainzId != null &&
+        (!facts.described || (fanartOn && !facts.fanartAsked) || (listening && !facts.listened))
+
 /**
  * An image of Wikimedia Commons, as Wikipedia links it: the file itself, or for a large one a thumbnail of it
  * (`thumb.wikimedia.org/…/commons/thumb/a/ab/File.jpg/3840px-File.jpg`), with any query Wikipedia adds
@@ -306,6 +322,17 @@ private fun members(artist: MbArtist): List<String> = artist.relations
 
 private fun genres(genres: List<MbGenre>): List<String> =
     genres.sortedByDescending { it.count }.take(GENRE_LIMIT).map { it.name.replaceFirstChar(Char::uppercase) }
+
+/** What ListenBrainz holds for the MusicBrainz artist [id]; null when it was not asked or could not answer. */
+private suspend fun listens(client: ListenBrainzClient?, id: String): Listens? = client?.let {
+    runCatchingCancellable { Listens(it.popular(id), it.similar(id)) }.getOrElse { e ->
+        log.warn("listenbrainz lookup failed class={} message={}", e.javaClass.simpleName, e.message)
+        null
+    }
+}
+
+/** An artist's [popular] songs and [similar] artists, as ListenBrainz's listeners play them. */
+private class Listens(val popular: List<PopularSong>, val similar: List<String>)
 
 /** fanart.tv's answer for an artist: its [images], null when it holds none. */
 private class Fanarted(val images: FanartArtist?)

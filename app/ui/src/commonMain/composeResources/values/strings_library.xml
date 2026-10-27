@@ -74,6 +74,7 @@
     <string name="library_members">Members</string>
     <string name="library_extras">Extras</string>
     <string name="library_related">More like this</string>
+    <string name="library_popular">Popular</string>
     <string name="library_extra_trailer">Trailer</string>
     <string name="library_extra_featurette">Featurette</string>
     <string name="library_extra_behind_the_scenes">Behind the scenes</string>

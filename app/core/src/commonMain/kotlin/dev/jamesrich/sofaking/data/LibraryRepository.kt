@@ -58,6 +58,7 @@ class LibraryRepository(private val api: SofaKingApi) {
             },
             extras = dto.extras.map(api::mediaItem),
             related = dto.related.map(api::mediaItem),
+            popular = dto.popular.map(api::mediaItem),
         )
     }
 

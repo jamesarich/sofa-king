@@ -39,6 +39,7 @@ import dev.jamesrich.sofaking.resources.library_extras
 import dev.jamesrich.sofaking.resources.library_load_failed
 import dev.jamesrich.sofaking.resources.library_loading
 import dev.jamesrich.sofaking.resources.library_members
+import dev.jamesrich.sofaking.resources.library_popular
 import dev.jamesrich.sofaking.resources.library_related
 import dev.jamesrich.sofaking.resources.library_season
 import dev.jamesrich.sofaking.resources.library_specials
@@ -102,7 +103,7 @@ private fun Details(
     val discs = hasDiscs(episodes)
     val returnTo = returnedFrom?.takeIf { id -> episodes.any { it.id == id } || albums.any { it.id == id } }
     val returnToExtra = returnedFrom?.takeIf { id -> detail.extras.any { it.id == id } }
-    val returnToRelated = returnedFrom?.takeIf { id -> detail.related.any { it.id == id } }
+    val returnToRelated = returnedFrom?.takeIf { id -> (detail.related + detail.popular).any { it.id == id } }
     // The first button takes focus once, when the page is in; a later refresh leaves focus where the viewer put it.
     LaunchedEffect(item.id) { requestFocusWhenAttached(primaryFocus) }
     LaunchedEffect(returnTo) { if (returnTo != null) requestFocusWhenAttached(episodeFocus) }
@@ -174,7 +175,10 @@ private fun episodesOf(detail: MediaItemDetail, seasons: List<MediaItem>, season
     return children.filter { it.kind.playable }
 }
 
-/** The item's extras, then the titles like it; the card the viewer [returnedFrom] takes [focus]. */
+/**
+ * An artist's most played songs, the item's extras, then the titles like it; the song or card the viewer
+ * [returnedFrom] takes [focus].
+ */
 private fun LazyListScope.extrasAndRelated(
     detail: MediaItemDetail,
     actions: ItemDetailsActions,
@@ -182,6 +186,28 @@ private fun LazyListScope.extrasAndRelated(
     returnedFrom: String?,
     focus: FocusRequester,
 ) {
+    if (detail.popular.isNotEmpty()) {
+        item(key = "popular") {
+            Text(
+                stringResource(Res.string.library_popular),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(sides),
+            )
+        }
+        itemsIndexed(detail.popular, key = { _, song -> "popular-${song.id}" }) { index, song ->
+            val back = if (song.id == returnedFrom) Modifier.focusRequester(focus) else Modifier
+            TrackRow(
+                song,
+                detail.item,
+                discs = false,
+                onClick = { actions.onPlay(song, true) },
+                modifier = Modifier.padding(sides).then(back),
+                number = "${index + 1}",
+                under = song.album,
+            )
+        }
+    }
     if (detail.extras.isNotEmpty()) {
         item(key = "extras") {
             ItemRow(
@@ -198,7 +224,11 @@ private fun LazyListScope.extrasAndRelated(
     }
     if (detail.related.isNotEmpty()) {
         item(key = "related") {
-            val style = if (detail.related.all { it.kind == ItemKind.VIDEO }) CardStyle.WIDE else CardStyle.POSTER
+            val style = when {
+                detail.related.all { it.kind == ItemKind.VIDEO } -> CardStyle.WIDE
+                detail.related.all { it.kind == ItemKind.ARTIST } -> CardStyle.SQUARE
+                else -> CardStyle.POSTER
+            }
             ItemRow(
                 stringResource(Res.string.library_related),
                 detail.related,

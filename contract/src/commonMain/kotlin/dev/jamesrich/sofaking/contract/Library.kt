@@ -147,8 +147,13 @@ data class LibraryShelf(val id: String, val title: String, val items: List<Libra
     val scrub: ScrubThumbnails? = null,
     /** A movie's or show's trailers, featurettes and other extras, trailers first. */
     val extras: List<LibraryItem> = emptyList(),
-    /** For a movie, show or video, others in its library that share its genres, the most shared first. */
+    /**
+     * For a movie, show, video or artist, others in its library that share its genres, the most shared first; for an
+     * artist, the artists ListenBrainz's listeners play alongside them come first.
+     */
     val related: List<LibraryItem> = emptyList(),
+    /** For an artist, their songs ListenBrainz's listeners play most, most played first. */
+    val popular: List<LibraryItem> = emptyList(),
 )
 
 /**

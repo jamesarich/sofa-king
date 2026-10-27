@@ -172,6 +172,8 @@ data class MediaItemDetail(
     val extras: List<MediaItem> = emptyList(),
     /** Others in the item's library that share its genres, the most shared first. */
     val related: List<MediaItem> = emptyList(),
+    /** For an artist, their songs listeners play most, most played first. */
+    val popular: List<MediaItem> = emptyList(),
 )
 
 /** What kind of extra an [ItemKind.EXTRA] is; one the server names that the app does not know is [OTHER]. */

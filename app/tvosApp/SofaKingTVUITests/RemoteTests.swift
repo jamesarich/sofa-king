@@ -19,7 +19,7 @@ final class RemoteTests: XCTestCase {
     @MainActor
     func testPlayerTransportMenu() throws {
         try launchToList()
-        // Sofa Sports is live (News Now is a ten-second HLS clip that ends): the second row, below the search field.
+        // Sofa Sports is live (News Now is a ten-second HLS clip that ends): the second row, below the filters.
         let sports = row("Sofa Sports")
         focus(sports, by: Array(repeating: XCUIRemote.Button.down, count: 5) + Array(repeating: XCUIRemote.Button.up, count: 8))
         remote.press(.select)
@@ -56,7 +56,7 @@ final class RemoteTests: XCTestCase {
         focus(app.tabBars.buttons["Live"], pressing: .up)
         // Accessibility does not mark the open tab, so each is told by what it shows.
         let moves: [(String, XCUIRemote.Button, XCUIElement)] = [
-            ("DVR", .right, row("Skip commercials")), ("Settings", .right, control("Pair")), ("Live", .left, row("News Now")),
+            ("DVR", .right, row("Skip commercials")), ("Settings", .right, control("Pair")), ("Live", .left, guide),
         ]
         for (name, move, content) in moves {
             let tab = app.tabBars.buttons[name]
@@ -219,19 +219,23 @@ final class RemoteTests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["-serverUrl", server.url.absoluteString, "-apiToken", server.token]
         app.launch()
-        let news = row("News Now")
+        // The guide scrolls to the channel watched last, so its filters, not a row, say it is up.
+        let list = guide
         eventually("the channel list, another tab or the last channel", timeout: 60) {
-            news.exists || app.tabBars.buttons["Live"].exists || !server.watching().isEmpty
+            list.exists || app.tabBars.buttons["Live"].exists || !server.watching().isEmpty
         }
         // The launch decision opens the last channel once the lineup is in, and a start reopens the last tab.
         RunLoop.current.run(until: Date().addingTimeInterval(3))
         if !server.watching().isEmpty { leavePlayer() }
-        if !news.exists {
+        if !list.exists {
             focus(app.tabBars.buttons["Live"], by: Array(repeating: XCUIRemote.Button.up, count: 6) + Array(repeating: XCUIRemote.Button.left, count: 3))
             remote.press(.down)
         }
-        XCTAssertTrue(news.waitForExistence(timeout: 10), "No channel list\n\(screen)")
+        XCTAssertTrue(list.waitForExistence(timeout: 10), "No channel list\n\(screen)")
     }
+
+    /// The Live tab's All filter, there whichever rows the guide has scrolled to.
+    private var guide: XCUIElement { app.buttons["All"] }
 
     /// Presses Menu until the player has gone and released its session; once more would leave the app.
     @MainActor

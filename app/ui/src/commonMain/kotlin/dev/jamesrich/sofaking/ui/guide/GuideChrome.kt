@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.text.input.ImeAction
@@ -134,17 +135,24 @@ internal fun FilterChipRow(
         }
         items(filters, key = { it.toString() }) { option ->
             val selected = activeFilter == option
+            val last = onOnLater == null && option == filters.last()
             SofaChip(
                 selected = selected,
                 onClick = { onSelect(option) },
                 label = stringResource(Res.string.guide_filter_count, option.label(), counts[option] ?: 0),
-                modifier = if (selected) Modifier.focusRequester(selectedChip) else Modifier,
+                modifier = (if (selected) Modifier.focusRequester(selectedChip) else Modifier)
+                    .then(if (last) Modifier.focusProperties { right = FocusRequester.Cancel } else Modifier),
             )
         }
         // Last, so the fixed chips before the filters keep their places.
         if (onOnLater != null) {
             item(key = "on-later") {
-                SofaActionChip(onClick = onOnLater, label = stringResource(Res.string.on_later))
+                SofaActionChip(
+                    onClick = onOnLater,
+                    label = stringResource(Res.string.on_later),
+                    // Right past the last chip stays put; searched geometrically, it would jump up to the header.
+                    modifier = Modifier.focusProperties { right = FocusRequester.Cancel },
+                )
             }
         }
     }

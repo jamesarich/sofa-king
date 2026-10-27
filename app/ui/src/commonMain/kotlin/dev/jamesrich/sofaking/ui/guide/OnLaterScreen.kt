@@ -4,6 +4,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -188,7 +189,8 @@ private fun OnLaterDetails(
 private fun KindChips(kind: OnLaterKind, onKind: (OnLaterKind) -> Unit) {
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { requestFocusWhenAttached(first) }
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Room at the ends for the focused chip, which grows and draws its ring past its own bounds.
+    LazyRow(contentPadding = PaddingValues(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(OnLaterKind.entries, key = { it.name }) { option ->
             SofaChip(
                 selected = option == kind,

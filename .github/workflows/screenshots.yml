@@ -205,12 +205,18 @@ jobs:
           restore-keys: konan-${{ runner.os }}-
       - name: Install the tools
         run: brew install ffmpeg xcodegen
-      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # The Linux jobs' cut does not always restore on macOS, so on a miss this job cuts its own: one more reader of
+      # the movies, not six.
+      - id: showcase
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/sofa-king-showcase
           key: showcase-${{ needs.showcase.outputs.version }}
           enableCrossOsArchive: true
-          fail-on-cache-miss: true
+      - name: Cut the showcase
+        if: steps.showcase.outputs.cache-hit != 'true'
+        working-directory: app/scripts
+        run: python3 -c 'import showcase; showcase.prepare()'
       - name: Build the server distribution
         working-directory: backend
         run: ./gradlew --console=plain :server:installDist

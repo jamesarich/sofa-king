@@ -41,6 +41,8 @@ PACKAGE = 'dev.jamesrich.sofaking'
 SETTINGS = {'auto_open_delay': 'OFF', 'preview_sound': False, 'key_legend_shown': 3}
 # The guide's preview starts after 350 ms and needs a few seconds of stream before its first frame.
 PREVIEW_SECONDS = 8
+# How many times a tap asks uiautomator for the screen before giving up.
+DUMP_TRIES = 10
 
 
 def showcase_server(out, images=None, **settings):
@@ -247,9 +249,17 @@ def android(args, out):
                     size = re.search(rb'(\d+)x(\d+)', adb('shell', 'wm', 'size').splitlines()[-1])
                     return adb('shell', 'input', 'tap', str(int(size[1]) // 2), str(int(size[2]) // 2))
                 # The first clickable item whose text or description starts with [text]. The dump waits for the screen
-                # to settle, so it fails while a loader spins.
-                adb('shell', 'uiautomator', 'dump', '/data/local/tmp/screen.xml')
-                tree = ElementTree.fromstring(adb('exec-out', 'cat', '/data/local/tmp/screen.xml'))
+                # to settle, so it fails while a loader spins or artwork animates in; it is tried again until it writes.
+                tree = None
+                for _ in range(DUMP_TRIES):
+                    adb('shell', 'rm', '-f', '/data/local/tmp/screen.xml')
+                    with contextlib.suppress(subprocess.CalledProcessError, ElementTree.ParseError):
+                        adb('shell', 'uiautomator', 'dump', '/data/local/tmp/screen.xml')
+                        tree = ElementTree.fromstring(adb('exec-out', 'cat', '/data/local/tmp/screen.xml'))
+                        break
+                    time.sleep(1)
+                if tree is None:
+                    raise SystemExit(f'uiautomator could not dump the screen to find {text!r}')
                 named = lambda node: any((node.get(a) or '').startswith(text) for a in ('text', 'content-desc'))
                 nodes = [n for n in tree.iter('node') if named(n)]
                 if not nodes:

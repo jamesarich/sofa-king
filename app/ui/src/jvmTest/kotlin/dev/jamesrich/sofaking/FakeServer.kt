@@ -73,6 +73,11 @@ internal class FakeServer(private val recordings: Boolean = true, private val mu
         liveSessions.values.any { it.second == Wire.Intent.WATCH }
     }
 
+    /** The channel of the live session open to watch full screen; null while none is. */
+    val watchedChannel: String? get() = synchronized(liveSessions) {
+        liveSessions.values.firstOrNull { it.second == Wire.Intent.WATCH }?.first
+    }
+
     private val started = Clock.System.now()
     private val channels = List(CHANNELS) { i ->
         Channel(

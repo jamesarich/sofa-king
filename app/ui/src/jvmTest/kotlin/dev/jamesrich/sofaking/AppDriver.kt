@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking
 
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.InternalComposeUiApi
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.toAwtImage
@@ -25,6 +27,7 @@ import androidx.navigationevent.NavigationEventInput
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import coil3.SingletonImageLoader
 import coil3.annotation.DelicateCoilApi
+import dev.jamesrich.sofaking.data.AppLink
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.PairingRequest
@@ -51,6 +54,7 @@ internal fun runSofaKing(tv: Boolean, out: File, server: FakeServer = FakeServer
     val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
     Thread.setDefaultUncaughtExceptionHandler { _, e -> uncaught += e }
     val backInput = EscapeBackInput()
+    val link = mutableStateOf<AppLink?>(null)
     try {
         val data = Files.createTempDirectory("sofaking-test").toString()
         initSofaKing(AppStorage.inDirectory(data, ClientInfo("desktop", "test")))
@@ -66,9 +70,12 @@ internal fun runSofaKing(tv: Boolean, out: File, server: FakeServer = FakeServer
                     dispatcher?.addInput(backInput)
                     onDispose { dispatcher?.removeInput(backInput) }
                 }
-                App(pairing = PairingRequest(server.url, "123456"))
+                App(pairing = PairingRequest(server.url, "123456"), link = link.value, onLinkHandle = {
+                    link.value =
+                        null
+                })
             }
-            val driver = AppDriver(this, server, backInput, uncaught, out)
+            val driver = AppDriver(this, server, backInput, uncaught, out, link)
             waitUntil("the guide shows the lineup", timeoutMillis = 20_000) {
                 server.guideQueries.get() > 0 && driver.focusedCount() > 0
             }
@@ -91,7 +98,14 @@ internal class AppDriver(
     private val backInput: EscapeBackInput,
     val uncaught: List<Throwable>,
     val out: File,
+    private val link: MutableState<AppLink?>,
 ) {
+    /** Opens [appLink] as the platform hands the app a `sofaking://` link, and waits for the app to settle. */
+    fun openLink(appLink: AppLink) {
+        ui.runOnUiThread { link.value = appLink }
+        ui.waitForIdle()
+    }
+
     /** Presses the named keys in turn ([REMOTE]'s names, as a fuzz trace writes them) and waits for each to settle. */
     fun keys(vararg names: String) = names.forEach { name -> press(REMOTE.first { it.name == name }) }
 

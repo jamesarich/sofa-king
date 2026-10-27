@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.navigation.BackNavigationBehavior
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
@@ -46,7 +47,11 @@ internal fun panesOf(route: Route): Map<String, Any> = when (route) {
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 internal fun rememberLibraryPanes(tv: Boolean): SceneStrategy<Route> {
-    val listDetail = rememberListDetailSceneStrategy<Route>()
+    // Back pops one page: the default pops until the panes change shape, and a grid with its placeholder has the same
+    // shape as a grid with a title, so Back would leave the grid too.
+    val listDetail = rememberListDetailSceneStrategy<Route>(
+        backNavigationBehavior = BackNavigationBehavior.PopUntilContentChange,
+    )
     return remember(tv, listDetail) {
         SceneStrategy { entries ->
             // The pages on top that have a pane; with no grid among them, the page fills the window.

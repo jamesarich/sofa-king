@@ -60,10 +60,23 @@ private class MusicParents(records: List<LibraryItemRecord>) {
             ArtSource.Frame(Path.of(library.path), track.path!!, 0, "${track.size}-${track.modifiedAt}")
         }
 
+    /** An artist's picture from its lookup: fanart.tv's, else Wikipedia's. */
+    private fun looked(record: LibraryItemRecord, facts: MetadataFacts?): ArtSource? =
+        facts?.takeIf { record.kind == ItemKind.ARTIST }?.let {
+            it.fanart?.let(ArtSource::Fanart) ?: it.picture?.let(ArtSource::Commons)
+        }
+
+    /** An album's cover from its lookup: the Cover Art Archive's, else fanart.tv's. */
+    private fun cover(record: LibraryItemRecord, facts: MetadataFacts?): ArtSource? =
+        facts?.takeIf { record.kind == ItemKind.ALBUM }?.let {
+            it.musicBrainzId?.takeIf { _ -> it.coverArt }?.let(ArtSource::CoverArt) ?: it.fanart?.let(ArtSource::Fanart)
+        }
+
     /**
      * [view] of [library] with its album and artist, and their pictures: an album without a cover shows the picture in
-     * its first track that has one, else the Cover Art Archive's cover its [facts] found, a track its album's, an
-     * artist without its own the Wikipedia picture its [facts] found, else its newest album's.
+     * its first track that has one, else the Cover Art Archive's cover its [facts] found, else fanart.tv's, a track its
+     * album's, an artist without its own fanart.tv's picture, else the Wikipedia one its [facts] found, else its newest
+     * album's, and fanart.tv's backdrop when it has none of its own.
      */
     fun view(view: View, library: LibraryRecord, views: Map<String, View>, facts: MetadataFacts?): View {
         val record = view.record
@@ -73,7 +86,7 @@ private class MusicParents(records: List<LibraryItemRecord>) {
             else -> null
         }
         val artist = album?.parentId?.let(byId::get)
-        val own = view.poster ?: facts?.picture?.takeIf { record.kind == ItemKind.ARTIST }?.let(ArtSource::Commons)
+        val own = view.poster ?: looked(record, facts)
         // A borrowed picture is served from the item it belongs to, so every item showing it shares one image.
         val borrowedFrom = when {
             own != null -> null
@@ -86,14 +99,15 @@ private class MusicParents(records: List<LibraryItemRecord>) {
             else -> null
         }
         val poster = own ?: borrowedFrom?.let { views[it.id]?.poster } ?: embedded(record, library)
-            ?: facts?.musicBrainzId?.takeIf {
-                facts.coverArt && record.kind == ItemKind.ALBUM
-            }?.let(ArtSource::CoverArt)
+            ?: cover(record, facts)
+        val backdrop = view.backdrop
+            ?: facts?.fanartBackdrop?.takeIf { record.kind == ItemKind.ARTIST }?.let(ArtSource::Fanart)
         val owner = borrowedFrom?.takeIf { views[it.id]?.poster != null } ?: record
         return View(
             record,
             view.item.copy(
                 poster = poster?.let { artworkUrl(owner.id, "poster", it) },
+                backdrop = backdrop?.let { artworkUrl(record.id, "backdrop", it) } ?: view.item.backdrop,
                 artistId = artist?.id,
                 artist = artist?.title,
                 trackArtist = record.details?.artist.takeIf { record.kind == ItemKind.TRACK },
@@ -106,7 +120,7 @@ private class MusicParents(records: List<LibraryItemRecord>) {
             view.cast,
             view.directors,
             poster,
-            view.backdrop,
+            backdrop,
         )
     }
 }

@@ -26,6 +26,7 @@ internal class LibraryPages(private val portal: Portal) {
         route.get("/library") { call.html(libraryPage(chrome(), libraryView())) }
         route.action("/library") { session, form -> add(call, session, form) }
         route.action("/library/tmdb") { session, form -> tmdb(call, session, form) }
+        route.action("/library/fanart") { session, form -> fanart(call, session, form) }
         route.action("/library/{id}/scan") { session, _ ->
             val id = call.parameters["id"]!!
             val library = runtime.store.library(id)
@@ -97,6 +98,22 @@ internal class LibraryPages(private val portal: Portal) {
         }
     }
 
+    private suspend fun fanart(call: ApplicationCall, session: AdminSession, form: Parameters) {
+        val setup = runtime.setup ?: return seeOther(call, "/admin/library#fanart")
+        try {
+            setup.saveFanartKey(form["key"].orEmpty())
+            call.html(
+                restartingPage(
+                    portal.theme(call),
+                    "Saved the fanart.tv key to ${setup.secretsPath}. Music libraries scan again once the server " +
+                        "is back and fill in artists' pictures and backdrops.",
+                ),
+            )
+        } catch (e: ApiFailure) {
+            call.html(libraryPage(portal.chrome(call, session), libraryView(fanartError = e.message)), e.status)
+        }
+    }
+
     private suspend fun remove(call: ApplicationCall, session: AdminSession, form: Parameters) {
         val id = call.parameters["id"]!!
         val library = runtime.store.library(id)
@@ -122,6 +139,7 @@ internal class LibraryPages(private val portal: Portal) {
         proposed: Map<String, String>? = null,
         removing: LibraryRecord? = null,
         tmdbError: String? = null,
+        fanartError: String? = null,
     ): LibraryView {
         val service = libraries()
         return LibraryView(
@@ -131,6 +149,8 @@ internal class LibraryPages(private val portal: Portal) {
             runtime.jobs.snapshot().any { it.id == LIBRARY_SCAN_JOB && it.running }, errors, proposed, removing,
             service.metadata?.enabled == true,
             tmdbSettable = runtime.setup?.tmdbFromEnvironment == false, tmdbError = tmdbError,
+            fanart = portal.config?.fanartKey != null,
+            fanartSettable = runtime.setup?.fanartFromEnvironment == false, fanartError = fanartError,
             suggestions = service.folders.suggestions(),
         )
     }

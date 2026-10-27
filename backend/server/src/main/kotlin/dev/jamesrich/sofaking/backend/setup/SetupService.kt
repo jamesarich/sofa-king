@@ -18,6 +18,7 @@ import dev.jamesrich.sofaking.backend.catalog.sourceBytes
 import dev.jamesrich.sofaking.backend.catalog.validatePolicy
 import dev.jamesrich.sofaking.backend.catalog.validateSources
 import dev.jamesrich.sofaking.backend.io.atomicWrite
+import dev.jamesrich.sofaking.backend.library.FanartFailure
 import dev.jamesrich.sofaking.backend.library.TmdbConfig
 import dev.jamesrich.sofaking.backend.library.TmdbFailure
 import io.ktor.http.HttpStatusCode
@@ -56,6 +57,8 @@ class SetupService(
      * [dev.jamesrich.sofaking.backend.library.TmdbClient] check.
      */
     private val checkTmdb: suspend (TmdbConfig) -> Unit = {},
+    /** Asks fanart.tv whether it takes a key, failing with [FanartFailure]; the runtime passes a client's check. */
+    private val checkFanart: suspend (String) -> Unit = {},
 ) {
     private val log = LoggerFactory.getLogger(SetupService::class.java)
     private val mutex = Mutex()
@@ -78,6 +81,11 @@ class SetupService(
 
     /** Whether the environment sets the TMDB token, which then cannot be saved from here. */
     val tmdbFromEnvironment: Boolean = config.secretOrigins["SOFA_TMDB_TOKEN"].let {
+        it == SecretOrigin.ENVIRONMENT || it == SecretOrigin.FILE
+    }
+
+    /** Whether the environment sets the fanart.tv key, which then cannot be saved from here. */
+    val fanartFromEnvironment: Boolean = config.secretOrigins["SOFA_FANART_KEY"].let {
         it == SecretOrigin.ENVIRONMENT || it == SecretOrigin.FILE
     }
 
@@ -196,17 +204,54 @@ class SetupService(
                 cause = e,
             )
         }
-        try {
-            withContext(Dispatchers.IO) { SecretsFile(secretsPath).store(SecretsFile.TMDB_TOKEN, trimmed) }
-        } catch (e: IllegalArgumentException) {
+        storeSecret(secretsPath, SecretsFile.TMDB_TOKEN, trimmed)
+        log.info("setup: saved the TMDB token in {}", secretsPath)
+        requestRestart()
+        SetupResult(secretsPath.toString(), true)
+    }
+
+    /**
+     * Checks [key] with fanart.tv, stores it in [secretsPath] and restarts, so Music libraries take artists' pictures
+     * and backdrops from fanart.tv. Fails with 400 INVALID_REQUEST when it cannot be a key, 400 FANART_REJECTED when
+     * fanart.tv refuses it, 502 FANART_UNREACHABLE when fanart.tv cannot be asked and 409 FANART_FROM_ENVIRONMENT
+     * when the environment sets it; nothing is written then. The key never reaches a log or an error message.
+     */
+    suspend fun saveFanartKey(key: String): SetupResult = mutex.withLock {
+        if (fanartFromEnvironment) {
             throw ApiFailure(
-                HttpStatusCode.InternalServerError,
-                "SECRETS_UNWRITABLE",
-                e.message ?: "$secretsPath cannot be written",
+                HttpStatusCode.Conflict,
+                "FANART_FROM_ENVIRONMENT",
+                "SOFA_FANART_KEY is set in the environment; change it there",
+            )
+        }
+        val trimmed = key.trim()
+        if (trimmed.length < ServerConfig.TOKEN_MIN_LENGTH || trimmed.any { it <= ' ' || it == '\u007f' }) {
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                "A fanart.tv API key has 32 characters and no spaces",
+            )
+        }
+        try {
+            checkFanart(trimmed)
+        } catch (e: FanartFailure) {
+            if (e.code == "FANART_AUTH") {
+                throw ApiFailure(
+                    HttpStatusCode.BadRequest,
+                    "FANART_REJECTED",
+                    "fanart.tv did not accept the key",
+                    cause = e,
+                )
+            }
+            throw ApiFailure(
+                HttpStatusCode.BadGateway,
+                "FANART_UNREACHABLE",
+                "fanart.tv could not be asked (${e.code}); try again",
                 cause = e,
             )
         }
-        log.info("setup: saved the TMDB token in {}", secretsPath)
+        storeSecret(secretsPath, SecretsFile.FANART_KEY, trimmed)
+        log.info("setup: saved the fanart.tv key in {}", secretsPath)
         requestRestart()
         SetupResult(secretsPath.toString(), true)
     }
@@ -319,4 +364,18 @@ object StarterPolicy {
     @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
     fun bytes(policy: LineupPolicy): ByteArray =
         (json.encodeToString(LineupPolicy.serializer(), policy) + "\n").toByteArray()
+}
+
+/** Stores [value] as [name] in the secrets file at [path], failing with 500 SECRETS_UNWRITABLE when it cannot. */
+private suspend fun storeSecret(path: Path, name: String, value: String) {
+    try {
+        withContext(Dispatchers.IO) { SecretsFile(path).store(name, value) }
+    } catch (e: IllegalArgumentException) {
+        throw ApiFailure(
+            HttpStatusCode.InternalServerError,
+            "SECRETS_UNWRITABLE",
+            e.message ?: "$path cannot be written",
+            cause = e,
+        )
+    }
 }

@@ -21,6 +21,7 @@ import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.HdhrAccess
 import dev.jamesrich.sofaking.backend.http.hdhrDeviceId
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.library.FanartClient
 import dev.jamesrich.sofaking.backend.library.FfmpegFingerprinter
 import dev.jamesrich.sofaking.backend.library.FfmpegSheetMaker
 import dev.jamesrich.sofaking.backend.library.IntroDetector
@@ -206,7 +207,7 @@ internal class RuntimeAssembly(
             TsRemux(config.ffmpeg, loopback, config.qualityFloors),
             logos, http,
             scope, policy, plex, started, jobs, settings, worker, PairingService(clock), updates,
-            SetupService(config, options.restart, checkTmdb = { TmdbClient(http, it).check() }),
+            setupService(config, options.restart, http),
             libraries, vod, dvr, loopback,
             HdhrAccess(config.hdhr.allow, ServerConfig.isLoopback(config.host), store, clock).also { it.load() },
             listener,
@@ -378,7 +379,16 @@ internal class RuntimeAssembly(
         metadata = config.tmdb?.let { LibraryMetadata(store, TmdbClient(http, it), clock, it.region) },
         musicMetadata = MusicBrainzClient(http, config.version)
             .takeIf { config.musicBrainz }
-            ?.let { MusicMetadata(store, it, clock) },
+            ?.let {
+                MusicMetadata(
+                    store,
+                    it,
+                    clock,
+                    config.fanartKey?.let { key ->
+                        FanartClient(http, key, config.version)
+                    },
+                )
+            },
         artwork = LibraryArtwork(
             http,
             config.dataDirectory.resolve("artwork"),
@@ -467,3 +477,11 @@ private fun databaseBackups(
     store: BackendStore,
     scope: CoroutineScope,
 ) = DatabaseBackups(config.dataDirectory, clock, jobs, restart, store::schemaVersion).also { it.start(scope) }
+
+/** Setup from the portal, which asks TMDB and fanart.tv over [http] whether they take a token before saving it. */
+private fun setupService(config: ServerConfig, restart: () -> Unit, http: HttpClient) = SetupService(
+    config,
+    restart,
+    checkTmdb = { TmdbClient(http, it).check() },
+    checkFanart = { FanartClient(http, it, config.version).check() },
+)

@@ -151,6 +151,8 @@ data class ServerConfig(
     val qualityFloors: Boolean = false,
     /** `SOFA_MUSICBRAINZ`: look Music libraries' albums and artists up on MusicBrainz after scans; on by default. */
     val musicBrainz: Boolean = true,
+    /** `SOFA_FANART_KEY`: a fanart.tv API key, for artists' pictures and backdrops and more album covers. */
+    val fanartKey: String? = null,
 ) {
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
@@ -212,12 +214,15 @@ data class ServerConfig(
             val (tokens, secretsFile) =
                 if (isLoopback(base.host)) emptyMap<String, String>() to null else storedTokens(base, allOrigins, log)
             val tmdb = base.tmdb ?: savedTmdb(resolved, base.dataDirectory, allOrigins, log)
+            val fanartKey = EnvironmentReader(resolved).token("SOFA_FANART_KEY")
+                ?: savedFanartKey(base.dataDirectory, allOrigins, log)
             return base.copy(
                 sourcesFile = sources,
                 policyFile = policy,
                 apiToken = tokens["apiToken"] ?: base.apiToken,
                 adminToken = tokens["adminToken"] ?: base.adminToken,
                 tmdb = tmdb,
+                fanartKey = fanartKey,
                 outputs = base.outputs.copy(token = tokens["outputToken"] ?: base.outputs.token),
                 secretOrigins = allOrigins,
                 secretsFile = secretsFile,

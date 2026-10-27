@@ -344,6 +344,32 @@ class SetupServiceTest {
             }
         }
 
+    @Test fun `a fanart tv key it takes is stored and read on the next start, and one it refuses is not`() = runTest {
+        val dir = Files.createTempDirectory("sofa-setup-fanart-")
+        try {
+            var restarts = 0
+            val good = "f".repeat(32)
+            val setup = SetupService(config(dir), restart = { restarts++ }, checkFanart = { key ->
+                if (key != good) throw dev.jamesrich.sofaking.backend.library.FanartFailure("FANART_AUTH")
+            })
+            assertEquals("INVALID_REQUEST", assertFailsWith<ApiFailure> { setup.saveFanartKey("short") }.code)
+            assertEquals("FANART_REJECTED", assertFailsWith<ApiFailure> { setup.saveFanartKey("u".repeat(32)) }.code)
+            assertFalse(Files.exists(dir.resolve("secrets.json")))
+            setup.saveFanartKey(" $good\n")
+            assertEquals(1, restarts)
+            val loaded = ServerConfig.load(mapOf("SOFA_DATA_DIR" to dir.toString()), {})
+            assertEquals(good, loaded.fanartKey)
+            assertEquals(dev.jamesrich.sofaking.backend.SecretOrigin.SAVED, loaded.secretOrigins["SOFA_FANART_KEY"])
+            val fromEnvironment =
+                ServerConfig.load(mapOf("SOFA_DATA_DIR" to dir.toString(), "SOFA_FANART_KEY" to "e".repeat(32)), {})
+            assertEquals("e".repeat(32), fromEnvironment.fanartKey, "the environment wins")
+            val locked = SetupService(fromEnvironment, restart = {})
+            assertEquals("FANART_FROM_ENVIRONMENT", assertFailsWith<ApiFailure> { locked.saveFanartKey(good) }.code)
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
     @Test fun `TMDB that cannot be asked is a retryable failure, not a refusal`() = runTest {
         val dir = Files.createTempDirectory("sofa-setup-tmdb-down-")
         try {

@@ -26,8 +26,11 @@ class MusicMetadataTest {
         val items: List<LibraryItemRecord>,
         val note: String?,
         val posters: Map<String, ArtSource?>,
+        val backdrops: Map<String, ArtSource?> = emptyMap(),
     ) {
         fun poster(title: String): ArtSource? = posters[items.single { it.title == title }.id]
+
+        fun backdrop(title: String): ArtSource? = backdrops[items.single { it.title == title }.id]
 
         fun facts(title: String): MetadataFacts? = runBlocking {
             val item = items.single { it.title == title }
@@ -56,8 +59,16 @@ class MusicMetadataTest {
             val url = request.url
             val path = when (url.host) {
                 "coverartarchive.org" -> "caa:" + url.encodedPath
+
                 "www.wikidata.org" -> "wd:" + url.parameters["ids"]
+
                 "en.wikipedia.org" -> "wp:" + url.encodedPath.removePrefix("/api/rest_v1/page/summary/")
+
+                "webservice.fanart.tv" -> "fa:" + url.encodedPath.removePrefix("/v3/music/").also {
+                    assertEquals(FANART_KEY, request.headers["api-key"])
+                    assertTrue(FANART_KEY !in url.toString())
+                }
+
                 else -> url.encodedPath.removePrefix("/ws/2").also { assertEquals("json", url.parameters["fmt"]) }
             }
             calls += path + (url.parameters["query"]?.let { "?$it" } ?: "")
@@ -87,6 +98,8 @@ class MusicMetadataTest {
         refresh: Boolean = false,
         restart: Boolean = false,
         beforeRefresh: () -> Unit = {},
+        fanart: Boolean = false,
+        fanartAfterRestart: Boolean = fanart,
     ): Scanned = runBlocking {
         val dir = Files.createTempDirectory("sofa-music-")
         val music = Files.createDirectories(dir.resolve("media/Music"))
@@ -104,7 +117,7 @@ class MusicMetadataTest {
                 tags = tags[music.relativize(file).joinToString("/")],
             )
         })
-        fun service() = LibraryService(
+        fun service(fanart: Boolean) = LibraryService(
             store,
             clock,
             listOf(MediaRoot("Media", dir.resolve("media"))),
@@ -115,9 +128,10 @@ class MusicMetadataTest {
                 store,
                 MusicBrainzClient(http, "test", pause = Duration.ZERO, backoff = Duration.ZERO),
                 clock,
+                FanartClient(http, FANART_KEY, "test").takeIf { fanart },
             ),
         )
-        var service = service()
+        var service = service(fanart)
         val library = service.create("Music", LibraryKind.MUSIC, music.toString())
         service.scan(library.id)
         service.scan(library.id)
@@ -129,12 +143,20 @@ class MusicMetadataTest {
             service.scan(library.id)
         }
         if (restart) {
-            service = service()
+            service = service(fanartAfterRestart)
             service.scan(library.id)
         }
         val note = service.library(library.id).scanNote
-        val posters = service.catalog.snapshot().views.mapValues { it.value.poster }
-        Scanned(store, store.libraryItems(library.id), note, posters)
+        val views = service.catalog.snapshot().views
+        Scanned(
+            store,
+            store.libraryItems(library.id),
+            note,
+            views.mapValues { it.value.poster },
+            views.mapValues {
+                it.value.backdrop
+            },
+        )
     }
 
     @Test fun `an album pinned by its release group id is fetched, and its artist by the album's credit`() {
@@ -330,6 +352,52 @@ class MusicMetadataTest {
         assertEquals("Band! live.jpg", s.facts("Band")?.picture)
     }
 
+    /** MusicBrainz, Wikipedia and fanart.tv answers for one album, Record, by one artist, Band. */
+    private fun fanartRoutes(): Map<String, String> {
+        val assets = "assets.fanart.tv/fanart/music/$ARTIST"
+        return mapOf(
+            "/release-group/$GROUP" to
+                """{"id":"$GROUP","title":"Record","artist-credit":[{"name":"Band","artist":{"id":"$ARTIST"}}]}""",
+            "/artist/$ARTIST" to """{"id":"$ARTIST","name":"Band",""" +
+                """"relations":[{"type":"wikidata","url":{"resource":"https://www.wikidata.org/wiki/Q42"}}]}""",
+            "wd:Q42" to """{"entities":{"Q42":{"sitelinks":{"enwiki":{"site":"enwiki","title":"Band"}}}}}""",
+            "wp:Band" to """{"type":"standard","originalimage":""" +
+                """{"source":"https://upload.wikimedia.org/wikipedia/commons/a/ab/Band.jpg"}}""",
+            "fa:$ARTIST" to """{"name":"Band","artistthumb":[
+                {"url":"https://$assets/artistthumb/band-1.jpg","likes":"1"},
+                {"url":"http://$assets/artistthumb/band-2.jpg","likes":"4"},
+                {"url":"https://elsewhere.example/band.jpg","likes":"99"}],
+                "artistbackground":[{"url":"https://$assets/artistbackground/band-3.jpg","likes":"0"}],
+                "albums":{"$GROUP":{"albumcover":[{"url":"https://$assets/albumcover/record-4.jpg","likes":"2"}]}}}""",
+        )
+    }
+
+    private val pinned = mapOf(
+        "Band/Record/01.flac" to AudioTags("One", "Band", album = "Record", track = 1, releaseGroupId = GROUP),
+    )
+
+    @Test fun `fanart tv gives an artist its picture and backdrop, and an album with no cover its cover`() {
+        val calls = mutableListOf<String>()
+        val s = scan(musicBrainz(calls, fanartRoutes()), pinned, fanart = true)
+        val art = "music/$ARTIST"
+        // The most liked of the pictures fanart.tv serves itself wins over Wikipedia's, which is kept.
+        assertEquals(ArtSource.Fanart("$art/artistthumb/band-2.jpg"), s.poster("Band"))
+        assertEquals("Band.jpg", s.facts("Band")?.picture)
+        assertEquals(ArtSource.Fanart("$art/artistbackground/band-3.jpg"), s.backdrop("Band"))
+        // The Cover Art Archive has no cover for the album, so it takes fanart.tv's.
+        assertEquals(ArtSource.Fanart("$art/albumcover/record-4.jpg"), s.poster("Record"))
+        assertEquals(1, calls.count { it == "fa:$ARTIST" }, calls.toString())
+    }
+
+    @Test fun `a fanart tv key added later looks fresh artists up again, once`() {
+        val calls = mutableListOf<String>()
+        val s = scan(musicBrainz(calls, fanartRoutes()), pinned, restart = true, fanartAfterRestart = true)
+        assertEquals(2, calls.count { it == "/artist/$ARTIST" }, calls.toString())
+        assertEquals(1, calls.count { it == "fa:$ARTIST" }, calls.toString())
+        assertEquals(ArtSource.Fanart("music/$ARTIST/artistthumb/band-2.jpg"), s.poster("Band"))
+        assertEquals(ArtSource.Fanart("music/$ARTIST/albumcover/record-4.jpg"), s.poster("Record"))
+    }
+
     @Test fun `a refresh a restart cuts short carries on after it`() {
         val calls = mutableListOf<String>()
         val throttled = mutableMapOf<String, Int>()
@@ -441,6 +509,7 @@ class MusicMetadataTest {
         const val IMAGE = "https://archive.test/cover-500.jpg"
         const val OTHER = "abcdefab-cdef-abcd-efab-cdefabcdefab"
         const val GROUP = "11111111-2222-3333-4444-555555555555"
+        const val FANART_KEY = "fanart-key-0123456789abcdef01234"
         const val ARTIST = "66666666-7777-8888-9999-000000000000"
     }
 }

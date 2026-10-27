@@ -68,6 +68,7 @@ private class EffectiveSettings(private val config: ServerConfig) {
                 ),
                 secret("SOFA_PLEX_TOKEN", config.plex?.token, "Sent to Plex only"),
                 secret("SOFA_TMDB_TOKEN", config.tmdb?.token, "Sent to TMDB only, for library details and artwork"),
+                secret("SOFA_FANART_KEY", config.fanartKey, "Sent to fanart.tv only, for music artwork"),
             ),
         )
     }

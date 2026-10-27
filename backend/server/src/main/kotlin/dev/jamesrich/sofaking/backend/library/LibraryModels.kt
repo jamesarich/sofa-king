@@ -189,6 +189,12 @@ data class MetadataFacts(
      * MusicBrainz names) and a band's members ([cast]), so a lookup made before they were kept is made again.
      */
     val described: Boolean = false,
+    /** For an artist, the MusicBrainz ids of the artists ListenBrainz's listeners play alongside them, most first. */
+    val similar: List<String> = emptyList(),
+    /** For an artist, the songs ListenBrainz's listeners play most, most played first. */
+    val popular: List<PopularSong> = emptyList(),
+    /** For an artist, whether ListenBrainz was asked, so an artist looked up before it was is asked once more. */
+    val listened: Boolean = false,
 )
 
 /** One item's stored TMDB lookup, or MusicBrainz lookup for music. */

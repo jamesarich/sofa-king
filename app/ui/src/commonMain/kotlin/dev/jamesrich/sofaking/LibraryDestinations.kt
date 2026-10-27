@@ -172,8 +172,10 @@ internal fun LibraryItemDestination(
         selectedSeasonId = seasonId,
         actions = ItemDetailsActions(
             onPlay = { item, fromStart ->
-                // A song picked on its album's page plays on through the album.
-                val album = ready?.takeIf { it.item.kind == ItemKind.ALBUM }?.children ?: listOf(item)
+                // A song picked on its album's page plays on through the album, and one of an artist's Popular
+                // songs on through those.
+                val album = ready?.takeIf { it.item.kind == ItemKind.ALBUM }?.children
+                    ?: ready?.popular?.takeIf { songs -> songs.any { it.id == item.id } } ?: listOf(item)
                 shell.playItem(music, item, fromStart, album)
             },
             onSetWatched = libraryVm::setWatched,

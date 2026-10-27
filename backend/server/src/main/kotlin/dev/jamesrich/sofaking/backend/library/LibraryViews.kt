@@ -29,7 +29,7 @@ internal suspend fun buildSnapshot(store: BackendStore, revision: Long): Snapsho
     }
     val facts = store.libraryMetadata(records.map { it.second.id })
     val shows = showsOf(records.map { it.second })
-    val music = MusicParents(records.map { it.second })
+    val music = MusicParents(records.map { it.second }, facts)
     val views = LinkedHashMap<String, View>()
     // Shows and albums first, so a season, an episode, a track or an artist can borrow their artwork.
     for ((library, record) in records.sortedBy { if (it.second.kind in BORROWED) 0 else 1 }) {
@@ -45,9 +45,30 @@ internal suspend fun buildSnapshot(store: BackendStore, revision: Long): Snapsho
 private val BORROWED = setOf(ItemKind.SHOW, ItemKind.ALBUM)
 
 /** Who a music library's albums and tracks belong to, and the pictures they share. */
-private class MusicParents(records: List<LibraryItemRecord>) {
+private class MusicParents(records: List<LibraryItemRecord>, facts: Map<String, MetadataRecord>) {
     private val byId = records.associateBy { it.id }
     private val albums = records.filter { it.kind == ItemKind.ALBUM }.groupBy { it.parentId }
+
+    /** Each artist matched on MusicBrainz, by the MusicBrainz id. */
+    private val artists = records.filter { it.kind == ItemKind.ARTIST }
+        .mapNotNull { artist -> facts[artist.id]?.facts?.musicBrainzId?.let { it to artist.id } }
+        .toMap()
+
+    /** Each artist's songs, by the artist's id. */
+    private val songs = records.filter { it.kind == ItemKind.TRACK }
+        .groupBy { track -> track.parentId?.let(byId::get)?.parentId }
+
+    /** [artist]'s songs ListenBrainz's listeners play most, by their recording id or else their title. */
+    private fun popular(artist: LibraryItemRecord, facts: MetadataFacts?): List<String> {
+        val popular = facts?.popular?.takeIf { artist.kind == ItemKind.ARTIST }.orEmpty()
+        if (popular.isEmpty()) return emptyList()
+        val own = songs[artist.id].orEmpty().sortedBy { it.sortTitle }
+        val byRecording = own.filter { it.details?.musicBrainzId != null }.associateBy { it.details?.musicBrainzId }
+        val byTitle = own.groupBy { musicKey(it.title) }
+        return popular.mapNotNull { song ->
+            (song.id?.let(byRecording::get) ?: byTitle[musicKey(song.title)]?.firstOrNull())?.id
+        }.distinct().take(POPULAR_SHOWN)
+    }
 
     /** The first track of each album holding a picture, by its album's id. */
     private val pictured = records.filter { it.kind == ItemKind.TRACK && it.media?.picture == true }
@@ -121,9 +142,15 @@ private class MusicParents(records: List<LibraryItemRecord>) {
             view.directors,
             poster,
             backdrop,
+            similar = facts?.similar.orEmpty().takeIf { record.kind == ItemKind.ARTIST }.orEmpty()
+                .mapNotNull(artists::get).filter { it != record.id }.distinct(),
+            popular = popular(record, facts),
         )
     }
 }
+
+/** How many of an artist's most played songs their page lists. */
+private const val POPULAR_SHOWN = 10
 
 /** The show each of [records] belongs to, by its id; a show belongs to itself. */
 private fun showsOf(records: List<LibraryItemRecord>): Map<String, LibraryItemRecord> {
@@ -166,6 +193,8 @@ private fun arranged(
             view.directors,
             view.poster,
             view.backdrop,
+            view.similar,
+            view.popular,
         )
     }
     fun List<View>.fresh() = map { counted.getValue(it.record.id) }

@@ -67,6 +67,7 @@ struct ItemDetailView: View {
                 }
                 if item.kind == .artist {
                     albums(detail.children)
+                    if !detail.popular.isEmpty { popular(detail.popular) }
                 } else if item.kind == .album {
                     songs(detail.children, album: item)
                 }
@@ -237,6 +238,22 @@ struct ItemDetailView: View {
     }
 
     /// An album's songs in disc and track order; one selected plays the album from it.
+    /// An artist's songs listeners play most, most played first; one selected plays them from it.
+    private func popular(_ songs: [MediaItem]) -> some View {
+        Section {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                ForEach(songs) { song in
+                    Button { model.playMusic(songs, from: song) } label: {
+                        SongRow(song: song, albumArtist: song.artist, showsDisc: false)
+                    }
+                    .buttonStyle(.card)
+                }
+            }
+        } header: {
+            Text("Popular").font(.title3)
+        }
+    }
+
     private func songs(_ children: [MediaItem], album: MediaItem) -> some View {
         let songs = children.filter { $0.kind == .track }
         let discs = Set(songs.compactMap { $0.disc?.intValue }).count > 1

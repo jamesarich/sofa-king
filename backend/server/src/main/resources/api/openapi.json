@@ -223,7 +223,8 @@
           "segments": { "type": "array", "items": { "$ref": "#/components/schemas/MediaSegment" }, "description": "Spans a player offers to skip, such as an episode's intro." },
           "scrub": { "oneOf": [{ "$ref": "#/components/schemas/ScrubThumbnails" }, { "type": "null" }], "description": "Thumbnails to show over the seek bar while scrubbing; null until the server has made them, or for a file under five minutes." },
           "extras": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" }, "description": "A movie's or show's trailers, featurettes and other extras, trailers first." },
-          "related": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" }, "description": "For a movie, show or video, up to 12 others in its library that share its genres, the most shared first." }
+          "related": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" }, "description": "For a movie, show, video or artist, up to 12 others in its library that share its genres, the most shared first; for an artist, the artists ListenBrainz's listeners play alongside them come first." },
+          "popular": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" }, "description": "For an artist, up to 10 of their songs that ListenBrainz's listeners play most, most played first." }
         }
       },
       "ScrubThumbnails": {

@@ -82,6 +82,10 @@ internal class View(
     val directors: List<String>,
     val poster: ArtSource?,
     val backdrop: ArtSource?,
+    /** For an artist, the ids of the artists in their library ListenBrainz's listeners play alongside them. */
+    val similar: List<String> = emptyList(),
+    /** For an artist, the ids of their songs ListenBrainz's listeners play most, most played first. */
+    val popular: List<String> = emptyList(),
 )
 
 /** Every present item of every library, built once per change to the libraries. */
@@ -304,6 +308,7 @@ class LibraryCatalog internal constructor(
             scrub = if (view.record.path != null) store.scrubOf(view.record) else null,
             extras = snapshot.extras[id].orEmpty().map { it.out(snapshot, states) },
             related = related(snapshot, view).map { it.out(snapshot, states) },
+            popular = view.popular.mapNotNull { snapshot.views[it]?.out(snapshot, states) },
         )
     }
 

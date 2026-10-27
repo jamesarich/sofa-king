@@ -29,6 +29,7 @@ import dev.jamesrich.sofaking.backend.library.LibraryArtwork
 import dev.jamesrich.sofaking.backend.library.LibraryMetadata
 import dev.jamesrich.sofaking.backend.library.LibraryScanner
 import dev.jamesrich.sofaking.backend.library.LibraryService
+import dev.jamesrich.sofaking.backend.library.ListenBrainzClient
 import dev.jamesrich.sofaking.backend.library.MediaProbe
 import dev.jamesrich.sofaking.backend.library.MediaRoot
 import dev.jamesrich.sofaking.backend.library.MusicBrainzClient
@@ -384,9 +385,8 @@ internal class RuntimeAssembly(
                     store,
                     it,
                     clock,
-                    config.fanartKey?.let { key ->
-                        FanartClient(http, key, config.version)
-                    },
+                    config.fanartKey?.let { key -> FanartClient(http, key, config.version) },
+                    ListenBrainzClient(http, config.version),
                 )
             },
         artwork = LibraryArtwork(

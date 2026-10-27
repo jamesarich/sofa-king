@@ -1,0 +1,37 @@
+# Settings > Playback > Test surround sound names each speaker in turn while its tone plays, and Stop ends it. Starts
+# anywhere (it opens channel 1 by its link and leaves the player for the guide) and ends on the guide.
+appId: dev.jamesrich.sofaking
+name: Surround sound test
+---
+- openLink: "sofaking://live/1"
+- extendedWaitUntil:
+    visible:
+      id: "player"
+    timeout: 30000
+- pressKey: Back
+- extendedWaitUntil:
+    visible:
+      id: "guide"
+    timeout: 15000
+- tapOn: "Settings"
+- tapOn: "Playback"
+- scrollUntilVisible:
+    element: "Test surround sound"
+- tapOn: "Play"
+- extendedWaitUntil:
+    visible: "Front left"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Center"
+    timeout: 5000
+- tapOn: "Stop"
+- extendedWaitUntil:
+    visible: "Play"
+    timeout: 5000
+- assertNotVisible: "Center"
+- pressKey: Back
+- pressKey: Back
+- extendedWaitUntil:
+    visible:
+      id: "guide"
+    timeout: 15000

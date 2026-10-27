@@ -222,11 +222,14 @@ class MusicMetadata internal constructor(
 private val WIKIDATA_ID = Regex("Q[0-9]{1,12}")
 
 /**
- * An image of Wikimedia Commons, as Wikipedia links it, with any query Wikipedia adds (`?utm_source=…`); other
- * pictures may not be free to show.
+ * An image of Wikimedia Commons, as Wikipedia links it: the file itself, or for a large one a thumbnail of it
+ * (`thumb.wikimedia.org/…/commons/thumb/a/ab/File.jpg/3840px-File.jpg`), with any query Wikipedia adds
+ * (`?utm_source=…`); other pictures may not be free to show.
  */
-private val COMMONS_IMAGE =
-    Regex("""https://upload\.wikimedia\.org/wikipedia/commons/[0-9a-f]/[0-9a-f]{2}/([^/?#]+)(?:[?#].*)?""")
+private val COMMONS_IMAGE = Regex(
+    """https://(?:upload|thumb)\.wikimedia\.org/wikipedia/commons/(?:thumb/)?[0-9a-f]/[0-9a-f]{2}/([^/?#]+)""" +
+        """(?:/[^/?#]+)?(?:[?#].*)?""",
+)
 
 /** The Commons file name of the image at [url], spaced as Commons names it; null for one Commons does not hold. */
 private fun commonsFile(url: String): String? = COMMONS_IMAGE.matchEntire(url)?.groupValues?.get(1)

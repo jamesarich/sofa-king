@@ -310,6 +310,26 @@ class MusicMetadataTest {
         assertTrue(s.looked("Record"))
     }
 
+    @Test fun `an artist takes the Commons file a large picture's thumbnail names`() {
+        val thumb = "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Band%21_live.jpg/3840px-Band%21_live.jpg"
+        val http = musicBrainz(
+            mutableListOf(),
+            mapOf(
+                "/release-group" to """{"release-groups":[]}""",
+                "/artist" to
+                    """{"artists":[{"id":"$ARTIST","name":"Band","score":100}]}""",
+                "/artist/$ARTIST" to
+                    """{"id":"$ARTIST","name":"Band",
+                    "relations":[{"type":"wikidata","url":{"resource":"https://www.wikidata.org/wiki/Q42"}}]}""",
+                "wd:Q42" to """{"entities":{"Q42":{"sitelinks":{"enwiki":{"site":"enwiki","title":"Band"}}}}}""",
+                "wp:Band" to """{"type":"standard","extract":"Band is a band.","originalimage":""" +
+                    """{"source":"$thumb?utm_source=en.wikipedia.org&utm_campaign=api"}}""",
+            ),
+        )
+        val s = scan(http, mapOf("Band/Record/01.flac" to AudioTags("One", "Band", album = "Record", track = 1)))
+        assertEquals("Band! live.jpg", s.facts("Band")?.picture)
+    }
+
     @Test fun `a refresh a restart cuts short carries on after it`() {
         val calls = mutableListOf<String>()
         val throttled = mutableMapOf<String, Int>()

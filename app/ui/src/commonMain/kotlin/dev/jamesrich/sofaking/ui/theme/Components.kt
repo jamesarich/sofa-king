@@ -11,9 +11,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +39,7 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
@@ -45,13 +48,16 @@ import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import dev.jamesrich.sofaking.ui.LastInput
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.rememberIsTelevision
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 /** How much a focused control grows, as TV focus does; a guide cell passes 1 so it never covers its neighbors. */
 const val TV_FOCUS_SCALE = 1.1f
@@ -168,6 +174,38 @@ private class TvFocusNode(
 private const val CURSOR_MOVE_WINDOW_MS = 250L
 
 /**
+ * A Material control with the [tvFocus] cue, its ring hugging the shape the control draws. A Material button, chip or
+ * icon button pads itself out to the 48dp minimum touch target inside its own modifier, so a ring outside it would
+ * trace the padding, a few dp off the control. This pads to the same minimum outside the cue instead, centering the
+ * control as Material does, and [control] lays out without its own.
+ */
+@Composable
+fun TvFocusControl(
+    shape: Shape,
+    modifier: Modifier = Modifier,
+    focusedScale: Float = TV_FOCUS_SCALE,
+    control: @Composable (Modifier) -> Unit,
+) {
+    val minimum = LocalMinimumInteractiveComponentSize.current
+    val ringed = modifier
+        .layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            val least = if (minimum.isSpecified) minimum.roundToPx() else 0
+            val width = maxOf(placeable.width, least)
+            val height = maxOf(placeable.height, least)
+            layout(width, height) {
+                // Rounded as Material centers it, so the control lands on the same pixel.
+                placeable.place(
+                    ((width - placeable.width) / 2f).roundToInt(),
+                    ((height - placeable.height) / 2f).roundToInt(),
+                )
+            }
+        }
+        .tvFocus(shape, focusedScale)
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) { control(ringed) }
+}
+
+/**
  * A Material 3 button with the D-pad focus cue; every action button in the app is one. It follows Material's button
  * hierarchy: the screen's [main] action (Play, Watch, Unlock) rests filled in the primary color, as Material's common
  * button is, and the others rest in Material's tonal colors. The focused button turns white, as androidx.tv.material3's
@@ -188,29 +226,29 @@ fun SofaButton(
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
     val scheme = MaterialTheme.colorScheme
-    Button(
-        onClick = { if (enabled) onClick() },
-        modifier = modifier
-            .tvFocus(ButtonDefaults.shape)
-            .semantics { if (!enabled) disabled() },
-        enabled = enabled || focused,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = when {
-                !enabled -> scheme.onSurface.copy(alpha = DISABLED_CONTAINER_ALPHA)
-                focused -> scheme.onSurface
-                main -> scheme.primary
-                else -> scheme.secondaryContainer
-            },
-            contentColor = when {
-                !enabled -> scheme.onSurface.copy(alpha = DISABLED_CONTENT_ALPHA)
-                focused -> scheme.inverseOnSurface
-                main -> scheme.onPrimary
-                else -> scheme.onSecondaryContainer
-            },
-        ),
-        interactionSource = interactions,
-        content = content,
-    )
+    TvFocusControl(ButtonDefaults.shape, modifier) { ringed ->
+        Button(
+            onClick = { if (enabled) onClick() },
+            modifier = ringed.semantics { if (!enabled) disabled() },
+            enabled = enabled || focused,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = when {
+                    !enabled -> scheme.onSurface.copy(alpha = DISABLED_CONTAINER_ALPHA)
+                    focused -> scheme.onSurface
+                    main -> scheme.primary
+                    else -> scheme.secondaryContainer
+                },
+                contentColor = when {
+                    !enabled -> scheme.onSurface.copy(alpha = DISABLED_CONTENT_ALPHA)
+                    focused -> scheme.inverseOnSurface
+                    main -> scheme.onPrimary
+                    else -> scheme.onSecondaryContainer
+                },
+            ),
+            interactionSource = interactions,
+            content = content,
+        )
+    }
 }
 
 // Material 3's disabled button colors, which a button kept focusable while disabled draws itself.
@@ -222,12 +260,14 @@ private const val DISABLED_CONTENT_ALPHA = 0.38f
  */
 @Composable
 internal fun SofaChip(selected: Boolean, onClick: () -> Unit, label: String, modifier: Modifier = Modifier) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label, style = MaterialTheme.typography.labelLarge) },
-        modifier = modifier.tvFocus(FilterChipDefaults.shape),
-    )
+    TvFocusControl(FilterChipDefaults.shape, modifier) { ringed ->
+        FilterChip(
+            selected = selected,
+            onClick = onClick,
+            label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+            modifier = ringed,
+        )
+    }
 }
 
 /**
@@ -236,9 +276,11 @@ internal fun SofaChip(selected: Boolean, onClick: () -> Unit, label: String, mod
  */
 @Composable
 internal fun SofaActionChip(onClick: () -> Unit, label: String, modifier: Modifier = Modifier) {
-    AssistChip(
-        onClick = onClick,
-        label = { Text(label, style = MaterialTheme.typography.labelLarge) },
-        modifier = modifier.tvFocus(AssistChipDefaults.shape),
-    )
+    TvFocusControl(AssistChipDefaults.shape, modifier) { ringed ->
+        AssistChip(
+            onClick = onClick,
+            label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+            modifier = ringed,
+        )
+    }
 }

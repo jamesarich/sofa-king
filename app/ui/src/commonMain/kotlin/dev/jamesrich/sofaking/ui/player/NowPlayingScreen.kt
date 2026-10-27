@@ -65,7 +65,7 @@ import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
-import dev.jamesrich.sofaking.ui.theme.tvFocus
+import dev.jamesrich.sofaking.ui.theme.TvFocusControl
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import kotlin.random.Random
@@ -245,12 +245,14 @@ private fun MusicButtons(music: MusicPlayback) {
 /** A button that is on or off, tinted while on; [state] says which to a screen reader. */
 @Composable
 private fun Toggle(icon: ImageVector, label: String, state: String, on: Boolean, onClick: () -> Unit) {
-    IconToggleButton(
-        checked = on,
-        onCheckedChange = { onClick() },
-        modifier = Modifier.tvFocus(IconButtonDefaults.standardShape).semantics { stateDescription = state },
-    ) {
-        Icon(icon, contentDescription = label)
+    TvFocusControl(IconButtonDefaults.standardShape) { ringed ->
+        IconToggleButton(
+            checked = on,
+            onCheckedChange = { onClick() },
+            modifier = ringed.semantics { stateDescription = state },
+        ) {
+            Icon(icon, contentDescription = label)
+        }
     }
 }
 

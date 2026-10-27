@@ -72,6 +72,10 @@ struct GuideGrid: View {
     @Binding var arrival: String?
     let play: (Channel) -> Void
     let details: (Channel, Program?) -> Void
+    /// Where focus rests: a cell's channel and program, or nil and nil once it leaves the grid.
+    var onFocus: (Channel?, Program?) -> Void = { _, _ in }
+    /// Any arrow press in the grid, whether or not focus moved.
+    var onKey: () -> Void = {}
     @State private var windowStart = GuideWindow.start(at: .now)
     @State private var now = Date()
     @FocusState private var focus: GuideFocus?
@@ -99,6 +103,7 @@ struct GuideGrid: View {
                         }
                         .padding(.vertical, 12)
                     }
+                    .onMoveCommand { _ in onKey() }
                     .onChange(of: arrival, initial: true) { _, wanted in
                         guard let wanted else { return }
                         arrive(at: wanted, proxy: proxy)
@@ -107,6 +112,17 @@ struct GuideGrid: View {
             }
         }
         .onChange(of: focus) { old, new in
+            switch new {
+            case let .cell(guideId, startMs)?:
+                let channel = channels.first { $0.guideId == guideId }
+                onFocus(channel, channel.flatMap { segments($0, from: windowStart).first { $0.startMs == startMs }?.program })
+                return
+            case nil:
+                onFocus(nil, nil)
+                return
+            default:
+                break
+            }
             guard case let .edge(guideId, forward)? = new else { return }
             var cameFromRow = false
             if case let .cell(id, _)? = old { cameFromRow = id == guideId }

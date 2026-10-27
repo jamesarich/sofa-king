@@ -16,7 +16,6 @@ struct PlayerView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
     @State private var channel: Channel
-    @State private var player = AVPlayer()
     @State private var failure: String?
     @State private var replaced: Watch?
     @State private var itemObservers: [AnyCancellable] = []
@@ -73,6 +72,7 @@ struct PlayerView: View {
             shown = true
             // A channel ends the music.
             model.music.stop()
+            player.isMuted = false
             replaced = model.core.watchReplaced { stream in play(stream) }
         }
         .onDisappear {
@@ -107,6 +107,9 @@ struct PlayerView: View {
             switchTo(next)
         }
     }
+
+    /// The app's one live player, which the guide's preview may already be playing this channel on.
+    private var player: AVPlayer { model.livePlayer }
 
     private var liveBreaks: LiveBreaks { model.settings?.liveBreaks ?? .play }
 
@@ -345,7 +348,9 @@ struct PlayerView: View {
     private func play(_ stream: PlaybackStream) {
         // The recording played from its start holds the session; the channel tunes again when it closes.
         guard fromStart == nil, let url = URL(string: stream.url) else { return }
-        let item = AVPlayerItem(url: url)
+        // The preview's item, when it plays this stream already, carries on without reloading.
+        let current = player.currentItem.flatMap { ($0.asset as? AVURLAsset)?.url == url ? $0 : nil }
+        let item = current ?? AVPlayerItem(url: url)
         itemObservers = [
             item.publisher(for: \.status).filter { $0 == .failed }.sink { _ in scheduleReconnect() },
             NotificationCenter.default.publisher(for: .AVPlayerItemFailedToPlayToEndTime, object: item).sink { _ in scheduleReconnect() },
@@ -355,7 +360,7 @@ struct PlayerView: View {
                 attempts = 0
             },
         ] + StreamCaptions.follow(item, on: player, model: model)
-        player.replaceCurrentItem(with: item)
+        if item !== player.currentItem { player.replaceCurrentItem(with: item) }
         player.play()
     }
 

@@ -16,7 +16,8 @@ name: Stream card on a live channel
       id: "player"
     timeout: 30000
 # Right shows the bar, Right again moves into its buttons, and Right walks along them to Stream info, wherever the
-# Previous channel button puts it.
+# Previous channel button puts it. The button names itself to the remote, and its name also shows under the row while
+# it has focus, so a second "Stream info" on screen marks it focused.
 - pressKey: Remote Dpad Right
 - extendedWaitUntil:
     visible: "Stream info"
@@ -27,12 +28,12 @@ name: Stream card on a live channel
     while:
       notVisible:
         text: "Stream info"
-        focused: true
+        index: 1
     commands:
       - pressKey: Remote Dpad Right
 - assertVisible:
     text: "Stream info"
-    focused: true
+    index: 1
 - pressKey: Remote Dpad Center
 - extendedWaitUntil:
     visible: "Audio out"

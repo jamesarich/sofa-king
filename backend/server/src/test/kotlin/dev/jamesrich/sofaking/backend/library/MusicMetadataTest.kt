@@ -75,8 +75,16 @@ class MusicMetadataTest {
         },
     ) { followRedirects = false }
 
-    /** Scans a Music library of [tags]' files and the [others], twice, looking each up on [http]. */
-    private fun scan(http: HttpClient, tags: Map<String, AudioTags>, vararg others: String): Scanned = runBlocking {
+    /**
+     * Scans a Music library of [tags]' files and the [others], twice, looking each up on [http]; [refresh] asks for its
+     * details again an hour later and scans a third time.
+     */
+    private fun scan(
+        http: HttpClient,
+        tags: Map<String, AudioTags>,
+        vararg others: String,
+        refresh: Boolean = false,
+    ): Scanned = runBlocking {
         val dir = Files.createTempDirectory("sofa-music-")
         val music = Files.createDirectories(dir.resolve("media/Music"))
         for (path in tags.keys + others) {
@@ -106,6 +114,12 @@ class MusicMetadataTest {
         val library = service.create("Music", LibraryKind.MUSIC, music.toString())
         service.scan(library.id)
         service.scan(library.id)
+        if (refresh) {
+            clock.now = clock.now.plusSeconds(3_600)
+            service.requestScan(library.id, refresh = true)
+            clock.now = clock.now.plusSeconds(1)
+            service.scan(library.id)
+        }
         val note = service.library(library.id).scanNote
         val posters = service.catalog.snapshot().views.mapValues { it.value.poster }
         Scanned(store, store.libraryItems(library.id), note, posters)
@@ -265,6 +279,23 @@ class MusicMetadataTest {
         val other = if ("Alpha" in calls[first]) "Beta" else "Alpha"
         val otherAlbum = calls.indexOfFirst { it.startsWith("/release-group?") && other in it }
         assertTrue(first < otherAlbum, calls.toString())
+    }
+
+    @Test fun `a refresh looks fresh albums and artists up again, once`() {
+        val calls = mutableListOf<String>()
+        val http = musicBrainz(
+            calls,
+            mapOf("/release-group" to """{"release-groups":[]}""", "/artist" to """{"artists":[]}"""),
+        )
+        val s = scan(
+            http,
+            mapOf("Band/Record/01.flac" to AudioTags("One", "Band", album = "Record", track = 1)),
+            refresh = true,
+        )
+        // The first scan and the refresh each search the album and the artist; the second scan asks nothing.
+        assertEquals(2, calls.count { it.startsWith("/release-group?") }, calls.toString())
+        assertEquals(2, calls.count { it.startsWith("/artist?") }, calls.toString())
+        assertTrue(s.looked("Record"))
     }
 
     @Test fun `an album with no picture of its own shows the Cover Art Archive's, and its artist borrows it`() {

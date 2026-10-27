@@ -8,6 +8,7 @@ import java.net.URLDecoder
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 
 private val log = LoggerFactory.getLogger(MusicMetadata::class.java)
 
@@ -51,10 +52,24 @@ class MusicMetadata internal constructor(
     private val client: MusicBrainzClient,
     private val clock: Clock,
 ) {
+    /** When each library's lookups were asked for again ([forget]), until a pass gets through. */
+    private val forgotten = ConcurrentHashMap<String, Instant>()
+
+    /**
+     * Has [libraryId]'s next pass look up again every album and artist looked up before now, however fresh; a pass a
+     * rate limit cuts short carries on with the rest on the next.
+     */
+    fun forget(libraryId: String) {
+        forgotten.putIfAbsent(libraryId, clock.instant())
+    }
+
     suspend fun refresh(library: LibraryRecord, items: List<LibraryItemRecord>): MetadataResult? {
         if (library.kind != LibraryKind.MUSIC) return null
         val present = items.filter { it.missingSince == null }
-        val run = Run(present, store.libraryMetadata(present.map { it.id }))
+        val since = forgotten[library.id]
+        val known = store.libraryMetadata(present.map { it.id })
+            .filterValues { since == null || !Instant.parse(it.checkedAt).isBefore(since) }
+        val run = Run(present, known)
         // Each artist right after its albums, whose credits name it, so a run a rate limit ends has done some of both.
         val albums = present.filter { it.kind == ItemKind.ALBUM }.groupBy { it.parentId }
         val artists = present.filter { it.kind == ItemKind.ARTIST }
@@ -67,7 +82,7 @@ class MusicMetadata internal constructor(
             val going = if (item.kind == ItemKind.ALBUM) run.album(item) else run.artist(item)
             if (!going) break
         }
-        return run.result()
+        return run.result().also { if (since != null && it.stopped == null) forgotten.remove(library.id, since) }
     }
 
     /** One refresh of the [present] items, which were looked up as [known]. */

@@ -146,6 +146,16 @@ private fun TR.libraryActions(chrome: Chrome, library: LibraryRecord) = td("nowr
         }
     }
     +" "
+    if (library.kind == LibraryKind.MUSIC) {
+        // A match is kept for 30 days; this asks MusicBrainz again for every album and artist now.
+        postForm("/admin/library/${library.id}/refresh", chrome.session, keepScroll = true) {
+            button(type = ButtonType.submit, classes = "small quiet") {
+                attributes["aria-label"] = "Look ${library.name} up on MusicBrainz again"
+                +"Refresh details"
+            }
+        }
+        +" "
+    }
     details("inline") {
         summary("small quiet") { +"Rename" }
         postForm("/admin/library/${library.id}/rename", chrome.session) {

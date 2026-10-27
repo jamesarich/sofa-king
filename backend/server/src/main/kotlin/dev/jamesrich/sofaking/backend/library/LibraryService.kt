@@ -162,7 +162,9 @@ class LibraryService(
     }
 
     /** Queues a scan of [id], or of every library when null; requests before the loop runs coalesce. */
-    fun requestScan(id: String?) {
+    fun requestScan(id: String?, refresh: Boolean = false) {
+        // Music asks MusicBrainz again for every album and artist, as for a new library.
+        if (refresh && id != null) musicMetadata?.forget(id)
         pending += id ?: ALL
         trigger.trySend(Unit)
     }

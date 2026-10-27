@@ -37,6 +37,17 @@ internal class LibraryPages(private val portal: Portal) {
             }
             seeOther(call, "/admin/library#libraries")
         }
+        route.action("/library/{id}/refresh") { session, _ ->
+            val id = call.parameters["id"]!!
+            val library = runtime.store.library(id)
+            if (library == null) {
+                session.flash.set(Flash("That library is gone.", Tone.WARN))
+            } else {
+                libraries().requestScan(id, refresh = true)
+                session.flash.set(Flash("Looking up ${library.name} on MusicBrainz again.", Tone.OK, id))
+            }
+            seeOther(call, "/admin/library#libraries")
+        }
         route.action("/library/{id}/rename") { session, form ->
             val id = call.parameters["id"]!!
             try {

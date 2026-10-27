@@ -10,6 +10,7 @@ import dev.jamesrich.sofaking.data.ProgramFacts
 import dev.jamesrich.sofaking.data.airingsOf
 import kotlinx.coroutines.flow.first
 import kotlin.time.Clock
+import kotlin.time.Instant
 import dev.jamesrich.sofaking.data.breakFacts as breakFactsOf
 
 /**
@@ -24,6 +25,12 @@ interface TvText {
 
     /** The other airings of [program] in [lineup], from the one on now onwards, soonest first. */
     fun airings(lineup: Lineup, program: Program): List<Airing>
+
+    /**
+     * The programs of [channel] in [lineup] that overlap the guide's window from [fromMs] to [toMs], milliseconds since
+     * the epoch, in order; a guide cell is cut to the window's edges.
+     */
+    fun programsIn(lineup: Lineup, channel: Channel, fromMs: Long, toMs: Long): List<Program>
 
     /** The program's start in milliseconds since the epoch, which Swift turns into a `Date`. */
     fun epochMs(program: Program): Long
@@ -52,6 +59,12 @@ internal object TvTextCalls : TvText {
         breakFactsOf(now, next, facts)
 
     override fun airings(lineup: Lineup, program: Program): List<Airing> = lineup.airingsOf(program, Clock.System.now())
+
+    override fun programsIn(lineup: Lineup, channel: Channel, fromMs: Long, toMs: Long): List<Program> {
+        val from = Instant.fromEpochMilliseconds(fromMs)
+        val to = Instant.fromEpochMilliseconds(toMs)
+        return lineup.guide[channel.guideId].orEmpty().filter { it.stop > from && it.start < to }
+    }
 
     override fun epochMs(program: Program): Long = program.start.toEpochMilliseconds()
 

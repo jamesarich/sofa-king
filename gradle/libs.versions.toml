@@ -39,6 +39,9 @@ tvprovider = "1.1.0"
 engage-tv = "1.1.0"
 # Play services (through engage-tv) brings Fragment 1.1.0, whose activity results lint refuses; this raises it.
 androidx-fragment = "1.9.1"
+# engage-tv brings WorkManager 2.7.0 and Room 2.2.5, whose R8 rules drop WorkDatabase_Impl's constructor, so a minified
+# build crashes at launch when WorkManager starts; this raises both.
+androidx-work = "2.12.0"
 # Macrobenchmark and the Baseline Profile plugin release together.
 benchmark = "1.5.0"
 uiautomator = "2.4.0"
@@ -126,6 +129,7 @@ media3-session = { module = "androidx.media3:media3-session", version.ref = "med
 androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
 androidx-tvprovider = { module = "androidx.tvprovider:tvprovider", version.ref = "tvprovider" }
 androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "androidx-fragment" }
+androidx-work-runtime = { module = "androidx.work:work-runtime", version.ref = "androidx-work" }
 engage-tv = { module = "com.google.android.engage:engage-tv", version.ref = "engage-tv" }
 screenshot-validation-api = { module = "com.android.tools.screenshot:screenshot-validation-api", version.ref = "screenshot" }
 androidx-benchmark-macro-junit4 = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "benchmark" }

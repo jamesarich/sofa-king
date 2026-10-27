@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui.guide
 
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +23,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -187,6 +188,7 @@ private fun GuideCellItem(
     val program = cell.program
     val colors = MaterialTheme.colorScheme
     val cellStartPx = cell.startMinute * env.minutePx
+    val cellWidthPx = cell.minutes * env.minutePx
     val interactions = remember { MutableInteractionSource() }
     // No focus scale: a cell that starts before the visible edge would grow past the pinned column and clip its text.
     Surface(
@@ -206,11 +208,16 @@ private fun GuideCellItem(
             }
             .cellActions(env, channel, cell, airing, interactions),
     ) {
+        // Only a cell under the strip's left edge moves its text, so the others are not measured again on every
+        // frame of a scroll.
+        val stickyShift = remember(env.scrollState, cellStartPx, cellWidthPx) {
+            derivedStateOf { (env.scrollState.value - cellStartPx).coerceIn(0f, cellWidthPx).roundToInt() }
+        }
         CellText(
             program?.title ?: env.noListingFor(channel),
             program?.takeIf { focused }?.let { env.timeFormat.range(it.start, it.stop) },
             compact,
-            Modifier.fillMaxSize().stickyStart(env.scrollState, cellStartPx, env.minStickyTextPx),
+            Modifier.fillMaxSize().stickyStart(stickyShift, env.minStickyTextPx),
         )
     }
 }
@@ -286,17 +293,16 @@ private fun cellDescription(env: GuideRowEnv, channel: Channel, program: Program
 }
 
 /**
- * Starts the content at the visible left edge when the cell begins before the scroll position, so a
- * focused title is not clipped. The content gives up the same width, so it never leaves the cell.
+ * Starts the content at the visible left edge when the cell begins before the scroll position ([shift], how far
+ * the edge is into the cell), so a focused title is not clipped. The content gives up the same width, so it never
+ * leaves the cell.
  */
-private fun Modifier.stickyStart(scrollState: ScrollState, cellStartPx: Float, minVisiblePx: Float): Modifier =
-    layout { measurable, constraints ->
-        val cellWidth = constraints.maxWidth
-        val shift = (scrollState.value - cellStartPx).roundToInt()
-            .coerceIn(0, (cellWidth - minVisiblePx.roundToInt()).coerceAtLeast(0))
-        val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = cellWidth - shift))
-        layout(cellWidth, placeable.height) { placeable.place(shift, 0) }
-    }
+private fun Modifier.stickyStart(shift: State<Int>, minVisiblePx: Float): Modifier = layout { measurable, constraints ->
+    val cellWidth = constraints.maxWidth
+    val shift = shift.value.coerceIn(0, (cellWidth - minVisiblePx.roundToInt()).coerceAtLeast(0))
+    val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = cellWidth - shift))
+    layout(cellWidth, placeable.height) { placeable.place(shift, 0) }
+}
 
 internal fun isAiring(program: Program, now: Instant): Boolean = program.start <= now && program.stop > now
 

@@ -226,7 +226,13 @@ private fun LiveSurface(
         player.Video(Modifier.fillMaxSize(), zoom) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
         val windowHeightDp =
             with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
-        Captions(player, captionStyle, CaptionPolicy.bottomPaddingFraction(windowHeightDp), Modifier.fillMaxSize())
+        Captions(
+            player,
+            captionStyle,
+            zoom,
+            CaptionPolicy.bottomPaddingFraction(windowHeightDp),
+            Modifier.fillMaxSize(),
+        )
         KeepScreenOn(status.isPlaying && state.attended)
         if (!LocalInPictureInPicture.current) content()
     }

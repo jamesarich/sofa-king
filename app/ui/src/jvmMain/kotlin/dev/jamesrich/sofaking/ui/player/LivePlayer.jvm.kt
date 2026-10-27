@@ -21,6 +21,9 @@ import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.runCatchingCancellable
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.ColorAlphaType
@@ -103,6 +106,8 @@ internal class VlcLivePlayer(
     private var image: ImageBitmap? = null
     private val frameCount = mutableIntStateOf(0)
     private var hasFrame by mutableStateOf(false)
+    private val mutableVideoSize = MutableStateFlow<IntSize?>(null)
+    override val videoSize: StateFlow<IntSize?> = mutableVideoSize.asStateFlow()
 
     init {
         commands.execute {
@@ -281,6 +286,7 @@ internal class VlcLivePlayer(
     private inner class Formats : BufferFormatCallback {
         override fun getBufferFormat(sourceWidth: Int, sourceHeight: Int): BufferFormat {
             val info = ImageInfo(sourceWidth, sourceHeight, ColorType.BGRA_8888, ColorAlphaType.PREMUL)
+            mutableVideoSize.value = IntSize(sourceWidth, sourceHeight)
             // The front keeps showing until a frame of the new size replaces it.
             synchronized(frameLock) {
                 back?.close()

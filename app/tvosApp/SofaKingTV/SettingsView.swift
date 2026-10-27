@@ -63,6 +63,19 @@ struct SettingsView: View {
                     Text("Logo, muted").tag(LiveBreaks.screenMuted)
                     Text("Logo, sound on").tag(LiveBreaks.screen)
                 }
+                Picker("Open the previewed channel", selection: Binding(
+                    get: { model.settings?.autoOpenDelay ?? .after10Seconds },
+                    set: { model.core.setAutoOpenDelay(delay: $0) }
+                )) {
+                    Text("After 10 seconds").tag(AutoOpenDelay.after10Seconds)
+                    Text("After 30 seconds").tag(AutoOpenDelay.after30Seconds)
+                    Text("Never").tag(AutoOpenDelay.off)
+                }
+                .pickerStyle(.navigationLink)
+                Toggle("Preview sound", isOn: Binding(
+                    get: { model.settings?.previewSound ?? true },
+                    set: { model.core.setPreviewSound(enabled: $0) }
+                ))
                 Toggle("Captions", isOn: Binding(
                     get: { model.settings?.captionsEnabled ?? false },
                     set: { model.core.setCaptionsEnabled(enabled: $0) }
@@ -70,7 +83,7 @@ struct SettingsView: View {
             } header: {
                 Text("Live TV")
             } footer: {
-                Text("On streaming channels that mark their ads, such as Pluto TV and Tubi, a bouncing logo covers them. Show picture brings the picture back. Captions shows a channel's or a recording's closed captions, in the look set in the Apple TV's Settings › Accessibility › Subtitles and Captioning; the player's Subtitles panel turns them on and off too.")
+                Text("On streaming channels that mark their ads, such as Pluto TV and Tubi, a bouncing logo covers them. Show picture brings the picture back. The guide's preview plays the focused channel muted, turns its sound on after 5 seconds unless Preview sound is off, and opens it full screen after the rest set here. Captions shows a channel's or a recording's closed captions, in the look set in the Apple TV's Settings › Accessibility › Subtitles and Captioning; the player's Subtitles panel turns them on and off too.")
             }
             if model.capabilities?.household == true {
                 Section {

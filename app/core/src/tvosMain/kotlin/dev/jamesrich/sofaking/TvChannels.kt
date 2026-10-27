@@ -1,14 +1,9 @@
 package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.data.AdBreakNow
-import dev.jamesrich.sofaking.data.Airing
 import dev.jamesrich.sofaking.data.AppSettings
-import dev.jamesrich.sofaking.data.Lineup
-import dev.jamesrich.sofaking.data.OnLaterKind
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
-import dev.jamesrich.sofaking.data.Program
-import dev.jamesrich.sofaking.data.ProgramFacts
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.filterNotNull
@@ -30,6 +25,13 @@ interface TvChannels {
     /** Opens, or re-reads, a watch session for [channelId] and remembers it as the last channel. */
     @Throws(Exception::class)
     suspend fun watchChannel(channelId: String): PlaybackStream
+
+    /**
+     * Opens, or re-reads, a preview session for [channelId], as the guide's muted preview holds it; [watchChannel]
+     * for the same channel then promotes that session to watch in place, so the full screen continues its stream.
+     */
+    @Throws(Exception::class)
+    suspend fun previewChannel(channelId: String): PlaybackStream
 
     /** Releases the held session; [reopen] returns to it. */
     @Throws(Exception::class)
@@ -54,17 +56,6 @@ interface TvChannels {
      */
     @Throws(Exception::class)
     suspend fun adBreak(aheadMs: Long): AdBreakNow?
-
-    /** What TMDB says about [program], through the server, for the break screen; null when nothing is known. */
-    @Throws(Exception::class)
-    suspend fun programFacts(program: Program): ProgramFacts?
-
-    /**
-     * On Later: the programs of [kind] coming up today and tomorrow on the channels [lineup] shows, soonest first, as
-     * the server picks them; null when the server could not be read.
-     */
-    @Throws(Exception::class)
-    suspend fun onLater(kind: OnLaterKind, lineup: Lineup): List<Airing>?
 }
 
 internal class TvChannelCalls(private val parts: TvParts) : TvChannels {
@@ -89,6 +80,11 @@ internal class TvChannelCalls(private val parts: TvParts) : TvChannels {
     }
 
     @Throws(Exception::class)
+    override suspend fun previewChannel(channelId: String): PlaybackStream = parts.opening {
+        viewModel.sessions.tune(channelId, PlaybackIntent.PREVIEW)
+    }
+
+    @Throws(Exception::class)
     override suspend fun release() = viewModel.sessions.release()
 
     @Throws(Exception::class)
@@ -105,16 +101,4 @@ internal class TvChannelCalls(private val parts: TvParts) : TvChannels {
 
     @Throws(Exception::class)
     override suspend fun adBreak(aheadMs: Long): AdBreakNow? = viewModel.sessions.adBreak(aheadMs)
-
-    @Throws(Exception::class)
-    override suspend fun programFacts(program: Program): ProgramFacts? = viewModel.programFacts(program)
-
-    @Throws(Exception::class)
-    override suspend fun onLater(kind: OnLaterKind, lineup: Lineup): List<Airing>? {
-        // Only the channels the viewer keeps; the server lists every enabled one.
-        val channels = lineup.channels.associateBy { it.guideId }
-        return viewModel.onLater(kind)?.mapNotNull { program ->
-            channels[program.channelId]?.let { Airing(it, program) }
-        }
-    }
 }

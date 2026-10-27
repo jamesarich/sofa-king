@@ -8,7 +8,11 @@ import SofaKingCore
 /// `sofaking://channel/<guideId>` link from the Top Shelf opens that one.
 struct ChannelListView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     let lineup: Lineup
+    @State private var preview = GuidePreview()
+    /// Whether the guide is the page on top of the Live tab.
+    @State private var visible = false
     @State private var playing: Channel?
     @State private var detail: ProgramChoice?
     @State private var query = ""
@@ -46,6 +50,7 @@ struct ChannelListView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
+            PreviewBand(lineup: lineup, preview: preview)
             HStack(spacing: 32) {
                 Picker("Channels", selection: $filter) {
                     Text("All").tag(ChannelFilter.all)
@@ -66,11 +71,14 @@ struct ChannelListView: View {
             if channels.isEmpty {
                 Text(emptyText).foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                GuideGrid(lineup: lineup, channels: channels, arrival: $arrival) { channel in
-                    playing = channel
-                } details: { channel, program in
-                    detail = ProgramChoice(channel: channel, program: program)
-                }
+                GuideGrid(
+                    lineup: lineup,
+                    channels: channels,
+                    arrival: $arrival,
+                    play: { playing = $0 },
+                    details: { channel, program in detail = ProgramChoice(channel: channel, program: program) },
+                    onFocus: { channel, program in preview.focus(channel?.guideId, program: program) }
+                )
             }
         }
         .searchable(text: $query, prompt: "Channel name or number")
@@ -80,6 +88,23 @@ struct ChannelListView: View {
         }
         .fullScreenCover(item: $playing, onDismiss: returnFromPlayer) { channel in
             PlayerView(channel: channel)
+        }
+        .onAppear {
+            visible = true
+            preview.open = { id in playing = lineup.channels.first { $0.guideId == id } }
+            if playing == nil { preview.activate(model) }
+        }
+        .onDisappear {
+            visible = false
+            preview.deactivate(handoff: playing != nil)
+        }
+        .onChange(of: playing) { _, now in
+            // The full screen takes the preview's stream and session over as they are.
+            if now != nil { preview.deactivate(handoff: true) }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard visible, playing == nil else { return }
+            if phase == .background { preview.deactivate(handoff: false) } else if phase == .active { preview.activate(model) }
         }
         .onAppear {
             // Once per process, as the Compose app's launch decision: the last channel (or the chosen one) opens
@@ -111,7 +136,9 @@ struct ChannelListView: View {
     /// Back from the player focuses the channel watched, the last one switched to included; a filter or search that
     /// hides it gives way to All, as on the other apps.
     private func returnFromPlayer() {
+        if visible { preview.activate(model) }
         guard let watched = model.settings?.lastChannel else { return }
+        preview.suppressed = watched
         if !shown.contains(where: { $0.guideId == watched }) {
             filter = .all
             query = ""

@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.library.IMDB_ID
+import dev.jamesrich.sofaking.backend.library.LibraryLyrics
 import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.library.ProviderIds
 import dev.jamesrich.sofaking.backend.library.VodSessions
@@ -19,6 +20,7 @@ import io.ktor.server.http.content.LocalPathContent
 import io.ktor.server.plugins.partialcontent.PartialContent
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
@@ -62,6 +64,7 @@ fun Route.libraryRoutes(libraries: LibraryService) {
     }
     get("/api/v1/library/lookup") { call.respond(catalog.lookup(lookupIds(call.request.queryParameters))) }
     get("/api/v1/library/items/{id}") { call.respond(catalog.item(call.parameters["id"]!!, call.showsMusic())) }
+    lyricsRoute(libraries.lyrics)
     put("/api/v1/library/items/{id}/play-state") {
         call.respond(catalog.updatePlayState(call.parameters["id"]!!, call.appBody<UpdatePlayState>()))
     }
@@ -170,3 +173,11 @@ fun Route.vodRoutes(vod: VodSessions) {
 
 private const val QUERY_LIMIT = 100
 private const val SEARCH_RESULTS = 50
+
+/** A song's lyrics as LRC text: timed lines when they are synced, plain lines when not. */
+private fun Route.lyricsRoute(lyrics: LibraryLyrics?) = get("/api/v1/library/items/{id}/lyrics") {
+    val text = lyrics?.lyrics(call.parameters["id"]!!)
+        ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "No lyrics for that item")
+    call.response.header(HttpHeaders.CacheControl, "private, max-age=3600")
+    call.respondText(text, ContentType.parse("text/plain; charset=utf-8"))
+}

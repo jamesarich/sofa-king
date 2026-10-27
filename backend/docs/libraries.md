@@ -49,6 +49,10 @@ With a [fanart.tv](https://fanart.tv/get-an-api-key/) API key, from `SOFA_FANART
 
 Each artist MusicBrainz matched is also looked up on [ListenBrainz](https://listenbrainz.org), which needs no account or key, by their MusicBrainz id: the 25 songs its listeners play most, and the 50 artists they play alongside them most. An artist's page in the app lists Popular, up to 10 of their songs in the library from that list, most played first, matched by the recording id in their tags or else by title, and More like this, the similar artists in the library first, then those sharing their genres. The lookups ride the MusicBrainz ones and are kept as long; an artist looked up before ListenBrainz was asked is asked once on the next scan, and one ListenBrainz cannot answer for keeps the rest of their details and is asked again on the next scan. `SOFA_MUSICBRAINZ=false` turns these lookups off too; they ask `api.listenbrainz.org` and `labs.api.listenbrainz.org` by MusicBrainz id, and send nothing else.
 
+### Lyrics
+
+Now playing in the app shows a song's lyrics when the server has them. An `.lrc` file named as the track, beside it (`01 One.flac` and `01 One.lrc`), wins; else the server asks [LRCLIB](https://lrclib.net), which needs no account or key, for the song by its title, artist, album and length the first time the app opens it, and keeps the answer under `SOFA_DATA_DIR/lyrics`. Synced lyrics, which time each line, win over plain ones. A song LRCLIB has none for is asked again a week later. `SOFA_MUSICBRAINZ=false` stops the LRCLIB lookups too; `.lrc` files are always read.
+
 ## Details and artwork
 
 A Kodi `.nfo` beside a file replaces what its name says: `Title (Year).nfo` or `movie.nfo` for a movie, `tvshow.nfo` in a show's folder, and `Show - S01E02.nfo` for an episode. The scan reads the title, sort title, year, plot, runtime, season and episode, air date, genres, studio, rating, content rating, cast and directors. An `.nfo` that is not XML, such as one holding only a link, is ignored.

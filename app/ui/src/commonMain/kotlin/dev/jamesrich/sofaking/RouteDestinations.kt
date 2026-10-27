@@ -45,7 +45,7 @@ internal fun RouteDestination(
 
         is Route.LibraryItem -> LibraryItemDestination(route, arrival, shell, libraryVm, music, hideSpoilers)
 
-        Route.NowPlaying -> NowPlayingScreen(music, onClose = shell::back)
+        Route.NowPlaying -> NowPlayingScreen(music, onClose = shell::back, loadLyrics = libraryVm::lyrics)
 
         Route.Guide, Route.OnLater, Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, Route.Recordings ->
             TabDestination(route, arrival, shell, vm, libraryVm, recordingsVm, player, music, chrome, refreshing)

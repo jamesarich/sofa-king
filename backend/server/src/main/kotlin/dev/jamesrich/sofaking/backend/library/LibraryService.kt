@@ -78,6 +78,8 @@ class LibraryService(
     private val pathMap: List<PathMapping> = emptyList(),
     /** Where a scan that adds files publishes `library.added`. */
     private val events: ServerEvents? = null,
+    /** Songs' lyrics, which `/api/v1/library/items/{id}/lyrics` serves. */
+    val lyrics: LibraryLyrics? = null,
 ) {
     /** Counts changes to what the libraries hold, so [catalog] rebuilds its view only after one. */
     private val revision = AtomicLong()

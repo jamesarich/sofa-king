@@ -7,6 +7,7 @@ import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.encodeURLPathPart
 
 // The media library endpoints of [SofaKingApi]: the home, grids, items and their subtitles, play state and VOD
@@ -59,6 +60,17 @@ internal suspend fun SofaKingApi.librarySubtitles(id: String, index: Int): Strin
         response.checkSuccess()
         response.bodyAsText()
     }
+}
+
+/**
+ * The lyrics of the song [id] as LRC text; null when it has none, or the server is too old to serve any. The server
+ * may ask LRCLIB the first time, so the request may take seconds.
+ */
+internal suspend fun SofaKingApi.libraryLyrics(id: String): String? = call {
+    val response = http.get(itemPath(id) + "/lyrics")
+    if (response.status == HttpStatusCode.NotFound) return@call null
+    response.checkSuccess()
+    response.bodyAsText()
 }
 
 /**

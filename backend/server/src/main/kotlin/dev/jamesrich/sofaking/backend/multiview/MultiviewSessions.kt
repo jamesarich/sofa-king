@@ -170,10 +170,10 @@ class MultiviewSessions(
     }
 
     /**
-     * The file [name] of session [id]'s stream, with its media type, or null for no such file; a request renews the
-     * session. The playlist waits a little for FFmpeg's first segments.
+     * The file [name] of session [id]'s stream, or null for no such file; a request renews the session. The playlist
+     * waits a little for FFmpeg's first segments, and goes out as [MultiviewPlaylist] serves it.
      */
-    suspend fun media(id: String, epoch: Int, secret: String, name: String): Pair<Path, String>? {
+    suspend fun media(id: String, epoch: Int, secret: String, name: String): MultiviewMedia? {
         val session = sessions[id]?.takeIf { it.secret == secret && it.epoch == epoch } ?: return null
         if (!NAME.matches(name)) return null
         session.renew()
@@ -184,7 +184,11 @@ class MultiviewSessions(
             }
         }
         if (!Files.exists(file)) return null
-        return file to if (name.endsWith(".m3u8")) "application/vnd.apple.mpegurl" else "video/mp2t"
+        return if (name == MULTIVIEW_PLAYLIST) {
+            MultiviewMedia.Playlist(session.playlist.serve(withContext(Dispatchers.IO) { Files.readString(file) }))
+        } else {
+            MultiviewMedia.Segment(file)
+        }
     }
 
     suspend fun close() {
@@ -204,6 +208,9 @@ class MultiviewSessions(
         @Volatile var audio = 0
 
         @Volatile var epoch = 0
+
+        /** The playlist of the stream at [epoch], as players get it. */
+        @Volatile var playlist = MultiviewPlaylist()
         private var job: Job? = null
 
         fun dir(): Path = directory.resolve(id).resolve("$epoch")
@@ -215,6 +222,7 @@ class MultiviewSessions(
         fun start(tile: Int) {
             audio = tile
             epoch++
+            playlist = MultiviewPlaylist()
             val dir = dir()
             job = scope.launch(Dispatchers.IO + CoroutineName("multiview-$id")) { play(dir, tile) }
         }
@@ -309,4 +317,11 @@ class MultiviewSessions(
 
         fun invalid(message: String): Nothing = throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", message)
     }
+}
+
+/** A file of a multiview stream: a segment as FFmpeg wrote it, or the playlist's text as players get it. */
+sealed interface MultiviewMedia {
+    class Segment(val file: Path) : MultiviewMedia
+
+    class Playlist(val text: String) : MultiviewMedia
 }

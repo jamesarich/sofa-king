@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.multiview.MultiviewMedia
 import dev.jamesrich.sofaking.backend.multiview.MultiviewSessions
 import dev.jamesrich.sofaking.contract.OpenMultiview
 import dev.jamesrich.sofaking.contract.UpdateMultiview
@@ -10,6 +11,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.http.content.LocalPathContent
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
@@ -35,13 +37,19 @@ fun Route.multiviewRoutes(multiview: MultiviewSessions) {
     }
     get("/media/multiview/{id}/{epoch}/{secret}/{name}") {
         val params = call.parameters
-        val (file, type) = params["epoch"]?.toIntOrNull()
+        val media = params["epoch"]?.toIntOrNull()
             ?.let { epoch -> multiview.media(params["id"]!!, epoch, params["secret"]!!, params["name"]!!) }
             ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown media")
-        call.response.header(
-            HttpHeaders.CacheControl,
-            if (type.endsWith("mpegurl")) "no-store" else "private, max-age=60",
-        )
-        call.respond(LocalPathContent(file, ContentType.parse(type)))
+        when (media) {
+            is MultiviewMedia.Playlist -> {
+                call.response.header(HttpHeaders.CacheControl, "no-store")
+                call.respondText(media.text, ContentType.parse("application/vnd.apple.mpegurl"))
+            }
+
+            is MultiviewMedia.Segment -> {
+                call.response.header(HttpHeaders.CacheControl, "private, max-age=60")
+                call.respond(LocalPathContent(media.file, ContentType.parse("video/mp2t")))
+            }
+        }
     }
 }

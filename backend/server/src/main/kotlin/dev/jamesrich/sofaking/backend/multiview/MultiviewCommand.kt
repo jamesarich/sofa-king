@@ -42,7 +42,7 @@ internal fun multiviewCommand(
     addAll(
         listOf(
             "-f", "hls", "-hls_time", "$MULTIVIEW_SEGMENT_SECONDS", "-hls_list_size", "6",
-            "-hls_flags", "delete_segments+append_list+discont_start+temp_file+independent_segments",
+            "-hls_flags", "delete_segments+append_list+temp_file+independent_segments",
             "-hls_segment_type", "mpegts", "-hls_segment_filename", dir.resolve("seg%d.ts").toString(),
             dir.resolve(MULTIVIEW_PLAYLIST).toString(),
         ),

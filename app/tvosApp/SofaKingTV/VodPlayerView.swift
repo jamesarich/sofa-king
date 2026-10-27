@@ -139,6 +139,8 @@ struct VodPlayerView: View {
         }
         .task { await open() }
         .onAppear {
+            // A movie, an episode or a recording ends the music.
+            model.music.stop()
             // A renewal that finds the stream replaced hands back the new URL for the same item.
             replaced = model.core.watchReplaced { s in
                 if s.itemId == request.id { load(s) }
@@ -282,6 +284,8 @@ struct VodPlayerView: View {
             },
             NotificationCenter.default.publisher(for: .AVPlayerItemFailedToPlayToEndTime, object: item).sink { _ in endedEarly() },
         ]
+        // A recording carries the channel's closed captions; a library item's subtitles are picked in its menu.
+        if request.libraryItem == nil { itemObservers += StreamCaptions.follow(item, on: player, model: model) }
         player.replaceCurrentItem(with: item)
         player.play()
     }

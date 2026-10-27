@@ -3,7 +3,8 @@ import SofaKingCore
 
 /// Every channel with the program on now and next, favorites first; selecting one plays it full screen, and a long
 /// press (or the play/pause button's context menu) opens the program's details or stars it. A cold start opens the
-/// last watched channel, and a `sofaking://channel/<guideId>` link from the Top Shelf opens that one.
+/// last watched channel, and a `sofaking://channel/<guideId>` link from the Top Shelf opens that one. On a server that
+/// offers it, On later at the top lists what is coming up.
 struct ChannelListView: View {
     @Environment(AppModel.self) private var model
     let lineup: Lineup
@@ -23,6 +24,13 @@ struct ChannelListView: View {
 
     var body: some View {
         List {
+            if model.capabilities?.onLater == true, query.isEmpty {
+                NavigationLink {
+                    OnLaterView(lineup: lineup)
+                } label: {
+                    Label("On later", systemImage: "calendar")
+                }
+            }
             let starred = shown.filter { favorites.contains($0.guideId) }
             if !starred.isEmpty {
                 Section("Favorites") { rows(starred) }
@@ -30,7 +38,7 @@ struct ChannelListView: View {
             Section(starred.isEmpty ? "" : "All channels") { rows(shown) }
         }
         .searchable(text: $query, prompt: "Channel name or number")
-        .navigationTitle("Sofa King")
+        .navigationTitle(model.settings?.kidsMode == true ? "Sofa King Kids" : "Sofa King")
         .navigationDestination(item: $detail) { channel in
             ProgramDetailView(lineup: lineup, channel: channel) { playing = channel }
         }

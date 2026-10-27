@@ -62,17 +62,14 @@ class CorsTest {
             val preflight = client.options("/api/v1/bootstrap") {
                 header(HttpHeaders.Origin, "https://tv.example.com")
                 header(HttpHeaders.AccessControlRequestMethod, "GET")
-                // Every header the app sends: a preflight that names one the server does not allow is refused.
                 header(HttpHeaders.AccessControlRequestHeaders, "authorization,sofa-library-kinds")
             }
             assertEquals(HttpStatusCode.OK, preflight.status, "a preflight carries no token and must not be refused")
             assertEquals("https://tv.example.com", preflight.headers[HttpHeaders.AccessControlAllowOrigin])
-            assertTrue(
-                preflight.headers[HttpHeaders.AccessControlAllowHeaders].orEmpty().contains(
-                    "Authorization",
-                    ignoreCase = true,
-                ),
-            )
+            val allowed = preflight.headers[HttpHeaders.AccessControlAllowHeaders].orEmpty()
+            assertTrue(allowed.contains("Authorization", ignoreCase = true), allowed)
+            // The web app sends the library kinds it shows; a preflight refusing it fails every call.
+            assertTrue(allowed.contains("Sofa-Library-Kinds", ignoreCase = true), allowed)
 
             val call = client.get("/api/v1/bootstrap") {
                 bearerAuth(apiToken)

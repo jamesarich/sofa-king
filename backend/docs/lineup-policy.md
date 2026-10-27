@@ -160,7 +160,7 @@ Runs follow every provider import, guide import and health change, after ten qui
 
 ## Probing
 
-With a policy, the probe worker runs whatever the providers' `probe` flags say, and probes only the sources the last apply's stations reference; a source no station references is never probed. It takes them in three tiers, `SOFA_PROBE_PARALLELISM` at a time. First comes the first source of each unverified station, then those stations' other sources. Then comes every other referenced source in the usual order: suspect and quarantined first, then unverified, then healthy rechecks. A station the policy turns off is never in the first two tiers. Without a policy, only providers with `probe` set are probed.
+With a policy, the probe worker runs whatever the providers' `probe` flags say, and probes only the sources the last apply's stations reference; a source no station references is never probed. It takes them in three tiers, `SOFA_PROBE_PARALLELISM` at a time. First comes the first source of each unverified station, then those stations' other sources. Then comes every other referenced source in the usual order: suspect and quarantined first, then unverified, then healthy rechecks. A station the policy turns off is never in the first two tiers. While stations wait, Home's Providers tile estimates how long the first two tiers take from the rate probes finished over the last ten minutes; a new lineup of about a thousand stations takes around an hour. Without a policy, only providers with `probe` set are probed.
 
 ## Required stations
 

@@ -52,6 +52,27 @@ class AppShellStateTest {
     }
 
     @Test
+    fun `back from Now playing focuses the song it was opened on`() {
+        shell.openTab(Tab.LIBRARY)
+        shell.push(Route.LibraryItem("album"))
+        shell.openNowPlaying(returnTo = "song")
+        shell.back()
+        assertEquals(Route.LibraryItem("album"), shell.top)
+        assertEquals("song", shell.nav.arrival.returnedFrom)
+        assertEquals(null, shell.headerReturn)
+    }
+
+    @Test
+    fun `back from Now playing opened in the header returns focus to its button`() {
+        shell.openTab(Tab.LIBRARY)
+        shell.openNowPlaying(fromHeader = true)
+        shell.back()
+        assertEquals(Route.Library, shell.top)
+        assertEquals(HeaderReturn.NOW_PLAYING, shell.headerReturn)
+        assertEquals(null, shell.nav.arrival.returnedFrom)
+    }
+
+    @Test
     fun `a cold start decides once and waits while undecided`() {
         shell.decideLaunch(LaunchTarget.Undecided)
         assertFalse(shell.launchDecided)

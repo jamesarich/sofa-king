@@ -129,6 +129,15 @@
               "protocol": { "type": "string", "enum": ["hls", "mpegts"] }, "mimeType": { "type": "string" },
               "url": { "type": "string", "description": "Relative; resolve against the server address" }, "epoch": { "type": "integer" }
             }
+          },
+          "providerId": { "type": "string", "description": "The provider of the source the server picked" },
+          "health": {
+            "type": ["object", "null"], "description": "What the relay has seen of the session's media, on a read or a renewal; null when the session opens",
+            "properties": {
+              "bitrateKbps": { "type": "integer", "description": "The rate media went to the player over the last 10 seconds or so" },
+              "stalls": { "type": "integer", "description": "Media requests the upstream refused or dropped before anything was answered" },
+              "sourceSwitches": { "type": "integer", "description": "Moves to another source, on a failure or by hand" }
+            }
           }
         }
       },
@@ -190,7 +199,7 @@
       },
       "LibraryPage": {
         "type": "object", "required": ["items"],
-        "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" } }, "total": { "type": "integer" }, "next": { "type": ["string", "null"], "description": "The cursor for the next page; null on the last." }, "genres": { "type": "array", "items": { "type": "string" }, "description": "Every genre in the library; empty on search results." } }
+        "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" } }, "total": { "type": "integer" }, "next": { "type": ["string", "null"], "description": "The cursor for the next page; null on the last." }, "genres": { "type": "array", "items": { "type": "string" }, "description": "Every genre in the library; empty on search results." }, "people": { "type": "array", "items": { "type": "string" }, "description": "On search results, the cast and directors whose names hold the query, the most credited first; at most 10." } }
       },
       "LibraryHome": {
         "type": "object", "required": ["shelves"],

@@ -29,8 +29,27 @@
     <string name="stream_card_video">Video</string>
     <string name="stream_card_audio_codec">Audio codec</string>
     <string name="stream_card_buffered">Buffered</string>
+    <string name="stream_card_audio_output">Audio out</string>
+    <string name="stream_card_passed_through">Passed through</string>
+    <string name="stream_card_passed_through_as">Passed through as %1$s</string>
+    <string name="stream_card_decoded_mono">Decoded to mono</string>
+    <string name="stream_card_decoded_stereo">Decoded to stereo</string>
+    <string name="stream_card_decoded_layout">Decoded to %1$s</string>
+    <plurals name="stream_card_decoded_channels">
+        <item quantity="one">Decoded to %1$d channel</item>
+        <item quantity="other">Decoded to %1$d channels</item>
+    </plurals>
     <string name="stream_card_source">Source</string>
     <string name="stream_card_session">Session</string>
+    <string name="stream_card_health">Health</string>
+    <plurals name="stream_card_stalls">
+        <item quantity="one">%1$d stall</item>
+        <item quantity="other">%1$d stalls</item>
+    </plurals>
+    <plurals name="stream_card_switches">
+        <item quantity="one">%1$d source switch</item>
+        <item quantity="other">%1$d source switches</item>
+    </plurals>
     <string name="stream_card_unknown">Unknown</string>
     <string name="stream_card_seconds">%1$s s</string>
     <string name="stream_card_fps">%1$s fps</string>
@@ -139,7 +158,10 @@
     <string name="vod_control_back_to_live">Back to live</string>
     <string name="multiview_title">Multiview</string>
     <string name="multiview_pick_hint">Pick 2 to 4 channels to watch at once.</string>
-    <string name="multiview_watch">Watch %1$d channels</string>
+    <plurals name="multiview_watch">
+        <item quantity="one">Watch %1$d channel</item>
+        <item quantity="other">Watch %1$d channels</item>
+    </plurals>
     <string name="multiview_keys_hint">Arrows move the sound. OK watches it full screen. Back changes the channels.</string>
     <string name="multiview_touch_hint">Tap a picture for its sound. Double-tap to watch it full screen.</string>
     <string name="multiview_sound">%1$s, playing sound</string>

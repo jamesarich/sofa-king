@@ -7,6 +7,8 @@ import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.SeriesRule
+import dev.jamesrich.sofaking.data.teamSides
+import dev.jamesrich.sofaking.data.toggleTeam
 import kotlin.time.Clock
 
 /** The server's recordings and series rules, as the Apple TV app's Recordings tab shows them. */
@@ -59,6 +61,16 @@ interface TvRecordingMarks {
     /** Records every airing of [program]'s title on its channel, or stops the series rule that takes it. */
     @Throws(Exception::class)
     suspend fun toggleSeries(program: Program): Boolean
+
+    /** The two teams a sports program names, in its own spelling; empty for any other program. */
+    fun teams(program: Program): List<String>
+
+    /** Whether a team rule records [team], by [mark]. */
+    fun recordsTeam(mark: RecordingMark, team: String): Boolean
+
+    /** Records every game [team] plays, on any channel, or stops; false when the server refused. */
+    @Throws(Exception::class)
+    suspend fun toggleTeam(team: String): Boolean
 }
 
 internal class TvRecordingCalls(private val parts: TvParts) : TvRecordings {
@@ -105,4 +117,11 @@ internal class TvRecordingMarkCalls(private val parts: TvParts) : TvRecordingMar
 
     @Throws(Exception::class)
     override suspend fun toggleSeries(program: Program): Boolean = marks.toggleSeries(program)
+
+    override fun teams(program: Program): List<String> = teamSides(program)
+
+    override fun recordsTeam(mark: RecordingMark, team: String): Boolean = team.lowercase() in mark.teams
+
+    @Throws(Exception::class)
+    override suspend fun toggleTeam(team: String): Boolean = marks.toggleTeam(team)
 }

@@ -4,7 +4,8 @@ simulator: eight channels from one FFmpeg clip (the first as HLS, the rest as en
 the lineup adopted. With --shows it also serves a TV shows library of four six-minute episodes that share a theme and
 end credits, whose intros, credits and scrub thumbnails the server finds and makes, with subtitles and spoiler-laden
 summaries; with --movies, a Movies library of 84 titles from A to Z with genres and a trailer, for the letter jump,
-More like this and Extras; tv-monkey.py asks instead for a short show of two 20-second episodes, which
+More like this and Extras; with --music, a Music library of two artists, three albums (one a compilation) and their
+short tagged songs, for Now playing, the mini player and the queue; tv-monkey.py asks instead for a short show of two 20-second episodes, which
 its Maestro flows play to the end. Run directly, it serves until stopped and writes the server's address and token
 to <out>/server.env, for `xcodebuild test` and the like; tv-monkey.py imports it.
 
@@ -58,6 +59,14 @@ MOVIE_WORDS = ['Amber', 'Bright', 'Copper', 'Distant', 'Echo', 'Falling', 'Golde
                'Lunar', 'Midnight', 'Northern', 'Open', 'Paper', 'Quiet', 'Red', 'Silver', 'Tidal', 'Upper', 'Velvet',
                'Winter', 'Xenon', 'Yellow', 'Zero']
 GENRES = ['Drama', 'Comedy', 'Science Fiction']
+# The fixture music: (album artist or None for a compilation, album, year, cover, songs as (title, artist) pairs).
+# The first album has a cover file, the second its cover inside its songs, the compilation none.
+ALBUMS = [
+    ('Fixture Band', 'First Light', 2001, 'file', [('Opening', None), ('Second Wind', None), ('Last Call', None)]),
+    ('Fixture Band', 'Night Shift', 2004, 'embedded', [('Late Bus', None), ('Neon', None)]),
+    (None, 'Fixture Hits', 2010, None, [('Guest Spot', 'Visiting Singer'), ('Encore', 'Fixture Band')]),
+]
+SONG_SECONDS = 15
 # The short show's two episodes, long enough for a test to pause and seek in and short enough to reach Up next.
 EPISODE_SECONDS = 20
 
@@ -127,7 +136,8 @@ class Upstream(http.server.SimpleHTTPRequestHandler):
 def request(base, path, method='GET', body=None, timeout=5):
     data = None if body is None else json.dumps(body).encode()
     req = Request(base + path, data=data, method=method,
-                  headers={'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json'})
+                  # Music libraries are listed only to a client that says it knows them.
+                  headers={'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json', 'Sofa-Library-Kinds': 'music'})
     with urlopen(req, timeout=timeout) as response:
         content = response.read().decode()
         return json.loads(content) if content else None
@@ -301,6 +311,40 @@ def movies(library):
     return len(titles)
 
 
+def music(library):
+    """A Music library of [ALBUMS]: FLAC songs of a tone each, tagged with their artist, album artist, album, track and
+    date, one album with a cover.jpg beside its songs and one with the cover inside them; returns how many songs."""
+    cover = library / 'cover.png'
+    library.mkdir(parents=True)
+    subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=500x500',
+                    '-frames:v', '1', str(cover)], check=True, timeout=60)
+    songs = 0
+    for a, (artist, album, year, art, tracks) in enumerate(ALBUMS):
+        folder = library / (artist or 'Various Artists') / album
+        folder.mkdir(parents=True)
+        if art == 'file':
+            shutil.copyfile(cover, folder / 'cover.png')
+        for t, (title, own) in enumerate(tracks, start=1):
+            tags = {'title': title, 'artist': own or artist, 'album': album, 'track': str(t), 'date': str(year),
+                    'genre': 'Electronic'}
+            if artist:
+                tags['album_artist'] = artist
+            else:
+                tags['compilation'] = '1'
+            inputs = ['-f', 'lavfi', '-i', f'sine=frequency={220 * (a + 1) + 55 * t}:sample_rate=44100']
+            maps = ['-map', '0:a']
+            if art == 'embedded':
+                inputs += ['-i', str(cover)]
+                maps += ['-map', '1:v', '-disposition:v', 'attached_pic']
+            metadata = [arg for key, value in tags.items() for arg in ('-metadata', f'{key}={value}')]
+            subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', *inputs, '-t', str(SONG_SECONDS), *maps,
+                            *metadata, '-c:a', 'flac', '-c:v', 'png', str(folder / f'{t:02d} {title}.flac')],
+                           check=True, timeout=60)
+            songs += 1
+    cover.unlink()
+    return songs
+
+
 def short_show(library):
     """A show of two short episodes, MP4 with H.264 and AAC, which the debug Android app plays as it is."""
     season = library / 'Short Show' / 'Season 01'
@@ -323,11 +367,11 @@ def show_episodes(base):
 
 @contextlib.contextmanager
 def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=False, movies_library=False, quiet=False,
-          virtual=False, **settings):
+          music_library=False, virtual=False, **settings):
     """Starts the fixture channels and the server, with its log in <out>/server.log and any further `SOFA_` [settings],
     and yields the server's base URL once the lineup is adopted, with [shows] the fixture show's intros found, with
-    [short] the short show scanned, with [movies_library] the fixture movies scanned, and with [virtual] a virtual channel
-    in the lineup (see virtual_channel); stops both on the way out.
+    [short] the short show scanned, with [movies_library] the fixture movies scanned, with [music_library] the fixture
+    music scanned, and with [virtual] a virtual channel in the lineup (see virtual_channel); stops both on the way out.
     [build] writes the channels' files, playlist and guide into the folder it is given and serves them from the address
     it is given, the [channels] the lineup then holds, and the server's media folder, which it fills for [libraries]; the
     fixture channels by default, silent when [quiet]. Each of [libraries], a (name, kind, folder) triple, is added from
@@ -350,6 +394,7 @@ def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=F
         if short:
             short_show(library / 'short')
         titles = movies(library / 'movies') if movies_library else 0
+        songs = music(library / 'music') if music_library else 0
         sources = directory / 'sources.json'
         providers = [{'id': 'fixture', 'playlistUrl': upstream + '/feed.m3u', 'guideUrl': upstream + '/guide.xml', 'probe': False}]
         if virtual:
@@ -360,10 +405,10 @@ def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=F
             port = probe.getsockname()[1]
         base = f'http://127.0.0.1:{port}'
         # The fixture serves from loopback, which the server refuses unless told it is a development fixture. The DVR
-        # keeps no free space, so a full CI disk still records.
+        # keeps no free space, so a full CI disk still records. The fixture music is not looked up on MusicBrainz.
         env = dict(os.environ, SOFA_HOST='127.0.0.1', SOFA_PORT=str(port), SOFA_DATA_DIR=str(directory / 'data'),
                    SOFA_SOURCES=str(sources), SOFA_API_TOKEN=TOKEN, SOFA_ALLOW_LOOPBACK_UPSTREAMS='true', SOFA_UPDATE_IMAGE='',
-                   SOFA_RECORDINGS_FREE_GIB='0', SOFA_MEDIA_DIR=str(library), **settings)
+                   SOFA_RECORDINGS_FREE_GIB='0', SOFA_MEDIA_DIR=str(library), **{'SOFA_MUSICBRAINZ': 'false', **settings})
         server_log = (out / 'server.log').open('w')
         server = subprocess.Popen([str(SERVER)], env=env, stdout=server_log, stderr=server_log, start_new_session=True)
         try:
@@ -381,6 +426,11 @@ def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=F
             if movies_library:
                 created = request(base, '/api/v1/admin/libraries', 'POST', {'name': 'Movies', 'kind': 'movies', 'path': str(library / 'movies')})
                 wait_for('the fixture movies', lambda: len(request(base, f'/api/v1/libraries/{created["id"]}/items?limit=500')['items']) == titles, 120)
+            if music_library:
+                created = request(base, '/api/v1/admin/libraries', 'POST', {'name': 'Music', 'kind': 'music', 'path': str(library / 'music')})
+                albums = lambda: request(base, f'/api/v1/libraries/{created["id"]}/items?kind=album')['items']
+                scanned = lambda: sum(len(request(base, f'/api/v1/library/items/{a["id"]}')['children']) for a in albums())
+                wait_for('the fixture music', lambda: scanned() == songs, 120)
             if short:
                 created = request(base, '/api/v1/admin/libraries', 'POST', {'name': 'Short show', 'kind': 'shows', 'path': str(library / 'short')})
                 wait_for('the short show', lambda: request(base, f'/api/v1/libraries/{created["id"]}/items')['items'], 60)
@@ -420,6 +470,7 @@ def main():
     parser.add_argument('--out', required=True)
     parser.add_argument('--shows', action='store_true', help='also serve a TV shows library whose episodes have an intro')
     parser.add_argument('--movies', action='store_true', help='also serve a Movies library of 84 titles with genres and a trailer')
+    parser.add_argument('--music', action='store_true', help='also serve a Music library of three albums of short songs')
     parser.add_argument('--quiet', action='store_true', help="silence the channels' tone")
     parser.add_argument('--virtual', action='store_true', help='also put a virtual channel with a live slot in the lineup')
     args = parser.parse_args()
@@ -428,7 +479,8 @@ def main():
     ready = out / 'server.env'
     ready.unlink(missing_ok=True)
     signal.signal(signal.SIGTERM, stop)
-    with serve(out, shows=args.shows, movies_library=args.movies, quiet=args.quiet, virtual=args.virtual) as base:
+    with serve(out, shows=args.shows, movies_library=args.movies, music_library=args.music, quiet=args.quiet,
+               virtual=args.virtual) as base:
         ready.write_text(f'SOFAKING_SERVER={base}\nSOFAKING_TOKEN={TOKEN}\n')
         print(f'Serving {base}', flush=True)
         try:

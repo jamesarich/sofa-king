@@ -13,6 +13,9 @@ interface TvSettings {
     /** Whether an episode not started yet keeps its overview back and its still blurred. */
     fun setHideSpoilers(enabled: Boolean)
 
+    /** Whether live channels and recordings show their closed captions. */
+    fun setCaptionsEnabled(enabled: Boolean)
+
     /** Whether the break screen covers the ads a streaming channel marks, and whether their sound plays under it. */
     fun setLiveBreaks(mode: LiveBreaks)
 
@@ -32,6 +35,9 @@ interface TvSettings {
     fun refresh()
 
     fun toggleFavorite(guideId: String)
+
+    /** Keeps the favorites and hidden channels in step with the household's devices, on a server that shares them. */
+    fun setShareFavorites(on: Boolean)
 }
 
 internal class TvSettingCalls(parts: TvParts) : TvSettings {
@@ -42,6 +48,8 @@ internal class TvSettingCalls(parts: TvParts) : TvSettings {
     override fun setHideSpoilers(enabled: Boolean) = viewModel.setHideSpoilers(enabled)
 
     override fun setLiveBreaks(mode: LiveBreaks) = viewModel.setLiveBreaks(mode)
+
+    override fun setCaptionsEnabled(enabled: Boolean) = viewModel.setCaptionsEnabled(enabled)
 
     override fun addAdsDodged(day: String, ms: Long) = viewModel.addAdsDodged(day, ms)
 
@@ -54,4 +62,23 @@ internal class TvSettingCalls(parts: TvParts) : TvSettings {
     override fun refresh() = viewModel.refresh()
 
     override fun toggleFavorite(guideId: String) = viewModel.toggleFavorite(guideId)
+
+    override fun setShareFavorites(on: Boolean) = viewModel.setShareFavorites(on)
+}
+
+/** Settings › Parental controls: the PIN that locks Settings and kids mode. */
+interface TvParentalControls {
+    /** Locks Settings behind the four digits of [pin], or removes the lock, and kids mode with it, for null. */
+    fun setSettingsPin(pin: String?)
+
+    /** Turns kids mode on, once a PIN is set, or off. */
+    fun setKidsMode(on: Boolean)
+}
+
+internal class TvParentalCalls(parts: TvParts) : TvParentalControls {
+    private val viewModel = parts.viewModel
+
+    override fun setSettingsPin(pin: String?) = viewModel.setSettingsPin(pin)
+
+    override fun setKidsMode(on: Boolean) = viewModel.setKidsMode(on)
 }

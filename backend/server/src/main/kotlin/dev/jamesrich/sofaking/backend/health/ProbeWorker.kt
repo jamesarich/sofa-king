@@ -87,6 +87,9 @@ class ProbeWorker(
     private val pending = ArrayDeque<Offering>()
     private val inFlight = HashSet<String>()
     private val outcomes = HashMap<String, Int>()
+
+    /** When probes finished over the last ten minutes, every worker together, for how long the ones waiting take. */
+    val rate = ProbeRate()
     private var batchStartedAt: Instant? = null
 
     /** When a source of each provider last qualified, and when each source was last refused, for [evidence]. */
@@ -245,6 +248,7 @@ class ProbeWorker(
     private suspend fun record(offering: Offering, failure: FailureClass?, before: HealthStatus?) {
         val at = clock.instant()
         val recorded = mutex.withLock {
+            rate.finished(at)
             evidence(offering, failure, at).also { outcomes.merge(it?.name ?: "QUALIFIED", 1, Int::plus) }
         }
         val after = store.recordObservation(

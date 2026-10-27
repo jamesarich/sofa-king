@@ -36,6 +36,7 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.MediaItem
+import dev.jamesrich.sofaking.data.SearchResults
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_search_albums
 import dev.jamesrich.sofaking.resources.library_search_artists
@@ -44,6 +45,8 @@ import dev.jamesrich.sofaking.resources.library_search_hint
 import dev.jamesrich.sofaking.resources.library_search_movies
 import dev.jamesrich.sofaking.resources.library_search_none
 import dev.jamesrich.sofaking.resources.library_search_people
+import dev.jamesrich.sofaking.resources.library_search_people_more
+import dev.jamesrich.sofaking.resources.library_search_people_two
 import dev.jamesrich.sofaking.resources.library_search_shows
 import dev.jamesrich.sofaking.resources.library_search_tracks
 import dev.jamesrich.sofaking.resources.library_search_videos
@@ -105,7 +108,9 @@ internal fun LibrarySearchScreen(
         arrived = true
     }
     RunSearch(query, actions.search, search)
-    val sections = remember(search.results) { searchSections(search.results.orEmpty(), search.query) }
+    val sections = remember(search.results) {
+        searchSections(search.results.orEmpty(), search.query, search.people)
+    }
     FocusAfterSearch(search, sections, focus)
 
     LazyColumn(
@@ -129,7 +134,7 @@ private fun LazyListScope.resultRows(
     sections.rows.forEachIndexed { index, section ->
         item(key = section.group.name) {
             ResultRow(
-                searchGroupTitle(section.group, sections.query),
+                searchGroupTitle(section.group, sections),
                 section.items,
                 section.group.style,
                 insets,
@@ -143,15 +148,24 @@ private fun LazyListScope.resultRows(
 }
 
 @Composable
-private fun searchGroupTitle(group: SearchGroup, query: String): String = when (group) {
+private fun searchGroupTitle(group: SearchGroup, sections: SearchSections): String = when (group) {
     SearchGroup.MOVIES -> stringResource(Res.string.library_search_movies)
     SearchGroup.SHOWS -> stringResource(Res.string.library_search_shows)
-    SearchGroup.CAST_AND_CREW -> stringResource(Res.string.library_search_people, query)
+    SearchGroup.CAST_AND_CREW -> peopleTitle(sections.people, sections.query)
     SearchGroup.EPISODES -> stringResource(Res.string.library_search_episodes)
     SearchGroup.VIDEOS -> stringResource(Res.string.library_search_videos)
     SearchGroup.ARTISTS -> stringResource(Res.string.library_search_artists)
     SearchGroup.ALBUMS -> stringResource(Res.string.library_search_albums)
     SearchGroup.TRACKS -> stringResource(Res.string.library_search_tracks)
+}
+
+/** The row of titles found by their cast or directors names those people, up to two, or else the query. */
+@Composable
+private fun peopleTitle(people: List<String>, query: String): String = when (people.size) {
+    0 -> stringResource(Res.string.library_search_people, query)
+    1 -> stringResource(Res.string.library_search_people, people[0])
+    2 -> stringResource(Res.string.library_search_people_two, people[0], people[1])
+    else -> stringResource(Res.string.library_search_people_more, people[0], people[1])
 }
 
 /** Where focus goes around a search: the field, the first result, and the result the viewer came back from. */
@@ -169,6 +183,9 @@ private class SearchFocus {
 private class SearchProgress {
     var results by mutableStateOf<List<MediaItem>?>(null)
 
+    /** The people the server found [results] by, in its order. */
+    var people by mutableStateOf(emptyList<String>())
+
     /** The query [results] answer. */
     var query by mutableStateOf("")
     var searching by mutableStateOf(false)
@@ -178,7 +195,7 @@ private class SearchProgress {
 
 /** Runs [search] for the query a moment after the viewer stops typing; a newer query cancels the one running. */
 @Composable
-private fun RunSearch(query: TextFieldState, search: suspend (String) -> List<MediaItem>, into: SearchProgress) {
+private fun RunSearch(query: TextFieldState, search: suspend (String) -> SearchResults, into: SearchProgress) {
     val currentSearch by rememberUpdatedState(search)
     LaunchedEffect(Unit) {
         snapshotFlow { query.text.toString().trim() }.collectLatest { text ->
@@ -192,7 +209,8 @@ private fun RunSearch(query: TextFieldState, search: suspend (String) -> List<Me
             try {
                 val found = currentSearch(text)
                 into.query = text
-                into.results = found
+                into.people = found.people
+                into.results = found.items
             } finally {
                 into.searching = false
             }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- The release build publishes Continue watching to Google TV's production Engage service; a debug build
+             publishes to the test one, which only the Engage verification app reads. -->
+        <meta-data
+            android:name="com.google.android.engage.service.ENV"
+            android:value="PRODUCTION" />
+    </application>
+</manifest>

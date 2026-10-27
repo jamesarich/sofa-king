@@ -139,6 +139,8 @@ kotlin {
         jvmMain.dependencies {
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.vlcj)
+            implementation(libs.dbus.java.core)
+            implementation(libs.dbus.java.transport.unixsocket)
         }
         // Desktop only: in commonTest it would reach the Android host tests, which have no Compose host.
         jvmTest.dependencies {

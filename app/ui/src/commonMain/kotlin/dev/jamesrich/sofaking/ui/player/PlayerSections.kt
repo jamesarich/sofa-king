@@ -22,7 +22,11 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -31,6 +35,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.data.StreamHealth
+import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.captions_off
 import dev.jamesrich.sofaking.resources.captions_on
@@ -60,9 +66,13 @@ import dev.jamesrich.sofaking.ui.RiseIn
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
+
+private val HEALTH_READ_INTERVAL = 5.seconds
 
 /**
  * Status pills stack top left so a caption toast never covers "Paused" or "Tuning"; a finger or a mouse gets the Back
@@ -119,6 +129,15 @@ internal fun StreamCardPanel(
     audioTracks: List<AudioTrack>,
 ) {
     val heldStream by sessions.current.collectAsStateWithLifecycle()
+    var health by remember { mutableStateOf<StreamHealth?>(null) }
+    // The server's view of the session moves slower than the engine's, so it is read every few seconds.
+    LaunchedEffect(state.streamCardOpen, heldStream?.sessionId) {
+        health = null
+        while (state.streamCardOpen) {
+            health = runCatchingCancellable { sessions.health() }.getOrNull()
+            delay(HEALTH_READ_INTERVAL)
+        }
+    }
     AnimatedVisibility(state.streamCardOpen, enter = PopIn, exit = ExitTransition.None) {
         Box(Modifier.fillMaxSize()) {
             StreamCard(
@@ -130,6 +149,7 @@ internal fun StreamCardPanel(
                     player.selectAudioTrack(id)
                     state.streamCardUsed()
                 },
+                health = health,
             )
         }
     }

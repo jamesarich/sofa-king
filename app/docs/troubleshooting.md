@@ -7,7 +7,7 @@ Start with the message on screen, then the log. The app logs under the tag `Sofa
 | Symptom | Check |
 | --- | --- |
 | Connect to your Sofa King server | No server is set. Focus starts on the header's Settings button; press OK, choose or enter the Server address, enter the pairing code from the admin portal and select Pair. |
-| Servers on this network does not appear, or does not list the server | The app lists servers that [advertise themselves over mDNS](../../backend/docs/api.md#discovery), on Android, Android TV, desktops and Apple TV; iPhone, iPad and the web app do not look. The device must be on the server's subnet, and the server's log says `mdns: advertising` at the start. On Android 17, allow Nearby devices for Sofa King, which the app asks for at its first start, in the system's app settings. Otherwise enter the address. |
+| Servers on this network does not appear, or does not list the server | The app lists servers that [advertise themselves over mDNS](../../backend/docs/api.md#discovery), on Android, Android TV, desktops, iPhone, iPad and Apple TV; the web app does not look. On an iPhone or iPad, allow Local Network for Sofa King in the system's settings. The device must be on the server's subnet, and the server's log says `mdns: advertising` at the start. On Android 17, allow Nearby devices for Sofa King, which the app asks for at its first start, in the system's app settings. Otherwise enter the address. |
 | The Server address field says to enter the server's address | Enter the host, with its port when it is not 9193, for example `192.168.1.10`, or the whole URL, for example `http://192.168.1.10:9193`. A path, credentials, queries and fragments are refused. |
 | On Apple TV, the keyboard closes by itself while you type | tvOS's keyboard sometimes loses track of which key it is on, and an arrow press then would stop the app; the app closes the keyboard instead. What you typed stays in the field; select the field to go on typing. |
 | Couldn't reach the Sofa King server | On Android 17, Sofa King needs the Nearby devices permission to reach the local network; allow it in the system's app settings. Check the address, the network and that the server is running: `curl --fail http://SERVER_HOST:9193/readyz` answers `ready`. Select Try again, which has focus, or Settings → Server → Reload to try again; the app also tries again after 5, 10, 20 and 40 seconds, then every minute. |
@@ -87,7 +87,7 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 
 ### Why does the app not find the server by itself?
 
-On Android, Android TV, desktops and Apple TV, Settings lists the servers on the same network under Servers on this network; when yours is missing, see the first row of the table above. iPhone, iPad and the web app do not look, so enter the server's address in Settings.
+On Android, Android TV, desktops, iPhone, iPad and Apple TV, Settings lists the servers on the same network under Servers on this network; when yours is missing, see the first row of the table above. The web app does not look, so enter the server's address in Settings.
 
 ### Can I use it away from home?
 

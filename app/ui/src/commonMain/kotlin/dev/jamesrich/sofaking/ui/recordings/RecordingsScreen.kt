@@ -41,9 +41,9 @@ import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.formatBytes
+import dev.jamesrich.sofaking.ui.listScreenPadding
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
-import dev.jamesrich.sofaking.ui.screenPadding
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -114,10 +114,12 @@ private fun RecordingList(
     val firstFocus = remember { FocusRequester() }
     // The recording just played takes focus, else the first; with none, focus stays on the header's tab.
     LaunchedEffect(groups.isEmpty()) { if (groups.isNotEmpty()) requestFocusWhenAttached(firstFocus) }
+    // The app's header sits above, with the tabs, so the list pads the sides and bottom only.
+    val padding = listScreenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
     LazyColumn(
-        // The app's header sits above, with the tabs, so the list pads the sides and bottom only.
-        modifier = Modifier.fillMaxSize().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+        modifier = Modifier.fillMaxSize().then(padding.modifier),
         state = listState,
+        contentPadding = padding.content,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         if (state.space.totalBytes > 0) {

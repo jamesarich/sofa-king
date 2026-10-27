@@ -12,7 +12,16 @@
     <string name="recordings_space">%1$s free of %2$s</string>
     <string name="recordings_until">Recording until %1$s</string>
     <string name="recordings_failed">Failed</string>
-    <string name="recordings_failed_reason">Failed: %1$s</string>
+    <string name="recordings_failed_missed">Missed: the server was off or busy with other recordings</string>
+    <string name="recordings_failed_disk_full">Failed: the recordings disk filled up</string>
+    <string name="recordings_failed_no_media">Failed: the channel sent nothing to record</string>
+    <string name="recordings_failed_source">Failed: couldn't reach the channel's source</string>
+    <string name="recordings_failed_channel_gone">Failed: the channel left the lineup</string>
+    <string name="recordings_ended_early">Ended early</string>
+    <string name="recordings_ended_early_stopped">Stopped early</string>
+    <string name="recordings_ended_early_disk_full">Ended early: the recordings disk filled up</string>
+    <string name="recordings_ended_early_source">Ended early: lost the channel's source</string>
+    <string name="recordings_ended_early_channel_gone">Ended early: the channel left the lineup</string>
     <string name="recordings_watched">Watched</string>
     <string name="recordings_play">Play</string>
     <string name="recordings_resume">Resume</string>

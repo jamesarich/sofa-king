@@ -17,7 +17,7 @@ struct SofaKingTVApp: App {
 @MainActor
 @Observable
 final class AppModel {
-    let core = SofaKingTv()
+    let core: SofaKingTv
     private(set) var state: LineupState = LineupStateLoading.shared
     private(set) var settings: AppSettings?
     private(set) var capabilities: ServerCapabilities?
@@ -29,6 +29,10 @@ final class AppModel {
     private(set) var watchlist: WatchlistMarks?
     /// The library item the player shows, from whichever library page asked for it.
     var vod: VodRequest?
+    /// The music, which plays apart from any page.
+    let music: MusicPlayer
+    /// Whether Now playing is open over the tabs.
+    var nowPlayingShown = false
     /// The players' sleep timer, which lasts through Up next until the viewer leaves the player.
     var sleep = SleepTimer()
     /// The items Up next played by itself since the viewer last pressed anything, for "Still watching?".
@@ -46,11 +50,21 @@ final class AppModel {
     private(set) var requestedLive: String?
     /// Why the last `sofaking://pair` link failed to pair; an alert shows it once.
     var pairingFailure: String?
+    /// Whether the PIN opened Settings; leaving the Settings tab or the app locks it again.
+    var settingsUnlocked = false
+    /// Turning on kids mode asks for the Live tab; the tab bar takes it and clears it.
+    var liveRequested = false
+    /// Wrong PINs in a row, and when the wait the fifth starts ends; they last as long as the process.
+    private var pinMisses = 0
+    private(set) var pinWaitEnds: Date?
     private var watches: [Watch] = []
     private var published: [TopShelfChannel] = []
     private var publishedContinue: [TopShelfItem]?
 
     init() {
+        let core = SofaKingTv()
+        self.core = core
+        music = MusicPlayer(core: core)
         #if DEBUG
         // `xcrun simctl launch booted dev.jamesrich.sofaking.tv -serverUrl http://host:port -apiToken TOKEN`
         // saves a server without typing on the simulator's keyboard.
@@ -78,7 +92,15 @@ final class AppModel {
         watches.append(core.watchWatchlist { [weak self] in self?.watchlist = $0 })
     }
 
-    var lineup: Lineup? { (state as? LineupStateReady)?.lineup }
+    /** The lineup as this device shows it: without the channels it hides, the household's included. */
+    var lineup: Lineup? { (state as? LineupStateReady)?.visible }
+
+    /// Plays the songs among `tracks` from `start` (the first when nil), shuffled with `shuffled`, and opens Now playing.
+    func playMusic(_ tracks: [MediaItem], from start: MediaItem?, shuffled: Bool = false) {
+        guard let queue = core.musicQueue(tracks: tracks, startId: start?.id, shuffled: shuffled) else { return }
+        music.play(queue)
+        nowPlayingShown = true
+    }
 
     /// Pairs with the server a `sofaking://pair` link names; success shows as the lineup loading, failure as an alert.
     func pair(_ request: PairingRequest) {
@@ -99,8 +121,26 @@ final class AppModel {
         }
     }
 
-    /// The DVR tab shows when the server records.
-    var recordingsShown: Bool { capabilities?.recordings == true }
+    /// The DVR tab shows when the server records, outside kids mode.
+    var recordingsShown: Bool { capabilities?.recordings == true && settings?.kidsMode != true }
+
+    /// Whether the lock makes the viewer wait before the next PIN.
+    var pinWaiting: Bool { pinWaitEnds.map { $0 > Date() } ?? false }
+
+    /// A wrong PIN; the fifth in a row makes the next try wait 30 seconds, and the count starts over.
+    func pinMissed() {
+        pinMisses += 1
+        if pinMisses >= 5 {
+            pinMisses = 0
+            pinWaitEnds = Date().addingTimeInterval(30)
+        }
+    }
+
+    /// The right PIN, or the lock removed.
+    func pinPassed() {
+        pinMisses = 0
+        pinWaitEnds = nil
+    }
 
     /// Whether the server has said yet if [tab] belongs in the tab bar; Library also waits for the first list.
     func offerKnown(_ tab: AppTab) -> Bool {
@@ -116,7 +156,7 @@ final class AppModel {
         guard settings.startup == .resume else { return nil }
         switch settings.lastTab {
         case .library: return .library
-        case .recordings: return .recordings
+        case .recordings: return settings.kidsMode ? nil : .recordings
         default: return nil
         }
     }
@@ -213,6 +253,7 @@ enum AppTab: Hashable {
 
 struct ContentView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     @State private var tab = AppTab.live
     /// Whether the start has picked its tab, once the settings are in.
     @State private var tabRestored = false
@@ -220,6 +261,7 @@ struct ContentView: View {
     @State private var restored: AppTab?
 
     var body: some View {
+        @Bindable var model = model
         // The tab bar waits for the start's tab: UIKit can fail on a bar that gains a tab and selects it at once, or
         // loses the tab it is leaving, with a navigation bar assertion.
         Group {
@@ -247,6 +289,10 @@ struct ContentView: View {
                 model.pair(request)
             }
         }
+        .fullScreenCover(isPresented: $model.nowPlayingShown) { NowPlayingView() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { model.settingsUnlocked = false }
+        }
         .alert("Pairing failed", isPresented: Binding(get: { model.pairingFailure != nil }, set: { if !$0 { model.pairingFailure = nil } })) {
             Button("OK") {}
         } message: {
@@ -266,17 +312,23 @@ struct ContentView: View {
             if recordingsInBar {
                 RecordingsView().tabItem { Label("DVR", systemImage: "record.circle") }.tag(AppTab.recordings)
             }
-            NavigationStack { SettingsView() }.tabItem { Label("Settings", systemImage: "gear") }.tag(AppTab.settings)
+            NavigationStack { SettingsGate() }.tabItem { Label("Settings", systemImage: "gear") }.tag(AppTab.settings)
         }
         .onChange(of: model.requestedChannel) { _, requested in
             // A Top Shelf channel plays from the Live tab.
             if requested != nil { tab = .live }
+        }
+        .onChange(of: model.liveRequested) { _, requested in
+            guard requested else { return }
+            model.liveRequested = false
+            tab = .live
         }
         .onChange(of: model.requestedItem) { _, requested in
             // A Top Shelf item plays from the Library tab, whose player cover it opens in.
             if requested != nil { tab = .library }
         }
         .onChange(of: tab) { _, picked in
+            if picked != .settings { model.settingsUnlocked = false }
             if let remembered = picked.remembered { model.core.setLastTab(tab: remembered) }
         }
         // Once the server has answered, the start's tab stays only if the server offers it, as after any other start.
@@ -301,15 +353,15 @@ struct ContentView: View {
         NavigationStack {
             switch model.state {
             case let ready as LineupStateReady:
-                ChannelListView(lineup: ready.lineup)
+                ChannelListView(lineup: ready.visible)
             case is LineupStateUnconfigured:
-                SettingsView()
+                SettingsGate()
             case let failed as LineupStateFailed:
                 VStack(spacing: 32) {
                     Text("Couldn't reach the Sofa King server").font(.title2)
                     Text(failed.message).foregroundStyle(.secondary)
                     Button("Try again") { model.core.refresh() }
-                    NavigationLink("Settings") { SettingsView() }
+                    NavigationLink("Settings") { SettingsGate() }
                 }
             default:
                 ProgressView("Sofa King close, loading channels…")

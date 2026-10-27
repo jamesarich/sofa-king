@@ -40,7 +40,7 @@ The portal's Sources page writes this file: every service is a switch, with its 
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
 | `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo`, `pluto`, `tubi`, `direct`, `hdhomerun` |
-| `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung` and `whale`, `region` and `forwardedFor` for `pluto` and `plex`, `dma` and `market` for `localnow`, `market` for `xumo`, `url` (required) and `transcode` for `hdhomerun` |
+| `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` and `fallbackUrl` for `samsung`, `region` for `whale`, `region` and `forwardedFor` for `pluto` and `plex`, `dma` and `market` for `localnow`, `market` for `xumo`, `url` (required) and `transcode` for `hdhomerun` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
 | `probe` | `true` | Probes resolve the channel and qualify the resolved URL like any source. A lineup policy ignores it ([probing](lineup-policy.md#probing)) |
@@ -133,9 +133,9 @@ Fragility: which livestream feeds are clear is the station's decision, and it ch
 
 ### samsung (Samsung TV Plus)
 
-Matt Huisman's published mirrors (i.mjh.nz): the channel list `.channels.json.gz` by `region` (default `us`), with channels that have a `license_url` left out as DRM. The XMLTV `REGION.xml.gz` is the provider's implicit guide, through the ordinary guide pipeline and refreshed with the provider, hourly by default. Set `guideUrl` to override it. A resolve requests `jmp2.uk/stvp-ID` without following, takes its redirect target, fills `{PSID}`, `{TARGETOPT}` and `{US_PRIVACY}`, and blanks the other braces. The relay follows the remaining hop to the CDN.
+Matt Huisman's published mirrors (i.mjh.nz): the channel list `.channels.json.gz` by `region` (default `us`), with channels that have a `license_url` left out as DRM. When i.mjh.nz fails, the list comes from the mirror's GitHub repository (`fallbackUrl` overrides it), and when that fails too, the last list that loaded, kept in SQLite across restarts, stands in so that resolves still find their channels. Samsung publishes no channel API outside its own apps. The XMLTV `REGION.xml.gz` is the provider's implicit guide, through the ordinary guide pipeline and refreshed with the provider, hourly by default. Set `guideUrl` to override it. A resolve requests `jmp2.uk/stvp-ID` without following, takes its redirect target, fills `{PSID}`, `{TARGETOPT}` and `{US_PRIVACY}`, and blanks the other braces. The relay follows the remaining hop to the CDN.
 
-Fragility: a third party's mirror and redirector. Both can lag or go away. Some targets are CMAF with DRM despite having no `license_url`, and they do not decode.
+Fragility: a third party's mirror and redirector. Both can lag or go away, and the kept list only bridges an outage of the list, not of `jmp2.uk`. Some targets are CMAF with DRM despite having no `license_url`, and they do not decode.
 
 ### plex (Plex free live TV)
 
@@ -157,9 +157,9 @@ Fragility: about 35 category requests per refresh. Seasonal rows are themed as f
 
 ### roku (The Roku Channel)
 
-The channel list is Matt Huisman's mirror (i.mjh.nz `Roku/.channels.json.gz`), keyed by Roku's station ID with number, logo and first group. The mirror leaves out the channels that need DRM, so it lists only part of what the web client shows. Its XMLTV (`Roku/all.xml.gz`, with the same IDs) is the provider's implicit guide, through the ordinary guide pipeline. Set `guideUrl` to override it. A resolve runs the therokuchannel.roku.com web client's steps: an anonymous session (the home page's cookies and the `csrf` token, kept 55 minutes), the content proxy for the channel's `playId` (kept six hours), and a POST to `playback`. The POST answers with an `osm.sr.roku.com` HLS URL that the relay uses for five hours. A playback answer that names DRM fails as the channel's fault. A 401 or 403 starts a new session and retries once.
+The channel list is Matt Huisman's mirror (i.mjh.nz `Roku/.channels.json.gz`), keyed by Roku's station ID with number, logo and first group. The mirror leaves out the channels that need DRM, so it lists only part of what the web client shows. When the mirror fails, the list is the web client's own station list (`api/v4/epg` in the anonymous session below): its live `rokuavod` stations, with the same IDs, names, numbers and logos, grouped by the first guide category that is a genre. That list does not say which stations need DRM, so after the mirror has loaded once it is narrowed to the channels the mirror last listed, under the mirror's groups. When it fails too, the last list that loaded stands in, kept in SQLite across restarts. The mirror's XMLTV (`Roku/all.xml.gz`, with the same IDs) is the provider's implicit guide, through the ordinary guide pipeline. Set `guideUrl` to override it. A resolve runs the therokuchannel.roku.com web client's steps: an anonymous session (the home page's cookies and the `csrf` token, kept 55 minutes), the content proxy for the channel's `playId` (kept six hours), and a POST to `playback`. The POST answers with an `osm.sr.roku.com` HLS URL that the relay uses for five hours. A playback answer that names DRM fails as the channel's fault. A 401 or 403 starts a new session and retries once.
 
-Fragility: CloudFront in front of the web client sometimes answers 403 for a while. That fails resolves as provider evidence. The channel list depends on a third party's mirror.
+Fragility: CloudFront in front of the web client sometimes answers 403 for a while. That fails resolves as provider evidence. Before the mirror has ever loaded, the station list includes the DRM channels, which fail on resolve as the channel's fault.
 
 ### localnow (Local Now)
 

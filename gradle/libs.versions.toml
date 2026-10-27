@@ -35,6 +35,10 @@ core-pip = "1.0.0-alpha04"
 media3 = "1.11.1"
 profileinstaller = "1.4.1"
 tvprovider = "1.1.0"
+# Google TV's Continue watching row (the Engage SDK), which replaces the Watch Next API that tvprovider writes.
+engage-tv = "1.1.0"
+# Play services (through engage-tv) brings Fragment 1.1.0, whose activity results lint refuses; this raises it.
+androidx-fragment = "1.9.1"
 # Macrobenchmark and the Baseline Profile plugin release together.
 benchmark = "1.5.0"
 uiautomator = "2.4.0"
@@ -44,6 +48,8 @@ androidx-test-orchestrator = "1.6.1"
 # Compose Preview Screenshot Testing's engine and validation API, run by the androidApp screenshot test suite.
 screenshot = "0.0.1-alpha16"
 vlcj = "4.12.1"
+# The desktop app's MPRIS media session on Linux, over the session bus.
+dbus-java = "5.2.2"
 coil = "3.6.3"
 # The open-source licenses screen: its Gradle plugin lists the dependencies at build time, its Compose UI draws them.
 aboutlibraries = "15.3.0"
@@ -119,6 +125,8 @@ media3-ui-compose = { module = "androidx.media3:media3-ui-compose", version.ref 
 media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
 androidx-tvprovider = { module = "androidx.tvprovider:tvprovider", version.ref = "tvprovider" }
+androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "androidx-fragment" }
+engage-tv = { module = "com.google.android.engage:engage-tv", version.ref = "engage-tv" }
 screenshot-validation-api = { module = "com.android.tools.screenshot:screenshot-validation-api", version.ref = "screenshot" }
 androidx-benchmark-macro-junit4 = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "benchmark" }
 androidx-uiautomator = { module = "androidx.test.uiautomator:uiautomator", version.ref = "uiautomator" }
@@ -128,6 +136,8 @@ androidx-test-orchestrator = { module = "androidx.test:orchestrator", version.re
 
 # Desktop
 vlcj = { module = "uk.co.caprica:vlcj", version.ref = "vlcj" }
+dbus-java-core = { module = "com.github.hypfvieh:dbus-java-core", version.ref = "dbus-java" }
+dbus-java-transport-unixsocket = { module = "com.github.hypfvieh:dbus-java-transport-native-unixsocket", version.ref = "dbus-java" }
 
 # Server
 ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }

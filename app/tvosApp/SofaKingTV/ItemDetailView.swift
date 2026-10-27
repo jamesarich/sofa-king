@@ -184,9 +184,12 @@ struct ItemDetailView: View {
                 Text(artist).font(.headline).foregroundStyle(.secondary)
             }
             Text(item.title).font(.title).bold()
-            let meta = musicMeta(item, songs: songs)
+            let meta = musicMeta(item, songs: songs, place: detail.studio)
             if !meta.isEmpty {
                 Text(meta).foregroundStyle(.secondary)
+            }
+            if item.kind == .artist, !detail.cast.isEmpty {
+                Text("Members: \(detail.cast.prefix(6).joined(separator: ", "))").font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
             if let overview = item.overview, !overview.isEmpty {
                 Text(overview).lineLimit(6)
@@ -200,10 +203,11 @@ struct ItemDetailView: View {
         }
     }
 
-    /// An album's year, number of songs and length; an artist's number of albums.
-    private func musicMeta(_ item: MediaItem, songs: [MediaItem]) -> String {
+    /// An album's year, number of songs and length; an artist's year, country and number of albums.
+    private func musicMeta(_ item: MediaItem, songs: [MediaItem], place: String?) -> String {
         var parts: [String] = []
         if let year = item.year { parts.append(String(year.intValue)) }
+        if item.kind == .artist, let place, !place.isEmpty { parts.append(place) }
         if item.kind == .artist, item.children > 0 {
             parts.append(item.children == 1 ? "1 album" : "\(item.children) albums")
         }

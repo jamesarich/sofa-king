@@ -21,12 +21,13 @@ internal const val WEB_APP_PATH = "/app"
 /**
  * The web app's policy. WebAssembly needs `'wasm-unsafe-eval'`, and Compose adds a style element to the page it draws
  * in; images and fetches may reach HTTPS hosts, where a guide's program images live; the player reads streams through
- * media source buffers.
+ * media source buffers; Coil decodes artwork in a worker it starts from a `blob:` address, and without it every poster
+ * stays a placeholder.
  */
 internal const val WEB_APP_CSP =
     "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
-        "img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https:; worker-src 'self'; " +
-        "frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+        "img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https:; " +
+        "worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 
 /**
  * Whether the server serves the web app: [ServerConfig.webDirectory] holds its page. A folder without it, as a local

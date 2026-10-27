@@ -34,3 +34,6 @@ internal actual fun ReleaseOnPageExit(sessions: PlaybackSessions) = Unit
 
 @Composable
 internal actual fun KeepPlayingInBackground(session: MediaSessionHandle?) = Unit
+
+@Composable
+internal actual fun rememberSurroundTestPlayer(): SurroundTestPlayer? = null

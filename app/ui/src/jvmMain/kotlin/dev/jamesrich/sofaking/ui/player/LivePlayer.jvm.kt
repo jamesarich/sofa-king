@@ -66,7 +66,7 @@ private val libVlcDiscovered: Boolean by lazy { NativeDiscovery().discover() }
  * libVLC's factory for one player. Discovery only adds the directory it found to the search path, so without a find
  * the system's loader still gets its try; where neither finds libVLC, this throws.
  */
-private fun newVlcFactory(): MediaPlayerFactory {
+internal fun newVlcFactory(): MediaPlayerFactory {
     libVlcDiscovered
     return MediaPlayerFactory(null as NativeDiscovery?, "--no-video-title-show", "--network-caching=1500", "--quiet")
 }

@@ -336,8 +336,8 @@ private fun CaptionTimingRow(stored: Int, onChange: (Int) -> Unit) {
 }
 
 /**
- * The Playback page, where the platform takes these: night listening, matching the frame rate, the decoder and the
- * buffer.
+ * The Playback page, where the platform takes these: night listening, the surround test, matching the frame rate, the
+ * decoder and the buffer.
  */
 internal fun LazyListScope.playbackPage(settings: AppSettings, actions: SettingsActions) {
     if (supportsNightListening) {
@@ -350,6 +350,7 @@ internal fun LazyListScope.playbackPage(settings: AppSettings, actions: Settings
             )
         }
     }
+    item { SurroundTestRow() }
     if (!supportsPlaybackPreferences) return
     item {
         SettingToggle(

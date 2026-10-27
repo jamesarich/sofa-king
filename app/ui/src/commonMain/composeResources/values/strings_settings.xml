@@ -141,8 +141,8 @@
     <string name="settings_page_captions">Captions</string>
     <string name="settings_page_captions_subtitles">Captions and subtitles</string>
     <string name="settings_page_playback">Playback</string>
-    <string name="settings_page_playback_summary">Night listening, frame rate, decoder and buffer</string>
-    <string name="settings_page_playback_night">Night listening</string>
+    <string name="settings_page_playback_summary">Night listening, surround test, frame rate, decoder and buffer</string>
+    <string name="settings_page_playback_night">Night listening and surround test</string>
     <string name="settings_page_lock">Parental controls</string>
     <string name="settings_page_lock_off">No PIN</string>
     <string name="settings_page_lock_on">Settings locked with a PIN</string>
@@ -182,6 +182,16 @@
     <string name="channels_share_help">Keeps the favorites, their order and the hidden channels the same on every device of the household that has this on. Turning it on takes the household's list over when another device saved one.</string>
     <string name="settings_night_listening">Night listening</string>
     <string name="settings_night_listening_help">Brings quiet dialogue up and loud scenes down, for late nights. Audio passed through to a receiver is left as it is.</string>
+    <string name="settings_surround_test">Test surround sound</string>
+    <string name="settings_surround_test_help">Plays a tone from each speaker of a 5.1 setup in turn, decoded by the app. The speaker named here should be the one you hear.</string>
+    <string name="settings_surround_test_play">Play</string>
+    <string name="settings_surround_test_stop">Stop</string>
+    <string name="speaker_front_left">Front left</string>
+    <string name="speaker_center">Center</string>
+    <string name="speaker_front_right">Front right</string>
+    <string name="speaker_surround_right">Surround right</string>
+    <string name="speaker_surround_left">Surround left</string>
+    <string name="speaker_subwoofer">Subwoofer</string>
     <string name="licenses_title">Open-source licenses</string>
     <string name="licenses_no_text">The license text isn't bundled for this library. The license named above applies.</string>
 </resources>

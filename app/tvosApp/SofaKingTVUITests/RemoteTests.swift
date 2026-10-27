@@ -23,8 +23,8 @@ final class RemoteTests: XCTestCase {
         let sports = row("Sofa Sports")
         focus(sports, by: Array(repeating: XCUIRemote.Button.down, count: 5) + Array(repeating: XCUIRemote.Button.up, count: 8))
         remote.press(.select)
-        eventually("Sofa Sports to open a playback session", timeout: 30) { !server.sessions().isEmpty }
-        let tuned = server.sessions().first?["channelId"] as? String
+        eventually("Sofa Sports to open a playback session", timeout: 30) { !server.watching().isEmpty }
+        let tuned = server.watching().first?["channelId"] as? String
 
         let record = control("Record")
         reachInTransportBar(record)
@@ -43,7 +43,7 @@ final class RemoteTests: XCTestCase {
         focus(movies, pressing: .down, presses: 16)
         remote.press(.select)
         eventually("the player to switch to Movies", timeout: 30) {
-            server.sessions().contains { $0["channelId"] as? String != tuned }
+            server.watching().contains { $0["channelId"] as? String != tuned }
         }
 
         leavePlayer()
@@ -221,11 +221,11 @@ final class RemoteTests: XCTestCase {
         app.launch()
         let news = row("News Now")
         eventually("the channel list, another tab or the last channel", timeout: 60) {
-            news.exists || app.tabBars.buttons["Live"].exists || !server.sessions().isEmpty
+            news.exists || app.tabBars.buttons["Live"].exists || !server.watching().isEmpty
         }
         // The launch decision opens the last channel once the lineup is in, and a start reopens the last tab.
         RunLoop.current.run(until: Date().addingTimeInterval(3))
-        if !server.sessions().isEmpty { leavePlayer() }
+        if !server.watching().isEmpty { leavePlayer() }
         if !news.exists {
             focus(app.tabBars.buttons["Live"], by: Array(repeating: XCUIRemote.Button.up, count: 6) + Array(repeating: XCUIRemote.Button.left, count: 3))
             remote.press(.down)
@@ -240,7 +240,7 @@ final class RemoteTests: XCTestCase {
             remote.press(.menu)
             let deadline = Date().addingTimeInterval(5)
             while Date() < deadline {
-                if server.sessions().isEmpty { return }
+                if server.watching().isEmpty { return }
                 RunLoop.current.run(until: Date().addingTimeInterval(0.5))
             }
         }
@@ -378,6 +378,11 @@ struct FixtureServer {
             guard let started = (session["startedAt"] as? String).flatMap({ Self.seconds.date(from: String($0.prefix(19)) + "Z") }) else { return true }
             return started >= since.addingTimeInterval(-2)
         }
+    }
+
+    /// The sessions a channel opened full screen, rather than the guide's preview.
+    func watching() -> [[String: Any]] {
+        sessions().filter { $0["intent"] as? String == "watch" }
     }
 
     private static let seconds = ISO8601DateFormatter()

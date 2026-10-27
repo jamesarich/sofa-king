@@ -74,8 +74,6 @@ struct GuideGrid: View {
     let details: (Channel, Program?) -> Void
     /// Where focus rests: a cell's channel and program, or nil and nil once it leaves the grid.
     var onFocus: (Channel?, Program?) -> Void = { _, _ in }
-    /// Any arrow press in the grid, whether or not focus moved.
-    var onKey: () -> Void = {}
     @State private var windowStart = GuideWindow.start(at: .now)
     @State private var now = Date()
     @FocusState private var focus: GuideFocus?
@@ -103,7 +101,6 @@ struct GuideGrid: View {
                         }
                         .padding(.vertical, 12)
                     }
-                    .onMoveCommand { _ in onKey() }
                     .onChange(of: arrival, initial: true) { _, wanted in
                         guard let wanted else { return }
                         arrive(at: wanted, proxy: proxy)

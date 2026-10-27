@@ -5,8 +5,8 @@ import SofaKingCore
 
 /// The guide's preview, as on the other apps: the focused channel plays muted after 350 ms, its sound comes on after
 /// 5 seconds of rest (unless Settings turns preview sound off), and after the rest Settings sets (10 seconds unless
-/// changed, or never) it opens full screen through `open`, continuing the preview's stream and session. Any press
-/// starts the rest again, muted. The channel just watched does not open by itself again until focus moves to another,
+/// changed, or never) it opens full screen through `open`, continuing the preview's stream and session. Each move
+/// of focus starts the rest again, muted. The channel just watched does not open by itself again until focus moves to another,
 /// nor does any while VoiceOver runs or the preview failed. It plays on the app's one live `AVPlayer`, which the full
 /// screen player takes over.
 @MainActor
@@ -66,9 +66,6 @@ final class GuidePreview {
             await self?.tune(channelId)
         }
     }
-
-    /// A press: the rest starts over, muted.
-    func key() { restart() }
 
     private func tune(_ channelId: String) async {
         guard let model else { return }

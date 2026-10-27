@@ -77,8 +77,7 @@ struct ChannelListView: View {
                     arrival: $arrival,
                     play: { playing = $0 },
                     details: { channel, program in detail = ProgramChoice(channel: channel, program: program) },
-                    onFocus: { channel, program in preview.focus(channel?.guideId, program: program) },
-                    onKey: { preview.key() }
+                    onFocus: { channel, program in preview.focus(channel?.guideId, program: program) }
                 )
             }
         }

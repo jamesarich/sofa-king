@@ -77,13 +77,16 @@ class MusicMetadataTest {
 
     /**
      * Scans a Music library of [tags]' files and the [others], twice, looking each up on [http]; [refresh] asks for its
-     * details again an hour later and scans a third time.
+     * details again an hour later, runs [beforeRefresh] and scans a third time, and [restart] scans once more as a
+     * restarted server.
      */
     private fun scan(
         http: HttpClient,
         tags: Map<String, AudioTags>,
         vararg others: String,
         refresh: Boolean = false,
+        restart: Boolean = false,
+        beforeRefresh: () -> Unit = {},
     ): Scanned = runBlocking {
         val dir = Files.createTempDirectory("sofa-music-")
         val music = Files.createDirectories(dir.resolve("media/Music"))
@@ -101,16 +104,20 @@ class MusicMetadataTest {
                 tags = tags[music.relativize(file).joinToString("/")],
             )
         })
-        val metadata =
-            MusicMetadata(store, MusicBrainzClient(http, "test", pause = Duration.ZERO, backoff = Duration.ZERO), clock)
-        val service = LibraryService(
+        fun service() = LibraryService(
             store,
             clock,
             listOf(MediaRoot("Media", dir.resolve("media"))),
             scanner,
             Jobs(clock),
-            musicMetadata = metadata,
+            musicMetadata =
+            MusicMetadata(
+                store,
+                MusicBrainzClient(http, "test", pause = Duration.ZERO, backoff = Duration.ZERO),
+                clock,
+            ),
         )
+        var service = service()
         val library = service.create("Music", LibraryKind.MUSIC, music.toString())
         service.scan(library.id)
         service.scan(library.id)
@@ -118,6 +125,11 @@ class MusicMetadataTest {
             clock.now = clock.now.plusSeconds(3_600)
             service.requestScan(library.id, refresh = true)
             clock.now = clock.now.plusSeconds(1)
+            beforeRefresh()
+            service.scan(library.id)
+        }
+        if (restart) {
+            service = service()
             service.scan(library.id)
         }
         val note = service.library(library.id).scanNote
@@ -296,6 +308,28 @@ class MusicMetadataTest {
         assertEquals(2, calls.count { it.startsWith("/release-group?") }, calls.toString())
         assertEquals(2, calls.count { it.startsWith("/artist?") }, calls.toString())
         assertTrue(s.looked("Record"))
+    }
+
+    @Test fun `a refresh a restart cuts short carries on after it`() {
+        val calls = mutableListOf<String>()
+        val throttled = mutableMapOf<String, Int>()
+        val http = musicBrainz(
+            calls,
+            mapOf("/release-group" to """{"release-groups":[]}""", "/artist" to """{"artists":[]}"""),
+            throttled = throttled,
+        )
+        scan(
+            http,
+            mapOf("Band/Record/01.flac" to AudioTags("One", "Band", album = "Record", track = 1)),
+            refresh = true,
+            restart = true,
+            // The first try and the client's four retries, so the refresh ends before the artist.
+            beforeRefresh = { throttled["/artist"] = 5 },
+        )
+        // The album is searched by the first scan and the refresh; the artist by the first scan, five times in vain by
+        // the refresh, and once more after the restart.
+        assertEquals(2, calls.count { it.startsWith("/release-group?") }, calls.toString())
+        assertEquals(7, calls.count { it.startsWith("/artist?") }, calls.toString())
     }
 
     @Test fun `an album with no picture of its own shows the Cover Art Archive's, and its artist borrows it`() {

@@ -14,8 +14,9 @@ internal const val MULTIVIEW_PLAYLIST = "index.m3u8"
 /**
  * The FFmpeg command that draws [tiles] as one live HLS stream into [dir]: each tile letterboxed into a quarter of
  * [canvas], two side by side in the middle, three or four in a grid, with a border around tile [audio], whose sound
- * is the stream's. A tile without a source is black. A restart in the same [dir] carries the playlist on after a
- * discontinuity.
+ * is the stream's. A tile without a source is black. When the sound's source ends, silence carries the sound on, since
+ * a player waits for good on a stream whose sound stops while its picture goes on. A restart in the same [dir]
+ * carries the playlist on after a discontinuity.
  */
 internal fun multiviewCommand(
     ffmpeg: String,
@@ -38,7 +39,7 @@ internal fun multiviewCommand(
     addAll(listOf("-filter_complex", graph(tiles.size, audio, canvas, encoder), "-map", "[v]"))
     addAll(listOf("-map", "$audio:a:0?", "-sn", "-dn"))
     addAll(encoder.codecArgs(MULTIVIEW_SEGMENT_SECONDS))
-    addAll(listOf("-c:a", "aac", "-ac", "2", "-ar", "48000", "-b:a", "160k"))
+    addAll(listOf("-af", "apad", "-c:a", "aac", "-ac", "2", "-ar", "48000", "-b:a", "160k"))
     addAll(
         listOf(
             "-f", "hls", "-hls_time", "$MULTIVIEW_SEGMENT_SECONDS", "-hls_list_size", "6",

@@ -365,6 +365,8 @@ struct PlayerView: View {
             // Left while the session opened: the view is gone, and leaving released the session. A switch or a
             // reconnect runs in a task of its own that leaving does not cancel, so the view's presence decides too.
             guard !Task.isCancelled, shown, fromStart == nil, multiview == nil else { return }
+            if let url = URL(string: stream.url) { await StreamStart.settled(url) }
+            guard !Task.isCancelled, shown, fromStart == nil, multiview == nil else { return }
             play(stream)
         } catch {
             guard !Task.isCancelled, shown else { return }

@@ -26,8 +26,6 @@ struct MultiviewView: View {
     @State private var namesTimer: Task<Void, Never>?
 
     private static let maxTiles = 4
-    private static let startSegments = 3
-    private static let startTries = 40
 
     init(from: Channel, watch: @escaping (Channel) -> Void) {
         self.from = from
@@ -222,17 +220,10 @@ struct MultiviewView: View {
         }
     }
 
-    /// Plays `stream` once its playlist lists three segments. AVPlayer starts a live stream no nearer its end than three
-    /// segments: handed one with fewer it fetches nothing and waits for good, and it gives up on a playlist request
-    /// the server holds past about 20 seconds, so the app asks for the playlist itself until the stream has started.
+    /// Plays `stream` once its playlist lists three segments.
     private func play(_ stream: PlaybackStream) async throws {
         guard let url = URL(string: stream.url) else { return }
-        for _ in 0..<Self.startTries {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let segments = String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline).filter { $0.hasSuffix(".ts") }
-            if segments.count >= Self.startSegments { break }
-            try await Task.sleep(for: .seconds(1))
-        }
+        await StreamStart.settled(url)
         guard !Task.isCancelled, watching else { return }
         let item = AVPlayerItem(url: url)
         itemObservers = [

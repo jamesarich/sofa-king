@@ -186,9 +186,10 @@ class MusicMetadata internal constructor(
                         fanart = art?.images?.picture,
                         fanartBackdrop = art?.images?.backdrop,
                         fanartAsked = art != null,
+                        fanartRevision = FANART_REVISION,
                         similar = listens?.similar.orEmpty(),
                         popular = listens?.popular.orEmpty(),
-                        listened = listens != null,
+                        listened = listens?.whole == true,
                     )
                 }
             }
@@ -290,7 +291,10 @@ private fun wikidataOf(artist: MbArtist): String? = artist.relations.firstOrNull
  */
 private fun incomplete(facts: MetadataFacts?, fanartOn: Boolean, listening: Boolean): Boolean =
     facts?.musicBrainzId != null &&
-        (!facts.described || (fanartOn && !facts.fanartAsked) || (listening && !facts.listened))
+        (
+            !facts.described || (fanartOn && (!facts.fanartAsked || facts.fanartRevision < FANART_REVISION)) ||
+                (listening && !facts.listened)
+            )
 
 /**
  * An image of Wikimedia Commons, as Wikipedia links it: the file itself, or for a large one a thumbnail of it
@@ -339,14 +343,23 @@ private fun genres(genres: List<MbGenre>): List<String> =
 
 /** What ListenBrainz holds for the MusicBrainz artist [id]; null when it was not asked or could not answer. */
 private suspend fun listens(client: ListenBrainzClient?, id: String): Listens? = client?.let {
-    runCatchingCancellable { Listens(it.popular(id), it.similar(id)) }.getOrElse { e ->
-        log.warn("listenbrainz lookup failed class={} message={}", e.javaClass.simpleName, e.message)
+    val popular = listenBrainz { it.popular(id) }
+    val similar = listenBrainz { it.similar(id) }
+    if (popular == null && similar == null) {
         null
+    } else {
+        Listens(popular.orEmpty(), similar.orEmpty(), popular != null && similar != null)
     }
 }
 
-/** An artist's [popular] songs and [similar] artists, as ListenBrainz's listeners play them. */
-private class Listens(val popular: List<PopularSong>, val similar: List<String>)
+/** One ListenBrainz call's answer; null when it failed, which leaves the other call's answer standing. */
+private suspend fun <T> listenBrainz(call: suspend () -> T): T? = runCatchingCancellable { call() }.getOrElse { e ->
+    log.warn("listenbrainz lookup failed class={} message={}", e.javaClass.simpleName, e.message)
+    null
+}
+
+/** An artist's [popular] songs and [similar] artists, as ListenBrainz's listeners play them; [whole] if both came. */
+private class Listens(val popular: List<PopularSong>, val similar: List<String>, val whole: Boolean)
 
 /** fanart.tv's answer for an artist: its [images], null when it holds none. */
 private class Fanarted(val images: FanartArtist?)

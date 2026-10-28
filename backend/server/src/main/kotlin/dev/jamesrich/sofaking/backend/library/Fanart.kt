@@ -26,9 +26,16 @@ private val fanartJson = Json {
 /** Where fanart.tv keeps its images; a picture is stored as its path under it. */
 internal const val FANART_ASSETS = "https://assets.fanart.tv/fanart/"
 
-/** An image path under [FANART_ASSETS]: folders and a file of plain characters, no `..`, ending in its type. */
+/**
+ * An image path under [FANART_ASSETS]: up to three folders of plain lowercase characters, as in
+ * `music/<id>/artistbackground/<file>`, and a file of plain characters, no `..`, ending in its type. Most images are
+ * just a slug-named file (`autechre-4faa….jpg`).
+ */
 internal val FANART_PATH =
-    Regex("""music/[0-9a-f-]{36}/[a-z]{1,32}/[A-Za-z0-9_~%-][A-Za-z0-9._~%-]{0,200}\.(jpg|png)""")
+    Regex("""(?:[a-z0-9-]{1,40}/){0,3}[A-Za-z0-9_~%-][A-Za-z0-9._~%-]{0,200}\.(jpg|png)""")
+
+/** Which reading of fanart.tv's image addresses stored facts carry; a lookup made under an older one is made again. */
+internal const val FANART_REVISION = 2
 
 /** An artist MusicBrainz knows, as asked of fanart.tv only to check a key. */
 private const val CHECK_ARTIST = "f22942a1-6f70-4f48-866e-238cb2308fbd"

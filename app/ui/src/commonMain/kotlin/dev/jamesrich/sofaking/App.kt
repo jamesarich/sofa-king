@@ -36,6 +36,8 @@ import coil3.compose.setSingletonImageLoaderFactory
 import dev.jamesrich.sofaking.data.AppLink
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.PairingRequest
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.ui.LocalAppLifecycleOwner
 import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
 import dev.jamesrich.sofaking.ui.LocalKidsMode
@@ -43,6 +45,7 @@ import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.LocalTimeZone
 import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
+import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.WindowFullScreen
 import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.guide.GuideShortcut
@@ -63,6 +66,7 @@ import dev.jamesrich.sofaking.ui.sofaKingImageLoader
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import dev.jamesrich.sofaking.ui.togglesFullScreen
 import dev.jamesrich.sofaking.ui.trackLastInput
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
 
 /**
@@ -220,6 +224,12 @@ private fun AppNavDisplay(
     val top = nav.top
     val cut = pageCut(chrome.tv)
     val windowFullScreen = LocalWindowFullScreen.current
+    // Until the cold start is decided no page is composed: one that showed the guide's loader first would cross-fade
+    // into the player (or the tab) the start opens, and show the logo twice.
+    if (!shell.launchDecided) {
+        MessageScreen(stringResource(Res.string.loading), loading = true)
+        return
+    }
     TopLevel(
         tv = chrome.tv,
         tabs = chrome.tabs,

@@ -67,10 +67,10 @@ internal fun GuideDestination(
     LaunchedEffect(homeFocus) {
         if (homeFocus == HomeFocus.SETTINGS) requestFocusWhenAttached(settingsFocus)
     }
-    // Settings arrive a beat after the cached lineup; the guide waits for them so it can open on the last channel.
+    // Settings arrive a beat after the cached lineup, and the shell composes no page before the cold start is decided.
     val s = state
     when {
-        s is LineupState.Loading || settings == null || !shell.launchDecided -> MessageScreen(
+        s is LineupState.Loading || settings == null -> MessageScreen(
             stringResource(Res.string.loading),
             loading = true,
         )

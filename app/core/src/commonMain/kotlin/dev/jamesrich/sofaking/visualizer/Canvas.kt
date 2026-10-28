@@ -3,6 +3,9 @@ package dev.jamesrich.sofaking.visualizer
 import kotlin.math.abs
 import kotlin.math.max
 
+/** How many picture widths off the picture a line may start or end and still be drawn. */
+private const val OFF_PICTURE = 8
+
 /** The picture the feedback loop paints on: three float channels per pixel, 0 to 1, and the lines drawn over them. */
 internal class Canvas(val width: Int, val height: Int) {
     var red = FloatArray(width * height)
@@ -48,6 +51,9 @@ internal class Canvas(val width: Int, val height: Int) {
         additive: Boolean,
         thick: Boolean,
     ) {
+        // A preset can send a point to infinity; a line that far off the picture shows nothing and would take forever.
+        val reach = max(width, height) * OFF_PICTURE
+        if (listOf(x0, y0, x1, y1).any { !it.isFinite() || abs(it) > reach }) return
         val steps = max(abs(x1 - x0), abs(y1 - y0)).toInt().coerceAtLeast(1)
         for (s in 0..steps) {
             val t = s.toFloat() / steps

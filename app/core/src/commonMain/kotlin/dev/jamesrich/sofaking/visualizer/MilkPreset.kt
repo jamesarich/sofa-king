@@ -10,7 +10,36 @@ class MilkPreset(
     val init: String,
     val frame: String,
     val pixel: String,
+    val waves: List<CustomDef> = emptyList(),
+    val shapes: List<CustomDef> = emptyList(),
 ) {
+    /** The preset as the text [parse] reads back: only what the engine uses, equations on one line each. */
+    fun toText(): String = buildString {
+        for ((key, value) in values) if (Defaults[key] != value) appendLine("$key=$value")
+        programLine("per_frame_init_1", init)
+        programLine("per_frame_1", frame)
+        programLine("per_pixel_1", pixel)
+        waves.forEachIndexed { i, wave -> appendCustom("wave", i, wave, WAVE_DEFAULTS) }
+        shapes.forEachIndexed { i, shape -> appendCustom("shape", i, shape, SHAPE_DEFAULTS) }
+    }
+
+    private fun StringBuilder.programLine(key: String, program: String) {
+        if (program.isNotBlank()) appendLine("$key=$program")
+    }
+
+    private fun StringBuilder.appendCustom(kind: String, index: Int, def: CustomDef, defaults: Map<String, Double>) {
+        for ((key, value) in def.values) {
+            if (key == "enabled" ||
+                defaults[key] != value
+            ) {
+                appendLine("${kind}code_${index}_$key=$value")
+            }
+        }
+        programLine("${kind}_${index}_init1", def.init)
+        programLine("${kind}_${index}_per_frame1", def.frame)
+        programLine("${kind}_${index}_per_point1", def.point)
+    }
+
     companion object {
         /** What a preset that sets nothing gets, by variable name. */
         val Defaults: Map<String, Double> = mapOf(
@@ -81,6 +110,30 @@ class MilkPreset(
             "binvert" to "invert",
         )
 
+        /** Reads a pack: presets as [toText] writes them, each after a line `@@ name`. */
+        fun parsePack(text: String): List<MilkPreset> {
+            val presets = ArrayList<MilkPreset>()
+            var name: String? = null
+            val body = StringBuilder()
+            fun flush() {
+                name?.let { presets += parse(it, body.toString()) }
+                body.clear()
+            }
+            for (line in text.lineSequence()) {
+                if (line.startsWith(PACK_MARK)) {
+                    flush()
+                    name = line.removePrefix(PACK_MARK).trim()
+                } else {
+                    body.appendLine(line)
+                }
+            }
+            flush()
+            return presets
+        }
+
+        /** The line that starts a preset in a pack. */
+        const val PACK_MARK = "@@ "
+
         /**
          * Reads a `.milk` file. Lines the engine has no use for (shaders, custom waves and shapes, motion vectors) are
          * skipped, so a preset that leans on them draws without them rather than not at all.
@@ -88,16 +141,16 @@ class MilkPreset(
         fun parse(name: String, text: String): MilkPreset {
             val values = HashMap<String, Double>()
             val programs = mapOf(INIT to ArrayList<Pair<Int, String>>(), FRAME to ArrayList(), PIXEL to ArrayList())
+            val customs = CustomCollector()
             for (raw in text.lineSequence()) {
                 val at = raw.indexOf('=')
-                if (at <= 0) continue
-                val key = raw.substring(0, at).trim().lowercase()
+                val key = raw.substring(0, maxOf(at, 0)).trim().lowercase()
                 val value = raw.substring(at + 1).trim()
                 val line = programOf(key)
-                if (line != null) {
-                    programs.getValue(line.first).add(line.second to value)
-                } else {
-                    value.toDoubleOrNull()?.let { values[FileKeys[key] ?: key] = it }
+                when {
+                    at <= 0 || customs.take(key, value) -> Unit
+                    line != null -> programs.getValue(line.first).add(line.second to value)
+                    else -> value.toDoubleOrNull()?.let { values[FileKeys[key] ?: key] = it }
                 }
             }
             return MilkPreset(
@@ -106,6 +159,8 @@ class MilkPreset(
                 join(programs.getValue(INIT)),
                 join(programs.getValue(FRAME)),
                 join(programs.getValue(PIXEL)),
+                customs.waves(),
+                customs.shapes(),
             )
         }
 
@@ -119,8 +174,9 @@ class MilkPreset(
             return key.removePrefix(prefix).toIntOrNull()?.let { prefix to it }
         }
 
-        private fun join(lines: List<Pair<Int, String>>): String = lines.sortedBy {
+        /** A program's lines in order, joined as they are: MilkDrop lets a line end mid-statement. */
+        internal fun join(lines: List<Pair<Int, String>>): String = lines.sortedBy {
             it.first
-        }.map { it.second.trim().trimEnd(';') }.filter { it.isNotEmpty() }.joinToString(";")
+        }.map { it.second.trim() }.filter { it.isNotEmpty() }.joinToString(" ")
     }
 }

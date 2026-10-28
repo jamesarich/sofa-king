@@ -23,8 +23,10 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.http.content.LocalPathContent
 import io.ktor.server.plugins.origin
 import io.ktor.server.response.header
+import io.ktor.server.response.respond
 import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondBytesWriter
 import io.ktor.server.response.respondText
@@ -36,6 +38,7 @@ import io.ktor.utils.io.readBuffer
 import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
@@ -48,6 +51,8 @@ import kotlinx.io.readByteArray
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.URI
+import java.nio.file.Files
+import java.nio.file.Path
 import kotlin.coroutines.coroutineContext
 
 private val MEDIA_STATUSES = setOf(200, 206)
@@ -57,9 +62,14 @@ class MediaRelay(
     private val feeds: FeedService,
     private val sessions: SessionManager,
     private val scope: CoroutineScope,
-    fanout: FanoutConfig = FanoutConfig(),
     /** Reads the audio of a session's segments for its learned breaks; none are learned without it. */
     private val audio: SegmentAudio? = null,
+    /**
+     * The FFmpeg and the directory that package MPEG-TS sources as HLS for players that play HLS only; without them,
+     * those players get the MPEG-TS stream.
+     */
+    packaging: Pair<String, Path>? = null,
+    fanout: FanoutConfig = FanoutConfig(),
 ) {
     /** Upstream requests in flight across the server, players' and FFmpeg's through [LoopbackRelay] alike. */
     internal val permits = Semaphore(UPSTREAM_REQUESTS)
@@ -70,6 +80,13 @@ class MediaRelay(
     internal val shared = SharedStreams(scope, fanout)
 
     private val captions = CaptionPlaylists(http, feeds.upstream)
+
+    private val packages = packaging?.let { (ffmpeg, directory) ->
+        PackagedStreams(ffmpeg, directory, scope, sessions.media, ::joinShared).also { sessions.packaging = true }
+    }
+
+    /** MPEG-TS sources being packaged as HLS now, each one FFmpeg. */
+    val packaged: Int get() = packages?.running ?: 0
 
     suspend fun serve(call: ApplicationCall, id: String, epoch: Int, token: String) {
         try {
@@ -88,6 +105,12 @@ class MediaRelay(
         val job = coroutineContext[Job]!!
         val resource = sessions.media.acquire(id, epoch, token, job, call.request.origin.remoteAddress)
         try {
+            if (resource.url.startsWith(
+                    PackagedStreams.SCHEME,
+                )
+            ) {
+                return@coroutineScope servePackagedSegment(call, id, epoch, resource)
+            }
             // A native source resolves to its playable URL now; the headers it needs go with every request to it. One
             // that fails moves the session to the channel's next source, and the 410 sends the player to it.
             val stream = try {
@@ -103,10 +126,10 @@ class MediaRelay(
                 }
                 throw ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
             }
-            if (resource.shared) {
-                serveShared(call, id, epoch, job, resource, stream)
-            } else {
-                serveDirect(call, id, epoch, job, resource, stream)
+            when {
+                resource.packaged -> servePackaged(call, id, epoch, resource, stream)
+                resource.shared -> serveShared(call, id, epoch, job, resource, stream)
+                else -> serveDirect(call, id, epoch, job, resource, stream)
             }
         } finally {
             withContext(NonCancellable) { sessions.media.finished(id, job) }
@@ -157,6 +180,33 @@ class MediaRelay(
                 }
             }
         }
+
+    /** The live playlist of a session whose MPEG-TS source goes out packaged as HLS. */
+    private suspend fun servePackaged(
+        call: ApplicationCall,
+        id: String,
+        epoch: Int,
+        resource: MediaResource,
+        stream: ResolvedStream,
+    ) {
+        val packages = packages ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown media")
+        val text = packages.playlist(id, epoch, resource.offering, stream) { url ->
+            sessions.media.resourcePath(id, epoch, url)
+        }
+        call.response.header(HttpHeaders.CacheControl, "no-store")
+        call.respondText(text, ContentType.parse("application/vnd.apple.mpegurl"))
+    }
+
+    /** A segment of a packaged playlist, from the package's directory. */
+    private suspend fun servePackagedSegment(call: ApplicationCall, id: String, epoch: Int, resource: MediaResource) {
+        val file = packages?.segment(id, epoch, resource.url)
+            ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown media resource")
+        val size = withContext(Dispatchers.IO) { Files.size(file) }
+        resource.stats.bytes.addAndGet(size)
+        resource.stats.segments.incrementAndGet()
+        call.response.header(HttpHeaders.CacheControl, "private, max-age=60")
+        call.respond(LocalPathContent(file, ContentType.parse("video/mp2t")))
+    }
 
     private suspend fun serveShared(
         call: ApplicationCall,

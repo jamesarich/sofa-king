@@ -67,6 +67,17 @@ class SofaKingApiTest {
     }
 
     @Test
+    fun `a player that plays HLS only says so on every call and one that plays both says nothing`() = runTest {
+        val http = FakeHttp(this) { json("""{"revision":"r1","channels":[]}""") }
+
+        http.api(playbackProtocols = listOf("hls")).catalog(etag = null)
+        http.api().catalog(etag = null)
+
+        assertEquals("hls", http.requests[0].headers["Sofa-Playback-Protocols"])
+        assertNull(http.requests[1].headers["Sofa-Playback-Protocols"])
+    }
+
+    @Test
     fun `a base address with a path keeps it in front of the API`() = runTest {
         val http = FakeHttp(this) { json("""{"revision":"r1","channels":[]}""") }
 

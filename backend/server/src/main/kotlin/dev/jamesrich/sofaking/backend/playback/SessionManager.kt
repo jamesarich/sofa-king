@@ -51,6 +51,8 @@ internal class LiveSession(
      * the app get the source's playlists as they are.
      */
     val ads: AdClock? = if (external) null else AdClock(),
+    /** The player plays HLS only, so an MPEG-TS source goes out packaged as HLS ([PackagedStreams]). */
+    val hlsOnly: Boolean = false,
 ) {
     var epoch = 1
     var intent = request.intent
@@ -92,7 +94,7 @@ internal class LiveSession(
      * session's health as the relay has seen it up to [now].
      */
     fun descriptor(now: Instant): PlaybackSession {
-        val hls = offering.protocol == "hls"
+        val hls = offering.protocol == "hls" || packaged
         val token = resource(offering.url, if (hls) "m3u8" else "ts")
         return PlaybackSession(
             id,
@@ -100,7 +102,7 @@ internal class LiveSession(
             intent,
             expires.toString(),
             PlaybackDescriptor(
-                offering.protocol,
+                if (packaged) "hls" else offering.protocol,
                 if (hls) "application/vnd.apple.mpegurl" else "video/mp2t",
                 "/media/sessions/$id/$epoch/$token",
                 epoch,
@@ -109,6 +111,9 @@ internal class LiveSession(
             SessionHealth(stats.bitrateKbps(now), stats.stalls.get(), stats.switches.get()),
         )
     }
+
+    /** Whether the session's MPEG-TS source goes out packaged as HLS. */
+    val packaged: Boolean get() = hlsOnly && offering.protocol == "mpegts"
 
     /** How the history names its mode: the app's intent, or a player outside the app's, or a recording's. */
     fun mode(): String = when {
@@ -177,7 +182,8 @@ internal class ResourceMap(private val segmentLimit: Int = 4096) {
 }
 
 /**
- * [shared] marks the live MPEG-TS root, which one upstream connection fans out to every session on the source;
+ * [shared] marks the live MPEG-TS root, which one upstream connection fans out to every session on the source, but
+ * for a session that packages it, whose root is [packaged];
  * [stats] counts what the relay sends the player on this session. [ads] is the session's [AdClock], which marks the
  * playlists and notes the segments fetched, on the app's own sessions only.
  */
@@ -185,6 +191,8 @@ data class MediaResource(
     val offering: Offering,
     val url: String,
     val shared: Boolean = false,
+    /** The root of an MPEG-TS source that goes out packaged as HLS; its playlist comes from [PackagedStreams]. */
+    val packaged: Boolean = false,
     val stats: SessionStats = SessionStats(Instant.EPOCH),
     val ads: AdClock? = null,
     val playlists: SteadyPlaylists = SteadyPlaylists(),
@@ -248,8 +256,21 @@ class SessionManager(
     private val sessions get() = table.sessions
     private val keys = linkedMapOf<String, Pair<OpenPlayback, String>>()
 
-    /** [from] is the player opening the session: its address, shown to the operator, and its paired device. */
-    suspend fun open(request: OpenPlayback, from: PlaybackClient? = null): PlaybackSession = table.mutex.withLock {
+    /**
+     * Whether an MPEG-TS source can go out packaged as HLS; set once the relay packages streams. Until then a player
+     * that plays HLS only gets the MPEG-TS stream, as every player did before.
+     */
+    @Volatile var packaging: Boolean = false
+
+    /**
+     * [from] is the player opening the session: its address, shown to the operator, and its paired device. [protocols]
+     * are the live protocols its player plays, from [Wire.Header.PLAYBACK_PROTOCOLS]; null plays both.
+     */
+    suspend fun open(
+        request: OpenPlayback,
+        from: PlaybackClient? = null,
+        protocols: Set<String>? = null,
+    ): PlaybackSession = table.mutex.withLock {
         table.reap()
         if (request.intent !in INTENTS || request.idempotencyKey.length !in 1..MAX_KEY_LENGTH) {
             throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Invalid playback intent or idempotency key")
@@ -297,6 +318,7 @@ class SessionManager(
                 client = from?.address,
                 clientId = from?.clientId,
                 ads = ads,
+                hlsOnly = packaging && protocols != null && "hls" in protocols && "mpegts" !in protocols,
             )
         table.add(session)
         keys[request.idempotencyKey] = request to session.id

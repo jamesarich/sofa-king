@@ -70,6 +70,7 @@ class CorsTest {
             assertTrue(allowed.contains("Authorization", ignoreCase = true), allowed)
             // The web app sends the library kinds it shows; a preflight refusing it fails every call.
             assertTrue(allowed.contains("Sofa-Library-Kinds", ignoreCase = true), allowed)
+            assertTrue(allowed.contains("Sofa-Playback-Protocols", ignoreCase = true), allowed)
 
             val call = client.get("/api/v1/bootstrap") {
                 bearerAuth(apiToken)

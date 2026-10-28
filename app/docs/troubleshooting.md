@@ -40,7 +40,7 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | Can't play this channel | The server could not open a playback session, the stream ended, or the failure has no closer headline; the code names why. Press OK to retry or pick another channel. |
 | Can't reach the stream | The player could not connect to the stream or lost it. On a desktop with VLC installed, every failure the player reports shows this headline; on iOS, a connection that failed or timed out; in a browser, every one except an unsupported format. The player reconnects with backoff; press OK to retry now. |
 | The stream refused the connection | On Android and iOS, the server's relay answered the stream request with an HTTP error, for example while it switches sources. The player reconnects with backoff; press OK to retry now. |
-| This stream format isn't supported | On Android, the player could not read or decode the stream; on iOS, it did not recognize the format. In a browser, the channel streams MPEG-TS or another format the browser does not play; the web app plays HLS channels. |
+| This stream format isn't supported | On Android, the player could not read or decode the stream; on iOS, it did not recognize the format. In a browser, the channel streams a format the browser does not play; the server packages MPEG-TS as HLS for the web app, so this is another format, or a server from before that. |
 | `CAPACITY_EXHAUSTED` | Every playback slot on the server holds a watch session, from this app or another client, or one session has more than 12 media requests open at once. Stop a session, or raise the server's `SOFA_MAX_SESSIONS`. |
 | `CHANNEL_NOT_FOUND` | The server's lineup changed. The app reloads it and follows the channel by number, then name. |
 | Preview unavailable | The server refused the preview session or the stream failed. The channel does not open full screen by itself. Focus another channel and come back. |
@@ -76,7 +76,7 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | Symptom | Check |
 | --- | --- |
 | `VLC_NOT_INSTALLED` on a desktop | The desktop app plays through libVLC. Install VLC 3 (`sudo apt install vlc` on Ubuntu or Debian; a `.deb` installed with `apt install` brings it along), then restart the app. |
-| An MPEG-TS channel does not play on iOS | AVPlayer plays HLS channels only. Watch MPEG-TS channels on Android or a desktop. |
+| An MPEG-TS channel does not play on iOS | AVPlayer plays HLS only, so the server packages an MPEG-TS channel as HLS for it; the first picture takes a few seconds longer. On a server from before that, watch MPEG-TS channels on Android or a desktop. |
 | The screen dims or locks while a channel plays, on a Linux desktop or in a browser | A Linux desktop follows its own idle settings, since the app keeps the display awake only on Windows and macOS. A browser keeps it awake only on a page served over HTTPS, and only in browsers with the Screen Wake Lock API. |
 | No sound when the web app opens a channel | The browser blocks sound until you interact with the page. Press any key or click, and the sound comes on. |
 | No captions, in Chrome | Chrome's built-in HLS player exposes no caption tracks. Safari exposes the stream's CEA-608 captions. |

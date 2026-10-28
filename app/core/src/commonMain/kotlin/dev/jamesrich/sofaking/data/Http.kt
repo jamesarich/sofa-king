@@ -6,6 +6,7 @@ import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.plugins.HttpResponseValidator
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.util.logging.KtorSimpleLogger
 import kotlinx.io.IOException
 import kotlin.time.Duration.Companion.seconds
 
@@ -50,12 +51,13 @@ internal fun httpClient(
 }
 
 /**
- * Builds and closes a client on the shared engine, so Ktor's classes and loggers load now. On the JVM a logger reads
- * the APK to find its provider, which stalls whichever thread makes the app's first request; call this off the main
- * thread.
+ * Loads Ktor's classes and finds its logger provider now. On the JVM a logger reads the APK to find its provider, which
+ * stalls whichever thread makes the app's first request, and only a request or a level check does it: building a client
+ * does not. Call this off the main thread.
  */
 fun warmUpHttp() {
     httpClient().close()
+    KtorSimpleLogger("dev.jamesrich.sofaking.warmup").isTraceEnabled
 }
 
 /** The client for calls to no server in particular, such as the update check; it is never closed. */

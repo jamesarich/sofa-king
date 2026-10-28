@@ -14,9 +14,9 @@ import io.ktor.http.encodeURLPathPart
 // sessions.
 
 /**
- * One page of [libraryId]'s top-level items in [sort] order (`title`, `added`, `year`, `rating` or `watched`), only
- * those in [genre] when given, from [cursor]. A Music library lists its artists, or with [kind] `album` or `track`
- * its albums or songs.
+ * One page of [libraryId]'s top-level items in [sort] order (`title`, `added`, `year`, `rating` or `watched`; a Music
+ * library also `played` and `plays`), only those in [genre] when given, from [cursor]. A Music library lists its
+ * artists, or with [kind] `album` or `track` its albums or songs, with [favorites] only the liked ones.
  */
 internal suspend fun SofaKingApi.libraryItems(
     libraryId: String,
@@ -26,6 +26,7 @@ internal suspend fun SofaKingApi.libraryItems(
     limit: Int,
     genre: String? = null,
     kind: String? = null,
+    favorites: Boolean = false,
 ): LibraryPageDto = call {
     http.get("libraries/" + libraryId.encodeURLPathPart() + "/items") {
         url.parameters.append("sort", sort)
@@ -33,6 +34,7 @@ internal suspend fun SofaKingApi.libraryItems(
         if (unwatched) url.parameters.append("unwatched", "true")
         if (genre != null) url.parameters.append("genre", genre)
         if (kind != null) url.parameters.append("kind", kind)
+        if (favorites) url.parameters.append("favorite", "true")
         if (cursor != null) url.parameters.append("cursor", cursor)
     }.decode()
 }
@@ -96,7 +98,7 @@ internal suspend fun SofaKingApi.releaseVod(id: String) = call {
     http.delete(vodPath(id)).checkSuccess()
 }
 
-private fun itemPath(id: String) = "library/items/" + id.encodeURLPathPart()
+internal fun itemPath(id: String) = "library/items/" + id.encodeURLPathPart()
 
 /** How long the first read of a subtitle track may take, as the server reads the whole file. */
 private const val SUBTITLE_TIMEOUT_MS = 5 * 60_000L

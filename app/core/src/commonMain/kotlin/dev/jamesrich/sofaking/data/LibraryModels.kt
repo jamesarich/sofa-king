@@ -63,13 +63,22 @@ enum class LibrarySort(internal val wire: String) {
 
     /** The most recently watched first. */
     WATCHED("watched"),
+
+    /** In a Music library, the most recently played first, and the most played first. */
+    PLAYED("played"),
+    PLAYS("plays"),
+    ;
+
+    /** True for the orders only a Music library has. */
+    val musicOnly: Boolean get() = this == PLAYED || this == PLAYS
 }
 
-/** What a Music library's grid lists: its artists, which open on their albums, every album, or every song. */
-enum class MusicView(internal val wire: String?) {
+/** What a Music library's grid lists: its artists, which open on their albums, every album or song, or liked songs. */
+enum class MusicView(internal val wire: String?, internal val favorites: Boolean = false) {
     ARTISTS(null),
     ALBUMS(Wire.ItemKind.ALBUM),
     SONGS(Wire.ItemKind.TRACK),
+    FAVORITES(Wire.ItemKind.TRACK, favorites = true),
 }
 
 data class MediaLibrary(
@@ -134,6 +143,9 @@ data class MediaItem(
     val album: String? = null,
     val track: Int? = null,
     val disc: Int? = null,
+    /** For a song, album or artist: whether the household likes it, and a song's plays. */
+    val favorite: Boolean = false,
+    val plays: Int = 0,
 ) {
     /** A label such as `S2 E5` or `S1 E1–E2`; null for anything but an episode with numbers. */
     val episodeLabel: String?

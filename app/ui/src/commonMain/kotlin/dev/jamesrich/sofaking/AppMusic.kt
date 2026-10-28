@@ -16,6 +16,7 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.ui.KeepPlayingInBackground
 import dev.jamesrich.sofaking.ui.player.MediaSessionHandle
 import dev.jamesrich.sofaking.ui.player.MusicPlayback
+import dev.jamesrich.sofaking.ui.player.SongTaste
 import dev.jamesrich.sofaking.ui.player.nowPlaying
 import dev.jamesrich.sofaking.ui.player.songs
 
@@ -26,10 +27,17 @@ import dev.jamesrich.sofaking.ui.player.songs
  * preview mutes it).
  */
 @Composable
-internal fun rememberMusicPlayback(playback: AppPlayback, sessions: PlaybackSessions) = run {
+internal fun rememberMusicPlayback(playback: AppPlayback, sessions: PlaybackSessions, library: LibraryPlayback) = run {
     val player = playback.player
     val scope = rememberCoroutineScope()
-    val music = remember(player, sessions) { MusicPlayback(player, sessions.songs(), scope) }
+    val music = remember(player, sessions, library) {
+        val taste = object : SongTaste {
+            override fun played(songId: String) = library.played(songId)
+
+            override fun favorite(songId: String, favorite: Boolean) = library.setFavorite(songId, favorite)
+        }
+        MusicPlayback(player, sessions.songs(), scope, taste)
+    }
     LaunchedEffect(music) { music.run() }
     val song = music.song
     if (song != null) {

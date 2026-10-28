@@ -37,6 +37,7 @@ import dev.jamesrich.sofaking.contract.RecordingRule
 import dev.jamesrich.sofaking.contract.RecordingRuleList
 import dev.jamesrich.sofaking.contract.ScheduleRecording
 import dev.jamesrich.sofaking.contract.UpcomingPrograms
+import dev.jamesrich.sofaking.contract.UpdateFavorite
 import dev.jamesrich.sofaking.contract.UpdateMultiview
 import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.UpdatePlayback
@@ -82,6 +83,7 @@ internal typealias MediaTrackDto = MediaTrack
 internal typealias MediaSegmentDto = MediaSegment
 internal typealias PlayStateDto = PlayState
 internal typealias UpdatePlayStateDto = UpdatePlayState
+internal typealias UpdateFavoriteDto = UpdateFavorite
 internal typealias OpenVodPlaybackDto = OpenVodPlayback
 internal typealias UpdateVodPlaybackDto = UpdateVodPlayback
 internal typealias VodSessionDto = VodSession

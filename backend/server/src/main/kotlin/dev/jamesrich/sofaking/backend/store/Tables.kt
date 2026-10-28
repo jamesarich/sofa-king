@@ -219,6 +219,11 @@ internal object PlayStates : Table("play_state") {
 
     /** Whose state it is; every row is the household's until profiles exist. */
     val scope = text("scope").default(HOUSEHOLD)
+
+    /** For a song, album or artist: how often it was played, when last, and whether the household likes it. */
+    val plays = integer("plays").default(0)
+    val favorite = bool("favorite").default(false)
+    val lastPlayedAt = text("last_played_at").nullable()
     override val primaryKey = PrimaryKey(itemId)
 }
 

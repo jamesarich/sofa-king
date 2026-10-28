@@ -34,12 +34,15 @@ import dev.jamesrich.sofaking.resources.library_genre_all
 import dev.jamesrich.sofaking.resources.library_items_count
 import dev.jamesrich.sofaking.resources.library_letter_jump
 import dev.jamesrich.sofaking.resources.library_sort_added
+import dev.jamesrich.sofaking.resources.library_sort_played
+import dev.jamesrich.sofaking.resources.library_sort_plays
 import dev.jamesrich.sofaking.resources.library_sort_rating
 import dev.jamesrich.sofaking.resources.library_sort_title
 import dev.jamesrich.sofaking.resources.library_sort_watched
 import dev.jamesrich.sofaking.resources.library_sort_year
 import dev.jamesrich.sofaking.resources.library_view_albums
 import dev.jamesrich.sofaking.resources.library_view_artists
+import dev.jamesrich.sofaking.resources.library_view_favorites
 import dev.jamesrich.sofaking.resources.library_view_songs
 import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.ui.theme.SofaActionChip
@@ -172,6 +175,7 @@ private fun MusicView.label(): StringResource = when (this) {
     MusicView.ARTISTS -> Res.string.library_view_artists
     MusicView.ALBUMS -> Res.string.library_view_albums
     MusicView.SONGS -> Res.string.library_view_songs
+    MusicView.FAVORITES -> Res.string.library_view_favorites
 }
 
 private fun LibrarySort.label(): StringResource = when (this) {
@@ -180,4 +184,6 @@ private fun LibrarySort.label(): StringResource = when (this) {
     LibrarySort.YEAR -> Res.string.library_sort_year
     LibrarySort.RATING -> Res.string.library_sort_rating
     LibrarySort.WATCHED -> Res.string.library_sort_watched
+    LibrarySort.PLAYED -> Res.string.library_sort_played
+    LibrarySort.PLAYS -> Res.string.library_sort_plays
 }

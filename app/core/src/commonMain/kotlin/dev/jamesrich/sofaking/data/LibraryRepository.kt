@@ -25,7 +25,9 @@ class LibraryRepository(private val api: SofaKingApi) {
         limit: Int = PAGE_SIZE,
         genre: String? = null,
         view: MusicView = MusicView.ARTISTS,
-    ): MediaPage = api.mediaPage(api.libraryItems(libraryId, sort.wire, unwatched, cursor, limit, genre, view.wire))
+    ): MediaPage = api.mediaPage(
+        api.libraryItems(libraryId, sort.wire, unwatched, cursor, limit, genre, view.wire, view.favorites),
+    )
 
     suspend fun search(query: String): SearchResults = api.librarySearch(query).let { dto ->
         SearchResults(dto.items.map { api.mediaItem(it) }, dto.people)
@@ -84,6 +86,12 @@ class LibraryRepository(private val api: SofaKingApi) {
     /** Takes [id] off Continue watching for the household until it is played again. */
     suspend fun removeFromContinue(id: String): MediaItem =
         api.mediaItem(api.updatePlayState(id, UpdatePlayStateDto(dismissed = true)))
+
+    /** Likes or unlikes the song, album or artist [id]. */
+    suspend fun setFavorite(id: String, favorite: Boolean): MediaItem = api.mediaItem(api.updateFavorite(id, favorite))
+
+    /** Counts one play of the song [id]. */
+    suspend fun recordPlay(id: String): MediaItem = api.mediaItem(api.recordPlay(id))
 
     companion object {
         /** Items per grid page: a few screens of posters. */
@@ -148,4 +156,6 @@ private fun SofaKingApi.mediaItem(dto: LibraryItemDto) = MediaItem(
     album = dto.album,
     track = dto.track,
     disc = dto.disc,
+    favorite = dto.favorite,
+    plays = dto.plays,
 )

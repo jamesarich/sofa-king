@@ -71,6 +71,10 @@ import kotlinx.serialization.Serializable
     val album: String? = null,
     val track: Int? = null,
     val disc: Int? = null,
+    /** For a song, album or artist: whether the household likes it, how often the song was played and when last. */
+    val favorite: Boolean = false,
+    val plays: Int = 0,
+    val lastPlayedAt: String? = null,
 )
 
 /**
@@ -182,6 +186,10 @@ data class UpdatePlayState(
     /** True takes the item off Continue watching, false puts it back; either leaves its place and watched flag. */
     val dismissed: Boolean? = null,
 )
+
+/** The body of a request to like (`favorite` true) or unlike a song, album or artist. */
+@Serializable
+data class UpdateFavorite(val favorite: Boolean)
 
 /**
  * What a player can play as is: containers (`mp4`, `mkv`, `webm`, `ts`), video codecs (`h264`, `hevc`, `vp9`, `av1`)

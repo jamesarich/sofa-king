@@ -168,8 +168,8 @@ internal class Snapshot(
  * household's watch state. A `.nfo` beside a file wins over TMDB's text, and local artwork over TMDB's images.
  */
 class LibraryCatalog internal constructor(
-    private val store: BackendStore,
-    private val clock: Clock,
+    internal val store: BackendStore,
+    internal val clock: Clock,
     /** Changes whenever a scan, a TMDB lookup or an edit changes what the libraries hold. */
     private val revision: () -> Long,
 ) {
@@ -180,9 +180,9 @@ class LibraryCatalog internal constructor(
      * writes, so browsing reads no table.
      */
     @Volatile private var states: Pair<Pair<Long, Long>, Map<String, PlayStateRecord>>? = null
-    private val stateWrites = AtomicLong()
+    internal val stateWrites = AtomicLong()
     private val building = Mutex()
-    private val writing = Mutex()
+    internal val writing = Mutex()
 
     internal suspend fun snapshot(): Snapshot {
         val wanted = revision()
@@ -244,9 +244,10 @@ class LibraryCatalog internal constructor(
     /**
      * The movies, shows, videos or artists of [libraryId] (a Music library's albums or songs with [kind] `album` or
      * `track`), sorted by [sort] (`title`, `added`, `year`, `rating`, or `watched` for the most recently watched
-     * first), with [genre] only when given, [limit] after [cursor]. The page lists every genre in the library, for the
-     * filter, and the first page in title order counts the items under each first letter. A Music library is found only
-     * by a client that shows [music].
+     * first; in a Music library `played` for the most recently played first and `plays` for the most played), with
+     * [genre] only when given and, with [favorites], only the liked ones, [limit] after [cursor]. The page lists every
+     * genre in the library, for the filter, and the first page in title order counts the items under each first
+     * letter. A Music library is found only by a client that shows [music].
      */
     suspend fun items(
         libraryId: String,
@@ -257,6 +258,7 @@ class LibraryCatalog internal constructor(
         genre: String? = null,
         music: Boolean = false,
         kind: String? = null,
+        favorites: Boolean = false,
     ): LibraryPage {
         val snapshot = snapshot()
         val library = snapshot.visible(music).firstOrNull { it.id == libraryId }
@@ -267,6 +269,7 @@ class LibraryCatalog internal constructor(
         val wanted = genre?.trim()?.ifEmpty { null }
         val all = tops
             .filter { view -> wanted == null || view.item.genres.any { it.equals(wanted, ignoreCase = true) } }
+            .filter { view -> !favorites || states[view.record.id]?.favorite == true }
             .map { it to it.out(snapshot, states) }
             .filter { (_, item) ->
                 !unwatched || item.unwatched > 0 || (item.kind != Wire.ItemKind.SHOW && item.playState?.watched != true)
@@ -424,10 +427,11 @@ class LibraryCatalog internal constructor(
             share != null && share < STARTED_AT -> 0L to (old?.watched ?: false)
             else -> update.positionMs to (old?.watched ?: false)
         }
-        if (position == 0L && !watched) {
+        val state = PlayStateRecord(id, position, duration, watched, now).keeping(old)
+        if (state.blank) {
             store.savePlayStates(emptyList(), listOf(id))
         } else {
-            store.savePlayStates(listOf(PlayStateRecord(id, position, duration, watched, now)))
+            store.savePlayStates(listOf(state))
         }
     }
 }
@@ -437,7 +441,7 @@ class LibraryCatalog internal constructor(
  * deleted rather than kept.
  */
 private suspend fun BackendStore.dismiss(state: PlayStateRecord, dismissed: Boolean) {
-    if (!dismissed && !state.played) {
+    if (!dismissed && state.blank) {
         savePlayStates(emptyList(), listOf(state.itemId))
     } else {
         savePlayStates(listOf(state.copy(dismissed = dismissed)))

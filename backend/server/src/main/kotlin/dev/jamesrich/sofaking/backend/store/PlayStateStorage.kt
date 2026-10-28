@@ -7,7 +7,7 @@ import org.jetbrains.exposed.v1.jdbc.batchUpsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
 
-/** Every stored watch state, by item id; the table holds a row only for items someone started or finished. */
+/** Every stored watch state, by item id; the table holds a row only for items someone started, finished or liked. */
 suspend fun BackendStore.playStates(): Map<String, PlayStateRecord> = read {
     PlayStates.selectAll().map {
         PlayStateRecord(
@@ -17,6 +17,9 @@ suspend fun BackendStore.playStates(): Map<String, PlayStateRecord> = read {
             it[PlayStates.watched],
             it[PlayStates.updatedAt],
             it[PlayStates.dismissed],
+            it[PlayStates.plays],
+            it[PlayStates.favorite],
+            it[PlayStates.lastPlayedAt],
         )
     }.associateBy { it.itemId }
 }
@@ -32,6 +35,9 @@ suspend fun BackendStore.savePlayStates(states: List<PlayStateRecord>, cleared: 
                 this[PlayStates.watched] = state.watched
                 this[PlayStates.updatedAt] = state.updatedAt
                 this[PlayStates.dismissed] = state.dismissed
+                this[PlayStates.plays] = state.plays
+                this[PlayStates.favorite] = state.favorite
+                this[PlayStates.lastPlayedAt] = state.lastPlayedAt
             }
         }
         cleared.chunked(ROW_CHUNK).forEach { chunk -> PlayStates.deleteWhere { itemId inList chunk } }

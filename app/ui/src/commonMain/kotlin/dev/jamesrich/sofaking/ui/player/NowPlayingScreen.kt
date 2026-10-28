@@ -58,6 +58,7 @@ import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MusicQueue
 import dev.jamesrich.sofaking.data.Repeat
 import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.music_favorite
 import dev.jamesrich.sofaking.resources.music_lyrics
 import dev.jamesrich.sofaking.resources.music_next
 import dev.jamesrich.sofaking.resources.music_now_playing
@@ -258,7 +259,7 @@ private fun RestWhenIdle(enabled: Boolean, content: @Composable (rest: Modifier)
     content(rest)
 }
 
-/** Shuffle, previous, play or pause, next and repeat, in one row, then Lyrics when the song has them. */
+/** Shuffle, previous, play or pause, next, repeat and Favorite, in one row, then Lyrics when the song has them. */
 @Composable
 private fun MusicButtons(music: MusicPlayback, lyrics: LyricsChoice?) {
     val queue = music.queue ?: return
@@ -301,6 +302,7 @@ private fun MusicButtons(music: MusicPlayback, lyrics: LyricsChoice?) {
             queue.repeat != Repeat.OFF,
             { music.reorder(MusicQueue::nextRepeat) },
         )
+        FavoriteToggle(music)
         lyrics?.let {
             Toggle(
                 SofaIcons.Subtitles,
@@ -311,6 +313,20 @@ private fun MusicButtons(music: MusicPlayback, lyrics: LyricsChoice?) {
             )
         }
     }
+}
+
+/** Likes the song, or unlikes it. */
+@Composable
+private fun FavoriteToggle(music: MusicPlayback) {
+    val song = music.song ?: return
+    val liked = music.likes.isFavorite(song)
+    Toggle(
+        if (liked) SofaIcons.Favorite else SofaIcons.FavoriteBorder,
+        stringResource(Res.string.music_favorite),
+        stringResource(if (liked) Res.string.music_on else Res.string.music_off),
+        liked,
+        { music.likes.toggle(song) },
+    )
 }
 
 /** A button that is on or off, tinted while on; [state] says which to a screen reader. */

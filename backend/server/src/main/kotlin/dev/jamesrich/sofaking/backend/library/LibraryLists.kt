@@ -29,16 +29,23 @@ internal fun View.out(snapshot: Snapshot, states: Map<String, PlayStateRecord>):
         item.copy(unwatched = episodes.orEmpty().count { states[it.record.id]?.watched != true })
     }
 
-    else -> item.copy(
-        playState = states[record.id]?.let {
-            PlayState(it.positionMs, it.durationMs, it.watched, it.updatedAt, it.dismissed)
-        },
-    )
+    else -> {
+        val state = states[record.id]
+        item.copy(
+            playState = state?.takeIf { it.played || it.dismissed }?.let {
+                PlayState(it.positionMs, it.durationMs, it.watched, it.updatedAt, it.dismissed)
+            },
+            favorite = state?.favorite == true,
+            plays = state?.plays ?: 0,
+            lastPlayedAt = state?.lastPlayedAt,
+        )
+    }
 }
 
 /**
- * The order [sort] names for the items of [libraryId]: `title`, `added`, `year`, `rating`, or `watched` for the most
- * recently watched first.
+ * The order [sort] names for the items of [libraryId]: `title`, `added`, `year`, `rating`, `watched` for the most
+ * recently watched first, or in a Music library `played` for the most recently played first and `plays` for the most
+ * played; an album's or artist's plays are those of its songs.
  */
 internal fun itemOrder(
     sort: String,
@@ -64,12 +71,51 @@ internal fun itemOrder(
             compareBy<View, Instant?>(nullsLast(reverseOrder())) { lastWatched[it.record.id] }.then(byTitle)
         }
 
+        "played" -> {
+            val tastes = tastes(snapshot, states, libraryId)
+            compareBy<View, Instant?>(nullsLast(reverseOrder())) { tastes[it.record.id]?.lastPlayed }.then(byTitle)
+        }
+
+        "plays" -> {
+            val tastes = tastes(snapshot, states, libraryId)
+            compareByDescending<View> { tastes[it.record.id]?.plays ?: 0 }.then(byTitle)
+        }
+
         else -> throw ApiFailure(
             HttpStatusCode.BadRequest,
             "INVALID_REQUEST",
-            "sort is title, added, year, rating or watched",
+            "sort is title, added, year, rating, watched, played or plays",
         )
     }
+}
+
+/** How often the songs under an item were played, and when last. */
+private class Taste(var plays: Int = 0, var lastPlayed: Instant? = null) {
+    fun add(other: Taste) {
+        plays += other.plays
+        if (other.lastPlayed != null && (lastPlayed == null || other.lastPlayed!! > lastPlayed!!)) {
+            lastPlayed = other.lastPlayed
+        }
+    }
+}
+
+/** The plays of each song of [libraryId], and the sums for its albums and artists, by item id. */
+private fun tastes(snapshot: Snapshot, states: Map<String, PlayStateRecord>, libraryId: String): Map<String, Taste> {
+    val byId = HashMap<String, Taste>()
+    for (song in snapshot.songs[libraryId].orEmpty()) {
+        val state = states[song.record.id]
+        val taste = Taste(
+            state?.plays ?: 0,
+            state?.lastPlayedAt?.let { runCatching { Instant.parse(it) }.getOrNull() },
+        )
+        byId[song.record.id] = taste
+        var parent = song.record.parentId
+        while (parent != null) {
+            byId.getOrPut(parent) { Taste() }.add(taste)
+            parent = snapshot.views[parent]?.record?.parentId
+        }
+    }
+    return byId
 }
 
 private fun lastWatched(views: List<View>, states: Map<String, PlayStateRecord>): Instant? = views

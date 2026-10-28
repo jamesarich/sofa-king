@@ -9,7 +9,10 @@ import dev.jamesrich.sofaking.backend.library.RADIO_SIZE
 import dev.jamesrich.sofaking.backend.library.VodSessions
 import dev.jamesrich.sofaking.backend.library.libraryRadio
 import dev.jamesrich.sofaking.backend.library.radio
+import dev.jamesrich.sofaking.backend.library.recordPlay
+import dev.jamesrich.sofaking.backend.library.setFavorite
 import dev.jamesrich.sofaking.contract.OpenVodPlayback
+import dev.jamesrich.sofaking.contract.UpdateFavorite
 import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.UpdateVodPlayback
 import dev.jamesrich.sofaking.contract.Wire
@@ -55,6 +58,7 @@ fun Route.libraryRoutes(libraries: LibraryService) {
                 query["genre"],
                 call.showsMusic(),
                 query["kind"],
+                query["favorite"] == "true",
             ),
         )
     }
@@ -74,6 +78,13 @@ fun Route.libraryRoutes(libraries: LibraryService) {
         call.respond(catalog.libraryRadio(call.parameters["id"]!!, call.radioLimit(), call.showsMusic()))
     }
     lyricsRoute(libraries.lyrics)
+    put("/api/v1/library/items/{id}/favorite") {
+        val favorite = call.appBody<UpdateFavorite>().favorite
+        call.respond(catalog.setFavorite(call.parameters["id"]!!, favorite, call.showsMusic()))
+    }
+    post("/api/v1/library/items/{id}/played") {
+        call.respond(catalog.recordPlay(call.parameters["id"]!!, call.showsMusic()))
+    }
     put("/api/v1/library/items/{id}/play-state") {
         call.respond(catalog.updatePlayState(call.parameters["id"]!!, call.appBody<UpdatePlayState>()))
     }

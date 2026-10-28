@@ -176,6 +176,12 @@ interface LibraryPlayback {
 
     /** Playback of [itemId] stopped at [positionMs]: saved now, and the home and the item's pages reload. */
     fun stopped(itemId: String, positionMs: Long, durationMs: Long?)
+
+    /** The song [itemId] played far enough to count: one more play for Recently played, Most played and the radio. */
+    fun played(itemId: String) = Unit
+
+    /** Likes or unlikes the song, album or artist [itemId] for the household. */
+    fun setFavorite(itemId: String, favorite: Boolean) = Unit
 }
 
 /**
@@ -420,6 +426,24 @@ internal class LibraryPlayer(
         sessions.reportPosition(positionMs)
         positions.reset(itemId)
         save(itemId, positionMs, durationMs, refresh = true)
+    }
+
+    override fun played(itemId: String) {
+        val repository = repository() ?: return
+        scope.launch {
+            runCatchingCancellable { repository.recordPlay(itemId) }.onFailure { e ->
+                log.w { "counting a play failed: ${e.describe()}" }
+            }
+        }
+    }
+
+    override fun setFavorite(itemId: String, favorite: Boolean) {
+        val repository = repository() ?: return
+        scope.launch {
+            runCatchingCancellable { repository.setFavorite(itemId, favorite) }.onFailure { e ->
+                log.w { "liking failed: ${e.describe()}" }
+            }
+        }
     }
 
     private fun save(itemId: String, positionMs: Long, durationMs: Long?, refresh: Boolean) {

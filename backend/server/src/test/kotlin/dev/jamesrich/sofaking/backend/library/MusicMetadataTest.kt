@@ -74,7 +74,7 @@ class MusicMetadataTest {
             }
             calls += path + (url.parameters["query"]?.let { "?$it" } ?: "")
             assertTrue(request.headers[HttpHeaders.UserAgent].orEmpty().startsWith("SofaKing/test ("))
-            val body = routes[path]
+            val body = routes[path + (url.parameters["query"]?.let { "?$it" } ?: "")] ?: routes[path]
             val throttle = throttled[path] ?: 0
             if (throttle > 0) throttled[path] = throttle - 1
             when {
@@ -253,14 +253,18 @@ class MusicMetadataTest {
         assertTrue(calls.none { it.startsWith("/artist?") }, calls.toString())
     }
 
-    @Test fun `an album credited to its two artists in the other order than its folder names them is kept`() {
+    @Test fun `a folder of two artists is searched as each, and its album kept credited in the other order`() {
         val calls = mutableListOf<String>()
         val credit = """[{"name":"Hotel Pools","artist":{"id":"$ARTIST","name":"Hotel Pools"},"joinphrase":" & "},
             {"name":"A.L.I.S.O.N","artist":{"id":"$OTHER","name":"A.L.I.S.O.N"}}]"""
         val http = musicBrainz(
             calls,
             mapOf(
-                "/release-group" to
+                // MusicBrainz finds nothing under the folder's whole name, and the pair when each is asked for.
+                "/release-group?releasegroup:\"Ultrasound\" AND artist:\"A.L.I.S.O.N & Hotel Pools\"" to
+                    """{"release-groups":[]}""",
+                "/release-group?releasegroup:\"Ultrasound\" AND artist:\"A.L.I.S.O.N\" AND " +
+                    "artist:\"Hotel Pools\"" to
                     """{"release-groups":[{"id":"$GROUP","title":"Ultrasound","score":100,"artist-credit":$credit}]}""",
                 "/release-group/$GROUP" to """{"id":"$GROUP","title":"Ultrasound","artist-credit":$credit}""",
                 "/artist/$ARTIST" to """{"id":"$ARTIST","name":"Hotel Pools"}""",

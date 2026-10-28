@@ -52,7 +52,9 @@ class SessionMedia internal constructor(
             val url =
                 session.resources[token]
                     ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown media resource")
-            val shared = session.offering.protocol == "mpegts" && url == session.offering.url
+            val root = session.offering.protocol == "mpegts" && url == session.offering.url
+            val packaged = root && session.packaged
+            val shared = root && !packaged
             // A player reconnecting to a live stream replaces its previous request rather than adding to it.
             if (shared) session.cancel()
             if (session.requests.size >= MAX_REQUESTS) {
@@ -65,7 +67,16 @@ class SessionMedia internal constructor(
             }
             session.requests += job
             if (session.external) session.expires = clock.instant().plus(SessionManager.EXTERNAL_IDLE)
-            MediaResource(session.offering, url, shared, session.stats, session.ads, session.playlists, session.stalls)
+            MediaResource(
+                session.offering,
+                url,
+                shared,
+                packaged,
+                session.stats,
+                session.ads,
+                session.playlists,
+                session.stalls,
+            )
         }
 
     /** The media request [job] of session [id] ended; an external session's idle lease starts again. */

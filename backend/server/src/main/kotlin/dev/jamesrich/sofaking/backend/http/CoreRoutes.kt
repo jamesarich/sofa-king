@@ -118,7 +118,7 @@ internal fun Route.playbackRoutes(runtime: LiveRuntime) {
     post("/api/v1/playback-sessions") {
         call.respond(
             HttpStatusCode.Created,
-            runtime.sessions.open(call.appBody<OpenPlayback>(), call.playbackClient()),
+            runtime.sessions.open(call.appBody<OpenPlayback>(), call.playbackClient(), call.playbackProtocols()),
         )
     }
     get("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.get(call.parameters["id"]!!)) }

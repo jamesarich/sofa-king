@@ -41,8 +41,10 @@ class ServerConnection(
     val sessions: PlaybackSessions = PlaybackSessions(scope + Dispatchers.Default + logFailures),
     /** The library kinds beyond movies, shows and videos the client shows, which every API call names. */
     libraryKinds: List<String> = emptyList(),
+    /** The live protocols the player plays when it plays HLS only, which every API call names; empty plays both. */
+    playbackProtocols: List<String> = emptyList(),
     internal val newApi: (url: String, token: String) -> SofaKingApi = { url, token ->
-        SofaKingApi(url, token, libraryKinds = libraryKinds)
+        SofaKingApi(url, token, libraryKinds = libraryKinds, playbackProtocols = playbackProtocols)
     },
     /** Keeps the synced preferences in step with the server; null leaves them on this device only. */
     viewerSync: ViewerSync? = null,

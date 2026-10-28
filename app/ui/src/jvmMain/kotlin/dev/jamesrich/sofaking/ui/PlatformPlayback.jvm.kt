@@ -15,6 +15,8 @@ internal actual val supportsPlaybackPreferences: Boolean = false
 
 internal actual val supportsNightListening: Boolean = true
 
+internal actual val playsHlsOnly: Boolean = false
+
 internal actual val supportsCaptionSync: Boolean = false
 
 @Composable

@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.playback.PlaybackClient
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpHeaders
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.plugins.origin
@@ -13,6 +14,10 @@ internal val PresentedClientKey = AttributeKey<String>("PresentedClient")
 /** Who is asking for playback: the player's address, and the paired device whose token it presented. */
 internal fun ApplicationCall.playbackClient(): PlaybackClient =
     PlaybackClient(request.origin.remoteAddress, attributes.getOrNull(PresentedClientKey))
+
+/** The live protocols the client's player plays, from its [Wire.Header.PLAYBACK_PROTOCOLS]; null when it names none. */
+internal fun ApplicationCall.playbackProtocols(): Set<String>? = request.headers.getAll(Wire.Header.PLAYBACK_PROTOCOLS)
+    ?.flatMap { it.split(',') }?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() }?.toSet()?.ifEmpty { null }
 
 /** The bearer token a request presents, empty without one. */
 internal fun ApplicationCall.bearer(): String =

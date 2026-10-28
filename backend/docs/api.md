@@ -36,7 +36,7 @@ These routes take no token: `/healthz`, `/readyz`, the [web app](deploy.md#serve
 | PATCH | `/api/v1/sources/{id}` | Set `manuallyDisabled`; takes the admin token, as the admin routes do |
 | POST | `/api/v1/guide/query` | Programs overlapping a requested channel/time window |
 | GET | `/api/v1/guide/on-later?kind=movie` | Movies, sports, kids' programs or premieres coming up on the enabled channels |
-| POST | `/api/v1/playback-sessions` | Create a preview or watch session |
+| POST | `/api/v1/playback-sessions` | Create a preview or watch session. A player that plays HLS only names `hls` in a `Sofa-Playback-Protocols` header (comma separated protocols), and gets an MPEG-TS channel as HLS; see [architecture](architecture.md#playback) |
 | GET | `/api/v1/playback-sessions/{id}` | Read the current playback descriptor, with the session's `health`: `bitrateKbps`, `stalls` and `sourceSwitches`, as on the portal's Watching now |
 | PATCH | `/api/v1/playback-sessions/{id}` | Renew the lease and optionally change intent; the answer carries `health` too |
 | GET | `/api/v1/program-facts?title=&movie=` | What TMDB says about a live program, found by its exact guide title, for the break screen: `kind` (`show` or `movie`), `year`, `endYear`, `studio`, `seasons`, `episodes`, `cast`, `creators`, `tagline` and `rating`. `movie=true` searches movies first. Every field is empty when TMDB lists no such title or the server has no TMDB token; see [libraries](libraries.md#details-from-tmdb) |

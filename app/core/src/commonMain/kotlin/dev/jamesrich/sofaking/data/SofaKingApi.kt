@@ -52,7 +52,8 @@ class SessionRelease(val url: String, val token: String)
  * decoded on [background], off the caller's main thread. It holds its own client on [engine], the app's one pool
  * unless a test passes another; [close] it once its server is no longer used, which leaves the pool open. Every call
  * names [libraryKinds], the library kinds beyond movies, shows and videos the client can show (`Wire.LibraryKind`
- * values); the server leaves the others out.
+ * values); the server leaves the others out. It names [playbackProtocols] when the player plays HLS only
+ * (`Wire.Header.PLAYBACK_PROTOCOLS`), so the server packages an MPEG-TS channel as HLS for it.
  */
 class SofaKingApi(
     baseUrl: String,
@@ -60,6 +61,7 @@ class SofaKingApi(
     engine: HttpClientEngine = sharedHttpEngine,
     internal val background: CoroutineDispatcher = Dispatchers.Default,
     libraryKinds: List<String> = emptyList(),
+    playbackProtocols: List<String> = emptyList(),
 ) : AutoCloseable {
     private val base: Url = Url(baseUrl.trimEnd('/'))
 
@@ -71,6 +73,9 @@ class SofaKingApi(
             url("$base/api/v1/")
             if (token.isNotEmpty()) bearerAuth(token)
             if (libraryKinds.isNotEmpty()) header(Wire.Header.LIBRARY_KINDS, libraryKinds.joinToString(","))
+            if (playbackProtocols.isNotEmpty()) {
+                header(Wire.Header.PLAYBACK_PROTOCOLS, playbackProtocols.joinToString(","))
+            }
         }
     }
 

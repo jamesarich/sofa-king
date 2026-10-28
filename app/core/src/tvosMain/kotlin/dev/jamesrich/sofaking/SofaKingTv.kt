@@ -90,6 +90,7 @@ internal class TvParts {
         store.settings,
         scope,
         libraryKinds = listOf(Wire.LibraryKind.MUSIC),
+        playbackProtocols = listOf(Wire.Protocol.HLS),
         viewerSync = ViewerSync(store, storage.client),
         householdSync = HouseholdSync(store),
     )

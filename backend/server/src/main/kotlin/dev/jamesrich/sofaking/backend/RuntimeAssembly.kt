@@ -190,7 +190,8 @@ internal class RuntimeAssembly(
         plex?.start(scope)
         plex?.requestSync("startup")
         val audio = SegmentAudio(config.ffmpeg)
-        relay = MediaRelay(http, feeds, sessions, scope, audio = audio)
+        relay =
+            MediaRelay(http, feeds, sessions, scope, audio, config.ffmpeg to config.dataDirectory.resolve("packages"))
         val listener = adListener(audio)
         loopback = LoopbackRelay(http, upstream, relay.permits)
         val worker = probeWorker()

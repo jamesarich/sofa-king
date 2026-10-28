@@ -35,6 +35,12 @@ internal interface SurroundTestPlayer {
 internal expect fun rememberSurroundTestPlayer(): SurroundTestPlayer?
 
 /**
+ * True where the live player plays HLS only (AVPlayer, hls.js), so the server packages an MPEG-TS channel as HLS for
+ * it; false where it plays MPEG-TS too.
+ */
+internal expect val playsHlsOnly: Boolean
+
+/**
  * True where captions are drawn through `CaptionSync` (Android's Media3), so smoothing and timing apply;
  * Settings hides those rows elsewhere.
  */

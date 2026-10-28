@@ -257,8 +257,9 @@ class LibraryApiTest {
         assertEquals(180, item.videoHeight)
         assertTrue(item.hdr, "FFprobe read the PQ transfer")
         assertEquals(600000, item.playState?.positionMs)
-        // Only an extra says what kind of extra it is, and only music has artists, albums and track numbers.
-        val music = setOf("artistId", "artist", "trackArtist", "album", "track", "disc")
+        // Only an extra says what kind of extra it is, only music has artists, albums and track numbers, and only a
+        // song someone played has a last play.
+        val music = setOf("artistId", "artist", "trackArtist", "album", "track", "disc", "lastPlayedAt")
         val nulls =
             Json.parseToJsonElement(itemBody).jsonObject.filterValues { it is JsonNull }.keys - "extra" - music
         assertTrue(nulls.isEmpty(), "the item still has nulls: $nulls")

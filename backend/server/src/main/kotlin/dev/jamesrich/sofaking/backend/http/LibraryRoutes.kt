@@ -5,7 +5,10 @@ import dev.jamesrich.sofaking.backend.library.IMDB_ID
 import dev.jamesrich.sofaking.backend.library.LibraryLyrics
 import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.library.ProviderIds
+import dev.jamesrich.sofaking.backend.library.RADIO_SIZE
 import dev.jamesrich.sofaking.backend.library.VodSessions
+import dev.jamesrich.sofaking.backend.library.libraryRadio
+import dev.jamesrich.sofaking.backend.library.radio
 import dev.jamesrich.sofaking.contract.OpenVodPlayback
 import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.UpdateVodPlayback
@@ -64,11 +67,25 @@ fun Route.libraryRoutes(libraries: LibraryService) {
     }
     get("/api/v1/library/lookup") { call.respond(catalog.lookup(lookupIds(call.request.queryParameters))) }
     get("/api/v1/library/items/{id}") { call.respond(catalog.item(call.parameters["id"]!!, call.showsMusic())) }
+    get("/api/v1/library/items/{id}/radio") {
+        call.respond(catalog.radio(call.parameters["id"]!!, call.radioLimit(), call.showsMusic()))
+    }
+    get("/api/v1/libraries/{id}/radio") {
+        call.respond(catalog.libraryRadio(call.parameters["id"]!!, call.radioLimit(), call.showsMusic()))
+    }
     lyricsRoute(libraries.lyrics)
     put("/api/v1/library/items/{id}/play-state") {
         call.respond(catalog.updatePlayState(call.parameters["id"]!!, call.appBody<UpdatePlayState>()))
     }
 }
+
+/** The `limit` of a radio request, 1 to 200 songs. */
+private fun ApplicationCall.radioLimit(): Int = request.queryParameters["limit"]?.let {
+    it.toIntOrNull()?.takeIf { n -> n in 1..RADIO_MAX }
+        ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "limit is 1 to $RADIO_MAX")
+} ?: RADIO_SIZE
+
+private const val RADIO_MAX = 200
 
 /** Whether the client names `music` in its [Wire.Header.LIBRARY_KINDS] header, so it may see Music libraries. */
 internal fun ApplicationCall.showsMusic(): Boolean = request.headers.getAll(Wire.Header.LIBRARY_KINDS).orEmpty()

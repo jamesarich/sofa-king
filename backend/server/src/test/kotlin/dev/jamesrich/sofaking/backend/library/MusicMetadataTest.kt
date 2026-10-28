@@ -253,6 +253,29 @@ class MusicMetadataTest {
         assertTrue(calls.none { it.startsWith("/artist?") }, calls.toString())
     }
 
+    @Test fun `an album credited to its two artists in the other order than its folder names them is kept`() {
+        val calls = mutableListOf<String>()
+        val credit = """[{"name":"Hotel Pools","artist":{"id":"$ARTIST","name":"Hotel Pools"},"joinphrase":" & "},
+            {"name":"A.L.I.S.O.N","artist":{"id":"$OTHER","name":"A.L.I.S.O.N"}}]"""
+        val http = musicBrainz(
+            calls,
+            mapOf(
+                "/release-group" to
+                    """{"release-groups":[{"id":"$GROUP","title":"Ultrasound","score":100,"artist-credit":$credit}]}""",
+                "/release-group/$GROUP" to """{"id":"$GROUP","title":"Ultrasound","artist-credit":$credit}""",
+                "/artist/$ARTIST" to """{"id":"$ARTIST","name":"Hotel Pools"}""",
+            ),
+        )
+        val s = scan(
+            http,
+            mapOf(
+                "A.L.I.S.O.N & Hotel Pools/Ultrasound/01.flac" to
+                    AudioTags("One", "A.L.I.S.O.N & Hotel Pools", album = "Ultrasound", track = 1),
+            ),
+        )
+        assertEquals(GROUP, s.facts("Ultrasound")?.musicBrainzId)
+    }
+
     @Test fun `an artist whose name two artists share at one score stays unmatched`() {
         val calls = mutableListOf<String>()
         val http = musicBrainz(

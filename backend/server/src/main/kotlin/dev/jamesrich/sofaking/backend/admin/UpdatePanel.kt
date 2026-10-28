@@ -123,8 +123,9 @@ private fun DL.updaterFacts(report: UpdaterReport?, now: Instant, fresh: Boolean
                 +"Has not reported. "
                 span("muted") {
                     +(
-                        "Install the host's updater to apply updates; its timer checks every 15 minutes and " +
-                            "writes its result here."
+                        "The host's updater writes its result here after each check, every 15 minutes. An " +
+                            "updater that is not installed, or whose copy predates the status file, stays silent: " +
+                            "download it again and run its install step."
                         )
                 }
             }
@@ -183,7 +184,7 @@ private fun FlowContent.updateActions(chrome: Chrome, update: UpdateState) = div
     }
     span("muted small") {
         +when {
-            report == null -> "Update now needs the host's updater; see the deploy guide."
+            report == null -> "Update now needs a current host updater; see the deploy guide."
 
             requested != null -> "Update now is waiting for the updater."
 

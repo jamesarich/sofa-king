@@ -1,6 +1,6 @@
 # Operations
 
-This guide covers running a server after the first start: where its state lives, backups and restore, upgrades and rollback, monitoring and logs, native provider failures, and token rotation. Paths assume the Docker stack in [deploy](deploy.md), whose config folder is `deploy/config`; outside Docker, `SOFA_DATA_DIR` (default `data`) is the same directory. Commands run from `backend/`.
+This guide covers running a server after the first start: where its state lives, backups and restore, upgrades and rollback, monitoring and logs, native provider failures, AI assistants, and token rotation. Paths assume the Docker stack in [deploy](deploy.md), whose config folder is `deploy/config`; outside Docker, `SOFA_DATA_DIR` (default `data`) is the same directory. Commands run from `backend/`.
 
 ## State
 
@@ -162,6 +162,19 @@ The [native providers](providers.md) call each service's public endpoints. A ser
 
    Send `false` to clear the override. To remove a whole provider, delete it from the source file and restart. Its sources stop being offered, and entries skip them.
 5. A fix to a native client is a change to the client itself. See [add a native provider](development.md#add-a-native-provider).
+
+## Use with an AI assistant
+
+The server answers the [Model Context Protocol](api.md#mcp) at `/api/v1/mcp`, so an assistant such as Claude Code can check on it: what needs attention, which imports fail and why, how the jobs ran, what the log says, and what is on and recorded. With the admin token it can also run a job, scan a library, check for an update and ask the updater to install one.
+
+Pick the token for what the assistant may do. A read token, made on the portal's Settings page under Access tokens with Read as what it opens, lets it look and change nothing. The admin token lets it act too; give it only to an assistant you trust with the portal. Then add the server to the assistant, for Claude Code:
+
+```sh
+claude mcp add --transport http sofa-king http://SERVER_HOST:9193/api/v1/mcp \
+  --header "Authorization: Bearer TOKEN"
+```
+
+The assistant must reach the server's address, and must send the token as a bearer header: an assistant that runs in the cloud cannot reach a server on the home network. Revoke a read token on the Settings page to cut the assistant off.
 
 ## Rotating tokens
 

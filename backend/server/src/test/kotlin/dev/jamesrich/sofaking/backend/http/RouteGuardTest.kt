@@ -162,13 +162,21 @@ class RouteGuardTest {
         }.distinct()
 
     private fun Endpoint.isApi() = path == "/api" || path.startsWith("/api/")
-    private fun Endpoint.isAdminApi() = path == "/api/v1/admin" || path.startsWith("/api/v1/admin/") ||
-        (method == HttpMethod.Patch && path.startsWith("/api/v1/sources/"))
+    private fun Endpoint.isAdminApi() =
+        path == "/api/v1/admin" || path.startsWith("/api/v1/admin/") || path == MCP_PATH ||
+            (method == HttpMethod.Patch && path.startsWith("/api/v1/sources/"))
 
     private fun Endpoint.isHook() = isHookPath(path)
 
-    /** Whether a read token opens this route: a GET of the summary and the admin reads a dashboard needs. */
-    private fun Endpoint.readScope() = method == HttpMethod.Get && listOf(
+    /**
+     * Whether a read token opens this route: a GET of the summary and the admin reads a dashboard needs, and the MCP
+     * endpoint, which lists it only the read tools.
+     */
+    private fun Endpoint.readScope() = path == MCP_PATH || (method == HttpMethod.Get && readPaths.any { under(it) })
+
+    private fun Endpoint.under(root: String) = path == root || path.startsWith("$root/")
+
+    private val readPaths = listOf(
         "/api/v1/status",
         "/api/v1/admin/status",
         "/api/v1/admin/sessions",
@@ -178,7 +186,7 @@ class RouteGuardTest {
         "/api/v1/admin/policy/findings",
         "/api/v1/admin/policy/changes",
         "/api/v1/admin/libraries",
-    ).any { path == it || path.startsWith("$it/") }
+    )
 
     private suspend fun ApplicationTestBuilder.call(endpoint: Endpoint, token: String? = null): HttpResponse =
         client.request(endpoint.path) {

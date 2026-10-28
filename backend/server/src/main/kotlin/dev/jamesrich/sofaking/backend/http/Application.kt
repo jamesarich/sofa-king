@@ -7,6 +7,8 @@ import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.admin.AdminPortal
 import dev.jamesrich.sofaking.backend.admin.PlexStatusSource
 import dev.jamesrich.sofaking.backend.admin.RESTORE_UPLOAD_LIMIT
+import dev.jamesrich.sofaking.backend.mcp.McpContext
+import dev.jamesrich.sofaking.backend.mcp.McpServers
 import dev.jamesrich.sofaking.backend.store.IdentityStore
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -62,6 +64,7 @@ fun Application.backendModule(
 ) {
     // The portal signs in with the admin token, or the API token when no admin token is set.
     val portal = runtime?.let { AdminPortal(it, adminToken ?: apiToken, outputs, hdhr, clock, plexStatus, config) }
+    val revision = config?.revision ?: "unknown"
     attributes.computeIfAbsent(AuthFailureLogKey) { AuthFailureLog(clock) }
     // The path routing resolves, decoded once per request; the plugins below and the token guard read it from the call.
     intercept(ApplicationCallPipeline.Setup) {
@@ -79,8 +82,8 @@ fun Application.backendModule(
         config?.takeIf { it.servesWebApp() }?.webDirectory?.let { webAppRoutes(it) }
         if (runtime != null) {
             liveRoutes(runtime)
-            adminRoutes(runtime, clock, config?.revision ?: "unknown", hdhr.enabled)
-            statusSummaryRoutes(runtime, clock, config?.revision ?: "unknown")
+            adminRoutes(runtime, clock, revision, hdhr.enabled)
+            statusSummaryRoutes(runtime, clock, revision)
             historyRoutes(runtime, clock)
             viewerRoutes(runtime, clock, apiToken)
             runtime.dvr?.let { recordingRoutes(it) }
@@ -97,6 +100,7 @@ fun Application.backendModule(
             runtime.vod?.let { vodRoutes(it) }
             runtime.multiview?.let { multiviewRoutes(it) }
             if (hdhr.enabled) hdhrRoutes(runtime, hdhr, store)
+            mcpRoutes(McpServers.create(McpContext(runtime, clock, revision, portal?.let { it::attention })))
             portal?.install(this)
         }
     }

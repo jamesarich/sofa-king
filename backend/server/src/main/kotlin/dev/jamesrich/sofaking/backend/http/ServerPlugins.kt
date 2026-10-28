@@ -10,9 +10,13 @@ import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
 import dev.jamesrich.sofaking.contract.ApiError
 import dev.jamesrich.sofaking.contract.Wire
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.OutgoingContent
+import io.ktor.serialization.ContentConverter
+import io.ktor.serialization.kotlinx.KotlinxSerializationConverter
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
@@ -41,6 +45,11 @@ import io.ktor.server.plugins.ratelimit.RateLimitName
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.httpMethod
 import io.ktor.server.response.respond
+import io.ktor.util.reflect.TypeInfo
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.charsets.Charset
+import io.modelcontextprotocol.kotlin.sdk.types.JSONRPCMessage
+import io.modelcontextprotocol.kotlin.sdk.types.McpJson
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -118,13 +127,37 @@ internal fun Application.installLimits() {
             requestKey { call -> call.request.origin.remoteAddress }
         }
     }
-    install(ContentNegotiation) { json(wireJson) }
+    install(ContentNegotiation) {
+        // First, so the MCP endpoint's messages are written as the SDK writes them and everything else as ours.
+        register(ContentType.Application.Json, McpMessages)
+        json(wireJson)
+    }
     install(Compression) {
         // gzip first, deflate for a client that takes only it.
         gzip { priority = 1.0 }
         deflate { priority = DEFLATE_PRIORITY }
         condition { compressible(request.call.routedPath) }
     }
+}
+
+/**
+ * The MCP endpoint's JSON-RPC messages, in the SDK's own JSON: no explicit nulls and no class discriminator. Every
+ * other value passes to the next converter, and reading a body is always left to it.
+ */
+private object McpMessages : ContentConverter {
+    private val mcp = KotlinxSerializationConverter(McpJson)
+
+    override suspend fun serialize(
+        contentType: ContentType,
+        charset: Charset,
+        typeInfo: TypeInfo,
+        value: Any?,
+    ): OutgoingContent? = if (value.isMcpMessage()) mcp.serialize(contentType, charset, typeInfo, value) else null
+
+    override suspend fun deserialize(charset: Charset, typeInfo: TypeInfo, content: ByteReadChannel): Any? = null
+
+    private fun Any?.isMcpMessage(): Boolean =
+        this is JSONRPCMessage || (this is List<*> && isNotEmpty() && all { it is JSONRPCMessage })
 }
 
 /** Every failure answers as an [ApiError]. */
@@ -235,8 +268,9 @@ private suspend fun ApplicationCall.refusedApi(
     tokens: IssuedTokens?,
 ): Boolean {
     // Admin routes take the admin token when one is configured; otherwise the API token covers them too.
-    // Disabling a source changes what every viewer gets, so it is one too, though outside /api/v1/admin.
-    val isAdmin = under(path, "/api/v1/admin") ||
+    // Disabling a source changes what every viewer gets, so it is one too, though outside /api/v1/admin, and so is
+    // the MCP endpoint, whose tools look after the server.
+    val isAdmin = under(path, "/api/v1/admin") || path == MCP_PATH ||
         (request.httpMethod == HttpMethod.Patch && path.startsWith("/api/v1/sources/"))
     val expected = if (isAdmin && adminToken != null) adminToken else apiToken
     val isHook = isHookPath(path)
@@ -269,8 +303,8 @@ private suspend fun ApplicationCall.refusedApi(
 
 /**
  * Whether [bearer] is a token the server issued that opens [path]: a device's `api` token the app's routes, a `read`
- * token the admin reads in [READ_SCOPE_PATHS], a `hook` token the hooks ([isHook]). None opens the rest of the admin
- * API.
+ * token the admin reads in [READ_SCOPE_PATHS] and the MCP endpoint's read tools, a `hook` token the hooks ([isHook]).
+ * None opens the rest of the admin API.
  */
 private suspend fun ApplicationCall.issuedOpens(
     tokens: IssuedTokens?,
@@ -284,8 +318,13 @@ private suspend fun ApplicationCall.issuedOpens(
     return when (token.scope) {
         TokenScope.API -> !isAdmin && !isHook
 
-        TokenScope.READ ->
+        TokenScope.READ -> if (path == MCP_PATH) {
+            // The MCP endpoint lists a read token only the tools that change nothing.
+            attributes.put(McpReadOnlyKey, Unit)
+            true
+        } else {
             request.httpMethod in setOf(HttpMethod.Get, HttpMethod.Head) && READ_SCOPE_PATHS.any { under(path, it) }
+        }
 
         TokenScope.HOOK -> isHook
     }

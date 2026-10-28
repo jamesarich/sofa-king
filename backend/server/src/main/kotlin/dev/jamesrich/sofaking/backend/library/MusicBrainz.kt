@@ -143,10 +143,13 @@ internal class MusicBrainzClient(
     private val gate = Mutex()
     private var lastAt = 0L
 
-    /** The release groups called [title] by [artist], best first, with MusicBrainz's score out of 100. */
-    suspend fun searchReleaseGroups(title: String, artist: String): List<MbReleaseGroup> = mb<MbReleaseGroups>(
+    /**
+     * The release groups called [title] by all of [artists], best first, with MusicBrainz's score out of 100. A pair
+     * that a folder names as one, `A & B`, is searched as each of them: a credit holds them in either order.
+     */
+    suspend fun searchReleaseGroups(title: String, artists: List<String>): List<MbReleaseGroup> = mb<MbReleaseGroups>(
         "/release-group",
-        "query" to "releasegroup:${quoted(title)} AND artist:${quoted(artist)}",
+        "query" to "releasegroup:${quoted(title)}" + artists.joinToString("") { " AND artist:${quoted(it)}" },
         "limit" to "5",
     ).releaseGroups
 

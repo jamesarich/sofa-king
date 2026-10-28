@@ -254,10 +254,15 @@ class MusicMetadata internal constructor(
         private suspend fun search(album: LibraryItemRecord): MbReleaseGroup? {
             val artist = album.parentId?.let(byId::get)?.title ?: return null
             val title = album.title.replace(EDITION, "").ifEmpty { album.title }
-            return client.searchReleaseGroups(title, artist)
-                .filter { it.score >= MIN_SCORE && sameTitle(it.title, title) && creditedTo(it, artist) }
-                .maxByOrNull { it.score }
+            val parts = artist.split(CREDIT_SEPARATOR).filter { it.isNotBlank() }
+            // The whole name first; a name that joins artists is searched as each of them when that finds nothing.
+            return found(client.searchReleaseGroups(title, listOf(artist)), title, artist)
+                ?: if (parts.size > 1) found(client.searchReleaseGroups(title, parts), title, artist) else null
         }
+
+        private fun found(groups: List<MbReleaseGroup>, title: String, artist: String): MbReleaseGroup? = groups
+            .filter { it.score >= MIN_SCORE && sameTitle(it.title, title) && creditedTo(it, artist) }
+            .maxByOrNull { it.score }
 
         /** The artist called [name], when one has that name or alias and outscores the rest. */
         private suspend fun searchArtist(name: String): MbArtist? {

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -11,6 +12,9 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+
+/** The first status code of a failure on ListenBrainz's side. */
+private const val HTTP_SERVER_ERROR = 500
 
 /** How many of an artist's most played songs are kept. */
 private const val POPULAR_KEPT = 25
@@ -43,21 +47,59 @@ private val listenBrainzJson = Json {
 data class PopularSong(val id: String? = null, val title: String)
 
 /**
- * [ListenBrainz](https://listenbrainz.org)'s listening statistics, which need no key: an artist's most played songs
- * and the artists played alongside them, by MusicBrainz id, under a User-Agent naming the server's [version].
+ * A failed ListenBrainz token check; [code] is a short class for the setup error (`LISTENBRAINZ_AUTH`,
+ * `LISTENBRAINZ_HTTP_500`), with no token.
+ */
+class ListenBrainzFailure(val code: String) : RuntimeException(code)
+
+@Serializable internal data class LbTokenCheck(val valid: Boolean = false)
+
+/**
+ * [ListenBrainz](https://listenbrainz.org)'s listening statistics: the artists played alongside an artist, which need
+ * no key, and an artist's most played songs, which need the user [token] (null asks for no songs), by MusicBrainz id,
+ * under a User-Agent naming the server's [version].
  */
 internal class ListenBrainzClient(
     private val http: HttpClient,
     version: String,
+    private val token: String? = null,
     private val api: String = "https://api.listenbrainz.org/1",
     private val labs: String = "https://labs.api.listenbrainz.org",
 ) {
     private val userAgent = sofaKingAgent(version)
 
+    /** Whether the most played songs can be asked for, which takes a token. */
+    val canAskSongs: Boolean get() = token != null
+
+    /** Fails with [ListenBrainzFailure] unless ListenBrainz takes the token: `LISTENBRAINZ_AUTH` when it does not. */
+    suspend fun check() {
+        val response = runCatchingCancellable {
+            http.get("$api/validate-token") {
+                header(HttpHeaders.UserAgent, userAgent)
+                token?.let { header(HttpHeaders.Authorization, "Token $it") }
+            }
+        }.getOrElse { throw ListenBrainzFailure("LISTENBRAINZ_UNREACHABLE (${it.javaClass.simpleName})") }
+        val valid = runCatchingCancellable {
+            response.status == HttpStatusCode.OK &&
+                listenBrainzJson.decodeFromString<LbTokenCheck>(response.bodyAsText()).valid
+        }.getOrDefault(false)
+        if (valid) return
+        throw ListenBrainzFailure(
+            if (response.status.value <
+                HTTP_SERVER_ERROR
+            ) {
+                "LISTENBRAINZ_AUTH"
+            } else {
+                "LISTENBRAINZ_HTTP_${response.status.value}"
+            },
+        )
+    }
+
     /** The MusicBrainz artist [id]'s most played songs, most played first; empty when ListenBrainz knows none. */
     suspend fun popular(id: String): List<PopularSong> {
         val response = http.get("$api/popularity/top-recordings-for-artist/$id") {
             header(HttpHeaders.UserAgent, userAgent)
+            token?.let { header(HttpHeaders.Authorization, "Token $it") }
         }
         val body = text(response) ?: return emptyList()
         return listenBrainzJson.decodeFromString<List<LbRecording>>(body)

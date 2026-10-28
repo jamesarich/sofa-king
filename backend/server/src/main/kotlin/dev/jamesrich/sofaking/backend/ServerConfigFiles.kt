@@ -103,3 +103,16 @@ internal fun savedFanartKey(
     log("secrets: SOFA_FANART_KEY from ${file.path}, saved from the portal")
     return key
 }
+
+/** The ListenBrainz user token saved from the portal into [SecretsFile], marked [SecretOrigin.SAVED] in [origins]. */
+internal fun savedListenBrainzToken(
+    directory: Path,
+    origins: MutableMap<String, SecretOrigin>,
+    log: (String) -> Unit,
+): String? {
+    val file = SecretsFile(directory.resolve(SecretsFile.NAME))
+    val token = file.stored(SecretsFile.LISTENBRAINZ_TOKEN) ?: return null
+    origins["SOFA_LISTENBRAINZ_TOKEN"] = SecretOrigin.SAVED
+    log("secrets: SOFA_LISTENBRAINZ_TOKEN from ${file.path}, saved from the portal")
+    return token
+}

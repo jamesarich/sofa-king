@@ -153,6 +153,9 @@ data class ServerConfig(
     val musicBrainz: Boolean = true,
     /** `SOFA_FANART_KEY`: a fanart.tv API key, for artists' pictures and backdrops and more album covers. */
     val fanartKey: String? = null,
+
+    /** `SOFA_LISTENBRAINZ_TOKEN`: a ListenBrainz user token, for artists' most played songs. */
+    val listenBrainzToken: String? = null,
 ) {
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
@@ -216,6 +219,8 @@ data class ServerConfig(
             val tmdb = base.tmdb ?: savedTmdb(resolved, base.dataDirectory, allOrigins, log)
             val fanartKey = EnvironmentReader(resolved).token("SOFA_FANART_KEY")
                 ?: savedFanartKey(base.dataDirectory, allOrigins, log)
+            val listenBrainzToken = EnvironmentReader(resolved).token("SOFA_LISTENBRAINZ_TOKEN")
+                ?: savedListenBrainzToken(base.dataDirectory, allOrigins, log)
             return base.copy(
                 sourcesFile = sources,
                 policyFile = policy,
@@ -223,6 +228,7 @@ data class ServerConfig(
                 adminToken = tokens["adminToken"] ?: base.adminToken,
                 tmdb = tmdb,
                 fanartKey = fanartKey,
+                listenBrainzToken = listenBrainzToken,
                 outputs = base.outputs.copy(token = tokens["outputToken"] ?: base.outputs.token),
                 secretOrigins = allOrigins,
                 secretsFile = secretsFile,

@@ -52,12 +52,12 @@ internal fun httpClient(
 
 /**
  * Loads Ktor's classes and finds its logger provider now. On the JVM a logger reads the APK to find its provider, which
- * stalls whichever thread makes the app's first request, and only a request or a level check does it: building a client
+ * stalls whichever thread makes the app's first request, and only a request or a log call does it: building a client
  * does not. Call this off the main thread.
  */
 fun warmUpHttp() {
     httpClient().close()
-    KtorSimpleLogger("dev.jamesrich.sofaking.warmup").isTraceEnabled
+    KtorSimpleLogger("dev.jamesrich.sofaking.warmup").trace("warm-up")
 }
 
 /** The client for calls to no server in particular, such as the update check; it is never closed. */

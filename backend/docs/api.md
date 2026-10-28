@@ -69,6 +69,8 @@ These routes take no token: `/healthz`, `/readyz`, the [web app](deploy.md#serve
 | PUT | `/api/v1/library/items/{id}/play-state` | Record where playback stopped, or mark an item, season or show watched or unwatched |
 | GET | `/api/v1/library/items/{id}/subtitles/{index}` | A text subtitle track as WebVTT, see [play library files](#play-library-files) |
 | GET | `/api/v1/library/items/{id}/lyrics` | A song's lyrics as LRC text, see [play library files](#play-library-files) |
+| GET | `/api/v1/library/items/{id}/radio?limit=` | A radio from an artist, album or song: up to `limit` songs (default 50, at most 200) as a `LibraryPage`, see [music radio](libraries.md#radio) |
+| GET | `/api/v1/libraries/{id}/radio?limit=` | A radio from every artist of a Music library alike |
 | POST | `/api/v1/vod-sessions` | Play a library movie, episode or video, see [play library files](#play-library-files) |
 | GET | `/api/v1/vod-sessions/{id}` | Read a library playback session |
 | PATCH | `/api/v1/vod-sessions/{id}` | Renew it, and with `startMs` restart a converted stream there |

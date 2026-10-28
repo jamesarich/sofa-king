@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.StrictMode
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import dev.jamesrich.sofaking.data.AppLink
 import dev.jamesrich.sofaking.data.AppStorage
@@ -70,7 +72,17 @@ class MainActivity : ComponentActivity() {
     // A denial leaves the app as it was: the server cannot be reached until the permission is given in system settings.
     private val localNetwork = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
+    /** Whether the app knows its first page, which the launch screen waits for. */
+    @Volatile
+    private var launchDecided = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // The launch screen stays until the app knows its first page, so the start goes from the brand to the player or
+        // the guide with no loader between; a slow server is not waited for beyond [LAUNCH_SCREEN_MAX_MS].
+        val started = SystemClock.uptimeMillis()
+        installSplashScreen().setKeepOnScreenCondition {
+            !launchDecided && SystemClock.uptimeMillis() - started < LAUNCH_SCREEN_MAX_MS
+        }
         super.onCreate(savedInstanceState)
         WindowCompat.enableEdgeToEdge(window)
         // The app is always dark, so the bars keep light icons whatever the system theme.
@@ -94,6 +106,7 @@ class MainActivity : ComponentActivity() {
                 onPairingHandle = { pairing.value = null },
                 link = link.value,
                 onLinkHandle = { link.value = null },
+                onLaunchReady = { launchDecided = true },
             )
         }
     }
@@ -109,6 +122,9 @@ class MainActivity : ComponentActivity() {
         parseAppLink(uri)?.let { link.value = it }
     }
 }
+
+/** The longest the launch screen waits for the app's first page. */
+private const val LAUNCH_SCREEN_MAX_MS = 1_500L
 
 /** The API level that asks for [ACCESS_LOCAL_NETWORK] before any traffic to the local network. */
 private const val LOCAL_NETWORK_SDK = 37

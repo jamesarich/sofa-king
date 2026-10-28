@@ -304,11 +304,20 @@ private fun commonsFile(url: String): String? = COMMONS_IMAGE.matchEntire(url)?.
 private fun sameTitle(found: String, title: String): Boolean =
     musicKey(found.replace(EDITION, "").ifEmpty { found }) == musicKey(title)
 
-/** Whether [group] is credited to [artist], or to Various Artists for a compilation. */
+/**
+ * Whether [group] is credited to [artist], or to Various Artists for a compilation. A folder that names a pair of
+ * artists in the other order than MusicBrainz credits them, `A & B` against `B & A`, is the same credit.
+ */
 private fun creditedTo(group: MbReleaseGroup, artist: String): Boolean {
     val credit = group.artistCredit.joinToString(" ") { it.name }
-    return musicKey(credit) == musicKey(artist) || group.artistCredit.any { musicKey(it.name) == musicKey(artist) }
+    val credited = group.artistCredit.map { musicKey(it.name) }.toSet()
+    val named = artist.split(CREDIT_SEPARATOR).map(::musicKey).toSet()
+    return musicKey(credit) == musicKey(artist) || musicKey(artist) in credited ||
+        (credited.size > 1 && named == credited)
 }
+
+/** What a folder puts between two artists it names together. */
+private val CREDIT_SEPARATOR = Regex("""\s+(?:&|and|\+|x|with|feat\.?|featuring)\s+|\s*,\s*""", RegexOption.IGNORE_CASE)
 
 private const val YEAR_DIGITS = 4
 

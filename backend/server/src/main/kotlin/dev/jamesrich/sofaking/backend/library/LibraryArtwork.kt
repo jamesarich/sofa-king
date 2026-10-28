@@ -134,11 +134,13 @@ class LibraryArtwork(
                     if (!Files.isRegularFile(video, LinkOption.NOFOLLOW_LINKS)) return@withContext null
                     Files.createDirectories(directory)
                     val seconds = "%.3f".format(java.util.Locale.ROOT, source.atMs / 1000.0)
-                    val command = listOf(
-                        ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-ss", seconds, "-i",
-                        video.toString(),
-                        "-map", "0:v:0", "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", partial.toString(),
-                    )
+                    // No seek for the first frame: ffmpeg finds no picture past a seek to 0 in an MP3's attached cover.
+                    val seek = if (source.atMs > 0) listOf("-ss", seconds) else emptyList()
+                    val command = listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y") + seek +
+                        listOf(
+                            "-i", video.toString(),
+                            "-map", "0:v:0", "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", partial.toString(),
+                        )
                     val made = try {
                         ProcessBuilder(
                             command,

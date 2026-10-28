@@ -79,6 +79,8 @@ final class RemoteTests: XCTestCase {
         focus(app.tabBars.buttons["Live"], pressing: .up)
         XCTAssertTrue(recordings.waitForExistence(timeout: 10), "No DVR tab\n\(screen)")
         focus(recordings, pressing: .right, presses: 3)
+        // Focus can pass a tab before it opens; leave DVR only once it is open, so it is the tab the app remembers.
+        eventually("the DVR tab to open") { row("Skip commercials").exists }
         // Settings is not remembered, so the next start reopens DVR.
         focus(app.tabBars.buttons["Settings"], pressing: .right, presses: 3)
         app.terminate()

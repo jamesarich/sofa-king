@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.tvprovider.media.tv.TvContractCompat
 import androidx.tvprovider.media.tv.TvContractCompat.WatchNextPrograms
@@ -33,8 +34,16 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
     private val waiting = AtomicReference<List<MediaItem>?>(null)
     private val engage = EngagePublisher(context)
 
-    /** Whether the Engage service had the last shelf, so the app's own Watch Next entries are gone. */
-    private var engaged = false
+    private val prefs by lazy { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
+
+    /**
+     * Whether the Engage service has had the shelf since the app's own Watch Next entries were last written, so they
+     * are gone. Kept across starts: on a launcher that reads Watch Next the SDK writes the row there itself, and
+     * clearing it again at every start, as after an update, would empty the row until the service fills it again.
+     */
+    private var engaged: Boolean
+        get() = prefs.getBoolean(ENGAGED, false)
+        set(value) = prefs.edit { putBoolean(ENGAGED, value) }
 
     override fun publish(items: List<MediaItem>) {
         if (waiting.getAndSet(items) == null) writer.execute { waiting.getAndSet(null)?.let(::write) }
@@ -42,11 +51,15 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
 
     private fun write(items: List<MediaItem>) {
         if (engage.available()) {
-            // Before the first write, since on a launcher that reads Watch Next the SDK writes the row there itself.
+            // Once, before the first shelf Engage takes: a Watch Next launcher gets its row from the SDK.
             if (!engaged) clear()
-            engaged = engage.publish(items)
-            if (engaged) return
+            if (engage.publish(items)) {
+                engaged = true
+                return
+            }
         }
+        // The app's own entries are written below, so Engage's next shelf clears them again.
+        engaged = false
         runCatchingCancellable {
             val resolver = context.contentResolver
             // The provider answers with this app's own entries only.
@@ -150,6 +163,8 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
 }
 
 private const val TAG = "SofaKing"
+private const val PREFS = "watch_next"
+private const val ENGAGED = "engaged"
 
 /** Entries made in one write sit this far apart in time, so the launcher keeps the shelf's order. */
 private const val ENGAGEMENT_STEP_MS = 1_000L

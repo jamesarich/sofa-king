@@ -63,8 +63,8 @@ class VisualizerTest {
         )
         assertEquals(0.9, preset.values["decay"])
         assertEquals(3.0, preset.values["wave_mode"])
-        assertEquals("rot = 0.5;zoom = zoom + 0.1", preset.frame)
-        assertEquals("dx = rad", preset.pixel)
+        assertEquals("rot = 0.5; zoom = zoom + 0.1;", preset.frame)
+        assertEquals("dx = rad;", preset.pixel)
     }
 
     @Test
@@ -82,5 +82,59 @@ class VisualizerTest {
             }
             assertTrue(lit > 20, "${preset.name} drew $lit lit pixels")
         }
+    }
+
+    @Test
+    fun `custom waves and shapes are read and drawn`() {
+        val preset = MilkPreset.parse(
+            "custom",
+            """
+            fDecay=0.9
+            fWaveAlpha=0
+            wavecode_0_enabled=1
+            wavecode_0_samples=128
+            wavecode_0_r=1
+            wavecode_0_g=0.5
+            wavecode_0_b=0
+            wavecode_0_a=1
+            wave_0_per_point1=x = sample; y = 0.5 + value1 * 0.4;
+            shapecode_0_enabled=1
+            shapecode_0_sides=6
+            shapecode_0_rad=0.2
+            shapecode_0_a=1
+            shapecode_0_a2=0.2
+            shapecode_0_r=0
+            shapecode_0_g=1
+            shapecode_0_b=1
+            shapecode_0_num_inst=2
+            shape_0_per_frame1=x = 0.3 + instance * 0.4;
+            """.trimIndent(),
+        )
+        assertEquals(1, preset.waves.size)
+        assertEquals(1, preset.shapes.size)
+        assertEquals("x = sample; y = 0.5 + value1 * 0.4;", preset.waves[0].point)
+        val analyzer = AudioAnalyzer(rate)
+        val vis = Visualizer(96, 54, preset)
+        synthetic(analyzer, rate, 0, rate / 10)
+        val pixels = vis.render(analyzer.frame(0.1), 0.1)
+        val green = pixels.count { (it shr 8 and 0xFF) > 120 && (it shr 16 and 0xFF) < 100 }
+        assertTrue(green > 200, "the two hexagons fade from cyan to green ($green pixels)")
+        assertTrue(pixels.any { (it shr 16 and 0xFF) > 150 && (it and 0xFF) < 60 }, "the wave is orange")
+    }
+
+    @Test
+    fun `a pack keeps each preset as it was written`() {
+        val a = Presets.all[1]
+        val b = Presets.all[5]
+        val pack = MilkPreset.parsePack(
+            Presets.all.slice(listOf(1, 5)).joinToString("\n") {
+                "@@ ${it.name}\n${it.toText()}"
+            },
+        )
+        assertEquals(listOf(a.name, b.name), pack.map { it.name })
+        assertEquals(a.frame, pack[0].frame)
+        assertEquals(a.pixel, pack[0].pixel)
+        assertEquals(b.init, pack[1].init)
+        assertEquals(a.values, pack[0].values)
     }
 }

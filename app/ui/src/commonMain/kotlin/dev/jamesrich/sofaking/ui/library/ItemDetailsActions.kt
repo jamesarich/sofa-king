@@ -18,4 +18,6 @@ internal class ItemDetailsActions(
     val watchlisted: (MediaItem) -> Boolean? = { null },
     /** Plays an album's songs in a random order; null hides Shuffle. */
     val onShuffle: (() -> Unit)? = null,
+    /** Starts a radio from an artist's or an album's page; null hides Start radio. */
+    val onRadio: (() -> Unit)? = null,
 )

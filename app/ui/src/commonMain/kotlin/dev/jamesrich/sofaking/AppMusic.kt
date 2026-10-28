@@ -84,6 +84,13 @@ internal fun AppShellState.shuffle(music: MusicPlayback, songs: List<MediaItem>)
     openNowPlaying()
 }
 
+/** Plays [songs], a radio, in the order given, with Now playing opened over the page. */
+internal fun AppShellState.playRadio(music: MusicPlayback, songs: List<MediaItem>) {
+    val queue = MusicQueue.of(songs) ?: return
+    music.play(queue)
+    openNowPlaying()
+}
+
 /** Opens Now playing; Back focuses [returnTo] on the page below, or, [fromHeader], the header's song button. */
 internal fun AppShellState.openNowPlaying(returnTo: String? = null, fromHeader: Boolean = false) {
     nowPlayingReturn = NowPlayingReturn(returnTo, fromHeader)

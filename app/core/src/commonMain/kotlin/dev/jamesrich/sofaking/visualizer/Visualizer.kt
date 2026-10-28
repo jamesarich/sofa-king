@@ -16,8 +16,12 @@ class Visualizer(val width: Int, val height: Int, preset: MilkPreset, private va
     private var spare = Canvas(width, height)
     private val warp = Warp(width, height)
     private lateinit var equations: Equations
+    private lateinit var custom: CustomObjects
     private var time = 0.0
     private var frames = 0L
+
+    /** How many of the preset's equation programs could not be read, so it draws without them. */
+    val unreadable: Int get() = equations.unreadable + custom.unreadable
 
     /** The picture of the latest [render], reused each frame. */
     val pixels = IntArray(width * height)
@@ -26,6 +30,7 @@ class Visualizer(val width: Int, val height: Int, preset: MilkPreset, private va
         set(value) {
             field = value
             equations = Equations(value, seed)
+            custom = CustomObjects(value)
         }
 
     init {
@@ -39,6 +44,7 @@ class Visualizer(val width: Int, val height: Int, preset: MilkPreset, private va
         time = 0.0
         frames = 0
         equations = Equations(preset, seed)
+        custom = CustomObjects(preset)
     }
 
     fun render(audio: AudioFrame, dtSeconds: Double): IntArray {
@@ -49,6 +55,7 @@ class Visualizer(val width: Int, val height: Int, preset: MilkPreset, private va
         warp.buildMesh(equations, state, time)
         warp.apply(canvas, spare, state["decay"].toFloat().coerceIn(0f, 1f))
         canvas.swap(spare)
+        if (!custom.isEmpty) custom.draw(canvas, Hearing(audio, time, frames, equations.scope))
         Waves.draw(canvas, audio, waveStyle(state))
         canvas.border(state["ob_size"].toFloat(), 0f, state.color("ob"), state["ob_a"].toFloat())
         canvas.border(

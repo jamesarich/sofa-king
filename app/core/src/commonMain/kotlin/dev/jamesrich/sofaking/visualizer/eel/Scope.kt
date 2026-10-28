@@ -26,10 +26,15 @@ class EelScope(private val random: Random = Random(1)) {
         }
     }
 
-    operator fun get(name: String): Double = values[slot(name)]
+    operator fun get(name: String): Double {
+        // The slot first: adding one can replace the array.
+        val at = slot(name)
+        return values[at]
+    }
 
     operator fun set(name: String, value: Double) {
-        values[slot(name)] = value
+        val at = slot(name)
+        values[at] = value
     }
 
     /** A whole number from 0 up to but not including [n], as a double. */

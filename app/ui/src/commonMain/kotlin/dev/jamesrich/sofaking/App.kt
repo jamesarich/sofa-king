@@ -71,7 +71,8 @@ import kotlin.math.abs
  * it once and calls [onPairingHandle], so a restored activity does not claim it again. [link] is a library item or a
  * live channel to play from a `sofaking://vod` or `sofaking://live` link, such as the Android TV home screen's Watch
  * Next row or a home automation's shortcut, handed back the same way through [onLinkHandle]. [windowFullScreen] is
- * the host window's full screen where the app can switch it (a desktop window, a browser page).
+ * the host window's full screen where the app can switch it (a desktop window, a browser page). [onLaunchReady]
+ * runs once the cold start knows its first page, which a platform's launch screen waits for.
  */
 @Composable
 fun App(
@@ -81,6 +82,7 @@ fun App(
     link: AppLink? = null,
     onLinkHandle: () -> Unit = {},
     windowFullScreen: WindowFullScreen? = null,
+    onLaunchReady: () -> Unit = {},
 ) {
     setSingletonImageLoaderFactory(::sofaKingImageLoader)
     SofaKingTheme {
@@ -99,6 +101,7 @@ fun App(
                     onPairingHandle = onPairingHandle,
                     link = link,
                     onLinkHandle = onLinkHandle,
+                    onLaunchReady = onLaunchReady,
                 )
             }
         }
@@ -115,6 +118,7 @@ private fun SofaKingApp(
     onPairingHandle: () -> Unit = {},
     link: AppLink? = null,
     onLinkHandle: () -> Unit = {},
+    onLaunchReady: () -> Unit = {},
     vm: LineupViewModel = viewModel { appGraph.lineupViewModel() },
     libraryVm: LibraryViewModel = viewModel { appGraph.libraryViewModel() },
     recordingsVm: RecordingsViewModel = viewModel { appGraph.recordingsViewModel() },
@@ -133,7 +137,7 @@ private fun SofaKingApp(
     PairingEffects(shell, pairing, pairingState.outcome, onPairingHandle, vm::pair, vm::pairingHandled)
     val launch = launchTarget(state, settings)
     val lineup = (state as? LineupState.Ready)?.lineup
-    LaunchEffects(shell, launch, settings?.lastTab, link, onLinkHandle, lineup, vm::setLastTab)
+    LaunchEffects(shell, launch, settings?.lastTab, link, onLinkHandle, lineup, vm::setLastTab, onLaunchReady)
     ShellEffects(shell, offered, vm::setLastChannel)
 
     val playback = rememberAppPlayback()

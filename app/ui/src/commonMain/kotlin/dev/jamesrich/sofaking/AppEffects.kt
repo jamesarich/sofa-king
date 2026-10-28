@@ -56,7 +56,9 @@ internal fun LaunchEffects(
     onLinkHandle: () -> Unit,
     lineup: Lineup?,
     onLastTab: (TopLevelTab) -> Unit,
+    onLaunchReady: () -> Unit,
 ) {
+    val currentOnLaunchReady by rememberUpdatedState(onLaunchReady)
     val currentOnLinkHandle by rememberUpdatedState(onLinkHandle)
     val currentLastTab by rememberUpdatedState(lastTab)
     val currentOnLastTab by rememberUpdatedState(onLastTab)
@@ -82,6 +84,8 @@ internal fun LaunchEffects(
     // once per process (restored across configuration changes), and before the guide composes, so the preview
     // never opens a session that the full screen is about to replace.
     LaunchedEffect(launch, shell.launchDecided) { shell.decideLaunch(launch) }
+    // The platform's launch screen, if it has one, waits for this.
+    LaunchedEffect(shell.launchDecided) { if (shell.launchDecided) currentOnLaunchReady() }
     // The open tab is remembered for the next start, once this start has picked its own.
     val tab = shell.nav.tab
     LaunchedEffect(tab, shell.launchDecided) {

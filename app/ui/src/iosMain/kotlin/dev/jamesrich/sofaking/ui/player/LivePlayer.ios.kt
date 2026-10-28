@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.UIKitView
 import dev.jamesrich.sofaking.data.PlaybackProfile
+import dev.jamesrich.sofaking.visualizer.AudioAnalyzer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.Job
@@ -114,6 +115,9 @@ internal class AvLivePlayer(
     /** The wait for a live playlist to be long enough to start, while it runs. */
     private var starting: Job? = null
 
+    private val tap = AvAudioTap()
+    override val audioTap: AudioAnalyzer get() = tap.analyzer
+
     private val hasFrame = MutableStateFlow(false)
     private val mutableVideoSize = MutableStateFlow<IntSize?>(null)
     override val videoSize: StateFlow<IntSize?> = mutableVideoSize.asStateFlow()
@@ -194,7 +198,9 @@ internal class AvLivePlayer(
         starting?.cancel()
         if (!url.isPlaylist()) {
             starting = null
-            av.replaceCurrentItemWithPlayerItem(AVPlayerItem(uRL = url))
+            val item = AVPlayerItem(uRL = url)
+            av.replaceCurrentItemWithPlayerItem(item)
+            tap.follow(item)
             if (playWhenReady) av.start(speed)
             refresh()
             return
@@ -202,9 +208,12 @@ internal class AvLivePlayer(
         // A live playlist that lists fewer than three segments is waited for first (see awaitLiveSegments).
         av.pause()
         av.replaceCurrentItemWithPlayerItem(null)
+        tap.follow(null)
         starting = scope.launch {
             awaitLiveSegments(url)
-            av.replaceCurrentItemWithPlayerItem(AVPlayerItem(uRL = url))
+            val item = AVPlayerItem(uRL = url)
+            av.replaceCurrentItemWithPlayerItem(item)
+            tap.follow(item)
             starting = null
             if (playWhenReady) av.start(speed)
             refresh()
@@ -217,6 +226,7 @@ internal class AvLivePlayer(
         starting = null
         av.pause()
         av.replaceCurrentItemWithPlayerItem(null)
+        tap.follow(null)
         refresh()
     }
 
@@ -325,6 +335,7 @@ internal class AvLivePlayer(
         observers.forEach(NSNotificationCenter.defaultCenter::removeObserver)
         av.pause()
         av.replaceCurrentItemWithPlayerItem(null)
+        tap.follow(null)
         scope.cancel()
     }
 

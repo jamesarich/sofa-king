@@ -103,7 +103,7 @@ class MusicPlaybackTest {
     }
 
     @Test
-    fun `a song counts as played once it has played for half a minute, and again each time it starts`() = runTest {
+    fun `a song counts as played once it has played for half a minute and again each time it starts`() = runTest {
         val music = music()
         music.play(album)
         runCurrent()

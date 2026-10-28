@@ -103,7 +103,7 @@ class LibraryChoicesTest {
     }
 
     @Test
-    fun `a music grid sorts by name, date added and plays and has no unwatched filter`() {
+    fun `a music grid sorts by name and date added and plays and has no unwatched filter`() {
         val played = listOf(LibrarySort.PLAYED, LibrarySort.PLAYS)
         assertEquals(listOf(LibrarySort.TITLE, LibrarySort.ADDED) + played, gridSorts(LibraryKind.MUSIC))
         assertEquals(

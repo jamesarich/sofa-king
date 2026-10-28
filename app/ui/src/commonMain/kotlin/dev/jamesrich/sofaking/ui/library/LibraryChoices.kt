@@ -103,7 +103,7 @@ internal fun gridStyleFor(kind: LibraryKind?): CardStyle = when (kind) {
 
 /**
  * The orders a library's grid offers: music has no ratings or watched dates, so only by name and by date added, and
- * by year for the albums, which carry one.
+ * by year for the albums, which carry one; a song's year is its album's, so the songs do not sort by it.
  */
 internal fun gridSorts(kind: LibraryKind?, view: MusicView = MusicView.ARTISTS): List<LibrarySort> =
     if (kind == LibraryKind.MUSIC) {

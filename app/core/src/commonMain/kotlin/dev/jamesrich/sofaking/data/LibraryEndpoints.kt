@@ -15,7 +15,8 @@ import io.ktor.http.encodeURLPathPart
 
 /**
  * One page of [libraryId]'s top-level items in [sort] order (`title`, `added`, `year`, `rating` or `watched`), only
- * those in [genre] when given, from [cursor]. A Music library lists its artists, or with [kind] `album` its albums.
+ * those in [genre] when given, from [cursor]. A Music library lists its artists, or with [kind] `album` or `track`
+ * its albums or songs.
  */
 internal suspend fun SofaKingApi.libraryItems(
     libraryId: String,

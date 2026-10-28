@@ -208,6 +208,8 @@ private fun arranged(
         extras.mapValues { it.value.fresh() },
         views.values.filter { it.record.kind == ItemKind.ALBUM }.groupBy { it.record.libraryId }
             .mapValues { it.value.fresh() },
+        views.values.filter { it.record.kind == ItemKind.TRACK }.groupBy { it.record.libraryId }
+            .mapValues { it.value.fresh() },
     )
 }
 

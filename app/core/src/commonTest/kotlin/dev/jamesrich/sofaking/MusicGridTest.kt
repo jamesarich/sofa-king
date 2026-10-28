@@ -63,6 +63,18 @@ class MusicGridTest {
     }
 
     @Test
+    fun `the songs view asks for kind track`() = fixture.viewModelTest {
+        val server = musicServer(this)
+        val model = viewModel(server)
+        runCurrent()
+
+        model.openGrid("music", view = MusicView.SONGS)
+        runCurrent()
+        assertEquals(MusicView.SONGS, model.grid.value!!.view)
+        assertTrue("kind=track" in server.http.requests.last().query, server.http.requests.last().query)
+    }
+
+    @Test
     fun `the albums view starts without the artists' genre and genres`() = fixture.viewModelTest {
         val server = RouteServer(this) { _, path, _ ->
             when (path) {

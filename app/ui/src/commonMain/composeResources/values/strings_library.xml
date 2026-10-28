@@ -31,6 +31,7 @@
     </plurals>
     <string name="library_view_artists">Artists</string>
     <string name="library_view_albums">Albums</string>
+    <string name="library_view_songs">Songs</string>
     <string name="library_sort_title">Title</string>
     <string name="library_sort_added">Recently added</string>
     <string name="library_sort_year">Year</string>

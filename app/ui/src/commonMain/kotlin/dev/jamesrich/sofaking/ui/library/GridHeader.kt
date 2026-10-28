@@ -40,6 +40,7 @@ import dev.jamesrich.sofaking.resources.library_sort_watched
 import dev.jamesrich.sofaking.resources.library_sort_year
 import dev.jamesrich.sofaking.resources.library_view_albums
 import dev.jamesrich.sofaking.resources.library_view_artists
+import dev.jamesrich.sofaking.resources.library_view_songs
 import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.ui.theme.SofaActionChip
 import dev.jamesrich.sofaking.ui.theme.SofaChip
@@ -73,7 +74,7 @@ internal fun GridHeader(
     }
 }
 
-/** A Music library's artists or its albums; each view keeps the sort and genre it is shown in. */
+/** A Music library's artists, albums or songs; each view keeps the sort and genre it is shown in. */
 @Composable
 private fun ViewChips(grid: LibraryGrid?, actions: LibraryGridActions) {
     val view = grid?.view ?: MusicView.ARTISTS
@@ -170,6 +171,7 @@ private fun LetterChips(grid: LibraryGrid?, letterRow: FocusRequester, onLetter:
 private fun MusicView.label(): StringResource = when (this) {
     MusicView.ARTISTS -> Res.string.library_view_artists
     MusicView.ALBUMS -> Res.string.library_view_albums
+    MusicView.SONGS -> Res.string.library_view_songs
 }
 
 private fun LibrarySort.label(): StringResource = when (this) {

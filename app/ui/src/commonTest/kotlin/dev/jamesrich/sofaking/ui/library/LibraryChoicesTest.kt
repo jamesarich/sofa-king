@@ -110,6 +110,7 @@ class LibraryChoicesTest {
             gridSorts(LibraryKind.MUSIC, MusicView.ALBUMS),
             "albums carry a year; artists do not",
         )
+        assertEquals(listOf(LibrarySort.TITLE, LibrarySort.ADDED), gridSorts(LibraryKind.MUSIC, MusicView.SONGS))
         assertFalse(gridFiltersUnwatched(LibraryKind.MUSIC))
         assertEquals(LibrarySort.entries, gridSorts(LibraryKind.SHOWS))
         assertTrue(gridFiltersUnwatched(LibraryKind.SHOWS))

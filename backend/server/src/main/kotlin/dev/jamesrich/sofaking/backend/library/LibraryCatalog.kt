@@ -103,6 +103,8 @@ internal class Snapshot(
     val extras: Map<String, List<View>> = emptyMap(),
     /** The albums of each music library. */
     val albums: Map<String, List<View>> = emptyMap(),
+    /** The songs of each music library. */
+    val songs: Map<String, List<View>> = emptyMap(),
 ) {
     private val musicLibraries = libraries.filter { it.kind == LibraryKind.MUSIC }.mapTo(HashSet()) { it.id }
 
@@ -113,11 +115,19 @@ internal class Snapshot(
     fun visible(music: Boolean): List<LibraryRecord> =
         if (music) libraries else libraries.filter { it.id !in musicLibraries }
 
-    /** What [library]'s grid lists: its top items, or with [kind] `album` a Music library's albums. */
+    /** What [library]'s grid lists: its top items, or a Music library's albums or songs with [kind] album or track. */
     fun listed(library: LibraryRecord, kind: String?): List<View> = when {
         kind == null -> tops[library.id].orEmpty()
+
         kind == ItemKind.ALBUM && library.kind == LibraryKind.MUSIC -> albums[library.id].orEmpty()
-        else -> throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "kind is album, in a Music library")
+
+        kind == ItemKind.TRACK && library.kind == LibraryKind.MUSIC -> songs[library.id].orEmpty()
+
+        else -> throw ApiFailure(
+            HttpStatusCode.BadRequest,
+            "INVALID_REQUEST",
+            "kind is album or track, in a Music library",
+        )
     }
 
     /** Whether a client that shows [music] or not sees [view]. */
@@ -232,11 +242,11 @@ class LibraryCatalog internal constructor(
     }
 
     /**
-     * The movies, shows, videos or artists of [libraryId] (a Music library's albums with [kind] `album`), sorted by
-     * [sort] (`title`, `added`, `year`, `rating`, or `watched` for the most recently watched first), with [genre] only
-     * when given, [limit] after [cursor]. The page lists every genre in the library, for the filter, and the first page
-     * in title order counts the items under each first letter. A Music library is found only by a client that shows
-     * [music].
+     * The movies, shows, videos or artists of [libraryId] (a Music library's albums or songs with [kind] `album` or
+     * `track`), sorted by [sort] (`title`, `added`, `year`, `rating`, or `watched` for the most recently watched
+     * first), with [genre] only when given, [limit] after [cursor]. The page lists every genre in the library, for the
+     * filter, and the first page in title order counts the items under each first letter. A Music library is found only
+     * by a client that shows [music].
      */
     suspend fun items(
         libraryId: String,

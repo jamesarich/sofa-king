@@ -109,7 +109,17 @@ class MusicCatalogTest {
         val recent = catalog.home(music = true).shelves.single { it.libraryId == s.library.id }
         assertTrue(recent.items.all { it.kind == Wire.ItemKind.ALBUM })
         assertFailsWith<ApiFailure> {
-            catalog.items(s.library.id, null, false, null, 100, music = true, kind = "track")
+            catalog.items(s.library.id, null, false, null, 100, music = true, kind = "show")
         }
+    }
+
+    @Test fun `a Music library lists its songs on request`() = runBlocking<Unit> {
+        val s = setup()
+        val catalog = s.service.catalog
+        val songs = catalog.items(s.library.id, null, false, null, 100, music = true, kind = "track")
+        assertTrue(songs.items.isNotEmpty())
+        assertTrue(songs.items.all { it.kind == Wire.ItemKind.TRACK })
+        assertEquals(songs.items.size, songs.total)
+        assertEquals(songs.items.map { it.title }.sortedBy { it.lowercase() }, songs.items.map { it.title })
     }
 }

@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.ui.player
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
+import platform.Foundation.NSData
 import platform.Foundation.NSString
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLSession
@@ -26,8 +27,8 @@ internal suspend fun awaitLiveSegments(url: NSURL) {
     while (tries++ < START_TRIES && !startsAlready(fetchText(url))) delay(1.seconds)
 }
 
-private suspend fun fetchText(url: NSURL): String? = suspendCancellableCoroutine { continuation ->
-    val task = NSURLSession.sharedSession.dataTaskWithURL(url) { data, _, _ ->
+private suspend fun fetchText(url: NSURL): String? = suspendCancellableCoroutine<String?> { continuation ->
+    val task = NSURLSession.sharedSession.dataTaskWithURL(url) { data: NSData?, _, _ ->
         continuation.resume(data?.let { NSString.create(data = it, encoding = NSUTF8StringEncoding)?.toString() })
     }
     continuation.invokeOnCancellation { task.cancel() }

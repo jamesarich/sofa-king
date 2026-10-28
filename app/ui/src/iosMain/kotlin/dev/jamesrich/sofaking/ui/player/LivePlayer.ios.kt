@@ -15,6 +15,7 @@ import androidx.compose.ui.viewinterop.UIKitView
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
@@ -110,6 +111,9 @@ internal class AvLivePlayer(
     private var ended = false
     private var reportedFailure: AVPlayerItem? = null
 
+    /** The wait for a live playlist to be long enough to start, while it runs. */
+    private var starting: Job? = null
+
     private val hasFrame = MutableStateFlow(false)
     private val mutableVideoSize = MutableStateFlow<IntSize?>(null)
     override val videoSize: StateFlow<IntSize?> = mutableVideoSize.asStateFlow()
@@ -187,12 +191,30 @@ internal class AvLivePlayer(
     override fun prepare() {
         val url = stream?.url?.let(NSURL::URLWithString) ?: return
         ended = false
-        av.replaceCurrentItemWithPlayerItem(AVPlayerItem(uRL = url))
-        if (playWhenReady) av.start(speed)
+        starting?.cancel()
+        if (!url.isPlaylist()) {
+            starting = null
+            av.replaceCurrentItemWithPlayerItem(AVPlayerItem(uRL = url))
+            if (playWhenReady) av.start(speed)
+            refresh()
+            return
+        }
+        // A live playlist that lists fewer than three segments is waited for first (see awaitLiveSegments).
+        av.pause()
+        av.replaceCurrentItemWithPlayerItem(null)
+        starting = scope.launch {
+            awaitLiveSegments(url)
+            av.replaceCurrentItemWithPlayerItem(AVPlayerItem(uRL = url))
+            starting = null
+            if (playWhenReady) av.start(speed)
+            refresh()
+        }
         refresh()
     }
 
     override fun stop() {
+        starting?.cancel()
+        starting = null
         av.pause()
         av.replaceCurrentItemWithPlayerItem(null)
         refresh()
@@ -327,7 +349,7 @@ internal class AvLivePlayer(
         val item = av.currentItem
         val playing = av.timeControlStatus == AVPlayerTimeControlStatusPlaying
         val waiting = av.timeControlStatus == AVPlayerTimeControlStatusWaitingToPlayAtSpecifiedRate
-        val state = stateOf(item, playing, ended, waiting)
+        val state = stateOf(item, playing, ended, waiting, starting != null)
         if (item == null) tracks.clear() else readItem(item)
         mutableStatus.value = PlayerStatus(state, playing, playWhenReady)
         // Like Android's shutter, it covers only from a reset until the first frame, not each rebuffer.
@@ -344,8 +366,18 @@ internal class AvLivePlayer(
     }
 }
 
-/** What [item] is doing, as [AvLivePlayer] reads it; [waiting] is AVPlayer waiting to play at its rate. */
-private fun stateOf(item: AVPlayerItem?, playing: Boolean, ended: Boolean, waiting: Boolean): PlaybackState = when {
+/**
+ * What [item] is doing, as [AvLivePlayer] reads it; [waiting] is AVPlayer waiting to play at its rate, and [starting]
+ * is the wait for a live playlist to be long enough to start.
+ */
+private fun stateOf(
+    item: AVPlayerItem?,
+    playing: Boolean,
+    ended: Boolean,
+    waiting: Boolean,
+    starting: Boolean,
+): PlaybackState = when {
+    item == null && starting -> PlaybackState.BUFFERING
     item == null -> PlaybackState.IDLE
     ended -> PlaybackState.ENDED
     item.status == AVPlayerItemStatusFailed -> PlaybackState.IDLE

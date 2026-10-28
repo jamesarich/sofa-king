@@ -26,7 +26,7 @@ import kotlin.math.tan
 internal const val EPSILON = 1e-5
 
 /** The most times `loop` and `while` run their body. */
-internal const val MAX_LOOPS = 65_536
+internal const val MAX_LOOPS = 8_192
 
 internal fun truthy(x: Double) = abs(x) > EPSILON
 

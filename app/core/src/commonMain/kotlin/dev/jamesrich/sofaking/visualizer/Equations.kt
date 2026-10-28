@@ -23,6 +23,11 @@ internal class FrameState(private val scope: EelScope) {
 /** A preset's equations compiled over one scope, ready to run once per frame and once per mesh vertex. */
 internal class Equations(preset: MilkPreset, seed: Int) {
     val scope = EelScope(Random(seed))
+
+    /** How many of the preset's programs this evaluator could not read; they run as if empty. */
+    var unreadable = 0
+        private set
+
     private val values = MilkPreset.Defaults + preset.values
     private val frame = compile(preset.frame)
     private val pixel = compile(preset.pixel)
@@ -48,6 +53,7 @@ internal class Equations(preset: MilkPreset, seed: Int) {
             scope.compile(source)
         } catch (_: EelException) {
             // A line this evaluator cannot read: the preset draws without its equations, as the others do.
+            unreadable++
             null
         }
     }

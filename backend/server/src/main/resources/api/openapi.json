@@ -38,6 +38,7 @@
     },
     "parameters": {
       "libraryKinds": { "name": "Sofa-Library-Kinds", "in": "header", "description": "The library kinds beyond movies, shows and videos the client shows, comma separated: music. Without music, Music libraries and their items are left out.", "schema": { "type": "string" } },
+      "playbackProtocols": { "name": "Sofa-Playback-Protocols", "in": "header", "description": "The live protocols the client's player plays, comma separated: hls, mpegts. A client that sends hls alone gets an MPEG-TS channel as an HLS playlist the server packages from the stream; without the header the client plays both.", "schema": { "type": "string" } },
       "id": { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
       "clientId": { "name": "clientId", "in": "path", "required": true, "description": "The client's own stable id: 1 to 64 letters, digits, dots, dashes or underscores.", "schema": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" } },
       "outputName": { "name": "name", "in": "path", "required": true, "description": "A named output: 1 to 32 lowercase letters, digits and hyphens.", "schema": { "type": "string" } }
@@ -889,6 +890,7 @@
     },
     "/api/v1/playback-sessions": {
       "post": { "tags": ["Playback"], "summary": "Open a preview or watch session", "description": "Picks the channel's first selectable source. Repeating a key returns the same session while it lives; a key reused with other parameters answers 409 IDEMPOTENCY_CONFLICT. At capacity the oldest preview, then an idle player session, yields; otherwise 429 CAPACITY_EXHAUSTED.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/playbackProtocols" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenPlayback" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlaybackSession" } } } }, "404": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
     },

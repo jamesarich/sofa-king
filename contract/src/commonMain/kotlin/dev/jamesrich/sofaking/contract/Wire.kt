@@ -68,6 +68,12 @@ object Wire {
         const val MUSIC = "music"
     }
 
+    /** The live stream protocols a [PlaybackDescriptor] names and [Header.PLAYBACK_PROTOCOLS] lists. */
+    object Protocol {
+        const val HLS = "hls"
+        const val MPEGTS = "mpegts"
+    }
+
     /** Request headers a client sends. */
     object Header {
         /**
@@ -75,6 +81,13 @@ object Wire {
          * that does not send it never sees a library of those kinds or its items.
          */
         const val LIBRARY_KINDS = "Sofa-Library-Kinds"
+
+        /**
+         * The live stream protocols the client's player plays, comma separated: `hls`, `mpegts` or both. A client that
+         * names `hls` alone gets an MPEG-TS channel as HLS, which the server packages from the stream as it is. A
+         * client that does not send it plays both.
+         */
+        const val PLAYBACK_PROTOCOLS = "Sofa-Playback-Protocols"
     }
 
     /** What a library item is; shows and seasons are folders, the others play. */

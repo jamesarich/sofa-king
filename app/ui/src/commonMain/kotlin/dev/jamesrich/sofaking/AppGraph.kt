@@ -10,6 +10,7 @@ import dev.jamesrich.sofaking.data.SettingsStore
 import dev.jamesrich.sofaking.data.ViewerSync
 import dev.jamesrich.sofaking.data.WatchNext
 import dev.jamesrich.sofaking.data.warmUpHttp
+import dev.jamesrich.sofaking.ui.playsHlsOnly
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -52,6 +53,7 @@ internal class AppGraph(
             settings = settings.settings,
             scope = scope,
             libraryKinds = listOf(Wire.LibraryKind.MUSIC),
+            playbackProtocols = if (playsHlsOnly) listOf(Wire.Protocol.HLS) else emptyList(),
             viewerSync = ViewerSync(settings, storage.client),
             householdSync = HouseholdSync(settings),
         )

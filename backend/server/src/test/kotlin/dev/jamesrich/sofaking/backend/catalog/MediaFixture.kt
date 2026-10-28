@@ -25,6 +25,9 @@ class MediaFixture : AutoCloseable {
 
     /** A second provider whose one channel is a live playlist that never adds a segment, for stall failover. */
     val frozenFeed = FeedConfig("media-frozen", "$base/frozen-feed.m3u", probe = false)
+
+    /** One channel, TS, that streams the clip's segments over and over as raw MPEG-TS, the first four at once. */
+    val tsFeed = FeedConfig("media-ts", "$base/ts-feed.m3u", probe = false)
     val segments: Int
     val liveRequests = AtomicInteger()
 
@@ -56,6 +59,15 @@ class MediaFixture : AutoCloseable {
                             "#EXTINF:2.000000,\nseg0.ts\n#EXTINF:2.000000,\nseg1.ts\n"
                         ).toByteArray()
 
+                path == "/ts-feed.m3u" ->
+                    "audio/x-mpegurl" to
+                        "#EXTM3U\n#EXTINF:-1 tvg-id=\"ts\" tvg-chno=\"5\",TS\n$base/live.ts\n".toByteArray()
+
+                path == "/live.ts" -> {
+                    streamTs(exchange)
+                    return@createContext
+                }
+
                 path == "/vod.m3u8" -> "application/vnd.apple.mpegurl" to Files.readAllBytes(dir.resolve("vod.m3u8"))
 
                 path == "/live.m3u8" -> {
@@ -80,6 +92,26 @@ class MediaFixture : AutoCloseable {
             }
         }
         server.start()
+    }
+
+    /** The segments end to end, again and again: four at once, then one every two seconds, until the client leaves. */
+    private fun streamTs(exchange: com.sun.net.httpserver.HttpExchange) {
+        exchange.responseHeaders.set("Content-Type", "video/mp2t")
+        exchange.sendResponseHeaders(200, 0)
+        try {
+            exchange.responseBody.use { out ->
+                var index = 0
+                while (true) {
+                    out.write(Files.readAllBytes(dir.resolve("seg${index % segments}.ts")))
+                    out.flush()
+                    if (++index >= 4) Thread.sleep(2_000)
+                }
+            }
+        } catch (_: java.io.IOException) {
+            // The client left.
+        } catch (_: InterruptedException) {
+            // The fixture closed.
+        }
     }
 
     private fun generate() {

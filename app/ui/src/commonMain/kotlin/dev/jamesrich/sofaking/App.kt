@@ -36,6 +36,8 @@ import coil3.compose.setSingletonImageLoaderFactory
 import dev.jamesrich.sofaking.data.AppLink
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.PairingRequest
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.ui.LocalAppLifecycleOwner
 import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
 import dev.jamesrich.sofaking.ui.LocalKidsMode
@@ -43,6 +45,7 @@ import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.LocalTimeZone
 import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
+import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.WindowFullScreen
 import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.guide.GuideShortcut
@@ -63,6 +66,7 @@ import dev.jamesrich.sofaking.ui.sofaKingImageLoader
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import dev.jamesrich.sofaking.ui.togglesFullScreen
 import dev.jamesrich.sofaking.ui.trackLastInput
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
 
 /**
@@ -71,7 +75,8 @@ import kotlin.math.abs
  * it once and calls [onPairingHandle], so a restored activity does not claim it again. [link] is a library item or a
  * live channel to play from a `sofaking://vod` or `sofaking://live` link, such as the Android TV home screen's Watch
  * Next row or a home automation's shortcut, handed back the same way through [onLinkHandle]. [windowFullScreen] is
- * the host window's full screen where the app can switch it (a desktop window, a browser page).
+ * the host window's full screen where the app can switch it (a desktop window, a browser page). [onLaunchReady]
+ * runs once the cold start knows its first page, which a platform's launch screen waits for.
  */
 @Composable
 fun App(
@@ -81,6 +86,7 @@ fun App(
     link: AppLink? = null,
     onLinkHandle: () -> Unit = {},
     windowFullScreen: WindowFullScreen? = null,
+    onLaunchReady: () -> Unit = {},
 ) {
     setSingletonImageLoaderFactory(::sofaKingImageLoader)
     SofaKingTheme {
@@ -99,6 +105,7 @@ fun App(
                     onPairingHandle = onPairingHandle,
                     link = link,
                     onLinkHandle = onLinkHandle,
+                    onLaunchReady = onLaunchReady,
                 )
             }
         }
@@ -115,6 +122,7 @@ private fun SofaKingApp(
     onPairingHandle: () -> Unit = {},
     link: AppLink? = null,
     onLinkHandle: () -> Unit = {},
+    onLaunchReady: () -> Unit = {},
     vm: LineupViewModel = viewModel { appGraph.lineupViewModel() },
     libraryVm: LibraryViewModel = viewModel { appGraph.libraryViewModel() },
     recordingsVm: RecordingsViewModel = viewModel { appGraph.recordingsViewModel() },
@@ -133,7 +141,7 @@ private fun SofaKingApp(
     PairingEffects(shell, pairing, pairingState.outcome, onPairingHandle, vm::pair, vm::pairingHandled)
     val launch = launchTarget(state, settings)
     val lineup = (state as? LineupState.Ready)?.lineup
-    LaunchEffects(shell, launch, settings?.lastTab, link, onLinkHandle, lineup, vm::setLastTab)
+    LaunchEffects(shell, launch, settings?.lastTab, link, onLinkHandle, lineup, vm::setLastTab, onLaunchReady)
     ShellEffects(shell, offered, vm::setLastChannel)
 
     val playback = rememberAppPlayback()
@@ -220,6 +228,12 @@ private fun AppNavDisplay(
     val top = nav.top
     val cut = pageCut(chrome.tv)
     val windowFullScreen = LocalWindowFullScreen.current
+    // Until the cold start is decided no page is composed: one that showed the guide's loader first would cross-fade
+    // into the player (or the tab) the start opens, and show the logo twice.
+    if (!shell.launchDecided) {
+        MessageScreen(stringResource(Res.string.loading), loading = true)
+        return
+    }
     TopLevel(
         tv = chrome.tv,
         tabs = chrome.tabs,

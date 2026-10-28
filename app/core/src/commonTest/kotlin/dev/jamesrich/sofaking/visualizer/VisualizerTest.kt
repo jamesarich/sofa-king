@@ -139,7 +139,7 @@ class VisualizerTest {
     }
 
     @Test
-    fun `a source that is read, not pushed, is asked for its samples before each frame`() {
+    fun `a source that is read and not pushed is asked for its samples before each frame`() {
         val analyzer = AudioAnalyzer(rate)
         val asked = ArrayList<Double>()
         analyzer.beforeFrame = { dt ->

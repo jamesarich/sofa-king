@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,6 +53,7 @@ import dev.jamesrich.sofaking.ui.player.VodTitle
 import dev.jamesrich.sofaking.ui.player.VodTrack
 import dev.jamesrich.sofaking.ui.player.VodTracks
 import dev.jamesrich.sofaking.ui.player.VodUpNext
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 /** What a library card's menu does on every library page: play from the start, or mark watched. */
@@ -179,6 +181,7 @@ internal fun LibraryItemDestination(
     val seasonId = pickedSeason ?: ready?.let(::initialSeasonId)
     val season = seasonId?.let { id -> remember(id) { page.season(id) }.collectAsStateWithLifecycle().value }
     val watchlist by libraryVm.watchlistMarks.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     ItemDetailsScreen(
         state = detail,
         season = season,
@@ -200,6 +203,7 @@ internal fun LibraryItemDestination(
             onToggleWatchlist = libraryVm::toggleWatchlist,
             watchlisted = { item -> watchlist.has(item).takeIf { watchlist.offered } },
             onShuffle = { shell.shuffle(music, ready?.children.orEmpty()) },
+            onRadio = { ready?.let { scope.launch { shell.playRadio(music, libraryVm.radio(it.item)) } } },
         ),
         returnedFrom = arrival.returnedFrom,
         hideSpoilers = hideSpoilers,

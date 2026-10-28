@@ -65,17 +65,6 @@ internal suspend fun SofaKingApi.librarySubtitles(id: String, index: Int): Strin
 }
 
 /**
- * The lyrics of the song [id] as LRC text; null when it has none, or the server is too old to serve any. The server
- * may ask LRCLIB the first time, so the request may take seconds.
- */
-internal suspend fun SofaKingApi.libraryLyrics(id: String): String? = call {
-    val response = http.get(itemPath(id) + "/lyrics")
-    if (response.status == HttpStatusCode.NotFound) return@call null
-    response.checkSuccess()
-    response.bodyAsText()
-}
-
-/**
  * Saves where the household stopped in [id], or marks it (a show or season: every episode in it) watched or not.
  */
 internal suspend fun SofaKingApi.updatePlayState(id: String, update: UpdatePlayStateDto): LibraryItemDto = call {
@@ -95,7 +84,7 @@ internal suspend fun SofaKingApi.releaseVod(id: String) = call {
     http.delete(vodPath(id)).checkSuccess()
 }
 
-private fun itemPath(id: String) = "library/items/" + id.encodeURLPathPart()
+internal fun itemPath(id: String) = "library/items/" + id.encodeURLPathPart()
 
 /** How long the first read of a subtitle track may take, as the server reads the whole file. */
 private const val SUBTITLE_TIMEOUT_MS = 5 * 60_000L

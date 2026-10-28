@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.ItemKind
+import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.PrimaryAction
 import dev.jamesrich.sofaking.data.fileFacts
@@ -48,6 +49,7 @@ import dev.jamesrich.sofaking.resources.library_mark_watched
 import dev.jamesrich.sofaking.resources.library_play
 import dev.jamesrich.sofaking.resources.library_play_episode
 import dev.jamesrich.sofaking.resources.library_play_from_start
+import dev.jamesrich.sofaking.resources.library_radio
 import dev.jamesrich.sofaking.resources.library_rating
 import dev.jamesrich.sofaking.resources.library_remove_from_watchlist
 import dev.jamesrich.sofaking.resources.library_resume
@@ -156,9 +158,8 @@ private fun Buttons(detail: MediaItemDetail, actions: ItemDetailsActions, primar
                     actions.onPlay(action.item, true)
                 }) { Text(stringResource(Res.string.library_play_from_start)) }
             }
-            val shuffle = actions.onShuffle?.takeIf { item.kind == ItemKind.ALBUM }
-            if (shuffle != null) SofaButton(onClick = shuffle) { Text(stringResource(Res.string.library_shuffle)) }
         }
+        MusicButtons(item, actions, afterPlay = action != null)
         if (!item.kind.music) {
             SofaButton(
                 onClick = { actions.onSetWatched(item, !watched) },
@@ -191,6 +192,15 @@ private fun Buttons(detail: MediaItemDetail, actions: ItemDetailsActions, primar
             ) { Text(stringResource(Res.string.library_go_to_artist)) }
         }
     }
+}
+
+/** An album's Shuffle, after its Play, and an artist's or album's Start radio. */
+@Composable
+private fun MusicButtons(item: MediaItem, actions: ItemDetailsActions, afterPlay: Boolean) {
+    val shuffle = actions.onShuffle?.takeIf { afterPlay && item.kind == ItemKind.ALBUM }
+    if (shuffle != null) SofaButton(onClick = shuffle) { Text(stringResource(Res.string.library_shuffle)) }
+    val radio = actions.onRadio?.takeIf { item.kind == ItemKind.ARTIST || item.kind == ItemKind.ALBUM }
+    if (radio != null) SofaButton(onClick = radio) { Text(stringResource(Res.string.library_radio)) }
 }
 
 /** What the watchlist takes: what a library lists at its top, not a season or an episode. */

@@ -7,7 +7,7 @@ import kotlin.time.Instant
  * The server's media libraries as the app's models. Artwork paths are resolved against the server address, as
  * logos are, and fetched without the token.
  */
-class LibraryRepository(private val api: SofaKingApi) {
+class LibraryRepository(internal val api: SofaKingApi) {
     suspend fun home(): MediaHome = api.libraryHome().let { dto ->
         MediaHome(
             shelves = dto.shelves.map {
@@ -91,12 +91,6 @@ class LibraryRepository(private val api: SofaKingApi) {
     suspend fun removeFromContinue(id: String): MediaItem =
         api.mediaItem(api.updatePlayState(id, UpdatePlayStateDto(dismissed = true)))
 
-    /** Likes or unlikes the song, album or artist [id]. */
-    suspend fun setFavorite(id: String, favorite: Boolean): MediaItem = api.mediaItem(api.updateFavorite(id, favorite))
-
-    /** Counts one play of the song [id]. */
-    suspend fun recordPlay(id: String): MediaItem = api.mediaItem(api.recordPlay(id))
-
     companion object {
         /** Items per grid page: a few screens of posters. */
         const val PAGE_SIZE = 60
@@ -130,7 +124,7 @@ private fun introSpan(segments: List<MediaSegmentDto>, kind: String) =
 private fun mediaTrack(dto: MediaTrackDto) =
     MediaTrackInfo(dto.index, dto.codec, dto.language, dto.title, dto.channels, dto.default, dto.forced)
 
-private fun SofaKingApi.mediaItem(dto: LibraryItemDto) = MediaItem(
+internal fun SofaKingApi.mediaItem(dto: LibraryItemDto) = MediaItem(
     id = dto.id,
     libraryId = dto.libraryId,
     kind = ItemKind.fromWire(dto.kind),

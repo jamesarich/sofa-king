@@ -24,8 +24,10 @@ import dev.jamesrich.sofaking.data.WatchlistBook
 import dev.jamesrich.sofaking.data.WatchlistMarks
 import dev.jamesrich.sofaking.data.describe
 import dev.jamesrich.sofaking.data.episodeAfter
+import dev.jamesrich.sofaking.data.recordPlay
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.data.seasonAfter
+import dev.jamesrich.sofaking.data.setFavorite
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

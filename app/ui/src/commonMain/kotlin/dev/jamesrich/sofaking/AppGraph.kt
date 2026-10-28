@@ -39,6 +39,9 @@ internal class AppGraph(
     private val shownWatchNext = WatchNext { items -> watchNext.publish(if (kidsMode.value) emptyList() else items) }
 
     init {
+        // Ktor's loggers would otherwise load on the main thread at the first request, in the middle of the cold start;
+        // the process starts a while before the first activity (an app update's broadcast starts it early).
+        scope.launch(Dispatchers.Default) { warmUpHttp() }
         scope.launch { kidsMode.collect { kids -> if (kids) watchNext.publish(emptyList()) } }
     }
 
@@ -47,8 +50,6 @@ internal class AppGraph(
      * the server. Its flows run on the main thread, as the ViewModels' do.
      */
     private val connection by lazy {
-        // The first request would otherwise load Ktor's loggers on the main thread, in the middle of the cold start.
-        scope.launch(Dispatchers.Default) { warmUpHttp() }
         ServerConnection(
             settings = settings.settings,
             scope = scope,

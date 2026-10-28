@@ -21,6 +21,7 @@ import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.runCatchingCancellable
+import dev.jamesrich.sofaking.visualizer.AudioAnalyzer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -94,6 +95,12 @@ internal class VlcLivePlayer(
     private val vlc: EmbeddedMediaPlayer get() = commands.vlc
     private val player: EmbeddedMediaPlayer? get() = commands.player
     private val isCurrent: Boolean get() = commands.isCurrent
+
+    private val tap = VlcAudioTap(commands) {
+        Heard(stream?.url, mutableStatus.value.isPlaying, player?.status()?.time() ?: 0L)
+    }
+
+    override val audioTap: AudioAnalyzer get() = tap.analyzer
 
     /**
      * Two bitmaps: libVLC's thread copies each frame into [back], then swaps it to the front under [frameLock], which
@@ -270,6 +277,7 @@ internal class VlcLivePlayer(
     override fun release() {
         // After the player is released no frame can arrive, so the bitmaps go on the same thread, after it.
         commands.execute {
+            tap.release()
             commands.player?.release()
             commands.factory?.release()
             synchronized(frameLock) {

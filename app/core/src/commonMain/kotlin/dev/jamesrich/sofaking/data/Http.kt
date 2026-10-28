@@ -49,6 +49,15 @@ internal fun httpClient(
     configure()
 }
 
+/**
+ * Builds and closes a client on the shared engine, so Ktor's classes and loggers load now. On the JVM a logger reads
+ * the APK to find its provider, which stalls whichever thread makes the app's first request; call this off the main
+ * thread.
+ */
+fun warmUpHttp() {
+    httpClient().close()
+}
+
 /** The client for calls to no server in particular, such as the update check; it is never closed. */
 internal val apiHttpClient: HttpClient by lazy { httpClient() }
 

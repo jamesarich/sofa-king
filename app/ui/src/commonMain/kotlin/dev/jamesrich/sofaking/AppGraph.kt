@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.data.ServerDiscovery
 import dev.jamesrich.sofaking.data.SettingsStore
 import dev.jamesrich.sofaking.data.ViewerSync
 import dev.jamesrich.sofaking.data.WatchNext
+import dev.jamesrich.sofaking.data.warmUpHttp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -45,6 +46,8 @@ internal class AppGraph(
      * the server. Its flows run on the main thread, as the ViewModels' do.
      */
     private val connection by lazy {
+        // The first request would otherwise load Ktor's loggers on the main thread, in the middle of the cold start.
+        scope.launch(Dispatchers.Default) { warmUpHttp() }
         ServerConnection(
             settings = settings.settings,
             scope = scope,

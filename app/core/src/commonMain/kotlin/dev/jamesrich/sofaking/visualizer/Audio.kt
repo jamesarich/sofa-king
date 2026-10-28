@@ -3,6 +3,7 @@
 
 package dev.jamesrich.sofaking.visualizer
 
+import kotlin.concurrent.Volatile
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.pow
@@ -14,6 +15,9 @@ const val WAVE_SAMPLES = 576
 
 /** How many bins of the spectrum a frame holds. */
 const val SPECTRUM_BINS = 512
+
+/** The rate the analysis assumes until the player says what it plays at. */
+const val DEFAULT_SAMPLE_RATE = 44_100
 
 private const val FFT_SIZE = 1024
 private const val FRAMES_PER_SECOND = 30.0
@@ -55,7 +59,7 @@ class AudioFrame(
  * [frame] reads the latest from the thread that draws. The two share ring buffers without a lock: a frame that reads
  * as a push lands is a little off, which nobody sees.
  */
-class AudioAnalyzer(private val sampleRate: Int) {
+class AudioAnalyzer(@Volatile var sampleRate: Int = DEFAULT_SAMPLE_RATE) {
     private val left = FloatArray(FFT_SIZE)
     private val right = FloatArray(FFT_SIZE)
     private var written = 0L

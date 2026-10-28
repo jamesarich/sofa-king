@@ -20,6 +20,7 @@ import androidx.media3.session.MediaSession
 import dev.jamesrich.sofaking.data.AdBreakNow
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.ui.uptimeMs
+import dev.jamesrich.sofaking.visualizer.AudioAnalyzer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,7 +31,12 @@ import kotlin.time.Duration.Companion.microseconds
  * non-IDR keyframes are allowed and the CEA-608/708 formats are declared; decoders come from [tuning]'s selector.
  */
 @OptIn(UnstableApi::class)
-internal fun newExoPlayer(context: Context, captionSync: CaptionSync, tuning: PlaybackTuning): ExoPlayer {
+internal fun newExoPlayer(
+    context: Context,
+    captionSync: CaptionSync,
+    tuning: PlaybackTuning,
+    tap: AudioAnalyzer? = null,
+): ExoPlayer {
     val extractors = DefaultExtractorsFactory()
         .setTsExtractorFlags(
             DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
@@ -38,7 +44,7 @@ internal fun newExoPlayer(context: Context, captionSync: CaptionSync, tuning: Pl
         )
         .setTsSubtitleFormats(captionFormats())
     // A decoder that fails to start hands over to the next one the selector lists.
-    val renderers = CaptionSyncRenderersFactory(context, captionSync)
+    val renderers = CaptionSyncRenderersFactory(context, captionSync, tap)
         .setMediaCodecSelector(tuning.codecSelector)
         .setEnableDecoderFallback(true)
     return ExoPlayer.Builder(context, renderers)

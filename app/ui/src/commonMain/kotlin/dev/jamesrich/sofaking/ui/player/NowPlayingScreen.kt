@@ -69,6 +69,7 @@ import dev.jamesrich.sofaking.resources.music_repeat
 import dev.jamesrich.sofaking.resources.music_repeat_all
 import dev.jamesrich.sofaking.resources.music_repeat_one
 import dev.jamesrich.sofaking.resources.music_shuffle
+import dev.jamesrich.sofaking.resources.music_visualizer
 import dev.jamesrich.sofaking.ui.Artwork
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.formatPlayTime
@@ -76,6 +77,7 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.TvFocusControl
+import dev.jamesrich.sofaking.ui.visualizer.MusicVisualizer
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import kotlin.random.Random
@@ -100,10 +102,23 @@ internal fun NowPlayingScreen(
     val lyrics by produceState<Lyrics?>(null, song.id) { value = currentLoadLyrics(song.id) }
     var showLyrics by rememberSaveable { mutableStateOf(false) }
     val choice = lyrics?.let { LyricsChoice(it, showLyrics) { showLyrics = !showLyrics } }
-    RestWhenIdle(LocalLayoutProfile.current.tv) { rest ->
-        NowPlayingLayout(music, song, choice, rest)
+    var showVisuals by rememberSaveable { mutableStateOf(false) }
+    val tap = music.audioTap
+    val visuals = tap?.let { VisualsChoice(showVisuals) { showVisuals = !showVisuals } }
+    Box(Modifier.fillMaxSize()) {
+        if (tap != null && showVisuals) {
+            MusicVisualizer(tap, song.id, Modifier.fillMaxSize())
+            // The controls stay legible over a bright picture.
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = VISUALS_SCRIM)))
+        }
+        RestWhenIdle(LocalLayoutProfile.current.tv) { rest ->
+            NowPlayingLayout(music, song, choice, visuals, rest)
+        }
     }
 }
+
+/** Whether the visualizer shows behind the page, and the button that [toggle]s it; where the engine can be tapped. */
+private class VisualsChoice(val shown: Boolean, val toggle: () -> Unit)
 
 /** A song's [lyrics], [shown] in the cover's place or not, and the button that [toggle]s them. */
 private class LyricsChoice(val lyrics: Lyrics, val shown: Boolean, val toggle: () -> Unit)
@@ -114,6 +129,7 @@ private fun NowPlayingLayout(
     music: MusicPlayback,
     song: MediaItem,
     lyrics: LyricsChoice?,
+    visuals: VisualsChoice?,
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier.fillMaxSize().screenPadding()) {
@@ -126,7 +142,7 @@ private fun NowPlayingLayout(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CoverOrLyrics(music, song, lyrics, side)
-                SongControls(music, song, lyrics, Modifier.widthIn(max = CONTROLS_WIDTH))
+                SongControls(music, song, lyrics, visuals, Modifier.widthIn(max = CONTROLS_WIDTH))
             }
         } else {
             Column(
@@ -135,7 +151,7 @@ private fun NowPlayingLayout(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 CoverOrLyrics(music, song, lyrics, side)
-                SongControls(music, song, lyrics, Modifier.fillMaxWidth())
+                SongControls(music, song, lyrics, visuals, Modifier.fillMaxWidth())
             }
         }
     }
@@ -186,7 +202,13 @@ private fun LyricsPanel(music: MusicPlayback, lyrics: Lyrics) {
 
 /** The song's names, the seek bar with its times, and the buttons. */
 @Composable
-private fun SongControls(music: MusicPlayback, song: MediaItem, lyrics: LyricsChoice?, modifier: Modifier = Modifier) {
+private fun SongControls(
+    music: MusicPlayback,
+    song: MediaItem,
+    lyrics: LyricsChoice?,
+    visuals: VisualsChoice?,
+    modifier: Modifier = Modifier,
+) {
     val position = rememberMusicPosition(music)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
@@ -220,7 +242,7 @@ private fun SongControls(music: MusicPlayback, song: MediaItem, lyrics: LyricsCh
                 Text(formatPlayTime(length), style = MaterialTheme.typography.labelLarge)
             }
         }
-        MusicButtons(music, lyrics)
+        MusicButtons(music, lyrics, visuals)
     }
 }
 
@@ -259,9 +281,45 @@ private fun RestWhenIdle(enabled: Boolean, content: @Composable (rest: Modifier)
     content(rest)
 }
 
-/** Shuffle, previous, play or pause, next, repeat and Favorite, in one row, then Lyrics when the song has them. */
+/** Favorite, which likes the song or unlikes it, then Lyrics and the Visualizer where the song has them. */
 @Composable
-private fun MusicButtons(music: MusicPlayback, lyrics: LyricsChoice?) {
+private fun MoreToggles(music: MusicPlayback, lyrics: LyricsChoice?, visuals: VisualsChoice?) {
+    music.song?.let { song ->
+        val liked = music.likes.isFavorite(song)
+        Toggle(
+            if (liked) SofaIcons.Favorite else SofaIcons.FavoriteBorder,
+            stringResource(Res.string.music_favorite),
+            stringResource(if (liked) Res.string.music_on else Res.string.music_off),
+            liked,
+            { music.likes.toggle(song) },
+        )
+    }
+    lyrics?.let {
+        Toggle(
+            SofaIcons.Subtitles,
+            stringResource(Res.string.music_lyrics),
+            stringResource(if (it.shown) Res.string.music_on else Res.string.music_off),
+            it.shown,
+            it.toggle,
+        )
+    }
+    visuals?.let {
+        Toggle(
+            SofaIcons.GraphicEq,
+            stringResource(Res.string.music_visualizer),
+            stringResource(if (it.shown) Res.string.music_on else Res.string.music_off),
+            it.shown,
+            it.toggle,
+        )
+    }
+}
+
+/**
+ * Shuffle, previous, play or pause, next, repeat and Favorite, in one row, then Lyrics and the Visualizer where there
+ * are some.
+ */
+@Composable
+private fun MusicButtons(music: MusicPlayback, lyrics: LyricsChoice?, visuals: VisualsChoice?) {
     val queue = music.queue ?: return
     val status by music.status.collectAsStateWithLifecycle()
     // Focus starts on Play or Pause, for a remote.
@@ -302,31 +360,8 @@ private fun MusicButtons(music: MusicPlayback, lyrics: LyricsChoice?) {
             queue.repeat != Repeat.OFF,
             { music.reorder(MusicQueue::nextRepeat) },
         )
-        FavoriteToggle(music)
-        lyrics?.let {
-            Toggle(
-                SofaIcons.Subtitles,
-                stringResource(Res.string.music_lyrics),
-                stringResource(if (it.shown) Res.string.music_on else Res.string.music_off),
-                it.shown,
-                it.toggle,
-            )
-        }
+        MoreToggles(music, lyrics, visuals)
     }
-}
-
-/** Likes the song, or unlikes it. */
-@Composable
-private fun FavoriteToggle(music: MusicPlayback) {
-    val song = music.song ?: return
-    val liked = music.likes.isFavorite(song)
-    Toggle(
-        if (liked) SofaIcons.Favorite else SofaIcons.FavoriteBorder,
-        stringResource(Res.string.music_favorite),
-        stringResource(if (liked) Res.string.music_on else Res.string.music_off),
-        liked,
-        { music.likes.toggle(song) },
-    )
 }
 
 /** A button that is on or off, tinted while on; [state] says which to a screen reader. */
@@ -373,6 +408,9 @@ private const val FADE_MS = 2_000
 private const val COVER_SHARE = 0.7f
 
 private val CONTROLS_WIDTH = 480.dp
+
+/** How dark the scrim is over the visualizer. */
+private const val VISUALS_SCRIM = 0.35f
 
 /** How many sung lines stay above the one being sung. */
 private const val LINES_ABOVE = 2

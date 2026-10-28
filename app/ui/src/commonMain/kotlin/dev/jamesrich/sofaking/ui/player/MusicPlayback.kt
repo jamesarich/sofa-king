@@ -13,6 +13,7 @@ import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.runCatchingCancellable
+import dev.jamesrich.sofaking.visualizer.AudioAnalyzer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -104,6 +105,9 @@ internal class MusicPlayback(
     private var open: Job? = null
 
     val song: MediaItem? get() = queue?.current
+
+    /** What the song sounds like as the engine plays it, for the visualizer; null where the engine cannot tap it. */
+    val audioTap: AudioAnalyzer? get() = player.audioTap
 
     /** The shared player's state, for the play and pause button. */
     val status: StateFlow<PlayerStatus> get() = player.status

@@ -431,6 +431,11 @@ internal object SofaIcons {
         )
     }
 
+    /** The visualizer, on Now Playing: bars of different heights. */
+    val GraphicEq: ImageVector by lazy {
+        pathIcon("Filled.GraphicEq", "M7 18h2V6H7v12zm4 4h2V2h-2v20zm-8-8h2v-4H3v4zm12 4h2V6h-2v12zm4-8v4h2v-4h-2z")
+    }
+
     /** An icon from its SVG path data, as the icon set's sources give it. */
     private fun pathIcon(name: String, pathData: String): ImageVector =
         materialIcon(name) { addPath(addPathNodes(pathData), fill = SolidColor(Color.Black)) }

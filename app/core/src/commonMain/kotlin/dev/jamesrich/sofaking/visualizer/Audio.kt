@@ -87,8 +87,15 @@ class AudioAnalyzer(@Volatile var sampleRate: Int = DEFAULT_SAMPLE_RATE) {
         written = at
     }
 
+    /**
+     * For a source that is read rather than pushed (a browser's analyser node): called with the seconds since the last
+     * frame at the start of each [frame], to [push] what played since.
+     */
+    var beforeFrame: ((Double) -> Unit)? = null
+
     /** The latest frame; [dtSeconds] since the last one sets how fast the levels follow the music. */
     fun frame(dtSeconds: Double): AudioFrame {
+        beforeFrame?.invoke(dtSeconds)
         val end = written
         val l = FloatArray(WAVE_SAMPLES)
         val r = FloatArray(WAVE_SAMPLES)

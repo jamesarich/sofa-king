@@ -8,6 +8,7 @@ import platform.Foundation.NSURL
 import platform.Foundation.NSURLSession
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.create
+import platform.Foundation.dataTaskWithURL
 import kotlin.coroutines.resume
 import kotlin.time.Duration.Companion.seconds
 

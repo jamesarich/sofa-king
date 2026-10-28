@@ -184,6 +184,8 @@ data class MetadataFacts(
     val fanartBackdrop: String? = null,
     /** For an artist, whether fanart.tv was asked, so a key added later asks it on the next scan. */
     val fanartAsked: Boolean = false,
+    /** For an artist, the [FANART_REVISION] its fanart.tv lookup was made under. */
+    val fanartRevision: Int = 0,
     /**
      * For an artist, whether its lookup kept the year they were born or formed ([year]), where ([studio], the country
      * MusicBrainz names) and a band's members ([cast]), so a lookup made before they were kept is made again.

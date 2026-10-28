@@ -23,11 +23,14 @@ class ListenBrainzTest {
     private val third = "2e41ae9c-afd5-4f24-9c4e-0dbe8a32c4e1"
 
     /** MusicBrainz and ListenBrainz stand-ins: each artist found by id, and ListenBrainz's answers for Band only. */
-    private fun http(calls: MutableList<String>) = HttpClient(
+    private fun http(calls: MutableList<String>, popularStatus: HttpStatusCode = HttpStatusCode.OK) = HttpClient(
         MockEngine { request ->
             val url = request.url
             calls += url.host + url.encodedPath
             assertTrue(request.headers[HttpHeaders.UserAgent].orEmpty().startsWith("SofaKing/test ("))
+            if (url.encodedPath.startsWith("/1/popularity/") && popularStatus != HttpStatusCode.OK) {
+                return@MockEngine respond("{}", popularStatus)
+            }
             val body = when {
                 url.encodedPath == "/ws/2/artist/$band" -> """{"id":"$band","name":"Band"}"""
 
@@ -128,5 +131,15 @@ class ListenBrainzTest {
         assertEquals(1, calls.count { it.endsWith("/top-recordings-for-artist/$band") }, calls.toString())
         assertEquals(3, calls.count { it.startsWith("labs.api.listenbrainz.org/") }, calls.toString())
         assertTrue(service.catalog.item(items.getValue("Other").id, music = true).popular.isEmpty())
+    }
+
+    @Test fun `similar artists stand when the popular songs are refused and are asked for again`() = runBlocking {
+        val calls = mutableListOf<String>()
+        val (service, items) = scanned(http(calls, HttpStatusCode.Unauthorized))
+        val page = service.catalog.item(items.getValue("Band").id, music = true)
+        assertTrue(page.popular.isEmpty())
+        assertEquals("Third", page.related.firstOrNull()?.title)
+        // The popular songs are asked for on the second scan again, since only half of the lookup was kept.
+        assertEquals(2, calls.count { it.endsWith("/top-recordings-for-artist/$band") }, calls.toString())
     }
 }

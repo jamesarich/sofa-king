@@ -72,6 +72,8 @@ final class GuidePreview {
         do {
             let stream = try await model.core.previewChannel(channelId: channelId)
             guard active, self.channelId == channelId, let url = URL(string: stream.url) else { return }
+            await StreamStart.settled(url)
+            guard active, self.channelId == channelId else { return }
             let player = model.livePlayer
             if (player.currentItem?.asset as? AVURLAsset)?.url != url {
                 let item = AVPlayerItem(url: url)

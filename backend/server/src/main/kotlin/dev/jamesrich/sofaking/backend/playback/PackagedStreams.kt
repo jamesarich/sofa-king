@@ -102,6 +102,20 @@ internal class PackagedStreams(
         return pack.dir.resolve(name).takeIf { Files.isRegularFile(it) }
     }
 
+    /** Whether the newest segment of session [id]'s package at [epoch] carries CEA-608 captions. */
+    suspend fun carriesCaptions(id: String, epoch: Int): Boolean = withContext(Dispatchers.IO) {
+        val pack = packages[id]?.takeIf { it.epoch == epoch } ?: return@withContext false
+        val newest = runCatchingCancellable {
+            Files.list(pack.dir).use { files ->
+                files.filter { SEGMENT.matches(it.fileName.toString()) }
+                    .max(compareBy { it.fileName.toString().filter(Char::isDigit).toLong() }).orElse(null)
+            }
+        }.getOrNull() ?: return@withContext false
+        val scan = CaptionScan()
+        runCatchingCancellable { Files.newInputStream(newest).use { scan.feed(it.readNBytes(SCAN_LIMIT)) } }
+        scan.found
+    }
+
     private suspend fun packageOf(id: String, epoch: Int, offering: Offering, stream: ResolvedStream): Package {
         while (true) {
             val current = packages[id]
@@ -206,6 +220,7 @@ internal class PackagedStreams(
         private val START_WAIT: Duration = Duration.ofSeconds(15)
         private const val POLL_MS = 200L
         private const val QUEUE_CHUNKS = 1024
+        private const val SCAN_LIMIT = 16 * 1024 * 1024
         private val SEGMENT = Regex("seg[0-9]{1,9}\\.ts")
     }
 }

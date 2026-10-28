@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.ui.visualizer
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -25,6 +26,10 @@ import kotlin.math.roundToInt
  */
 @Composable
 internal fun MusicVisualizer(tap: AudioAnalyzer, song: String?, modifier: Modifier = Modifier) {
+    DisposableEffect(tap) {
+        tap.want(true)
+        onDispose { tap.want(false) }
+    }
     val bitmap = remember { PixelBitmap(WIDTH, HEIGHT) }
     val visualizer = remember { Visualizer(WIDTH, HEIGHT, Presets.all.first()) }
     var preset by remember { mutableIntStateOf(0) }

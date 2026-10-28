@@ -93,6 +93,17 @@ class AudioAnalyzer(@Volatile var sampleRate: Int = DEFAULT_SAMPLE_RATE) {
      */
     var beforeFrame: ((Double) -> Unit)? = null
 
+    /**
+     * Called with true while a visualizer draws from this analyzer and false when it stops, for a source that costs
+     * something to tap (a second player decoding the same song) and runs only while it is heard.
+     */
+    var onWanted: ((Boolean) -> Unit)? = null
+
+    /** Says whether a visualizer is drawing from this analyzer now. */
+    fun want(wanted: Boolean) {
+        onWanted?.invoke(wanted)
+    }
+
     /** The latest frame; [dtSeconds] since the last one sets how fast the levels follow the music. */
     fun frame(dtSeconds: Double): AudioFrame {
         beforeFrame?.invoke(dtSeconds)

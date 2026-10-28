@@ -15,7 +15,7 @@ class LivePlaylistStartTest {
         assertTrue(startsAlready(live(10)))
     }
 
-    @Test fun `a finished, multivariant or unread playlist starts at once`() {
+    @Test fun `a finished or multivariant or unread playlist starts at once`() {
         assertTrue(startsAlready(live(1) + "#EXT-X-ENDLIST\n"))
         assertTrue(startsAlready("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nmedia.m3u8\n"))
         assertTrue(startsAlready(null))

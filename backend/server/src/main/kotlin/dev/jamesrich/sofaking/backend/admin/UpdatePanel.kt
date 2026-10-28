@@ -25,10 +25,16 @@ import kotlinx.html.span
 import java.time.Duration
 import java.time.Instant
 
-/** "Version 1.4.0, revision abc1234", or whichever of the two is known. */
-private fun FlowContent.build(version: String?, revision: String?) {
+/**
+ * "Version 1.4.0, revision abc1234", or whichever of the two is known. A snapshot version already ends in
+ * `+revision`, so the revision is not repeated beside it.
+ */
+internal fun FlowContent.build(version: String?, revision: String?) {
     val knownVersion = version?.takeIf { it != "unknown" }
-    val knownRevision = revision?.takeIf { it != "unknown" }
+    val build = knownVersion?.substringAfterLast('+', "").orEmpty()
+    val knownRevision = revision?.takeIf {
+        it != "unknown" && (build.isEmpty() || !(it.startsWith(build) || build.startsWith(it)))
+    }
     when {
         knownVersion != null && knownRevision != null -> {
             +knownVersion
@@ -123,8 +129,9 @@ private fun DL.updaterFacts(report: UpdaterReport?, now: Instant, fresh: Boolean
                 +"Has not reported. "
                 span("muted") {
                     +(
-                        "Install the host's updater to apply updates; its timer checks every 15 minutes and " +
-                            "writes its result here."
+                        "No updater has written update-status.json here. Install the host's updater, or, if one " +
+                            "already runs, download sofa-king-update.sh again and run its install again: " +
+                            "older copies update the image but never report."
                         )
                 }
             }

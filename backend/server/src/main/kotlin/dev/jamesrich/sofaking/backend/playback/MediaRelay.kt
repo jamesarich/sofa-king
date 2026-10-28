@@ -193,8 +193,17 @@ class MediaRelay(
         val text = packages.playlist(id, epoch, resource.offering, stream) { url ->
             sessions.media.resourcePath(id, epoch, url)
         }
+        // AVFoundation shows captions only when a multivariant playlist declares them: its root goes out as one naming
+        // the media playlist, which carries the same token with the media marker (see CaptionPlaylists).
+        val declared = declaresCaptions(call, resource) && packages.carriesCaptions(id, epoch)
+        val body = if (declared) {
+            val variant = sessions.media.resourcePath(id, epoch, resource.offering.url + CaptionPlaylists.MEDIA)
+            CaptionPlaylists.masterOf(variant)
+        } else {
+            text
+        }
         call.response.header(HttpHeaders.CacheControl, "no-store")
-        call.respondText(text, ContentType.parse("application/vnd.apple.mpegurl"))
+        call.respondText(body, ContentType.parse("application/vnd.apple.mpegurl"))
     }
 
     /** A segment of a packaged playlist, from the package's directory. */

@@ -132,8 +132,11 @@ internal class CaptionPlaylists(
         fun isMultivariant(text: String): Boolean = text.lineSequence().any { it.startsWith("#EXT-X-STREAM-INF") }
 
         /** A multivariant playlist naming one variant, [media] (marked [MEDIA]), with CC1 in it. */
-        fun captionedMaster(media: URI): String =
-            "#EXTM3U\n$MEDIA_TAG\n#EXT-X-STREAM-INF:BANDWIDTH=$BANDWIDTH,CLOSED-CAPTIONS=\"$GROUP\"\n$media$MEDIA\n"
+        fun captionedMaster(media: URI): String = masterOf("$media$MEDIA")
+
+        /** A multivariant playlist naming one variant at [variant], with CC1 in it. */
+        fun masterOf(variant: String): String =
+            "#EXTM3U\n$MEDIA_TAG\n#EXT-X-STREAM-INF:BANDWIDTH=$BANDWIDTH,CLOSED-CAPTIONS=\"$GROUP\"\n$variant\n"
 
         /**
          * Multivariant [text] with CC1 named on every variant; null when a variant names its captions already, or

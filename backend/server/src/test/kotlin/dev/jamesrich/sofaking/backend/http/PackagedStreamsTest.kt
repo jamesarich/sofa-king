@@ -83,6 +83,12 @@ class PackagedStreamsTest {
                     assertEquals(0x47.toByte(), segment.bodyAsBytes().first(), "a segment is MPEG-TS")
                     assertEquals(1, runtime.relay.packaged)
 
+                    // AVFoundation gets a bare media playlist when the stream carries no captions to declare.
+                    val apple = client.get(session.descriptor.url) {
+                        header(HttpHeaders.UserAgent, "AppleCoreMedia/1.0.0")
+                    }
+                    assertTrue(apple.bodyAsText().lines().none { it.startsWith("#EXT-X-STREAM-INF") })
+
                     client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }
                     repeat(50) { if (runtime.relay.packaged > 0) Thread.sleep(100) }
                     assertEquals(0, runtime.relay.packaged, "releasing the session stops its FFmpeg")

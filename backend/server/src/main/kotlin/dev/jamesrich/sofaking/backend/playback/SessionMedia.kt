@@ -52,8 +52,11 @@ class SessionMedia internal constructor(
             val url =
                 session.resources[token]
                     ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown media resource")
-            val root = session.offering.protocol == "mpegts" && url == session.offering.url
-            val packaged = root && session.packaged
+            val mpegts = session.offering.protocol == "mpegts"
+            val root = mpegts && url == session.offering.url
+            // A packaged source's playlist also goes out as the media playlist inside a root that declares captions.
+            val packaged = mpegts && session.packaged &&
+                (root || url == session.offering.url + CaptionPlaylists.MEDIA)
             val shared = root && !packaged
             // A player reconnecting to a live stream replaces its previous request rather than adding to it.
             if (shared) session.cancel()

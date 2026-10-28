@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
+import dev.jamesrich.sofaking.data.MusicView
 
 /** What the library grid's controls and cards do. */
 internal class LibraryGridActions(
@@ -19,4 +20,6 @@ internal class LibraryGridActions(
     val onLoadThrough: (Int) -> Unit = {},
     /** What a held OK on a card offers. */
     val menu: CardMenu? = null,
+    /** Lists a Music library's artists or its albums. */
+    val onView: (MusicView) -> Unit = {},
 )

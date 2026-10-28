@@ -32,6 +32,7 @@ internal val FILE_SECRETS =
         "SOFA_PLEX_TOKEN",
         "SOFA_TMDB_TOKEN",
         "SOFA_FANART_KEY",
+        "SOFA_LISTENBRAINZ_TOKEN",
     )
 
 /**
@@ -148,6 +149,9 @@ internal class SecretsFile(val path: Path, private val random: SecureRandom = Se
 
         /** The fanart.tv key the portal saved; `SOFA_FANART_KEY` wins over it. */
         const val FANART_KEY = "fanartKey"
+
+        /** The ListenBrainz user token the portal saved; `SOFA_LISTENBRAINZ_TOKEN` wins over it. */
+        const val LISTENBRAINZ_TOKEN = "listenBrainzToken"
 
         /** A generated token holds 256 random bits. */
         private const val TOKEN_BYTES = 32

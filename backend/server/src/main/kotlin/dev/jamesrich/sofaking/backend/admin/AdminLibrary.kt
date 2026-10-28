@@ -55,6 +55,7 @@ internal fun libraryPage(chrome: Chrome, view: LibraryView): String = layout("Li
     removeDialog(chrome, view)
     tmdbPanel(chrome, view)
     fanartPanel(chrome, view)
+    listenBrainzPanel(chrome, view)
     addPanel(chrome, view)
 }
 

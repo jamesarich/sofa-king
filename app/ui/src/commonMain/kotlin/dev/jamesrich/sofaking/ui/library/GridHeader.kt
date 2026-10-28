@@ -27,6 +27,7 @@ import dev.jamesrich.sofaking.data.LetterJump
 import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaLibrary
+import dev.jamesrich.sofaking.data.MusicView
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_filter_unwatched
 import dev.jamesrich.sofaking.resources.library_genre_all
@@ -37,6 +38,8 @@ import dev.jamesrich.sofaking.resources.library_sort_rating
 import dev.jamesrich.sofaking.resources.library_sort_title
 import dev.jamesrich.sofaking.resources.library_sort_watched
 import dev.jamesrich.sofaking.resources.library_sort_year
+import dev.jamesrich.sofaking.resources.library_view_albums
+import dev.jamesrich.sofaking.resources.library_view_artists
 import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.ui.theme.SofaActionChip
 import dev.jamesrich.sofaking.ui.theme.SofaChip
@@ -63,9 +66,25 @@ internal fun GridHeader(
                 )
             }
         }
+        if (library?.kind == LibraryKind.MUSIC) ViewChips(grid, actions)
         SortChips(library?.kind, grid, actions)
         GenreChips(grid, actions, letterRow)
         if (letterRow != null) LetterChips(grid, letterRow, onLetter)
+    }
+}
+
+/** A Music library's artists or its albums; each view keeps the sort and genre it is shown in. */
+@Composable
+private fun ViewChips(grid: LibraryGrid?, actions: LibraryGridActions) {
+    val view = grid?.view ?: MusicView.ARTISTS
+    val selectedView = remember { FocusRequester() }
+    LazyRow(Modifier.focusRestorer(selectedView), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(MusicView.entries, key = { it.name }) { option ->
+            val focus = if (option == view) Modifier.focusRequester(selectedView) else Modifier
+            SofaChip(selected = option == view, onClick = {
+                actions.onView(option)
+            }, label = stringResource(option.label()), modifier = focus)
+        }
     }
 }
 
@@ -76,7 +95,7 @@ internal fun GridHeader(
 @Composable
 private fun SortChips(kind: LibraryKind?, grid: LibraryGrid?, actions: LibraryGridActions) {
     val sort = grid?.sort ?: LibrarySort.TITLE
-    val sorts = gridSorts(kind)
+    val sorts = gridSorts(kind, grid?.view ?: MusicView.ARTISTS)
     val selectedSort = remember { FocusRequester() }
     LazyRow(Modifier.focusRestorer(selectedSort), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(sorts.size) { i ->
@@ -146,6 +165,11 @@ private fun LetterChips(grid: LibraryGrid?, letterRow: FocusRequester, onLetter:
             )
         }
     }
+}
+
+private fun MusicView.label(): StringResource = when (this) {
+    MusicView.ARTISTS -> Res.string.library_view_artists
+    MusicView.ALBUMS -> Res.string.library_view_albums
 }
 
 private fun LibrarySort.label(): StringResource = when (this) {

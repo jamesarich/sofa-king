@@ -17,6 +17,7 @@ import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
+import dev.jamesrich.sofaking.data.MusicView
 import dev.jamesrich.sofaking.data.ScrubTiles
 import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialAudio
@@ -129,18 +130,30 @@ internal fun LibraryGridDestination(
             open?.sort ?: LibrarySort.TITLE,
             open?.unwatched ?: false,
             open?.takeIf { it.libraryId == route.libraryId }?.genre,
+            open?.takeIf { it.libraryId == route.libraryId }?.view ?: MusicView.ARTISTS,
         )
     }
     val shown = grid?.takeIf { it.libraryId == route.libraryId }
+    val view = shown?.view ?: MusicView.ARTISTS
     LibraryGridScreen(
         library = (home as? LibraryHomeState.Ready)?.home?.libraries?.firstOrNull { it.id == route.libraryId },
         grid = shown,
         actions = LibraryGridActions(
-            onSort = { libraryVm.openGrid(route.libraryId, it, shown?.unwatched ?: false, shown?.genre) },
-            onUnwatched = { libraryVm.openGrid(route.libraryId, shown?.sort ?: LibrarySort.TITLE, it, shown?.genre) },
-            onGenre = {
-                libraryVm.openGrid(route.libraryId, shown?.sort ?: LibrarySort.TITLE, shown?.unwatched ?: false, it)
+            onSort = { libraryVm.openGrid(route.libraryId, it, shown?.unwatched ?: false, shown?.genre, view) },
+            onUnwatched = {
+                libraryVm.openGrid(route.libraryId, shown?.sort ?: LibrarySort.TITLE, it, shown?.genre, view)
             },
+            onGenre = {
+                libraryVm.openGrid(
+                    route.libraryId,
+                    shown?.sort ?: LibrarySort.TITLE,
+                    shown?.unwatched ?: false,
+                    it,
+                    view,
+                )
+            },
+            // Another view keeps its own genres and may not offer the sort, so it opens by title.
+            onView = { libraryVm.openGrid(route.libraryId, LibrarySort.TITLE, false, null, it) },
             onOpenItem = { shell.nav = shell.nav.pushOver(route, Route.LibraryItem(it.id)) },
             onPlayItem = { shell.playItem(music, it) },
             onLoadMore = libraryVm::loadMore,

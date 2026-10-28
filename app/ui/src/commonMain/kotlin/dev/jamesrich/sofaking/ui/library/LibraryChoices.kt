@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaShelf
+import dev.jamesrich.sofaking.data.MusicView
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
@@ -100,12 +101,16 @@ internal fun gridStyleFor(kind: LibraryKind?): CardStyle = when (kind) {
     else -> CardStyle.POSTER
 }
 
-/** The orders a library's grid offers: music has no ratings or watched dates, so only by name and by date added. */
-internal fun gridSorts(kind: LibraryKind?): List<LibrarySort> = if (kind == LibraryKind.MUSIC) {
-    listOf(LibrarySort.TITLE, LibrarySort.ADDED)
-} else {
-    LibrarySort.entries
-}
+/**
+ * The orders a library's grid offers: music has no ratings or watched dates, so only by name and by date added, and
+ * by year for the albums, which carry one.
+ */
+internal fun gridSorts(kind: LibraryKind?, view: MusicView = MusicView.ARTISTS): List<LibrarySort> =
+    if (kind == LibraryKind.MUSIC) {
+        listOfNotNull(LibrarySort.TITLE, LibrarySort.ADDED, LibrarySort.YEAR.takeIf { view == MusicView.ALBUMS })
+    } else {
+        LibrarySort.entries
+    }
 
 /** Whether a library's grid offers the Unwatched filter: not for music, which has no watched state. */
 internal fun gridFiltersUnwatched(kind: LibraryKind?): Boolean = kind != LibraryKind.MUSIC

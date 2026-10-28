@@ -12,6 +12,7 @@ import dev.jamesrich.sofaking.data.Lyrics
 import dev.jamesrich.sofaking.data.MediaHome
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
+import dev.jamesrich.sofaking.data.MusicView
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
@@ -59,6 +60,8 @@ data class LibraryGrid(
     val sort: LibrarySort,
     val unwatched: Boolean,
     val genre: String? = null,
+    /** What a Music library lists; any other library lists its top items. */
+    val view: MusicView = MusicView.ARTISTS,
     val items: List<MediaItem> = emptyList(),
     /** Every genre in the library, from the first page. */
     val genres: List<String> = emptyList(),
@@ -90,13 +93,14 @@ interface LibraryBrowsing {
     /**
      * Shows [libraryId] in [sort] order, only what is not watched when [unwatched] is set and only [genre] when given.
      * The grid already open with the same choices is kept as it is, so returning from an item lands where the viewer
-     * was; one in another order keeps the genres it knows while the new page loads.
+     * was; one in another order keeps the genres it knows while the new page loads. A Music library lists its [view].
      */
     fun openGrid(
         libraryId: String,
         sort: LibrarySort = LibrarySort.TITLE,
         unwatched: Boolean = false,
         genre: String? = null,
+        view: MusicView = MusicView.ARTISTS,
     )
 
     /** Loads the grid's next page, or retries the one that failed; nothing while a page loads or all are in. */
@@ -293,8 +297,8 @@ internal class LibraryBrowser(
 
     override fun refreshHome() = shelves.refresh()
 
-    override fun openGrid(libraryId: String, sort: LibrarySort, unwatched: Boolean, genre: String?) =
-        grids.open(libraryId, sort, unwatched, genre)
+    override fun openGrid(libraryId: String, sort: LibrarySort, unwatched: Boolean, genre: String?, view: MusicView) =
+        grids.open(libraryId, sort, unwatched, genre, view)
 
     override fun loadMore() = grids.loadMore()
 

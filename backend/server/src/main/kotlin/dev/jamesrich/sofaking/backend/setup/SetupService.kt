@@ -19,6 +19,7 @@ import dev.jamesrich.sofaking.backend.catalog.validatePolicy
 import dev.jamesrich.sofaking.backend.catalog.validateSources
 import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.library.FanartFailure
+import dev.jamesrich.sofaking.backend.library.ListenBrainzFailure
 import dev.jamesrich.sofaking.backend.library.TmdbConfig
 import dev.jamesrich.sofaking.backend.library.TmdbFailure
 import io.ktor.http.HttpStatusCode
@@ -59,6 +60,8 @@ class SetupService(
     private val checkTmdb: suspend (TmdbConfig) -> Unit = {},
     /** Asks fanart.tv whether it takes a key, failing with [FanartFailure]; the runtime passes a client's check. */
     private val checkFanart: suspend (String) -> Unit = {},
+    /** Asks ListenBrainz whether it takes a user token, failing with [ListenBrainzFailure]. */
+    private val checkListenBrainz: suspend (String) -> Unit = {},
 ) {
     private val log = LoggerFactory.getLogger(SetupService::class.java)
     private val mutex = Mutex()
@@ -86,6 +89,11 @@ class SetupService(
 
     /** Whether the environment sets the fanart.tv key, which then cannot be saved from here. */
     val fanartFromEnvironment: Boolean = config.secretOrigins["SOFA_FANART_KEY"].let {
+        it == SecretOrigin.ENVIRONMENT || it == SecretOrigin.FILE
+    }
+
+    /** Whether the environment sets the ListenBrainz token, which then cannot be saved from here. */
+    val listenBrainzFromEnvironment: Boolean = config.secretOrigins["SOFA_LISTENBRAINZ_TOKEN"].let {
         it == SecretOrigin.ENVIRONMENT || it == SecretOrigin.FILE
     }
 
@@ -252,6 +260,53 @@ class SetupService(
         }
         storeSecret(secretsPath, SecretsFile.FANART_KEY, trimmed)
         log.info("setup: saved the fanart.tv key in {}", secretsPath)
+        requestRestart()
+        SetupResult(secretsPath.toString(), true)
+    }
+
+    /**
+     * Checks [token] with ListenBrainz, stores it in [secretsPath] and restarts, so Music libraries ask for artists'
+     * most played songs. Fails with 400 INVALID_REQUEST when it cannot be a token, 400 LISTENBRAINZ_REJECTED when
+     * ListenBrainz refuses it, 502 LISTENBRAINZ_UNREACHABLE when ListenBrainz cannot be asked and 409
+     * LISTENBRAINZ_FROM_ENVIRONMENT when the environment sets it; nothing is written then. The token never reaches a
+     * log or an error message.
+     */
+    suspend fun saveListenBrainzToken(token: String): SetupResult = mutex.withLock {
+        if (listenBrainzFromEnvironment) {
+            throw ApiFailure(
+                HttpStatusCode.Conflict,
+                "LISTENBRAINZ_FROM_ENVIRONMENT",
+                "SOFA_LISTENBRAINZ_TOKEN is set in the environment; change it there",
+            )
+        }
+        val trimmed = token.trim()
+        if (trimmed.length < ServerConfig.TOKEN_MIN_LENGTH || trimmed.any { it <= ' ' || it == '\u007f' }) {
+            throw ApiFailure(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                "A ListenBrainz user token is at least 32 characters with no spaces",
+            )
+        }
+        try {
+            checkListenBrainz(trimmed)
+        } catch (e: ListenBrainzFailure) {
+            if (e.code == "LISTENBRAINZ_AUTH") {
+                throw ApiFailure(
+                    HttpStatusCode.BadRequest,
+                    "LISTENBRAINZ_REJECTED",
+                    "ListenBrainz did not accept the token",
+                    cause = e,
+                )
+            }
+            throw ApiFailure(
+                HttpStatusCode.BadGateway,
+                "LISTENBRAINZ_UNREACHABLE",
+                "ListenBrainz could not be asked (${e.code}); try again",
+                cause = e,
+            )
+        }
+        storeSecret(secretsPath, SecretsFile.LISTENBRAINZ_TOKEN, trimmed)
+        log.info("setup: saved the ListenBrainz token in {}", secretsPath)
         requestRestart()
         SetupResult(secretsPath.toString(), true)
     }

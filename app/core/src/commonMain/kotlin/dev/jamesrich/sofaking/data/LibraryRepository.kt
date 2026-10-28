@@ -24,7 +24,8 @@ class LibraryRepository(private val api: SofaKingApi) {
         cursor: String? = null,
         limit: Int = PAGE_SIZE,
         genre: String? = null,
-    ): MediaPage = api.mediaPage(api.libraryItems(libraryId, sort.wire, unwatched, cursor, limit, genre))
+        view: MusicView = MusicView.ARTISTS,
+    ): MediaPage = api.mediaPage(api.libraryItems(libraryId, sort.wire, unwatched, cursor, limit, genre, view.wire))
 
     /** The songs of a radio from the artist, album or song [id], in the order to play them. */
     suspend fun radio(id: String, limit: Int = RADIO_SIZE): List<MediaItem> =

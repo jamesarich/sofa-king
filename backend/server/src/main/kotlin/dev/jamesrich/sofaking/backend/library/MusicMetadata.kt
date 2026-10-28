@@ -162,7 +162,7 @@ class MusicMetadata internal constructor(
             // A fresh match fanart.tv was never asked about, as before a key was added, is looked up again, as is one
             // looked up before its year, country and members were kept, or before ListenBrainz was asked.
             val row = fresh(artist, hint)
-            if (row != null && !incomplete(row.facts, fanartOn, listenBrainz != null)) return true
+            if (row != null && !incomplete(row.facts, fanartOn, listenBrainz)) return true
             return look(artist) {
                 val found = hint?.let { client.artist(it) } ?: searchArtist(artist.title)?.let { client.artist(it.id) }
                 found?.let {
@@ -189,7 +189,8 @@ class MusicMetadata internal constructor(
                         fanartRevision = FANART_REVISION,
                         similar = listens?.similar.orEmpty(),
                         popular = listens?.popular.orEmpty(),
-                        listened = listens?.whole == true,
+                        listened = listens?.similar != null,
+                        popularAsked = listens?.popular != null,
                     )
                 }
             }
@@ -287,13 +288,14 @@ private fun wikidataOf(artist: MbArtist): String? = artist.relations.firstOrNull
 
 /**
  * Whether a fresh artist match's [facts] lack what a lookup now keeps: fanart.tv's images once there is a key
- * ([fanartOn]), ListenBrainz's statistics when it is asked ([listening]), or the year, country and members.
+ * ([fanartOn]), ListenBrainz's statistics when it is asked ([listening], with a token for the songs), or the
+ * year, country and members.
  */
-private fun incomplete(facts: MetadataFacts?, fanartOn: Boolean, listening: Boolean): Boolean =
+private fun incomplete(facts: MetadataFacts?, fanartOn: Boolean, listening: ListenBrainzClient?): Boolean =
     facts?.musicBrainzId != null &&
         (
             !facts.described || (fanartOn && (!facts.fanartAsked || facts.fanartRevision < FANART_REVISION)) ||
-                (listening && !facts.listened)
+                (listening != null && (!facts.listened || (listening.canAskSongs && !facts.popularAsked)))
             )
 
 /**
@@ -343,13 +345,9 @@ private fun genres(genres: List<MbGenre>): List<String> =
 
 /** What ListenBrainz holds for the MusicBrainz artist [id]; null when it was not asked or could not answer. */
 private suspend fun listens(client: ListenBrainzClient?, id: String): Listens? = client?.let {
-    val popular = listenBrainz { it.popular(id) }
+    val popular = if (it.canAskSongs) listenBrainz { it.popular(id) } else null
     val similar = listenBrainz { it.similar(id) }
-    if (popular == null && similar == null) {
-        null
-    } else {
-        Listens(popular.orEmpty(), similar.orEmpty(), popular != null && similar != null)
-    }
+    if (popular == null && similar == null) null else Listens(popular, similar)
 }
 
 /** One ListenBrainz call's answer; null when it failed, which leaves the other call's answer standing. */
@@ -358,8 +356,8 @@ private suspend fun <T> listenBrainz(call: suspend () -> T): T? = runCatchingCan
     null
 }
 
-/** An artist's [popular] songs and [similar] artists, as ListenBrainz's listeners play them; [whole] if both came. */
-private class Listens(val popular: List<PopularSong>, val similar: List<String>, val whole: Boolean)
+/** An artist's [popular] songs and [similar] artists, as ListenBrainz's listeners play them; null if not answered. */
+private class Listens(val popular: List<PopularSong>?, val similar: List<String>?)
 
 /** fanart.tv's answer for an artist: its [images], null when it holds none. */
 private class Fanarted(val images: FanartArtist?)

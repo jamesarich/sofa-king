@@ -197,6 +197,8 @@ data class MetadataFacts(
     val popular: List<PopularSong> = emptyList(),
     /** For an artist, whether ListenBrainz was asked, so an artist looked up before it was is asked once more. */
     val listened: Boolean = false,
+    /** For an artist, whether ListenBrainz's popular songs were asked, which takes a token; a new token asks. */
+    val popularAsked: Boolean = false,
 )
 
 /** One item's stored TMDB lookup, or MusicBrainz lookup for music. */

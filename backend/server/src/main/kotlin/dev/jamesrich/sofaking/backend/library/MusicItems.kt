@@ -105,8 +105,14 @@ internal class MusicItems(private val libraryId: String, private val root: Path)
         spellings = (albumArtists.values + tagged.mapNotNull { it.second.artist })
             .groupBy(::musicKey).mapValues { (_, names) -> mostUsed(names) }
         tracks.forEach(::add)
+        // An artist's genres are those its songs are tagged with; MusicBrainz's, where it has them, win.
+        val tagGenres = albums.values.groupBy({
+            it.record.parentId
+        }, { album -> album.tracks.flatMap { genresOf(it) } })
         val named = artists.map { (key, artist) ->
-            artistIds[key]?.let { artist.copy(details = ItemDetails(musicBrainzId = it)) } ?: artist
+            val genres = tagGenres[artist.id].orEmpty().flatten().distinct()
+            val details = ItemDetails(genres = genres, musicBrainzId = artistIds[key])
+            if (details == ItemDetails()) artist else artist.copy(details = details)
         }
         return named + albums.values.map(::summed) + albums.values.flatMap { it.tracks }
     }
@@ -227,6 +233,8 @@ internal class MusicItems(private val libraryId: String, private val root: Path)
         }
         return id?.takeIf { it != VARIOUS_ARTISTS_ID }
     }
+
+    private fun genresOf(track: LibraryItemRecord): List<String> = track.details?.genres.orEmpty()
 
     /** [album] with its tracks' earliest year, length and genres, and its MusicBrainz release. */
     private fun summed(album: Album): LibraryItemRecord {

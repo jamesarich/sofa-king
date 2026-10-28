@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -31,8 +32,10 @@ class MusicPlaybackTest {
 
     private val album = MusicQueue.of(listOf(song("1"), song("2"), song("3")))!!
 
+    private val taste = TestTaste()
+
     private fun TestScope.music(): MusicPlayback {
-        val music = MusicPlayback(player, sessions, this)
+        val music = MusicPlayback(player, sessions, this, taste)
         backgroundScope.launch { music.run() }
         runCurrent()
         return music
@@ -100,6 +103,53 @@ class MusicPlaybackTest {
     }
 
     @Test
+    fun `a song counts as played once it has played for half a minute and again each time it starts`() = runTest {
+        val music = music()
+        music.play(album)
+        runCurrent()
+        player.status(PlaybackState.READY)
+        player.positionMs = 20_000
+        advanceTimeBy(MusicPlayback.PLAY_CHECK_MS + 1)
+        assertEquals(emptyList(), taste.plays)
+        player.positionMs = 31_000
+        advanceTimeBy(MusicPlayback.PLAY_CHECK_MS)
+        advanceTimeBy(MusicPlayback.PLAY_CHECK_MS)
+        assertEquals(listOf("1"), taste.plays, "once, however long it plays on")
+        music.reorder(MusicQueue::nextRepeat)
+        music.reorder(MusicQueue::nextRepeat)
+        end()
+        player.status(PlaybackState.READY)
+        player.positionMs = 31_000
+        advanceTimeBy(MusicPlayback.PLAY_CHECK_MS + 1)
+        assertEquals(listOf("1", "1"), taste.plays, "a repeat is another play")
+    }
+
+    @Test
+    fun `a paused song is not counted`() = runTest {
+        val music = music()
+        music.play(album)
+        runCurrent()
+        player.positionMs = 60_000
+        advanceTimeBy(MusicPlayback.PLAY_CHECK_MS * 2)
+        assertEquals(emptyList(), taste.plays, "buffering is not playing")
+    }
+
+    @Test
+    fun `Favorite likes the song for the household and again unlikes it`() = runTest {
+        val music = music()
+        music.play(album)
+        runCurrent()
+        val first = music.song!!
+        assertEquals(false, music.likes.isFavorite(first))
+        music.likes.toggle(music.song!!)
+        assertEquals(true, music.likes.isFavorite(first))
+        music.likes.toggle(music.song!!)
+        assertEquals(false, music.likes.isFavorite(first))
+        assertEquals(listOf("1" to true, "1" to false), taste.likes)
+        assertEquals(true, music.likes.isFavorite(song("9").copy(favorite = true)), "a song listed as liked is liked")
+    }
+
+    @Test
     fun `previous starts a song again once it is a few seconds in and otherwise goes back a song`() = runTest {
         val music = music()
         music.play(album.next()!!)
@@ -112,6 +162,20 @@ class MusicPlaybackTest {
         music.previous()
         runCurrent()
         assertEquals("1", music.song?.id)
+    }
+}
+
+/** What the server was told. */
+private class TestTaste : SongTaste {
+    val plays = mutableListOf<String>()
+    val likes = mutableListOf<Pair<String, Boolean>>()
+
+    override fun played(songId: String) {
+        plays += songId
+    }
+
+    override fun favorite(songId: String, favorite: Boolean) {
+        likes += songId to favorite
     }
 }
 

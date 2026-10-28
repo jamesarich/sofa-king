@@ -1,10 +1,12 @@
 package dev.jamesrich.sofaking.data
 
 import io.ktor.client.request.get
+import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 
-// The Music endpoints of [SofaKingApi]: a song's lyrics and the radios.
+// The Music endpoints of [SofaKingApi]: a song's lyrics, the radios, and the household's taste.
 
 /** At most [limit] songs to play on from the artist, album or song [id], in the order to play them. */
 internal suspend fun SofaKingApi.libraryRadio(id: String, limit: Int): LibraryPageDto = call {
@@ -20,4 +22,14 @@ internal suspend fun SofaKingApi.libraryLyrics(id: String): String? = call {
     if (response.status == HttpStatusCode.NotFound) return@call null
     response.checkSuccess()
     response.bodyAsText()
+}
+
+/** Likes or unlikes the song, album or artist [id]. */
+internal suspend fun SofaKingApi.updateFavorite(id: String, favorite: Boolean): LibraryItemDto = call {
+    http.put(itemPath(id) + "/favorite") { json(UpdateFavoriteDto(favorite)) }.decode()
+}
+
+/** Counts one play of the song [id]. */
+internal suspend fun SofaKingApi.recordPlay(id: String): LibraryItemDto = call {
+    http.post(itemPath(id) + "/played").decode()
 }

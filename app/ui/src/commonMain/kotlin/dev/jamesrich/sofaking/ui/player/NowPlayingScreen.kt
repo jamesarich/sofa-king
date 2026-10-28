@@ -58,6 +58,7 @@ import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MusicQueue
 import dev.jamesrich.sofaking.data.Repeat
 import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.music_favorite
 import dev.jamesrich.sofaking.resources.music_lyrics
 import dev.jamesrich.sofaking.resources.music_next
 import dev.jamesrich.sofaking.resources.music_now_playing
@@ -280,7 +281,43 @@ private fun RestWhenIdle(enabled: Boolean, content: @Composable (rest: Modifier)
     content(rest)
 }
 
-/** Shuffle, previous, play or pause, next and repeat, then Lyrics and the Visualizer where there are some. */
+/** Favorite, which likes the song or unlikes it, then Lyrics and the Visualizer where the song has them. */
+@Composable
+private fun MoreToggles(music: MusicPlayback, lyrics: LyricsChoice?, visuals: VisualsChoice?) {
+    music.song?.let { song ->
+        val liked = music.likes.isFavorite(song)
+        Toggle(
+            if (liked) SofaIcons.Favorite else SofaIcons.FavoriteBorder,
+            stringResource(Res.string.music_favorite),
+            stringResource(if (liked) Res.string.music_on else Res.string.music_off),
+            liked,
+            { music.likes.toggle(song) },
+        )
+    }
+    lyrics?.let {
+        Toggle(
+            SofaIcons.Subtitles,
+            stringResource(Res.string.music_lyrics),
+            stringResource(if (it.shown) Res.string.music_on else Res.string.music_off),
+            it.shown,
+            it.toggle,
+        )
+    }
+    visuals?.let {
+        Toggle(
+            SofaIcons.GraphicEq,
+            stringResource(Res.string.music_visualizer),
+            stringResource(if (it.shown) Res.string.music_on else Res.string.music_off),
+            it.shown,
+            it.toggle,
+        )
+    }
+}
+
+/**
+ * Shuffle, previous, play or pause, next, repeat and Favorite, in one row, then Lyrics and the Visualizer where there
+ * are some.
+ */
 @Composable
 private fun MusicButtons(music: MusicPlayback, lyrics: LyricsChoice?, visuals: VisualsChoice?) {
     val queue = music.queue ?: return
@@ -323,24 +360,7 @@ private fun MusicButtons(music: MusicPlayback, lyrics: LyricsChoice?, visuals: V
             queue.repeat != Repeat.OFF,
             { music.reorder(MusicQueue::nextRepeat) },
         )
-        lyrics?.let {
-            Toggle(
-                SofaIcons.Subtitles,
-                stringResource(Res.string.music_lyrics),
-                stringResource(if (it.shown) Res.string.music_on else Res.string.music_off),
-                it.shown,
-                it.toggle,
-            )
-        }
-        visuals?.let {
-            Toggle(
-                SofaIcons.GraphicEq,
-                stringResource(Res.string.music_visualizer),
-                stringResource(if (it.shown) Res.string.music_on else Res.string.music_off),
-                it.shown,
-                it.toggle,
-            )
-        }
+        MoreToggles(music, lyrics, visuals)
     }
 }
 

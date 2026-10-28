@@ -103,15 +103,20 @@ class LibraryChoicesTest {
     }
 
     @Test
-    fun `a music grid sorts by name or date added and has no unwatched filter`() {
-        assertEquals(listOf(LibrarySort.TITLE, LibrarySort.ADDED), gridSorts(LibraryKind.MUSIC))
+    fun `a music grid sorts by name and date added and plays and has no unwatched filter`() {
+        val played = listOf(LibrarySort.PLAYED, LibrarySort.PLAYS)
+        assertEquals(listOf(LibrarySort.TITLE, LibrarySort.ADDED) + played, gridSorts(LibraryKind.MUSIC))
         assertEquals(
-            listOf(LibrarySort.TITLE, LibrarySort.ADDED, LibrarySort.YEAR),
+            listOf(LibrarySort.TITLE, LibrarySort.ADDED, LibrarySort.YEAR) + played,
             gridSorts(LibraryKind.MUSIC, MusicView.ALBUMS),
             "albums carry a year; artists do not",
         )
+        assertEquals(
+            listOf(LibrarySort.TITLE, LibrarySort.ADDED) + played,
+            gridSorts(LibraryKind.MUSIC, MusicView.SONGS),
+        )
         assertFalse(gridFiltersUnwatched(LibraryKind.MUSIC))
-        assertEquals(LibrarySort.entries, gridSorts(LibraryKind.SHOWS))
+        assertEquals(LibrarySort.entries - played.toSet(), gridSorts(LibraryKind.SHOWS))
         assertTrue(gridFiltersUnwatched(LibraryKind.SHOWS))
     }
 

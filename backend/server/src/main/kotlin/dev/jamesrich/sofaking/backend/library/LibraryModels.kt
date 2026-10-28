@@ -223,7 +223,21 @@ data class PlayStateRecord(
     val watched: Boolean,
     val updatedAt: String,
     val dismissed: Boolean = false,
+    /** For a song, album or artist: a song's plays, when it was last played, and whether the household likes it. */
+    val plays: Int = 0,
+    val favorite: Boolean = false,
+    val lastPlayedAt: String? = null,
 ) {
     /** Started or finished: a row that says where the household is, not only that it was dismissed. */
     val played: Boolean get() = positionMs > 0 || watched
+
+    /** Played or liked in music: a row worth keeping even with nothing started. */
+    val tasted: Boolean get() = plays > 0 || favorite
+
+    /** Nothing to keep: not started, not finished, not played and not liked. */
+    val blank: Boolean get() = !played && !tasted
+
+    /** This place with [old]'s taste in music, for a write that does not change it. */
+    fun keeping(old: PlayStateRecord?): PlayStateRecord =
+        copy(plays = old?.plays ?: 0, favorite = old?.favorite == true, lastPlayedAt = old?.lastPlayedAt)
 }

@@ -31,11 +31,15 @@
     </plurals>
     <string name="library_view_artists">Artists</string>
     <string name="library_view_albums">Albums</string>
+    <string name="library_view_songs">Songs</string>
+    <string name="library_view_favorites">Favorites</string>
     <string name="library_sort_title">Title</string>
     <string name="library_sort_added">Recently added</string>
     <string name="library_sort_year">Year</string>
     <string name="library_sort_rating">Rating</string>
     <string name="library_sort_watched">Recently watched</string>
+    <string name="library_sort_played">Recently played</string>
+    <string name="library_sort_plays">Most played</string>
     <string name="library_filter_unwatched">Unwatched</string>
     <string name="library_genre_all">All genres</string>
     <string name="library_letter_jump">Jump to %1$s</string>

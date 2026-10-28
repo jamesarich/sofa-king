@@ -102,14 +102,21 @@ internal fun gridStyleFor(kind: LibraryKind?): CardStyle = when (kind) {
 }
 
 /**
- * The orders a library's grid offers: music has no ratings or watched dates, so only by name and by date added, and
- * by year for the albums, which carry one.
+ * The orders a library's grid offers: music has no ratings or watched dates, so by name, by date added, by when it
+ * was last played and by how often, and by year for the albums, which carry one; a song's year is its album's, so
+ * the songs do not sort by it. Other libraries have no plays.
  */
 internal fun gridSorts(kind: LibraryKind?, view: MusicView = MusicView.ARTISTS): List<LibrarySort> =
     if (kind == LibraryKind.MUSIC) {
-        listOfNotNull(LibrarySort.TITLE, LibrarySort.ADDED, LibrarySort.YEAR.takeIf { view == MusicView.ALBUMS })
+        listOfNotNull(
+            LibrarySort.TITLE,
+            LibrarySort.ADDED,
+            LibrarySort.YEAR.takeIf { view == MusicView.ALBUMS },
+            LibrarySort.PLAYED,
+            LibrarySort.PLAYS,
+        )
     } else {
-        LibrarySort.entries
+        LibrarySort.entries.filter { !it.musicOnly }
     }
 
 /** Whether a library's grid offers the Unwatched filter: not for music, which has no watched state. */

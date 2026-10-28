@@ -21,7 +21,7 @@ internal fun foundationMigrations(): List<Migration> = listOf(
     "V208__program_names.sql", "V209__library_scrub.sql", "V210__play_state_dismissed.sql", "V211__watchlist.sql",
     "V213__household_preferences.sql", "V214__api_token.sql", "V215__library_provider_ids.sql",
     "V216__notifications.sql", "V217__session_history.sql", "V218__recording_rule_match.sql",
-    "V219__virtual_channel.sql", "V220__library_match.sql",
+    "V219__virtual_channel.sql", "V220__library_match.sql", "V221__music_taste.sql",
 ).map { resource ->
     val sql = checkNotNull(Migration::class.java.getResourceAsStream("/db/$resource")) {
         "Missing migration $resource"

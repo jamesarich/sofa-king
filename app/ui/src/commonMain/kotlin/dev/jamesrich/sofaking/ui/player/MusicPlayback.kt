@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import co.touchlab.kermit.Logger
@@ -16,6 +17,7 @@ import dev.jamesrich.sofaking.visualizer.AudioAnalyzer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -35,6 +37,24 @@ internal interface SongSessions {
 
     /** Lets [itemId]'s session go, and forgets it. */
     fun release(itemId: String)
+}
+
+/** What the server is told about the household's taste in songs; it counts the plays and keeps the likes. */
+internal interface SongTaste {
+    /** The song [songId] played far enough to count. */
+    fun played(songId: String)
+
+    /** The song [songId] is liked, or no longer. */
+    fun favorite(songId: String, favorite: Boolean)
+
+    companion object {
+        /** Tells nobody. */
+        val None: SongTaste = object : SongTaste {
+            override fun played(songId: String) = Unit
+
+            override fun favorite(songId: String, favorite: Boolean) = Unit
+        }
+    }
 }
 
 /** The library sessions, as the songs use them. */
@@ -59,9 +79,15 @@ internal class MusicPlayback(
     private val player: LivePlayer,
     private val sessions: SongSessions,
     private val scope: CoroutineScope,
+    private val taste: SongTaste = SongTaste.None,
 ) {
     var queue by mutableStateOf<MusicQueue?>(null)
         private set
+
+    /** The viewer's likes, over what the songs the queue holds said when they were listed. */
+    val likes = SongLikes(taste)
+
+    private val plays = PlayCounter(taste)
 
     /** The failure the song showed, as the failure card names it; null while it plays. */
     var failure by mutableStateOf<String?>(null)
@@ -180,6 +206,12 @@ internal class MusicPlayback(
         launch { player.status.collect(::onStatus) }
         launch { player.errors.collect { if (loaded) failure = it.code } }
         launch {
+            while (true) {
+                delay(PLAY_CHECK_MS)
+                song?.let { plays.check(it.id, loaded && player.status.value.isPlaying, positionMs, durationMs) }
+            }
+        }
+        launch {
             // A channel or a movie took the player: the music is over.
             sessions.current.collect { held ->
                 if (held == null || opening) return@collect
@@ -226,6 +258,7 @@ internal class MusicPlayback(
         open?.cancel()
         failure = null
         heldAtMs = startMs
+        if (startMs == 0L) plays.reset()
         // Set before the launch, so the session this open releases does not read as another taking the player.
         opening = true
         open = scope.launch {
@@ -252,8 +285,50 @@ internal class MusicPlayback(
     companion object {
         /** Past this far into a song, Previous starts it again rather than going back a song. */
         const val RESTART_MS = 3_000L
+
+        /** How often a song is looked at to see whether it has played long enough to count. */
+        const val PLAY_CHECK_MS = 5_000L
     }
 }
 
 /** What the system's media surfaces show for a song: its title, its artist and its album's cover. */
 internal fun MediaItem.nowPlaying(): NowPlaying = NowPlaying(title, songLine(this).orEmpty(), poster)
+
+/** The viewer's likes of songs, over what each song said when it was listed. */
+@Stable
+internal class SongLikes(private val taste: SongTaste) {
+    private val liked = mutableStateMapOf<String, Boolean>()
+
+    /** Whether the household likes [song]. */
+    fun isFavorite(song: MediaItem): Boolean = liked[song.id] ?: song.favorite
+
+    /** Likes [song], or unlikes it. */
+    fun toggle(song: MediaItem) {
+        val now = !isFavorite(song)
+        liked[song.id] = now
+        taste.favorite(song.id, now)
+    }
+}
+
+/** Tells the server a play once a song has played for [PLAYED_MS], or half of a shorter one, once per start. */
+internal class PlayCounter(private val taste: SongTaste) {
+    private var counted: String? = null
+
+    /** The next start of the song counts again. */
+    fun reset() {
+        counted = null
+    }
+
+    fun check(songId: String, playing: Boolean, positionMs: Long, durationMs: Long?) {
+        if (counted == songId || !playing) return
+        val length = durationMs?.takeIf { it > 0 }
+        if (positionMs >= minOf(PLAYED_MS, (length ?: Long.MAX_VALUE) / 2)) {
+            counted = songId
+            taste.played(songId)
+        }
+    }
+
+    private companion object {
+        const val PLAYED_MS = 30_000L
+    }
+}

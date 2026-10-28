@@ -3,6 +3,8 @@ package dev.jamesrich.sofaking.backend.library
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.contract.LibraryPage
 import io.ktor.http.HttpStatusCode
+import java.time.Duration
+import java.time.Instant
 import kotlin.math.pow
 import kotlin.random.Random
 
@@ -27,7 +29,15 @@ private const val POPULAR_BOOST = 3.0
  * the radio draws from every artist of [libraryId] alike. No more than [MAX_RUN] songs of one artist play in a row
  * while another artist has any left. At most [limit] songs, each once.
  */
-internal fun radioSongs(snapshot: Snapshot, seed: View?, libraryId: String, limit: Int, random: Random): List<View> {
+internal fun radioSongs(
+    snapshot: Snapshot,
+    seed: View?,
+    libraryId: String,
+    limit: Int,
+    random: Random,
+    states: Map<String, PlayStateRecord> = emptyMap(),
+    now: Instant = Instant.EPOCH,
+): List<View> {
     val artist = seed?.let { artistOf(snapshot, it) }
     val pools = if (artist == null) {
         snapshot.tops[libraryId].orEmpty().map { it to GENRE_WEIGHT }
@@ -39,14 +49,32 @@ internal fun radioSongs(snapshot: Snapshot, seed: View?, libraryId: String, limi
     }
     val drawn = pools.flatMap { (pool, weight) ->
         val popular = pool.popular.toSet()
+        val liked = if (states[pool.record.id]?.favorite == true) FAVORITE_ARTIST_BOOST else 1.0
         songsOf(snapshot, pool).map { song ->
-            val share = weight * if (song.record.id in popular) POPULAR_BOOST else 1.0
+            val share = weight * liked * (if (song.record.id in popular) POPULAR_BOOST else 1.0) *
+                tasteBoost(states[song.record.id], now)
             // Drawing without replacement by weight: a key of random^(1/weight), the biggest first.
             song to random.nextDouble().pow(1 / share)
         }
     }.sortedByDescending { it.second }.map { it.first }.distinctBy { it.record.id }
     val first = seedSong(snapshot, seed)
     return spread(listOfNotNull(first) + drawn.filter { it.record.id != first?.record?.id }, limit)
+}
+
+/** How much likelier a liked artist's songs, and a liked song, are to be drawn. */
+private const val FAVORITE_ARTIST_BOOST = 1.5
+private const val FAVORITE_SONG_BOOST = 3.0
+
+/** How much less likely a song played in the last [RECENT] is to be drawn again. */
+private const val RECENTLY_PLAYED_DAMPING = 0.2
+private val RECENT = Duration.ofHours(6)
+
+/** What the household's taste does to a song's chance: liked ones more, ones just played less. */
+private fun tasteBoost(state: PlayStateRecord?, now: Instant): Double {
+    if (state == null) return 1.0
+    val played = state.lastPlayedAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
+    val recent = played != null && Duration.between(played, now) < RECENT
+    return (if (state.favorite) FAVORITE_SONG_BOOST else 1.0) * (if (recent) RECENTLY_PLAYED_DAMPING else 1.0)
 }
 
 /** The artist [view] belongs to, or [view] itself. */
@@ -122,6 +150,8 @@ private suspend fun LibraryCatalog.radioPage(
     random: Random,
 ): LibraryPage {
     val states = playStates()
-    val songs = radioSongs(snapshot, seed, libraryId, limit, random).map { it.out(snapshot, states) }
+    val songs = radioSongs(snapshot, seed, libraryId, limit, random, states, clock.instant()).map {
+        it.out(snapshot, states)
+    }
     return LibraryPage(songs, songs.size)
 }

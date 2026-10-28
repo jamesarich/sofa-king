@@ -154,7 +154,7 @@ private fun SofaKingApp(
     PlayerPreferenceEffects(playback.player, settings, top)
     val inPictureInPicture = rememberPlayerWindow(playback.player, active = top.playsFullScreen)
     val guidePlays = PREVIEW_ENABLED && LocalLayoutProfile.current.showsPreviewBand
-    val music = rememberMusicPlayback(playback, sessions)
+    val music = rememberMusicPlayback(playback, sessions, libraryVm)
     RouteStreamEffects(shell, top, playback, music, sessions, guidePlays)
     val plays = if (top is Route.Guide) guidePlays else top.playsLive
     ForegroundEffects(playback, music, sessions, lifecycleOwner, plays)

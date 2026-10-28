@@ -63,6 +63,56 @@ class MusicGridTest {
     }
 
     @Test
+    fun `the songs view asks for kind track`() = fixture.viewModelTest {
+        val server = musicServer(this)
+        val model = viewModel(server)
+        runCurrent()
+
+        model.openGrid("music", view = MusicView.SONGS)
+        runCurrent()
+        assertEquals(MusicView.SONGS, model.grid.value!!.view)
+        assertTrue("kind=track" in server.http.requests.last().query, server.http.requests.last().query)
+    }
+
+    @Test
+    fun `the favorites view asks for liked songs and the sorts for plays`() = fixture.viewModelTest {
+        val server = musicServer(this)
+        val model = viewModel(server)
+        runCurrent()
+
+        model.openGrid("music", LibrarySort.PLAYS, view = MusicView.FAVORITES)
+        runCurrent()
+        val query = server.http.requests.last().query
+        assertTrue("kind=track" in query && "favorite=true" in query && "sort=plays" in query, query)
+    }
+
+    @Test
+    fun `liking a song and counting a play are sent to the server`() = fixture.viewModelTest {
+        val server = RouteServer(this) { method, path, _ ->
+            when {
+                method == "PUT" && path == "/api/v1/library/items/s1/favorite" ->
+                    200 to """{"id":"s1","libraryId":"music","kind":"track","title":"S","favorite":true,"plays":2}"""
+
+                method == "POST" && path == "/api/v1/library/items/s1/played" ->
+                    200 to """{"id":"s1","libraryId":"music","kind":"track","title":"S","plays":3}"""
+
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+
+        model.setFavorite("s1", true)
+        model.played("s1")
+        runCurrent()
+        assertEquals(
+            listOf("PUT /api/v1/library/items/s1/favorite", "POST /api/v1/library/items/s1/played"),
+            server.http.requests.map { "${it.method} ${it.path}" }.takeLast(2),
+        )
+        assertTrue("true" in server.http.requests.first { it.method == "PUT" }.body)
+    }
+
+    @Test
     fun `the albums view starts without the artists' genre and genres`() = fixture.viewModelTest {
         val server = RouteServer(this) { _, path, _ ->
             when (path) {

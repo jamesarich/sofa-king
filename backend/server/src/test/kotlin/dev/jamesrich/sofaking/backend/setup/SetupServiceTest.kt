@@ -11,6 +11,7 @@ import dev.jamesrich.sofaking.backend.catalog.SourceDocument
 import dev.jamesrich.sofaking.backend.catalog.loadPolicy
 import dev.jamesrich.sofaking.backend.catalog.loadSources
 import dev.jamesrich.sofaking.backend.catalog.readSourceDocument
+import dev.jamesrich.sofaking.backend.library.ListenBrainzFailure
 import dev.jamesrich.sofaking.backend.providers.NativeServices
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.parameters
@@ -365,6 +366,39 @@ class SetupServiceTest {
             assertEquals("e".repeat(32), fromEnvironment.fanartKey, "the environment wins")
             val locked = SetupService(fromEnvironment, restart = {})
             assertEquals("FANART_FROM_ENVIRONMENT", assertFailsWith<ApiFailure> { locked.saveFanartKey(good) }.code)
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test fun `a ListenBrainz token it takes is stored and read on the next start, one it refuses is not`() = runTest {
+        val dir = Files.createTempDirectory("sofa-setup-listenbrainz-")
+        try {
+            var restarts = 0
+            val good = "b".repeat(36)
+            val setup = SetupService(config(dir), restart = { restarts++ }, checkListenBrainz = { token ->
+                if (token != good) throw ListenBrainzFailure("LISTENBRAINZ_AUTH")
+            })
+            assertEquals("INVALID_REQUEST", assertFailsWith<ApiFailure> { setup.saveListenBrainzToken("short") }.code)
+            assertEquals(
+                "LISTENBRAINZ_REJECTED",
+                assertFailsWith<ApiFailure> { setup.saveListenBrainzToken("u".repeat(36)) }.code,
+            )
+            assertFalse(Files.exists(dir.resolve("secrets.json")))
+            setup.saveListenBrainzToken(" $good\n")
+            assertEquals(1, restarts)
+            val loaded = ServerConfig.load(mapOf("SOFA_DATA_DIR" to dir.toString()), {})
+            assertEquals(good, loaded.listenBrainzToken)
+            val fromEnvironment = ServerConfig.load(
+                mapOf("SOFA_DATA_DIR" to dir.toString(), "SOFA_LISTENBRAINZ_TOKEN" to "e".repeat(36)),
+                {},
+            )
+            assertEquals("e".repeat(36), fromEnvironment.listenBrainzToken, "the environment wins")
+            val locked = SetupService(fromEnvironment, restart = {})
+            assertEquals(
+                "LISTENBRAINZ_FROM_ENVIRONMENT",
+                assertFailsWith<ApiFailure> { locked.saveListenBrainzToken(good) }.code,
+            )
         } finally {
             dir.toFile().deleteRecursively()
         }

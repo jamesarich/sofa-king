@@ -34,6 +34,12 @@ internal class LibraryView(
     val fanartSettable: Boolean = false,
     /** Why the last fanart.tv key was not saved. */
     val fanartError: String? = null,
+    /** Whether a ListenBrainz token is set (`SOFA_LISTENBRAINZ_TOKEN`, or a token saved here). */
+    val listenBrainz: Boolean = false,
+    /** Whether the page may save a ListenBrainz token: setup is available and the environment does not set one. */
+    val listenBrainzSettable: Boolean = false,
+    /** Why the last ListenBrainz token was not saved. */
+    val listenBrainzError: String? = null,
     /** Folders whose names say what they hold, each one click from a library. */
     val suggestions: List<LibrarySuggestion> = emptyList(),
 )

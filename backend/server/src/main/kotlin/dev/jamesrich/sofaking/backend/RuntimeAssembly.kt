@@ -389,7 +389,7 @@ internal class RuntimeAssembly(
                     it,
                     clock,
                     config.fanartKey?.let { key -> FanartClient(http, key, config.version) },
-                    ListenBrainzClient(http, config.version),
+                    ListenBrainzClient(http, config.version, config.listenBrainzToken),
                 )
             },
         artwork = LibraryArtwork(
@@ -493,4 +493,5 @@ private fun setupService(config: ServerConfig, restart: () -> Unit, http: HttpCl
     restart,
     checkTmdb = { TmdbClient(http, it).check() },
     checkFanart = { FanartClient(http, it, config.version).check() },
+    checkListenBrainz = { ListenBrainzClient(http, config.version, it).check() },
 )

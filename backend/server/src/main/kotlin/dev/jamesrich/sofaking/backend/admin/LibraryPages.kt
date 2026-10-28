@@ -27,6 +27,7 @@ internal class LibraryPages(private val portal: Portal) {
         route.action("/library") { session, form -> add(call, session, form) }
         route.action("/library/tmdb") { session, form -> tmdb(call, session, form) }
         route.action("/library/fanart") { session, form -> fanart(call, session, form) }
+        route.action("/library/listenbrainz") { session, form -> listenBrainz(call, session, form) }
         route.action("/library/{id}/scan") { session, _ ->
             val id = call.parameters["id"]!!
             val library = runtime.store.library(id)
@@ -98,6 +99,25 @@ internal class LibraryPages(private val portal: Portal) {
         }
     }
 
+    private suspend fun listenBrainz(call: ApplicationCall, session: AdminSession, form: Parameters) {
+        val setup = runtime.setup ?: return seeOther(call, "/admin/library#listenbrainz")
+        try {
+            setup.saveListenBrainzToken(form["token"].orEmpty())
+            call.html(
+                restartingPage(
+                    portal.theme(call),
+                    "Saved the ListenBrainz token to ${setup.secretsPath}. Music libraries scan again once the " +
+                        "server is back and fill in artists' most played songs.",
+                ),
+            )
+        } catch (e: ApiFailure) {
+            call.html(
+                libraryPage(portal.chrome(call, session), libraryView(listenBrainzError = e.message)),
+                e.status,
+            )
+        }
+    }
+
     private suspend fun fanart(call: ApplicationCall, session: AdminSession, form: Parameters) {
         val setup = runtime.setup ?: return seeOther(call, "/admin/library#fanart")
         try {
@@ -140,6 +160,7 @@ internal class LibraryPages(private val portal: Portal) {
         removing: LibraryRecord? = null,
         tmdbError: String? = null,
         fanartError: String? = null,
+        listenBrainzError: String? = null,
     ): LibraryView {
         val service = libraries()
         return LibraryView(
@@ -151,6 +172,9 @@ internal class LibraryPages(private val portal: Portal) {
             tmdbSettable = runtime.setup?.tmdbFromEnvironment == false, tmdbError = tmdbError,
             fanart = portal.config?.fanartKey != null,
             fanartSettable = runtime.setup?.fanartFromEnvironment == false, fanartError = fanartError,
+            listenBrainz = portal.config?.listenBrainzToken != null,
+            listenBrainzSettable = runtime.setup?.listenBrainzFromEnvironment == false,
+            listenBrainzError = listenBrainzError,
             suggestions = service.folders.suggestions(),
         )
     }

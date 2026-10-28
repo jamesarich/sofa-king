@@ -15,6 +15,7 @@ import java.nio.file.Files
 import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class ListenBrainzTest {
@@ -28,6 +29,11 @@ class ListenBrainzTest {
             val url = request.url
             calls += url.host + url.encodedPath
             assertTrue(request.headers[HttpHeaders.UserAgent].orEmpty().startsWith("SofaKing/test ("))
+            // The token goes to the songs and nowhere else.
+            assertEquals(
+                if (url.encodedPath.startsWith("/1/popularity/")) "Token $TOKEN" else null,
+                request.headers[HttpHeaders.Authorization],
+            )
             if (url.encodedPath.startsWith("/1/popularity/") && popularStatus != HttpStatusCode.OK) {
                 return@MockEngine respond("{}", popularStatus)
             }
@@ -84,7 +90,10 @@ class ListenBrainzTest {
     )
 
     /** A Music library of [files], scanned twice with MusicBrainz and ListenBrainz asked over [http]. */
-    private suspend fun scanned(http: HttpClient): Pair<LibraryService, Map<String, LibraryItemRecord>> {
+    private suspend fun scanned(
+        http: HttpClient,
+        token: String? = TOKEN,
+    ): Pair<LibraryService, Map<String, LibraryItemRecord>> {
         val dir = Files.createTempDirectory("sofa-listens-")
         val music = Files.createDirectories(dir.resolve("media/Music"))
         for (path in files.keys) {
@@ -111,7 +120,7 @@ class ListenBrainzTest {
                 store,
                 MusicBrainzClient(http, "test", pause = Duration.ZERO, backoff = Duration.ZERO),
                 clock,
-                listenBrainz = ListenBrainzClient(http, "test"),
+                listenBrainz = ListenBrainzClient(http, "test", token),
             ),
         )
         val library = service.create("Music", LibraryKind.MUSIC, music.toString())
@@ -141,5 +150,31 @@ class ListenBrainzTest {
         assertEquals("Third", page.related.firstOrNull()?.title)
         // The popular songs are asked for on the second scan again, since only half of the lookup was kept.
         assertEquals(2, calls.count { it.endsWith("/top-recordings-for-artist/$band") }, calls.toString())
+    }
+
+    @Test fun `without a token the songs are not asked for and the similar artists still stand`() = runBlocking {
+        val calls = mutableListOf<String>()
+        val (service, items) = scanned(http(calls), token = null)
+        val page = service.catalog.item(items.getValue("Band").id, music = true)
+        assertTrue(page.popular.isEmpty())
+        assertEquals("Third", page.related.firstOrNull()?.title)
+        assertTrue(calls.none { it.contains("/popularity/") }, calls.toString())
+    }
+
+    @Test fun `a token check tells a refused token from a service that is down`() = runBlocking {
+        fun client(status: HttpStatusCode, body: String) = ListenBrainzClient(
+            HttpClient(MockEngine { respond(body, status, headersOf(HttpHeaders.ContentType, "application/json")) }),
+            "test",
+            TOKEN,
+        )
+        client(HttpStatusCode.OK, """{"code":200,"valid":true}""").check()
+        val refused = assertFailsWith<ListenBrainzFailure> { client(HttpStatusCode.OK, """{"valid":false}""").check() }
+        assertEquals("LISTENBRAINZ_AUTH", refused.code)
+        val down = assertFailsWith<ListenBrainzFailure> { client(HttpStatusCode.BadGateway, "").check() }
+        assertEquals("LISTENBRAINZ_HTTP_502", down.code)
+    }
+
+    private companion object {
+        const val TOKEN = "00000000-1111-2222-3333-444444444444"
     }
 }

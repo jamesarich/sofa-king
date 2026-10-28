@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.ui.player
 import android.content.Context
 import android.os.Looper
 import androidx.media3.common.Timeline
+import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -10,15 +11,36 @@ import androidx.media3.exoplayer.ForwardingRenderer
 import androidx.media3.exoplayer.LoadControl
 import androidx.media3.exoplayer.Renderer
 import androidx.media3.exoplayer.analytics.PlayerId
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.audio.TeeAudioProcessor
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.TrackGroupArray
 import androidx.media3.exoplayer.text.TextOutput
 import androidx.media3.exoplayer.trackselection.ExoTrackSelection
 import androidx.media3.exoplayer.upstream.Allocator
 import dev.jamesrich.sofaking.data.BufferPreference
+import dev.jamesrich.sofaking.visualizer.AudioAnalyzer
 
 @UnstableApi
-class CaptionSyncRenderersFactory(context: Context, private val sync: CaptionSync) : DefaultRenderersFactory(context) {
+class CaptionSyncRenderersFactory(
+    context: Context,
+    private val sync: CaptionSync,
+    private val tap: AudioAnalyzer? = null,
+) : DefaultRenderersFactory(context) {
+    /** The default sink, with the [tap] listening to what it plays. */
+    override fun buildAudioSink(
+        context: Context,
+        enableFloatOutput: Boolean,
+        enableAudioTrackPlaybackParams: Boolean,
+    ): AudioSink {
+        val processors = tap?.let { arrayOf<AudioProcessor>(TeeAudioProcessor(AnalyzerSink(it))) } ?: emptyArray()
+        return DefaultAudioSink.Builder(context)
+            .setEnableFloatOutput(enableFloatOutput)
+            .setAudioProcessors(processors)
+            .build()
+    }
+
     override fun buildTextRenderers(
         context: Context,
         output: TextOutput,

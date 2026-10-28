@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.data.AdBreakNow
 import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.visualizer.AudioAnalyzer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -234,6 +235,12 @@ interface LivePlayer :
 
     /** True while the player holds an item, prepared or stopped. */
     val hasItem: Boolean
+
+    /**
+     * What the engine is playing, as the visualizer hears it: the engine feeds the analyzer with the samples it sends
+     * to the speakers. Null where the engine cannot tap its output.
+     */
+    val audioTap: AudioAnalyzer? get() = null
 
     /** How much media is downloaded ahead of the playback position; engines that cannot report it say 0. */
     val bufferedMs: Long

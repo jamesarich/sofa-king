@@ -28,6 +28,7 @@ import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.ui.uptimeMs
+import dev.jamesrich.sofaking.visualizer.AudioAnalyzer
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -55,7 +56,8 @@ internal class ExoLivePlayer(
     private val context: Context,
     override val captionSync: CaptionSync,
     private val tuning: PlaybackTuning = PlaybackTuning(),
-    val exo: ExoPlayer = newExoPlayer(context, captionSync, tuning),
+    override val audioTap: AudioAnalyzer = AudioAnalyzer(),
+    val exo: ExoPlayer = newExoPlayer(context, captionSync, tuning, audioTap),
     private val tracks: ExoTracks = ExoTracks(exo),
     private val timeline: ExoTimeline = ExoTimeline(exo),
 ) : LivePlayer,

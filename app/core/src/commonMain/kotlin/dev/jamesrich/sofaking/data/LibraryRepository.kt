@@ -27,6 +27,10 @@ class LibraryRepository(private val api: SofaKingApi) {
         view: MusicView = MusicView.ARTISTS,
     ): MediaPage = api.mediaPage(api.libraryItems(libraryId, sort.wire, unwatched, cursor, limit, genre, view.wire))
 
+    /** The songs of a radio from the artist, album or song [id], in the order to play them. */
+    suspend fun radio(id: String, limit: Int = RADIO_SIZE): List<MediaItem> =
+        api.libraryRadio(id, limit).items.map { api.mediaItem(it) }
+
     suspend fun search(query: String): SearchResults = api.librarySearch(query).let { dto ->
         SearchResults(dto.items.map { api.mediaItem(it) }, dto.people)
     }
@@ -88,6 +92,9 @@ class LibraryRepository(private val api: SofaKingApi) {
     companion object {
         /** Items per grid page: a few screens of posters. */
         const val PAGE_SIZE = 60
+
+        /** Songs in a radio. */
+        const val RADIO_SIZE = 50
     }
 }
 

@@ -121,6 +121,12 @@ interface LibraryBrowsing {
     /** Items whose title, show or cast match [query]; none when the server cannot be reached. */
     suspend fun search(query: String): SearchResults
 
+    /**
+     * The songs of a radio from [seed], an artist, album or song, in the order to play them; none when the server
+     * cannot be reached or does not offer one.
+     */
+    suspend fun radio(seed: MediaItem): List<MediaItem>
+
     /** Marks [item] watched or not; a show or season marks every episode in it. The screens that show it reload. */
     fun setWatched(item: MediaItem, watched: Boolean)
 
@@ -310,6 +316,16 @@ internal class LibraryBrowser(
         }.getOrElse { e ->
             log.w { "library search failed: ${e.describe()}" }
             SearchResults.None
+        }
+    }
+
+    override suspend fun radio(seed: MediaItem): List<MediaItem> {
+        val repository = repository() ?: return emptyList()
+        return runCatchingCancellable {
+            repository.radio(seed.id).let { songs -> if (kids()) songs.filter(KidsMode::allows) else songs }
+        }.getOrElse { e ->
+            log.w { "radio failed: ${e.describe()}" }
+            emptyList()
         }
     }
 

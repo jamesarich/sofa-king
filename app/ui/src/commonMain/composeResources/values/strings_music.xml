@@ -10,4 +10,5 @@
     <string name="music_repeat_all">All songs</string>
     <string name="music_repeat_one">This song</string>
     <string name="music_lyrics">Lyrics</string>
+    <string name="music_visualizer">Visualizer</string>
 </resources>

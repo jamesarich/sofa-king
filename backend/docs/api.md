@@ -11,7 +11,7 @@ The server also issues tokens of its own, each starting `sk_`, stored only as a 
 | Kind | Where it comes from | What it opens |
 | --- | --- | --- |
 | `api` | A device [pairing](#pair-a-client), one per `clientId`; forgetting the device revokes it | What `SOFA_API_TOKEN` opens, except `/api/v1/admin` and `/api/v1/hooks` |
-| `read` | The portal's Settings page or `POST /api/v1/admin/tokens`, for a dashboard or a calendar | The [dashboard summary](#dashboard-summary) `GET /api/v1/status`, the [recordings calendar](#player-outputs) `/output/recordings.ics` (also as `?token=`), and `GET` of `/api/v1/admin/status`, `/sessions`, `/guides`, `/lineup`, `/policy/preview`, `/policy/findings`, `/policy/changes` and `/libraries`, with what lies under each |
+| `read` | The portal's Settings page or `POST /api/v1/admin/tokens`, for a dashboard or a calendar | The [dashboard summary](#dashboard-summary) `GET /api/v1/status`, the [recordings calendar](#player-outputs) `/output/recordings.ics` (also as `?token=`), `GET` of `/api/v1/admin/status`, `/sessions`, `/guides`, `/lineup`, `/policy/preview`, `/policy/findings`, `/policy/changes` and `/libraries`, with what lies under each, and the [MCP endpoint](#mcp)'s read tools |
 | `hook` | The same, for Sonarr and Radarr | The [hooks](#hooks) only: `/api/v1/hooks` and the Emby-style routes |
 
 `SOFA_API_TOKEN` stays valid beside them, for scripts and devices set up by hand, and opens the hooks too.
@@ -86,6 +86,7 @@ These routes take no token: `/healthz`, `/readyz`, the [web app](deploy.md#serve
 | GET | `/discover.json`, `/lineup.json`, `/lineup_status.json`, `/device.xml` | HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation) |
 | GET, POST | `/lineup.post` | Accepts Plex's channel-scan request; answers 200 |
 | GET | `/auto/v{number}` | MPEG-TS stream of the channel with that lineup number |
+| POST | `/api/v1/mcp` | The [MCP endpoint](#mcp) for AI assistants; takes the admin token or a `read` token |
 | GET, POST | `/admin`, `/admin/*` | The [admin portal](#admin-portal-routes), HTML |
 
 Request bodies are limited to 64 KiB, except a policy write through `PUT /api/v1/admin/policy` or the portal's group and provider edits (4 MiB), and a database uploaded to the portal's Backup page (8 GiB). A larger body answers `413 REQUEST_TOO_LARGE` before the token is checked. Every response carries an `X-Request-Id` header with the id the server's log lines for that request carry. Responses under `/api/` and `/admin`, the M3U playlist, the XMLTV guide and `/lineup.json` are gzip- or deflate-compressed when the request's `Accept-Encoding` allows it; media, streams, logos and artwork never are. The live TV fields are defined in the [contract](../../contract/src/commonMain/kotlin/dev/jamesrich/sofaking/contract/), which the app compiles against too, and the admin fields in the [server's models](../server/src/main/kotlin/dev/jamesrich/sofaking/backend/api/); see [shared types](#shared-types).
@@ -259,6 +260,40 @@ A rule has a `title`, an optional `channelId`, `newOnly`, `keep` (0 keeps all), 
 ```
 
 `channels` counts the lineup's entries, those turned on, and those with a source that can play. `sessions` counts live and library playback open now. `recordings.conflicts` counts the scheduled recordings that conflict, and `next` is the next to start. `updateAvailable` is null until the update check has an answer, and `recordings` and `libraries` are null on a server without them.
+
+## MCP
+
+`POST /api/v1/mcp` serves the [Model Context Protocol](https://modelcontextprotocol.io), so an AI assistant can look after the server: see what needs attention, why a provider or guide fails, how the jobs ran, what the log says, and what is on and recorded. It speaks MCP's Streamable HTTP transport without sessions, through the official [Kotlin SDK](https://github.com/modelcontextprotocol/kotlin-sdk): each POST carries one JSON-RPC message and is answered as JSON, `GET` and `DELETE` answer `405`, and the client sends `Accept: application/json, text/event-stream`. It takes the admin token, or the API token when no admin token is set, which is listed every tool, or a `read` [token](#tokens), which is listed only the tools that change nothing. Device and hook tokens are refused. [Use with an AI assistant](operations.md#use-with-an-ai-assistant) has the setup.
+
+The read tools answer as the matching route or portal page does:
+
+| Tool | What it answers |
+| --- | --- |
+| `server_status` | The [server status](#server-status) |
+| `needs_attention` | The portal home page's attention items, worst first, each with its `tone`, `title`, `detail`, `action`, the portal page that fixes it as `link`, and its `doc` |
+| `update_status` | The running and published builds, whether the server is up to date, when the registry was last asked, and the host updater's last report |
+| `jobs` | The background jobs, as the portal's Jobs page lists them, with the `id`s `run_job` takes |
+| `recent_log` | The Events page's log lines, newest first; `level` (`info`, `warn` (the default) or `error`), `query` and `limit` (1 to 500, default 50) |
+| `watching_now` | `GET /api/v1/admin/sessions` |
+| `imports` | Each provider's and guide's import status, as `GET /api/v1/providers` and `GET /api/v1/admin/guides` answer |
+| `source_problems` | The sources that are not healthy or are disabled by hand, with counts by state over all of them; `status` lists one state instead, and `limit` (1 to 1000, default 100) caps the list |
+| `guide_now` | What is on now and next on the enabled channels; `channel`, a number or part of a name, and `limit` (1 to 200 channels, default 50) |
+| `on_later` | `GET /api/v1/guide/on-later` with each program's channel; `kind`, `days` (default 2) and `limit` (default 50) |
+| `recordings` | `GET /api/v1/recordings`, on a server with the DVR |
+| `libraries` | `GET /api/v1/admin/libraries`, on a server with libraries |
+| `search_library` | `GET /api/v1/library/search` for `query`, music included |
+| `library_home` | `GET /api/v1/library/home`, music included |
+
+The admin token adds the actions, which delete nothing:
+
+| Tool | What it does |
+| --- | --- |
+| `run_job` | Starts the job with that `job` id now, as the Jobs page's Run now does; `JOB_NOT_FOUND` for one that cannot be started |
+| `scan_library` | Queues a scan of the `library` with that id, or of every library without one |
+| `check_for_update` | Asks the registry now and answers as `update_status`, on a server that checks for updates |
+| `update_now` | Asks the host's updater to install the newest image, as the About page's Update now does. The server restarts if a newer image is published, ending every stream; `NO_UPDATER` when no updater has reported |
+
+A tool answers JSON text. A refusal is a result with `isError` and the API's error code and message, such as `INVALID_REQUEST: limit is 1 to 200`; a tool the token is not listed is a JSON-RPC error.
 
 ## Watchlist
 

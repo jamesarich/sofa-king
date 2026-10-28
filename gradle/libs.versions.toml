@@ -63,6 +63,8 @@ sqlite = "3.53.4.0"
 logback = "1.6.5"
 zxing = "3.5.4"
 jmdns = "3.6.4"
+# The official Model Context Protocol SDK the server answers /api/v1/mcp with.
+mcp = "0.16.0"
 # The server's tests: JUnit Jupiter and the launcher Gradle runs it with.
 junit = "6.1.3"
 # Lint (the sofaking.lint convention): Spotless runs ktlint to format, detekt analyzes with the Compose rules added.
@@ -169,6 +171,7 @@ logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "lo
 kotlinx-html = { module = "org.jetbrains.kotlinx:kotlinx-html-jvm", version.ref = "kotlinx-html" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 jmdns = { module = "org.jmdns:jmdns", version.ref = "jmdns" }
+mcp-kotlin-sdk-server = { module = "io.modelcontextprotocol:kotlin-sdk-server", version.ref = "mcp" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit" }
 

@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.logging.EventRing
+import dev.jamesrich.sofaking.backend.mcp.McpAttention
 import io.ktor.http.CacheControl
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -89,6 +90,11 @@ class AdminPortal(
             }
         }
         return admitted
+    }
+
+    /** What the home page lists as needing the operator, worst first, for the MCP endpoint. */
+    internal suspend fun attention(): List<McpAttention> = OverviewReader(portal).read().attention.map {
+        McpAttention(it.tone.name.lowercase(), it.title, it.detail, it.action, it.href, it.doc)
     }
 
     /** Publishes the home page's attention changes to the event stream until [scope] ends. */

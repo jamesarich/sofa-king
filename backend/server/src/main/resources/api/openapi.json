@@ -55,6 +55,19 @@
         "required": ["code", "message", "retryable"],
         "properties": { "code": { "type": "string", "example": "AUTH_REQUIRED" }, "message": { "type": "string" }, "retryable": { "type": "boolean" } }
       },
+      "JsonRpcMessage": {
+        "description": "A JSON-RPC 2.0 request, notification, response or error, as MCP defines them",
+        "type": "object",
+        "required": ["jsonrpc"],
+        "properties": {
+          "jsonrpc": { "const": "2.0" },
+          "id": { "type": ["string", "integer"] },
+          "method": { "type": "string", "example": "tools/list" },
+          "params": { "type": "object" },
+          "result": { "type": "object" },
+          "error": { "type": "object", "required": ["code", "message"], "properties": { "code": { "type": "integer" }, "message": { "type": "string" } } }
+        }
+      },
       "Bootstrap": {
         "type": "object",
         "properties": {
@@ -1063,6 +1076,20 @@
     "/api/v1/status": {
       "get": { "tags": ["Admin"], "summary": "The dashboard summary", "description": "What a dashboard such as Homepage shows: channels, sessions, recordings, libraries and whether an update is published.", "security": [{ "readToken": [] }, { "apiToken": [] }, { "deviceToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StatusSummary" } } } } } }
+    },
+    "/api/v1/mcp": {
+      "post": { "tags": ["Admin"], "summary": "The Model Context Protocol endpoint", "description": "MCP over stateless Streamable HTTP for AI assistants: one JSON-RPC message per POST, answered as JSON. Send Accept: application/json, text/event-stream. A read token is listed the tools that change nothing; the admin token the actions too (run_job, scan_library, check_for_update, update_now). GET and DELETE answer 405.", "security": [{ "adminToken": [] }, { "readToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcMessage" } } } },
+        "responses": {
+          "200": { "description": "The JSON-RPC response", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcMessage" } } } },
+          "202": { "description": "A notification or response was accepted" },
+          "400": { "description": "Not a JSON-RPC message, or an unsupported MCP-Protocol-Version", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcMessage" } } } },
+          "406": { "description": "The Accept header leaves out application/json or text/event-stream", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcMessage" } } } },
+          "409": { "description": "A request id repeated within the POST", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcMessage" } } } },
+          "401": { "$ref": "#/components/responses/Error" },
+          "413": { "$ref": "#/components/responses/Error" },
+          "415": { "description": "The body is not application/json", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcMessage" } } } }
+        } }
     },
     "/api/v1/admin/status": {
       "get": { "tags": ["Admin"], "summary": "One summary of the server", "security": [{ "adminToken": [] }, { "readToken": [] }],

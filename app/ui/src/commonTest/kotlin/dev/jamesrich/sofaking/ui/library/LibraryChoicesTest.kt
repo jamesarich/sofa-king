@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaShelf
+import dev.jamesrich.sofaking.data.MusicView
 import dev.jamesrich.sofaking.data.PlayProgress
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -104,6 +105,11 @@ class LibraryChoicesTest {
     @Test
     fun `a music grid sorts by name or date added and has no unwatched filter`() {
         assertEquals(listOf(LibrarySort.TITLE, LibrarySort.ADDED), gridSorts(LibraryKind.MUSIC))
+        assertEquals(
+            listOf(LibrarySort.TITLE, LibrarySort.ADDED, LibrarySort.YEAR),
+            gridSorts(LibraryKind.MUSIC, MusicView.ALBUMS),
+            "albums carry a year; artists do not",
+        )
         assertFalse(gridFiltersUnwatched(LibraryKind.MUSIC))
         assertEquals(LibrarySort.entries, gridSorts(LibraryKind.SHOWS))
         assertTrue(gridFiltersUnwatched(LibraryKind.SHOWS))

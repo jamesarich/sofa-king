@@ -4,6 +4,7 @@ import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.LibraryRepository
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
+import dev.jamesrich.sofaking.data.MusicView
 import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.WatchNext
 import dev.jamesrich.sofaking.data.describe
@@ -111,7 +112,7 @@ internal class LibraryGrids(
     private var loadTarget: Int? = null
 
     /** As [LibraryBrowsing.openGrid]. */
-    fun open(libraryId: String, sort: LibrarySort, unwatched: Boolean, genre: String?) {
+    fun open(libraryId: String, sort: LibrarySort, unwatched: Boolean, genre: String?, view: MusicView) {
         val open = state.value
         val wanted =
             LibraryGrid(
@@ -119,8 +120,10 @@ internal class LibraryGrids(
                 sort,
                 unwatched,
                 genre,
+                view,
                 genres = open?.takeIf {
-                    it.libraryId == libraryId
+                    // Another view of the library has other genres.
+                    it.libraryId == libraryId && it.view == view
                 }?.genres.orEmpty(),
             )
         // A grid whose next page failed keeps its pages, and loadMore retries that page; only a
@@ -165,7 +168,15 @@ internal class LibraryGrids(
                         )
                     }
                         ?: LibraryRepository.PAGE_SIZE
-                val page = repository.page(grid.libraryId, grid.sort, grid.unwatched, cursor, limit, grid.genre)
+                val page = repository.page(
+                    grid.libraryId,
+                    grid.sort,
+                    grid.unwatched,
+                    cursor,
+                    limit,
+                    grid.genre,
+                    grid.view,
+                )
                 state.update { current ->
                     if (current == null || !current.sameQuery(grid)) return@update current
                     // A page can repeat an item that moved between requests; the first place it showed wins.
@@ -324,4 +335,5 @@ internal class ItemPages(private val scope: CoroutineScope, private val reposito
 }
 
 private fun LibraryGrid.sameQuery(other: LibraryGrid) =
-    libraryId == other.libraryId && sort == other.sort && unwatched == other.unwatched && genre == other.genre
+    libraryId == other.libraryId && sort == other.sort && unwatched == other.unwatched && genre == other.genre &&
+        view == other.view

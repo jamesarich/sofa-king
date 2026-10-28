@@ -65,6 +65,12 @@ enum class LibrarySort(internal val wire: String) {
     WATCHED("watched"),
 }
 
+/** What a Music library's grid lists: its artists, which open on their albums, or every album. */
+enum class MusicView(internal val wire: String?) {
+    ARTISTS(null),
+    ALBUMS(Wire.ItemKind.ALBUM),
+}
+
 data class MediaLibrary(
     val id: String,
     val name: String,

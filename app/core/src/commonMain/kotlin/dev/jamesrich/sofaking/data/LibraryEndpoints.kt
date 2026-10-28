@@ -15,7 +15,7 @@ import io.ktor.http.encodeURLPathPart
 
 /**
  * One page of [libraryId]'s top-level items in [sort] order (`title`, `added`, `year`, `rating` or `watched`), only
- * those in [genre] when given, from [cursor].
+ * those in [genre] when given, from [cursor]. A Music library lists its artists, or with [kind] `album` its albums.
  */
 internal suspend fun SofaKingApi.libraryItems(
     libraryId: String,
@@ -24,12 +24,14 @@ internal suspend fun SofaKingApi.libraryItems(
     cursor: String?,
     limit: Int,
     genre: String? = null,
+    kind: String? = null,
 ): LibraryPageDto = call {
     http.get("libraries/" + libraryId.encodeURLPathPart() + "/items") {
         url.parameters.append("sort", sort)
         url.parameters.append("limit", limit.toString())
         if (unwatched) url.parameters.append("unwatched", "true")
         if (genre != null) url.parameters.append("genre", genre)
+        if (kind != null) url.parameters.append("kind", kind)
         if (cursor != null) url.parameters.append("cursor", cursor)
     }.decode()
 }

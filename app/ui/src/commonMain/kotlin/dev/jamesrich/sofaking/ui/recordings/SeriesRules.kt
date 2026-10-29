@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.SeriesRule
+import dev.jamesrich.sofaking.data.nextKeep
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.recordings_series
 import dev.jamesrich.sofaking.resources.recordings_series_all_airings
@@ -106,12 +107,3 @@ private fun seriesSummary(rule: SeriesRule): String = listOfNotNull(
     },
     stringResource(Res.string.recordings_series_any_channel).takeIf { rule.channelId == null },
 ).joinToString(" · ")
-
-/** The keep counts the Keep button steps through, all first. */
-internal val KEEP_STEPS = listOf(0, 1, 3, 5, 10)
-
-/**
- * The keep count after [keep]: the next step up, back to all after the last; a count set elsewhere
- * goes to the next step above it.
- */
-internal fun nextKeep(keep: Int): Int = KEEP_STEPS.firstOrNull { it > keep } ?: 0

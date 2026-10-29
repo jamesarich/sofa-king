@@ -29,28 +29,6 @@ class RecordingListTest {
     )
 
     @Test
-    fun `running recordings lead then recorded newest first then scheduled soonest first`() {
-        val groups = recordingGroups(
-            listOf(
-                recording("s2", RecordingState.SCHEDULED, "2026-10-20T18:00:00Z"),
-                recording("old", RecordingState.COMPLETED, "2026-10-01T18:00:00Z"),
-                recording("s1", RecordingState.SCHEDULED, "2026-10-19T18:00:00Z"),
-                recording("failed", RecordingState.FAILED, "2026-10-10T18:00:00Z"),
-                recording("now", RecordingState.RECORDING, "2026-10-18T18:00:00Z"),
-            ),
-        )
-        assertEquals(
-            listOf(
-                RecordingGroup.NOW to listOf("now"),
-                RecordingGroup.RECORDED to listOf("failed", "old"),
-                RecordingGroup.SCHEDULED to listOf("s1", "s2"),
-            ),
-            groups.map { (group, list) -> group to list.map { it.id } },
-        )
-        assertEquals(emptyList(), recordingGroups(emptyList()))
-    }
-
-    @Test
     fun `the subtitle names the episode then the channel and when it aired`() {
         val time = TimeFormatter(TimeZone.UTC)
         assertEquals(
@@ -61,12 +39,5 @@ class RecordingListTest {
             "News 4 · Sun Oct 18, 6:00 PM",
             recordingSubtitle(recording("r", RecordingState.COMPLETED, "2026-10-18T18:00:00Z"), time),
         )
-    }
-
-    @Test
-    fun `the Keep button steps from all through 1 3 5 and 10 and back to all`() {
-        assertEquals(listOf(1, 3, 5, 10, 0), KEEP_STEPS.map(::nextKeep))
-        assertEquals(5, nextKeep(4), "a count set on the portal goes to the next step above it")
-        assertEquals(0, nextKeep(25))
     }
 }

@@ -223,7 +223,7 @@ struct MultiviewView: View {
     /// Plays `stream` once its playlist lists three segments.
     private func play(_ stream: PlaybackStream) async throws {
         guard let url = URL(string: stream.url) else { return }
-        await StreamStart.settled(url)
+        await StreamStart.settled(url, core: model.core)
         guard !Task.isCancelled, watching else { return }
         let item = AVPlayerItem(url: url)
         itemObservers = [

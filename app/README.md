@@ -73,11 +73,11 @@ The [security page](docs/security.md) describes what the app stores, where the t
 ## Limitations
 
 - The web app does not discover the server; enter its address by hand. Android, Android TV, desktops, iPhone, iPad and Apple TV list the servers on their network.
-- iOS, Apple TV and the web play HLS channels only; MPEG-TS needs Android or a desktop. Library files and recordings play on every platform, since the server converts what a player cannot take.
+- iOS, Apple TV and the web play MPEG-TS channels as the HLS the server packages, so their first picture takes a few seconds longer; Android and desktops play MPEG-TS directly. Library files and recordings play on every platform, since the server converts what a player cannot take.
 - The desktop app needs VLC 3. The `.deb` installs it through apt; on macOS and Windows install it first.
 - The web app fills in its page's origin as the server address and needs an origin the server allows, as [getting started](docs/getting-started.md#web) describes.
 - Caption timing and smoothing work on Android only. Chrome's built-in HLS player shows no captions.
-- There is no background audio. On an Android phone or tablet a player shrinks into picture-in-picture when the app leaves the screen; elsewhere playback stops, and a library item or recording resumes where it stopped.
+- Only music plays in the background ([music](docs/usage.md#music)). On an Android phone or tablet a video player shrinks into picture-in-picture when the app leaves the screen; elsewhere video stops, and a library item or recording resumes where it stopped.
 - There is no published iOS or Apple TV build. Snapshot APKs use the release key only once the repository has it ([signing](docs/development.md#signing)), and the desktop packages are unsigned.
 
 ## License

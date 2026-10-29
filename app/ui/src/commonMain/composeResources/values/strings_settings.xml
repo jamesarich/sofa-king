@@ -19,15 +19,15 @@
     <string name="settings_server_url_invalid">Enter the server's address, for example 192.168.1.10 or http://192.168.1.10:9193</string>
     <string name="settings_api_token">API token</string>
     <string name="settings_api_token_invalid">Enter the token as letters, digits and punctuation with no spaces.</string>
-    <string name="settings_api_token_help">Only needed without a pairing code: the server's SOFA_API_TOKEN, or empty if it runs without one.</string>
+    <string name="settings_api_token_help">Only needed without a pairing code. The admin portal shows it under Settings › Advanced.</string>
     <string name="settings_pairing_code">Pairing code</string>
-    <string name="settings_pairing_code_invalid">Enter the six digits from the admin portal's Players › Devices page.</string>
+    <string name="settings_pairing_code_invalid">Enter the six digits from the admin portal's Devices page.</string>
     <string name="settings_pair">Pair</string>
     <string name="settings_pairing">Pairing…</string>
-    <string name="settings_pairing_help">In the admin portal, open Players › Devices and choose Show a pairing code, then enter it here. A phone with Sofa King installed can just scan the QR code.</string>
+    <string name="settings_pairing_help">In the admin portal, open Devices and choose Show a pairing code, then enter it here. A phone with Sofa King installed can just scan the QR code.</string>
     <string name="settings_pairing_failed_code">That code didn't work. Codes last ten minutes and work once; show a new one in the admin portal.</string>
     <string name="settings_pairing_failed_server">This server is too old to pair with a code; enter its API token instead.</string>
-    <string name="settings_pairing_failed_unreachable">No Sofa King server answered at that address.</string>
+    <string name="settings_pairing_failed_unreachable">No Sofa King server answered at that address. Check the address and that this device is on the same network.</string>
     <string name="settings_caption_timing_less">Show captions later</string>
     <string name="settings_caption_timing_more">Show captions earlier</string>
     <string name="settings_auto_open">Open focused channel automatically</string>
@@ -41,7 +41,7 @@
     <string name="settings_live_breaks_screen_muted">Logo, muted</string>
     <string name="settings_live_breaks_screen">Logo, sound on</string>
     <string name="settings_live_breaks_help">On streaming channels that mark their ads, such as Pluto TV and Tubi, a bouncing logo covers them. Select it to show the picture again.</string>
-    <string name="settings_ads_dodged">Ads dodged today: %1$s.</string>
+    <string name="settings_ads_dodged">Ads dodged today: %1$s</string>
     <string name="settings_version">Version %1$s</string>
     <string name="settings_tmdb_notice">Movie and show details and images can come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</string>
     <string name="settings_startup">Open on start</string>
@@ -81,7 +81,7 @@
     <string name="settings_skip_mode_button">With a button</string>
     <string name="settings_skip_mode_off">Off</string>
     <string name="settings_hide_spoilers">Hide spoilers</string>
-    <string name="settings_hide_spoilers_help">Episodes you have not started keep their summaries back and blur their pictures.</string>
+    <string name="settings_hide_spoilers_help">Hides the summaries of unwatched episodes and blurs their pictures.</string>
     <string name="settings_subtitle_size">Subtitle size</string>
     <string name="settings_subtitle_size_small">Small</string>
     <string name="settings_subtitle_size_medium">Medium</string>
@@ -106,7 +106,7 @@
     <string name="settings_buffer_standard">Standard</string>
     <string name="settings_buffer_smooth">Smoother</string>
     <string name="settings_buffer_help">How much of a stream downloads before it plays: less starts sooner, more rides out network hiccups.</string>
-    <string name="settings_lock_help">A PIN keeps Settings closed until it is entered. Watching, zapping and the CC key are not affected.</string>
+    <string name="settings_lock_help">A PIN keeps Settings closed until it is entered. Watching and changing channels are not affected.</string>
     <string name="settings_lock_set">Set a PIN</string>
     <string name="settings_lock_pin">PIN</string>
     <string name="settings_lock_pin_again">PIN again</string>
@@ -116,7 +116,7 @@
     <string name="settings_lock_cancel">Cancel</string>
     <string name="settings_lock_on">Settings now asks for the PIN. Forgot it? Choose Forgot the PIN on the lock screen and enter the server's API token.</string>
     <string name="settings_lock_remove">Remove the PIN</string>
-    <string name="settings_kids_help">Kids mode keeps the guide to the lineup's kids' channels and the library to titles rated G, PG, TV-Y, TV-Y7, TV-G or TV-PG, and hides the DVR tab. Leaving it takes the PIN.</string>
+    <string name="settings_kids_help">Kids mode shows only kids' channels in the guide, and only titles rated G, PG, TV-Y, TV-Y7, TV-Y7-FV, TV-G or TV-PG in the library. It hides the DVR tab. Turning it off takes the PIN.</string>
     <string name="settings_kids_on">Kids mode is on. Turn it off here to show every channel and title again.</string>
     <string name="settings_kids_turn_on">Turn on kids mode</string>
     <string name="settings_kids_turn_off">Turn off kids mode</string>
@@ -129,6 +129,7 @@
     <string name="lock_forgot">Forgot the PIN</string>
     <string name="lock_forgot_help">Enter the server's API token instead. The admin portal shows it under Settings › Advanced: Reveal the API token. The right token removes the PIN.</string>
     <string name="lock_forgot_no_token">This server runs without an API token, so the only way to remove the PIN is to clear the app's data on this device.</string>
+    <string name="lock_forgot_no_token_tvos">This server runs without an API token, so the only way to remove the PIN is to delete the app and install it again.</string>
     <string name="lock_forgot_wrong">That's not the server's API token.</string>
     <string name="lock_remove">Remove the PIN</string>
     <string name="settings_section_diagnostics">Diagnostics</string>

@@ -173,8 +173,8 @@ final class RemoteTests: XCTestCase {
         focus(settings, by: Array(repeating: XCUIRemote.Button.up, count: 6) + Array(repeating: XCUIRemote.Button.right, count: 3))
         let fields: [(String, XCUIElement)] = [
             ("the server address", app.textFields.element(boundBy: 0)),
-            ("the API token", app.secureTextFields.element(boundBy: 0)),
             ("the pairing code", app.textFields.element(boundBy: 1)),
+            ("the API token", app.secureTextFields.element(boundBy: 0)),
         ]
         let keys: [(XCUIRemote.Button, String)] = [
             (.playPause, "PlayPause"), (.select, "Select"), (.select, "Select"), (.menu, "Menu"), (.playPause, "PlayPause"),

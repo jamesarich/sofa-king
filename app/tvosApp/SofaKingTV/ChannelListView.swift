@@ -124,7 +124,7 @@ struct ChannelListView: View {
 
     private var emptyText: String {
         return filter == .favorites
-            ? "No favorites yet. Hold the touch surface on a program and choose Add to favorites."
+            ? strings.favoritesNone
             : strings.noChannels
     }
 

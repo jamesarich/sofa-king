@@ -18,7 +18,7 @@ object TvRecordingCopy {
     val unavailable = twin("recordings_unavailable", "This server doesn't record")
     val empty = twin("recordings_empty", "Nothing recorded yet")
     val emptyHint = twin("recordings_empty_hint", "Open a program's details in the guide and choose Record.")
-    val changeFailed = twin("recordings_change_failed", "The server didn't take that change. Try again.")
+    val keepIt = twin("recordings_keep", "Keep it")
     val fromStart = twin("recordings_from_start", "From start")
     val watched = twin("recordings_watched", "Watched")
     val series = twin("recordings_series", "Series")

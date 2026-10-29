@@ -15,9 +15,9 @@
     <string name="captions_timing_as_broadcast">as broadcast</string>
     <string name="now_playing">Now playing %1$s, %2$s</string>
     <string name="now_playing_channel">Now playing %1$s</string>
-    <string name="cant_reach_stream">Can't reach the stream</string>
-    <string name="stream_refused">The stream refused the connection</string>
-    <string name="stream_unsupported">This stream format isn't supported</string>
+    <string name="cant_reach_stream">Can't reach this stream. Check the server and try again.</string>
+    <string name="stream_refused">The server refused this stream. Try again, or try another one.</string>
+    <string name="stream_unsupported">This stream's format isn't supported. Try another one.</string>
     <string name="caption_timing">Default caption timing</string>
     <string name="caption_timing_value">%1$s s earlier</string>
     <string name="caption_timing_value_later">%1$s s later</string>

@@ -11,7 +11,6 @@ import dev.jamesrich.sofaking.resources.break_fact_directed_by
 import dev.jamesrich.sofaking.resources.break_fact_episode
 import dev.jamesrich.sofaking.resources.break_fact_first_aired
 import dev.jamesrich.sofaking.resources.break_fact_first_aired_on
-import dev.jamesrich.sofaking.resources.break_fact_next
 import dev.jamesrich.sofaking.resources.break_fact_rating
 import dev.jamesrich.sofaking.resources.break_fact_released
 import dev.jamesrich.sofaking.resources.break_fact_released_by
@@ -19,6 +18,7 @@ import dev.jamesrich.sofaking.resources.break_fact_starring
 import dev.jamesrich.sofaking.resources.break_fact_tagline
 import dev.jamesrich.sofaking.resources.library_episodes
 import dev.jamesrich.sofaking.resources.library_seasons
+import dev.jamesrich.sofaking.resources.next_at
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -54,7 +54,7 @@ private fun breakFactLine(fact: BreakFact, timeFormat: TimeFormatter): String = 
 
     is BreakFact.Next -> {
         val start = timeFormat.format(Instant.fromEpochMilliseconds(fact.startMs))
-        stringResource(Res.string.break_fact_next, fact.title, start)
+        stringResource(Res.string.next_at, fact.title, start)
     }
 }
 

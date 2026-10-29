@@ -1,0 +1,69 @@
+{
+ "code": 0,
+ "channels": [
+  {
+   "id": "1106544567159898165",
+   "title": "The Black Effect",
+   "tags": [
+    "Movies"
+   ],
+   "channelType": "FAST",
+   "slug": "mansa_mansamix_1",
+   "streamUrl": "https://72905899dbaa4e3daecaa5f0a946dcdd.mediatailor.us-east-1.amazonaws.com/v1/master/44f73ba4d03e9607dcd9bebdcb8494d86964f1d8/Mansa_MansaMix/playlist.m3u8?ads.wurl_channel=1432&ads.wurl_name=MansaMix&ads.coppa=0&ads.device_id=%7BDEVICE_ID%7D&ads.dnt=%7BDNT%7D&ads.us_privacy=%7BUS_PRIVACY%7D&ads.gdpr=%7BGDPR%7D&ads.consent=%7BCONSENT%7D&ads.app_name=%7BAPP_NAME%7D&ads.app_bundle=%7BAPP_BUNDLE%7D&ads.app_store_url=%7BAPP_STORE_URL%7D&ads.ifa_type=%7BIFA_TYPE%7D&ads.custom=%7BCUSTOM%7D&ads.device_make=%7BDEVICE_MAKE%7D&ads.device_model=%7BDEVICE_MODEL%7D",
+   "partner": "WURL",
+   "selectedStateImage": "https://kanku-channel-images.s3.amazonaws.com/the_black_effect_selected_state_image.jpg",
+   "unSelectedStateImage": "https://kanku-channel-images.s3.amazonaws.com/the_black_effect_unselected_state_image.png",
+   "enabled": true
+  },
+  {
+   "id": "430133871780907771",
+   "title": "Judge Faith",
+   "tags": [],
+   "channelType": "FAST",
+   "slug": "_",
+   "streamUrl": "https://amg18477-mycode-amg18477c1-mansa-us-9705.playouts.now.amagi.tv/playlist/amg18477-mycode-judgefaith-mansaus/playlist.m3u8",
+   "partner": "AMAGI",
+   "selectedStateImage": "https://kanku-channel-images.s3.amazonaws.com/judge_faith_selected_state_image.png",
+   "unSelectedStateImage": "https://kanku-channel-images.s3.amazonaws.com/judge_faith_unselected_state_image.png",
+   "enabled": true
+  },
+  {
+   "id": "-134915139385471409",
+   "title": "Manifest TV",
+   "tags": [],
+   "channelType": "FAST",
+   "slug": "_",
+   "streamUrl": "https://amg02509-amg02509c1-amgplt0128.playout.now3.amagi.tv/playlist/amg02509-amg02509c1-amgplt0128/playlist.m3u8",
+   "partner": "AMAGI",
+   "selectedStateImage": "https://kanku-channel-images.s3.amazonaws.com/manifest_tv_selected_state_image.png",
+   "unSelectedStateImage": "https://kanku-channel-images.s3.amazonaws.com/manifest_tv_unselected_state_image.png",
+   "enabled": true
+  },
+  {
+   "id": "6396105452980684917",
+   "title": "The Joint",
+   "tags": [
+    "College"
+   ],
+   "channelType": "VIRTUAL",
+   "slug": null,
+   "streamUrl": "",
+   "partner": null,
+   "selectedStateImage": "https://kanku-channel-images.s3.amazonaws.com/the_joint_selected_state_image.jpg",
+   "unSelectedStateImage": "https://kanku-channel-images.s3.amazonaws.com/the_joint_unselected_state_image.png",
+   "enabled": true
+  },
+  {
+   "id": "736681296365243801",
+   "title": "Stingray Hip Hop",
+   "tags": [],
+   "channelType": "FAST",
+   "slug": "_",
+   "streamUrl": "https://api-ott-adnet-oan.ottera.tv/loggingmediaurlpassthrough/a.m3u8?version=12&id=284&partner=mansa",
+   "partner": "OTTERA",
+   "selectedStateImage": "https://kanku-channel-images.s3.amazonaws.com/stingray_hip_hop_selected_state_image.jpg",
+   "unSelectedStateImage": "https://kanku-channel-images.s3.amazonaws.com/stingray_hip_hop_unselected_state_image.png",
+   "enabled": true
+  }
+ ]
+}

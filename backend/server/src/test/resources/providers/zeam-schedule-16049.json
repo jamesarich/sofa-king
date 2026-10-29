@@ -1,0 +1,11 @@
+{"channelId":16049,"stationId":16049,"schedule":[
+{"programId":-1,"name":"Over Already","description":"Ended before the guide was read.","episodeTitle":"Old","duration":600,"startTime":1791630000,"endTime":1791630600},
+{"programId":-2,"name":"Air-4 Adventures from KXLY","description":"The Centennial Trail is nearly 65 miles long.","episodeTitle":"Air 4 Adventure: Centennial Trail","duration":3600,"startTime":1791637200,"endTime":1791640800},
+{"programId":-3,"name":"Air-4 Adventures from KXLY","description":null,"episodeTitle":"Air-4 Adventures from KXLY","duration":1800,"startTime":1791640800,"endTime":1791642600},
+{"programId":-4,"name":"Nested Block","description":"Starts inside the one before.","duration":3600,"startTime":1791641400,"endTime":1791645000},
+{"programId":-5,"name":"Contained Row","duration":600,"startTime":1791642000,"endTime":1791642600},
+{"programId":-6,"name":"","duration":600,"startTime":1791645000,"endTime":1791645600},
+{"programId":-7,"name":"Zero Length","duration":0,"startTime":1791645600,"endTime":1791645600},
+{"programId":-8,"name":"Blacked Out","duration":600,"startTime":1791645600,"endTime":1791646200,"blackout":true},
+{"programId":-9,"name":"Duration Only","description":"No end time, only a duration.","duration":900,"startTime":1791646200}
+]}

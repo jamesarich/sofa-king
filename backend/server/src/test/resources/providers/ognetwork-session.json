@@ -1,0 +1,7 @@
+{
+  "data": {
+    "ticket": {"id": "fixture-ticket"},
+    "playback_url": "BASE/d/m.m3u8?ads.channel_name=Nigbati+TV&session_ticket=fixture-ticket",
+    "wv_license_url": "BASE/playback-tickets/fixture-ticket/wv-license"
+  }
+}

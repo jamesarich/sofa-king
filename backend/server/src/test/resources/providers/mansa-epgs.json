@@ -1,0 +1,107 @@
+{
+ "items": [
+  {
+   "id": "1",
+   "channelId": 1106544567159898165,
+   "channelName": "The Black Effect",
+   "partner": "AMAGI",
+   "title": "Old Movie",
+   "description": "A description.",
+   "startTimeMillis": 1791622800000,
+   "endTimeMillis": 1791630000000,
+   "timeZone": "UTC",
+   "images": []
+  },
+  {
+   "id": "2",
+   "channelId": 1106544567159898165,
+   "channelName": "The Black Effect",
+   "partner": "AMAGI",
+   "title": "Current Movie",
+   "description": "A description.",
+   "startTimeMillis": 1791633600000,
+   "endTimeMillis": 1791640800000,
+   "timeZone": "UTC",
+   "images": [
+    {
+     "path": "https://example.invalid/2.jpg",
+     "height": 1080,
+     "width": 1920
+    }
+   ]
+  },
+  {
+   "id": "3",
+   "channelId": 1106544567159898165,
+   "channelName": "The Black Effect",
+   "partner": "AMAGI",
+   "title": "Next Movie",
+   "description": "A description.",
+   "startTimeMillis": 1791640800000,
+   "endTimeMillis": 1791646200000,
+   "timeZone": "UTC",
+   "images": [
+    {
+     "path": "https://example.invalid/3.jpg",
+     "height": 1080,
+     "width": 1920
+    }
+   ]
+  },
+  {
+   "id": "4",
+   "channelId": -5446348416595115718,
+   "channelName": "ManifestTV",
+   "partner": "AMAGI",
+   "title": "Manifest Hour",
+   "description": "A description.",
+   "startTimeMillis": 1791637200000,
+   "endTimeMillis": 1791640800000,
+   "timeZone": "UTC",
+   "images": [
+    {
+     "path": "https://example.invalid/4.jpg",
+     "height": 1080,
+     "width": 1920
+    }
+   ]
+  },
+  {
+   "id": "5",
+   "channelId": 430133871780907771,
+   "channelName": "Judge Faith",
+   "partner": "AMAGI",
+   "title": "Case One",
+   "description": "A description.",
+   "startTimeMillis": 1791637200000,
+   "endTimeMillis": 1791640800000,
+   "timeZone": "UTC",
+   "images": [
+    {
+     "path": "https://example.invalid/5.jpg",
+     "height": 1080,
+     "width": 1920
+    }
+   ]
+  },
+  {
+   "id": "6",
+   "channelId": 5130571973168418672,
+   "channelName": "Redbull",
+   "partner": "AMAGI",
+   "title": "Unlisted Show",
+   "description": "A description.",
+   "startTimeMillis": 1791637200000,
+   "endTimeMillis": 1791640800000,
+   "timeZone": "UTC",
+   "images": [
+    {
+     "path": "https://example.invalid/6.jpg",
+     "height": 1080,
+     "width": 1920
+    }
+   ]
+  }
+ ],
+ "nextPageKey": ""
+}

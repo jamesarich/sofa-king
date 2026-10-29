@@ -1,0 +1,39 @@
+{
+  "generated": "2026-10-28T06:00:00Z",
+  "source": "sdp",
+  "titles": [],
+  "channels": [
+    {
+      "id": "nigbati-tv",
+      "assetId": 460063,
+      "title": "Nigbati TV",
+      "type": "channel",
+      "genres": ["Live TV", "Entertainment", "African", "Movies"],
+      "posterImg": "https://origin002b-ams01.sotalcloud.com/contentserver/v2/distributions/45013025/content/3124991",
+      "badge": "LIVE"
+    },
+    {
+      "id": "amusic-channel",
+      "assetId": 460072,
+      "title": "AMusic Channel",
+      "type": "channel",
+      "genres": ["Live TV", "Music", "African"],
+      "posterImg": "https://origin002b-ams01.sotalcloud.com/contentserver/v2/distributions/45013043/content/3124997"
+    },
+    {
+      "id": "world-within-stories",
+      "assetId": 469075,
+      "title": "World Within Stories",
+      "type": "channel",
+      "genres": ["Live TV", "Documentary"],
+      "posterImg": ""
+    },
+    {
+      "id": "some-movie",
+      "assetId": 470001,
+      "title": "Some Movie",
+      "type": "movie",
+      "genres": ["Drama"]
+    }
+  ]
+}

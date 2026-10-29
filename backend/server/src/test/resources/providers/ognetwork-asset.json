@@ -1,0 +1,12 @@
+{
+  "data": {
+    "id": 460063,
+    "ext_id": "nigbati_tv",
+    "type": "channel",
+    "name": "Nigbati TV",
+    "resources": [
+      {"id": 45013024, "state": "deployed", "type": "hls-live", "group_id": "stream"},
+      {"id": 45013025, "state": "deployed", "type": "picture", "category": "poster_blueprint", "url": "https://origin002b-ams01.sotalcloud.com/contentserver/v2/distributions/45013025/content/3124991"}
+    ]
+  }
+}

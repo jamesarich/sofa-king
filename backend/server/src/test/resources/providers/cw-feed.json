@@ -1,0 +1,262 @@
+{
+ "result": "ok",
+ "mode": "live",
+ "feed_version": 5,
+ "page": 1,
+ "page_size": 75,
+ "channel_count": 6,
+ "channels": [
+  {
+   "slug": "cw-forever",
+   "title": "CW Forever",
+   "description": "Dive in and enjoy the timeless Drama, Reality and Movies from then and now.",
+   "thumbnail_url": "https://static.cwtv.com/images/masters/cw/universal/channels/cw-forever/channel-thumbnail.jpg",
+   "icon_unfocused_url": "https://static.cwtv.com/images/masters/cw/universal/channels/cw-forever/channel-icon-unfocused.png",
+   "stream_type": "hls",
+   "stream_url": "https://cdn-uw2-prod.tsv2.amagi.tv/linear/amg01312-nexstarmediagro-cwforever-nondrmhlstsv2-cw/playlist.m3u8",
+   "genre": "Drama, Reality",
+   "content_category": "Entertainment",
+   "programs": [
+    {
+     "title": "Beauty and the Beast",
+     "subtitle": "Unbreakable",
+     "description": "In a surprising turn of events, Vincent agrees to help Liam retrieve evidence that could expose them both.",
+     "category": "Action",
+     "start_time": "2026-10-28T22:11:36+00:00",
+     "end_time": "2026-10-28T23:00:50+00:00",
+     "program_start_ts": 1793225496,
+     "program_end_ts": 1793228450,
+     "asset_id": "8892435",
+     "ratings": "TV-PG",
+     "details_image_url": "https://images.frequency.com/video/7483141272758902337/solid/rectangle/w1920_h1080/fyagq2y3e2fl1r4t7e2fc1yx3.png"
+    },
+    {
+     "title": "Beauty and the Beast",
+     "subtitle": "Sins of the Fathers",
+     "description": "Liam's shocking history makes Cat delve deeper into the shocking past of The Ellingsworth Family.",
+     "category": "Action",
+     "start_time": "2026-10-28T23:00:50+00:00",
+     "end_time": "2026-10-28T23:50:03+00:00",
+     "program_start_ts": 1793228450,
+     "program_end_ts": 1793231403,
+     "asset_id": "8892440",
+     "ratings": "TV-PG",
+     "details_image_url": "https://images.frequency.com/video/7483155427831142410/solid/rectangle/w1920_h1080/ew8y3txgg5nm1v1zw4jbqrba4.png"
+    },
+    {
+     "title": "Beauty and the Beast",
+     "subtitle": "Destined",
+     "description": "Cat and Vincent are forced to work together in ways they never have before in their quest to defeat Liam.",
+     "category": "Action",
+     "start_time": "2026-10-28T23:50:03+00:00",
+     "end_time": "2026-10-29T00:39:18+00:00",
+     "program_start_ts": 1793231403,
+     "program_end_ts": 1793234358,
+     "asset_id": "8892499",
+     "ratings": "TV-14",
+     "details_image_url": "https://images.frequency.com/video/7483184365651051951/solid/rectangle/w1920_h1080/1i5mjpi6f5q3l1pp5gtnqouk7p.png"
+    }
+   ],
+   "has_drm": 0
+  },
+  {
+   "slug": "ion",
+   "title": "ION",
+   "description": "ION is the destination for your favorite binge-worthy dramas! Featuring critically-acclaimed shows, including \u201cNCIS,\u201d \u201cFBI,\u201d and \u201cChicago Fire,\u201d ION\u2019s action-packed schedule promises to keep you entertained all day long.",
+   "thumbnail_url": "https://static.cwtv.com/images/masters/cw/universal/channels/ion/channel-thumbnail.jpg",
+   "icon_unfocused_url": "https://static.cwtv.com/images/masters/cw/universal/channels/ion/channel-icon-unfocused.png",
+   "stream_type": "hls",
+   "stream_url": "https://amg01438-ewscripps-amg01438c41-cw-us-2385.playouts.now.amagi.tv/playlist/amg01438-ewscrippscompany-ewscrippsion-cwus/playlist.m3u8",
+   "genre": "Drama, Crime Drama",
+   "content_category": "Drama",
+   "programs": [
+    {
+     "title": "Blue Bloods",
+     "subtitle": "Town Without Pity",
+     "description": "Frank tries to help a rehabilitated ex-con who is involved in the murder of an enemy.",
+     "category": "Crime drama",
+     "start_time": "2026-10-28T22:00:00+00:00",
+     "end_time": "2026-10-28T23:00:00+00:00",
+     "program_start_ts": 1793224800,
+     "program_end_ts": 1793228400,
+     "asset_id": "amg-EP012801050129",
+     "ratings": "TV-14",
+     "details_image_url": "http://www.tmsimg.com/assets/p8130493_i_h8_aa.jpg?w=3840&h=2160"
+    },
+    {
+     "title": "Blue Bloods",
+     "subtitle": "Blast From the Past",
+     "description": "Danny, Baez and a detective from another precinct hunt for a gang of robbers involved a crime spree.",
+     "category": "Crime drama",
+     "start_time": "2026-10-28T23:00:00+00:00",
+     "end_time": "2026-10-29T00:00:00+00:00",
+     "program_start_ts": 1793228400,
+     "program_end_ts": 1793232000,
+     "asset_id": "amg-EP012801050130",
+     "ratings": "TV-14",
+     "details_image_url": "http://www.tmsimg.com/assets/p8130493_i_h8_aa.jpg?w=3840&h=2160"
+    },
+    {
+     "title": "Blue Bloods",
+     "subtitle": "Down the Rabbit Hole",
+     "description": "A probe becomes personal for Danny when a killer attaches a message for him on his latest victim.",
+     "category": "Crime drama",
+     "start_time": "2026-10-29T00:00:00+00:00",
+     "end_time": "2026-10-29T01:00:00+00:00",
+     "program_start_ts": 1793232000,
+     "program_end_ts": 1793235600,
+     "asset_id": "amg-EP012801050133",
+     "ratings": "TV-14",
+     "details_image_url": "http://www.tmsimg.com/assets/p8130493_i_h8_aa.jpg?w=3840&h=2160"
+    }
+   ],
+   "has_drm": 0
+  },
+  {
+   "slug": "court-tv",
+   "title": "Court TV",
+   "description": "Court TV provides live gavel-to-gavel coverage, in-depth legal reporting, and expert analysis of the nation\u2019s most important trials.",
+   "thumbnail_url": "https://static.cwtv.com/images/masters/cw/universal/channels/court-tv/channel-thumbnail.jpg",
+   "icon_unfocused_url": "https://static.cwtv.com/images/masters/cw/universal/channels/court-tv/channel-icon-unfocused.png",
+   "stream_type": "hls",
+   "stream_url": "https://amg01438-amg01438c54-cw-us-11433.playouts.now.amagi.tv/ts-us-w2-n1/playlist/amg01438-ewscrippscompany-ewscrippscourtvpois-cwus/playlist.m3u8",
+   "genre": "Crime, True Crime, Reality",
+   "content_category": "Crime, True Crime, Reality",
+   "programs": [
+    {
+     "title": "48 Hours",
+     "subtitle": "Storm of Suspicion",
+     "description": "The search for a missing mother of two during Hurricane Harvey.",
+     "category": "Newsmagazine",
+     "start_time": "2026-10-28T22:00:00+00:00",
+     "end_time": "2026-10-28T23:00:00+00:00",
+     "program_start_ts": 1793224800,
+     "program_end_ts": 1793228400,
+     "asset_id": "amg-EP000167471049",
+     "ratings": "TV-14",
+     "details_image_url": "http://tmsimg.com/assets/p200944_i_h8_ah.jpg?w=3840&h=2160"
+    },
+    {
+     "title": "VPI: Vinnie Politan Investigates",
+     "subtitle": "",
+     "description": "Vinnie Politan takes a deep dive into the true-crime stories that are captivating the world over.",
+     "category": "Crime",
+     "start_time": "2026-10-28T23:00:00+00:00",
+     "end_time": "2026-10-29T00:00:00+00:00",
+     "program_start_ts": 1793228400,
+     "program_end_ts": 1793232000,
+     "asset_id": "amg-SH053550880000",
+     "ratings": "TV-14",
+     "details_image_url": "http://tmsimg.com/assets/p26681425_i_h10_ab.jpg?w=1920&h=1080"
+    },
+    {
+     "title": "VPI: Vinnie Politan Investigates",
+     "subtitle": "",
+     "description": "Vinnie Politan takes a deep dive into the true-crime stories that are captivating the world over.",
+     "category": "Crime",
+     "start_time": "2026-10-29T00:00:00+00:00",
+     "end_time": "2026-10-29T01:00:00+00:00",
+     "program_start_ts": 1793232000,
+     "program_end_ts": 1793235600,
+     "asset_id": "amg-SH053550880000",
+     "ratings": "TV-14",
+     "details_image_url": "http://tmsimg.com/assets/p26681425_i_h10_ab.jpg?w=1920&h=1080"
+    }
+   ],
+   "has_drm": 0
+  },
+  {
+   "slug": "filmrise-drama",
+   "title": "FilmRise Drama",
+   "description": "Get obsessed with character-driven series and movies featuring stars like Alexander Skarsg\u00e5rd, Helen Mirren, David Oyelowo, Rosie Perez and many more.",
+   "thumbnail_url": "https://static.cwtv.com/images/masters/cw/universal/channels/filmrise-drama/channel-thumbnail.jpg",
+   "icon_unfocused_url": "https://static.cwtv.com/images/masters/cw/universal/channels/filmrise-drama/channel-icon-unfocused.png",
+   "stream_type": "hls",
+   "stream_url": "https://amg01312-cw-amg01312c47-cw-us-9071.playouts.now.amagi.tv/playlist/amg01312-nexstarmediagroupcw-filmrisedrama-cwus/playlist.m3u8",
+   "genre": "Drama",
+   "content_category": "Drama",
+   "programs": [
+    {
+     "title": "The Last Detective",
+     "subtitle": "Towpaths of Glory",
+     "description": "When an ex-warrant officer is killed, Davies must break down the loyal brotherhood of an Artillery regiment.",
+     "category": "comedy",
+     "start_time": "2026-10-28T21:58:26+00:00",
+     "end_time": "2026-10-28T23:27:29+00:00",
+     "program_start_ts": 1793224706,
+     "program_end_ts": 1793230049,
+     "asset_id": "XM0HXM2LOLEM49",
+     "ratings": "TV-PG",
+     "details_image_url": "https://image.xumo.com/v1/assets/asset/XM0HXM2LOLEM49/1280x720.jpg"
+    },
+    {
+     "title": "The Last Detective",
+     "subtitle": "Three Steps to Hendon",
+     "description": "Davies investigates the suspicious death of a 70s rockstar, who appears to have died after binge drinking.",
+     "category": "comedy",
+     "start_time": "2026-10-28T23:27:29+00:00",
+     "end_time": "2026-10-29T00:56:14+00:00",
+     "program_start_ts": 1793230049,
+     "program_end_ts": 1793235374,
+     "asset_id": "XM00Q0X0BSARK7",
+     "ratings": "TV-PG",
+     "details_image_url": "https://image.xumo.com/v1/assets/asset/XM00Q0X0BSARK7/1280x720.jpg"
+    },
+    {
+     "title": "The Doctor Blake Mysteries",
+     "subtitle": "Crossing the Line",
+     "description": "A murder takes place at the cinema and Dr. Blake is there to solve it. Was it the manager? An usher? The candy girl? Or one of the audience?",
+     "category": "drama",
+     "start_time": "2026-10-29T00:56:14+00:00",
+     "end_time": "2026-10-29T02:03:57+00:00",
+     "program_start_ts": 1793235374,
+     "program_end_ts": 1793239437,
+     "asset_id": "XM09R7QL0809J4",
+     "ratings": "TV-14",
+     "details_image_url": "https://image.xumo.com/v1/assets/asset/XM09R7QL0809J4/1280x720.jpg"
+    }
+   ],
+   "has_drm": 0
+  },
+  {
+   "slug": "drm-sample",
+   "title": "DRM Sample",
+   "description": "Dive in and enjoy the timeless Drama, Reality and Movies from then and now.",
+   "thumbnail_url": "https://static.cwtv.com/images/masters/cw/universal/channels/cw-forever/channel-thumbnail.jpg",
+   "icon_unfocused_url": "https://static.cwtv.com/images/masters/cw/universal/channels/cw-forever/channel-icon-unfocused.png",
+   "stream_type": "hls",
+   "stream_url": "https://cdn-uw2-prod.tsv2.amagi.tv/linear/amg01312-nexstarmediagro-cwforever-nondrmhlstsv2-cw/playlist.m3u8",
+   "genre": "Drama, Reality",
+   "content_category": "Entertainment",
+   "programs": [],
+   "has_drm": 1
+  },
+  {
+   "slug": "tba-sample",
+   "title": "TBA Sample",
+   "description": "ION is the destination for your favorite binge-worthy dramas! Featuring critically-acclaimed shows, including \u201cNCIS,\u201d \u201cFBI,\u201d and \u201cChicago Fire,\u201d ION\u2019s action-packed schedule promises to keep you entertained all day long.",
+   "thumbnail_url": "https://static.cwtv.com/images/masters/cw/universal/channels/ion/channel-thumbnail.jpg",
+   "icon_unfocused_url": "https://static.cwtv.com/images/masters/cw/universal/channels/ion/channel-icon-unfocused.png",
+   "stream_type": "hls",
+   "stream_url": "https://amg01438-ewscripps-amg01438c41-cw-us-2385.playouts.now.amagi.tv/playlist/amg01438-ewscrippscompany-ewscrippsion-cwus/playlist.m3u8",
+   "genre": "Drama, Crime Drama",
+   "content_category": "Drama",
+   "programs": [
+    {
+     "title": "To Be Announced",
+     "subtitle": "Town Without Pity",
+     "description": "Frank tries to help a rehabilitated ex-con who is involved in the murder of an enemy.",
+     "category": "Crime drama",
+     "start_time": "2026-10-28T22:00:00+00:00",
+     "end_time": "2026-10-28T23:00:00+00:00",
+     "program_start_ts": 1793224800,
+     "program_end_ts": 1793228400,
+     "asset_id": "1_TBA",
+     "ratings": "TV-14",
+     "details_image_url": "http://www.tmsimg.com/assets/p8130493_i_h8_aa.jpg?w=3840&h=2160"
+    }
+   ],
+   "has_drm": 0
+  }
+ ]
+}

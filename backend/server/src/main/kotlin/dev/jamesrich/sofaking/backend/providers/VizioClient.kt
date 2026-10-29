@@ -31,10 +31,26 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
                 it.channel.id
         }
         val now = context.clock.instant()
-        val url = "$apiBase/airings/?start=${TIMESTAMP.format(now)}&end=${TIMESTAMP.format(now.plus(EPG_HORIZON))}&" +
-            "startChannel=${channels.first().channel.id}&channelCount=${channels.size}"
-        val airings = context.http.get(url, HEADERS).require("Vizio airings").json()["airings"].array
-        return ParsedGuide(index, airings.mapNotNull { airing(it, byStation) })
+        val window = "start=${TIMESTAMP.format(now)}&end=${TIMESTAMP.format(now.plus(EPG_HORIZON))}"
+        // channelCount counts stations in the airings feed's own order, not the channel list's, so one call
+        // misses the tail; each further page starts at a wanted channel no earlier page covered.
+        val done = HashSet<String>()
+        val programs = ArrayList<GuideProgram>()
+        var from: Listed? = channels.first()
+        var pages = 0
+        while (from != null && pages < MAX_AIRINGS_PAGES) {
+            val airings = context.http.get(
+                "$apiBase/airings/?$window&startChannel=${from.channel.id}&channelCount=${channels.size}",
+                HEADERS,
+            ).require("Vizio airings").json()["airings"].array
+            val fresh = airings.filter { it.str("stationId") !in done }
+            fresh.mapNotNullTo(programs) { airing(it, byStation) }
+            fresh.mapNotNullTo(done) { it.str("stationId") }
+            from.airingsKey?.let(done::add)
+            pages++
+            from = channels.firstOrNull { it.airingsKey in byStation && it.airingsKey !in done }
+        }
+        return ParsedGuide(index, programs)
     }
 
     /** An airing on a wanted channel, found by its station in [byStation]; null when a field is missing. */
@@ -114,6 +130,7 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
         /** How long the listing is kept before it is fetched again. */
         private val CACHED_FOR: Duration = Duration.ofMinutes(10)
         private val EPG_HORIZON = Duration.ofHours(24)
+        private const val MAX_AIRINGS_PAGES = 20
         private val URL_LIFETIME = Duration.ofHours(1)
         private val TIMESTAMP = DateTimeFormatter.ofPattern(
             "uuuu-MM-dd'T'HH:mm:ss.SSS'Z'",

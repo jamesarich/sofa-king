@@ -107,6 +107,34 @@ class VizioClientTest {
         )
     }
 
+    @Test fun `guide pages from each wanted station the earlier pages left out`() = providerTest("sofa-vizio-") {
+        fixture.vizio()
+        val cnn = """
+            {"stationId": "93cnnnw", "title": "CNN Headlines",
+             "timeStart": "2026-10-11T02:00:00+00:00", "timeEnd": "2026-10-11T03:00:00+00:00"}
+        """.trimIndent()
+        val repeatedFox = """
+            {"stationId": "93FOXLIVENOW", "title": "LiveNOW from FOX",
+             "timeStart": "2026-10-11T02:00:00+00:00", "timeEnd": "2026-10-11T06:00:00+00:00"}
+        """.trimIndent()
+        fixture.route("/api/airings/") { exchange ->
+            if ("startChannel=93cnnnw" in exchange.requestURI.rawQuery) {
+                Canned("""{"airings": [$repeatedFox, $cnn]}""")
+            } else {
+                Canned(ProviderFixture.resource("vizio-airings.json"))
+            }
+        }
+        val client = VizioClient(context("vizio", mapOf("apiBase" to "${fixture.base}/api")))
+        val programs = client.guide(setOf("93FoxNewsNow", "93cnnnw")).programs
+        assertEquals(2, fixture.hits("/api/airings/"))
+        assertTrue(fixture.lastQuery["/api/airings/"]!!.contains("startChannel=93cnnnw&channelCount=2"))
+        assertEquals(
+            listOf("93FoxNewsNow" to 2, "93cnnnw" to 1),
+            programs.groupingBy { it.channelId }.eachCount().toList(),
+            "a station already covered keeps its first page's airings",
+        )
+    }
+
     @Test fun `guide maps the airing's sub-title and season and episode numbers`() = providerTest("sofa-vizio-") {
         fixture.vizio()
         fixture.json("/api/airings/", ProviderFixture.resource("vizio-airings-episode.json"))

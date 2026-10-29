@@ -27,7 +27,8 @@ targets:
         NSHumanReadableCopyright: "© 2026 James Rich. GPL-3.0-only; source at https://github.com/jamesarich/sofa-king."
         # Only HTTPS and the system's TLS, so export compliance needs no declaration on each upload.
         ITSAppUsesNonExemptEncryption: false
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIColorName: LaunchBackground
         # The Sofa King server serves plain HTTP on the LAN, as Android's network_security_config allows.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
@@ -48,6 +49,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.jamesrich.sofaking.tv
+        # Assets.xcassets holds the layered app icon and Top Shelf images (AppIcon.brandassets), the amber accent and the launch color.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         # core has no tvosX64 target, so simulator builds are Apple silicon only.
         "EXCLUDED_ARCHS[sdk=appletvsimulator*]": x86_64

@@ -231,7 +231,7 @@ private struct LibraryTile: View {
         }
         .padding(24)
         .frame(width: 400, height: 225, alignment: .leading)
-        .background(library.kind == .shows ? Color.teal.opacity(0.35) : library.kind == .music ? Color.pink.opacity(0.35) : Color.indigo.opacity(0.35))
+        .background(library.kind == .shows ? Color.sofaLavenderDeep : library.kind == .music ? Color.sofaAmberDeep : Color.sofaPlumRaised)
     }
 }
 

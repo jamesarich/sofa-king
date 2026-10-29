@@ -84,11 +84,25 @@ internal fun rememberGuideChannels(
         if (active == GuideFilter.All) null else ZapScope(activeLabel, byFilter.mapTo(HashSet()) { it.guideId })
     }
     // Search also matches programs later in the window; those channels get a "Later" line under their row.
-    val upcoming = remember(byFilter, lineup.guide, query, searchNow, span.end) {
-        if (searchNow == null) emptyMap() else upcomingMatches(byFilter, lineup.guide, query, searchNow, span)
+    val index = if (searchNow == null) null else rememberGuideSearchIndex(lineup)
+    val needle = remember(query) { GuideSearchIndex.needle(query) }
+    val upcoming = remember(byFilter, index, needle, searchNow, span.end) {
+        if (searchNow == null ||
+            index == null
+        ) {
+            emptyMap()
+        } else {
+            upcomingMatches(byFilter, index, needle, searchNow, span)
+        }
     }
-    val visible = remember(byFilter, lineup, query, searchNow, upcoming) {
-        if (searchNow == null) byFilter else searchMatches(byFilter, lineup, query, searchNow, upcoming)
+    val visible = remember(byFilter, index, needle, searchNow, upcoming) {
+        if (searchNow == null ||
+            index == null
+        ) {
+            byFilter
+        } else {
+            searchMatches(byFilter, index, needle, searchNow, upcoming)
+        }
     }
     val items = remember(visible, upcoming) { guideListItems(visible, upcoming) }
     val laterFocus = remember(items) {
@@ -96,6 +110,11 @@ internal fun rememberGuideChannels(
     }
     return GuideChannels(filters, counts, active, zapScope, query, visible, items, laterFocus, onNowSlot)
 }
+
+/** The search text of [lineup], normalized once while search is open and the channels and guide hold still. */
+@Composable
+private fun rememberGuideSearchIndex(lineup: Lineup): GuideSearchIndex =
+    remember(lineup.channels, lineup.guide) { GuideSearchIndex(lineup.channels, lineup.guide) }
 
 /** The channels [filter] lists; Favorites in the order Settings gave them, the rest by number. */
 private fun filtered(
@@ -119,30 +138,25 @@ private fun filtered(
  */
 private fun upcomingMatches(
     channels: List<Channel>,
-    guide: Map<String, List<Program>>,
-    query: String,
+    index: GuideSearchIndex,
+    needle: String,
     searchNow: Instant,
     span: GuideSpan,
 ): Map<String, List<Program>> = buildMap {
     val after = maxOf(searchNow, span.start - 1.milliseconds)
     for (channel in channels) {
-        val later = GuideSearch.upcoming(query, guide[channel.guideId].orEmpty(), after, span.end)
+        val later = index.upcoming(needle, channel, after, span.end)
         if (later.isNotEmpty()) put(channel.guideId, later)
     }
 }
 
-/** The channels whose number, name or program on now matches [query], or that have a match later on. */
+/** The channels whose number, name or program on now matches [needle], or that have a match later on. */
 private fun searchMatches(
     channels: List<Channel>,
-    lineup: Lineup,
-    query: String,
+    index: GuideSearchIndex,
+    needle: String,
     searchNow: Instant,
     upcoming: Map<String, List<Program>>,
 ): List<Channel> = channels.filter { channel ->
-    channel.guideId in upcoming || GuideSearch.matches(
-        query = query,
-        number = channel.number,
-        name = channel.name,
-        programTitle = lineup.nowAndNext(channel, searchNow).first?.title,
-    )
+    channel.guideId in upcoming || index.matches(needle, channel, searchNow)
 }

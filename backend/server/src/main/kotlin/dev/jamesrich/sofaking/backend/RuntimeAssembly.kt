@@ -89,6 +89,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.time.Duration
@@ -425,6 +426,7 @@ internal class RuntimeAssembly(
     private suspend fun playback(dvr: Dvr, libraries: LibraryService): Converters {
         lateinit var streams: VirtualStreams
         lateinit var multiview: MultiviewSessions
+        val gate = Mutex()
         val vod = VodSessions(
             libraries.catalog,
             clock,
@@ -435,6 +437,7 @@ internal class RuntimeAssembly(
             probe = MediaProbe(ffprobeBeside(config.ffmpeg))::probe,
             encoder = config.videoEncoder,
             others = { streams.running + multiview.running },
+            gate = gate,
         ).also {
             it.history = history
             it.start()
@@ -453,6 +456,7 @@ internal class RuntimeAssembly(
             vod.encoder,
             slides = SlideFetcher(http, upstream),
             mayStart = free,
+            gate = gate,
         )
         val tap = ChannelTap(sessions, feeds, loopback)
         multiview = MultiviewSessions(
@@ -465,6 +469,7 @@ internal class RuntimeAssembly(
             config.multiview,
             encoder = { vod.encoder },
             mayStart = free,
+            gate = gate,
         )
         assemblyLog.info("multiview: {}", multiview.verdict)
         scope.launchEvery("multiview-expire", VIRTUAL_EXPIRE_MS) { multiview.expire() }

@@ -19,11 +19,11 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
@@ -88,6 +88,8 @@ class MultiviewSessions(
     private val mode: MultiviewMode,
     private val encoder: () -> VideoEncoder,
     private val mayStart: suspend () -> Boolean = { true },
+    /** Held from the [mayStart] check until the session counts in [running], and shared with the other converters. */
+    private val gate: Mutex = Mutex(),
 ) {
     private val log = LoggerFactory.getLogger(MultiviewSessions::class.java)
     private val sessions = ConcurrentHashMap<String, Session>()
@@ -126,16 +128,18 @@ class MultiviewSessions(
         channels.firstOrNull { lineup.entry(it)?.enabled != true }?.let {
             throw ApiFailure(HttpStatusCode.NotFound, "CHANNEL_NOT_FOUND", "No such channel")
         }
-        if (!mayStart()) {
-            throw ApiFailure(
-                HttpStatusCode.ServiceUnavailable,
-                Wire.ErrorCode.CAPACITY_EXHAUSTED,
-                "Too many streams are being converted; try again when one stops",
-                true,
-            )
-        }
         val session = Session(UUID.randomUUID().toString(), secret(), channels, canvas)
-        sessions[session.id] = session
+        gate.withLock {
+            if (!mayStart()) {
+                throw ApiFailure(
+                    HttpStatusCode.ServiceUnavailable,
+                    Wire.ErrorCode.CAPACITY_EXHAUSTED,
+                    "Too many streams are being converted; try again when one stops",
+                    true,
+                )
+            }
+            sessions[session.id] = session
+        }
         session.start(request.audio)
         log.info("multiview opened id={} tiles={} canvas={}", session.id, channels.size, canvas)
         return session.wire()
@@ -149,7 +153,7 @@ class MultiviewSessions(
         val audio = update.audio
         if (audio != null && audio !in session.channels.indices) invalid("audio is the index of one of the channels")
         session.renew()
-        if (audio != null && audio != session.audio) session.restart(audio)
+        if (audio != null && audio != session.audio) session.start(audio)
         return session.wire()
     }
 
@@ -211,7 +215,7 @@ class MultiviewSessions(
 
         /** The playlist of the stream at [epoch], as players get it. */
         @Volatile var playlist = MultiviewPlaylist()
-        private var job: Job? = null
+        private val run = SingleRun(scope, Dispatchers.IO + CoroutineName("multiview-$id"))
 
         fun dir(): Path = directory.resolve(id).resolve("$epoch")
 
@@ -219,29 +223,17 @@ class MultiviewSessions(
             expires = clock.instant().plus(LEASE)
         }
 
-        fun start(tile: Int) {
+        /** Starts the stream with [tile]'s audio, ending the one playing; false when the session was stopped. */
+        suspend fun start(tile: Int): Boolean = run.replace {
+            VodRunner.clear(dir())
             audio = tile
             epoch++
             playlist = MultiviewPlaylist()
             val dir = dir()
-            job = scope.launch(Dispatchers.IO + CoroutineName("multiview-$id")) { play(dir, tile) }
+            suspend { play(dir, tile) }
         }
 
-        suspend fun restart(tile: Int) {
-            val old = dir()
-            job?.let {
-                it.cancel()
-                it.join()
-            }
-            VodRunner.clear(old)
-            start(tile)
-        }
-
-        suspend fun stop() {
-            job?.let {
-                it.cancel()
-                it.join()
-            }
+        suspend fun stop() = run.stop {
             withContext(Dispatchers.IO) { directory.resolve(id).toFile().deleteRecursively() }
         }
 

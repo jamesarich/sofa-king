@@ -48,7 +48,7 @@ internal fun newExoPlayer(
         .setMediaCodecSelector(tuning.codecSelector)
         .setEnableDecoderFallback(true)
     return ExoPlayer.Builder(context, renderers)
-        .setLoadControl(CaptionSyncLoadControl(captionSync, tuning))
+        .setLoadControl(CaptionSyncLoadControl(captionSync, tuning, defaultDelegate(context.isLowRamDevice())))
         // Audio focus and the unplugged-headphones pause start off and follow the volume; see [ExoLivePlayer.volume].
         .setAudioAttributes(MEDIA_AUDIO, false)
         .setMediaSourceFactory(DefaultMediaSourceFactory(context, extractors))

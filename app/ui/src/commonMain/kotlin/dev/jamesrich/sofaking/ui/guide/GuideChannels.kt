@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.ui.guide
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
 import dev.jamesrich.sofaking.data.Channel
@@ -10,6 +11,8 @@ import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.ProgramKind
 import dev.jamesrich.sofaking.data.orderedFavorites
 import dev.jamesrich.sofaking.ui.player.ZapScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
@@ -111,10 +114,16 @@ internal fun rememberGuideChannels(
     return GuideChannels(filters, counts, active, zapScope, query, visible, items, laterFocus, onNowSlot)
 }
 
-/** The search text of [lineup], normalized once while search is open and the channels and guide hold still. */
+/**
+ * The search text of [lineup], normalized once off the main thread while search is open and the channels and guide
+ * hold still; null until it is built, and again whenever they change.
+ */
 @Composable
-private fun rememberGuideSearchIndex(lineup: Lineup): GuideSearchIndex =
-    remember(lineup.channels, lineup.guide) { GuideSearchIndex(lineup.channels, lineup.guide) }
+private fun rememberGuideSearchIndex(lineup: Lineup): GuideSearchIndex? =
+    produceState<GuideSearchIndex?>(null, lineup.channels, lineup.guide) {
+        value = null
+        value = withContext(Dispatchers.Default) { GuideSearchIndex(lineup.channels, lineup.guide) }
+    }.value
 
 /** The channels [filter] lists; Favorites in the order Settings gave them, the rest by number. */
 private fun filtered(

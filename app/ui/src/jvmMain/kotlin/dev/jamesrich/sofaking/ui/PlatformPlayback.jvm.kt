@@ -19,6 +19,8 @@ internal actual val playsHlsOnly: Boolean = false
 
 internal actual val supportsCaptionSync: Boolean = false
 
+internal actual val supportsCrashReports: Boolean = true
+
 @Composable
 internal actual fun rememberSurroundTestPlayer(): SurroundTestPlayer? {
     val player = remember { VlcSurroundTest() }

@@ -47,6 +47,12 @@ internal expect val playsHlsOnly: Boolean
 internal expect val supportsCaptionSync: Boolean
 
 /**
+ * True where the app keeps its crashes for the server (Android and desktops); Settings hides the Diagnostics section
+ * elsewhere.
+ */
+internal expect val supportsCrashReports: Boolean
+
+/**
  * While [enabled], switches the display to a mode that matches the frame rate of the video [player] plays, and
  * restores the default when it leaves composition or is disabled; nothing happens on platforms without display modes.
  */

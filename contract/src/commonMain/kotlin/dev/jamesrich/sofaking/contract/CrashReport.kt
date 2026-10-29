@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
  * app scrubs anything shaped like an address or a token from [message] and [frames] before it leaves the device.
  * [id] is the app's own id for the crash, so a report sent twice is stored once. [exception] is the class name,
  * [frames] the stack trace's frames, one per entry, and [occurredAt] an ISO-8601 instant. [appVersion], [platform]
- * (`android-tv`, `desktop`), [osVersion] and [device] (the model) say where it happened.
+ * (`android`, `android-tv`, `desktop`), [osVersion] and [device] (the model) say where it happened.
  */
 @Serializable data class CrashReport(
     val id: String = "",

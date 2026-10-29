@@ -5,6 +5,11 @@
     "url": "https://epg-prod.ohlscdn.wurl.com/ohlscdn_tricoast_tv_dark_matter_01_us_cf.json"
   },
   {
+    "id": "ctvcraft",
+    "kind": "ctvcraft",
+    "url": "https://api.ctvcraft.com/public/v1/stream/program/export?ids=019aa1fa-220d-7086-94cf-a71f9257f07e,019a29d3-89f0-74db-8857-12b5e4768bd3,019aa1fd-abd0-7911-b0ab-e707fc28e5c9,019dcf26-f67d-7c5b-ad2c-91d96c951860,0199ced0-42ff-7b43-a72f-2a1fafb54eea&format=xml"
+  },
+  {
     "id": "cgtnbiz",
     "kind": "cgtn",
     "url": "http://49.233.55.102/xml?platform=PLATFORM_0&channel=191&timezone=-8&start={date}&days=7&format=download"

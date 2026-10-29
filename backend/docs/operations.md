@@ -196,9 +196,9 @@ On `SIGTERM` the server stops accepting connections, closes the imports, probes 
 
 ## Direct broadcaster schedules
 
-When an aggregator lists a channel but omits its programs, `scripts/refresh-schedules.py` converts verified broadcaster feeds into XMLTV files. It supports Wurl JSON (including series and episodes), Frequency XMLTV with an explicit unsigned zero timezone, and CGTN XMLTV with ISO timestamps. CGTN URLs can use `{date}` for the current UTC date. The converter preserves the supplied timezone; it does not infer a timezone for missing values.
+When an aggregator lists a channel but omits its programs, `scripts/refresh-schedules.py` converts verified broadcaster feeds into XMLTV files. It supports Wurl JSON (including series and episodes), CTVCraft program exports (several channels per URL, each item ending after its `duration`), Frequency XMLTV with an explicit unsigned zero timezone, and CGTN XMLTV with ISO timestamps. CGTN URLs can use `{date}` for the current UTC date. The converter preserves the supplied timezone; it does not infer a timezone for missing values.
 
-Copy `deploy/schedules.example.json` to a private configuration file. Each entry has a unique `id`, `kind` (`wurl`, `frequency` or `cgtn`) and `url`. The example names five public broadcaster feeds. Verify the channel and schedule against the stream before assigning it; providers can change their feeds.
+Copy `deploy/schedules.example.json` to a private configuration file. Each entry has a unique `id`, `kind` (`wurl`, `ctvcraft`, `frequency` or `cgtn`) and `url`. The example names six public broadcaster feeds. Verify the channel and schedule against the stream before assigning it; providers can change their feeds.
 
 Run with Python 3.11 or newer:
 

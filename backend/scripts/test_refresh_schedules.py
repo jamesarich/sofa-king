@@ -28,6 +28,25 @@ class ScheduleTests(unittest.TestCase):
         self.assertEqual(program.findtext('sub-title'), 'A < B')
         self.assertEqual(program.get('stop'), '20990102003000 +0000')
 
+    def test_ctvcraft_ends_each_item_after_its_duration_and_drops_ended_ones(self):
+        source = (
+            b'<channels><channel id="c1"><title>Example</title><items>'
+            b'<item><title>Over</title><duration>60</duration><startTime>2000-01-01T00:00:00+00:00</startTime></item>'
+            b'<item><title>A &amp; B</title><description>Desc</description><genre>horror</genre>'
+            b'<duration>5400</duration><startTime>2099-01-01T01:00:00+02:00</startTime></item>'
+            b'</items></channel></channels>'
+        )
+        root = schedules.ctvcraft(source)
+        self.assertEqual(root.find('channel/display-name').text, 'Example')
+        [program] = root.findall('programme')
+        self.assertEqual((program.get('channel'), program.get('start'), program.get('stop')), ('c1', '20981231230000 +0000', '20990101003000 +0000'))
+        self.assertEqual((program.findtext('title'), program.findtext('desc'), program.findtext('category')), ('A & B', 'Desc', 'horror'))
+
+    def test_ctvcraft_rejects_a_start_without_timezone(self):
+        source = b'<channels><channel id="c1"><title>X</title><items><item><title>T</title><duration>60</duration><startTime>2099-01-01T00:00:00</startTime></item></items></channel></channels>'
+        with self.assertRaises(ValueError):
+            schedules.ctvcraft(source)
+
     def test_frequency_only_repairs_explicit_zero_offset(self):
         root = schedules.xmltv(b'<tv><programme start="20990101000000 0000" stop="20990101010000 -0500"/></tv>', 'frequency')
         self.assertEqual(root[0].get('start'), '20990101000000 +0000')

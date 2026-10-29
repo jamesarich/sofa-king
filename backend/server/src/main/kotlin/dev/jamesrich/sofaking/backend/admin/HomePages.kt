@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.admin
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.http.ADMIN_LOGIN_LIMIT
 import dev.jamesrich.sofaking.backend.http.authFailed
+import dev.jamesrich.sofaking.backend.sameSecret
 import dev.jamesrich.sofaking.backend.store.ignoreAttention
 import dev.jamesrich.sofaking.backend.store.showAttention
 import io.ktor.http.CacheControl

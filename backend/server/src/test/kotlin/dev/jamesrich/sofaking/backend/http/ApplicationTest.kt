@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.http
 
+import dev.jamesrich.sofaking.backend.io.clientAbort
 import dev.jamesrich.sofaking.backend.store.IdentityStore
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.ApiError

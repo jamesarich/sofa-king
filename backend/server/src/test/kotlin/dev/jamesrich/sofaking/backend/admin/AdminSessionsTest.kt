@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
+import dev.jamesrich.sofaking.backend.sameSecret
 import dev.jamesrich.sofaking.backend.store.adminSessions
 import dev.jamesrich.sofaking.backend.store.openStore
 import kotlinx.coroutines.runBlocking

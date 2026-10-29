@@ -3,10 +3,11 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.CorsOrigin
 import dev.jamesrich.sofaking.backend.admin.AdminPortal
 import dev.jamesrich.sofaking.backend.admin.isPortalPath
-import dev.jamesrich.sofaking.backend.admin.sameSecret
 import dev.jamesrich.sofaking.backend.api.TokenScope
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.io.clientAbort
 import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
+import dev.jamesrich.sofaking.backend.sameSecret
 import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
 import dev.jamesrich.sofaking.contract.ApiError
 import dev.jamesrich.sofaking.contract.Wire

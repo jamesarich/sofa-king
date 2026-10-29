@@ -1,9 +1,9 @@
 package dev.jamesrich.sofaking.backend.playback
 
-import dev.jamesrich.sofaking.backend.admin.sameSecret
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
-import dev.jamesrich.sofaking.backend.http.clientAbort
+import dev.jamesrich.sofaking.backend.io.clientAbort
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
+import dev.jamesrich.sofaking.backend.sameSecret
 import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.backend.upstream.RELAY_CREDENTIAL_HEADER
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy

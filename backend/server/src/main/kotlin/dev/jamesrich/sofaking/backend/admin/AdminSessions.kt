@@ -7,7 +7,6 @@ import dev.jamesrich.sofaking.backend.store.deleteAdminSession
 import dev.jamesrich.sofaking.backend.store.saveAdminSession
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
@@ -104,13 +103,6 @@ class AdminSessions(
         val mac = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(secret!!.toByteArray(), "HmacSHA256")) }
         return HexFormat.of().formatHex(mac.doFinal(id.toByteArray()))
     }
-}
-
-/** Equal strings, compared in time that depends on neither's content nor length. */
-internal fun sameSecret(presented: String?, expected: String): Boolean {
-    if (presented == null) return false
-    val digest = { value: String -> MessageDigest.getInstance("SHA-256").digest(value.toByteArray()) }
-    return MessageDigest.isEqual(digest(presented), digest(expected))
 }
 
 /** How long a sign-in lasts, and the random bytes in a session token. */

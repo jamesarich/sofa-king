@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -212,7 +213,8 @@ internal fun doubleTapSeek(x: Float, width: Float): Int = when {
 /**
  * The bar's row of buttons, the same for the D-pad and for a finger or mouse. [entry] focuses the first button,
  * which is where Down from the picture lands; [onFocus] says whether a button holds focus, so the player can send
- * keys there. With [showLabel] the focused button's name shows under the row, as a remote has no hover.
+ * keys there; Left and Right back into the row return to the button that had focus. With [showLabel] the focused
+ * button's name shows under the row, as a remote has no hover.
  */
 @Composable
 internal fun PlayerButtonRow(
@@ -226,7 +228,7 @@ internal fun PlayerButtonRow(
     var focusedIndex by remember { mutableStateOf<Int?>(null) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(BAR_LABEL_GAP)) {
         Row(
-            Modifier.focusGroup().onFocusChanged {
+            Modifier.focusRestorer(entry).focusGroup().onFocusChanged {
                 onFocus(it.hasFocus)
                 if (!it.hasFocus) focusedIndex = null
             },

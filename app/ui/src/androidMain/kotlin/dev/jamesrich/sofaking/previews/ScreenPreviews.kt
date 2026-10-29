@@ -26,13 +26,18 @@ import dev.jamesrich.sofaking.data.GuideStatus
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.LyricLine
+import dev.jamesrich.sofaking.data.Lyrics
 import dev.jamesrich.sofaking.data.MediaHome
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.data.MediaShelf
+import dev.jamesrich.sofaking.data.MusicQueue
 import dev.jamesrich.sofaking.data.PlayProgress
+import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.LastInput
@@ -55,10 +60,13 @@ import dev.jamesrich.sofaking.ui.library.LibraryHomeScreen
 import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.InfoBar
 import dev.jamesrich.sofaking.ui.player.InfoOverlay
+import dev.jamesrich.sofaking.ui.player.MusicPlayback
+import dev.jamesrich.sofaking.ui.player.NowPlayingScreen
 import dev.jamesrich.sofaking.ui.player.PlayerButtonItem
 import dev.jamesrich.sofaking.ui.player.PlayerButtonRow
 import dev.jamesrich.sofaking.ui.player.PlayerFocus
 import dev.jamesrich.sofaking.ui.player.SleepTimer
+import dev.jamesrich.sofaking.ui.player.SongSessions
 import dev.jamesrich.sofaking.ui.player.UnavailableLivePlayer
 import dev.jamesrich.sofaking.ui.player.VideoZoom
 import dev.jamesrich.sofaking.ui.player.VodButton
@@ -80,6 +88,9 @@ import dev.jamesrich.sofaking.ui.player.zoomButtonItem
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.datetime.TimeZone
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
@@ -251,6 +262,32 @@ fun SettingsPreview(tv: Boolean) = Frame(tv) {
     )
 }
 
+/** The Now playing page for a song with lyrics, held open on its first moment. */
+@Composable
+fun NowPlayingPreview(tv: Boolean) = Frame(tv) {
+    val scope = rememberCoroutineScope()
+    val music = remember {
+        MusicPlayback(UnavailableLivePlayer(CaptionSync(), "PREVIEW"), HoldingSongSessions, scope).also {
+            it.play(Samples.album)
+        }
+    }
+    val input = remember { LastInput(if (tv) InputKind.KEYS else InputKind.POINTER) }
+    CompositionLocalProvider(LocalLastInput provides input) {
+        NowPlayingScreen(music, onClose = {}, loadLyrics = { Lyrics(listOf(LyricLine(null, "Porch light on"))) })
+    }
+}
+
+/** Sessions that never answer, so a song stays open on its first moment. */
+private object HoldingSongSessions : SongSessions {
+    override val current = MutableStateFlow<PlaybackStream?>(null)
+    override val replaced = emptyFlow<PlaybackStream>()
+
+    override suspend fun play(itemId: String, profile: PlaybackProfile, startMs: Long): PlaybackStream =
+        awaitCancellation()
+
+    override fun release(itemId: String) = Unit
+}
+
 /** The app's theme, layout profile and background around [content], on the fixed clock. */
 @Composable
 private fun Frame(tv: Boolean, content: @Composable () -> Unit) {
@@ -349,6 +386,23 @@ private object Samples {
         durationMs = 2_700_000,
         overview = "The crew follows a lead across the bay while a storm closes in on the harbor.",
         progress = progress,
+    )
+
+    val album = checkNotNull(
+        MusicQueue.of(
+            List(3) { i ->
+                MediaItem(
+                    id = "t$i",
+                    libraryId = "music",
+                    kind = ItemKind.TRACK,
+                    title = "Porch Light ${i + 1}",
+                    parentId = "album",
+                    artist = "The Slow Tides",
+                    album = "Harbor Hours",
+                    durationMs = 213_000,
+                )
+            },
+        ),
     )
 
     private val show = MediaItem(

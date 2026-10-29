@@ -32,7 +32,6 @@ import kotlin.time.Duration.Companion.seconds
 private val log = Logger.withTag("SofaKing")
 private const val TICK_MS = 250L
 private const val REPORT_MS = 1_000L
-private const val TOAST_MS = 3_000L
 
 /**
  * The item on the player: its media session, open only while the app is in front, as the app stops the player behind
@@ -249,27 +248,27 @@ private fun VodSession.followMarkers(
     }
 }
 
-/** Each toast goes away after [TOAST_MS]. */
+/** Each toast goes away after [NOTICE_TOAST_MS]. */
 @Composable
 internal fun VodToastTimers(toasts: VodToasts) {
     LaunchedEffect(toasts.subtitlesFailed) {
         if (!toasts.subtitlesFailed) return@LaunchedEffect
-        delay(TOAST_MS)
+        delay(NOTICE_TOAST_MS)
         toasts.subtitlesFailed = false
     }
     LaunchedEffect(toasts.toast) {
         if (toasts.toast == null) return@LaunchedEffect
-        delay(TOAST_MS)
+        delay(NOTICE_TOAST_MS)
         toasts.toast = null
     }
     LaunchedEffect(toasts.breakSkipped) {
         if (!toasts.breakSkipped) return@LaunchedEffect
-        delay(TOAST_MS)
+        delay(NOTICE_TOAST_MS)
         toasts.breakSkipped = false
     }
     LaunchedEffect(toasts.introSkipped) {
         if (!toasts.introSkipped) return@LaunchedEffect
-        delay(TOAST_MS)
+        delay(NOTICE_TOAST_MS)
         toasts.introSkipped = false
     }
 }
@@ -288,11 +287,26 @@ internal fun VodBarTimer(state: VodPlayerState, paused: Boolean) {
         state.failure,
         state.autoSkipSeconds != null,
     ) {
-        // A scrub, a failure or an intro countdown keeps the bar up.
-        val barHeld = state.scrubTarget != null || state.failure != null || state.autoSkipSeconds != null
-        if (!state.overlayVisible || paused || barHeld) return@LaunchedEffect
+        val held = barHeld(
+            paused,
+            scrubbing = state.scrubTarget != null,
+            failed = state.failure != null,
+            autoSkip = state.autoSkipSeconds != null,
+        )
+        if (!state.overlayVisible || held) return@LaunchedEffect
         delay(BAR_IDLE_MS)
         state.overlayVisible = false
+    }
+}
+
+/** [onClose] runs [PANEL_IDLE_MS] after the Audio and subtitles card was last used ([VodPanels.tracksUsed]). */
+@Composable
+internal fun VodTracksTimer(panels: VodPanels, onClose: () -> Unit) {
+    val currentOnClose by rememberUpdatedState(onClose)
+    LaunchedEffect(panels.tracksOpen, panels.tracksActivity) {
+        if (!panels.tracksOpen) return@LaunchedEffect
+        delay(PANEL_IDLE_MS)
+        currentOnClose()
     }
 }
 

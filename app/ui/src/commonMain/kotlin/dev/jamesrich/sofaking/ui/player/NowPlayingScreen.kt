@@ -8,16 +8,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.IconToggleButton
@@ -72,6 +78,8 @@ import dev.jamesrich.sofaking.resources.music_repeat_one
 import dev.jamesrich.sofaking.resources.music_shuffle
 import dev.jamesrich.sofaking.resources.music_visualizer
 import dev.jamesrich.sofaking.ui.Artwork
+import dev.jamesrich.sofaking.ui.InputKind
+import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -116,6 +124,9 @@ internal fun NowPlayingScreen(
         RestWhenIdle(LocalLayoutProfile.current.tv) { rest ->
             NowPlayingLayout(music, song, choice, visuals, rest)
         }
+        if (LocalLastInput.current.kind == InputKind.POINTER) {
+            Box(Modifier.align(Alignment.TopStart).screenPadding()) { PlayerBackControl(onClose) }
+        }
     }
 }
 
@@ -150,8 +161,14 @@ private fun NowPlayingLayout(
                 SongControls(music, song, lyrics, visuals, Modifier.widthIn(max = CONTROLS_WIDTH))
             }
         } else {
+            // Room under the pointer Back button, and a scroll for a window too short for the cover and the buttons.
+            val backRoom = if (LocalLastInput.current.kind == InputKind.POINTER) CONTROL_SIZE else 0.dp
             Column(
-                Modifier.fillMaxSize(),
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(top = backRoom)
+                    .heightIn(min = maxHeight - backRoom),
                 verticalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -316,7 +333,12 @@ private fun MoreToggles(music: MusicPlayback, lyrics: LyricsChoice?, visuals: Vi
             it.shown,
             it.toggle,
         )
-        if (it.shown) ControlIcon(SofaIcons.AutoAwesome, stringResource(Res.string.music_next_look), it.next)
+        // Next look keeps its slot while the visualizer is off, so the row does not re-space when it appears.
+        if (it.shown) {
+            ControlIcon(SofaIcons.AutoAwesome, stringResource(Res.string.music_next_look), it.next)
+        } else {
+            Spacer(Modifier.size(CONTROL_SIZE))
+        }
     }
 }
 
@@ -331,10 +353,11 @@ private fun MusicButtons(music: MusicPlayback, lyrics: LyricsChoice?, visuals: V
     // Focus starts on Play or Pause, for a remote.
     val focus = remember { FocusRequester() }
     LaunchedEffect(focus) { requestFocusWhenAttached(focus) }
-    Row(
+    FlowRow(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
     ) {
         Toggle(
             SofaIcons.Shuffle,

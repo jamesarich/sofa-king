@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.vod_seek_description
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
+import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.stringResource
 
 /** The bar under the title for the remote: what has played, the breaks, and where a scrub would land. */
@@ -83,7 +84,10 @@ internal fun VodSeekSlider(
             dragging = false
             onSeek(state.value.toLong())
         },
-        modifier = Modifier.fillMaxWidth().semantics { contentDescription = description },
+        modifier = Modifier
+            .fillMaxWidth()
+            .tvFocus(MaterialTheme.shapes.small, focusedScale = 1f)
+            .semantics { contentDescription = description },
         track = { s ->
             Canvas(Modifier.fillMaxWidth().height(12.dp)) {
                 drawSeekTrack(s.value / lengthMs, lengthMs, markers, played, marker)

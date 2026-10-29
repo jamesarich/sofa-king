@@ -14,6 +14,9 @@ internal interface VodPanels {
 
     val tracksOpen: Boolean
 
+    /** Bumped by each key or tap in the track card, which restarts its rest timer. */
+    val tracksActivity: Int
+
     /**
      * What a play or pause from the remote's media keys just did while the bar was down, which the center of the
      * picture confirms for a moment instead of bringing the bar up; [transportPulse] counts each one, so a repeat of
@@ -32,6 +35,8 @@ internal interface VodPanels {
     fun openTracks()
 
     fun closeTracks()
+
+    fun tracksUsed()
 }
 
 /** [VodPanels] for the library player. */
@@ -41,6 +46,8 @@ internal class VodPanelState : VodPanels {
     override var overlayRequest: Int by mutableIntStateOf(0)
 
     override var tracksOpen: Boolean by mutableStateOf(false)
+
+    override var tracksActivity: Int by mutableIntStateOf(0)
 
     override var transport: TransportHint? by mutableStateOf<TransportHint?>(null)
 
@@ -55,10 +62,15 @@ internal class VodPanelState : VodPanels {
 
     override fun openTracks() {
         tracksOpen = true
+        tracksActivity++
         overlayVisible = false
     }
 
     override fun closeTracks() {
         tracksOpen = false
+    }
+
+    override fun tracksUsed() {
+        tracksActivity++
     }
 }

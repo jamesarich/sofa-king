@@ -55,6 +55,7 @@ import dev.jamesrich.sofaking.resources.guide_details_cancel_recording
 import dev.jamesrich.sofaking.resources.guide_details_close
 import dev.jamesrich.sofaking.resources.guide_details_more_airings
 import dev.jamesrich.sofaking.resources.guide_details_record
+import dev.jamesrich.sofaking.resources.guide_details_record_conflict
 import dev.jamesrich.sofaking.resources.guide_details_record_failed
 import dev.jamesrich.sofaking.resources.guide_details_record_series
 import dev.jamesrich.sofaking.resources.guide_details_record_team
@@ -465,6 +466,13 @@ private fun RecordButtons(program: Program, mark: RecordingMark, actions: Record
                     run { actions.onRecordTeam(team) }
                 }
             }
+        }
+        if (mark.conflict) {
+            Text(
+                stringResource(Res.string.guide_details_record_conflict),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
         if (failed) {
             Text(

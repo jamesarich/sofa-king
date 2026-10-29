@@ -43,6 +43,7 @@ internal fun RecordingsDestination(
         onBack = tabBack,
         onRuleChange = { rule, newOnly, keep -> recordingsVm.updateRule(rule, newOnly, keep) },
         onRuleDelete = recordingsVm::deleteRule,
+        onProtect = recordingsVm::setProtected,
         returnedFrom = arrival.returnedFrom,
         headerFocused = headerFocused,
     )

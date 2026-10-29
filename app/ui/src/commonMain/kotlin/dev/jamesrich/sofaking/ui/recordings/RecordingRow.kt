@@ -18,6 +18,7 @@ import dev.jamesrich.sofaking.resources.recordings_cancel
 import dev.jamesrich.sofaking.resources.recordings_confirm_cancel
 import dev.jamesrich.sofaking.resources.recordings_confirm_delete
 import dev.jamesrich.sofaking.resources.recordings_confirm_stop
+import dev.jamesrich.sofaking.resources.recordings_conflict
 import dev.jamesrich.sofaking.resources.recordings_delete
 import dev.jamesrich.sofaking.resources.recordings_ended_early
 import dev.jamesrich.sofaking.resources.recordings_ended_early_channel_gone
@@ -32,8 +33,11 @@ import dev.jamesrich.sofaking.resources.recordings_failed_no_media
 import dev.jamesrich.sofaking.resources.recordings_failed_source
 import dev.jamesrich.sofaking.resources.recordings_from_start
 import dev.jamesrich.sofaking.resources.recordings_play
+import dev.jamesrich.sofaking.resources.recordings_protect
+import dev.jamesrich.sofaking.resources.recordings_protected
 import dev.jamesrich.sofaking.resources.recordings_resume
 import dev.jamesrich.sofaking.resources.recordings_stop
+import dev.jamesrich.sofaking.resources.recordings_unprotect
 import dev.jamesrich.sofaking.resources.recordings_until
 import dev.jamesrich.sofaking.resources.recordings_watched
 import dev.jamesrich.sofaking.ui.TimeFormatter
@@ -49,6 +53,7 @@ internal fun RecordingRow(
     time: TimeFormatter,
     onPlay: (DvrRecording, Boolean) -> Unit,
     onDelete: suspend (DvrRecording) -> Boolean,
+    onProtect: suspend (DvrRecording, Boolean) -> Boolean,
     modifier: Modifier = Modifier,
     firstButtonModifier: Modifier = Modifier,
 ) {
@@ -71,7 +76,11 @@ internal fun RecordingRow(
             Text(
                 status,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (recording.wontRecord) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -92,6 +101,9 @@ internal fun RecordingRow(
                     }) { Text(stringResource(Res.string.recordings_from_start)) }
                 }
             }
+            if (recording.canProtect) {
+                ProtectButton(recording.protected) { actions.run { onProtect(recording, !recording.protected) } }
+            }
             SofaButton(modifier = deleteModifier, onClick = { actions.confirmThen { onDelete(recording) } }) {
                 val state = recording.state
                 Text(stringResource(if (actions.confirming) confirmLabel(state) else deleteLabel(state)))
@@ -100,6 +112,19 @@ internal fun RecordingRow(
         if (actions.failed) ChangeFailed()
     }
 }
+
+@Composable
+private fun ProtectButton(protected: Boolean, onClick: () -> Unit) {
+    SofaButton(onClick = onClick) {
+        Text(stringResource(if (protected) Res.string.recordings_unprotect else Res.string.recordings_protect))
+    }
+}
+
+/** A scheduled recording the server flags as losing its slot: it won't record unless one frees up. */
+internal val DvrRecording.wontRecord: Boolean get() = state == RecordingState.SCHEDULED && conflict
+
+/** Only a finished recording has a file for cleanup to delete, so only it offers Protect. */
+internal val DvrRecording.canProtect: Boolean get() = state == RecordingState.COMPLETED
 
 /**
  * The episode, when the guide gave one, then the channel and when it aired, such as "S2 E5 ·
@@ -131,7 +156,10 @@ private fun recordingStatus(recording: DvrRecording, time: TimeFormatter): Strin
 
     RecordingState.FAILED -> stringResource(failureLabel(recording.failure))
 
+    RecordingState.SCHEDULED -> stringResource(Res.string.recordings_conflict).takeIf { recording.wontRecord }
+
     RecordingState.COMPLETED -> listOfNotNull(
+        stringResource(Res.string.recordings_protected).takeIf { recording.protected },
         recording.endedEarly?.let { stringResource(endedEarlyLabel(it)) },
         stringResource(Res.string.recordings_watched).takeIf { recording.watched },
         recording.bytes.takeIf { it > 0 }?.let(::formatBytes),

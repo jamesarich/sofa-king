@@ -246,4 +246,82 @@ class RecordingsViewModelTest {
         assertEquals("""PATCH /api/v1/recordings/r1 {"positionMs":0,"watched":true}""", server.requests.last())
         assertTrue(model.recording("r1")!!.watched)
     }
+
+    @Test
+    fun `a scheduled recording the server flags as a conflict marks its program`() = fixture.viewModelTest {
+        val server = recordingServer { method, path, _ ->
+            when {
+                method == "GET" && path == "/api/v1/recordings" ->
+                    200 to
+                        """{"recordings":[${recording("r1", "scheduled", ""","conflict":true""")},""" +
+                        """${recording("r2", "completed", ""","conflict":true""")}]}"""
+
+                else -> null
+            }
+        }
+        val schedule = schedule(server)
+        val model = viewModel(server, schedule)
+        runCurrent()
+
+        val ready = assertIs<RecordingsState.Ready>(model.state.value)
+        assertEquals(listOf(true, true), ready.recordings.map { it.conflict })
+        val program = Program(
+            "c1",
+            Instant.parse("2026-10-18T18:00:00Z"),
+            Instant.parse("2026-10-18T18:30:00Z"),
+            "Evening News",
+            null,
+        )
+        assertTrue(schedule.marks.value.of(program).conflict)
+        assertFalse(schedule.marks.value.of(program.copy(channelId = "c2")).conflict)
+    }
+
+    @Test
+    fun `protecting a recording patches it and shows the server's answer`() = fixture.viewModelTest {
+        var kept = false
+        val server = recordingServer { method, path, body ->
+            when {
+                method == "PATCH" && path == "/api/v1/recordings/r1" -> {
+                    kept = "\"protected\":true" in body
+                    200 to recording("r1", "completed", ""","protected":$kept""")
+                }
+
+                method == "GET" && path == "/api/v1/recordings" ->
+                    200 to """{"recordings":[${recording("r1", "completed", ""","protected":$kept""")}]}"""
+
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+        assertFalse(model.recording("r1")!!.protected)
+
+        assertTrue(model.setProtected(model.recording("r1")!!, true))
+        runCurrent()
+
+        assertTrue(server.requests.contains("""PATCH /api/v1/recordings/r1 {"protected":true}"""), "${server.requests}")
+        assertTrue(model.recording("r1")!!.protected)
+    }
+
+    @Test
+    fun `a refused protect change goes back to what the server has`() = fixture.viewModelTest {
+        val server = recordingServer { method, path, _ ->
+            when {
+                method == "PATCH" -> 500 to """{"error":"no"}"""
+
+                method == "GET" && path == "/api/v1/recordings" ->
+                    200 to
+                        """{"recordings":[${recording("r1", "completed")}]}"""
+
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+
+        assertFalse(model.setProtected(model.recording("r1")!!, true))
+        runCurrent()
+
+        assertFalse(model.recording("r1")!!.protected)
+    }
 }

@@ -31,6 +31,7 @@
     <string name="guide_details_stop_team">Stop recording %1$s</string>
     <string name="guide_details_add_to_watchlist">Add to watchlist</string>
     <string name="guide_details_remove_from_watchlist">Remove from watchlist</string>
+    <string name="guide_details_record_conflict">Won't record: no free slot then</string>
     <string name="guide_details_record_failed">The server didn't take that change. Try again.</string>
     <string name="guide_details_more_airings">More airings (%1$d)</string>
     <string name="guide_airings_title">More airings</string>

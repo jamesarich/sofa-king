@@ -172,9 +172,8 @@ class ScrubSheets(
         // A deleted folder is made again, as a changed file is.
         val current = had?.fileKey == fileKey(item) &&
             (had.sheets == 0 || withContext(Dispatchers.IO) { Files.isDirectory(directory.resolve(item.id)) })
-        val file = root.resolve(item.path!!).normalize()
-        val readable = !current && file.startsWith(root) &&
-            withContext(Dispatchers.IO) { Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }
+        val file = root.resolveInside(item.path!!) ?: return null
+        val readable = !current && withContext(Dispatchers.IO) { Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }
         return file.takeIf { readable }
     }
 

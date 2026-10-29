@@ -65,7 +65,7 @@ fun Route.libraryRoutes(libraries: LibraryService) {
     get("/api/v1/library/home") { call.respond(catalog.home(call.showsMusic())) }
     get("/api/v1/library/search") {
         val query =
-            call.request.queryParameters["q"]?.takeIf { it.length <= QUERY_LIMIT }
+            call.request.queryParameters["q"]?.takeIf { it.isNotBlank() && it.length <= QUERY_LIMIT }
                 ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "q is 1 to $QUERY_LIMIT characters")
         call.respond(catalog.search(query, SEARCH_RESULTS, call.showsMusic()))
     }

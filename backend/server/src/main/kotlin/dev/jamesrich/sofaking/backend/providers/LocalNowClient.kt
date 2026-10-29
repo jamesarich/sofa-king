@@ -36,7 +36,7 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
         val snapshot = snapshot()
         return ParsedGuide(
             snapshot.channels.map {
-                GuideChannel(it.channel.id, it.channel.name, it.channel.logo)
+                it.channel.toGuideChannel()
             },
             snapshot.programs.filter {
                 it.channelId in
@@ -89,7 +89,7 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
                 )
             }
         }
-        if (channels.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(channels)
         return Snapshot(channels.values.toList(), programs)
     }
 

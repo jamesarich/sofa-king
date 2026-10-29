@@ -23,7 +23,7 @@ curl -sS -X POST -H "Authorization: Bearer $SOFA_API_TOKEN" -H 'Content-Type: ap
   http://localhost:9193/api/v1/recordings
 ```
 
-The window runs without padding and spans at most 12 hours; without a `title` the recording takes the channel's name. It is named like a show with no episode numbers, under the date it starts. The portal's Recordings page has the same form under Record a time window.
+The window runs without padding, spans at most 12 hours and starts at most 14 days ahead, and the server holds at most 100 waiting one-off recordings; without a `title` the recording takes the channel's name. It is named like a show with no episode numbers, under the date it starts. The portal's Recordings page has the same form under Record a time window.
 
 ## Record a series
 

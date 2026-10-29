@@ -80,7 +80,7 @@ class StirrClient(private val context: ProviderContext) : ProviderClient {
         val rows = ArrayList<JsonObject>()
         collect(payload["videos"], rows)
         val result = rows.mapNotNull(::channel).distinctBy { it.id }
-        if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(result)
         return result.sortedBy { it.number?.toLongOrNull() ?: Long.MAX_VALUE }
     }
 

@@ -25,7 +25,7 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val snapshot = snapshot()
         return ParsedGuide(
-            snapshot.channels.map { GuideChannel(it.id, it.name, it.logo) },
+            snapshot.channels.map { it.toGuideChannel() },
             snapshot.programs.filter {
                 it.channelId in
                     wanted
@@ -74,7 +74,7 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
                 )
             }
         }
-        if (channels.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(channels)
         return Snapshot(channels, programs)
     }
 

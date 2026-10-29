@@ -11,7 +11,6 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonElement
-import java.net.URLEncoder
 import java.time.Duration
 import java.time.Instant
 
@@ -40,7 +39,7 @@ class ZeamClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
-        val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
+        val index = channels.map { it.channel.toGuideChannel() }
         val targets = channels.filter { it.channel.id in wanted && it.scheduleUrl != null }
         if (targets.isEmpty()) return ParsedGuide(index, emptyList())
         val now = context.clock.instant()
@@ -63,7 +62,7 @@ class ZeamClient(private val context: ProviderContext) : ProviderClient {
     override suspend fun resolve(channelId: String): ResolvedStream {
         context.findListed(CHANNELS) { listed().firstOrNull { it.channel.id == channelId } }
         val info = context.http.get(
-            "$siteBase/api/services/StreamInfo?stationId=${URLEncoder.encode(channelId, Charsets.UTF_8)}",
+            "$siteBase/api/services/StreamInfo?stationId=${urlEncoded(channelId)}",
             HEADERS,
         ).require("Zeam stream info").json()
         val url = httpOrNull(info.str("streamUrl")) ?: throw ProviderFailure("Zeam stream info has no stream")
@@ -77,7 +76,7 @@ class ZeamClient(private val context: ProviderContext) : ProviderClient {
         val groups = inlineJson(page)["groups"].array
         val lineup = groups.firstOrNull { it.str("displayName") == ALL_CHANNELS } ?: groups.firstOrNull()
         val result = lineup["channelobjects"].array.mapNotNull(::listing).distinctBy { it.channel.id }
-        if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(result)
         return result
     }
 

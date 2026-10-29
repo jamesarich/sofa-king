@@ -6,7 +6,6 @@ import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import kotlinx.serialization.json.JsonElement
 import java.net.URI
-import java.net.URLEncoder
 import java.time.Duration
 import java.time.Instant
 
@@ -28,7 +27,7 @@ class OgNetworkClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
-        val index = channels.map { GuideChannel(it.id, it.name, it.logo) }
+        val index = channels.map { it.toGuideChannel() }
         val targets = channels.map { it.id }.filter { it in wanted }.toSet()
         if (targets.isEmpty()) return ParsedGuide(index, emptyList())
         val byEpg = authorized("OG Network assets") { token ->
@@ -46,12 +45,12 @@ class OgNetworkClient(private val context: ProviderContext) : ProviderClient {
     override suspend fun resolve(channelId: String): ResolvedStream {
         context.findListed(CHANNELS) { listed().firstOrNull { it.id == channelId } }
         val asset = authorized("OG Network asset") { token ->
-            context.http.get("$apiBase/assets/${encoded(channelId)}?\$expand=resources", headers(token))
+            context.http.get("$apiBase/assets/${urlEncoded(channelId)}?\$expand=resources", headers(token))
         }.json()["data"]
         val live = asset["resources"].array.firstOrNull { it.str("type") == "hls-live" }?.long("id")
         val session = authorized("OG Network playback") { token ->
             context.http.post(
-                "$apiBase/assets/${encoded(channelId)}/resources/${live ?: noStream()}/playback-sessions",
+                "$apiBase/assets/${urlEncoded(channelId)}/resources/${live ?: noStream()}/playback-sessions",
                 headers(token),
                 "{}",
             )
@@ -90,7 +89,7 @@ class OgNetworkClient(private val context: ProviderContext) : ProviderClient {
         val payload = context.http.get("$catalogUrl?t=${context.clock.instant().toEpochMilli()}", STREAM_HEADERS)
             .require("OG Network catalog", gone = emptySet()).json()
         val result = payload["channels"].array.mapNotNull(::listing).distinctBy { it.id }
-        if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(result)
         return result
     }
 
@@ -105,7 +104,7 @@ class OgNetworkClient(private val context: ProviderContext) : ProviderClient {
     private suspend fun token(): String {
         context.state(TOKEN)?.let { return it }
         val deviceId = context.deviceId().replace("-", "").take(DEVICE_ID_LENGTH)
-        val query = "client_id=${encoded(CLIENT_ID)}&grant_type=client_credentials&device_id=$deviceId"
+        val query = "client_id=${urlEncoded(CLIENT_ID)}&grant_type=client_credentials&device_id=$deviceId"
         val token = context.http.post("$apiBase/authorize?$query", STREAM_HEADERS, "{}")
             .require("OG Network authorize").json()["data"].string
             ?: throw ProviderFailure("Authorize answered no token")
@@ -114,8 +113,6 @@ class OgNetworkClient(private val context: ProviderContext) : ProviderClient {
     }
 
     private fun headers(token: String) = STREAM_HEADERS + mapOf("Accept" to "application/json", "x-auth-token" to token)
-
-    private fun encoded(value: String) = URLEncoder.encode(value, Charsets.UTF_8)
 
     companion object {
         private const val CATALOG_URL = "https://play.theognetwork.net/catalog.json"

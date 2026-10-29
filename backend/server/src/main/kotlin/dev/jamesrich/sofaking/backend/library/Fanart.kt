@@ -108,5 +108,6 @@ internal class FanartClient(
 }
 
 /** The path under [FANART_ASSETS] of the image at [url], which fanart.tv may name over plain HTTP; null elsewhere. */
-internal fun fanartPath(url: String): String? = url.replaceFirst(Regex("^http://"), "https://")
-    .takeIf { it.startsWith(FANART_ASSETS) }?.removePrefix(FANART_ASSETS)?.takeIf { FANART_PATH.matches(it) }
+internal fun fanartPath(url: String): String? =
+    (if (url.startsWith("http://")) "https://" + url.removePrefix("http://") else url)
+        .takeIf { it.startsWith(FANART_ASSETS) }?.removePrefix(FANART_ASSETS)?.takeIf { FANART_PATH.matches(it) }

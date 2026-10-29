@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.SavedSecret
 import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.LibraryRecord
 import dev.jamesrich.sofaking.backend.library.TMDB_NOTICE
@@ -201,36 +202,35 @@ private fun FlowContent.tmdbPanel(chrome: Chrome, view: LibraryView) = panel("De
                 )
         }
     }
-    if (view.tmdbSettable) {
-        tmdbTokenForm(chrome, view)
-    }
+    if (SavedSecret.TMDB in view.settable) secretForm(chrome, view, SavedSecret.TMDB, view.tmdb)
     p("muted small") { +TMDB_NOTICE }
 }
 
-private fun FlowContent.tmdbTokenForm(chrome: Chrome, view: LibraryView) {
-    notice(view.tmdbError?.let { "Not saved: $it" })
-    postForm("/admin/library/tmdb", chrome.session, classes = "stack mt-12") {
+/** The form that checks and saves [secret]; [set] is whether one is saved or set already. */
+internal fun FlowContent.secretForm(chrome: Chrome, view: LibraryView, secret: SavedSecret, set: Boolean) {
+    val fieldId = "${secret.anchor}-${secret.noun}"
+    notice(view.secretError?.takeIf { it.first == secret }?.let { "Not saved: ${it.second}" })
+    postForm("/admin/library/${secret.anchor}", chrome.session, classes = "stack mt-12") {
         div("field") {
             label {
-                htmlFor = "tmdb-token"
-                +(if (view.tmdb) "Replace the TMDB token" else "TMDB API read access token")
+                htmlFor = fieldId
+                +(if (set) "Replace the ${secret.service} ${secret.noun}" else secret.prompt)
             }
-            passwordInput(name = "token") {
-                id = "tmdb-token"
+            passwordInput(name = secret.noun) {
+                id = fieldId
                 required = true
-                attributes["autocomplete"] =
-                    "off"
+                attributes["autocomplete"] = "off"
                 attributes["spellcheck"] = "false"
             }
         }
         div {
-            button(type = ButtonType.submit, classes = if (view.tmdb) null else "primary") { +"Check and save" }
+            button(type = ButtonType.submit, classes = if (set) null else "primary") { +"Check and save" }
         }
     }
     p("muted small") {
         +(
-            "The server asks TMDB whether it takes the token, keeps it in secrets.json beside the generated " +
-                "tokens, and restarts."
+            "The server asks ${secret.service} whether it takes the ${secret.noun}, keeps it in secrets.json beside " +
+                "the generated tokens, and restarts."
             )
     }
 }

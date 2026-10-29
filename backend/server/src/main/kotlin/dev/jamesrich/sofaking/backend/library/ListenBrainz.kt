@@ -50,7 +50,7 @@ data class PopularSong(val id: String? = null, val title: String)
  * A failed ListenBrainz token check; [code] is a short class for the setup error (`LISTENBRAINZ_AUTH`,
  * `LISTENBRAINZ_HTTP_500`), with no token.
  */
-class ListenBrainzFailure(val code: String) : RuntimeException(code)
+class ListenBrainzFailure(code: String) : ServiceFailure(code)
 
 @Serializable internal data class LbTokenCheck(val valid: Boolean = false)
 

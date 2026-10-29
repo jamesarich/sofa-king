@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.backend
 
-import dev.jamesrich.sofaking.backend.library.TmdbConfig
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -77,42 +76,16 @@ internal fun storedTokens(
     return values to file.path
 }
 
-/** The TMDB token saved from the portal into [SecretsFile], marked [SecretOrigin.SAVED] in [origins]. */
-internal fun savedTmdb(
-    resolved: Map<String, String>,
-    directory: Path,
-    origins: MutableMap<String, SecretOrigin>,
-    log: (String) -> Unit,
-): TmdbConfig? {
-    val file = SecretsFile(directory.resolve(SecretsFile.NAME))
-    val token = file.stored(SecretsFile.TMDB_TOKEN) ?: return null
-    origins["SOFA_TMDB_TOKEN"] = SecretOrigin.SAVED
-    log("secrets: SOFA_TMDB_TOKEN from ${file.path}, saved from the portal")
-    return tmdbConfig(EnvironmentReader(resolved + ("SOFA_TMDB_TOKEN" to token)))
-}
-
-/** The fanart.tv key saved from the portal into [SecretsFile], marked [SecretOrigin.SAVED] in [origins]. */
-internal fun savedFanartKey(
+/** The value saved from the portal for [secret] into [SecretsFile], marked [SecretOrigin.SAVED] in [origins]. */
+internal fun savedSecret(
+    secret: SavedSecret,
     directory: Path,
     origins: MutableMap<String, SecretOrigin>,
     log: (String) -> Unit,
 ): String? {
     val file = SecretsFile(directory.resolve(SecretsFile.NAME))
-    val key = file.stored(SecretsFile.FANART_KEY) ?: return null
-    origins["SOFA_FANART_KEY"] = SecretOrigin.SAVED
-    log("secrets: SOFA_FANART_KEY from ${file.path}, saved from the portal")
-    return key
-}
-
-/** The ListenBrainz user token saved from the portal into [SecretsFile], marked [SecretOrigin.SAVED] in [origins]. */
-internal fun savedListenBrainzToken(
-    directory: Path,
-    origins: MutableMap<String, SecretOrigin>,
-    log: (String) -> Unit,
-): String? {
-    val file = SecretsFile(directory.resolve(SecretsFile.NAME))
-    val token = file.stored(SecretsFile.LISTENBRAINZ_TOKEN) ?: return null
-    origins["SOFA_LISTENBRAINZ_TOKEN"] = SecretOrigin.SAVED
-    log("secrets: SOFA_LISTENBRAINZ_TOKEN from ${file.path}, saved from the portal")
-    return token
+    val value = file.stored(secret.key) ?: return null
+    origins[secret.variable] = SecretOrigin.SAVED
+    log("secrets: ${secret.variable} from ${file.path}, saved from the portal")
+    return value
 }

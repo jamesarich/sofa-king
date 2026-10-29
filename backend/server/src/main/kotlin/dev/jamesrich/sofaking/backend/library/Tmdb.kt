@@ -29,7 +29,7 @@ data class TmdbConfig(val token: String, val language: String = "en-US") {
  * A failed TMDB call; [code] is a short class for job notes (`TMDB_AUTH`, `TMDB_RATE_LIMITED`,
  * `TMDB_HTTP_500`), with no URL or token.
  */
-class TmdbFailure(val code: String) : RuntimeException(code)
+class TmdbFailure(code: String) : ServiceFailure(code)
 
 private val tmdbJson = Json {
     ignoreUnknownKeys = true

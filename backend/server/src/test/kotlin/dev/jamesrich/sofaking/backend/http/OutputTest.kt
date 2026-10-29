@@ -196,6 +196,41 @@ class OutputTest {
         }
     }
 
+    @Test fun `a guide past one chunk of channels keeps channel order`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-output-many-")
+        Fixture().use { fixture ->
+            val served = serve(dir, listOf(fixture.manyFeed))
+            try {
+                val xml = client.get("/output/guide.xml?token=$output&days=1").bodyAsText()
+                val ids = served.channels.map { it.id }
+                assertEquals(60, ids.size)
+                assertEquals(
+                    ids,
+                    Regex("<channel id=\"([^\"]+)\">").findAll(xml).map {
+                        it.groupValues[1]
+                    }.toList(),
+                )
+                val programmes = Regex("<programme [^>]*channel=\"([^\"]+)\"><title>([^<]*)</title>")
+                    .findAll(xml).map { it.groupValues[1] to it.groupValues[2] }.toList()
+                assertEquals(ids, programmes.map { it.first }.distinct(), "programs follow the channel order")
+                val titles = programmes.groupBy({ it.first }, { it.second })
+                for (channel in served.channels) {
+                    val number = channel.displayNumber.toInt() - 100
+                    if (number != 5 && number != 55) {
+                        assertEquals(listOf("First $number"), titles[channel.id])
+                    } else {
+                        assertTrue(titles.getValue(channel.id).all { it == "Many $number" }, "placeholders")
+                    }
+                }
+                assertTrue(xml.trimEnd().endsWith("</tv>"))
+            } finally {
+                served.runtime.close()
+                served.store.close()
+                dir.toFile().deleteRecursively()
+            }
+        }
+    }
+
     @Test fun `a guide of fewer than 1 or more than 14 days answers 400`() = outputLists {
         assertEquals(HttpStatusCode.BadRequest, client.get("/output/guide.xml?token=$output&days=0").status)
         assertEquals(HttpStatusCode.BadRequest, client.get("/output/guide.xml?token=$output&days=15").status)

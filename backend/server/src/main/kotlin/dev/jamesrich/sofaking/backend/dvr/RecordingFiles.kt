@@ -20,7 +20,12 @@ class RecordingFiles internal constructor(val root: Path, private val freeSpace:
     fun writable(): Boolean = runCatching {
         Files.createDirectories(root)
         Files.isWritable(root)
-    }.getOrDefault(false)
+    }.getOrDefault(false).also { checked = it }
+
+    @Volatile private var checked: Boolean? = null
+
+    /** What the last [writable] check found, so a page render does no file IO; checks once if none ran yet. */
+    fun lastWritable(): Boolean = checked ?: writable()
 
     /** The free space on the folder's disk, made first when it is missing; null when it cannot be read. */
     internal suspend fun free(): Long? = withContext(Dispatchers.IO) {

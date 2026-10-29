@@ -54,6 +54,9 @@ class Fixture : AutoCloseable {
     val dtdRequests = AtomicInteger()
     val tsFeed = FeedConfig("ts", "$base/ts-feed.m3u", probe = false)
 
+    /** Sixty channels, `many-0` to `many-59`, each with one program but `many-5` and `many-55`. */
+    val manyFeed = FeedConfig("many", "$base/many-feed.m3u", "$base/many-guide.xml", probe = false)
+
     /**
      * A third provider carrying a channel named like the station but under another `tvg-id`, for equivalence evidence.
      */
@@ -307,6 +310,13 @@ class Fixture : AutoCloseable {
 
                 "/ts-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"ts-station\" tvg-chno=\"6\",TS Station\n$base/live.ts\n"
 
+                "/many-feed.m3u" -> "#EXTM3U\n" + (0 until MANY).joinToString("") {
+                    "#EXTINF:-1 tvg-id=\"many-$it\" tvg-chno=\"${100 + it}\",Many $it\n$base/master.m3u8?c=$it\n"
+                }
+
+                "/many-guide.xml" ->
+                    scheduleXml((0 until MANY).filter { it % 50 != 5 }.associate { "many-$it" to listOf("First $it") })
+
                 "/twin-feed.m3u" ->
                     "#EXTM3U\n#EXTINF:-1 tvg-id=\"twin-station\" tvg-chno=\"5\" group-title=\"US: " +
                         "News\",STATION\n$base/twin.m3u8\n#EXTINF:-1 tvg-id=\"twin-sports\" tvg-chno=\"12\" " +
@@ -439,6 +449,8 @@ class Fixture : AutoCloseable {
         append("</tv>")
     }
     companion object {
+        private const val MANY = 60
+
         /** What the fixture serves gzip-encoded while [gzipEncoded] is set. */
         private val GZIPPED_PATHS = setOf("/key", "/media.m3u8", "/audio.m3u8")
 

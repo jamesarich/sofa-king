@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.sameSecret
+import dev.jamesrich.sofaking.contract.Channel
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -93,6 +94,9 @@ private fun tsOnly(call: ApplicationCall): Boolean {
 /** How far back the guide starts, so a player tuning in mid-program still sees it. */
 private val GUIDE_LOOKBACK = Duration.ofHours(3)
 
+/** How many channels' programs the XMLTV guide holds in memory at once. */
+private const val GUIDE_CHUNK = 50
+
 /**
  * The M3U playlist of the lineup's channels, each stream URL carrying [query]. A channel with a Gracenote id in the
  * policy carries `tvc-guide-stationid`, so Channels DVR takes its guide from Gracenote; any other channel with a logo
@@ -145,12 +149,20 @@ private suspend fun guide(call: ApplicationCall, runtime: LiveRuntime, now: Inst
     val all = runtime.catalog.catalog().channels
     val entries = all.mapNotNull { channel -> runtime.lineup.entry(channel.id) }.associateBy { it.id }
     val channels = all.filter { selection.includes(entries[it.id]) }
-    val mappings = channels.mapNotNull { channel -> entries[channel.id]?.guide?.let { channel.id to it } }
-    val programs = HashMap<String, List<GuideProgram>>()
-    for ((guideId, group) in mappings.groupBy { it.second.guideId }) {
-        val rows = runtime.guides.programs(guideId, group.map { it.second.channelId }, from, to)
-        for ((entryId, mapping) in group) programs[entryId] = rows[mapping.channelId].orEmpty()
+    val chunks = channels.chunked(GUIDE_CHUNK)
+
+    // Programs are read a chunk at a time, so memory is bounded and the read lane is free between chunks.
+    suspend fun programsOf(chunk: List<Channel>): Map<String, List<GuideProgram>> {
+        val programs = HashMap<String, List<GuideProgram>>()
+        val mappings = chunk.mapNotNull { channel -> entries[channel.id]?.guide?.let { channel.id to it } }
+        for ((guideId, group) in mappings.groupBy { it.second.guideId }) {
+            val rows = runtime.guides.programs(guideId, group.map { it.second.channelId }, from, to)
+            for ((entryId, mapping) in group) programs[entryId] = rows[mapping.channelId].orEmpty()
+        }
+        return programs
     }
+    // The first chunk is read before the response starts, so a failing read still answers with an error status.
+    val first = chunks.firstOrNull()?.let { programsOf(it) }
     val base = publicBase(call)
     call.response.header(HttpHeaders.CacheControl, "no-store")
     call.respondTextWriter(ContentType.Application.Xml.withCharset(Charsets.UTF_8)) {
@@ -163,14 +175,17 @@ private suspend fun guide(call: ApplicationCall, runtime: LiveRuntime, now: Inst
             channel.logo?.let { write("<icon src=\"${xml(runtime.logos.publicUrl(base, it))}\"/>") }
             write("</channel>\n")
         }
-        for (channel in channels) {
-            val group = entries[channel.id]?.group
-            // A channel with nothing in the window gets hourly placeholders, so Plex
-            // lists and records it like the rest.
-            val listed = programs[channel.id].orEmpty().ifEmpty {
-                placeholders(channel.id, channel.name, from, to)
+        for ((index, chunk) in chunks.withIndex()) {
+            val programs = if (index == 0) first.orEmpty() else programsOf(chunk)
+            for (channel in chunk) {
+                val group = entries[channel.id]?.group
+                // A channel with nothing in the window gets hourly placeholders, so Plex
+                // lists and records it like the rest.
+                val listed = programs[channel.id].orEmpty().ifEmpty {
+                    placeholders(channel.id, channel.name, from, to)
+                }
+                for (program in listed) write(xmltvProgram(channel.id, program, group))
             }
-            for (program in listed) write(xmltvProgram(channel.id, program, group))
         }
         write("</tv>\n")
     }

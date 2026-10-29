@@ -53,7 +53,7 @@ internal fun itemOrder(
     states: Map<String, PlayStateRecord>,
     libraryId: String,
 ): Comparator<View> {
-    val byTitle = compareBy<View>({ it.item.title.let(::sortTitle) }, { it.item.year })
+    val byTitle = compareBy<View>({ it.sortKey }, { it.item.year })
     return when (sort) {
         "title" -> byTitle
 

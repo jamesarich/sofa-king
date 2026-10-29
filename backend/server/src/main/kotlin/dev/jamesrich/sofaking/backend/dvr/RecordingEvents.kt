@@ -41,6 +41,10 @@ internal class DvrAlerts(
     private var learned = false
     private var low = false
 
+    /** How many recordings conflict as of the last [checkConflicts]. */
+    @Synchronized
+    fun conflictCount(): Int = conflicted.size
+
     /** Publishes `recording.conflict` for each scheduled or running recording that did not conflict before. */
     suspend fun checkConflicts() {
         val recordings = store.recordings().filter { it.state != CANCELED }

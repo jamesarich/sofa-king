@@ -3,6 +3,8 @@ package dev.jamesrich.sofaking
 import dev.jamesrich.sofaking.data.RecordingFailure
 import dev.jamesrich.sofaking.data.RecordingGroup
 import dev.jamesrich.sofaking.data.RecordingState
+import dev.jamesrich.sofaking.data.SearchGroup
+import dev.jamesrich.sofaking.data.SearchSections
 import dev.jamesrich.sofaking.data.SeriesRule
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -68,5 +70,16 @@ class TvCopyTest {
     fun `every pairing failure has its own words`() {
         val words = PairingFailure.entries.map { TvCopy.pairingFailure(it) }
         assertEquals(PairingFailure.entries.size, words.toSet().size)
+    }
+
+    @Test
+    fun `the cast row of a search names up to two people or else the query`() {
+        fun title(vararg people: String) =
+            TvSearchCopy.groupTitle(SearchGroup.CAST_AND_CREW, SearchSections("amber", emptyList(), people.toList()))
+        assertEquals("With amber", title())
+        assertEquals("With Amber Heard", title("Amber Heard"))
+        assertEquals("With Amber Heard and Ed Harris", title("Amber Heard", "Ed Harris"))
+        assertEquals("With Amber Heard, Ed Harris and others", title("Amber Heard", "Ed Harris", "Al Pacino"))
+        assertEquals("Songs", TvSearchCopy.groupTitle(SearchGroup.TRACKS, SearchSections("a", emptyList())))
     }
 }

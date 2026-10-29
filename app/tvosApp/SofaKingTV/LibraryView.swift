@@ -4,7 +4,7 @@ import SofaKingCore
 /// The Library tab: Continue watching, each library's recent additions, then the libraries themselves. Selecting a
 /// card opens its page; the remote's play/pause button plays a movie or episode straight from its card, and holding the
 /// touch surface on a Continue watching card offers Remove from Continue watching. While music plays, Now playing
-/// heads the page and opens the song's page again.
+/// heads the page and opens the song's page again. Search above the page opens `LibrarySearchView`.
 struct LibraryHomeView: View {
     @Environment(AppModel.self) private var model
 
@@ -14,6 +14,7 @@ struct LibraryHomeView: View {
             content
                 .navigationDestination(for: MediaItem.self) { ItemDetailView(itemId: $0.id) }
                 .navigationDestination(for: MediaLibrary.self) { LibraryGridView(library: $0) }
+                .librarySearchButton(shown: model.libraryHome is LibraryHomeStateReady)
         }
         .fullScreenCover(item: $model.vod) { request in
             // Each request is its own player, so Up next's swap starts the next item on fresh state and the one it

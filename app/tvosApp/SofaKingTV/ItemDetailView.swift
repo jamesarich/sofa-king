@@ -113,7 +113,7 @@ struct ItemDetailView: View {
         .background {
             if let backdrop = item.backdrop {
                 Artwork(url: backdrop, title: "")
-                    .overlay(LinearGradient(colors: [.black.opacity(0.5), .black.opacity(0.95)], startPoint: .top, endPoint: .bottom))
+                    .overlay(LinearGradient(colors: [Color.sofaPlum.opacity(0.5), Color.sofaPlum.opacity(0.95)], startPoint: .top, endPoint: .bottom))
                     .ignoresSafeArea()
             }
         }

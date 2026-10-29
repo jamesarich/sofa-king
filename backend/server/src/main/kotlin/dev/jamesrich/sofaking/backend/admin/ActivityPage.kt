@@ -85,7 +85,7 @@ internal fun activityPage(chrome: Chrome, view: ActivityView): String =
         panel(
             "Recording now",
             id = "recording",
-            aside = { a("/admin/recordings") { +"Recordings" } },
+            aside = { a("/admin/recordings") { +"DVR" } },
         ) {
             if (view.recording.isEmpty()) {
                 p("muted") { +"Nothing is recording." }

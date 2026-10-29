@@ -36,9 +36,9 @@ private struct SettingsLockView: View {
                     .onSubmit(unlock)
                 Button(strings.lockUnlock, action: unlock).disabled(!SettingsPin.shared.isValid(pin: pin) || waiting)
                 if waiting {
-                    Text(strings.lockWait(seconds: PinThrottle.companion.WAIT_SECONDS)).font(.caption).foregroundStyle(.red)
+                    Text(strings.lockWait(seconds: PinThrottle.companion.WAIT_SECONDS)).font(.caption).foregroundStyle(Color.sofaError)
                 } else if wrongPin {
-                    Text(strings.lockWrong).font(.caption).foregroundStyle(.red)
+                    Text(strings.lockWrong).font(.caption).foregroundStyle(Color.sofaError)
                 }
             } header: {
                 Text(strings.lockTitle)
@@ -71,7 +71,7 @@ private struct SettingsLockView: View {
             SecureField(strings.apiToken, text: $token).onSubmit(remove)
             Button(strings.lockRemove, action: remove).disabled(ServerAddress.shared.normalizeToken(raw: token) == nil)
             if wrongToken {
-                Text(strings.lockForgotWrong).font(.caption).foregroundStyle(.red)
+                Text(strings.lockForgotWrong).font(.caption).foregroundStyle(Color.sofaError)
             }
         }
     }
@@ -129,11 +129,11 @@ struct ParentalControlsSection: View {
             } else if setting {
                 SecureField(strings.pin, text: $first).keyboardType(.numberPad)
                 if !first.isEmpty && !SettingsPin.shared.isValid(pin: first) {
-                    Text(strings.pinInvalid).font(.caption).foregroundStyle(.red)
+                    Text(strings.pinInvalid).font(.caption).foregroundStyle(Color.sofaError)
                 }
                 SecureField(strings.pinAgain, text: $again).keyboardType(.numberPad)
                 if !again.isEmpty && SettingsPin.shared.isValid(pin: first) && again != first {
-                    Text(strings.pinMismatch).font(.caption).foregroundStyle(.red)
+                    Text(strings.pinMismatch).font(.caption).foregroundStyle(Color.sofaError)
                 }
                 Button(strings.lockConfirm) {
                     model.core.setSettingsPin(pin: first)

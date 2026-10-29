@@ -97,6 +97,7 @@ struct ChannelListView: View {
             // The full screen takes the preview's stream and session over as they are.
             if now != nil { preview.deactivate(handoff: true) }
         }
+        .background(Color.sofaPlum.ignoresSafeArea())
         .onChange(of: scenePhase) { _, phase in
             guard visible, playing == nil else { return }
             if phase == .background { preview.deactivate(handoff: false) } else if phase == .active { preview.activate(model) }

@@ -27,7 +27,7 @@ struct NowPlayingView: View {
             if let poster = music.song?.poster {
                 Artwork(url: poster, title: "")
                     .blur(radius: 80)
-                    .overlay(Color.black.opacity(0.6))
+                    .overlay(Color.sofaOverlayScrim)
                     .ignoresSafeArea()
             }
         }
@@ -46,7 +46,7 @@ struct NowPlayingView: View {
                 Text(line).font(.title3).foregroundStyle(.secondary).lineLimit(1)
             }
             if let failure = music.failure {
-                Text(failure).foregroundStyle(.red)
+                Text(failure).foregroundStyle(Color.sofaError)
             }
             if music.durationMs > 0 {
                 ProgressView(value: Double(min(music.positionMs, music.durationMs)), total: Double(music.durationMs))

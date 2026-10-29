@@ -720,7 +720,7 @@ Errors contain `code`, `message` and `retryable`:
 ```json
 {
   "code": "SOURCE_UNAVAILABLE",
-  "message": "No eligible source",
+  "message": "No source for this channel is working right now",
   "retryable": true
 }
 ```

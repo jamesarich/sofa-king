@@ -124,7 +124,7 @@ private struct RecordingRow: View {
             }
             Spacer()
             if let status {
-                Text(status).font(.caption).foregroundStyle(recording.state == .failed ? .red : .secondary)
+                Text(status).font(.caption).foregroundStyle(recording.state == .failed ? Color.sofaError : Color.sofaMauve)
             }
         }
     }

@@ -47,12 +47,16 @@ data class ProbeConfig(
     val decodeSeconds: Int = 30,
     val deadlineSeconds: Long = 50,
     val observationRetention: Duration = OBSERVATION_RETENTION,
+    /** Never-attempted sources of a provider with no healthy source yet that are claimed before any other. */
+    val firstPassPerProvider: Int = 5,
 )
 
 /**
  * Probes run on [ProbeConfig.parallelism] workers that claim due offerings from one shared queue.
  * Suspect, probation and quarantined sources are claimed before unverified ones, then healthy rechecks; under a
- * lineup policy the policy's tiers rank first. Persistent attempt times keep the five-minute spacing across restarts.
+ * lineup policy the policy's tiers rank first. Ahead of both, a provider with no healthy source yet has its first
+ * [ProbeConfig.firstPassPerProvider] unprobed sources claimed, one provider after another.
+ * Persistent attempt times keep the five-minute spacing across restarts.
  */
 class ProbeWorker(
     private val feeds: FeedService,
@@ -178,7 +182,7 @@ class ProbeWorker(
         val states = store.allHealth()
         val attempts = store.probeAttempts()
         val plan = targets?.invoke()
-        return feeds
+        val candidates = feeds
             .published.offerings
             .asSequence()
             .filter {
@@ -190,15 +194,19 @@ class ProbeWorker(
                     !state.manuallyDisabled && state.status != HealthStatus.ARCHIVED && state.probeDue(now) &&
                         attempts[offering.id]?.let { now < it.plusSeconds(300) } != true
                 if (probeable) offering to state else null
-            }.sortedWith(
-                compareBy({ plan?.get(it.first.id) ?: 0 }, { it.second.status.probePriority() }, {
-                    attempts[it.first.id]
-                        ?: Instant.MIN
-                }),
-            )
-            .take(config.parallelism * CLAIMS_PER_WORKER)
+            }.toList()
+        val firstPass =
+            firstPass(feeds.published.offerings, candidates, states, attempts, plan, config.firstPassPerProvider)
+        return candidates
+            .sortedWith(
+                compareBy(
+                    { firstPass[it.first.id] ?: config.firstPassPerProvider },
+                    { plan?.get(it.first.id) ?: 0 },
+                    { it.second.status.probePriority() },
+                    { attempts[it.first.id] ?: Instant.MIN },
+                ),
+            ).take(config.parallelism * CLAIMS_PER_WORKER)
             .map { it.first }
-            .toList()
     }
 
     private suspend fun probe(offering: Offering) {
@@ -331,6 +339,38 @@ class ProbeWorker(
                 Files.deleteIfExists(errors)
             }
         }
+}
+
+/**
+ * For each provider in [offerings] with no healthy source yet, its first [limit] never-attempted [candidates] in feed
+ * order, each with its place in that provider's list, so a few channels come up within minutes whatever the size of
+ * the lineup. Under a [plan] only the first source of an unverified station counts.
+ */
+private fun firstPass(
+    offerings: List<Offering>,
+    candidates: List<Pair<Offering, HealthState>>,
+    states: Map<String, HealthState>,
+    attempts: Map<String, Instant>,
+    plan: Map<String, Int>?,
+    limit: Int,
+): Map<String, Int> {
+    val withHealthy = offerings.filter {
+        states[it.id]?.status == HealthStatus.HEALTHY
+    }.mapTo(HashSet()) { it.providerId }
+    val taken = HashMap<String, Int>()
+    val ranks = HashMap<String, Int>()
+    val fresh = candidates.filter { (offering, state) ->
+        offering.providerId !in withHealthy && state.status == HealthStatus.UNVERIFIED &&
+            offering.id !in attempts && (plan == null || plan[offering.id] == 0)
+    }
+    for ((offering, _) in fresh) {
+        val rank = taken.getOrDefault(offering.providerId, 0)
+        if (rank < limit) {
+            taken[offering.providerId] = rank + 1
+            ranks[offering.id] = rank
+        }
+    }
+    return ranks
 }
 
 /**

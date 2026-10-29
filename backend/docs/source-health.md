@@ -4,7 +4,7 @@ A lineup entry can list multiple stream sources, from one provider or several. T
 
 ## Automatic checks
 
-Without a lineup policy, the sources of every provider with `probe` set (the default) are probed. Under a policy, the sources its stations use are probed, whatever `probe` says, in the tiers [probing](lineup-policy.md#probing) describes. `SOFA_PROBE_PARALLELISM` workers (default 6) claim due sources from one queue: suspect, probation and quarantined sources first, then unverified sources, then healthy rechecks, each group oldest attempt first. A source is attempted at most once every five minutes; attempt times persist across restarts. Workers only pause while nothing is due, backing off from one second to 30 seconds.
+Without a lineup policy, the sources of every provider with `probe` set (the default) are probed. Under a policy, the sources its stations use are probed, whatever `probe` says, in the tiers [probing](lineup-policy.md#probing) describes. `SOFA_PROBE_PARALLELISM` workers (default 6) claim due sources from one queue. First, a provider with no healthy source yet has its first five never-attempted sources claimed in feed order, one provider after another, so a few channels come up within minutes of a new lineup; under a policy only the first source of each unverified station counts. Then suspect, probation and quarantined sources first, then unverified sources, then healthy rechecks, each group oldest attempt first. A source is attempted at most once every five minutes; attempt times persist across restarts. Workers only pause while nothing is due, backing off from one second to 30 seconds.
 
 Each probe has two tiers:
 

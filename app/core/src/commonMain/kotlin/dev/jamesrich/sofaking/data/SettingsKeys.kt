@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import dev.jamesrich.sofaking.data.SettingsKeys.ADS_DODGED_DAY
 import dev.jamesrich.sofaking.data.SettingsKeys.ADS_DODGED_MS
 import dev.jamesrich.sofaking.data.SettingsKeys.API_TOKEN
+import dev.jamesrich.sofaking.data.SettingsKeys.APPEARANCE
 import dev.jamesrich.sofaking.data.SettingsKeys.AUTO_OPEN_DELAY
 import dev.jamesrich.sofaking.data.SettingsKeys.AUTO_SKIP_INTROS
 import dev.jamesrich.sofaking.data.SettingsKeys.BUFFER
@@ -82,6 +83,7 @@ internal object SettingsKeys {
     val STARTUP_CHANNEL = stringPreferencesKey("startup_channel")
     val LAST_TAB = stringPreferencesKey("last_tab")
     val GUIDE_DENSITY = stringPreferencesKey("guide_density")
+    val APPEARANCE = stringPreferencesKey("appearance")
     val HIDDEN_CHANNELS = stringSetPreferencesKey("hidden_channels")
     val ZAP_SKIPS_HIDDEN = booleanPreferencesKey("zap_skips_hidden")
 
@@ -142,6 +144,7 @@ internal fun readSettings(prefs: Preferences): AppSettings = AppSettings(
     startupChannel = prefs[STARTUP_CHANNEL],
     lastTab = prefs[LAST_TAB].toEnum(TopLevelTab.LIVE),
     guideDensity = prefs[GUIDE_DENSITY].toEnum(GuideDensity.COMFORTABLE),
+    appearance = prefs[APPEARANCE].toEnum(Appearance.SYSTEM),
     hiddenChannels = prefs[HIDDEN_CHANNELS] ?: emptySet(),
     zapSkipsHidden = prefs[ZAP_SKIPS_HIDDEN] ?: false,
     skips = readSkips(prefs),

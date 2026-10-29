@@ -9,7 +9,6 @@ import kotlinx.coroutines.withContext
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Clock
-import java.time.Duration
 
 /** How often, and how many times, a request checks for the segment FFmpeg is writing: 20 seconds in all. */
 private const val READY_CHECKS = 200
@@ -24,18 +23,17 @@ private val FMP4_SEGMENT = Regex("seg[0-9]{1,6}\\.m4s")
 private const val PLAYLIST = "index.m3u8"
 private const val PLAYLIST_TYPE = "application/vnd.apple.mpegurl"
 
-/** The files behind VOD media URLs; each request renews its session's [lease]. */
+/** The files behind VOD media URLs; each request renews its session's lease. */
 class VodMediaFiles internal constructor(
     private val table: VodTable,
     private val runner: VodRunner,
     private val clock: Clock,
-    private val lease: Duration,
 ) {
     /** The file behind a media URL, waiting a little for FFmpeg to write it; null when the URL is stale or unknown. */
     suspend fun media(id: String, epoch: Int, secret: String, name: String): VodMedia? {
         val state = table.locked {
             val state = table.sessions[id]?.takeIf { it.epoch == epoch && sameSecret(it.secret, secret) } ?: return null
-            state.expires = clock.instant().plus(lease)
+            state.expires = clock.instant().plus(state.lease)
             state
         }
         val dir = runner.folderOf(state)

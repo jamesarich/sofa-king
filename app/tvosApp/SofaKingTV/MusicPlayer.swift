@@ -16,6 +16,8 @@ final class MusicPlayer {
     private(set) var failure: String?
     private(set) var positionMs: Int64 = 0
     private(set) var durationMs: Int64 = 0
+    /// Whether the household likes the song playing; the heart on Now playing and the system's Like show it.
+    private(set) var liked = false
 
     private let core: SofaKingTv
     private let player = AVPlayer()
@@ -26,6 +28,8 @@ final class MusicPlayer {
     @ObservationIgnored private var stream: PlaybackStream?
     @ObservationIgnored private var ticker: Any?
     @ObservationIgnored private var commandsAdded = false
+    /// Whether the song playing was told to the server as played, which it is once per start.
+    @ObservationIgnored private var counted = false
 
     init(core: SofaKingTv) {
         self.core = core
@@ -39,6 +43,7 @@ final class MusicPlayer {
     /// Plays `queue` from its current song.
     func play(_ queue: MusicQueue) {
         self.queue = queue
+        counted = false
         open()
     }
 
@@ -102,6 +107,8 @@ final class MusicPlayer {
         paused = false
         positionMs = startMs
         durationMs = song.durationMs?.int64Value ?? 0
+        liked = song.favorite
+        MPRemoteCommandCenter.shared().likeCommand.isActive = liked
         addCommands()
         publishInfo()
         opening = Task {
@@ -157,6 +164,35 @@ final class MusicPlayer {
         if durationMs == 0, let length = player.currentItem?.duration.seconds, length.isFinite {
             durationMs = Int64(length * 1000) + stream.offsetMs
         }
+        // A song counts as played after 30 seconds, or half of a shorter one, as in the Compose app.
+        if !counted, !paused, let song, positionMs >= min(playedMs, (durationMs > 0 ? durationMs : .max) / 2) {
+            counted = true
+            core.played(itemId: song.id)
+        }
+    }
+
+    /// Likes or unlikes the song playing for the household; the heart shows the change at once and takes it back when
+    /// the server does not.
+    func setLiked(_ like: Bool) {
+        guard let song, like != liked else { return }
+        let id = song.id
+        liked = like
+        MPRemoteCommandCenter.shared().likeCommand.isActive = like
+        Task {
+            let saved = (try? await core.setFavorite(itemId: id, favorite: like))?.boolValue ?? false
+            guard !saved, self.song?.id == id else { return }
+            liked = !like
+            MPRemoteCommandCenter.shared().likeCommand.isActive = !like
+        }
+    }
+
+    /// Moves to `seconds` in the song, as the system's scrubber asks.
+    private func seek(toSeconds seconds: Double) {
+        guard let stream, seconds.isFinite else { return }
+        let ms = max(Int64(seconds * 1000), 0)
+        positionMs = ms
+        player.seek(to: CMTime(value: max(ms - stream.offsetMs, 0), timescale: 1000))
+        publishInfo()
     }
 
     /// The song's names, length, position and cover in the system's Now Playing.
@@ -192,6 +228,16 @@ final class MusicPlayer {
         handle(center.togglePlayPauseCommand) { $0.togglePause() }
         handle(center.nextTrackCommand) { $0.next() }
         handle(center.previousTrackCommand) { $0.previous() }
+        handle(center.likeCommand) { $0.setLiked(!$0.liked) }
+        center.changePlaybackPositionCommand.addTarget { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self, self.song != nil, let event = event as? MPChangePlaybackPositionCommandEvent else {
+                    return .noActionableNowPlayingItem
+                }
+                self.seek(toSeconds: event.positionTime)
+                return .success
+            }
+        }
     }
 
     /// Runs `action` for `command` while a song is loaded; the system calls on the main thread.
@@ -208,3 +254,6 @@ final class MusicPlayer {
 
 /// Past this far into a song, Previous starts it again rather than going back a song.
 private let restartMs: Int64 = 3_000
+
+/// A song counts as played this far in, or halfway through when it is shorter.
+private let playedMs: Int64 = 30_000

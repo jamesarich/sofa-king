@@ -28,6 +28,12 @@ interface TvMusic {
 
     /** Releases [itemId]'s session, and only that one, so a channel or movie that took over keeps its own. */
     fun releaseSong(itemId: String)
+
+    /** The song [itemId] played far enough to count: one more play for Recently played, Most played and the radio. */
+    fun played(itemId: String)
+
+    /** Likes or unlikes the song [itemId] for the household; true once the server has it. */
+    suspend fun setFavorite(itemId: String, favorite: Boolean): Boolean
 }
 
 internal class TvMusicCalls(private val parts: TvParts) : TvMusic {
@@ -43,4 +49,9 @@ internal class TvMusicCalls(private val parts: TvParts) : TvMusic {
         parts.connection.sessions.play(song.id, appleTvProfile, startMs)
 
     override fun releaseSong(itemId: String) = parts.connection.sessions.releaseAsync(forget = true, itemId = itemId)
+
+    override fun played(itemId: String) = parts.library.played(itemId)
+
+    override suspend fun setFavorite(itemId: String, favorite: Boolean): Boolean =
+        parts.library.setFavorite(itemId, favorite)
 }

@@ -31,6 +31,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.BuildInfo
 import dev.jamesrich.sofaking.PairingFailure
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.Appearance
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.BufferPreference
 import dev.jamesrich.sofaking.data.CaptionStyle
@@ -86,6 +87,7 @@ import dev.jamesrich.sofaking.resources.settings_update_with_server
 import dev.jamesrich.sofaking.resources.settings_version
 import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.ui.BackHandler
+import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.rememberUpdateInstaller
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -114,6 +116,7 @@ class SettingsActions(
     /** Opens the channel picker for [StartupTarget.CHANNEL]. */
     val onChooseStartupChannel: () -> Unit = {},
     val onGuideDensityChanged: (GuideDensity) -> Unit = {},
+    val onAppearanceChanged: (Appearance) -> Unit = {},
     /** Opens the channel manager (hidden channels and the favorites order). */
     val onManageChannels: () -> Unit = {},
     /** Opens one of Settings' pages from its list. */
@@ -194,6 +197,7 @@ fun SettingsScreen(
         if (serverOpen) discoveredServers else noServers
     }.collectAsStateWithLifecycle(emptyList())
     val focus = remember { SettingsFocus() }
+    val tv = LocalLayoutProfile.current.tv
 
     BackHandler { onBack() }
     ArrivalFocus(returnedFrom, focus, if (settings.serverUrl.isEmpty()) server.serverFocus else focus.first(page))
@@ -232,6 +236,8 @@ fun SettingsScreen(
                     // seldom changes.
                     if (unconfigured) serverSection()
                     pageRows(settings, offer, focus::page, actions.onOpenPage)
+                    // A TV is always dark, so it has nothing to choose.
+                    if (!tv) appearanceRow(settings, actions)
                     if (!unconfigured) serverSection()
                     // Offered once there is a server, since that is where a crash report goes.
                     if (!unconfigured) diagnosticsRows(settings, actions)

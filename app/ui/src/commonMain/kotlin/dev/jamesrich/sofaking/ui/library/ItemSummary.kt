@@ -69,13 +69,17 @@ import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
-/** The backdrop at the top right, fading into the page to the left and below so text over it reads. */
+/**
+ * The backdrop at the top right, fading into the page to the left and below so text over it reads. [video] draws over
+ * the picture and under the fades, as a trailer does.
+ */
 @Composable
-internal fun Hero(url: String?, modifier: Modifier = Modifier) {
+internal fun Hero(url: String?, modifier: Modifier = Modifier, video: @Composable () -> Unit = {}) {
     if (url == null) return
     val page = MaterialTheme.colorScheme.background
     Box(modifier) {
         AsyncImage(url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        video()
         Box(
             Modifier.fillMaxSize().background(
                 Brush.horizontalGradient(

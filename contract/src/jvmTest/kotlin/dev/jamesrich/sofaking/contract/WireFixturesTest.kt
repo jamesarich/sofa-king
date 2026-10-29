@@ -246,6 +246,22 @@ class WireFixturesTest {
     }
 
     @Test
+    fun `a preview VOD open names its intent and an older server's answer reads as watch`() {
+        assertEquals(
+            """{"itemId":"i","intent":"preview"}""",
+            Json.encodeToString(OpenVodPlayback.serializer(), OpenVodPlayback("i", intent = Wire.Intent.PREVIEW)),
+        )
+        assertEquals(
+            Wire.Intent.WATCH,
+            client.decodeFromString<VodSession>(fixture("v1/vod-session.json")).intent,
+        )
+        assertEquals(
+            Wire.Intent.PREVIEW,
+            client.decodeFromString<VodSession>(fixture("v1/vod-preview-session.json")).intent,
+        )
+    }
+
+    @Test
     fun `a client sends only the play state it changes`() {
         assertEquals(
             """{"positionMs":1000}""",

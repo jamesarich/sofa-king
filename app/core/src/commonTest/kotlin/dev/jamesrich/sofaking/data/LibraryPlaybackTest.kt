@@ -32,9 +32,13 @@ class LibraryPlaybackTest {
             var startMs: Long,
             var epoch: Int = 1,
             val recordingId: String? = null,
+            val intent: String = "watch",
         )
 
         val vods = linkedMapOf<String, Vod>()
+
+        /** False for a server that predates previews: it ignores the intent and answers without one. */
+        var knowsPreviews = true
         var mode = "remux"
         var nextId = 1
         var openDelayMs = 0L
@@ -61,6 +65,7 @@ class LibraryPlaybackTest {
                             start
                         },
                         recordingId = recordingId,
+                        intent = body["intent"]?.jsonPrimitive?.contentOrNull.takeIf { knowsPreviews } ?: "watch",
                     )
                     vods[vod.id] = vod
                     delay(openDelayMs)
@@ -109,7 +114,8 @@ class LibraryPlaybackTest {
                 """{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/vod/$id/$epoch/k/""" +
                     """index.m3u8","epoch":$epoch}"""
             }
-            val recording = recordingId?.let { ""","recordingId":"$it"""" }.orEmpty()
+            val recording = recordingId?.let { ""","recordingId":"$it"""" }.orEmpty() +
+                if (knowsPreviews) ""","intent":"$intent"""" else ""
             return """{"id":"$id","itemId":"$itemId","mode":"$mode","descriptor":$descriptor,"startMs":$startMs,""" +
                 """"durationMs":3600000,"expiresAt":"2026-10-10T10:05:00Z"$recording}"""
         }
@@ -271,6 +277,114 @@ class LibraryPlaybackTest {
         val reopened = withTimeout(5_000) { sessions.current.filterNotNull().first { it.sessionId != "v1" } }
         assertEquals("m1", reopened.itemId)
         assertEquals(42_000, reopened.offsetMs)
+    }
+
+    private fun FakeServer.opens() = requests.filter { it.startsWith("POST /api/v1/vod-sessions") }
+
+    @Test
+    fun `a trailer opens as a preview and a play sends no intent`() = runTest {
+        val (fake, sessions) = fixture()
+
+        val trailer = sessions.preview("t1", tv)
+
+        assertEquals(PlaybackIntent.PREVIEW, trailer?.intent)
+        assertEquals("t1", trailer?.itemId)
+        assertEquals(trailer, sessions.current.value)
+        val body = Json.parseToJsonElement(fake.opens().single().substringAfter("vod-sessions ")).jsonObject
+        assertEquals("preview", body["intent"]!!.jsonPrimitive.content)
+        sessions.play("m1", tv)
+        val play = Json.parseToJsonElement(fake.opens().last().substringAfter("vod-sessions ")).jsonObject
+        assertNull(play["intent"], "an older server reads the request it always did")
+    }
+
+    @Test
+    fun `a trailer never opens while the app holds a session`() = runTest {
+        val (fake, sessions) = fixture()
+        sessions.tune("c1", PlaybackIntent.PREVIEW)
+
+        assertNull(sessions.preview("t1", tv))
+
+        assertTrue(fake.opens().isEmpty())
+        assertEquals("c1", sessions.current.value?.channelId)
+        sessions.play("m1", tv)
+        assertNull(sessions.preview("t1", tv))
+        assertEquals("m1", sessions.current.value?.itemId)
+    }
+
+    @Test
+    fun `a trailer a server held as a watch is released at once`() = runTest {
+        val (fake, sessions) = fixture()
+        fake.knowsPreviews = false
+
+        assertNull(sessions.preview("t1", tv))
+
+        assertNull(sessions.current.value)
+        assertTrue(fake.vods.isEmpty())
+        assertTrue("DELETE /api/v1/vod-sessions/v1" in fake.requests)
+    }
+
+    @Test
+    fun `a trailer is renewed and not opened again when the server drops it`() = runTest {
+        val (fake, sessions) = fixture()
+        sessions.preview("t1", tv)
+        withTimeout(5_000) { while (fake.requests.none { it == "PATCH /api/v1/vod-sessions/v1 {}" }) delay(10) }
+
+        fake.vods.clear()
+        withTimeout(5_000) { while (sessions.current.value != null) delay(10) }
+
+        delay(500)
+        assertEquals(1, fake.opens().size)
+        assertNull(sessions.current.value)
+    }
+
+    @Test
+    fun `releasing a trailer leaves nothing to reopen and keeps what an earlier stop left`() = runTest {
+        val (fake, sessions) = fixture()
+        sessions.preview("t1", tv)
+        sessions.release()
+        assertNull(sessions.reopen())
+
+        sessions.play("m1", tv)
+        sessions.reportPosition(42_000)
+        sessions.release()
+        val trailer = sessions.preview("t1", tv)
+        sessions.release(itemId = "t1")
+
+        assertEquals("t1", trailer?.itemId)
+        val back = sessions.reopen()
+        assertEquals("m1", back?.itemId)
+        assertEquals(42_000, back?.offsetMs)
+        assertEquals(4, fake.opens().size)
+    }
+
+    @Test
+    fun `playing an item or tuning a channel releases the trailer first`() = runTest {
+        val (fake, sessions) = fixture()
+        sessions.preview("t1", tv)
+
+        val played = sessions.play("m1", tv)
+
+        assertEquals("m1", played.itemId)
+        assertEquals(listOf("v2"), fake.vods.keys.toList())
+        assertTrue("DELETE /api/v1/vod-sessions/v1" in fake.requests)
+        sessions.preview("t1", tv)
+        assertEquals("m1", sessions.current.value?.itemId, "the trailer found the player taken")
+        sessions.tune("c1", PlaybackIntent.PREVIEW)
+        assertTrue("DELETE /api/v1/vod-sessions/v2" in fake.requests)
+    }
+
+    @Test
+    fun `a trailer canceled while the server answers releases the session it opened`() = runTest {
+        val (fake, sessions) = fixture()
+        fake.openDelayMs = 400
+        val opening = backgroundScope.async { sessions.preview("t1", tv) }
+        withTimeout(5_000) { while (fake.opens().isEmpty()) delay(10) }
+
+        opening.cancelAndJoin()
+
+        withTimeout(5_000) { while ("DELETE /api/v1/vod-sessions/v1" !in fake.requests) delay(10) }
+        assertNull(sessions.current.value)
+        assertTrue(fake.vods.isEmpty())
     }
 
     @Test

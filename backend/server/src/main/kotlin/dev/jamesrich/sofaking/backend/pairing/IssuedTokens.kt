@@ -47,8 +47,12 @@ class IssuedTokens(
         val now = clock.instant()
         if (token.lastUsedAt == null || token.lastUsedAt.plus(USE_RESOLUTION).isBefore(now)) {
             lock.withLock {
-                byHash = byHash?.plus(token.secretHash to token.copy(lastUsedAt = now))
-                store.markApiTokenUsed(token.id, now)
+                // A revoke may have reloaded the cache since the read above; a revoked token must not come back.
+                val current = byHash
+                if (current?.get(token.secretHash)?.id == token.id) {
+                    byHash = current.plus(token.secretHash to token.copy(lastUsedAt = now))
+                    store.markApiTokenUsed(token.id, now)
+                }
             }
         }
         return token

@@ -9,7 +9,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import dev.jamesrich.sofaking.contract.Wire
+import dev.jamesrich.sofaking.data.EARLY_END_MS
+import dev.jamesrich.sofaking.data.EarlyEnd
+import dev.jamesrich.sofaking.data.EarlyEndGuard
 import dev.jamesrich.sofaking.data.SofaKingException
+import dev.jamesrich.sofaking.data.converterRetryDelayMs
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.delay
 
@@ -84,9 +88,7 @@ internal class VodPlayerState(
     /** What the Up next card counts down to, once the item has ended and there is one. */
     var next by mutableStateOf<VodUpNext?>(null)
 
-    // Ends short of the item's end since playback last moved on, and where the last one was.
-    private var earlyEnds = 0
-    private var earlyEndAtMs = 0L
+    private val earlyEnd = EarlyEndGuard()
 
     private val keys = VodKeyHandler(this, panels, skips, scrubbing)
 
@@ -102,40 +104,37 @@ internal class VodPlayerState(
 
     /**
      * The stream's state moved on: playing clears a failure, and the end of an opened item ends it. A stream that ends
-     * more than [EARLY_END_MS] short of the item's length dropped rather than finished (a connection or a conversion
-     * that died), so it opens again where it stopped, up to [EARLY_END_REOPENS] times until playback moves on by
-     * [EARLY_END_PROGRESS_MS], and then fails, so Up next never plays over an episode cut short.
+     * more than [EARLY_END_MS] short of the item's length dropped rather than finished, so [EarlyEndGuard] decides
+     * whether it opens again where it stopped or fails.
      */
     fun onStatus(status: PlayerStatus, opened: Boolean) {
         if (status.state == PlaybackState.READY || status.isPlaying) failure = null
         if (status.state != PlaybackState.ENDED || !opened) return
-        val duration = durationMs
-        if (duration == null || positionMs + EARLY_END_MS >= duration) {
-            ended = true
-            return
+        when (earlyEnd.onEnd(positionMs, durationMs)) {
+            EarlyEnd.FINISHED -> ended = true
+            EarlyEnd.REOPEN -> reopenRequest++
+            EarlyEnd.FAIL -> failure = STREAM_ENDED_EARLY
         }
-        if (positionMs >= earlyEndAtMs + EARLY_END_PROGRESS_MS) earlyEnds = 0
-        earlyEndAtMs = positionMs
-        if (earlyEnds++ < EARLY_END_REOPENS) reopenRequest++ else failure = STREAM_ENDED_EARLY
     }
 
     /**
-     * Runs [open] (the item's open, a restart in a converted file, a track switch), asking again every
-     * [CONVERTER_RETRY_MS] for up to [CONVERTER_WAIT_MS] while the server answers that every converter is busy, and
-     * then throws as [open] did. Any other failure throws at once.
+     * Runs [open] (the item's open, a restart in a converted file, a track switch), asking again after
+     * [converterRetryDelayMs] while the server answers that every converter is busy, and then throws as [open] did.
+     * Any other failure throws at once.
      */
     suspend fun <T> waitForConverter(open: suspend () -> T): T {
         var waitedMs = 0L
         try {
             while (true) {
-                try {
+                val retryMs = try {
                     return open()
                 } catch (e: SofaKingException) {
-                    if (e.code != Wire.ErrorCode.CAPACITY_EXHAUSTED || waitedMs >= CONVERTER_WAIT_MS) throw e
+                    if (e.code != Wire.ErrorCode.CAPACITY_EXHAUSTED) throw e
+                    converterRetryDelayMs(waitedMs) ?: throw e
                 }
                 waitingForConverter = true
-                delay(CONVERTER_RETRY_MS)
-                waitedMs += CONVERTER_RETRY_MS
+                delay(retryMs)
+                waitedMs += retryMs
             }
         } finally {
             waitingForConverter = false
@@ -184,18 +183,7 @@ internal class VodPlayerState(
     ): Boolean = keys.onKeyEvent(key, type, controls, paused, hasButtons, tracksPickable, repeatCount, nowMs)
 }
 
-/** How far short of the item's length an end may come and still be the end: a conversion can stop a little short. */
-internal const val EARLY_END_MS = 10_000L
-private const val EARLY_END_REOPENS = 2
-private const val EARLY_END_PROGRESS_MS = 30_000L
 internal const val STREAM_ENDED_EARLY = "STREAM_ENDED_EARLY"
-
-/** How long Skip intro counts down before the intro skips itself, with auto skip on. */
-internal const val AUTO_SKIP_MS = 5_000L
-
-/** How long the player waits for a free converter before it shows the failure, and how often it asks. */
-internal const val CONVERTER_WAIT_MS = 20_000L
-internal const val CONVERTER_RETRY_MS = 5_000L
 
 /** What [VodPlayerState.transport] confirms. */
 internal enum class TransportHint { PLAY, PAUSE }

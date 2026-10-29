@@ -40,7 +40,7 @@ internal class WantedView(
         rules.values.any { it.id != rule.id && it.priority >= rule.priority }
 }
 
-/** The Recordings section's Wanted page and its one action, putting a rule first. */
+/** The DVR section's Wanted page and its one action, putting a rule first. */
 internal class WantedPages(private val portal: Portal) {
     fun install(route: Route) = with(portal) {
         route.get("/recordings/wanted") {

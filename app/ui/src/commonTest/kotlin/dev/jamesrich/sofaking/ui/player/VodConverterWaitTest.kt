@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.contract.Wire
+import dev.jamesrich.sofaking.data.CONVERTER_RETRY_MS
+import dev.jamesrich.sofaking.data.CONVERTER_WAIT_MS
 import dev.jamesrich.sofaking.data.SofaKingException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.currentTime

@@ -66,9 +66,8 @@ struct VodPlayerView: View {
     @State private var positionMs: Int64 = 0
     @State private var durationMs: Int64 = 0
     @State private var ended = false
-    /// Ends short of the item since playback last moved on, and where the last one was; see `endedEarly`.
-    @State private var earlyEnds = 0
-    @State private var earlyEndAtMs: Int64 = 0
+    /// Tells the end of the item from a stream that dropped; see `endedEarly`.
+    @State private var earlyEnd = EarlyEndGuard()
     @State private var backgrounded = false
     /// False once the player has left: a restart or reopen still running then must not load a stream.
     @State private var shown = false
@@ -237,18 +236,19 @@ struct VodPlayerView: View {
         }
     }
 
-    /// Runs `open`, asking again every 5 seconds for up to 20 while the server answers that every converter is busy, as
-    /// the other apps do, and then throws as `open` did; any other failure throws at once.
+    /// Runs `open`, asking again after core's retry delay while the server answers that every converter is busy, as the
+    /// other apps do, and then throws as `open` did; any other failure throws at once.
     private func waitForConverter<T>(_ open: () async throws -> T) async throws -> T {
         defer { waitingForConverter = false }
-        var waited = 0
+        var waitedMs: Int64 = 0
         while true {
             do {
                 return try await open()
-            } catch let error where waited < 20 && converterBusy(error) {
+            } catch {
+                guard converterBusy(error), let delayMs = model.core.converterRetryDelayMs(waitedMs: waitedMs)?.int64Value else { throw error }
                 waitingForConverter = true
-                try await Task.sleep(for: .seconds(5))
-                waited += 5
+                try await Task.sleep(for: .milliseconds(delayMs))
+                waitedMs += delayMs
             }
         }
     }
@@ -286,9 +286,12 @@ struct VodPlayerView: View {
                 failure = item.error?.localizedDescription ?? "The item stopped playing"
             },
             NotificationCenter.default.publisher(for: .AVPlayerItemDidPlayToEndTime, object: item).sink { _ in
-                if durationMs > 0 && positionMs + earlyEndMs < durationMs { endedEarly() } else { finished() }
+                let verdict = earlyEnd.onEnd(positionMs: positionMs, durationMs: durationMs > 0 ? KotlinLong(value: durationMs) : nil)
+                if verdict == .finished { finished() } else { endedEarly(verdict) }
             },
-            NotificationCenter.default.publisher(for: .AVPlayerItemFailedToPlayToEndTime, object: item).sink { _ in endedEarly() },
+            NotificationCenter.default.publisher(for: .AVPlayerItemFailedToPlayToEndTime, object: item).sink { _ in
+                endedEarly(earlyEnd.onDrop(positionMs: positionMs))
+            },
         ]
         // A recording carries the channel's closed captions; a library item's subtitles are picked in its menu.
         if request.libraryItem == nil { itemObservers += StreamCaptions.follow(item, on: player, model: model) }
@@ -309,16 +312,15 @@ struct VodPlayerView: View {
         positionMs = Int64(seconds * 1000) + s.offsetMs
         if let known = s.itemDurationMs?.int64Value {
             durationMs = known
-        } else if item.duration.seconds.isFinite {
-            durationMs = Int64(item.duration.seconds * 1000) + s.offsetMs
+        } else if let length = model.core.durationFromRanges(durationSeconds: KotlinDouble(value: item.duration.seconds), seekable: timeSpans(item.seekableTimeRanges)) {
+            durationMs = length.int64Value + s.offsetMs
         }
         skipBreak(from: lastPositionMs, to: positionMs, in: s)
         lastPositionMs = positionMs
-        breakEndMs = skips.commercialBreaks == .off ? nil : breaks.first(where: { positionMs >= $0.startMs && positionMs < $0.endMs })?.endMs
-        introEndMs = skips.intros == .off ? nil
-            : detail?.intro.flatMap { positionMs >= $0.startMs && positionMs < $0.endMs ? $0.endMs : nil }
-        creditsEndMs = skips.credits == .off ? nil
-            : detail?.credits.flatMap { positionMs >= $0.startMs && positionMs < $0.endMs ? $0.endMs : nil }
+        breakEndMs = skips.commercialBreaks == .off ? nil : model.core.breakEndAt(breaks: breaks, positionMs: positionMs)?.int64Value
+        let segment = model.core.segmentToSkip(intro: detail?.intro, credits: detail?.credits, positionMs: positionMs, skips: skips)
+        introEndMs = segment.flatMap { $0.marker.kind == .intro ? $0.marker.endMs : nil }
+        creditsEndMs = segment.flatMap { $0.marker.kind == .credits ? $0.marker.endMs : nil }
         countDownSkip(in: s)
         if creditsEndMs != nil, !creditsNextAsked, let item = request.libraryItem {
             creditsNextAsked = true
@@ -338,7 +340,7 @@ struct VodPlayerView: View {
     /// How the viewer chose to meet breaks, intros and credits.
     private var skips: Skips { model.settings?.skips ?? Skips(intros: .button, credits: .button, commercialBreaks: .button) }
 
-    /// Skips the intro, or the credits, after 5 seconds' countdown on its button, once each, while it plays and the
+    /// Skips the intro, or the credits, after core's countdown on its button, once each, while it plays and the
     /// viewer chose to skip it automatically; a pause stops it.
     private func countDownSkip(in s: PlaybackStream) {
         let intro = introEndMs.flatMap { skips.intros == .auto_ ? $0 : nil }
@@ -351,7 +353,7 @@ struct VodPlayerView: View {
         if autoSkipEndMs != end {
             guard player.rate > 0 else { return }
             autoSkipEndMs = end
-            autoSkipSeconds = 5
+            autoSkipSeconds = Int(model.core.autoSkipSeconds)
         } else if let left = autoSkipSeconds {
             if left > 1 {
                 autoSkipSeconds = left - 1
@@ -374,21 +376,21 @@ struct VodPlayerView: View {
     /// a break stays there. A break end past what the server has converted restarts the conversion there.
     private func skipBreak(from previousMs: Int64, to nowMs: Int64, in s: PlaybackStream) {
         guard skips.commercialBreaks == .auto_, player.rate > 0,
-              let b = breaks.first(where: { previousMs < $0.startMs && nowMs >= $0.startMs && nowMs < $0.endMs })
+              let end = model.core.breakToSkip(breaks: breaks, previousMs: previousMs, nowMs: nowMs)?.int64Value
         else { return }
-        jump(to: b.endMs, in: s)
+        jump(to: end, in: s)
     }
 
-    /// Moves to `ms` in the item; a point past what the server has converted restarts the conversion there.
+    /// Moves to `ms` in the item, where core's seek plan says: in the stream playing, or a conversion restarted there.
     private func jump(to ms: Int64, in s: PlaybackStream) {
-        let target = CMTime(value: ms - s.offsetMs, timescale: 1000)
-        let seekableEnd = player.currentItem?.seekableTimeRanges.last?.timeRangeValue.end ?? .zero
-        if s.mode == "direct" || CMTimeCompare(target, seekableEnd) <= 0 {
-            player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero)
-        } else {
+        let written = timeSpans(player.currentItem?.seekableTimeRanges ?? []).last.map { KotlinLong(value: Int64($0.endSeconds * 1000)) }
+        let plan = model.core.vodSeek(stream: s, targetMs: ms, writtenMs: written, itemDurationMs: s.itemDurationMs)
+        if plan.restart {
             Task {
-                if let restarted = try? await model.core.restartItemAt(positionMs: ms), shown { load(restarted) }
+                if let restarted = try? await model.core.restartItemAt(positionMs: plan.ms), shown { load(restarted) }
             }
+        } else {
+            player.seek(to: CMTime(value: plan.ms, timescale: 1000), toleranceBefore: .zero, toleranceAfter: .zero)
         }
     }
 
@@ -412,7 +414,7 @@ struct VodPlayerView: View {
             }]
         }
         if let end = creditsEndMs {
-            if let upcoming = creditsNext, durationMs > 0, end >= durationMs - 1000 {
+            if let upcoming = creditsNext, model.core.creditsRunToEnd(creditsEndMs: end, durationMs: durationMs) {
                 return [UIAction(title: "Next episode", image: UIImage(systemName: "forward.end.alt")) { _ in
                     model.autoplays = 0
                     play(upcoming)
@@ -515,14 +517,11 @@ struct VodPlayerView: View {
         }
     }
 
-    /// The stream stopped well short of the item: a dropped connection or conversion rather than the end, so it plays
-    /// again from where it stopped, up to twice until playback moves on by 30 seconds, and then fails, so Up next never
-    /// plays over an episode cut short.
-    private func endedEarly() {
-        if positionMs >= earlyEndAtMs + 30_000 { earlyEnds = 0 }
-        earlyEndAtMs = positionMs
-        earlyEnds += 1
-        guard earlyEnds <= 2 else {
+    /// The stream stopped well short of the item: a dropped connection or conversion rather than the end, so core's
+    /// guard says to play it again from where it stopped, or, once it keeps dropping, to fail, so Up next never plays
+    /// over an episode cut short.
+    private func endedEarly(_ verdict: EarlyEnd) {
+        guard verdict == .reopen else {
             failure = "The item stopped playing"
             return
         }
@@ -671,6 +670,3 @@ private struct VodController: UIViewControllerRepresentable {
         controller.contextualActions = actions
     }
 }
-
-/// How far short of the item's length an end may come and still be the end: a conversion can stop a little short.
-private let earlyEndMs: Int64 = 10_000

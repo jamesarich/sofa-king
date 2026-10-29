@@ -13,7 +13,7 @@ struct SofaKingTVApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView().environment(model)
+            ContentView().environment(model).tint(.sofaAmber).preferredColorScheme(.dark)
         }
     }
 }
@@ -272,6 +272,7 @@ struct ContentView: View {
         Group {
             if tabRestored { tabs } else { ProgressView() }
         }
+        .background(Color.sofaPlum.ignoresSafeArea())
         .onChange(of: model.settings == nil, initial: true) { _, missing in
             guard !missing, !tabRestored else { return }
             if model.requestedItem != nil {

@@ -1,12 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.ui.input.key.Key
-import dev.jamesrich.sofaking.contract.Wire
-import dev.jamesrich.sofaking.data.PlaybackIntent
-import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.SeekSteps
-import dev.jamesrich.sofaking.data.SkipMode
-import dev.jamesrich.sofaking.data.Skips
 import dev.jamesrich.sofaking.ui.formatPlayTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -14,98 +9,6 @@ import kotlin.test.assertNull
 import kotlin.time.Instant
 
 class VodPlaybackTest {
-    private fun stream(mode: String, offsetMs: Long = 0) = PlaybackStream(
-        channelId = "",
-        sessionId = "v1",
-        url = "/media/vod/v1/1/k/index.m3u8",
-        mimeType = "application/vnd.apple.mpegurl",
-        epoch = 1,
-        intent = PlaybackIntent.WATCH,
-        seekable = true,
-        itemId = "m1",
-        mode = mode,
-        offsetMs = offsetMs,
-    )
-
-    @Test
-    fun `a file played as it is seeks anywhere in it`() {
-        val direct = stream(Wire.VodMode.DIRECT)
-        assertEquals(
-            VodSeekPlan.InStream(3_000_000),
-            vodSeekPlan(direct, 3_000_000, writtenMs = null, itemDurationMs = 6_000_000),
-        )
-    }
-
-    @Test
-    fun `a converted stream seeks inside what is written and restarts outside it`() {
-        val hls = stream(Wire.VodMode.TRANSCODE, offsetMs = 600_000)
-        assertEquals(
-            VodSeekPlan.InStream(60_000),
-            vodSeekPlan(hls, 660_000, writtenMs = 120_000, itemDurationMs = 6_000_000),
-        )
-        assertEquals(
-            VodSeekPlan.Restart(500_000),
-            vodSeekPlan(hls, 500_000, writtenMs = 120_000, itemDurationMs = 6_000_000),
-            "before the stream",
-        )
-        assertEquals(
-            VodSeekPlan.Restart(718_000),
-            vodSeekPlan(hls, 718_000, writtenMs = 120_000, itemDurationMs = 6_000_000),
-            "at the written edge",
-        )
-        assertEquals(
-            VodSeekPlan.Restart(2_000_000),
-            vodSeekPlan(hls, 2_000_000, writtenMs = null, itemDurationMs = null),
-            "nothing written yet",
-        )
-    }
-
-    @Test
-    fun `a seek stays short of the end`() {
-        val direct = stream(Wire.VodMode.DIRECT)
-        assertEquals(VodSeekPlan.InStream(6_000_000 - END_GUARD_MS), vodSeekPlan(direct, 9_000_000, null, 6_000_000))
-        assertEquals(VodSeekPlan.InStream(0), vodSeekPlan(direct, -5_000, null, 6_000_000))
-    }
-
-    @Test
-    fun `playback running into a break skips it but a seek into one stays`() {
-        val breaks = listOf(VodMarker(60_000, 180_000, VodMarkerKind.BREAK))
-        assertEquals(180_000, breakToSkip(breaks, 59_800, 60_050))
-        assertNull(breakToSkip(breaks, 30_000, 90_000), "a seek across the start")
-        assertNull(breakToSkip(breaks, 90_000, 90_250), "already inside")
-        assertNull(breakToSkip(breaks, 60_050, 59_800), "moving back")
-    }
-
-    @Test
-    fun `the intro is found from its first moment to its end and a break is no intro`() {
-        val intro = VodMarker(600, 53_100, VodMarkerKind.INTRO)
-        val markers = listOf(intro, VodMarker(60_000, 180_000, VodMarkerKind.BREAK))
-        assertNull(introAt(markers, 599))
-        assertEquals(intro, introAt(markers, 600))
-        assertEquals(intro, introAt(markers, 53_099))
-        assertNull(introAt(markers, 53_100))
-        assertNull(introAt(markers, 90_000))
-        assertNull(breakEndAt(listOf(intro), 10_000), "Skip break never skips an intro")
-    }
-
-    @Test
-    fun `an intro or the credits is met as its own skip mode says and off is never offered`() {
-        val intro = VodMarker(600, 53_100, VodMarkerKind.INTRO)
-        val credits = VodMarker(1_200_000, 1_300_000, VodMarkerKind.CREDITS)
-        val markers = listOf(intro, credits)
-        val skips = Skips(intros = SkipMode.AUTO, credits = SkipMode.BUTTON)
-        assertEquals(SegmentSkip(intro, SkipMode.AUTO), segmentToSkip(markers, 10_000, skips))
-        assertEquals(SegmentSkip(credits, SkipMode.BUTTON), segmentToSkip(markers, 1_250_000, skips))
-        assertNull(segmentToSkip(markers, 600_000, skips))
-        val off = Skips(intros = SkipMode.OFF, credits = SkipMode.OFF)
-        assertNull(segmentToSkip(markers, 10_000, off))
-        assertNull(segmentToSkip(markers, 1_250_000, off))
-        assertEquals(
-            SegmentSkip(credits, SkipMode.AUTO),
-            segmentToSkip(markers, 1_250_000, Skips(intros = SkipMode.OFF, credits = SkipMode.AUTO)),
-        )
-    }
-
     @Test
     fun `a press moves by the chosen steps and a held key still speeds up`() {
         val scrub = VodScrub()
@@ -158,15 +61,6 @@ class VodPlaybackTest {
         assertEquals(VodAction.ZOOM, Key.TvZoomMode.vodAction())
         assertEquals(VodAction.STOP, Key.MediaStop.vodAction())
         assertNull(Key.Back.vodAction(), "Back is left to the back handler")
-    }
-
-    @Test
-    fun `a break is skippable from its start to its end`() {
-        val breaks = listOf(VodMarker(60_000, 180_000, VodMarkerKind.BREAK))
-        assertNull(breakEndAt(breaks, 59_999))
-        assertEquals(180_000, breakEndAt(breaks, 60_000))
-        assertEquals(180_000, breakEndAt(breaks, 179_999))
-        assertNull(breakEndAt(breaks, 180_000))
     }
 
     @Test

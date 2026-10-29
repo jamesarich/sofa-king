@@ -83,7 +83,7 @@ internal class Section(
 internal class Tab(val href: String, val label: String, val badge: String? = null)
 
 /**
- * The portal's destinations: the home page, the lineup, where channels come from, what plays them, the
+ * The portal's destinations: the home page, the lineup, where channels come from, the DVR, the devices and Plex, the
  * settings and the server itself.
  */
 internal val NAV: List<Section> = listOf(
@@ -104,11 +104,11 @@ internal val NAV: List<Section> = listOf(
     Section("/admin/providers", "Sources", "sources", listOf("/admin/providers", "/admin/ads")),
     Section(
         "/admin/recordings",
-        "Recordings",
+        "DVR",
         "recordings",
         listOf("/admin/recordings", "/admin/recordings/calendar", "/admin/recordings/wanted"),
     ),
-    Section("/admin/viewers", "Players", "players", listOf("/admin/viewers", "/admin/history", "/admin/plex")),
+    Section("/admin/viewers", "Devices", "players", listOf("/admin/viewers", "/admin/history", "/admin/plex")),
     Section("/admin/library", "Library", pages = listOf("/admin/library", "/admin/library/unmatched")),
     Section("/admin/settings", "Settings", pages = listOf("/admin/settings", "/admin/connect")),
     Section(

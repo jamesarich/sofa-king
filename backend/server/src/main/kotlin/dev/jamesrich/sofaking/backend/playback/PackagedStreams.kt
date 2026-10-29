@@ -207,7 +207,7 @@ internal class PackagedStreams(
     }
 
     private fun unavailable() =
-        ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
+        ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "This channel isn't available right now", true)
 
     companion object {
         /** What a packaged segment's URL starts with among a session's resources, before the segment's file name. */

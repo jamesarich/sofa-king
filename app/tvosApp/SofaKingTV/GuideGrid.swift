@@ -148,7 +148,7 @@ struct GuideGrid: View {
             }
         }
         .font(.callout)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.sofaMauve)
     }
 
     private func row(_ channel: Channel, area: CGFloat) -> some View {
@@ -304,8 +304,8 @@ private struct GuideCellBody: View {
         configuration.label
             .padding(.horizontal, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(focused ? Color.white : Color.white.opacity(0.08), in: .rect(cornerRadius: 12))
-            .foregroundStyle(focused ? Color.black : Color.primary)
+            .background(focused ? Color.sofaDusk : Color.sofaPlumRaised, in: .rect(cornerRadius: 12))
+            .foregroundStyle(focused ? Color.sofaPlum : Color.sofaDusk)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.easeOut(duration: 0.15), value: focused)
     }

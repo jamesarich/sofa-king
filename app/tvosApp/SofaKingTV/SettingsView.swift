@@ -44,7 +44,7 @@ struct SettingsView: View {
                     }
                 }
                 .disabled(pairing || url.isEmpty || code.count < 6)
-                if let pairingError { Text(pairingError).foregroundStyle(.red).font(.caption) }
+                if let pairingError { Text(pairingError).foregroundStyle(Color.sofaError).font(.caption) }
                 Text(strings.pairingHelp)
                     .font(.caption).foregroundStyle(.secondary)
             }

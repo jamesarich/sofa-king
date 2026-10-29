@@ -95,7 +95,7 @@ Only through a connection the server allows, such as a VPN or an HTTPS reverse p
 
 ### Does it record or play in the background?
 
-It records: on a server that records, the program details offer Record and Record series, and recordings play from the DVR tab, as [recordings](usage.md#recordings) describes. On an Android phone or tablet, leaving the app while something plays shrinks it into a [picture-in-picture](usage.md#remote-controls) window that keeps playing. Music plays on behind the app, with its controls in the notification or Control Center ([music](usage.md#music)). Video does not play in the background elsewhere: it stops when the app leaves the screen, and returning opens the same channel at the live edge, or a library item or recording where it stopped.
+It records: on a server that records, the program details offer Record and Record series, and recordings play from the DVR tab, as [DVR](usage.md#dvr) describes. On an Android phone or tablet, leaving the app while something plays shrinks it into a [picture-in-picture](usage.md#remote-controls) window that keeps playing. Music plays on behind the app, with its controls in the notification or Control Center ([music](usage.md#music)). Video does not play in the background elsewhere: it stops when the app leaves the screen, and returning opens the same channel at the live edge, or a library item or recording where it stopped.
 
 ### Why will a snapshot APK not install over my build?
 

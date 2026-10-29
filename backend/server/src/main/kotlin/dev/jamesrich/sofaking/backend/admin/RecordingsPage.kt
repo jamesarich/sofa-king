@@ -41,23 +41,22 @@ import kotlinx.html.time
 import kotlinx.html.title
 import kotlinx.html.tr
 
-internal fun recordingsPage(chrome: Chrome, view: RecordingsView): String =
-    layout("Recordings", chrome, "/admin/recordings") {
-        pageHead(
-            "Recordings",
-            "What the server records from the guide: series rules, the schedule they make, and the recordings on " +
-                "disk with the space they take.",
-        )
-        tabs(chrome, "/admin/recordings", RECORDING_TABS)
-        storagePanel(view)
-        val upcoming = view.list.recordings.filter {
-            it.state == Wire.RecordingState.SCHEDULED || it.state == Wire.RecordingState.RECORDING
-        }
-        upcomingPanel(chrome, view, upcoming)
-        rulesPanel(chrome, view)
-        val past = view.list.recordings - upcoming.toSet()
-        recordedPanel(chrome, past)
+internal fun recordingsPage(chrome: Chrome, view: RecordingsView): String = layout("DVR", chrome, "/admin/recordings") {
+    pageHead(
+        "DVR",
+        "What the server records from the guide: series rules, the schedule they make, and the recordings on " +
+            "disk with the space they take.",
+    )
+    tabs(chrome, "/admin/recordings", RECORDING_TABS)
+    storagePanel(view)
+    val upcoming = view.list.recordings.filter {
+        it.state == Wire.RecordingState.SCHEDULED || it.state == Wire.RecordingState.RECORDING
     }
+    upcomingPanel(chrome, view, upcoming)
+    rulesPanel(chrome, view)
+    val past = view.list.recordings - upcoming.toSet()
+    recordedPanel(chrome, past)
+}
 
 private fun FlowContent.storagePanel(view: RecordingsView) = panel("Storage", id = "storage") {
     val storage = view.list.storage

@@ -20,8 +20,6 @@ internal class LibraryView(
     val scanning: Boolean,
     val errors: List<String> = emptyList(),
     val proposed: Map<String, String>? = null,
-    /** The library whose Remove asks for confirmation. */
-    val removing: LibraryRecord? = null,
     /** Whether TMDB lookups are on (`SOFA_TMDB_TOKEN` is set, or a token was saved here). */
     val tmdb: Boolean = false,
     /** Whether the page may save a TMDB token: setup is available and the environment does not set one. */

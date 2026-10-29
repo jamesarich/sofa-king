@@ -32,7 +32,7 @@ import java.time.Instant
 import kotlinx.coroutines.channels.Channel as Trigger
 
 /** The most logged changes one read returns. */
-private const val CHANGES_LIMIT = 1000
+internal const val CHANGES_LIMIT = 1000
 
 /**
  * Builds the lineup from the policy file: runs the [StationBuilder] over the current feeds, guides, health and the

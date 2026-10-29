@@ -30,13 +30,22 @@ internal class VirtualPages(private val portal: Portal) {
             val id = call.parameters["id"]!!
             save(call, session, id) { channels -> channels.update(id, channelOf(form)) }
         }
-        route.action("/virtual/{id}/delete") { session, _ ->
+        route.action("/virtual/{id}/delete") { session, form ->
             val channels = service()
             val id = call.parameters["id"]!!
             val name = runCatching { channels.channel(id).name }.getOrDefault("the channel")
-            channels.delete(id)
-            session.flash.set(Flash("Deleted $name."))
-            seeOther(call, "/admin/virtual")
+            val ask = Ask(
+                "Delete $name?",
+                "Its schedule is gone and the channel leaves the guide. The libraries are untouched.",
+                "/admin/virtual/$id/delete",
+                "/admin/virtual",
+                "Delete",
+            )
+            call.confirmed(session, form, ask, { virtualChannelsPage(it, view(null)) }) {
+                channels.delete(id)
+                session.flash.set(Flash("Deleted $name."))
+                seeOther(call, "/admin/virtual")
+            }
         }
     }
 

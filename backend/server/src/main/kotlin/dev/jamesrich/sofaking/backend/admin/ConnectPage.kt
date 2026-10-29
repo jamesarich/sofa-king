@@ -82,16 +82,27 @@ internal class ConnectPages(private val portal: Portal) {
             )
             seeOther(call, "/admin/connect#targets")
         }
-        route.action("/connect/targets/{id}/delete") { session, _ ->
+        route.action("/connect/targets/{id}/delete") { session, form ->
             val id = call.parameters["id"]!!
-            session.flash.set(
-                attempt(id) {
-                    val name = it.get(id).name
-                    it.delete(id)
-                    Flash("Removed $name.")
-                },
+            val name = runtime.notifications?.let { runCatching { it.get(id).name }.getOrNull() } ?: "the target"
+            val ask = Ask(
+                "Remove $name?",
+                "The server stops sending news there.",
+                "/admin/connect/targets/$id/delete",
+                "/admin/connect#targets",
+                "Remove",
             )
-            seeOther(call, "/admin/connect#targets")
+            val page: suspend (Chrome) -> String = { connectPage(it, runtime.notifications?.list()) }
+            call.confirmed(session, form, ask, page) {
+                session.flash.set(
+                    attempt(id) {
+                        val removed = it.get(id).name
+                        it.delete(id)
+                        Flash("Removed $removed.")
+                    },
+                )
+                seeOther(call, "/admin/connect#targets")
+            }
         }
     }
 

@@ -92,7 +92,10 @@ class AdminPortalSettingsTest : AdminPortalCase() {
             browser.post("/admin/plex/outputs/save", "csrf" to csrf, "name" to "stream", "channels" to "1")
             assertTrue(browser.get("/admin/plex").bodyAsText().contains("Not saved: An output name is 1 to 32"))
 
-            browser.post("/admin/plex/outputs/delete", "csrf" to csrf, "name" to "kids")
+            val asked = browser.post("/admin/plex/outputs/delete", "csrf" to csrf, "name" to "kids")
+            assertTrue(asked.bodyAsText().contains("Delete the kids output?"))
+            assertEquals(1, runtime.namedOutputs.list().size)
+            browser.post("/admin/plex/outputs/delete", "csrf" to csrf, "name" to "kids", "confirm" to "yes")
             assertTrue(runtime.namedOutputs.list().isEmpty())
         }
     }
@@ -351,7 +354,10 @@ class AdminPortalSettingsTest : AdminPortalCase() {
             assertEquals("Homepage", token.label)
             val later = browser.get("/admin/settings").bodyAsText()
             assertTrue(later.contains("Homepage") && !later.contains(secret), "the secret is shown only once")
-            val revoked = browser.post("/admin/settings/tokens/${token.id}/revoke", "csrf" to csrf)
+            val asked = browser.post("/admin/settings/tokens/${token.id}/revoke", "csrf" to csrf)
+            assertTrue(asked.bodyAsText().contains("Revoke the Homepage token?"))
+            assertEquals(1, runtime.tokens.all().size)
+            val revoked = browser.post("/admin/settings/tokens/${token.id}/revoke", "csrf" to csrf, "confirm" to "yes")
             assertEquals(HttpStatusCode.SeeOther, revoked.status)
             assertTrue(runtime.tokens.all().isEmpty())
         }

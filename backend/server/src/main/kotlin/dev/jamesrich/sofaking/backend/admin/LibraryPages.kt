@@ -137,16 +137,20 @@ internal class LibraryPages(private val portal: Portal) {
     private suspend fun remove(call: ApplicationCall, session: AdminSession, form: Parameters) {
         val id = call.parameters["id"]!!
         val library = runtime.store.library(id)
-        when {
-            library == null -> {
-                session.flash.set(Flash("That library is already gone.", Tone.WARN))
-                seeOther(call, "/admin/library")
-            }
-
-            form["confirm"] != "yes" ->
-                call.html(libraryPage(portal.chrome(call, session), libraryView(removing = library)))
-
-            else -> {
+        if (library == null) {
+            session.flash.set(Flash("That library is already gone.", Tone.WARN))
+            return seeOther(call, "/admin/library")
+        }
+        val ask = Ask(
+            "Remove ${library.name}?",
+            "The app stops showing it, and its watch progress is forgotten. The files in ${library.path} stay where " +
+                "they are; add the folder again to bring it back.",
+            "/admin/library/$id/remove",
+            "/admin/library#libraries",
+            "Remove",
+        )
+        with(portal) {
+            call.confirmed(session, form, ask, { libraryPage(it, libraryView()) }) {
                 libraries().delete(id)
                 session.flash.set(Flash("Removed ${library.name}. Its files are untouched."))
                 seeOther(call, "/admin/library")
@@ -157,7 +161,6 @@ internal class LibraryPages(private val portal: Portal) {
     private suspend fun libraryView(
         errors: List<String> = emptyList(),
         proposed: Map<String, String>? = null,
-        removing: LibraryRecord? = null,
         tmdbError: String? = null,
         fanartError: String? = null,
         listenBrainzError: String? = null,
@@ -167,7 +170,7 @@ internal class LibraryPages(private val portal: Portal) {
             service.libraries(), service.counts(),
             service.roots.map { it.root.toString() },
             service.folders.choices().map { it.toString() },
-            runtime.jobs.snapshot().any { it.id == LIBRARY_SCAN_JOB && it.running }, errors, proposed, removing,
+            runtime.jobs.snapshot().any { it.id == LIBRARY_SCAN_JOB && it.running }, errors, proposed,
             service.metadata?.enabled == true,
             tmdbSettable = runtime.setup?.tmdbFromEnvironment == false, tmdbError = tmdbError,
             fanart = portal.config?.fanartKey != null,

@@ -201,6 +201,22 @@ internal fun FlowContent.askDialog(
     }
 }
 
+/** A question before an action that cannot be undone: [note] says what it does, [fields] ride along to [action]. */
+internal class Ask(
+    val title: String,
+    val note: String,
+    val action: String,
+    val back: String,
+    val verb: String,
+    val fields: List<Pair<String, String>> = emptyList(),
+)
+
+internal fun FlowContent.askDialog(chrome: Chrome, ask: Ask) =
+    askDialog(chrome, ask.title, ask.action, ask.back, ask.verb, danger = true) {
+        for ((name, value) in ask.fields) hiddenInput(name = name) { this.value = value }
+        p { +ask.note }
+    }
+
 /** A policy edit form: the CSRF token, the revision the page showed, and the [op]. */
 internal fun FlowContent.editForm(
     action: String,

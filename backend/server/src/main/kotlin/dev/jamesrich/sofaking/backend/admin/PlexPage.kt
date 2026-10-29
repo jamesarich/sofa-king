@@ -244,7 +244,7 @@ private fun FlowContent.plexSetup(view: PlexView) = panel("Set up Plex", id = "s
         }
         li { +"After a lineup change, run Scan channels for the DVR in Plex, or let Plex sync do it." }
     }
-    p("muted small") { +"Each device takes up to ${view.tuners} streams at once; SOFA_HDHR_TUNERS changes that." }
+    p("muted small") { +"Each device takes up to ${view.tuners} streams at once; Settings changes that." }
 }
 
 /** The addresses that may use the tuners, the ones refused lately with an Allow each, and a form to allow one more. */

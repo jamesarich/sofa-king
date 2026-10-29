@@ -156,6 +156,8 @@ class VodSessions(
     encoder: VideoEncoder = VideoEncoder(),
     /** Conversions running elsewhere that count toward [maxConverting], such as virtual channels. */
     private val others: () -> Int = { 0 },
+    /** Held across the capacity check and the session's insert, and shared with the converters counted in [others]. */
+    private val gate: Mutex = Mutex(),
 ) {
     private val runner = VodRunner(ffmpeg, directory, encoder)
 
@@ -274,30 +276,33 @@ class VodSessions(
         // key frames, which nothing lists.
         val whole =
             request.wholePlaylist && mode == Wire.VodMode.TRANSCODE && !growing && durationMs != null && durationMs > 0
-        return table.locked {
-            table.reap()
-            val converting = table.sessions.values.count { heavy(it.mode, it.media) } + others()
-            if (heavy(mode, media) && converting >= maxConverting) {
-                throw ApiFailure(
-                    HttpStatusCode.ServiceUnavailable,
-                    Wire.ErrorCode.CAPACITY_EXHAUSTED,
-                    "Too many files are being converted; try again when one stops",
-                    true,
+        return gate.withLock {
+            table.locked {
+                table.reap()
+                val converting = table.sessions.values.count { heavy(it.mode, it.media) } + others()
+                if (heavy(mode, media) && converting >= maxConverting) {
+                    throw ApiFailure(
+                        HttpStatusCode.ServiceUnavailable,
+                        Wire.ErrorCode.CAPACITY_EXHAUSTED,
+                        "Too many files are being converted; try again when one stops",
+                        true,
+                    )
+                }
+                val state = VodState(
+                    UUID.randomUUID().toString(), itemId, recordingId, file, growing, mode, durationMs,
+                    audio?.index, burn, media, secret(), epoch = 1,
+                    startMs = if (mode == Wire.VodMode.DIRECT || whole) 0 else request.startMs,
+                    expires = clock.instant().plus(lease), startedAt = clock.instant(),
+                    whole = whole, client = from,
+                    runStart = if (whole) (request.startMs / SEGMENT_MS).toInt() else 0,
                 )
+                // A conversion that fails to start leaves its folder, and maybe its FFmpeg, to dispose.
+                if (mode != Wire.VodMode.DIRECT) {
+                    runCatching { runner.launch(state) }.onFailure { table.retired += state }.getOrThrow()
+                }
+                table.add(state)
+                state.wire()
             }
-            val state = VodState(
-                UUID.randomUUID().toString(), itemId, recordingId, file, growing, mode, durationMs, audio?.index, burn,
-                media, secret(), epoch = 1,
-                startMs = if (mode == Wire.VodMode.DIRECT || whole) 0 else request.startMs,
-                expires = clock.instant().plus(lease), startedAt = clock.instant(),
-                whole = whole, runStart = if (whole) (request.startMs / SEGMENT_MS).toInt() else 0, client = from,
-            )
-            // A conversion that fails to start leaves its folder, and maybe its FFmpeg, to dispose.
-            if (mode != Wire.VodMode.DIRECT) {
-                runCatching { runner.launch(state) }.onFailure { table.retired += state }.getOrThrow()
-            }
-            table.add(state)
-            state.wire()
         }
     }
 

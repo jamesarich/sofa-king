@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.virtual
 
 import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.io.startOwned
 import dev.jamesrich.sofaking.backend.io.terminate
 import dev.jamesrich.sofaking.backend.library.VideoEncoder
 import dev.jamesrich.sofaking.backend.library.VodRunner
@@ -23,6 +24,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
@@ -52,9 +55,14 @@ class VirtualStreams(
     @Volatile var encoder: VideoEncoder = VideoEncoder(),
     private val slides: SlideFetcher? = null,
     private val mayStart: suspend () -> Boolean = { true },
+    /** Held from the [mayStart] check until the stream counts in [running], and shared with the other converters. */
+    private val gate: Mutex = Mutex(),
 ) {
     private val log = LoggerFactory.getLogger(VirtualStreams::class.java)
     private val streams = ConcurrentHashMap<String, Stream>()
+
+    /** Per channel: a stop clears the directory a new start of the same channel would use, so they take turns. */
+    private val turns = ConcurrentHashMap<String, Mutex>()
 
     /** Streams playing now, each one FFmpeg. */
     val running: Int get() = streams.size
@@ -75,16 +83,18 @@ class VirtualStreams(
      */
     suspend fun playlist(id: String): String {
         channels.channel(id)
-        val stream = streams[id] ?: run {
-            if (!mayStart()) {
-                throw ApiFailure(
-                    HttpStatusCode.ServiceUnavailable,
-                    Wire.ErrorCode.CAPACITY_EXHAUSTED,
-                    "Too many files are being converted; try again when one stops",
-                    true,
-                )
+        val stream = streams[id] ?: turn(id).withLock {
+            streams[id] ?: gate.withLock {
+                if (!mayStart()) {
+                    throw ApiFailure(
+                        HttpStatusCode.ServiceUnavailable,
+                        Wire.ErrorCode.CAPACITY_EXHAUSTED,
+                        "Too many files are being converted; try again when one stops",
+                        true,
+                    )
+                }
+                start(id)
             }
-            start(id)
         }
         stream.readAt = clock.instant()
         val listed = withTimeoutOrNull(START_WAIT.toMillis()) {
@@ -121,8 +131,10 @@ class VirtualStreams(
         for ((id, stream) in streams) stop(id, stream)
     }
 
-    private suspend fun stop(id: String, stream: Stream) {
-        if (!streams.remove(id, stream)) return
+    private fun turn(id: String): Mutex = turns.getOrPut(id) { Mutex() }
+
+    private suspend fun stop(id: String, stream: Stream) = turn(id).withLock {
+        if (!streams.remove(id, stream)) return@withLock
         stream.job.cancel()
         stream.job.join()
         withContext(Dispatchers.IO) { VodRunner.clear(stream.dir) }
@@ -281,11 +293,9 @@ class VirtualStreams(
             val timestamp = Duration.between(epoch, piece.from).toMillis()
             val command = pieceCommand(ffmpeg, input, piece.dir, encoder, timestamp, burstSeconds, source)
             val process = try {
-                withContext(Dispatchers.IO) {
-                    Files.createDirectories(piece.dir)
-                    ProcessBuilder(command).redirectErrorStream(true)
-                        .redirectOutput(piece.dir.resolve("ffmpeg.log").toFile()).start()
-                }
+                withContext(Dispatchers.IO) { Files.createDirectories(piece.dir) }
+                ProcessBuilder(command).redirectErrorStream(true)
+                    .redirectOutput(piece.dir.resolve("ffmpeg.log").toFile()).startOwned()
             } catch (e: IOException) {
                 log.warn("virtual ffmpeg did not start class={}", e.javaClass.simpleName)
                 return false

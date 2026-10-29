@@ -176,6 +176,12 @@ class PolicyService(
     }
 }
 
+/** [PolicyService.apply], but only while [revision] is the policy's: a stale one fails as a write against it would. */
+suspend fun PolicyService.applyAt(revision: String, cause: String): PolicyApplyResult {
+    file.candidate(revision) { it }
+    return apply(cause)
+}
+
 /** The stations one apply built, in lineup order, and what it reported. */
 class AppliedRun(val stations: List<PolicyStation>, val result: PolicyApplyResult) {
     /**

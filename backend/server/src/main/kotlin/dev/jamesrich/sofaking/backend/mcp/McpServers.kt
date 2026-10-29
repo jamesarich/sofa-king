@@ -16,9 +16,11 @@ import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -44,6 +46,8 @@ internal class McpServers(val reads: Server, val admin: Server) {
                 readTools(context)
                 privateReadTools(context)
                 actionTools(context)
+                sourceActionTools(context)
+                policyActionTools(context)
             },
         )
     }
@@ -62,8 +66,10 @@ private const val INSTRUCTIONS =
         "ids; explain_station takes the stationKey a lineup row shows. A providerChannelId is a provider's " +
         "channel, not a lineup entry; channel accepts either. Lists are capped: when truncated is true or " +
         "nextOffset is set, call again with offset or a narrower filter.\n" +
-        "Tools that change something are listed only to the admin token. Results never include stream URLs, " +
-        "tokens or request headers."
+        "Tools that change something are listed only to the admin token. A destructive one refuses without " +
+        "confirm true: say what it does first. Lineup edits take the revision from preview_policy and preview " +
+        "with dryRun (the default) before they write; a stale revision answers POLICY_CHANGED. Results never " +
+        "include stream URLs, tokens or request headers."
 
 private fun server(revision: String, tools: Server.() -> Unit): Server = Server(
     Implementation(name = "sofa-king", version = revision, title = "Sofa King"),
@@ -129,6 +135,18 @@ internal class Arguments(private val values: JsonObject) {
             ?: invalid("$name is ${allowed.joinToString(", ")}")
     }
 
+    /** A true or false value; null when absent, a refusal for anything else. */
+    fun boolean(name: String): Boolean? {
+        val raw = values[name] ?: return null
+        return (raw as? JsonPrimitive)?.takeUnless { it.isString }?.booleanOrNull ?: invalid("$name is true or false")
+    }
+
+    /** A number; null when absent, a refusal for anything else. */
+    fun number(name: String): Double? {
+        val raw = values[name] ?: return null
+        return (raw as? JsonPrimitive)?.takeUnless { it.isString }?.doubleOrNull ?: invalid("$name is a number")
+    }
+
     fun int(name: String, default: Int, range: IntRange): Int {
         val raw = values[name] ?: return default
         val value = (raw as? JsonPrimitive)?.intOrNull
@@ -137,29 +155,17 @@ internal class Arguments(private val values: JsonObject) {
     }
 }
 
+/** Refuses a destructive [action] unless the call said `confirm: true`. */
+internal fun Arguments.confirmed(action: String) {
+    if (boolean(CONFIRM) != true) {
+        throw ApiFailure(
+            HttpStatusCode.BadRequest,
+            "CONFIRMATION_REQUIRED",
+            "Nothing was done: $action. Tell the operator what it does, then call again with confirm true",
+        )
+    }
+}
+
+internal const val CONFIRM = "confirm"
+
 internal fun invalid(message: String): Nothing = throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", message)
-
-/** A tool's input schema from its [properties], each built by [string], [integer] or [choice]. */
-internal fun schema(vararg properties: Pair<String, JsonObject>, required: List<String> = emptyList()) = ToolSchema(
-    properties = JsonObject(properties.toMap()),
-    required = required.ifEmpty { null },
-)
-
-internal fun string(description: String) = buildJsonObject {
-    put("type", "string")
-    put("description", description)
-}
-
-internal fun integer(description: String, range: IntRange, default: Int) = buildJsonObject {
-    put("type", "integer")
-    put("description", description)
-    put("minimum", range.first)
-    put("maximum", range.last)
-    put("default", default)
-}
-
-internal fun choice(description: String, values: List<String>) = buildJsonObject {
-    put("type", "string")
-    put("description", description)
-    put("enum", buildJsonArray { values.forEach { add(JsonPrimitive(it)) } })
-}

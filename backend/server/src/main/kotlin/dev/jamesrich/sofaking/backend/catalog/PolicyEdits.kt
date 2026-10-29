@@ -38,8 +38,23 @@ class PolicyEdits internal constructor(
         return PolicyWriteResult(service.document(), applied)
     }
 
-    /** Writes [request] as the override of the entry's station, then applies. */
-    suspend fun updateStation(entryId: String, request: UpdateLineupEntry, ifMatch: String?): LineupEntryRecord? {
+    /** Writes [request] as the override of the entry's station, then applies with [cause] as the logged reason. */
+    suspend fun updateStation(
+        entryId: String,
+        request: UpdateLineupEntry,
+        ifMatch: String?,
+        cause: String = "patch",
+    ): LineupEntryRecord? {
+        file.edit(ifMatch, stationChange(entryId, request))
+        service.apply(cause)
+        return lineup.entry(entryId)
+    }
+
+    /** What [updateStation] would do to the stations; writes nothing. */
+    internal suspend fun previewStation(entryId: String, request: UpdateLineupEntry, ifMatch: String?): Impact =
+        service.impact(file.candidate(ifMatch, stationChange(entryId, request)))
+
+    private suspend fun stationChange(entryId: String, request: UpdateLineupEntry): (JsonObject) -> JsonObject {
         if (request.position != null) {
             throw ApiFailure(
                 HttpStatusCode.BadRequest,
@@ -49,44 +64,38 @@ class PolicyEdits internal constructor(
         }
         val key = keyOf(entryId)
         val pins = request.offerings?.let(::pinsOf)
-        file.edit(ifMatch) { tree ->
+        return { tree ->
             val edited = editStation(tree, key) { station -> station.update(request, pins) }
             // A number set by hand is never the server's, so it is never reclaimed.
             if (request.number != null) withAssignedKeys(edited, add = emptySet(), remove = setOf(key)) else edited
         }
-        service.apply("patch")
-        return lineup.entry(entryId)
     }
 
     /**
      * Keeps [a] and [b] apart for good: adds the pair to `names.never` and drops a learned alias between them, then
      * applies. A pair already listed is not added twice.
      */
-    suspend fun neverMerge(a: String, b: String, ifMatch: String?): PolicyApplyResult {
-        if (a.isBlank() || b.isBlank() || a == b) {
-            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "names.never takes two different keys")
-        }
-        file.edit(ifMatch) { tree -> editNames(tree) { names -> names.keepApart(setOf(a, b)) } }
-        return service.apply("never-merge")
+    suspend fun neverMerge(a: String, b: String, ifMatch: String?, cause: String = "never-merge"): PolicyApplyResult {
+        file.edit(ifMatch, neverChange(a, b))
+        return service.apply(cause)
     }
+
+    /** What [neverMerge] would do to the stations; writes nothing. */
+    internal suspend fun previewNeverMerge(a: String, b: String, ifMatch: String?): Impact =
+        service.impact(file.candidate(ifMatch, neverChange(a, b)))
 
     /**
      * Adds `names.aliases[from] = to`, then applies. An override keyed by [from] cannot stay under an alias: one
      * that holds only a number goes, as with a learned alias; any other moves to [to], keeping [to]'s number.
      */
-    suspend fun addAlias(from: String, to: String, ifMatch: String?): PolicyApplyResult {
-        if (from.isBlank() || to.isBlank()) {
-            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "An alias takes two keys")
-        }
-        file.edit(ifMatch) { tree ->
-            editNames(withOverrideMoved(tree, from, to)) { names ->
-                val aliases = (names["aliases"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
-                aliases[from] = JsonPrimitive(to)
-                names["aliases"] = JsonObject(aliases.toSortedMap())
-            }
-        }
-        return service.apply("alias")
+    suspend fun addAlias(from: String, to: String, ifMatch: String?, cause: String = "alias"): PolicyApplyResult {
+        file.edit(ifMatch, aliasChange(from, to))
+        return service.apply(cause)
     }
+
+    /** What [addAlias] would do to the stations; writes nothing. */
+    internal suspend fun previewAlias(from: String, to: String, ifMatch: String?): Impact =
+        service.impact(file.candidate(ifMatch, aliasChange(from, to)))
 
     /** Writes `enabled: false` for the entry's station, then applies. */
     suspend fun disableStation(entryId: String, ifMatch: String?) {
@@ -112,6 +121,26 @@ class PolicyEdits internal constructor(
         val channel = feeds.published.channel(offering.channelId)
         SourcePin(offering.providerId, channel?.legacyGuideId, channel?.name)
     }.distinctBy(::pinIdentity)
+}
+
+private fun neverChange(a: String, b: String): (JsonObject) -> JsonObject {
+    if (a.isBlank() || b.isBlank() || a == b) {
+        throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "names.never takes two different keys")
+    }
+    return { tree -> editNames(tree) { names -> names.keepApart(setOf(a, b)) } }
+}
+
+private fun aliasChange(from: String, to: String): (JsonObject) -> JsonObject {
+    if (from.isBlank() || to.isBlank()) {
+        throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "An alias takes two keys")
+    }
+    return { tree ->
+        editNames(withOverrideMoved(tree, from, to)) { names ->
+            val aliases = (names["aliases"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+            aliases[from] = JsonPrimitive(to)
+            names["aliases"] = JsonObject(aliases.toSortedMap())
+        }
+    }
 }
 
 /** This station override with the fields [request] sets or clears, and [pins] as its sources when given. */

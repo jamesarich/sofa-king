@@ -10,7 +10,7 @@ import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
 // offer. None deletes anything; update_now restarts the server when a newer image is published.
 
 /** Starts work the server would do on its own schedule anyway; asking twice does no more than once. */
-private val UPKEEP = ToolAnnotations(
+internal val UPKEEP = ToolAnnotations(
     readOnlyHint = false,
     destructiveHint = false,
     idempotentHint = true,
@@ -57,6 +57,19 @@ internal fun Server.actionTools(context: McpContext) {
             ActionResult(true, "Queued a scan of ${name ?: "every library"}")
         }
     }
+    updateTools(context)
+    runtime.plex?.let { plex ->
+        tool(
+            "plex_sync",
+            "Sync Plex with the lineup now, as the portal's Plex page does, and answer the sync's status as " +
+                "plex_status does. A failure shows in lastError, not as a tool error.",
+            annotations = UPKEEP.copy(openWorldHint = true),
+        ) { plex.sync("mcp").view(DEFAULT_PAGE) }
+    }
+}
+
+private fun Server.updateTools(context: McpContext) {
+    val runtime = context.runtime
     runtime.updates?.let { updates ->
         tool(
             "check_for_update",
@@ -66,13 +79,17 @@ internal fun Server.actionTools(context: McpContext) {
         tool(
             "update_now",
             "Ask the host's updater to install the newest published image now. The server restarts if one is newer, " +
-                "dropping every stream that plays; check update_status and watching_now first.",
-            annotations = UPKEEP.copy(destructiveHint = true),
-        ) { requestUpdate(updates) }
+                "dropping every stream that plays; check update_status and watching_now first. Needs confirm true.",
+            schema(CONFIRM to boolean("Required true: the restart drops every stream that plays")),
+            UPKEEP.copy(destructiveHint = true),
+        ) { arguments ->
+            arguments.confirmed("the server restarts if a newer image is published, dropping every stream that plays")
+            requestUpdate(updates, runtime.sessions.snapshot().size)
+        }
     }
 }
 
-private suspend fun requestUpdate(updates: UpdateChecker): ActionResult = when {
+private suspend fun requestUpdate(updates: UpdateChecker, playing: Int): ActionResult = when {
     updates.state().updater == null ->
         throw ApiFailure(
             HttpStatusCode.Conflict,
@@ -82,7 +99,8 @@ private suspend fun requestUpdate(updates: UpdateChecker): ActionResult = when {
 
     updates.requestUpdate() -> ActionResult(
         true,
-        "Asked the updater to run; the server restarts if a newer image is published",
+        "Asked the updater to run; the server restarts if a newer image is published. " +
+            "$playing ${if (playing == 1) "session was" else "sessions were"} playing",
     )
 
     else -> throw ApiFailure(

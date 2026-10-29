@@ -2,8 +2,8 @@ package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.api.LineupPolicy
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
-import dev.jamesrich.sofaking.backend.catalog.LoadedPolicy
 import dev.jamesrich.sofaking.backend.catalog.PolicyService
+import dev.jamesrich.sofaking.backend.catalog.impact
 import dev.jamesrich.sofaking.backend.catalog.parsePolicy
 import dev.jamesrich.sofaking.backend.catalog.policyBytes
 import dev.jamesrich.sofaking.backend.catalog.policyRevision
@@ -97,10 +97,7 @@ internal class PolicyEditor(private val portal: Portal) {
             val back = edit.back ?: "${edit.page}#${ready.edit.section}"
             val stale = form["revision"] != current
             val impact = if (stale || form["confirm"] != "yes") {
-                impactOf(
-                    policy.run().stations,
-                    policy.run(LoadedPolicy(policy.file.path, ready.candidate, "candidate")).stations,
-                )
+                policy.impact(ready.candidate)
             } else {
                 null
             }

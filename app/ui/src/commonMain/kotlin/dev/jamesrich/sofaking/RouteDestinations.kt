@@ -2,6 +2,8 @@ package dev.jamesrich.sofaking
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import dev.jamesrich.sofaking.ui.library.trailers
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.MusicPlayback
 import dev.jamesrich.sofaking.ui.player.NowPlayingScreen
@@ -43,7 +45,16 @@ internal fun RouteDestination(
 
         is Route.Recording -> RecordingDestination(route, shell, vm, recordingsVm, player)
 
-        is Route.LibraryItem -> LibraryItemDestination(route, arrival, shell, libraryVm, music, hideSpoilers)
+        is Route.LibraryItem -> LibraryItemDestination(
+            route,
+            arrival,
+            shell,
+            libraryVm,
+            music,
+            hideSpoilers,
+            player,
+            remember(vm.sessions) { vm.sessions.trailers() },
+        )
 
         Route.NowPlaying -> NowPlayingScreen(music, onClose = shell::back, loadLyrics = libraryVm::lyrics)
 

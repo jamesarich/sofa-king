@@ -282,7 +282,7 @@
       },
       "OpenVodPlayback": {
         "type": "object",
-        "properties": { "itemId": { "type": "string", "description": "The item to play; leave it out with recordingId." }, "recordingId": { "type": ["string", "null"], "description": "A running or finished recording to play instead of an item." }, "profile": { "$ref": "#/components/schemas/ClientProfile" }, "startMs": { "type": "integer", "minimum": 0 }, "audioIndex": { "type": ["integer", "null"], "description": "An audio stream index from the item's tracks; the file's default when null." }, "subtitleIndex": { "type": ["integer", "null"], "description": "A picture subtitle track from the item's subtitles to draw into the picture, which converts the stream. A text track or a recording answers 400." }, "wholePlaylist": { "type": "boolean", "description": "For a player that cannot restart a conversion: a transcode serves a VOD playlist of the whole item, with startMs 0, and converts from the segment the player asks for." } }
+        "properties": { "itemId": { "type": "string", "description": "The item to play; leave it out with recordingId." }, "recordingId": { "type": ["string", "null"], "description": "A running or finished recording to play instead of an item." }, "profile": { "$ref": "#/components/schemas/ClientProfile" }, "startMs": { "type": "integer", "minimum": 0 }, "audioIndex": { "type": ["integer", "null"], "description": "An audio stream index from the item's tracks; the file's default when null." }, "subtitleIndex": { "type": ["integer", "null"], "description": "A picture subtitle track from the item's subtitles to draw into the picture, which converts the stream. A text track or a recording answers 400." }, "wholePlaylist": { "type": "boolean", "description": "For a player that cannot restart a conversion: a transcode serves a VOD playlist of the whole item, with startMs 0, and converts from the segment the player asks for." }, "intent": { "type": "string", "enum": ["preview", "watch"], "default": "watch", "description": "A preview of a library item (a trailer behind a page) lasts 45 seconds past its last renewal and yields its conversion slot to a watch; a recording answers 400 for it." } }
       },
       "UpdateVodPlayback": {
         "type": "object",
@@ -294,7 +294,8 @@
           "id": { "type": "string" }, "itemId": { "type": "string" }, "mode": { "type": "string", "enum": ["direct", "remux", "audio", "transcode"] },
           "descriptor": { "type": "object", "properties": { "protocol": { "type": "string", "enum": ["file", "hls"] }, "mimeType": { "type": "string" }, "url": { "type": "string" }, "epoch": { "type": "integer" } } },
           "startMs": { "type": "integer", "description": "Where in the item the HLS stream's time 0 is; 0 for direct play." }, "durationMs": { "type": ["integer", "null"] },
-          "expiresAt": { "type": "string", "format": "date-time" }, "recordingId": { "type": ["string", "null"], "description": "Set, with an empty itemId, when the session plays a recording." }
+          "expiresAt": { "type": "string", "format": "date-time" }, "recordingId": { "type": ["string", "null"], "description": "Set, with an empty itemId, when the session plays a recording." },
+          "intent": { "type": "string", "enum": ["preview", "watch"], "default": "watch", "description": "What the session is held for; a server that does not know previews always says watch." }
         }
       },
       "OpenMultiview": {

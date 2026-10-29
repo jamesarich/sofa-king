@@ -140,6 +140,76 @@ class VodApiTest {
         assertEquals(Wire.ErrorCode.CAPACITY_EXHAUSTED, json.decodeFromString<ApiError>(busy.bodyAsText()).code)
     }
 
+    @Test fun `a preview lasts 45 seconds and a watch five minutes without a renewal`() = clipServer {
+        val direct = ClientProfile(listOf("mkv"), listOf(video()), listOf("aac"))
+        val opened = open(direct, intent = Wire.Intent.PREVIEW).bodyAsText()
+        assertKeepsWireFixture("v1/vod-preview-session.json", opened)
+        val preview = json.decodeFromString<VodSession>(opened)
+        val watch = session(open(direct))
+        assertEquals(Wire.Intent.PREVIEW, preview.intent)
+        assertEquals(Wire.Intent.WATCH, watch.intent)
+        clock.now = clock.now.plus(Duration.ofSeconds(46))
+        runtime.vod!!.expire()
+        assertEquals(HttpStatusCode.Gone, client.get("/api/v1/vod-sessions/${preview.id}") { bearerAuth(token) }.status)
+        assertEquals(HttpStatusCode.OK, client.get("/api/v1/vod-sessions/${watch.id}") { bearerAuth(token) }.status)
+    }
+
+    @Test fun `renewing a preview inside its lease keeps it past the first lease`() = clipServer {
+        val direct = ClientProfile(listOf("mkv"), listOf(video()), listOf("aac"))
+        val preview = session(open(direct, intent = Wire.Intent.PREVIEW))
+        repeat(3) {
+            clock.now = clock.now.plus(Duration.ofSeconds(15))
+            val renewed = client.patch("/api/v1/vod-sessions/${preview.id}") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody("{}")
+            }
+            assertEquals(HttpStatusCode.OK, renewed.status)
+            assertEquals(Wire.Intent.PREVIEW, session(renewed).intent)
+        }
+        runtime.vod!!.expire()
+        assertEquals(HttpStatusCode.OK, client.get("/api/v1/vod-sessions/${preview.id}") { bearerAuth(token) }.status)
+        clock.now = clock.now.plus(Duration.ofSeconds(46))
+        runtime.vod!!.expire()
+        assertEquals(HttpStatusCode.Gone, client.get("/api/v1/vod-sessions/${preview.id}") { bearerAuth(token) }.status)
+    }
+
+    @Test fun `a watch open ends a preview that holds the only conversion slot`() = clipServer {
+        val preview = session(open(remuxProfile(), intent = Wire.Intent.PREVIEW))
+        assertEquals(Wire.VodMode.REMUX, preview.mode)
+        val watch = open(ClientProfile())
+        assertEquals(HttpStatusCode.Created, watch.status, "the preview yields its slot")
+        assertEquals(Wire.Intent.WATCH, session(watch).intent)
+        val gone = client.get("/api/v1/vod-sessions/${preview.id}") { bearerAuth(token) }
+        assertEquals(HttpStatusCode.Gone, gone.status, "the evicted preview answers its next renewal as gone")
+        pollUntil(10_000) { transcoding() == 1L }
+    }
+
+    @Test fun `a preview never ends a watch and answers busy when no slot is free`() = clipServer {
+        val watch = session(open(remuxProfile()))
+        val preview = open(remuxProfile(), intent = Wire.Intent.PREVIEW)
+        assertEquals(HttpStatusCode.ServiceUnavailable, preview.status)
+        assertEquals(Wire.ErrorCode.CAPACITY_EXHAUSTED, json.decodeFromString<ApiError>(preview.bodyAsText()).code)
+        assertEquals(HttpStatusCode.OK, client.get("/api/v1/vod-sessions/${watch.id}") { bearerAuth(token) }.status)
+    }
+
+    @Test fun `a preview that plays the file as it is holds no conversion slot`() = clipServer {
+        val direct = ClientProfile(listOf("mkv"), listOf(video()), listOf("aac"))
+        val preview = session(open(direct, intent = Wire.Intent.PREVIEW))
+        assertEquals(Wire.VodMode.DIRECT, preview.mode)
+        assertEquals(HttpStatusCode.Created, open(remuxProfile()).status)
+        assertEquals(HttpStatusCode.OK, client.get("/api/v1/vod-sessions/${preview.id}") { bearerAuth(token) }.status)
+    }
+
+    @Test fun `an intent the server does not know answers 400`() = clipServer {
+        val response = client.post("/api/v1/vod-sessions") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody("""{"itemId":"${item().id}","intent":"binge"}""")
+        }
+        assertEquals(HttpStatusCode.BadRequest, response.status)
+    }
+
     @Test fun `a seek past what is written restarts FFmpeg there under a new epoch`() = clipServer {
         val remux = session(open(remuxProfile(), startMs = 2000))
         val restarted = json.decodeFromString<VodSession>(
@@ -416,6 +486,7 @@ class VodApiTest {
             subtitleIndex: Int? = null,
             wholePlaylist: Boolean = false,
             itemId: String? = null,
+            intent: String = Wire.Intent.WATCH,
         ): HttpResponse {
             val request = OpenVodPlayback(
                 itemId ?: item().id,
@@ -424,6 +495,7 @@ class VodApiTest {
                 audioIndex = audioIndex,
                 subtitleIndex = subtitleIndex,
                 wholePlaylist = wholePlaylist,
+                intent = intent,
             )
             return client.post("/api/v1/vod-sessions") {
                 bearerAuth(token)

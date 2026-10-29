@@ -1,5 +1,8 @@
 package dev.jamesrich.sofaking.backend.http
 
+import dev.jamesrich.sofaking.backend.SavedSecret
+import dev.jamesrich.sofaking.backend.api.SaveFanartKey
+import dev.jamesrich.sofaking.backend.api.SaveListenBrainzToken
 import dev.jamesrich.sofaking.backend.api.SaveTmdbToken
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.SourceDocument
@@ -14,8 +17,8 @@ import io.ktor.server.routing.route
 
 /**
  * Setup under the admin route: the source file as written and its replacement, the starter policy, and the
- * TMDB token. A write restarts the server once the response is sent, since providers and the policy are
- * built from the files at start.
+ * TMDB token, fanart.tv key and ListenBrainz token. A write restarts the server once the response is sent, since
+ * providers and the policy are built from the files at start.
  */
 fun Route.setupRoutes(setup: SetupService?) {
     fun service(): SetupService = setup
@@ -39,5 +42,9 @@ fun Route.setupRoutes(setup: SetupService?) {
         call.respond(service().replaceSources(call.body<SourceDocument>(), starterPolicy = starter))
     }
     post("/policy/starter") { call.respond(HttpStatusCode.Created, service().writeStarterPolicy()) }
-    put("/tmdb-token") { call.respond(service().saveTmdbToken(call.body<SaveTmdbToken>().token)) }
+    put("/tmdb-token") { call.respond(service().save(SavedSecret.TMDB, call.body<SaveTmdbToken>().token)) }
+    put("/fanart-key") { call.respond(service().save(SavedSecret.FANART, call.body<SaveFanartKey>().key)) }
+    put("/listenbrainz-token") {
+        call.respond(service().save(SavedSecret.LISTENBRAINZ, call.body<SaveListenBrainzToken>().token))
+    }
 }

@@ -26,8 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / 'server/build/install/server/bin/server'
 SPEC = ROOT / 'server/src/main/resources/api/openapi.json'
 TOKEN = 'local-fuzz-token-' + 'x' * 40
-# PUT source-file, PUT tmdb-token and POST policy/starter save and restart (SetupService.requestRestart).
-RESTARTS = r'/admin/(source-file|tmdb-token|policy/starter)$'
+# PUT source-file, the PUT secret routes and POST policy/starter save and restart (SetupService.requestRestart).
+RESTARTS = r'/admin/(source-file|tmdb-token|fanart-key|listenbrainz-token|policy/starter)$'
 # The admin event stream stays open until the client leaves, so each example would wait out the run. Schemathesis
 # keeps only the last --exclude-path-regex, so both go in one.
 ENDLESS = r'/admin/events/stream$'

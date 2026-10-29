@@ -216,11 +216,14 @@ data class ServerConfig(
             val allOrigins = origins.toMutableMap()
             val (tokens, secretsFile) =
                 if (isLoopback(base.host)) emptyMap<String, String>() to null else storedTokens(base, allOrigins, log)
-            val tmdb = base.tmdb ?: savedTmdb(resolved, base.dataDirectory, allOrigins, log)
-            val fanartKey = EnvironmentReader(resolved).token("SOFA_FANART_KEY")
-                ?: savedFanartKey(base.dataDirectory, allOrigins, log)
-            val listenBrainzToken = EnvironmentReader(resolved).token("SOFA_LISTENBRAINZ_TOKEN")
-                ?: savedListenBrainzToken(base.dataDirectory, allOrigins, log)
+            fun saved(secret: SavedSecret) = savedSecret(secret, base.dataDirectory, allOrigins, log)
+            val reader = EnvironmentReader(resolved)
+            val tmdb = base.tmdb ?: saved(SavedSecret.TMDB)?.let {
+                tmdbConfig(EnvironmentReader(resolved + (SavedSecret.TMDB.variable to it)))
+            }
+            val fanartKey = reader.token(SavedSecret.FANART.variable) ?: saved(SavedSecret.FANART)
+            val listenBrainzToken =
+                reader.token(SavedSecret.LISTENBRAINZ.variable) ?: saved(SavedSecret.LISTENBRAINZ)
             return base.copy(
                 sourcesFile = sources,
                 policyFile = policy,

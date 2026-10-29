@@ -34,14 +34,14 @@ internal object WatchNextArtwork {
     fun authority(context: Context) = context.packageName + ".artwork"
 
     /**
-     * The URI the launcher reads for [artworkUrl], an `/artwork/` URL the server gave; null for any other URL. The
-     * server it names is remembered, since the launcher may ask for the artwork long after the app has closed.
+     * The URI the launcher reads for [artworkUrl], an `/artwork/` URL on the configured [serverUrl]; null for any
+     * other URL, so a server cannot point the provider at another host. The server is remembered, since the launcher
+     * may ask for the artwork long after the app has closed.
      */
-    fun contentUri(context: Context, artworkUrl: String): Uri? {
+    fun contentUri(context: Context, serverUrl: String?, artworkUrl: String): Uri? {
         val source = artworkUrl.toUri()
-        val web = source.scheme == "http" || source.scheme == "https"
-        if (!web || source.encodedAuthority == null || !valid(source)) return null
-        val server = "${source.scheme}://${source.encodedAuthority}"
+        if (!fromServer(serverUrl, artworkUrl) || !valid(source)) return null
+        val server = originOf(serverUrl.orEmpty()) ?: return null
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getString(SERVER, null) != server) prefs.edit { putString(SERVER, server) }
         return Uri.Builder().scheme(
@@ -66,24 +66,27 @@ internal object WatchNextArtwork {
 
     /** Drops the cached artwork of entries no longer in the row. */
     fun keepOnly(context: Context, uris: List<Uri>) {
-        val keep = uris.map(::cacheName).toSet()
-        cacheDir(context).listFiles()?.filter { it.name !in keep }?.forEach { it.delete() }
+        val dir = cacheDir(context)
+        val files = dir.listFiles().orEmpty()
+        staleArtwork(files.map { it.name }, uris.map(::cacheName).toSet()).forEach { File(dir, it).delete() }
     }
 
     /**
      * [uri]'s image, fetched from the remembered server the first time it is asked for and kept in the cache after.
-     * Only `/artwork/{item}/{poster|backdrop}` is answered, so the provider reaches nothing else on the server. One
-     * fetch runs at a time, so two reads of one image never write its file together.
+     * Only `/artwork/{item}/{poster|backdrop}` is answered, so the provider reaches nothing else on the server. Reads
+     * of one image wait for each other, so two never write its file together; a read waits for another image's only
+     * when the two share one of a few locks.
      */
-    @Synchronized
     fun open(context: Context, uri: Uri): File {
         if (uri.authority != authority(context) || !valid(uri)) throw FileNotFoundException(uri.toString())
         val file = File(cacheDir(context), cacheName(uri))
-        if (file.exists()) return file
-        val server =
-            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(SERVER, null)
-                ?: throw FileNotFoundException(uri.toString())
-        download(server, uri, file)
+        synchronized(lockFor(file.name)) {
+            if (file.exists()) return file
+            val server =
+                context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(SERVER, null)
+                    ?: throw FileNotFoundException(uri.toString())
+            download(server, uri, file)
+        }
         return file
     }
 
@@ -91,19 +94,25 @@ internal object WatchNextArtwork {
     private fun download(server: String, uri: Uri, file: File) {
         val query = uri.encodedQuery?.let { "?$it" }.orEmpty()
         val connection = URL(server + uri.encodedPath + query).openConnection() as HttpURLConnection
+        val partial = File(file.parentFile, file.name + PARTIAL_SUFFIX)
         try {
+            connection.instanceFollowRedirects = false
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                throw FileNotFoundException("$uri: HTTP ${connection.responseCode}")
-            }
-            val partial = File(file.parentFile, file.name + ".part")
-            connection.inputStream.use { input -> partial.outputStream().use(input::copyTo) }
+            val refusal = refusal(connection.responseCode, connection.contentType, connection.contentLengthLong)
+            if (refusal != null) throw FileNotFoundException("$uri: $refusal")
+            connection.inputStream.use { input -> partial.outputStream().use { copyLimited(input, it) } }
             if (!partial.renameTo(file)) throw IOException("$uri: not cached")
         } finally {
+            partial.delete()
             connection.disconnect()
         }
     }
+
+    /** One lock for each of a few groups of cache files, so a download holds up only reads that share its group. */
+    private fun lockFor(name: String): Any = locks[(name.hashCode() and Int.MAX_VALUE) % locks.size]
+
+    private val locks = Array(LOCK_STRIPES) { Any() }
 
     /** Whether [uri]'s path is `artwork`, an item id and one of [ROLES]. */
     private fun valid(uri: Uri): Boolean = uri.pathSegments.takeIf { it.size == PATH_SEGMENTS }
@@ -116,6 +125,7 @@ internal object WatchNextArtwork {
 
     private const val TIMEOUT_MS = 10_000
     private const val PATH_SEGMENTS = 3
+    private const val LOCK_STRIPES = 16
 }
 
 /** Answers the launcher's reads of the Watch Next row's artwork; not exported, so only granted readers reach it. */

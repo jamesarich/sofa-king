@@ -191,7 +191,10 @@ internal fun openExoSession(
     onZapStep: (Int) -> Unit,
 ): MediaSessionHandle {
     forwarding.onZapStep = onZapStep
-    val session = MediaSession.Builder(context, forwarding).setId("player-${sessionIds.incrementAndGet()}").build()
+    val session = MediaSession.Builder(context, forwarding)
+        .setId("player-${sessionIds.incrementAndGet()}")
+        .setCallback(SessionAccess(context.packageName))
+        .build()
     return object : MediaSessionHandle {
         override val platformSession: Any get() = session
 

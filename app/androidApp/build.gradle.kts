@@ -91,6 +91,7 @@ dependencies {
     implementation(libs.androidx.fragment)
     implementation(libs.androidx.work.runtime)
     baselineProfile(project(":baselineprofile"))
+    testImplementation(kotlin("test-junit"))
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.uiautomator)

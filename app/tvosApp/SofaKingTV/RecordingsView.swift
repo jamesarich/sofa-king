@@ -13,7 +13,7 @@ struct RecordingsView: View {
 
     var body: some View {
         NavigationStack {
-            content.navigationTitle("DVR")
+            content.navigationTitle(strings.tabDvr)
         }
         .onAppear { model.core.refreshRecordings() }
         .fullScreenCover(item: $playing) { request in
@@ -33,7 +33,7 @@ struct RecordingsView: View {
             }
             Button("Keep it", role: .cancel) {}
         }
-        .alert("The server didn't take that change. Try again.", isPresented: $failed) {
+        .alert(recordingStrings.changeFailed, isPresented: $failed) {
             Button("OK") {}
         }
     }
@@ -47,12 +47,12 @@ struct RecordingsView: View {
             VStack(spacing: 32) {
                 Text("The recordings didn't load").font(.title2)
                 Text(failed.message).foregroundStyle(.secondary)
-                Button("Try again") { model.core.refreshRecordings() }
+                Button(strings.retry) { model.core.refreshRecordings() }
             }
         case is RecordingsStateUnavailable:
-            ContentUnavailableView("This server does not record", systemImage: "record.circle")
+            ContentUnavailableView(recordingStrings.unavailable, systemImage: "record.circle")
         default:
-            ProgressView("Sofa King close, loading recordings…")
+            ProgressView(recordingStrings.loading)
         }
     }
 
@@ -60,19 +60,19 @@ struct RecordingsView: View {
         let groups = model.core.recordingGroups(recordings: ready.recordings)
         return List {
             Section {
-                SkipModePicker(title: "Skip commercials", kind: .commercialBreaks)
+                SkipModePicker(title: recordingStrings.skipCommercials, kind: .commercialBreaks)
             } footer: {
                 if ready.space.totalBytes > 0 {
-                    Text("\(bytes(ready.space.freeBytes)) free of \(bytes(ready.space.totalBytes))")
+                    Text(recordingStrings.space(free: bytes(ready.space.freeBytes), total: bytes(ready.space.totalBytes)))
                 } else {
-                    Text("Automatically, playback jumps over the breaks the server found in a recording. With a button, Skip break waits for a press. Off, breaks play.")
+                    Text(recordingStrings.skipCommercialsHelp)
                 }
             }
             if groups.isEmpty {
                 ContentUnavailableView(
-                    "Nothing recorded yet",
+                    recordingStrings.empty,
                     systemImage: "record.circle",
-                    description: Text("Open a program's details in the guide and choose Record.")
+                    description: Text(recordingStrings.emptyHint)
                 )
             }
             ForEach(groups, id: \.group) { entry in
@@ -89,7 +89,7 @@ struct RecordingsView: View {
                         }
                         .contextMenu {
                             if recording.playable && recording.inProgress {
-                                Button("From start") { playing = VodRequest(recording: recording, fromStart: true) }
+                                Button(recordingStrings.fromStart) { playing = VodRequest(recording: recording, fromStart: true) }
                             }
                             Button(recording.deleteLabel, role: .destructive) { deleting = recording }
                         }
@@ -97,7 +97,7 @@ struct RecordingsView: View {
                 }
             }
             if !ready.rules.isEmpty {
-                Section("Series") {
+                Section(recordingStrings.series) {
                     ForEach(ready.rules, id: \.id) { rule in
                         SeriesRow(rule: rule) { failed = true }
                     }
@@ -132,31 +132,18 @@ private struct RecordingRow: View {
     /// Why a kept recording ended before its program did, if it did.
     private var endedEarly: String? {
         guard let reason = recording.endedEarly else { return nil }
-        switch reason {
-        case .stopped: return "Stopped early"
-        case .diskFull: return "Ended early: the recordings disk filled up"
-        case .source, .noMedia: return "Ended early: lost the channel's source"
-        case .channelGone: return "Ended early: the channel left the lineup"
-        default: return "Ended early"
-        }
+        return recordingStrings.endedEarlyLabel(reason: reason)
     }
 
     private var status: String? {
         switch recording.state {
         case .recording:
             let end = Date(timeIntervalSince1970: Double(model.core.recordingEndMs(recording: recording)) / 1000)
-            return "Recording until \(end.formatted(date: .omitted, time: .shortened))"
+            return recordingStrings.until(end: end.formatted(date: .omitted, time: .shortened))
         case .failed:
-            switch recording.failure {
-            case .missed: return "Missed: the server was off or busy with other recordings"
-            case .diskFull: return "Failed: the recordings disk filled up"
-            case .noMedia: return "Failed: the channel sent nothing to record"
-            case .source: return "Failed: couldn't reach the channel's source"
-            case .channelGone: return "Failed: the channel left the lineup"
-            default: return "Failed"
-            }
+            return recordingStrings.failureLabel(failure: recording.failure)
         case .completed:
-            let watch: String? = recording.watched ? "Watched" : recording.inProgress ? "Started" : nil
+            let watch: String? = recording.watched ? recordingStrings.watched : recording.inProgress ? "Started" : nil
             let parts = [endedEarly, watch].compactMap { $0 }
             return parts.isEmpty ? nil : parts.joined(separator: " · ")
         default:
@@ -177,28 +164,24 @@ private struct SeriesRow: View {
             Text(rule.title).font(.headline).lineLimit(1)
             Text(summary).font(.caption).foregroundStyle(.secondary)
             HStack(spacing: 24) {
-                Button(rule.newOnly ? "Record repeats too" : "New episodes only") {
+                Button(recordingStrings.takeLabel(rule: rule)) {
                     change { try await model.core.updateRule(rule: rule, newOnly: !rule.newOnly, keep: rule.keep) }
                 }
-                Button("Keep: \(rule.keep == 0 ? "All" : String(rule.keep))") {
+                Button(recordingStrings.keepLabel(rule: rule)) {
                     change { try await model.core.updateRule(rule: rule, newOnly: rule.newOnly, keep: model.core.nextKeep(keep: rule.keep)) }
                 }
-                Button("Stop series", role: .destructive) { stopping = true }
+                Button(recordingStrings.seriesStop, role: .destructive) { stopping = true }
             }
         }
         .confirmationDialog("Stop recording \(rule.title)? What it recorded so far is kept.", isPresented: $stopping, titleVisibility: .visible) {
-            Button("Stop series", role: .destructive) { change { try await model.core.deleteRule(rule: rule) } }
+            Button(recordingStrings.seriesStop, role: .destructive) { change { try await model.core.deleteRule(rule: rule) } }
             Button("Keep it", role: .cancel) {}
         }
     }
 
     /// "New episodes only · Keeps 5 · Any channel"
     private var summary: String {
-        [
-            rule.newOnly ? "New episodes only" : "All airings",
-            rule.keep == 0 ? "Keeps all" : "Keeps \(rule.keep)",
-            rule.channelId == nil ? "Any channel" : nil,
-        ].compactMap { $0 }.joined(separator: " · ")
+        recordingStrings.summary(rule: rule)
     }
 
     private func change(_ action: @escaping () async throws -> KotlinBoolean) {
@@ -210,12 +193,7 @@ private struct SeriesRow: View {
 
 extension RecordingGroup {
     var title: String {
-        switch self {
-        case .now: "Recording now"
-        case .recorded: "Recorded"
-        case .scheduled: "Scheduled"
-        default: "Recorded"
-        }
+        recordingStrings.groupTitle(group: self)
     }
 }
 
@@ -224,11 +202,7 @@ extension DvrRecording: @retroactive Identifiable {}
 extension DvrRecording {
     /// What ending it is called: a running one stops, a scheduled one is canceled, anything else is deleted.
     var deleteLabel: String {
-        switch state {
-        case .recording: "Stop"
-        case .scheduled: "Cancel recording"
-        default: "Delete"
-        }
+        recordingStrings.deleteLabel(state: state)
     }
 
     var deleteQuestion: String {

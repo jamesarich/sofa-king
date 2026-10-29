@@ -18,29 +18,29 @@ struct SettingsView: View {
         Form {
             // Choosing a server found on the network fills the address; pair with a code below.
             if !browser.servers.isEmpty {
-                Section("Servers on this network") {
+                Section(strings.discoveredServers) {
                     ForEach(browser.servers) { server in
-                        Button("\(server.name) at \(server.url.replacingOccurrences(of: "http://", with: ""))") { url = server.url }
+                        Button(strings.discoveredServer(name: server.name, address: server.url.replacingOccurrences(of: "http://", with: ""))) { url = server.url }
                     }
                 }
             }
-            Section("Server") {
-                TextField("Server address", text: $url)
+            Section(strings.serverSection) {
+                TextField(strings.serverUrl, text: $url)
                     .textContentType(.URL)
                     .keyboardType(.URL)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
-                SecureField("API token", text: $token)
+                SecureField(strings.apiToken, text: $token)
             }
             // Saving a changed address or token reloads the lineup by itself.
-            Button("Save") {
+            Button(strings.settingsSave) {
                 model.core.saveServer(url: url, apiToken: token)
                 dismiss()
             }
             Section("Pair with a code") {
-                TextField("Pairing code", text: $code)
+                TextField(strings.pairingCodeLabel, text: $code)
                     .keyboardType(.numberPad)
-                Button(pairing ? "Pairing…" : "Pair") {
+                Button(pairing ? strings.pairing : strings.pair) {
                     pairing = true
                     pairingError = nil
                     Task {
@@ -51,28 +51,28 @@ struct SettingsView: View {
                 }
                 .disabled(pairing || url.isEmpty || code.count < 6)
                 if let pairingError { Text(pairingError).foregroundStyle(.red).font(.caption) }
-                Text("In the admin portal, open Players › Devices and choose Show a pairing code, then enter the server address above and the code here. No token needed.")
+                Text(strings.pairingHelp)
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {
-                Picker("During ads", selection: Binding(
+                Picker(strings.liveBreaks, selection: Binding(
                     get: { model.settings?.liveBreaks ?? .play },
                     set: { model.core.setLiveBreaks(mode: $0) }
                 )) {
-                    Text("Show them").tag(LiveBreaks.play)
-                    Text("Logo, muted").tag(LiveBreaks.screenMuted)
-                    Text("Logo, sound on").tag(LiveBreaks.screen)
+                    Text(strings.liveBreaksPlay).tag(LiveBreaks.play)
+                    Text(strings.liveBreaksScreenMuted).tag(LiveBreaks.screenMuted)
+                    Text(strings.liveBreaksScreen).tag(LiveBreaks.screen)
                 }
-                Picker("Open the previewed channel", selection: Binding(
+                Picker(strings.autoOpen, selection: Binding(
                     get: { model.settings?.autoOpenDelay ?? .after10Seconds },
                     set: { model.core.setAutoOpenDelay(delay: $0) }
                 )) {
-                    Text("After 10 seconds").tag(AutoOpenDelay.after10Seconds)
-                    Text("After 30 seconds").tag(AutoOpenDelay.after30Seconds)
-                    Text("Never").tag(AutoOpenDelay.off)
+                    Text(strings.autoOpen10).tag(AutoOpenDelay.after10Seconds)
+                    Text(strings.autoOpen30).tag(AutoOpenDelay.after30Seconds)
+                    Text(strings.autoOpenOff).tag(AutoOpenDelay.off)
                 }
                 .pickerStyle(.navigationLink)
-                Toggle("Preview sound", isOn: Binding(
+                Toggle(strings.previewSound, isOn: Binding(
                     get: { model.settings?.previewSound ?? true },
                     set: { model.core.setPreviewSound(enabled: $0) }
                 ))
@@ -81,42 +81,42 @@ struct SettingsView: View {
                     set: { model.core.setCaptionsEnabled(enabled: $0) }
                 ))
             } header: {
-                Text("Live TV")
+                Text(strings.livePage)
             } footer: {
-                Text("On streaming channels that mark their ads, such as Pluto TV and Tubi, a bouncing logo covers them. Show picture brings the picture back. The guide's preview plays the focused channel muted, turns its sound on after 5 seconds unless Preview sound is off, and opens it full screen after the rest set here. Captions shows a channel's or a recording's closed captions, in the look set in the Apple TV's Settings › Accessibility › Subtitles and Captioning; the player's Subtitles panel turns them on and off too.")
+                Text("On streaming channels that mark their ads, such as Pluto TV and Tubi, a bouncing logo covers them. Show picture brings the picture back. The guide's preview plays the focused channel muted, turns its sound on after 5 seconds unless Play preview sound is off, and opens it full screen after the rest set here. Captions shows a channel's or a recording's closed captions, in the look set in the Apple TV's Settings › Accessibility › Subtitles and Captioning; the player's Subtitles panel turns them on and off too.")
             }
             if model.capabilities?.household == true {
                 Section {
-                    Toggle("Share favorites across devices", isOn: Binding(
+                    Toggle(strings.shareFavorites, isOn: Binding(
                         get: { model.settings?.shareFavorites ?? false },
                         set: { model.core.setShareFavorites(on: $0) }
                     ))
                 } header: {
-                    Text("Channels")
+                    Text(strings.channelsSection)
                 } footer: {
-                    Text("Keeps the favorites, their order and the hidden channels the same on every device of the household that has this on. Turning it on takes the household's list over when another device saved one.")
+                    Text(strings.shareFavoritesHelp)
                 }
             }
             Section {
-                SkipModePicker(title: "Skip intros", kind: .intros)
-                SkipModePicker(title: "Skip credits", kind: .credits)
-                Toggle("Hide spoilers", isOn: Binding(
+                SkipModePicker(title: strings.skipIntros, kind: .intros)
+                SkipModePicker(title: strings.skipCredits, kind: .credits)
+                Toggle(strings.hideSpoilers, isOn: Binding(
                     get: { model.settings?.hideSpoilers ?? false },
                     set: { model.core.setHideSpoilers(enabled: $0) }
                 ))
             } header: {
-                Text("Library")
+                Text(strings.libraryPage)
             } footer: {
                 Text("Automatically, Skip intro or Skip credits counts down 5 seconds and then skips; pausing stops it. With a button, it waits for a press. Off, intros and credits play. Hide spoilers keeps back the summaries of episodes you have not started and blurs their pictures.")
             }
             ParentalControlsSection()
-            Section("About") {
+            Section(strings.aboutSection) {
                 // TMDB's terms ask apps that show its data to say so.
-                Text("Movie and show details and images can come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.")
+                Text(strings.tmdbNotice)
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("Settings")
+        .navigationTitle(strings.settingsTitle)
         .onAppear { browser.start() }
         .onDisappear { browser.stop() }
         .onAppear {
@@ -139,9 +139,9 @@ struct SkipModePicker: View {
             get: { model.settings?.skips.of(kind: kind) ?? .button },
             set: { model.core.setSkip(kind: kind, mode: $0) }
         )) {
-            Text("Automatically").tag(SkipMode.auto_)
-            Text("With a button").tag(SkipMode.button)
-            Text("Off").tag(SkipMode.off)
+            Text(strings.skipModeAuto).tag(SkipMode.auto_)
+            Text(strings.skipModeButton).tag(SkipMode.button)
+            Text(strings.skipModeOff).tag(SkipMode.off)
         }
         // The default style in a List is a bare row of segments that drops the title.
         .pickerStyle(.navigationLink)

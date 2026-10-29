@@ -31,26 +31,26 @@ private struct SettingsLockView: View {
     var body: some View {
         Form {
             Section {
-                SecureField("PIN", text: $pin)
+                SecureField(strings.pin, text: $pin)
                     .keyboardType(.numberPad)
                     .onSubmit(unlock)
-                Button("Unlock", action: unlock).disabled(!SettingsPin.shared.isValid(pin: pin) || waiting)
+                Button(strings.lockUnlock, action: unlock).disabled(!SettingsPin.shared.isValid(pin: pin) || waiting)
                 if waiting {
-                    Text("Too many tries; wait \(PinThrottle.companion.WAIT_SECONDS) seconds.").font(.caption).foregroundStyle(.red)
+                    Text(strings.lockWait(seconds: PinThrottle.companion.WAIT_SECONDS)).font(.caption).foregroundStyle(.red)
                 } else if wrongPin {
-                    Text("That's not the PIN.").font(.caption).foregroundStyle(.red)
+                    Text(strings.lockWrong).font(.caption).foregroundStyle(.red)
                 }
             } header: {
-                Text("Settings are locked")
+                Text(strings.lockTitle)
             } footer: {
-                Text("Enter the PIN to open Settings.")
+                Text(strings.lockHelp)
             }
             Section {
-                Button("Forgot the PIN") { forgot.toggle() }
+                Button(strings.lockForgot) { forgot.toggle() }
                 if forgot { recovery }
             }
         }
-        .navigationTitle("Settings")
+        .navigationTitle(strings.settingsTitle)
         .task(id: model.pinWaitEnds) {
             waiting = model.pinWaiting
             guard let ends = model.pinWaitEnds, waiting else { return }
@@ -63,15 +63,15 @@ private struct SettingsLockView: View {
     private var recovery: some View {
         let apiToken = model.settings?.apiToken ?? ""
         if apiToken.isEmpty {
-            Text("This server runs without an API token, so the only way to remove the PIN is to delete the app and install it again.")
+            Text(strings.lockForgotNoToken)
                 .font(.caption).foregroundStyle(.secondary)
         } else {
-            Text("Enter the server's API token instead. The admin portal shows it under Settings › Advanced: Reveal the API token. The right token removes the PIN.")
+            Text(strings.lockForgotHelp)
                 .font(.caption).foregroundStyle(.secondary)
-            SecureField("API token", text: $token).onSubmit(remove)
-            Button("Remove the PIN", action: remove).disabled(ServerAddress.shared.normalizeToken(raw: token) == nil)
+            SecureField(strings.apiToken, text: $token).onSubmit(remove)
+            Button(strings.lockRemove, action: remove).disabled(ServerAddress.shared.normalizeToken(raw: token) == nil)
             if wrongToken {
-                Text("That's not the server's API token.").font(.caption).foregroundStyle(.red)
+                Text(strings.lockForgotWrong).font(.caption).foregroundStyle(.red)
             }
         }
     }
@@ -116,9 +116,9 @@ struct ParentalControlsSection: View {
     var body: some View {
         Section {
             if model.settings?.settingsLocked == true {
-                Button("Remove the PIN") { model.core.setSettingsPin(pin: nil) }
+                Button(strings.lockRemove) { model.core.setSettingsPin(pin: nil) }
                 let kids = model.settings?.kidsMode == true
-                Button(kids ? "Turn off kids mode" : "Turn on kids mode") {
+                Button(kids ? strings.kidsTurnOff : strings.kidsTurnOn) {
                     model.core.setKidsMode(on: !kids)
                     // As on the other apps, kids mode starts locked, on the channels.
                     if !kids {
@@ -127,40 +127,34 @@ struct ParentalControlsSection: View {
                     }
                 }
             } else if setting {
-                SecureField("PIN", text: $first).keyboardType(.numberPad)
+                SecureField(strings.pin, text: $first).keyboardType(.numberPad)
                 if !first.isEmpty && !SettingsPin.shared.isValid(pin: first) {
-                    Text("Enter four digits.").font(.caption).foregroundStyle(.red)
+                    Text(strings.pinInvalid).font(.caption).foregroundStyle(.red)
                 }
-                SecureField("PIN again", text: $again).keyboardType(.numberPad)
+                SecureField(strings.pinAgain, text: $again).keyboardType(.numberPad)
                 if !again.isEmpty && SettingsPin.shared.isValid(pin: first) && again != first {
-                    Text("The PINs don't match.").font(.caption).foregroundStyle(.red)
+                    Text(strings.pinMismatch).font(.caption).foregroundStyle(.red)
                 }
-                Button("Lock settings") {
+                Button(strings.lockConfirm) {
                     model.core.setSettingsPin(pin: first)
                     // This visit stays open; the lock takes hold the next time Settings opens.
                     model.settingsUnlocked = true
                     clear()
                 }
                 .disabled(!canSet)
-                Button("Cancel", action: clear)
+                Button(strings.lockCancel, action: clear)
             } else {
-                Button("Set a PIN") { setting = true }
+                Button(strings.lockSet) { setting = true }
             }
         } header: {
-            Text("Parental controls")
+            Text(strings.parentalControls)
         } footer: {
             Text(footer)
         }
     }
 
     private var footer: String {
-        guard let settings = model.settings, settings.settingsLocked else {
-            return "A PIN keeps Settings closed until it is entered. Watching and switching channels are not affected."
-        }
-        if settings.kidsMode {
-            return "Kids mode is on. Turn it off here to show every channel and title again."
-        }
-        return "Settings now asks for the PIN. Forgot it? Choose Forgot the PIN on the lock screen and enter the server's API token. Kids mode keeps the channels to the lineup's kids' channels and the library to titles rated G, PG, TV-Y, TV-Y7, TV-G or TV-PG, and hides the DVR tab. Leaving it takes the PIN."
+        strings.lockFooter(locked: model.settings?.settingsLocked == true, kidsMode: model.settings?.kidsMode == true)
     }
 
     private func clear() {

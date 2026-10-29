@@ -40,6 +40,7 @@ import dev.jamesrich.sofaking.data.SkipMode
 import dev.jamesrich.sofaking.data.Skips
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.Subtitles
+import dev.jamesrich.sofaking.data.creditsRunToEnd
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.player_paused
 import dev.jamesrich.sofaking.resources.player_zoom_notice
@@ -133,7 +134,7 @@ fun VodPlayerScreen(
     val spots = rememberVodSpots(title.markers, state)
     // Credits that run to the end, with an episode after them: their button plays it.
     val creditsToNext =
-        spots.credits?.let { creditsRunToEnd(it, state.durationMs) } == true && parts.ending.upcoming != null
+        spots.credits?.let { creditsRunToEnd(it.endMs, state.durationMs) } == true && parts.ending.upcoming != null
     val buttons = vodButtons(
         failed = state.failure != null,
         inBreak = spots.breakEnd != null && skips.commercialBreaks != SkipMode.OFF,

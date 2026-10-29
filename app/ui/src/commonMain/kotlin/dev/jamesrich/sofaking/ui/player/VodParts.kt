@@ -14,6 +14,10 @@ import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.SubtitleLook
+import dev.jamesrich.sofaking.data.VodMarker
+import dev.jamesrich.sofaking.data.breakEndAt
+import dev.jamesrich.sofaking.data.creditsAt
+import dev.jamesrich.sofaking.data.introAt
 
 /** How the item ends: the Up next card's count, whether it asks "Still watching?", and what plays next. */
 @Stable

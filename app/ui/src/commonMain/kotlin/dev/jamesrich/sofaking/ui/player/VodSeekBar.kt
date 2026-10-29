@@ -23,6 +23,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import dev.jamesrich.sofaking.data.VodMarker
+import dev.jamesrich.sofaking.data.VodMarkerKind
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.vod_seek_description
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack

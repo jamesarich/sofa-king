@@ -21,6 +21,9 @@ import androidx.compose.ui.viewinterop.HtmlElementView
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.HLS_MIME_TYPE
 import dev.jamesrich.sofaking.data.PlaybackProfile
+import dev.jamesrich.sofaking.data.TimeSpan
+import dev.jamesrich.sofaking.data.durationFromRanges
+import dev.jamesrich.sofaking.data.loadedAheadMs
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
 import kotlinx.browser.document
@@ -51,6 +54,7 @@ import org.w3c.dom.CanPlayTypeResult
 import org.w3c.dom.EMPTY
 import org.w3c.dom.HTMLMediaElement
 import org.w3c.dom.HTMLVideoElement
+import org.w3c.dom.TimeRanges
 import org.w3c.dom.get
 import org.w3c.dom.url.URL
 import kotlin.time.Duration.Companion.milliseconds
@@ -189,23 +193,14 @@ internal class HtmlLivePlayer(
     override val loadedAheadMs: Long?
         get() {
             if (stream?.seekable != false || !loaded) return null
-            val now = video.currentTime
-            val buffered = video.buffered
-            for (i in 0 until buffered.length) {
-                if (now >= buffered.start(i) && now <= buffered.end(i)) {
-                    return ((buffered.end(i) - now) * 1000).toLong().coerceAtLeast(0L)
-                }
-            }
-            return null
+            return loadedAheadMs(video.currentTime, video.buffered.toTimeSpans())
         }
 
     /** A finished file reports its duration; a growing recording reports Infinity, so its seekable end stands in. */
     override val durationMs: Long?
         get() {
             if (!isSeekable) return null
-            val seconds =
-                video.duration.takeIf { it.isFinite() && it > 0 } ?: video.seekable.end(video.seekable.length - 1)
-            return (seconds * 1000).toLong().takeIf { it > 0L }
+            return durationFromRanges(video.duration, video.seekable.toTimeSpans())
         }
 
     override fun seekTo(positionMs: Long) {
@@ -305,6 +300,8 @@ internal class HtmlLivePlayer(
 }
 
 /** The one `<video>` element the player plays in. */
+private fun TimeRanges.toTimeSpans(): List<TimeSpan> = List(length) { TimeSpan(start(it), end(it)) }
+
 private fun newVideoElement(): HTMLVideoElement = (document.createElement("video") as HTMLVideoElement).apply {
     setAttribute("playsinline", "")
     // A cross-origin stream's frames can be drawn into WebGL only when fetched with CORS.

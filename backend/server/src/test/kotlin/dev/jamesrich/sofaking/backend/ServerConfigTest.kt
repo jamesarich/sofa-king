@@ -330,6 +330,16 @@ class ServerConfigTest {
         assertFailsWith<IllegalArgumentException> {
             ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_EXTRA_PORTS" to "x"))
         }
+        val ports = (9194..9209).map(Int::toString)
+        assertEquals(
+            16,
+            ServerConfig.fromEnvironment(
+                mapOf("SOFA_HDHR_EXTRA_PORTS" to ports.take(15).joinToString(",")),
+            ).hdhr.devices,
+        )
+        assertFailsWith<IllegalArgumentException> {
+            ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_EXTRA_PORTS" to ports.joinToString(",")))
+        }
         assertEquals(250, ServerConfig.fromEnvironment(emptyMap()).hdhr.deviceSize)
         assertEquals(400, ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_DEVICE_SIZE" to "400")).hdhr.deviceSize)
         assertFailsWith<IllegalArgumentException> {

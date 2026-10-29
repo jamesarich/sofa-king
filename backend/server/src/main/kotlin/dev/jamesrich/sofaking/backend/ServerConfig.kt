@@ -190,7 +190,7 @@ data class ServerConfig(
 
         /** The longest name Plex shows for a device, and the most devices beside the first. */
         internal const val DEVICE_NAME_LIMIT = 64
-        internal const val EXTRA_PORTS_LIMIT = 7
+        internal const val EXTRA_PORTS_LIMIT = 15
 
         /** Where earlier images kept the database; a database there and none in the data directory stops the start. */
         internal val LEGACY_DATA_DIRECTORY: Path = Path.of("/data")

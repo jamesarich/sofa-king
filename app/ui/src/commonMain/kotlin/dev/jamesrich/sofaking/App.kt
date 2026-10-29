@@ -138,7 +138,8 @@ private fun SofaKingApp(
     val top = shell.nav.top
     val kids = settings?.kidsMode == true
     val offered = tabsOffered(capabilities, shell.nav.tab, libraryHome, recordingsState, kids)
-    PairingEffects(shell, pairing, pairingState.outcome, onPairingHandle, vm::pair, vm::pairingHandled)
+    val saved = settings?.serverUrl
+    PairingEffects(shell, pairing, saved, pairingState.outcome, onPairingHandle, vm::pair, vm::pairingHandled)
     val launch = launchTarget(state, settings)
     val lineup = (state as? LineupState.Ready)?.lineup
     LaunchEffects(shell, launch, settings?.lastTab, link, onLinkHandle, lineup, vm::setLastTab, onLaunchReady)

@@ -3,23 +3,35 @@ package dev.jamesrich.sofaking
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import dev.jamesrich.sofaking.data.AppLink
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.PairingDecision
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.TopLevelTab
+import dev.jamesrich.sofaking.data.decidePairing
 import dev.jamesrich.sofaking.data.linkedChannel
+import dev.jamesrich.sofaking.data.serverLabel
+import dev.jamesrich.sofaking.ui.settings.SwitchServerDialog
 import kotlinx.coroutines.delay
 
 /**
- * A scanned QR code pairs at once. Pairing runs in the ViewModel; its outcome comes back as state, and the shell acts
- * on its [outcome] once, then calls [onOutcomeHandle]: a new server starts over on its guide, a refused code lands in
- * Settings with the reason. [pairing] is claimed once through [onPairingHandle] and paired through [onPair].
+ * A scanned QR code pairs at once on a device with no server, or with the server it already uses; a link naming
+ * another server waits for a Switch in [SwitchServerDialog] (Cancel drops it). Pairing runs in the ViewModel; its
+ * outcome comes back as state, and the shell acts on its [outcome] once, then calls [onOutcomeHandle]: a new server
+ * starts over on its guide, a refused code lands in Settings with the reason. [pairing] is claimed once through
+ * [onPairingHandle] and paired through [onPair], once [configuredServer] (the saved address, null until settings
+ * load) says which of the two it is.
  */
 @Composable
 internal fun PairingEffects(
     shell: AppShellState,
     pairing: PairingRequest?,
+    configuredServer: String?,
     outcome: PairingOutcome?,
     onPairingHandle: () -> Unit,
     onPair: (serverUrl: String, code: String) -> Unit,
@@ -28,10 +40,26 @@ internal fun PairingEffects(
     val currentOnPairingHandle by rememberUpdatedState(onPairingHandle)
     val currentOnPair by rememberUpdatedState(onPair)
     val currentOnOutcomeHandle by rememberUpdatedState(onOutcomeHandle)
-    LaunchedEffect(pairing) {
-        if (pairing == null) return@LaunchedEffect
+    var asking by rememberSaveable(stateSaver = PairingRequestSaver) { mutableStateOf<PairingRequest?>(null) }
+    LaunchedEffect(pairing, configuredServer) {
+        if (pairing == null || configuredServer == null) return@LaunchedEffect
         currentOnPairingHandle()
-        currentOnPair(pairing.serverUrl, pairing.code)
+        when (decidePairing(configuredServer, pairing)) {
+            PairingDecision.PAIR -> currentOnPair(pairing.serverUrl, pairing.code)
+            PairingDecision.ASK -> asking = pairing
+            PairingDecision.IGNORE -> Unit
+        }
+    }
+    asking?.let { request ->
+        SwitchServerDialog(
+            requested = serverLabel(request.serverUrl),
+            current = serverLabel(configuredServer.orEmpty()),
+            onSwitch = {
+                asking = null
+                currentOnPair(request.serverUrl, request.code)
+            },
+            onCancel = { asking = null },
+        )
     }
     LaunchedEffect(outcome) {
         when (outcome ?: return@LaunchedEffect) {
@@ -129,5 +157,11 @@ internal fun ShellEffects(shell: AppShellState, offered: TabsOffered, onRecent: 
         currentOnRecent(playing)
     }
 }
+
+/** Keeps a link waiting on its Switch through a configuration change. */
+private val PairingRequestSaver = Saver<PairingRequest?, List<String>>(
+    save = { request -> request?.let { listOf(it.serverUrl, it.code) } ?: emptyList() },
+    restore = { saved -> saved.takeIf { it.size == 2 }?.let { PairingRequest(it[0], it[1]) } },
+)
 
 private const val NOTICE_MS = 5_000L

@@ -11,7 +11,12 @@ object HlsRewriter {
     private val uriAttribute = Regex("(?<![A-Z-])URI=\"([^\"]+)\"")
     suspend fun rewrite(text: String, base: URI, path: suspend (String) -> String): String {
         if (!text.trimStart().startsWith("#EXTM3U")) {
-            throw ApiFailure(HttpStatusCode.BadGateway, "INVALID_MANIFEST", "Invalid HLS manifest", true)
+            throw ApiFailure(
+                HttpStatusCode.BadGateway,
+                "INVALID_MANIFEST",
+                "This channel's stream couldn't be read",
+                true,
+            )
         }
         val output = StringBuilder()
         for (line in text.lineSequence()) {
@@ -49,7 +54,7 @@ object HlsRewriter {
             throw ApiFailure(
                 HttpStatusCode.UnprocessableEntity,
                 "FORMAT_UNSUPPORTED",
-                "HLS variables are not supported",
+                "This channel's stream couldn't be read",
             )
         }
         return try {

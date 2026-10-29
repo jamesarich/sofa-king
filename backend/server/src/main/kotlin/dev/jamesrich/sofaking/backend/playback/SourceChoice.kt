@@ -38,7 +38,12 @@ class SourceChoice internal constructor(private val catalog: CatalogService, pri
             catalog.offeringsFor(channelId)
                 ?: throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")
         return choose(candidates.filter { it.id !in except }, store.allHealth())
-            ?: throw ApiFailure(HttpStatusCode.ServiceUnavailable, "SOURCE_UNAVAILABLE", "No eligible source", true)
+            ?: throw ApiFailure(
+                HttpStatusCode.ServiceUnavailable,
+                "SOURCE_UNAVAILABLE",
+                "No source for this channel is working right now",
+                true,
+            )
     }
 
     internal fun choose(candidates: List<Offering>, states: Map<String, HealthState>): Offering? =

@@ -1,6 +1,6 @@
 # Getting started
 
-This tutorial takes a Docker host from an empty folder to a channel playing in Plex, the Sofa King app or an M3U player. It uses three free services that need no account, and a small lineup policy. It takes about fifteen minutes, plus the time the server needs to verify the first channels.
+This tutorial takes a Docker host from an empty folder to a channel playing in Plex, the Sofa King app or an M3U player. It uses three free services that need no account, and a small lineup policy. The first channels play within minutes, and the rest of the lineup fills in as the server keeps probing.
 
 Replace `SERVER_HOST` with the host's LAN address and `PLEX_SERVER_IP` with the address of your Plex server. The server answers on port 9193.
 
@@ -74,13 +74,13 @@ Each native service brings its own guide, so `guides` stays empty. After a minut
 curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/api/v1/providers
 ```
 
-The server builds one station per channel. When two services carry the same channel, the first one listed leads and the other becomes its fallback. A station comes on once one of its sources has played in a probe, so the Channels page fills over the next hour or more.
+The server builds one station per channel. When two services carry the same channel, the first one listed leads and the other becomes its fallback. A station comes on once one of its sources has played in a probe. The server probes the first few stations of each service right after setup, so a handful of channels appear within minutes, and the Channels page fills with the rest as probing continues, over the next hour or more.
 
 [Build a starter lineup](starter-lineup.md) describes what the starter policy holds and how to tune it.
 
 ## 4. Watch
 
-Plex and M3U players reach the guide and the streams with the output token, `outputToken` in `config/secrets.json`. The portal's Plex page, under Players, shows the playlist and guide URLs with it once you choose Reveal the output token.
+Plex and M3U players reach the guide and the streams with the output token, `outputToken` in `config/secrets.json`. The portal's Plex page, under Devices, shows the playlist and guide URLs with it once you choose Reveal the output token.
 
 ### Plex
 

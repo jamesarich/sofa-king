@@ -308,6 +308,9 @@ class AdListener(
         private const val START_SEGMENTS = 3
         private const val MAX_PLAYLIST = 2L * 1024 * 1024
         private const val MAX_SEGMENT = 16L * 1024 * 1024
+        private val BANDWIDTH = Regex("""BANDWIDTH=(\d+)""")
+        private val AUDIO = Regex("""AUDIO="([^"]+)"""")
+        private val URI_ATTRIBUTE = Regex("""URI="([^"]+)"""")
 
         /** The media playlist of [text], fetched from [base], to follow: see [AdListener]. */
         fun mediaOf(text: String, base: URI): String? {
@@ -321,17 +324,17 @@ class AdListener(
                     }
                 }
                 .minByOrNull { (info, _) ->
-                    Regex("""BANDWIDTH=(\d+)""").find(info)?.groupValues?.get(1)?.toLongOrNull()
+                    BANDWIDTH.find(info)?.groupValues?.get(1)?.toLongOrNull()
                         ?: Long.MAX_VALUE
                 }
                 ?: return null
-            val group = Regex("""AUDIO="([^"]+)"""").find(variant.first)?.groupValues?.get(1)
+            val group = AUDIO.find(variant.first)?.groupValues?.get(1)
             val rendition = group?.let { name ->
                 lines.firstOrNull {
                     it.startsWith("#EXT-X-MEDIA:") && it.contains("TYPE=AUDIO") &&
                         it.contains("GROUP-ID=\"$name\"") && it.contains("URI=\"")
                 }
-                    ?.let { Regex("""URI="([^"]+)"""").find(it)?.groupValues?.get(1) }
+                    ?.let { URI_ATTRIBUTE.find(it)?.groupValues?.get(1) }
             }
             return base.resolve(playlistUri(rendition ?: variant.second)).toString()
         }

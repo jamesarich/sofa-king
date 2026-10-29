@@ -27,7 +27,7 @@ These routes take no token: `/healthz`, `/readyz`, the [web app](deploy.md#serve
 | GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`, `recordings`, `watchlist`, `multiview`, `music`) |
 | POST | `/api/v1/pair` | Exchange a pairing code for a token of the device's own, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429` |
 | GET | `/api/v1/preferences/{clientId}` | The preferences the client with that id last saved, see [viewer preferences](#viewer-preferences); `404 VIEWER_NOT_FOUND` before its first save |
-| PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt` |
+| PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt`. A token paired to a client writes only that client, `403 CLIENT_MISMATCH` otherwise; the shared API token and issued tokens without a client write any. A new client past 200 viewers answers `409 VIEWER_LIMIT` |
 | GET | `/api/v1/household/preferences` | The household's shared favorites and hidden channels, see [viewer preferences](#viewer-preferences); an empty document with an empty `updatedAt` before the first save |
 | PUT | `/api/v1/household/preferences` | Replace the household's shared favorites and hidden channels; answers the stored document with the server's `updatedAt` |
 | GET | `/api/v1/channels` | Catalog revision and the enabled lineup entries as channels; supports ETag/If-None-Match |
@@ -43,7 +43,7 @@ These routes take no token: `/healthz`, `/readyz`, the [web app](deploy.md#serve
 | GET | `/api/v1/playback-sessions/{id}/ad-break?aheadMs=` | Whether the session's player shows an ad: `inBreak` and, when the stream planned the break, `remainingMs`. `aheadMs` is how much the player has loaded past the picture; see [architecture](architecture.md#playback) |
 | DELETE | `/api/v1/playback-sessions/{id}` | Release the session; returns 204 |
 | GET | `/api/v1/recordings` | Every [recording](#recordings), scheduled and running soonest first, then the rest newest first, and the recordings folder's `storage` |
-| POST | `/api/v1/recordings` | Record the program on `channelId` that starts at `startsAt`, or with `endsAt` (and an optional `title`) that [time window](recordings.md#record-a-time-window); `201`, or the existing recording. `404 CHANNEL_NOT_FOUND` or `PROGRAM_NOT_FOUND`, `409 PROGRAM_ENDED` |
+| POST | `/api/v1/recordings` | Record the program on `channelId` that starts at `startsAt`, or with `endsAt` (and an optional `title`) that [time window](recordings.md#record-a-time-window); `201`, or the existing recording. `404 CHANNEL_NOT_FOUND` or `PROGRAM_NOT_FOUND`, `409 PROGRAM_ENDED`. A time window may start at most 14 days ahead (`400 INVALID_REQUEST`), and a window past 100 waiting one-off recordings answers `409 SCHEDULE_FULL` |
 | GET | `/api/v1/recordings/{id}` | One recording; `404 RECORDING_NOT_FOUND` |
 | PATCH | `/api/v1/recordings/{id}` | Set `protected`, `positionMs` or `watched` |
 | DELETE | `/api/v1/recordings/{id}` | Cancel a scheduled recording, stop a running one, or delete a finished one and its file; returns 204 |
@@ -675,17 +675,17 @@ Errors contain `code`, `message` and `retryable`:
 
 | Status | Codes |
 | --- | --- |
-| 400 | `INVALID_REQUEST` (a malformed body or path), `INVALID_QUERY` (a guide query or `days` out of range), `INVALID_POLICY` (a policy write that fails validation, with every error in `message`), `INVALID_SOURCES` (a source file write that fails validation) |
+| 400 | `INVALID_REQUEST` (a malformed body or path, or any other bad parameter), `INVALID_QUERY` (only a guide query or its `days` out of range), `INVALID_POLICY` (a policy write that fails validation, with every error in `message`), `INVALID_SOURCES` (a source file write that fails validation) |
 | 401 | `AUTH_REQUIRED` |
-| 403 | `PAIRING_INVALID` (a wrong, spent or expired pairing code), `LOOPBACK_ONLY` (a server with no API token answers only requests from its own machine, see [security](security.md)) |
-| 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND`, `RESOURCE_NOT_FOUND` (an unknown route, logo or media resource), `POLICY_NOT_CONFIGURED`, `PLEX_NOT_CONFIGURED`, `VIEWER_NOT_FOUND`, `TOKEN_NOT_FOUND`, `PROGRAM_NOT_FOUND`, `RECORDING_NOT_FOUND`, `RULE_NOT_FOUND`, `RECORDING_MISSING` (a recording whose file is gone), `LIBRARY_NOT_FOUND`, `LIBRARIES_NOT_AVAILABLE`, `ITEM_NOT_FOUND`, `ITEM_MISSING` (a library item whose file is gone) |
-| 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS`, `POLICY_CHANGED` (a stale `If-Match` or a policy file changed on disk), `STATION_CONFLICT` (a merge of two stations that both have overrides), `POLICY_EXISTS`, `NO_SOURCES` (a starter policy over an existing policy or no providers), `PROGRAM_ENDED`, `RECORDING_NOT_READY` (nothing written yet; retryable), `LIBRARY_EXISTS` |
+| 403 | `PAIRING_INVALID` (a wrong, spent or expired pairing code), `CLIENT_MISMATCH` (a token paired to one client writing the preferences of another), `LOOPBACK_ONLY` (a server with no API token answers only requests from its own machine, see [security](security.md)) |
+| 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND`, `RESOURCE_NOT_FOUND` (an unknown route, logo or media resource), `POLICY_NOT_CONFIGURED`, `PLEX_NOT_CONFIGURED`, `VIEWER_NOT_FOUND`, `TOKEN_NOT_FOUND`, `PROGRAM_NOT_FOUND`, `RECORDING_NOT_FOUND`, `RULE_NOT_FOUND`, `RECORDING_MISSING` (a recording whose file is gone), `LIBRARY_NOT_FOUND`, `LIBRARIES_NOT_AVAILABLE`, `HISTORY_NOT_AVAILABLE`, `RECORDINGS_NOT_AVAILABLE`, `NOTIFICATIONS_NOT_AVAILABLE` (the server runs without that feature), `ITEM_NOT_FOUND`, `ITEM_MISSING` (a library item whose file is gone) |
+| 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS`, `POLICY_CHANGED` (a stale `If-Match` or a policy file changed on disk), `STATION_CONFLICT` (a merge of two stations that both have overrides), `POLICY_EXISTS`, `NO_SOURCES` (a starter policy over an existing policy or no providers), `PROGRAM_ENDED`, `SCHEDULE_FULL` (100 one-off recordings already wait), `VIEWER_LIMIT` (200 viewers are kept), `RECORDING_NOT_READY` (nothing written yet; retryable), `LIBRARY_EXISTS` |
 | 410 | `SESSION_EXPIRED`, `STREAM_CHANGED`, `POLICY_MANAGED` |
-| 413 | `REQUEST_TOO_LARGE`, answered before the token is checked |
+| 413 | `REQUEST_TOO_LARGE`, answered before the token is checked, for every `POST` and `PUT` |
 | 422 | `FORMAT_UNSUPPORTED` (an HLS playlist with variables, content steering or a non-HTTP resource) |
 | 428 | `PRECONDITION_REQUIRED` (a policy write without `If-Match`) |
 | 429 | `CAPACITY_EXHAUSTED` (no session slot is free or can be freed, or a session already has 12 media requests in flight) |
-| 500 | `INTERNAL_ERROR` |
+| 500 | `INTERNAL_ERROR`, `SECRETS_UNWRITABLE` (the data directory refused a token or key write) |
 | 502 | `UPSTREAM_UNAVAILABLE`, `UPSTREAM_REJECTED`, `INVALID_MANIFEST` |
 | 503 | `NOT_READY`, `SOURCE_UNAVAILABLE`, `SETUP_UNAVAILABLE`, `CAPACITY_EXHAUSTED` (every library playback slot, `SOFA_MAX_TRANSCODES`, is converting), `TRANSCODER_UNAVAILABLE` (FFmpeg could not start), `MULTIVIEW_UNAVAILABLE` (the server does not draw [multiview](#multiview)) |
 

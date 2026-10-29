@@ -876,9 +876,9 @@
     "/api/v1/preferences/{clientId}": {
       "get": { "tags": ["Viewers"], "summary": "The preferences this client last saved", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } }, "404": { "description": "VIEWER_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "put": { "tags": ["Viewers"], "summary": "Replace this client's preferences", "description": "Each list holds at most 1,000 distinct ids; an empty name or platform keeps the stored one. The answer is the stored document with the server's updatedAt.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
+      "put": { "tags": ["Viewers"], "summary": "Replace this client's preferences", "description": "Each list holds at most 1,000 distinct ids; an empty name or platform keeps the stored one. The answer is the stored document with the server's updatedAt. A token paired to a client writes only that client; the shared API token and issued tokens without a client write any.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } },
-        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } }, "400": { "$ref": "#/components/responses/Error" }, "403": { "description": "CLIENT_MISMATCH: a token paired to another client", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "409": { "description": "VIEWER_LIMIT: 200 viewers are kept already", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/household/preferences": {
       "get": { "tags": ["Viewers"], "summary": "The household's shared favorites and hidden channels", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
@@ -963,7 +963,7 @@
     },
     "/output/recordings.ics": {
       "get": { "tags": ["Outputs"], "summary": "The scheduled and running recordings as iCalendar", "description": "One event per recording over the window the DVR records, paddings included. A read token from POST /api/v1/admin/tokens works as ?token= too.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "readToken": [] }],
-        "responses": { "200": { "description": "text/calendar", "content": { "text/calendar": { "schema": { "type": "string" } } } }, "401": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
+        "responses": { "200": { "description": "text/calendar", "content": { "text/calendar": { "schema": { "type": "string" } } } }, "401": { "$ref": "#/components/responses/Error" }, "404": { "description": "RECORDINGS_NOT_AVAILABLE: the server does not record", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/output/guide.xml": {
       "get": { "tags": ["Outputs"], "summary": "The lineup's programs as XMLTV", "description": "From three hours ago to days ahead; the server's runtime setting applies when days is absent.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
@@ -1158,7 +1158,7 @@
           { "name": "client", "in": "query", "schema": { "type": "string" }, "description": "A paired device's client id or a player's address" },
           { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 200 } }
         ],
-        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/HistoryEntry" } } } } }, "400": { "$ref": "#/components/responses/Error" } } }
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/HistoryEntry" } } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "HISTORY_NOT_AVAILABLE: this server keeps no history", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/admin/events/stream": {
       "get": { "tags": ["Admin"], "summary": "The server's events as they happen", "description": "Server-sent events, each named for its type with a JSON object of type, at and data: ready once the stream listens, session.started and session.ended (the data of a history entry), recording.state (a recording's id, title, channel, state and reason), recording.conflict (a recording that newly has no free slot), source.quarantined and source.recovered (an offering's provider and channel), disk.low (free and floor bytes on the recordings disk), update.available (the newer build), library.added (the files a scan added) and attention.changed (the home page's attention items raised and cleared). A comment line every 15 seconds keeps an idle stream open. Nothing is replayed: a client that reconnects reads the history for what it missed.", "security": [{ "adminToken": [] }],
@@ -1337,7 +1337,7 @@
     },
     "/api/v1/admin/notifications": {
       "get": { "tags": ["Admin"], "summary": "Where the server sends notifications", "description": "Every notification target in the order it was added, with its newest delivery and without its secret.", "security": [{ "adminToken": [] }],
-        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/NotificationTarget" } } } } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/NotificationTarget" } } } } }, "404": { "description": "NOTIFICATIONS_NOT_AVAILABLE: every notification route answers it on a server without them", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
       "post": { "tags": ["Admin"], "summary": "Add a notification target", "description": "Needs name, kind and url; events defaults to all but the attention items, enabled to true. The URL may be a LAN or loopback address. 400 INVALID_REQUEST names what is wrong.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveNotificationTarget" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationTarget" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
@@ -1484,7 +1484,7 @@
       "post": {
         "tags": ["Recordings"],
         "summary": "Record one program",
-        "description": "Names the program by its channel and start, as the guide query gives them. Scheduling a program that already has a recording answers that recording.",
+        "description": "Names the program by its channel and start, as the guide query gives them. Scheduling a program that already has a recording answers that recording. With endsAt, startsAt may be at most 14 days ahead (400 INVALID_REQUEST), and a window past 100 waiting one-off recordings answers 409 SCHEDULE_FULL.",
         "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "requestBody": {
           "required": true,
@@ -1501,7 +1501,7 @@
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
           },
           "409": {
-            "description": "PROGRAM_ENDED",
+            "description": "PROGRAM_ENDED or SCHEDULE_FULL",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
           }
         }

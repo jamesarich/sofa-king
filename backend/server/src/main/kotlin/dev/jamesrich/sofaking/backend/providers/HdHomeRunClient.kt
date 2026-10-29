@@ -41,7 +41,7 @@ class HdHomeRunClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
-        val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
+        val index = channels.map { it.channel.toGuideChannel() }
         val parsed = context.cached(GUIDE, guideTtl) { fetchGuide() }
         val byNumber = channels.associate { it.channel.id to it.channel }
         val remap = HashMap<String, String>()

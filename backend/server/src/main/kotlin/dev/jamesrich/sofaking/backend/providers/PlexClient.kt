@@ -7,7 +7,6 @@ import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonElement
 import java.net.URI
-import java.net.URLEncoder
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
@@ -54,8 +53,6 @@ private fun airings(id: String, item: JsonElement): List<GuideProgram> {
     }
 }
 
-private fun encode(value: String) = URLEncoder.encode(value, Charsets.UTF_8)
-
 /**
  * Plex's free live channels as watch.plex.tv uses them: an anonymous plex.tv token, the `plex` lineup on
  * epg.provider.plex.tv with a genre listing per guide filter, the per-channel `grid` for the guide, and a
@@ -75,7 +72,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
-        val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
+        val index = channels.map { it.channel.toGuideChannel() }
         val today = context.clock.instant().atOffset(ZoneOffset.UTC).toLocalDate()
         val programs = ArrayList<GuideProgram>()
         var first = true
@@ -86,7 +83,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
                 first = false
                 val payload = authorized(patient = true) { token ->
                     context.http.get(
-                        "$apiBase/grid?channelGridKey=$id&date=$date&X-Plex-Token=${encode(token)}",
+                        "$apiBase/grid?channelGridKey=$id&date=$date&X-Plex-Token=${urlEncoded(token)}",
                         headers(token) + ("X-Plex-Provider-Version" to "7.2"),
                     )
                 }.json()
@@ -100,7 +97,10 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
         val key = context.findListed(CHANNELS) { listed().firstOrNull { it.channel.id == channelId }?.partKey }
         var url = ""
         val answer = signedIn { token ->
-            url = "$apiBase$key?includeAllStreams=1&X-Plex-Product=${encode(PRODUCT)}&X-Plex-Token=${encode(token)}"
+            url =
+                "$apiBase$key?includeAllStreams=1&X-Plex-Product=${urlEncoded(
+                    PRODUCT,
+                )}&X-Plex-Token=${urlEncoded(token)}"
             context.http.get(url, streamHeaders(), limit = MANIFEST_LIMIT, follow = false)
         }
         // Some parts redirect to their CDN master. A part Plex answers 400 for is not served to anyone;
@@ -124,21 +124,21 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun fetchChannels(): List<Listed> {
         val payload = authorized { token ->
-            context.http.get("$apiBase/lineups/plex/channels?X-Plex-Token=${encode(token)}", headers(token))
+            context.http.get("$apiBase/lineups/plex/channels?X-Plex-Token=${urlEncoded(token)}", headers(token))
         }.json()
         // A failed fetch keeps the last genres, since a lost group moves a station's number.
         val groups = context.lastGood(GROUPS, runCatchingCancellable { genres() })
         val result = payload["MediaContainer"]["Channel"].array
             .mapNotNull { listing(it, groups, regional.tags) }
             .distinctBy { it.channel.id }
-        if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(result)
         return result
     }
 
     /** Grid key to the first themed genre that lists it; the catch-all genres only name what nothing else does. */
     private suspend fun genres(): Map<String, String> {
         val root = authorized { token ->
-            context.http.get("$apiBase/?X-Plex-Token=${encode(token)}", headers(token))
+            context.http.get("$apiBase/?X-Plex-Token=${urlEncoded(token)}", headers(token))
         }.json()
         val filters = root["MediaProvider"]["Feature"].array.flatMap { it["GridChannelFilter"].array }
             .mapNotNull { filter -> filter.str("identifier")?.let { it to (filter.str("title") ?: it) } }
@@ -148,7 +148,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
             // About twenty listings in a row, which Plex answers with 429 when they come too fast.
             val listing = authorized(patient = true) { token ->
                 context.http.get(
-                    "$apiBase/lineups/plex/channels?genre=${encode(identifier)}&X-Plex-Token=${encode(token)}",
+                    "$apiBase/lineups/plex/channels?genre=${urlEncoded(identifier)}&X-Plex-Token=${urlEncoded(token)}",
                     headers(token),
                 )
             }.json()

@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.api.TokenScope
 import dev.jamesrich.sofaking.backend.api.Viewer
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
+import dev.jamesrich.sofaking.backend.store.MAX_VIEWERS
 import dev.jamesrich.sofaking.backend.store.forgetViewer
 import dev.jamesrich.sofaking.backend.store.householdPreferences
 import dev.jamesrich.sofaking.backend.store.saveHouseholdPreferences
@@ -21,6 +22,7 @@ import dev.jamesrich.sofaking.contract.PairingResult
 import dev.jamesrich.sofaking.contract.ViewerPreferences
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.plugins.ratelimit.RateLimitName
 import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.response.respond
@@ -90,8 +92,10 @@ internal fun Route.viewerRoutes(runtime: LiveRuntime, clock: Clock, apiToken: St
         }
         put {
             val clientId = validClientId(call.parameters["clientId"]!!)
+            call.requireOwnClient(clientId)
             val body = call.appBody<ViewerPreferences>()
-            call.respond(runtime.store.saveViewerPreferences(clientId, validPreferences(body), clock.instant()))
+            val saved = runtime.store.saveViewerPreferences(clientId, validPreferences(body), clock.instant())
+            call.respond(saved.orViewerLimit())
         }
     }
     route("/api/v1/household/preferences") {
@@ -152,6 +156,24 @@ internal suspend fun LiveRuntime.viewersWithTokens(): List<Viewer> {
     val paired = tokens.pairedClients()
     return store.viewers().map { it.copy(ownToken = it.clientId in paired) }
 }
+
+/** A token paired to a client writes only that client; the shared and unpaired issued tokens write any. */
+private fun ApplicationCall.requireOwnClient(clientId: String) {
+    val paired = attributes.getOrNull(PresentedClientKey)
+    if (paired != null && paired != clientId) {
+        throw ApiFailure(
+            HttpStatusCode.Forbidden,
+            "CLIENT_MISMATCH",
+            "A token paired to a client writes only that client's preferences",
+        )
+    }
+}
+
+private fun ViewerPreferences?.orViewerLimit(): ViewerPreferences = this ?: throw ApiFailure(
+    HttpStatusCode.Conflict,
+    "VIEWER_LIMIT",
+    "The server keeps at most $MAX_VIEWERS viewers; forget one in the admin portal first",
+)
 
 internal fun validClientId(raw: String): String = raw.takeIf { CLIENT_ID.matches(it) }
     ?: throw ApiFailure(

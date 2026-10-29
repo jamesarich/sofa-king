@@ -37,6 +37,12 @@ internal fun localPath(path: String, mappings: List<PathMapping>): Path? = try {
     null
 }
 
+/** [relative] under this folder, normalized; null when it leads outside it. A symlink inside is not followed here. */
+internal fun Path.resolveInside(relative: String): Path? {
+    val root = normalize()
+    return root.resolve(relative).normalize().takeIf { it.startsWith(root) }
+}
+
 /**
  * The libraries a change at [path] concerns: the one whose folder holds it, or every library inside it when it names
  * a folder above them.

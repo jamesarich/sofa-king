@@ -11,6 +11,7 @@ import dev.jamesrich.sofaking.data.RecordingSchedule
 import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.data.UpdateRecordingDto
+import dev.jamesrich.sofaking.data.restore
 import dev.jamesrich.sofaking.data.setProtected
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -48,6 +49,9 @@ class RecordingsViewModel(
      * server refused or could not be reached; the list reloads either way.
      */
     suspend fun delete(recording: DvrRecording): Boolean = schedule.delete(recording)
+
+    /** Puts a canceled scheduled [recording] back on the schedule; false when the server refused. */
+    suspend fun restore(recording: DvrRecording): Boolean = schedule.restore(recording)
 
     /** Has cleanup keep [recording] or delete it when space runs short. False when the server refused. */
     suspend fun setProtected(recording: DvrRecording, protect: Boolean): Boolean =

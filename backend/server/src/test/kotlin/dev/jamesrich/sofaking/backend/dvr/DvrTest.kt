@@ -566,6 +566,24 @@ class DvrTest {
         }
     }
 
+    @Test fun `two airings of one title starting together record into two files`() = ticking {
+        val scope = CoroutineScope(currentCoroutineContext() + SupervisorJob())
+        dvr.start(scope).forEach { it.cancel() }
+        try {
+            val start = clock.now.minusSeconds(30)
+            store.addRecording(stored("east", start, Wire.RecordingState.SCHEDULED))
+            store.addRecording(stored("west", start, Wire.RecordingState.SCHEDULED).copy(channelId = "d"))
+            dvr.tick()
+            pollUntil(10_000) {
+                listOf("east", "west").all { store.recording(it)?.state == Wire.RecordingState.RECORDING }
+            }
+            val paths = listOf("east", "west").map { store.recording(it)?.path }
+            assertEquals(2, paths.toSet().size, "each recording has its own in-progress file: $paths")
+        } finally {
+            scope.cancel()
+        }
+    }
+
     @Test fun `a recording that wrote nothing fails as NO_MEDIA and leaves no file behind`() = ticking {
         val start = clock.now.minusSeconds(7200)
         val empty = RecordingLayout.inProgress(

@@ -218,7 +218,7 @@ class Dvr(
             events.recordingChanged(recording)
             alerts.checkConflicts()
             recording.toWire()
-        }.also { scope.launch { tick() } }
+        }.also { if (::scope.isInitialized) scope.launch { tick() } }
     }
 
     suspend fun update(id: String, update: UpdateRecording): Recording = mutex.withLock {

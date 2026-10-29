@@ -18,7 +18,7 @@ Commits use Conventional Commits, `type(scope): summary` in the imperative, scop
 
 All source is under `dev.jamesrich.sofaking.backend`; tests mirror it in `server/src/test`. Read the source for the file layout; these are the rules it doesn't show:
 
-- The environment settings in `ServerConfig.kt` are documented only in docs/live-tv.md's server settings table. Request and response models shared with the app live in `../contract`; `api/` holds the server-only ones.
+- Every `SOFA_` variable is one entry in `settings/Settings.kt` (type, range, default, label, help), which the startup reader, the runtime settings, the portal's runtime form and its startup list all use; a test keeps it equal to docs/live-tv.md's server settings table, the only place the variables are documented. A new runtime setting is its entry, the code that reads it and its table row. Request and response models shared with the app live in `../contract`; `api/` holds the server-only ones.
 - Live streams are sessions in `playback/SessionManager`, library playback is a session in `library/VodTable`, and multiview sessions live in `multiview/MultiviewSessions`; each keeps its own table.
 - Library item ids derive from the library and the relative path, so they survive rescans.
 - Migrations are `server/src/main/resources/db/Vnnn__name.sql`, listed in order in `store/Migration.kt`; a schema change adds a new, higher-numbered file and its list entry and never edits an applied one. Versions may have gaps.

@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.logging.LogSettings
 import dev.jamesrich.sofaking.backend.multiview.MultiviewMode
 import dev.jamesrich.sofaking.backend.playback.DEFAULT_HISTORY_DAYS
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
+import dev.jamesrich.sofaking.backend.settings.Settings
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -156,12 +157,14 @@ data class ServerConfig(
 
     /** `SOFA_LISTENBRAINZ_TOKEN`: a ListenBrainz user token, for artists' most played songs. */
     val listenBrainzToken: String? = null,
+    /** `SOFA_PLEX_SYNC_MINUTES`, kept whether or not Plex sync is configured, so the portal shows what is set. */
+    val plexSyncMinutes: Int = DEFAULT_PLEX_SYNC_MINUTES,
 ) {
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
         const val DEFAULT_UPDATE_IMAGE = "ghcr.io/jamesarich/sofa-king:main"
 
-        // The defaults of the numeric variables, and the values each accepts.
+        // The defaults of the numeric variables; the values each accepts are in [Settings].
         const val DEFAULT_PORT = 8080
         const val DEFAULT_MAX_SESSIONS = 4
         const val DEFAULT_PROBE_PARALLELISM = 6
@@ -172,17 +175,6 @@ data class ServerConfig(
         const val DEFAULT_TUNERS = 2
         const val DEFAULT_MAX_TRANSCODES = 2
         const val DEFAULT_PLEX_SYNC_MINUTES = 60
-        internal val PORT_RANGE = 1..65_535
-        internal val MAX_SESSIONS_RANGE = 1..16
-        internal val PROBE_PARALLELISM_RANGE = 1..32
-        internal val RETENTION_DAYS_RANGE = 1..3650
-        internal val GUIDE_DAYS_RANGE = 1..14
-        internal val RECORDINGS_FREE_GIB_RANGE = 0..100_000
-        internal val RECORDINGS_KEEP_DAYS_RANGE = 0..3650
-        internal val AD_LISTENERS_RANGE = 0..24
-        internal val DEVICE_SIZE_RANGE = 1..5000
-        internal val MAX_TRANSCODES_RANGE = 1..8
-        internal val PLEX_SYNC_MINUTES_RANGE = 5..1440
 
         /** The shortest token the server accepts, and the shortest Plex token. */
         internal const val TOKEN_MIN_LENGTH = 32
@@ -221,9 +213,11 @@ data class ServerConfig(
             val tmdb = base.tmdb ?: saved(SavedSecret.TMDB)?.let {
                 tmdbConfig(EnvironmentReader(resolved + (SavedSecret.TMDB.variable to it)))
             }
-            val fanartKey = reader.token(SavedSecret.FANART.variable) ?: saved(SavedSecret.FANART)
+            val fanartKey =
+                reader.token(Settings.byName.getValue(SavedSecret.FANART.variable)) ?: saved(SavedSecret.FANART)
             val listenBrainzToken =
-                reader.token(SavedSecret.LISTENBRAINZ.variable) ?: saved(SavedSecret.LISTENBRAINZ)
+                reader.token(Settings.byName.getValue(SavedSecret.LISTENBRAINZ.variable))
+                    ?: saved(SavedSecret.LISTENBRAINZ)
             return base.copy(
                 sourcesFile = sources,
                 policyFile = policy,
@@ -244,62 +238,62 @@ data class ServerConfig(
         /** [requireToken] false leaves a non-loopback bind without `SOFA_API_TOKEN` to [load], which generates one. */
         fun fromEnvironment(environment: Map<String, String>, requireToken: Boolean = true): ServerConfig {
             val env = EnvironmentReader(environment)
-            val host = environment["SOFA_HOST"] ?: "127.0.0.1"
+            val host = environment[Settings.HOST.name] ?: Settings.HOST.default.orEmpty()
             require(host.isNotBlank()) { "SOFA_HOST must not be blank" }
-            val port = env.number("SOFA_PORT", DEFAULT_PORT, PORT_RANGE)
-            val directory = environment["SOFA_DATA_DIR"] ?: "data"
+            val port = env.number(Settings.PORT)
+            val directory = environment[Settings.DATA_DIR.name] ?: Settings.DATA_DIR.default.orEmpty()
             require(directory.isNotBlank()) { "SOFA_DATA_DIR must not be blank" }
-            val token = env.token("SOFA_API_TOKEN")
+            val token = env.token(Settings.API_TOKEN)
             require(isLoopback(host) || token != null || !requireToken) {
                 "Non-loopback binding requires SOFA_API_TOKEN"
             }
-            val capacity = env.number("SOFA_MAX_SESSIONS", DEFAULT_MAX_SESSIONS, MAX_SESSIONS_RANGE)
-            val hdhrEnabled = env.flag("SOFA_HDHR_ENABLED", true)
+            val capacity = env.number(Settings.MAX_SESSIONS)
+            val hdhrEnabled = env.flag(Settings.HDHR_ENABLED)
+            val plexSyncMinutes = env.number(Settings.PLEX_SYNC_MINUTES)
             val data = Path.of(directory)
             return ServerConfig(
                 host,
                 port,
                 data,
-                env.path("SOFA_SOURCES"),
+                env.path(Settings.SOURCES),
                 token,
                 capacity,
-                environment["SOFA_FFMPEG"] ?: "ffmpeg",
-                env.number("SOFA_PROBE_PARALLELISM", DEFAULT_PROBE_PARALLELISM, PROBE_PARALLELISM_RANGE),
+                environment[Settings.FFMPEG.name] ?: Settings.FFMPEG.default.orEmpty(),
+                env.number(Settings.PROBE_PARALLELISM),
                 restreamOrigins(env),
-                env.number("SOFA_OBSERVATION_RETENTION_DAYS", DEFAULT_RETENTION_DAYS, RETENTION_DAYS_RANGE),
-                env.flag("SOFA_ALLOW_LOOPBACK_UPSTREAMS", false),
-                env.token("SOFA_ADMIN_TOKEN"),
+                env.number(Settings.OBSERVATION_RETENTION_DAYS),
+                env.flag(Settings.ALLOW_LOOPBACK_UPSTREAMS),
+                env.token(Settings.ADMIN_TOKEN),
                 outputConfig(env),
                 hdhrConfig(env, port, capacity, hdhrEnabled),
-                env.path("SOFA_POLICY"),
-                plexConfig(env, hdhrEnabled),
+                env.path(Settings.POLICY),
+                plexConfig(env, hdhrEnabled, plexSyncMinutes),
                 logging = LogSettings.from(environment),
-                revision = env.text("SOFA_REVISION") ?: "unknown",
-                version = env.text("SOFA_VERSION") ?: "unknown",
+                revision = env.text(Settings.REVISION) ?: Settings.REVISION.default.orEmpty(),
+                version = env.text(Settings.VERSION) ?: Settings.VERSION.default.orEmpty(),
                 updateImage = updateImage(env),
-                corsOrigins = corsOrigins(environment["SOFA_CORS_ORIGINS"]),
-                recordingsDirectory = env.path("SOFA_RECORDINGS_DIR") ?: data.resolve("recordings"),
-                mediaDirectory = env.path("SOFA_MEDIA_DIR") ?: data.resolve("media"),
-                webDirectory = env.path("SOFA_WEB_DIR"),
+                corsOrigins = corsOrigins(environment[Settings.CORS_ORIGINS.name]),
+                recordingsDirectory = env.path(Settings.RECORDINGS_DIR) ?: data.resolve("recordings"),
+                mediaDirectory = env.path(Settings.MEDIA_DIR) ?: data.resolve("media"),
+                webDirectory = env.path(Settings.WEB_DIR),
                 tmdb = tmdbConfig(env),
-                maxTranscodes = env.number("SOFA_MAX_TRANSCODES", DEFAULT_MAX_TRANSCODES, MAX_TRANSCODES_RANGE),
+                maxTranscodes = env.number(Settings.MAX_TRANSCODES),
                 videoEncoder = VideoEncoder(
-                    HardwareAccel.parse(environment["SOFA_HWACCEL"]),
-                    env.text("SOFA_HWACCEL_DEVICE") ?: VideoEncoder.DEFAULT_DEVICE,
+                    HardwareAccel.parse(environment[Settings.HWACCEL.name]),
+                    env.text(Settings.HWACCEL_DEVICE) ?: VideoEncoder.DEFAULT_DEVICE,
                 ),
-                multiview = MultiviewMode.parse(environment["SOFA_MULTIVIEW"]),
-                recordingsFreeGib =
-                env.number("SOFA_RECORDINGS_FREE_GIB", DEFAULT_RECORDINGS_FREE_GIB, RECORDINGS_FREE_GIB_RANGE),
-                recordingsKeepDays = env.number("SOFA_RECORDINGS_KEEP_DAYS", 0, RECORDINGS_KEEP_DAYS_RANGE),
-                learnedBreaks = LearnedBreaks.of(environment["SOFA_LEARNED_BREAKS"] ?: "shadow")
-                    ?: throw IllegalArgumentException("SOFA_LEARNED_BREAKS must be one of off, shadow, on"),
-                adListeners = env.number("SOFA_AD_LISTENERS", DEFAULT_AD_LISTENERS, AD_LISTENERS_RANGE),
+                multiview = MultiviewMode.parse(environment[Settings.MULTIVIEW.name]),
+                recordingsFreeGib = env.number(Settings.RECORDINGS_FREE_GIB),
+                recordingsKeepDays = env.number(Settings.RECORDINGS_KEEP_DAYS),
+                learnedBreaks = LearnedBreaks.of(env.choice(Settings.LEARNED_BREAKS)) ?: LearnedBreaks.SHADOW,
+                adListeners = env.number(Settings.AD_LISTENERS),
                 comskip = comskip(env),
-                mdns = env.flag("SOFA_MDNS", !isLoopback(host)),
-                libraryPathMap = pathMappings(environment["SOFA_LIBRARY_PATH_MAP"]),
-                historyDays = env.number("SOFA_HISTORY_DAYS", DEFAULT_HISTORY_DAYS, RETENTION_DAYS_RANGE),
-                qualityFloors = env.flag("SOFA_QUALITY_FLOORS", false),
-                musicBrainz = env.flag("SOFA_MUSICBRAINZ", true),
+                mdns = env.flag(Settings.MDNS, !isLoopback(host)),
+                libraryPathMap = pathMappings(environment[Settings.LIBRARY_PATH_MAP.name]),
+                historyDays = env.number(Settings.HISTORY_DAYS),
+                qualityFloors = env.flag(Settings.QUALITY_FLOORS),
+                musicBrainz = env.flag(Settings.MUSICBRAINZ),
+                plexSyncMinutes = plexSyncMinutes,
             )
         }
 

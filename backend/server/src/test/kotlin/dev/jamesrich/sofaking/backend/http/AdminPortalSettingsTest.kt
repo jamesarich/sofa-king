@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.SecretOrigin
 import dev.jamesrich.sofaking.backend.admin.HIDDEN_TOKEN
 import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.main
+import dev.jamesrich.sofaking.backend.settings.Settings
 import io.ktor.client.request.get
 import io.ktor.client.request.headers
 import io.ktor.client.request.post
@@ -311,6 +312,10 @@ class AdminPortalSettingsTest : AdminPortalCase() {
             assertTrue(
                 page.contains("No changes") && page.contains("hx-post=\"/admin/settings/runtime/check\""),
                 "the Save control starts disabled and the form asks on change",
+            )
+            assertTrue(
+                Settings.runtime.all { page.contains(it.help) },
+                "each runtime field carries its own help",
             )
             assertFalse(
                 Regex("""<div class="name mono">SOFA_MAX_SESSIONS</div>""").containsMatchIn(page),

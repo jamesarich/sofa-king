@@ -3,7 +3,7 @@ package dev.jamesrich.sofaking.backend.admin
 import dev.jamesrich.sofaking.backend.api.CreatedApiToken
 import dev.jamesrich.sofaking.backend.api.TokenScope
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
-import dev.jamesrich.sofaking.backend.settings.RuntimeValues
+import dev.jamesrich.sofaking.backend.settings.Settings
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Parameters
 import io.ktor.http.path
@@ -65,7 +65,13 @@ internal class SettingsPages(private val portal: Portal) {
 
     private suspend fun saveRuntime(call: ApplicationCall, session: AdminSession, form: Parameters) {
         val reset = form["op"] == "reset"
-        val proposed = if (reset) emptyMap() else RuntimeValues.NAMES.associateWith { form[it]?.trim().orEmpty() }
+        val proposed = if (reset) {
+            emptyMap()
+        } else {
+            Settings.runtime.map {
+                it.name
+            }.associateWith { form[it]?.trim().orEmpty() }
+        }
         try {
             val before = runtime.settings.current
             val after = runtime.settings.update(proposed)
@@ -79,7 +85,7 @@ internal class SettingsPages(private val portal: Portal) {
         } catch (e: ApiFailure) {
             val view = settingsView()
             val refused = view.runtime!!.let {
-                RuntimeSettingsView(it.current, it.environment, it.saved, it.plex, listOf(e.message), proposed)
+                RuntimeSettingsView(it.current, it.environment, it.saved, listOf(e.message), proposed)
             }
             call.html(
                 settingsPage(
@@ -146,7 +152,6 @@ internal class SettingsPages(private val portal: Portal) {
                 runtime.settings.current,
                 runtime.settings.environment,
                 runtime.settings.saved,
-                runtime.plex != null,
             ),
             openAdvanced = openAdvanced,
             tokens = TokensView(runtime.tokens.all(), created),

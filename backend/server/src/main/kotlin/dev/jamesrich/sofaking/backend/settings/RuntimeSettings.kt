@@ -2,7 +2,6 @@ package dev.jamesrich.sofaking.backend.settings
 
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
-import dev.jamesrich.sofaking.backend.logging.LogSettings
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.runtimeSettings
 import dev.jamesrich.sofaking.backend.store.saveRuntimeSettings
@@ -14,113 +13,60 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * The settings the server changes without a restart: the log level, how far ahead the XMLTV reaches, the Plex sync
- * interval, the streams an HDHomeRun device may open, the sessions the server may hold, how the DVR culls recordings:
- * the space it keeps free and the days it keeps a recording (0 keeps them until space runs short), and what live
- * sessions do with the breaks the server learns from the stream itself ([learnedBreaks], see [LearnedBreaks]) and how
- * many channels the ad listener plays at once ([adListeners]).
+ * The settings the server changes without a restart, by variable name: the registry's runtime [Settings], each with
+ * the text it is kept in. The typed accessors are what the server's consumers read.
  * [plexSyncMinutes] is kept whether or not Plex sync is configured, so it is there when it is.
  */
-data class RuntimeValues(
-    val logLevel: String,
-    val guideDays: Int,
-    val plexSyncMinutes: Int,
-    val hdhrTuners: Int,
-    val maxSessions: Int,
-    val recordingsFreeGib: Int = ServerConfig.DEFAULT_RECORDINGS_FREE_GIB,
-    val recordingsKeepDays: Int = 0,
-    val learnedBreaks: String = LearnedBreaks.SHADOW.setting,
-    val adListeners: Int = ServerConfig.DEFAULT_AD_LISTENERS,
-) {
+data class RuntimeValues(private val values: Map<String, String>) {
+    private fun int(def: SettingDef) = values.getValue(def.name).toInt()
+
+    val logLevel: String get() = values.getValue(Settings.LOG_LEVEL.name)
+    val guideDays: Int get() = int(Settings.XMLTV_DAYS)
+    val plexSyncMinutes: Int get() = int(Settings.PLEX_SYNC_MINUTES)
+    val hdhrTuners: Int get() = int(Settings.HDHR_TUNERS)
+    val maxSessions: Int get() = int(Settings.MAX_SESSIONS)
+    val recordingsFreeGib: Int get() = int(Settings.RECORDINGS_FREE_GIB)
+    val recordingsKeepDays: Int get() = int(Settings.RECORDINGS_KEEP_DAYS)
+    val learnedBreaks: String get() = values.getValue(Settings.LEARNED_BREAKS.name)
+    val adListeners: Int get() = int(Settings.AD_LISTENERS)
+
     /** The values by their variable name, as the settings page and the database name them. */
-    fun byName(): Map<String, String> = mapOf(
-        LOG_LEVEL to logLevel, GUIDE_DAYS to guideDays.toString(), PLEX_SYNC_MINUTES to plexSyncMinutes.toString(),
-        HDHR_TUNERS to hdhrTuners.toString(), MAX_SESSIONS to maxSessions.toString(),
-        RECORDINGS_FREE_GIB to recordingsFreeGib.toString(), RECORDINGS_KEEP_DAYS to recordingsKeepDays.toString(),
-        LEARNED_BREAKS to learnedBreaks, AD_LISTENERS to adListeners.toString(),
-    )
+    fun byName(): Map<String, String> = values
 
     companion object {
-        const val LOG_LEVEL = "SOFA_LOG_LEVEL"
-        const val GUIDE_DAYS = "SOFA_XMLTV_DAYS"
-        const val PLEX_SYNC_MINUTES = "SOFA_PLEX_SYNC_MINUTES"
-        const val HDHR_TUNERS = "SOFA_HDHR_TUNERS"
-        const val MAX_SESSIONS = "SOFA_MAX_SESSIONS"
-        const val RECORDINGS_FREE_GIB = "SOFA_RECORDINGS_FREE_GIB"
-        const val RECORDINGS_KEEP_DAYS = "SOFA_RECORDINGS_KEEP_DAYS"
-        const val LEARNED_BREAKS = "SOFA_LEARNED_BREAKS"
-        const val AD_LISTENERS = "SOFA_AD_LISTENERS"
-        val NAMES =
-            listOf(
-                LOG_LEVEL, GUIDE_DAYS, PLEX_SYNC_MINUTES, HDHR_TUNERS, MAX_SESSIONS, RECORDINGS_FREE_GIB,
-                RECORDINGS_KEEP_DAYS, LEARNED_BREAKS, AD_LISTENERS,
-            )
-
         /** The server's defaults, for a runtime built without a [ServerConfig]. */
-        val DEFAULT = RuntimeValues(
-            "info",
-            ServerConfig.DEFAULT_GUIDE_DAYS,
-            ServerConfig.DEFAULT_PLEX_SYNC_MINUTES,
-            ServerConfig.DEFAULT_TUNERS,
-            ServerConfig.DEFAULT_MAX_SESSIONS,
-        )
+        val DEFAULT = RuntimeValues(Settings.runtime.associate { it.name to it.default.orEmpty() })
 
         /** What the environment set, the values the server starts with until a saved setting replaces one. */
-        fun of(config: ServerConfig) = RuntimeValues(
-            config.logging.level, config.outputs.guideDays,
-            config.plex?.syncMinutes ?: ServerConfig.DEFAULT_PLEX_SYNC_MINUTES, config.hdhr.tuners, config.maxSessions,
-            config.recordingsFreeGib, config.recordingsKeepDays, config.learnedBreaks.setting, config.adListeners,
-        )
+        fun of(config: ServerConfig) =
+            RuntimeValues(Settings.runtime.associate { it.name to it.show(config).toString() })
 
         /**
          * [environment] with the saved [overrides] applied, by name; a value that does not parse or is out of range is
          * refused with a message naming the setting.
          */
         fun from(environment: RuntimeValues, overrides: Map<String, String>): RuntimeValues {
-            fun int(name: String, current: Int, range: IntRange): Int {
-                val raw = overrides[name] ?: return current
-                return raw.trim().toIntOrNull()?.takeIf { it in range }
-                    ?: throw ApiFailure(
-                        HttpStatusCode.BadRequest,
-                        "INVALID_REQUEST",
-                        "$name must be between ${range.first} and ${range.last}",
-                    )
+            val values = Settings.runtime.associate { def ->
+                val raw = overrides[def.name]
+                def.name to if (raw == null) {
+                    environment.values.getValue(def.name)
+                } else {
+                    def.normalize(raw) ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", def.failure)
+                }
             }
-            val level = overrides[LOG_LEVEL]?.trim()?.lowercase() ?: environment.logLevel
-            if (LOG_LEVEL in overrides && level !in LogSettings.LEVELS) {
-                throw ApiFailure(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    "$LOG_LEVEL must be one of ${LogSettings.LEVELS.joinToString()}",
-                )
-            }
-            val learned = overrides[LEARNED_BREAKS]?.trim()?.lowercase() ?: environment.learnedBreaks
-            if (LearnedBreaks.of(learned) == null) {
-                throw ApiFailure(
-                    HttpStatusCode.BadRequest,
-                    "INVALID_REQUEST",
-                    "$LEARNED_BREAKS must be one of ${LearnedBreaks.entries.joinToString { it.setting }}",
-                )
-            }
-            val sessions = int(MAX_SESSIONS, environment.maxSessions, ServerConfig.MAX_SESSIONS_RANGE)
-            val tuners = int(HDHR_TUNERS, environment.hdhrTuners, ServerConfig.MAX_SESSIONS_RANGE)
+            val result = RuntimeValues(values)
             // The environment's own pair is the server's to live with (startup validated it); only a
             // saved value is held to the rule.
-            if ((HDHR_TUNERS in overrides || MAX_SESSIONS in overrides) && tuners > sessions) {
+            val tuners = Settings.HDHR_TUNERS.name
+            val sessions = Settings.MAX_SESSIONS.name
+            if ((tuners in overrides || sessions in overrides) && result.hdhrTuners > result.maxSessions) {
                 throw ApiFailure(
                     HttpStatusCode.BadRequest,
                     "INVALID_REQUEST",
-                    "$HDHR_TUNERS must be between 1 and $MAX_SESSIONS ($sessions)",
+                    "$tuners must be between 1 and $sessions (${result.maxSessions})",
                 )
             }
-            return RuntimeValues(
-                level, int(GUIDE_DAYS, environment.guideDays, ServerConfig.GUIDE_DAYS_RANGE),
-                int(PLEX_SYNC_MINUTES, environment.plexSyncMinutes, ServerConfig.PLEX_SYNC_MINUTES_RANGE),
-                tuners, sessions,
-                int(RECORDINGS_FREE_GIB, environment.recordingsFreeGib, ServerConfig.RECORDINGS_FREE_GIB_RANGE),
-                int(RECORDINGS_KEEP_DAYS, environment.recordingsKeepDays, ServerConfig.RECORDINGS_KEEP_DAYS_RANGE),
-                learned, int(AD_LISTENERS, environment.adListeners, ServerConfig.AD_LISTENERS_RANGE),
-            )
+            return result
         }
     }
 }
@@ -183,7 +129,7 @@ class RuntimeSettings(private val store: BackendStore, val environment: RuntimeV
         } else {
             overrides.filter { (name, value) -> fits(mapOf(name to value), report = true) }
         }
-        if (!fits(kept, report = true)) kept = kept - RuntimeValues.HDHR_TUNERS
+        if (!fits(kept, report = true)) kept = kept - Settings.HDHR_TUNERS.name
         apply(RuntimeValues.from(environment, kept), kept.keys)
         problems
     }

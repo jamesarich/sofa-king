@@ -47,7 +47,7 @@ Notes on the table:
 
 ## Outbound requests
 
-The server collects no telemetry, analytics or crash reports and reports nothing about its users. Its own requests are the ones below, and the update check's request to the image's container registry ([about](admin.md#update)).
+The server sends no telemetry, analytics or crash reports anywhere and reports nothing about its users; the app crash reports above stay on it. Its own requests are the ones below, and the update check's request to the image's container registry ([about](admin.md#update)).
 
 The server makes requests to the playlist, guide, logo and stream hosts that you configure, and, with a TMDB token, to `api.themoviedb.org` and `image.tmdb.org` for library details and artwork. With a Music library, it asks `musicbrainz.org` about its albums and artists by name and MusicBrainz id, `coverartarchive.org` and `archive.org` for album covers by id, and `www.wikidata.org`, `en.wikipedia.org`, `commons.wikimedia.org` and `upload.wikimedia.org` for artists' biographies and pictures, and `api.listenbrainz.org` and `labs.api.listenbrainz.org` for artists' most played songs and similar artists by MusicBrainz id (with a ListenBrainz user token, sent to `api.listenbrainz.org` only), and `lrclib.net` for a song's lyrics by its title, artist, album and length, unless `SOFA_MUSICBRAINZ=false`, and, with a fanart.tv key, `webservice.fanart.tv` by MusicBrainz id and `assets.fanart.tv` for artists' pictures and backdrops and album covers. The upstream address policy applies to all of them:
 

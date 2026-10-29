@@ -58,6 +58,7 @@ import dev.jamesrich.sofaking.ui.formatBytes
 import dev.jamesrich.sofaking.ui.listScreenPadding
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import dev.jamesrich.sofaking.ui.sectionHeading
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getString
@@ -236,6 +237,7 @@ private fun LazyListScope.recordingGroups(
                 stringResource(group.label),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.sectionHeading(),
             )
         }
         items(recordings, key = { it.id }) { recording ->

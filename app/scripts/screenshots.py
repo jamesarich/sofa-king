@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Take the documentation's screenshots of the app on one platform, against the server's installed distribution serving
 the showcase lineup (showcase.py): the guide with its preview, a channel full screen, the Library tab and an item's page,
-as the platform can reach them. Writes <platform>-<screen>.png to --out, with the server log beside them.
+as the platform can reach them. Writes <platform>-<screen>.png to --out, with the server log beside them. The app's
+Appearance is pinned to Dark; `--appearance light` takes the tour again as <platform>-<screen>-light.png (web, desktop,
+Android phone and tablet; the TV is always dark). Android's status bar is in demo mode with the clock at 16:30.
 
 Platforms and what each needs besides FFmpeg and the server's distribution (`./gradlew :server:installDist` in backend/):
 
@@ -12,6 +14,8 @@ Platforms and what each needs besides FFmpeg and the server's distribution (`./g
   window manager has focused, hence Openbox.
 - android-tv, android-phone, android-tablet: adb with one booted emulator of that kind and the debug APK (`--app`),
   which it installs over any earlier one; the settings go in with `run-as`, which only a debug build allows.
+- admin: the server's admin portal (Home, Channels, DVR, Devices, Library and Settings) in Playwright's browser at
+  1440x900, dark then light, with three recordings scheduled; needs no app. Writes admin-<page>[-light].png.
 - ios, tvos: one booted simulator (`xcrun simctl`) and the app the Debug build writes (`--app`, a `.app` folder). The
   simulators take no keys from a script, so these show the guide or channel list, a channel playing (iOS only: Apple
   TV asks before a link opens the app) and the Library tab. The iOS app runs in landscape on a simulator that boots
@@ -30,6 +34,7 @@ import sys
 import tempfile
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 import xml.etree.ElementTree as ElementTree
 
 from fixture_server import TOKEN, request, serve, wait_for
@@ -39,6 +44,8 @@ PACKAGE = 'dev.jamesrich.sofaking'
 # Settings every platform starts with: nothing opens full screen or plays sound by itself, and the info bar's key legend
 # is already used up.
 SETTINGS = {'auto_open_delay': 'OFF', 'preview_sound': False, 'key_legend_shown': 3}
+# The Android status bar's clock in demo mode.
+CLOCK = '1630'
 # The guide's preview starts after 350 ms and needs a few seconds of stream before its first frame.
 PREVIEW_SECONDS = 8
 # How many times a tap asks uiautomator for the screen before giving up.
@@ -95,7 +102,7 @@ def web(args, out):
             context = browser.new_context(viewport={'width': width, 'height': height}, device_scale_factor=args.scale)
             page = context.new_page()
             page.on('pageerror', lambda error: print(f'page error: {error}', file=sys.stderr))
-            settings = {'backend_url': base, 'api_token': TOKEN, **SETTINGS, **extra}
+            settings = {'backend_url': base, 'api_token': TOKEN, **SETTINGS, 'appearance': args.appearance, **extra}
             typed = {name: {'t': 'b' if isinstance(v, bool) else 'i' if isinstance(v, int) else 's', 'v': v} for name, v in settings.items()}
             # Paired as a build before DataStore kept its settings: the app moves them over on its first read.
             page.add_init_script(f'localStorage.getItem("sofaking.preferences") || localStorage.setItem("sofaking.settings", {json.dumps(json.dumps(typed))})')
@@ -106,7 +113,7 @@ def web(args, out):
                     page.keyboard.press(name)
                     page.wait_for_timeout(400)
             try:
-                yield App(lambda name: page.screenshot(path=str(out / f'{args.name}-{name}.png')), keys)
+                yield App(lambda name: page.screenshot(path=str(picture(out, args, name))), keys)
             finally:
                 context.close()
 
@@ -160,7 +167,7 @@ def desktop(args, out):
                 with tempfile.TemporaryDirectory(prefix='sofa-desktop-') as home:
                     data = Path(home) / 'sofa-king/datastore'
                     data.mkdir(parents=True)
-                    settings = {'backend_url': base, 'api_token': TOKEN, **SETTINGS, **extra}
+                    settings = {'backend_url': base, 'api_token': TOKEN, **SETTINGS, 'appearance': args.appearance, **extra}
                     (data / 'settings.preferences_pb').write_bytes(preferences_pb(settings))
                     env = dict(os.environ, DISPLAY=display, XDG_DATA_HOME=home, HOSTNAME='Sofa King showcase',
                                JAVA_TOOL_OPTIONS=f'-Dsun.java2d.uiScale={args.scale}')
@@ -178,7 +185,7 @@ def desktop(args, out):
                                 xdotool('key', DESKTOP_KEYS.get(name, name))
                                 time.sleep(0.4)
 
-                        yield App(lambda name: subprocess.run(['import', '-window', window, str(out / f'{args.name}-{name}.png')], env=env, check=True), keys)
+                        yield App(lambda name: subprocess.run(['import', '-window', window, str(picture(out, args, name))], env=env, check=True), keys)
                     finally:
                         app.terminate()
                         app.wait(timeout=15)
@@ -204,10 +211,11 @@ def android(args, out):
     """The emulator reaches the host as 10.0.2.2, the server and the guide's images both."""
     emulated = lambda address: address.replace('127.0.0.1', '10.0.2.2')
     adb('install', '-r', '-g', args.app, timeout=300)
-    # The status bar as the demo mode keeps it: no notifications, a full battery and signal.
+    # The status bar as the demo mode keeps it: no notifications, a full battery and signal, and the clock at a fixed time.
     adb('shell', 'settings', 'put', 'global', 'sysui_demo_allowed', '1')
     for command in (['enter'], ['notifications', '-e', 'visible', 'false'], ['battery', '-e', 'level', '100', '-e', 'plugged', 'false'],
-                    ['network', '-e', 'wifi', 'show', '-e', 'level', '4'], ['network', '-e', 'mobile', 'hide']):
+                    ['network', '-e', 'wifi', 'show', '-e', 'level', '4'], ['network', '-e', 'mobile', 'hide'],
+                    ['clock', '-e', 'hhmm', CLOCK]):
         adb('shell', 'am', 'broadcast', '-a', 'com.android.systemui.demo', '-e', 'command', *command)
     # The full-screen player would otherwise open under Android's one-time note on how to leave full screen.
     adb('shell', 'settings', 'put', 'secure', 'immersive_mode_confirmations', 'confirmed')
@@ -218,7 +226,7 @@ def android(args, out):
         @contextlib.contextmanager
         def start(**extra):
             """The app from a cold start, paired and set up with [extra] settings."""
-            settings = {'backend_url': emulated(base), 'api_token': TOKEN, **SETTINGS, **extra}
+            settings = {'backend_url': emulated(base), 'api_token': TOKEN, **SETTINGS, 'appearance': args.appearance, **extra}
             # A fresh files folder, so nothing the last start saved carries over; clearing the app would take back its
             # permissions. Read back, since a write just after the install can land short and leave the app unpaired.
             written = preferences_pb(settings)
@@ -231,7 +239,7 @@ def android(args, out):
             else:
                 raise SystemExit('The app\'s settings did not stay written')
             adb('shell', 'am', 'start', '-W', '-n', f'{PACKAGE}/.MainActivity', timeout=120)
-            shoot = lambda name: (out / f'{args.name}-{name}.png').write_bytes(adb('exec-out', 'screencap', '-p'))
+            shoot = lambda name: picture(out, args, name).write_bytes(adb('exec-out', 'screencap', '-p'))
 
             def keys(*names):
                 for name in names:
@@ -306,7 +314,7 @@ def apple(args, out):
         @contextlib.contextmanager
         def start(**extra):
             subprocess.run(['xcrun', 'simctl', 'terminate', 'booted', bundle], capture_output=True)
-            settings = preferences_pb({'backend_url': base, 'api_token': TOKEN, **SETTINGS, **extra})
+            settings = preferences_pb({'backend_url': base, 'api_token': TOKEN, **SETTINGS, 'appearance': args.appearance, **extra})
             if tv:
                 simctl('spawn', 'booted', 'defaults', 'write', bundle, 'sofaking.preferences', '-data', settings.hex())
             else:
@@ -317,7 +325,7 @@ def apple(args, out):
             simctl('launch', 'booted', bundle)
 
             def shoot(name):
-                path = out / f'{args.name}-{name}.png'
+                path = picture(out, args, name)
                 simctl('io', 'booted', 'screenshot', str(path))
                 if tv:
                     return
@@ -343,6 +351,48 @@ def apple(args, out):
         tour(base, start, out, channel=not tv)
     if not tv:
         simctl('status_bar', 'booted', 'clear')
+
+
+def picture(out, args, name):
+    """Where a platform's screen [name] goes: <platform>-<screen>.png, with -light after it in the light appearance."""
+    return out / f'{args.name}-{name}{args.suffix}.png'
+
+
+# Admin portal
+
+
+ADMIN_PAGES = {'home': '/admin', 'channels': '/admin/lineup', 'dvr': '/admin/recordings', 'devices': '/admin/viewers',
+               'library': '/admin/library', 'settings': '/admin/settings'}
+
+
+def admin(args, out):
+    """The portal's pages at 1440x900, dark and light, signed in with the fixture token; the DVR holds three recordings
+    that start tomorrow and after. The portal follows the browser's color scheme, so each pass emulates one."""
+    from playwright.sync_api import sync_playwright
+
+    with showcase_server(out) as base, sync_playwright() as playwright:
+        channels = request(base, '/api/v1/channels')['channels']
+        day = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) + timedelta(days=1)
+        for number, title in enumerate(['Friday Movie Night', 'Saturday Matinee', 'Sunday Cartoons']):
+            start = day + timedelta(days=number, hours=number)
+            request(base, '/api/v1/recordings', 'POST', {
+                'channelId': channels[number]['id'], 'title': title, 'startsAt': start.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                'endsAt': (start + timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')})
+        browser = playwright.chromium.launch(channel=args.channel)
+        for scheme in ('dark', 'light'):
+            context = browser.new_context(viewport={'width': 1440, 'height': 900}, color_scheme=scheme)
+            page = context.new_page()
+            page.on('pageerror', lambda error: print(f'page error: {error}', file=sys.stderr))
+            page.goto(base + '/admin')
+            page.fill('#token', TOKEN)
+            page.press('#token', 'Enter')
+            page.wait_for_url(base + '/admin')
+            for name, path in ADMIN_PAGES.items():
+                page.goto(base + path)
+                page.wait_for_load_state('networkidle')
+                page.screenshot(path=str(out / f'admin-{name}{"-light" if scheme == "light" else ""}.png'))
+            context.close()
+        browser.close()
 
 
 def served(out, path):
@@ -423,18 +473,24 @@ def tour(base, start, out, channel=True):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument('platform', choices=['web', 'desktop', 'android-tv', 'android-phone', 'android-tablet', 'ios', 'tvos'])
+    parser.add_argument('platform', choices=['web', 'desktop', 'android-tv', 'android-phone', 'android-tablet', 'ios', 'tvos', 'admin'])
     parser.add_argument('--app', help='the build to run: a web build folder, the desktop launcher or the APK')
     parser.add_argument('--out', required=True)
     parser.add_argument('--channel', help='the browser Playwright runs by channel, such as chrome')
     parser.add_argument('--size', default='1280x720', type=lambda s: tuple(map(int, s.split('x'))), help='window size in points')
     parser.add_argument('--scale', default=2.0, type=float, help='pixels per point')
+    parser.add_argument('--appearance', default='dark', choices=['dark', 'light'],
+                        help='the app\'s Appearance setting; light pictures are named <platform>-<screen>-light.png')
     parser.add_argument('--name', help='the files\' prefix in place of the platform, such as ipad')
     args = parser.parse_args()
     args.name = args.name or args.platform
+    if args.appearance == 'light' and args.platform in ('android-tv', 'ios', 'tvos', 'admin'):
+        parser.error('only the web, desktop, Android phone and tablet apps have a light appearance here')
+    args.suffix = '-light' if args.appearance == 'light' else ''
+    args.appearance = args.appearance.upper()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    driver = {'web': web, 'desktop': desktop, 'ios': apple, 'tvos': apple}.get(args.platform, android)
+    driver = {'web': web, 'admin': admin, 'desktop': desktop, 'ios': apple, 'tvos': apple}.get(args.platform, android)
     driver(args, out)
 
 

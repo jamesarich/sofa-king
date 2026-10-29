@@ -3,18 +3,25 @@ package dev.jamesrich.sofaking
 import androidx.datastore.core.DataStore
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.CachedLineup
+import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.GuideLoad
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LineupCache
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.Server
 import dev.jamesrich.sofaking.data.SofaKingRepository
 import dev.jamesrich.sofaking.data.describe
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.selects.select
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
@@ -53,22 +60,30 @@ internal class LineupLoader(
     suspend fun FlowCollector<LineupState>.load(
         found: Pair<Server, SofaKingRepository>?,
         onCatalog: (Lineup?) -> Unit,
-    ) {
+    ): Unit = coroutineScope {
         if (found == null) {
             emit(LineupState.Unconfigured)
-            return
+            return@coroutineScope
         }
         val (server, repository) = found
         val key = server.url
         this@LineupLoader.repository = repository
         val cache = LineupCache(lineupCache, key, background, clock::now)
-        // A refresh keeps the lineup already on screen; a cold start or a server change reads the cache,
-        // so the last good lineup shows at once and the network load replaces it below.
-        var last: Lineup? = lastGood?.takeIf { it.first == key }?.second ?: cached(cache, key)
+        // A refresh keeps the lineup already on screen; a cold start or a server change reads the cache, so the
+        // cached channels show at once. Their programs decode while the first fetch runs, and the fetch wins.
+        var last: Lineup? = lastGood?.takeIf { it.first == key }?.second
+        var pending: PendingGuide? = null
+        if (last == null) {
+            cached(cache)?.let {
+                last = Lineup(it.channels, emptyMap(), guideLoading = true)
+                pending = PendingGuide(it.channels, async { it.guide() })
+            }
+        }
         var failures = 0
         while (true) {
             if (last == null) emit(LineupState.Loading)
-            val attempt = LoadAttempt()
+            val attempt = LoadAttempt(key, pending)
+            pending = null
             // Cancellation (a server change or refresh while loading) must propagate, not read as a failure.
             busy.value = true
             val result = try {
@@ -77,6 +92,8 @@ internal class LineupLoader(
                 // Also on cancellation, or a refresh or server change mid-load leaves the loader spinning.
                 busy.value = false
             }
+            // A fresh lineup wins: cached programs still decoding are dropped, never shown after it.
+            if (result.isSuccess) attempt.pending?.decode?.cancel()
             result.onSuccess {
                 last = it
                 loaded(it, key, cache)
@@ -84,6 +101,7 @@ internal class LineupLoader(
             // A failed background refresh keeps showing the lineup we already have.
             result.onFailure {
                 onCatalog(null)
+                attempt.pending?.let { p -> last = shownCached(p, key, attempt) }
                 last = failed(it, attempt.interim, last)
             }
             failures = if (result.isSuccess) 0 else failures + 1
@@ -92,20 +110,31 @@ internal class LineupLoader(
     }
 
     /**
-     * [cache]'s lineup for [key], or null when it has none. Its channels show first, so a channel or a tab opens while
-     * the programs decode, which takes seconds on a TV.
+     * [cache]'s lineup, or null when it has none. Its channels show first, so a channel or a tab opens while the
+     * programs decode, which takes seconds on a TV.
      */
-    private suspend fun FlowCollector<LineupState>.cached(cache: LineupCache, key: String): Lineup? {
+    private suspend fun FlowCollector<LineupState>.cached(cache: LineupCache): LineupCache.Cached? {
         val cacheStarted = TimeSource.Monotonic.markNow()
         val cached = cache.open() ?: return null
         log.i { "cache: ${cached.channels.size} channels in ${cacheStarted.elapsedNow()}" }
         emit(LineupState.Ready(Lineup(cached.channels, emptyMap(), guideLoading = true)))
-        // A guide that failed to decode, or whose programs have all ended, is still on its way from the server.
-        val guide = cached.guide()
-        val full = Lineup(cached.channels, guide.orEmpty(), guideLoading = guide.isNullOrEmpty())
-        log.i { "cache: ${full.guide.values.sumOf { it.size }} programs in ${cacheStarted.elapsedNow()}" }
+        return cached
+    }
+
+    /**
+     * Waits for [pending]'s programs when a load failed before they showed, and shows them over the channels the
+     * failed load got, or the cached ones. A guide that failed to decode, or whose programs have all ended, is still
+     * on its way from the server. Returns the lineup now on screen.
+     */
+    private suspend fun FlowCollector<LineupState>.shownCached(
+        pending: PendingGuide,
+        key: String,
+        attempt: LoadAttempt,
+    ): Lineup {
+        val guide = pending.decode.await()
+        val full = Lineup(attempt.interim?.channels ?: pending.channels, guide.orEmpty(), guide.isNullOrEmpty())
         lastGood = key to full
-        emit(LineupState.Ready(full))
+        if (attempt.interim == null) emit(LineupState.Ready(full)) else attempt.interim = full
         return full
     }
 
@@ -130,7 +159,7 @@ internal class LineupLoader(
             emit(LineupState.Ready(interim))
         }
         onCatalog(attempt.interim ?: last)
-        val guide = repository.loadGuide(channels)
+        val guide = guideOrCached(repository, channels, attempt)
         log.i {
             "guide: ${guide.programs.values.sumOf { it.size }} programs for ${guide.programs.size} " +
                 "channels in ${started.elapsedNow()}"
@@ -139,6 +168,30 @@ internal class LineupLoader(
         attempt.lineupMoved = guide.removed.isNotEmpty()
         if (attempt.lineupMoved) log.i { "guide: ${guide.removed.size} channels left the lineup" }
         return Lineup(channels.filterNot { it.guideId in guide.removed }, guide.programs)
+    }
+
+    /**
+     * The guide of [channels] from the network. Cached programs that finish decoding first show meanwhile, so a slow
+     * server does not hold back what is already on disk.
+     */
+    private suspend fun FlowCollector<LineupState>.guideOrCached(
+        repository: SofaKingRepository,
+        channels: List<Channel>,
+        attempt: LoadAttempt,
+    ): GuideLoad = coroutineScope {
+        val call = async { repository.loadGuide(channels) }
+        val pending = attempt.pending ?: return@coroutineScope call.await()
+        select {
+            call.onAwait { it }
+            pending.decode.onAwait { programs ->
+                attempt.pending = null
+                val shown = Lineup(channels, programs.orEmpty(), guideLoading = programs.isNullOrEmpty())
+                attempt.interim = shown
+                lastGood = attempt.key to shown
+                emit(LineupState.Ready(shown))
+                call.await()
+            }
+        }
     }
 
     /** Shows [lineup], just loaded from the server [key] names, drops the extra days it covers, and caches it. */
@@ -187,10 +240,13 @@ internal class LineupLoader(
     }
 
     /** What one load showed on its way: the new channels before their guide, and whether the lineup moved. */
-    private class LoadAttempt {
+    private class LoadAttempt(val key: String, var pending: PendingGuide?) {
         var interim: Lineup? = null
         var lineupMoved = false
     }
+
+    /** A cached lineup's programs still decoding, for the cached [channels]. */
+    private class PendingGuide(val channels: List<Channel>, val decode: Deferred<Map<String, List<Program>>?>)
 
     private companion object {
         val log = Logger.withTag("SofaKing")

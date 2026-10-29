@@ -2,7 +2,7 @@ name: Docs
 
 # Builds the documentation site with MkDocs (mkdocs.yml) for every pull request and push that changes a Markdown page,
 # the site's files or the server's OpenAPI document. The build is strict, so a link to a missing page or anchor fails
-# it. A push to main, or a manual run on main, then publishes the site to GitHub Pages.
+# it, and so does an image a page draws that is not a tracked file (docs/site/check_images.py). A push to main, or a manual run on main, then publishes the site to GitHub Pages.
 on:
   push:
     branches: [main]
@@ -41,6 +41,8 @@ jobs:
           python-version: "3.15"
           cache: pip
           cache-dependency-path: docs/site/requirements.txt
+      - name: Check the images
+        run: python3 docs/site/check_images.py
       - name: Install MkDocs
         run: pip install -r docs/site/requirements.txt
       - name: Build

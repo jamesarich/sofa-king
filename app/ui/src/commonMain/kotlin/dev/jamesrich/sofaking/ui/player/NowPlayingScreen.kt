@@ -77,6 +77,7 @@ import dev.jamesrich.sofaking.resources.music_repeat_all
 import dev.jamesrich.sofaking.resources.music_repeat_one
 import dev.jamesrich.sofaking.resources.music_shuffle
 import dev.jamesrich.sofaking.resources.music_visualizer
+import dev.jamesrich.sofaking.ui.AmbientBackdrop
 import dev.jamesrich.sofaking.ui.Artwork
 import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.LocalLastInput
@@ -119,6 +120,7 @@ internal fun NowPlayingScreen(
     // Over the visualizer's dark scrim the controls draw in the dark scheme, whatever the app's.
     OverVideo(dark = tap != null && showVisuals) {
         Box(Modifier.fillMaxSize()) {
+            AmbientBackdrop(song.poster)
             if (tap != null && showVisuals) {
                 MusicVisualizer(tap, song.id, skips, Modifier.fillMaxSize())
                 // The controls stay legible over a bright picture.

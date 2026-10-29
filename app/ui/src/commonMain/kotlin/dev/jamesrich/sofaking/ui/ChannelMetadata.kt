@@ -69,7 +69,12 @@ internal fun ChannelLogo(channel: Channel, width: Dp, height: Dp, modifier: Modi
     if (logo == null) {
         Box(slot)
     } else {
-        AsyncImage(logo, contentDescription = null, modifier = slot, contentScale = ContentScale.Fit)
+        AsyncImage(
+            rememberFadingRequest(logo),
+            contentDescription = null,
+            modifier = slot,
+            contentScale = ContentScale.Fit,
+        )
     }
 }
 

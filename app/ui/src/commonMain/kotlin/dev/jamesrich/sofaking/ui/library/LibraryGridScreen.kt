@@ -49,6 +49,7 @@ import dev.jamesrich.sofaking.resources.library_empty
 import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.resources.retry
 import dev.jamesrich.sofaking.ui.SofaLoader
+import dev.jamesrich.sofaking.ui.reorderMotion
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.theme.SofaButton
@@ -108,11 +109,13 @@ internal fun LibraryGridScreen(
         }
         val items = grid?.items.orEmpty()
         itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
-            val modifier = when {
-                index == jump.target -> Modifier.focusRequester(jump.focus)
-                item.id == focusId -> Modifier.focusRequester(focus)
-                else -> Modifier
-            }
+            val modifier = reorderMotion().then(
+                when {
+                    index == jump.target -> Modifier.focusRequester(jump.focus)
+                    item.id == focusId -> Modifier.focusRequester(focus)
+                    else -> Modifier
+                },
+            )
             val up = if (letterRow == null) Modifier else Modifier.upToLetters(state, index, letterRow)
             LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, actions.menu, up.then(modifier))
         }

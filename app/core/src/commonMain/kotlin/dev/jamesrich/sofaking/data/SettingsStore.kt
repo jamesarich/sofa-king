@@ -94,8 +94,6 @@ data class AppSettings(
 
     fun captionAdvanceFor(guideId: String): Int = captionAdvanceByChannel[guideId] ?: captionAdvanceMs
 
-    fun isHidden(guideId: String): Boolean = guideId in hiddenChannels
-
     /** Keeps the token out of logs and crash reports; everything else prints as a data class would. */
     override fun toString(): String =
         "AppSettings(serverUrl=$serverUrl, apiToken=${if (apiToken.isEmpty()) "unset" else "set"}, " +

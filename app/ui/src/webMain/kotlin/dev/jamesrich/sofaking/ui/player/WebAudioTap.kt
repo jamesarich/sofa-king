@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui.player
 
-import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.visualizer.AudioAnalyzer
 import org.khronos.webgl.Float32Array
 import org.khronos.webgl.get
@@ -43,7 +42,7 @@ internal class WebAudioTap(private val video: HTMLVideoElement, private val isAl
     }
 
     private fun openTap(): AnalyserTap? {
-        val opened = runCatchingCancellable { buildTap(video) }.getOrNull()
+        val opened = buildTap(video)
         failed = opened == null
         tap = opened
         return opened
@@ -54,13 +53,21 @@ internal class WebAudioTap(private val video: HTMLVideoElement, private val isAl
     }
 }
 
+/** Null when the browser refuses the graph; its errors are not Kotlin exceptions, so they are caught in the script. */
 // detekt sees no use of the parameter: the JavaScript in js() reads it by name.
 @Suppress("UnusedParameter")
-private fun buildTap(video: HTMLVideoElement): AnalyserTap = js(
+private fun buildTap(video: HTMLVideoElement): AnalyserTap? = js(
     """(function () {
         var Context = window.AudioContext || window.webkitAudioContext;
-        var context = new Context();
-        var source = context.createMediaElementSource(video);
+        if (!Context) return null;
+        var context, source;
+        try {
+            context = new Context();
+            source = context.createMediaElementSource(video);
+        } catch (e) {
+            if (context) context.close();
+            return null;
+        }
         var analyser = context.createAnalyser();
         analyser.fftSize = 2048;
         source.connect(analyser);

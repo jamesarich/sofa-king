@@ -11,6 +11,7 @@ import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackStream
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -103,6 +104,24 @@ class MusicPlaybackTest {
     }
 
     @Test
+    fun `a song held while it opens keeps its own start and not the last song's place`() = runTest {
+        val music = music()
+        music.play(album)
+        runCurrent()
+        player.positionMs = 42_000
+        sessions.openMs = 5_000
+        music.next()
+        runCurrent()
+        assertEquals(0, music.positionMs, "the next song is at its start while it opens")
+        music.hold()
+        advanceTimeBy(10_000)
+        sessions.openMs = 0
+        music.togglePause()
+        runCurrent()
+        assertEquals("2" to 0L, sessions.opened.last())
+    }
+
+    @Test
     fun `a song counts as played once it has played for half a minute and again each time it starts`() = runTest {
         val music = music()
         music.play(album)
@@ -185,6 +204,7 @@ private class TestSongSessions : SongSessions {
     override val replaced = MutableSharedFlow<PlaybackStream>()
     val opened = mutableListOf<Pair<String, Long>>()
     val released = mutableListOf<String>()
+    var openMs = 0L
 
     fun stream(itemId: String, startMs: Long) = PlaybackStream(
         "",
@@ -202,6 +222,7 @@ private class TestSongSessions : SongSessions {
 
     override suspend fun play(itemId: String, profile: PlaybackProfile, startMs: Long): PlaybackStream {
         opened += itemId to startMs
+        delay(openMs)
         return stream(itemId, startMs).also { current.value = it }
     }
 

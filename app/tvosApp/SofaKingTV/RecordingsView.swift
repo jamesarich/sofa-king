@@ -3,7 +3,8 @@ import SofaKingCore
 
 /// The DVR tab: what is recording now, then what was recorded, newest first, then what is scheduled,
 /// soonest first. Selecting a recorded or running one plays it, resuming where the household stopped; holding
-/// select offers From start and Delete (Stop on a running one, Cancel on a scheduled one), which asks first. The
+/// select offers From start, Protect or Unprotect on a finished one, and Delete (Stop on a running one, Cancel on a
+/// scheduled one), which asks first. A scheduled one the server flags as losing its slot says it won't record. The
 /// series rules follow, each with whether it takes repeats, how many recordings it keeps, and Stop series.
 struct RecordingsView: View {
     @Environment(AppModel.self) private var model
@@ -91,6 +92,11 @@ struct RecordingsView: View {
                             if recording.playable && recording.inProgress {
                                 Button(recordingStrings.fromStart) { playing = VodRequest(recording: recording, fromStart: true) }
                             }
+                            if recording.canProtect {
+                                Button(recording.protected_ ? recordingStrings.unprotect : recordingStrings.protect) {
+                                    protect(recording)
+                                }
+                            }
                             Button(recording.deleteLabel, role: .destructive) { deleting = recording }
                         }
                     }
@@ -103,6 +109,14 @@ struct RecordingsView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Flips whether cleanup keeps [recording]; a refusal shows the change-failed alert.
+    private func protect(_ recording: DvrRecording) {
+        Task {
+            let done = (try? await model.core.protectRecording(recording: recording, on: !recording.protected_))?.boolValue ?? false
+            failed = !done
         }
     }
 
@@ -126,7 +140,7 @@ private struct RecordingRow: View {
             }
             Spacer()
             if let status {
-                Text(status).font(.caption).foregroundStyle(recording.state == .failed ? Color.sofaError : Color.sofaMauve)
+                Text(status).font(.caption).foregroundStyle(recording.state == .failed || recording.wontRecord ? Color.sofaError : Color.sofaMauve)
             }
         }
     }
@@ -178,8 +192,11 @@ private struct RecordingRow: View {
             return recordingStrings.failureLabel(failure: recording.failure)
         case .completed:
             let watch: String? = recording.watched ? recordingStrings.watched : recording.inProgress ? "Started" : nil
-            let parts = [endedEarly, watch].compactMap { $0 }
+            let kept: String? = recording.protected_ ? recordingStrings.protectedMark : nil
+            let parts = [kept, endedEarly, watch].compactMap { $0 }
             return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        case .scheduled:
+            return recording.wontRecord ? recordingStrings.conflict : nil
         default:
             return nil
         }

@@ -96,6 +96,12 @@ data class DvrRecording(
     /** True once something is written: a running recording plays as it grows. */
     val playable: Boolean get() = state == RecordingState.RECORDING || state == RecordingState.COMPLETED
 
+    /** A scheduled recording the server flags as losing its slot: it won't record unless one frees up. */
+    val wontRecord: Boolean get() = state == RecordingState.SCHEDULED && conflict
+
+    /** Only a finished recording has a file for cleanup to delete, so only it offers Protect. */
+    val canProtect: Boolean get() = state == RecordingState.COMPLETED
+
     /** Why it failed, once it has; null in every other state. */
     val failure: RecordingFailure? get() = if (state == RecordingState.FAILED) RecordingFailure.of(reason) else null
 

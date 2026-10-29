@@ -40,6 +40,10 @@ interface TvRecordings {
     /** Playback of [recordingId] stopped at [positionMs]; saved now, watched near the end. */
     fun recordingStopped(recordingId: String, positionMs: Long, durationMs: Long)
 
+    /** Has cleanup keep [recording] when [on], else lets it take it again; false when the server refused. */
+    @Throws(Exception::class)
+    suspend fun protectRecording(recording: DvrRecording, on: Boolean): Boolean
+
     /** Sets whether [rule] takes new episodes only and how many recordings it keeps (0 for all). */
     @Throws(Exception::class)
     suspend fun updateRule(rule: SeriesRule, newOnly: Boolean, keep: Int): Boolean
@@ -105,6 +109,10 @@ internal class TvRecordingCalls(private val parts: TvParts) : TvRecordings {
 
     override fun recordingStopped(recordingId: String, positionMs: Long, durationMs: Long) =
         recordings.stopped(recordingId, positionMs, durationMs.takeIf { it > 0 })
+
+    @Throws(Exception::class)
+    override suspend fun protectRecording(recording: DvrRecording, on: Boolean): Boolean =
+        recordings.setProtected(recording, on)
 
     @Throws(Exception::class)
     override suspend fun updateRule(rule: SeriesRule, newOnly: Boolean, keep: Int): Boolean =

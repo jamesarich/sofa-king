@@ -40,6 +40,7 @@ class SofaKingTv private constructor(private val parts: TvParts) :
     TvGuide by TvGuideCalls(parts),
     TvMultiview by TvMultiviewCalls(parts),
     TvLibrary by TvLibraryCalls(parts),
+    TvLibrarySearch by TvLibrarySearchCalls(parts),
     TvItemPlayback by TvItemCalls(parts),
     TvMusic by TvMusicCalls(parts),
     TvRecordings by TvRecordingCalls(parts),

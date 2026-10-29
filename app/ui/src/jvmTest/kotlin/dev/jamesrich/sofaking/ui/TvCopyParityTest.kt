@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.ui
 
 import dev.jamesrich.sofaking.TvCopy
 import dev.jamesrich.sofaking.TvRecordingCopy
+import dev.jamesrich.sofaking.TvSearchCopy
 import dev.jamesrich.sofaking.TvSpokenCopy
 import java.io.File
 import kotlin.test.Test
@@ -17,7 +18,7 @@ class TvCopyParityTest {
         "settings_pairing_help" to "No QR scan on tvOS, and the address field is on the same page",
     )
 
-    private val twins get() = TvCopy.twins + TvRecordingCopy.twins + TvSpokenCopy.twins
+    private val twins get() = TvCopy.twins + TvRecordingCopy.twins + TvSearchCopy.twins + TvSpokenCopy.twins
 
     private fun resources(): Map<String, String> = values.listFiles { file -> file.extension == "xml" }.orEmpty()
         .flatMap { file -> STRING.findAll(file.readText()).map { it.groupValues[1] to unescape(it.groupValues[2]) } }

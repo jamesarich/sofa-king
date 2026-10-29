@@ -8,6 +8,8 @@ import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaShelf
 import dev.jamesrich.sofaking.data.MusicView
 import dev.jamesrich.sofaking.data.PlayProgress
+import dev.jamesrich.sofaking.data.SearchGroup
+import dev.jamesrich.sofaking.data.searchSections
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

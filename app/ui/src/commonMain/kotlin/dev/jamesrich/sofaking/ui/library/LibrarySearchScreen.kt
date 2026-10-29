@@ -36,7 +36,11 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.MediaItem
+import dev.jamesrich.sofaking.data.SEARCH_DEBOUNCE_MS
+import dev.jamesrich.sofaking.data.SearchGroup
 import dev.jamesrich.sofaking.data.SearchResults
+import dev.jamesrich.sofaking.data.SearchSections
+import dev.jamesrich.sofaking.data.searchSections
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_search_albums
 import dev.jamesrich.sofaking.resources.library_search_artists
@@ -315,6 +319,3 @@ private fun ResultRow(
         }
     }
 }
-
-/** Long enough that typing a word on a remote's keyboard asks the server once, not per letter. */
-private const val SEARCH_DEBOUNCE_MS = 400L

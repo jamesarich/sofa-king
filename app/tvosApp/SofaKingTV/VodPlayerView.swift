@@ -97,17 +97,20 @@ struct VodPlayerView: View {
     @State private var creditsNextAsked = false
     /// The server has every converter busy, and `waitForConverter` is asking it again.
     @State private var waitingForConverter = false
+    /// The item's poster or backdrop for the info panel, Control Center and Siri, loaded once.
+    @State private var artwork: Data?
+    /// How far the subtitles are moved against the picture, in milliseconds; later when positive.
+    @State private var subtitleOffsetMs: Int64 = 0
+    /// The caption look the Apple TV's Settings name, read when the player opens.
+    @State private var captionStyle = CaptionStyle.current()
 
     var body: some View {
         ZStack {
             VodController(player: player, menus: trackMenus + [model.sleepMenu(endTitle: strings.sleepEndItem, endsAt: nil)], actions: contextualActions).ignoresSafeArea()
             if let subtitleText {
                 Text(subtitleText)
-                    .font(.title3)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 6)
-                    .background(.black.opacity(0.6), in: .rect(cornerRadius: 8))
+                    .captionStyled(captionStyle)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, 60)
                     .allowsHitTesting(false)
@@ -139,6 +142,11 @@ struct VodPlayerView: View {
             }
         }
         .task { await open() }
+        .task(id: request.id) {
+            guard let item = request.libraryItem else { return }
+            artwork = await ArtworkData.load(item.poster ?? item.backdrop)
+            if artwork != nil { player.currentItem?.externalMetadata = metadata() }
+        }
         .onAppear {
             shown = true
             // A movie, an episode or a recording ends the music.
@@ -435,7 +443,7 @@ struct VodPlayerView: View {
         guard let subtitles, let s = stream else { return nil }
         let seconds = player.currentTime().seconds
         guard seconds.isFinite else { return nil }
-        return subtitles.textAt(positionMs: Int64(seconds * 1000) + s.offsetMs)
+        return subtitles.textAt(positionMs: Int64(seconds * 1000) + s.offsetMs - subtitleOffsetMs)
     }
 
     /// The transport bar's Audio menu, when the file has more than one track, and its Subtitles menu.
@@ -458,6 +466,18 @@ struct VodPlayerView: View {
                 }
             }
             menus.append(UIMenu(title: "Subtitles", image: UIImage(systemName: "captions.bubble"), options: .singleSelection, children: actions))
+        }
+        // Text subtitles are drawn here, so only they can be moved against the picture.
+        if let index = subtitleIndex, !isPicture(index) {
+            let earlier = UIAction(title: strings.subtitleEarlier, image: UIImage(systemName: "minus")) { _ in
+                subtitleOffsetMs = SubtitleOffsetKt.stepSubtitleOffset(offsetMs: subtitleOffsetMs, steps: -1)
+            }
+            let later = UIAction(title: strings.subtitleLater, image: UIImage(systemName: "plus")) { _ in
+                subtitleOffsetMs = SubtitleOffsetKt.stepSubtitleOffset(offsetMs: subtitleOffsetMs, steps: 1)
+            }
+            let timing = UIMenu(title: strings.subtitleTiming, image: UIImage(systemName: "timer"), children: [earlier, later])
+            timing.subtitle = SubtitleOffsetKt.subtitleOffsetText(offsetMs: subtitleOffsetMs)
+            menus.append(timing)
         }
         return menus
     }
@@ -569,26 +589,17 @@ struct VodPlayerView: View {
     /// The title, and for an episode its show and number or for a recording when it aired, as the transport bar's
     /// info panel shows them.
     private func metadata() -> [AVMetadataItem] {
-        var entries: [(AVMetadataIdentifier, String)] = []
         switch request.source {
         case .item(let item):
-            entries.append((.commonIdentifierTitle, item.title))
-            if item.kind == .episode {
-                let subtitle = [item.showTitle, item.episodeLabel].compactMap { $0 }.joined(separator: " · ")
-                if !subtitle.isEmpty { entries.append((.iTunesMetadataTrackSubTitle, subtitle)) }
-            }
-            if let overview = item.overview { entries.append((.commonIdentifierDescription, overview)) }
+            let subtitle = item.kind == .episode ? [item.showTitle, item.episodeLabel].compactMap { $0 }.joined(separator: " · ") : nil
+            return playerMetadata(title: item.title, subtitle: subtitle, summary: item.overview, artwork: artwork)
         case .recording(let recording):
-            entries.append((.commonIdentifierTitle, recording.title))
-            entries.append((.iTunesMetadataTrackSubTitle, model.core.recordingSubtitle(recording)))
-            if let summary = model.core.recordingSummary(recording: recording) { entries.append((.commonIdentifierDescription, summary)) }
-        }
-        return entries.map { identifier, value in
-            let entry = AVMutableMetadataItem()
-            entry.identifier = identifier
-            entry.value = value as NSString
-            entry.extendedLanguageTag = "und"
-            return entry.copy() as! AVMetadataItem
+            return playerMetadata(
+                title: recording.title,
+                subtitle: model.core.recordingSubtitle(recording),
+                summary: model.core.recordingSummary(recording: recording),
+                artwork: nil
+            )
         }
     }
 }

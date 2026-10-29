@@ -1,0 +1,15 @@
+{
+    "id": "0b6f6f0e-35b1-4c0f-9d4e-5b0f0d6a8c11",
+    "itemId": "7c1e6ae3-c4f6-3483-a880-26add31cc8ef",
+    "mode": "direct",
+    "descriptor": {
+        "protocol": "file",
+        "mimeType": "video/x-matroska",
+        "url": "/media/vod/0b6f6f0e-35b1-4c0f-9d4e-5b0f0d6a8c11/1/3d1c0b9f2a7e4c5d8e6f1a2b3c4d5e6f/file.mkv",
+        "epoch": 1
+    },
+    "startMs": 0,
+    "durationMs": 8021,
+    "expiresAt": "2026-10-10T13:00:45Z",
+    "intent": "preview"
+}

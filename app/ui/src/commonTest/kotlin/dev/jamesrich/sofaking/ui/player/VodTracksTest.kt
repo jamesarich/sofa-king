@@ -1,5 +1,8 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.data.SUBTITLE_OFFSET_MAX_MS
+import dev.jamesrich.sofaking.data.stepSubtitleOffset
+import dev.jamesrich.sofaking.data.subtitleOffsetText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

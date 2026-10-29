@@ -81,6 +81,11 @@ struct NowPlayingView: View {
                 }
                     .accessibilityLabel("Repeat")
                     .accessibilityValue(mode == .off ? "Off" : mode == .all ? "All" : "One")
+                Button { music.setLiked(!music.liked) } label: {
+                    Image(systemName: music.liked ? "heart.fill" : "heart")
+                        .foregroundStyle(music.liked ? Color.accentColor : Color.primary)
+                }
+                    .accessibilityLabel(music.liked ? "Remove from favorites" : "Add to favorites")
             }
             .padding(.top, 16)
         }

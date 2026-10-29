@@ -6,6 +6,7 @@ import SofaKingCore
 /// The words the Compose screens share with this app, kept in core so the two cannot drift apart.
 let strings = TvCopy.shared
 let recordingStrings = TvRecordingCopy.shared
+let spokenStrings = TvSpokenCopy.shared
 
 @main
 struct SofaKingTVApp: App {
@@ -57,6 +58,10 @@ final class AppModel {
     private(set) var requestedLive: String?
     /// Why the last `sofaking://pair` link failed to pair; an alert shows it once.
     var pairingFailure: String?
+    /// A pairing link for another server than the saved one, waiting for the viewer's Switch or Cancel.
+    var pairingAsk: PairingRequest?
+    /// A pairing link that arrived before the settings loaded.
+    private var pairingWaiting: PairingRequest?
     /// Whether the PIN opened Settings; leaving the Settings tab or the app locks it again.
     var settingsUnlocked = false
     /// Turning on kids mode asks for the Live tab; the tab bar takes it and clears it.
@@ -89,6 +94,10 @@ final class AppModel {
         watches.append(core.watchSettings { [weak self] in
             self?.settings = $0
             self?.publishTopShelf()
+            if let waiting = self?.pairingWaiting {
+                self?.pairingWaiting = nil
+                self?.pair(waiting)
+            }
         })
         watches.append(core.watchCapabilities { [weak self] in self?.capabilities = $0 })
         watches.append(core.watchLibraryHome { [weak self] in
@@ -110,8 +119,24 @@ final class AppModel {
         nowPlayingShown = true
     }
 
-    /// Pairs with the server a `sofaking://pair` link names; success shows as the lineup loading, failure as an alert.
+    /// Pairs with the server a `sofaking://pair` link names, after a question when it is not the saved one; success
+    /// shows as the lineup loading, failure as an alert.
     func pair(_ request: PairingRequest) {
+        // A link that opens a cold start waits for the saved settings, which say whether it names another server.
+        guard let settings else {
+            pairingWaiting = request
+            return
+        }
+        switch PairingDecisionKt.decidePairing(configuredServer: settings.serverUrl, request: request) {
+        case .ask: pairingAsk = request
+        case .pair: pairNow(request)
+        default: break
+        }
+    }
+
+    /// Pairs without asking: the link names the saved server, or there is none.
+    func pairNow(_ request: PairingRequest) {
+        pairingAsk = nil
         Task {
             let failure = try? await core.pair(url: request.serverUrl, code: request.code)
             pairingFailure = failure.map(\.message)
@@ -298,6 +323,17 @@ struct ContentView: View {
         .fullScreenCover(isPresented: $model.nowPlayingShown) { NowPlayingView() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { model.settingsUnlocked = false }
+        }
+        .confirmationDialog(
+            spokenStrings.pairingSwitchTitle(server: PairingDecisionKt.serverLabel(url: model.pairingAsk?.serverUrl ?? "")),
+            isPresented: Binding(get: { model.pairingAsk != nil }, set: { if !$0 { model.pairingAsk = nil } }),
+            titleVisibility: .visible,
+            presenting: model.pairingAsk
+        ) { request in
+            Button(spokenStrings.pairingSwitchCancel, role: .cancel) { model.pairingAsk = nil }
+            Button(spokenStrings.pairingSwitch) { model.pairNow(request) }
+        } message: { _ in
+            Text(spokenStrings.pairingSwitchMessage(server: PairingDecisionKt.serverLabel(url: model.settings?.serverUrl ?? "")))
         }
         .alert("Pairing failed", isPresented: Binding(get: { model.pairingFailure != nil }, set: { if !$0 { model.pairingFailure = nil } })) {
             Button("OK") {}

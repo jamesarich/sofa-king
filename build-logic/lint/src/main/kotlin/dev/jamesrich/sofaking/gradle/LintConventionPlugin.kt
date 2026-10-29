@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.gradle
 
 import com.diffplug.gradle.spotless.SpotlessExtension
 import com.diffplug.gradle.spotless.SpotlessPlugin
+import dev.detekt.gradle.Detekt
 import dev.detekt.gradle.extensions.DetektExtension
 import dev.detekt.gradle.plugin.DetektPlugin
 import org.gradle.api.Plugin
@@ -50,6 +51,12 @@ class LintConventionPlugin : Plugin<Project> {
                 detekt.config.setFrom(isolated.rootProject.projectDirectory.file("../gradle/detekt.yml"))
                 detekt.parallel.set(true)
             }
+            // detekt initializes IntelliJ's static plugin machinery in the daemon; two tasks doing that at once fail
+            // with `NoClassDefFoundError: PluginEnabler`, and the daemon then fails every later run.
+            val serializer = gradle.sharedServices.registerIfAbsent("detektSerializer", DetektSerializer::class.java) {
+                it.maxParallelUsages.set(1)
+            }
+            tasks.withType(Detekt::class.java).configureEach { it.usesService(serializer) }
             pluginManager.withPlugin("org.jetbrains.kotlin.plugin.compose") {
                 dependencies.add("detektPlugins", libs.findLibrary("compose-rules-detekt").get())
                 extensions.configure(DetektExtension::class.java) { detekt ->

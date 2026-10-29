@@ -57,7 +57,7 @@ struct RecordingsView: View {
     }
 
     private func list(_ ready: RecordingsStateReady) -> some View {
-        let groups = RecordingGroup.groups(ready.recordings) { model.core.recordingStartMs(recording: $0) }
+        let groups = model.core.recordingGroups(recordings: ready.recordings)
         return List {
             Section {
                 SkipModePicker(title: "Skip commercials", kind: .commercialBreaks)
@@ -75,9 +75,9 @@ struct RecordingsView: View {
                     description: Text("Open a program's details in the guide and choose Record.")
                 )
             }
-            ForEach(groups, id: \.0) { group, recordings in
-                Section(group.title) {
-                    ForEach(recordings) { recording in
+            ForEach(groups, id: \.group) { entry in
+                Section(entry.group.title) {
+                    ForEach(entry.recordings) { recording in
                         Button {
                             if recording.playable {
                                 playing = VodRequest(recording: recording, fromStart: false)
@@ -181,7 +181,7 @@ private struct SeriesRow: View {
                     change { try await model.core.updateRule(rule: rule, newOnly: !rule.newOnly, keep: rule.keep) }
                 }
                 Button("Keep: \(rule.keep == 0 ? "All" : String(rule.keep))") {
-                    change { try await model.core.updateRule(rule: rule, newOnly: rule.newOnly, keep: SeriesRow.nextKeep(rule.keep)) }
+                    change { try await model.core.updateRule(rule: rule, newOnly: rule.newOnly, keep: model.core.nextKeep(keep: rule.keep)) }
                 }
                 Button("Stop series", role: .destructive) { stopping = true }
             }
@@ -206,39 +206,15 @@ private struct SeriesRow: View {
             if !((try? await action())?.boolValue ?? false) { refused() }
         }
     }
-
-    /// All, then 1, 3, 5 and 10, then all again, as the other apps step; a count set elsewhere goes to the next step above it.
-    static func nextKeep(_ keep: Int32) -> Int32 {
-        [1, 3, 5, 10].first { $0 > keep } ?? 0
-    }
 }
 
-/// The list's groups, in the order they show.
-private enum RecordingGroup: Hashable {
-    case now, recorded, scheduled
-
+extension RecordingGroup {
     var title: String {
         switch self {
         case .now: "Recording now"
         case .recorded: "Recorded"
         case .scheduled: "Scheduled"
-        }
-    }
-
-    /// Running ones first, then finished and failed ones newest first, then scheduled ones soonest first; empty
-    /// groups are left out. A state a newer server added counts as recorded.
-    static func groups(_ recordings: [DvrRecording], startMs: (DvrRecording) -> Int64) -> [(RecordingGroup, [DvrRecording])] {
-        let byGroup = Dictionary(grouping: recordings) { recording -> RecordingGroup in
-            switch recording.state {
-            case .recording: .now
-            case .scheduled: .scheduled
-            default: .recorded
-            }
-        }
-        return [RecordingGroup.now, .recorded, .scheduled].compactMap { group in
-            guard let list = byGroup[group], !list.isEmpty else { return nil }
-            let sorted = group == .scheduled ? list.sorted { startMs($0) < startMs($1) } : list.sorted { startMs($0) > startMs($1) }
-            return (group, sorted)
+        default: "Recorded"
         }
     }
 }

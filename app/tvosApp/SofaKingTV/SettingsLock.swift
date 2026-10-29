@@ -36,7 +36,7 @@ private struct SettingsLockView: View {
                     .onSubmit(unlock)
                 Button("Unlock", action: unlock).disabled(!SettingsPin.shared.isValid(pin: pin) || waiting)
                 if waiting {
-                    Text("Too many tries; wait 30 seconds.").font(.caption).foregroundStyle(.red)
+                    Text("Too many tries; wait \(PinThrottle.companion.WAIT_SECONDS) seconds.").font(.caption).foregroundStyle(.red)
                 } else if wrongPin {
                     Text("That's not the PIN.").font(.caption).foregroundStyle(.red)
                 }

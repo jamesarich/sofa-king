@@ -37,6 +37,7 @@ import androidx.lifecycle.withStateAtLeast
 import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.PREVIEW_DEBOUNCE_MS
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
@@ -79,10 +80,6 @@ internal val PREVIEW_HEIGHT = 144.dp
 
 /** The whole top band, exactly the preview's height; see the row budget in GuideScreen. */
 internal val PREVIEW_BAND_HEIGHT = 144.dp
-
-// Long enough to skip rows passed under a held D-pad (repeats every 50-150 ms); each tune opens a
-// session and cold-starts a relay.
-private const val PREVIEW_DEBOUNCE_MS = 350L
 
 // How often a 410 from the relay reopens the same channel before the preview gives up on it.
 private const val MAX_STREAM_GONE_RETUNES = 2

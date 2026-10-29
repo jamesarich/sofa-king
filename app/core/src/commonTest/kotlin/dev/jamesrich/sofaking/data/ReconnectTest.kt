@@ -1,4 +1,4 @@
-package dev.jamesrich.sofaking.ui.player
+package dev.jamesrich.sofaking.data
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

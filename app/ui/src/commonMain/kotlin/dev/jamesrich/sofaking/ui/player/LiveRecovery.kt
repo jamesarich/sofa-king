@@ -9,6 +9,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.withStateAtLeast
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.reconnectDelayMs
 import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.ui.secondsUp
 import dev.jamesrich.sofaking.ui.uptimeMs

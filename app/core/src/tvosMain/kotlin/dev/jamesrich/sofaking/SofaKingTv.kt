@@ -48,6 +48,7 @@ class SofaKingTv private constructor(private val parts: TvParts) :
     TvSettings by TvSettingCalls(parts),
     TvLiveSettings by TvLiveSettingCalls(parts),
     TvParentalControls by TvParentalCalls(parts),
+    TvDecisions by TvDecisionCalls(parts),
     TvText by TvTextCalls {
     constructor() : this(TvParts())
 

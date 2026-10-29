@@ -21,7 +21,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -32,6 +31,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.PinThrottle
 import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.SettingsPin
 import dev.jamesrich.sofaking.resources.Res
@@ -69,46 +69,35 @@ import dev.jamesrich.sofaking.ui.theme.SofaButton
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 /**
- * What the lock page remembers between tries: after [MAX_MISSES] wrong PINs in a row, Unlock waits [WAIT]
- * before the next try. One lives for the process (App holds it), so backing out to the guide does not reset
- * it; a restart does, which is fine for a lock meant to keep a child out, not an attacker.
+ * The lock page's [PinThrottle] with the wait as Compose state, so the page recomposes when it starts or ends. One
+ * lives for the process (App holds it), so backing out to the guide does not reset it.
  */
-internal class SettingsLock(private val timeSource: TimeSource = TimeSource.Monotonic) {
-    var misses by mutableIntStateOf(0)
-        private set
+internal class SettingsLock(timeSource: TimeSource = TimeSource.Monotonic) {
+    private val throttle = PinThrottle(timeSource)
 
     /** When the current wait ends, or null while there is none. */
     var waitEnds by mutableStateOf<TimeMark?>(null)
         private set
 
-    val waiting: Boolean get() = waitEnds?.hasNotPassedNow() == true
+    val waiting: Boolean get() = throttle.waiting
 
     /** How much of the wait is left, zero while there is none. */
-    val remaining: Duration get() = waitEnds?.let { -it.elapsedNow() }?.takeIf { it.isPositive() } ?: Duration.ZERO
+    val remaining: Duration get() = throttle.remaining
 
-    /** A wrong PIN; the [MAX_MISSES]th in a row starts the wait and the count starts over. */
+    /** A wrong PIN; the [PinThrottle.MAX_MISSES]th in a row starts the wait. */
     fun missed() {
-        misses++
-        if (misses >= MAX_MISSES) {
-            misses = 0
-            waitEnds = timeSource.markNow() + WAIT
-        }
+        throttle.missed()
+        waitEnds = throttle.waitEnds
     }
 
     /** The right PIN, or the lock removed. */
     fun passed() {
-        misses = 0
+        throttle.passed()
         waitEnds = null
-    }
-
-    companion object {
-        const val MAX_MISSES = 5
-        val WAIT = 30.seconds
     }
 }
 
@@ -178,7 +167,7 @@ internal fun SettingsLockScreen(
         item { HelpText(stringResource(Res.string.lock_help)) }
         item {
             val error = when {
-                waiting -> stringResource(Res.string.lock_wait, SettingsLock.WAIT.inWholeSeconds)
+                waiting -> stringResource(Res.string.lock_wait, PinThrottle.WAIT_SECONDS)
                 wrongPin -> stringResource(Res.string.lock_wrong)
                 else -> null
             }

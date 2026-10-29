@@ -55,7 +55,7 @@ struct BreakScreen: View {
                     room: CGSize(width: max(geometry.size.width - markSize, 1), height: max(geometry.size.height - markSize, 1))
                 )
                 // The mark's dark ink on a sofa color, the brand's mauve on black.
-                let ink = bounce.backdropHue == nil ? Color(red: 0.77, green: 0.73, blue: 0.85) : SofaMark.ink
+                let ink = bounce.backdropHue == nil ? Color.sofaMauve : SofaMark.ink
                 ZStack {
                     Group {
                         if let hue = bounce.backdropHue {

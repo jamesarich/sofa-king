@@ -24,7 +24,8 @@ targets:
         # Only HTTPS and the system's TLS, so export compliance needs no declaration on each upload.
         ITSAppUsesNonExemptEncryption: false
         CADisableMinimumFrameDurationOnPhone: true
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIColorName: LaunchBackground
         # The Compose theme is dark only, so the system's keyboard, alerts and sheets match it.
         UIUserInterfaceStyle: Dark
         # Landscape only, which on iPad requires full screen (no Split View or Slide Over).
@@ -46,6 +47,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.jamesrich.sofaking
+        # Assets.xcassets holds the app icon, the amber accent and the launch color.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         # ui has no iosX64 target, so simulator builds are Apple silicon only.
         "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64

@@ -18,6 +18,12 @@ def fetch(url):
         raise ValueError('Feed exceeds size limit')
     return data
 
+def aware(text):
+    parsed = dt.datetime.fromisoformat(text.replace('Z', '+00:00'))
+    if parsed.tzinfo is None:
+        raise ValueError('Program without timezone')
+    return parsed
+
 def stamp(value):
     return value.astimezone(UTC).strftime('%Y%m%d%H%M%S +0000')
 
@@ -39,7 +45,7 @@ def wurl(data):
             for episode in (season.get('episodes') or []):
                 assets[episode['id']] = (episode, value(series, 'title'))
     for slot in doc['schedules']:
-        start = dt.datetime.fromisoformat(slot['startDateTime'].replace('Z', '+00:00'))
+        start = aware(slot['startDateTime'])
         end = start + dt.timedelta(seconds=slot['durSecs'])
         if end <= dt.datetime.now(UTC):
             continue
@@ -64,9 +70,7 @@ def ctvcraft(data):
         channel = source.attrib['id']
         ET.SubElement(ET.SubElement(root, 'channel', id=channel), 'display-name').text = source.findtext('title')
         for item in source.findall('items/item'):
-            start = dt.datetime.fromisoformat(item.findtext('startTime'))
-            if start.tzinfo is None:
-                raise ValueError('Program without timezone')
+            start = aware(item.findtext('startTime'))
             end = start + dt.timedelta(seconds=int(item.findtext('duration')))
             if end <= dt.datetime.now(UTC):
                 continue
@@ -89,7 +93,7 @@ def xmltv(data, kind):
                 # Frequency explicitly supplies zero offset but omits its plus sign.
                 text = re.sub(r' 0000$', ' +0000', text)
             elif kind == 'cgtn':
-                text = stamp(dt.datetime.fromisoformat(text))
+                text = stamp(aware(text))
             p.set(attr, text)
     return root
 

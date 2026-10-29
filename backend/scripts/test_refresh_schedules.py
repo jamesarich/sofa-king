@@ -56,6 +56,19 @@ class ScheduleTests(unittest.TestCase):
         root = schedules.xmltv(b'<tv><programme start="2099-01-01T00:00:00.000+0800" stop="2099-01-01T01:00:00.000+0800"/></tv>', 'cgtn')
         self.assertEqual(root[0].get('start'), '20981231160000 +0000')
 
+    def test_cgtn_rejects_a_time_without_offset(self):
+        with self.assertRaises(ValueError):
+            schedules.xmltv(b'<tv><programme start="2099-01-01T00:00:00" stop="2099-01-01T01:00:00"/></tv>', 'cgtn')
+
+    def test_wurl_rejects_a_start_without_timezone(self):
+        source = {
+            'channelData': {'id': 'channel', 'name': 'Example'},
+            'movies': [{'id': 'm', 'title': {'value': 'Movie'}}],
+            'schedules': [{'id': 'm', 'startDateTime': '2099-01-01T00:00:00', 'durSecs': 3600}],
+        }
+        with self.assertRaises(ValueError):
+            schedules.wurl(json.dumps(source))
+
     def test_failed_or_empty_feed_preserves_last_good(self):
         config = [{'id': 'example', 'kind': 'frequency', 'url': 'https://example.test/guide'}]
         with tempfile.TemporaryDirectory() as directory:

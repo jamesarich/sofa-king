@@ -33,7 +33,7 @@ Every feature is in the one free build. There is no paid tier, so nothing below 
 Say no early rather than after an install:
 
 - **No relay for watching away from home.** The server has no cloud service and opens no port. Reach it from outside through your own VPN, as [remote access](../backend/docs/deploy.md#remote-access) describes.
-- **No photos or books.** Libraries hold movies, TV shows, other videos and music; the Apple TV app does not play music yet.
+- **No photos or books.** Libraries hold movies, TV shows, other videos and music.
 - **No offline downloads** to a phone or tablet.
 - **No user accounts or profiles.** The household shares one set of favorites and watch progress; kids mode limits one device.
 - **No Watch Together.**

@@ -16,7 +16,7 @@ auth=(-H "Authorization: Bearer $SOFA_ADMIN_TOKEN")
 
 ## 1. Configure the sources
 
-Copy `deploy/sources.example.json` to `sources.json` in the data directory, or to the file `SOFA_SOURCES` names. It lists the [native providers](providers.md) of all 17 free streaming services and the broadcasters' own feeds (`direct`), and needs two edits:
+Copy `deploy/sources.example.json` to `sources.json` in the data directory, or to the file `SOFA_SOURCES` names. It lists the [native providers](providers.md) of 17 of the 21 free streaming services and the broadcasters' own feeds (`direct`), and needs two edits:
 
 - `pbs`: set `options.zip` to your ZIP code, so the server finds your member station.
 - `localnow`: add `"options": { "dma": "DMA_CODE", "market": "MARKET" }` for your local news; without them it serves the national lineup.

@@ -24,6 +24,7 @@ Three tabs, one remote, Sofa King simple: **Live** for the guide and the channel
 - A saved lineup that shows at once while the app refreshes from the server
 - Record a program or a series from its details, and a DVR tab that plays recordings as they grow, resumes them and can skip the commercial breaks the server found ([recordings](docs/usage.md#recordings))
 - A Library tab with search, Continue watching, recent additions, poster grids and item pages for movies and shows, a seekable player with audio and subtitle choices, Skip intro, and Up next for the following episode ([library](docs/usage.md#library))
+- Music libraries with albums, songs, favorites, radio, synced lyrics and a visualizer ([music](docs/usage.md#music))
 - Reconnection with backoff when a stream fails, and the channel followed by number, then name, when the server's lineup drops its id
 
 ## Platforms

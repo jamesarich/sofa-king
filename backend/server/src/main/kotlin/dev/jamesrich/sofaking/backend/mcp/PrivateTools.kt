@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.mcp
 
 import dev.jamesrich.sofaking.backend.api.HistoryEntry
 import dev.jamesrich.sofaking.backend.api.HistoryQuery
+import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.playback.HistoryKind
 import io.ktor.http.HttpStatusCode
@@ -70,17 +71,17 @@ private fun Server.plexTool(context: McpContext) {
             "PLEX_NOT_CONFIGURED",
             "Plex sync is not configured; set SOFA_PLEX_URL and SOFA_PLEX_TOKEN",
         )
-        val limit = arguments.int(LIMIT, DEFAULT_PAGE, 1..MAX_PAGE)
-        val status = plex.status()
-        PlexView(
-            status.syncMinutes,
-            status.lastSyncAt,
-            status.lastCause,
-            status.lastError,
-            status.dvrs.capped(limit),
-            status.devices.capped(limit),
-            status.missingDevices.capped(limit),
-            status.findings.capped(limit),
-        )
+        plex.status().view(arguments.int(LIMIT, DEFAULT_PAGE, 1..MAX_PAGE))
     }
 }
+
+internal fun PlexStatus.view(limit: Int) = PlexView(
+    syncMinutes,
+    lastSyncAt,
+    lastCause,
+    lastError,
+    dvrs.capped(limit),
+    devices.capped(limit),
+    missingDevices.capped(limit),
+    findings.capped(limit),
+)

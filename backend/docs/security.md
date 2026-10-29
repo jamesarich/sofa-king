@@ -11,7 +11,7 @@ The server is designed for a private network. It has no accounts, no per-user ac
 | Credential | Sent as | Opens |
 | --- | --- | --- |
 | API token (`SOFA_API_TOKEN`) | `Authorization: Bearer` | `/api/v1/*`, except `/api/v1/admin/*` when an admin token is set. Also accepted as a bearer on `/output/*` |
-| Admin token (`SOFA_ADMIN_TOKEN`) | `Authorization: Bearer` | `/api/v1/admin/*` and every tool of the [MCP endpoint](api.md#mcp) `/api/v1/mcp`. The API token is refused there once this is set |
+| Admin token (`SOFA_ADMIN_TOKEN`) | `Authorization: Bearer` | `/api/v1/admin/*` and every tool of the [MCP endpoint](api.md#mcp) `/api/v1/mcp`, including the actions that change sources, sessions and the lineup policy. The API token is refused there once this is set |
 | Admin portal session | `sofa_admin` cookie, set by signing in at `/admin` with the admin token (or the API token when no admin token is set) | `/admin/*`, the [admin portal](admin.md). Actions also need the session's CSRF token |
 | Pairing code | `POST /api/v1/pair` body, no bearer | Issued from the portal's Devices page, six digits, valid 10 minutes, one at a time, spent on the first match and voided after five wrong guesses. A match answers with a device token |
 | Device token (`sk_…`, kind `api`) | `Authorization: Bearer` | What the API token opens, except `/api/v1/admin/*` and the hooks. One per paired device; pairing the device again or forgetting it on the Devices page revokes it |

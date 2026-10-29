@@ -305,14 +305,24 @@ The admin token also lists two read tools that a read token cannot call, because
 | `playback_history` | `GET /api/v1/admin/history`: ended playback sessions, newest first, with the device or player address, so it shows what each one watched; `since`, `kind` (`live` or `vod`), `client` and `limit` (1 to 200, default 50) |
 | `plex_status` | `GET /api/v1/admin/plex`, the last Plex sync, with each list cut to `limit`; `PLEX_NOT_CONFIGURED` without Plex sync |
 
-The admin token adds the actions, which delete nothing:
+The admin token adds the actions. None deletes anything, and the ones that can take channels or streams away refuse without `confirm` set to `true`:
 
 | Tool | What it does |
 | --- | --- |
 | `run_job` | Starts the job with that `job` id now, as the Jobs page's Run now does; `JOB_NOT_FOUND` for one that cannot be started, and `jobs` lists the ids with `canRunNow` |
 | `scan_library` | Queues a scan of the `library` with that id, or of every library without one; `LIBRARY_NOT_FOUND` names `libraries` |
 | `check_for_update` | Asks the registry now and answers as `update_status`, on a server that checks for updates |
-| `update_now` | Asks the host's updater to install the newest image, as the About page's Update now does. The server restarts if a newer image is published, ending every stream; `NO_UPDATER` when no updater has reported |
+| `update_now` | Asks the host's updater to install the newest image, as the About page's Update now does. The server restarts if a newer image is published, ending every stream, so it needs `confirm`; `NO_UPDATER` when no updater has reported. The result says how many sessions were playing |
+| `plex_sync` | `POST /api/v1/admin/plex/sync`, answering the status `plex_status` does; a failure shows in `lastError`, not as a tool error. Absent without Plex sync |
+| `set_source_enabled` | `PATCH /api/v1/sources/{id}`: `sourceId` and `enabled`. Disabling takes the source out of selection and probes, and needs `confirm`; enabling does not |
+| `probe_source` | `POST /api/v1/admin/sources/{id}/probe` for `sourceId`: queued, then `source_health` shows the result once `nextCheckAt` moves. `PROBES_OFF` when probes do not run |
+| `switch_session_source` | `POST /api/v1/admin/sessions/{id}/switch-source` for a `sessionId` from `watching_now`; `NO_OTHER_SOURCE` names `channel` as the tool that shows the sources |
+| `apply_policy` | `POST /api/v1/admin/policy/apply` at the `revision` `preview_policy` showed; needs `confirm` |
+| `edit_station` | `PATCH /api/v1/admin/lineup/{id}` under a policy: `entryId`, `revision` and any of `number`, `name`, `group`, `clearGroup`, `enabled` and `gracenoteId`. With `dryRun` (true by default) it answers the impact, the channels that would turn on or off, renumber, rename or regroup, and writes nothing; `dryRun` false writes and applies |
+| `decide_merge` | Settles two station keys `a` and `b` as `names.aliases` (`decision` `accept`, `a` joins `b`) or `names.never` (`never`), at `revision`, with the same `dryRun` preview |
+| `decide_guide_match` | `POST /api/v1/admin/policy/guide-matches/accept` or `dismiss` for `station`, `guideId` and `channelId` (`decision` `accept` or `dismiss`), or `accept-all` with `acceptAll` true and `minConfidence` |
+
+Every policy write an action makes checks `revision` the way `If-Match` is checked on `PUT /api/v1/admin/policy`: a stale one answers `POLICY_CHANGED` with "call preview_policy again", and nothing is written. The policy runs they cause log `mcp` as their reason in `policy_changes`. A tool that needs `confirm` answers `CONFIRMATION_REQUIRED` without it and does nothing.
 
 A tool answers JSON text. A refusal is a result with `isError` and the API's error code and message, such as `INVALID_REQUEST: limit is 1 to 200`, and it names the tool to call next where there is one. An unexpected failure answers `INTERNAL_ERROR` with the exception's class and points to `recent_log` with `level` `error`. A tool the token is not listed is a JSON-RPC error.
 
@@ -398,6 +408,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | GET | `/api/v1/admin/status` | One summary of the server, described [below](#server-status) |
 | GET | `/api/v1/admin/candidates?q=&provider=&limit=&offset=` | Candidates with their sources (`id`, `protocol`, `status`, `manuallyDisabled`) and the lineup entries using them; `q` matches name, exact number or `tvg-id`, case-insensitively; `limit` 1-1000 (default 100) |
 | GET | `/api/v1/admin/sessions` | Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`, `startedAt`, `client` (the player's address, once it made a request), `bytes` sent to the player so far, `offeringId` of the source playing, `bitrateKbps` (the rate over the last 10 seconds or so), `stalls` (media requests the upstream refused or dropped before anything was answered), `segmentsServed` (HLS segments relayed) and `sourceSwitches` (moves to another source, on a failure or by hand). An empty list means nothing is playing |
+| POST | `/api/v1/admin/sources/{id}/probe` | Put the source at the front of the probe queue, as the channel page's Probe now does; `202` with `{"sourceId"}`, and its health updates when the probe ends. `404 SOURCE_NOT_FOUND`, `409 PROBES_OFF` when probes do not run, `409 PROBE_RUNNING` while a probe of it is in flight |
 | POST | `/api/v1/admin/sessions/{id}/switch-source` | Move a live session to its channel's next source, see [source selection](source-health.md#source-selection); answers the session, or `409 NO_OTHER_SOURCE` |
 | GET | `/api/v1/admin/history?since=&kind=&client=&limit=` | Ended playback sessions, the newest end first, described [below](#playback-history) |
 | GET | `/api/v1/admin/events/stream?types=` | The server's events as server-sent events, described [below](#event-stream) |
@@ -431,7 +442,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | POST | `/api/v1/admin/policy/guide-matches/accept-all` | `{"minConfidence"}` (optional): accepts each station's best proposal at that confidence or more, else at `guideMatches.acceptAbove`, and applies once; returns `{"accepted", "applied"}` |
 | POST | `/api/v1/admin/policy/guide-matches/dismiss` | `{"station", "guideId", "channelId"}`: never proposes the channel for the station again, and applies |
 | GET | `/api/v1/admin/stations/{key}` | One station key: the station the policy builds, its pins, and every candidate that names the key or joins it, each `taken`, `skipped` or `claimed` with a `reason` |
-| GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `interval` or `api`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`. It survives a restart; before any sync, `lastSyncAt` is null. 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
+| GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `interval`, `api` or `mcp`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`. It survives a restart; before any sync, `lastSyncAt` is null. 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
 | POST | `/api/v1/admin/plex/sync` | Sync Plex now; returns the same status. A failure is reported in `lastError`, not as an error response |
 | GET | `/api/v1/admin/hdhr/access` | Who may use the tuners: `enabled`, `open` (every address is admitted), `configured` (from `SOFA_HDHR_ALLOW`), `allowed` (from the portal or this API) and `refused`, up to ten addresses refused since the start that are still refused, newest first, each with `address`, `lastAt` and the `path` it asked for |
 | PUT | `/api/v1/admin/hdhr/access` | `{"allowed": ["PLEX_SERVER_IP"]}` replaces the addresses allowed at run time, at most 64 IP literals or CIDR blocks, and returns the same status. It applies at once, without a restart, and is kept in the database; `SOFA_HDHR_ALLOW` still applies beside it. 400 `INVALID_REQUEST` names an entry that does not parse, and nothing changes |

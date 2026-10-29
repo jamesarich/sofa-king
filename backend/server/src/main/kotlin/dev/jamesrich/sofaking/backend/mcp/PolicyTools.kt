@@ -104,7 +104,7 @@ private fun Server.stationTools(context: McpContext) {
     ) { arguments -> policy(context).guideMatches.proposals().capped(arguments.int(LIMIT, DEFAULT_PAGE, 1..MAX_PAGE)) }
 }
 
-private fun policy(context: McpContext): PolicyService = context.runtime.policy ?: throw ApiFailure(
+internal fun policy(context: McpContext): PolicyService = context.runtime.policy ?: throw ApiFailure(
     HttpStatusCode.NotFound,
     "POLICY_NOT_CONFIGURED",
     "No lineup policy is configured; set SOFA_POLICY",

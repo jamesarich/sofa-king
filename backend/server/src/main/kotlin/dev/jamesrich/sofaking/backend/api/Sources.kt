@@ -52,3 +52,6 @@ import kotlinx.serialization.Transient
 )
 
 @Serializable data class UpdateSource(val manuallyDisabled: Boolean)
+
+/** A probe request's answer: the source whose probe now waits at the front of the queue. */
+@Serializable data class ProbeQueued(val sourceId: String)

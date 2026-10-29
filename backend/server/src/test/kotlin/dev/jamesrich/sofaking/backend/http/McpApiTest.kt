@@ -41,108 +41,13 @@ import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class McpApiTest {
-    private val token = "secret".repeat(8)
-    private val admin = "curator".repeat(6)
-
-    private class Mcp(val builder: ApplicationTestBuilder, val runtime: LiveRuntime) {
-        var id = 0
-
-        suspend fun post(bearer: String?, method: String, params: JsonObject = JsonObject(emptyMap())): HttpResponse =
-            builder.client.post(MCP_PATH) {
-                bearer?.let { bearerAuth(it) }
-                contentType(ContentType.Application.Json)
-                header(HttpHeaders.Accept, "application/json, text/event-stream")
-                setBody(
-                    buildJsonObject {
-                        put("jsonrpc", "2.0")
-                        put("id", ++id)
-                        put("method", method)
-                        put("params", params)
-                    }.toString(),
-                )
-            }
-
-        /** The JSON-RPC result of a [method] call the endpoint answered 200. */
-        suspend fun result(bearer: String, method: String, params: JsonObject = JsonObject(emptyMap())): JsonObject {
-            val response = post(bearer, method, params)
-            val body = response.bodyAsText()
-            assertEquals(HttpStatusCode.OK, response.status, body)
-            val message = Json.parseToJsonElement(body).jsonObject
-            return message["result"]?.jsonObject ?: error("no result: $body")
-        }
-
-        suspend fun tools(bearer: String): List<String> =
-            result(bearer, "tools/list")["tools"]!!.jsonArray.map { it.jsonObject["name"]!!.jsonPrimitive.content }
-
-        /** A tool's result: whether it failed, and its text. */
-        suspend fun call(
-            bearer: String,
-            name: String,
-            arguments: JsonObject = JsonObject(emptyMap()),
-        ): Pair<Boolean, String> {
-            val result = result(
-                bearer,
-                "tools/call",
-                buildJsonObject {
-                    put("name", name)
-                    put("arguments", arguments)
-                },
-            )
-            val failed = result["isError"]?.jsonPrimitive?.boolean == true
-            return failed to result["content"]!!.jsonArray.single().jsonObject["text"]!!.jsonPrimitive.content
-        }
-    }
-
-    private val policyText = """{"providers":[{"id":"alt"},{"id":"fixture"}],"health":{"requireVerified":false},""" +
-        """"numbering":{"floor":100},"stations":{"station":{"group":"Local"}}}"""
-
-    /** A server with the fixture provider, or with a lineup policy over the fixture and alt providers. */
-    private fun mcp(withPolicy: Boolean = false, block: suspend Mcp.() -> Unit) = testApplication {
-        val dir = Files.createTempDirectory("sofa-mcp-")
-        Fixture().use { fixture ->
-            val sources = dir.resolve("sources.json")
-            val feeds = if (withPolicy) listOf(fixture.feed, fixture.altFeed) else listOf(fixture.feed)
-            Files.writeString(
-                sources,
-                if (withPolicy) {
-                    """{"providers":${Json.encodeToString(
-                        feeds,
-                    )},"guides":[]}"""
-                } else {
-                    Json.encodeToString(feeds)
-                },
-            )
-            val policyFile = dir.resolve("policy.json").takeIf {
-                withPolicy
-            }?.also { Files.writeString(it, policyText) }
-            val config = ServerConfig(
-                "0.0.0.0", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin,
-                hdhr = HdhrConfig(enabled = false), revision = "abc1234", policyFile = policyFile,
-            )
-            val store = openStore(dir)
-            val runtime = LiveRuntime.create(
-                store,
-                config,
-                MutableClock(),
-                policyDebounceMillis = 3_600_000,
-                probes = false,
-            )
-            try {
-                for (feed in feeds) runtime.feeds.refresh(feed)
-                runtime.adoptAll()
-                application { backendModule(store, MutableClock(), runtime, token, admin, config = config) }
-                Mcp(this, runtime).block()
-            } finally {
-                runtime.close()
-                store.close()
-                dir.toFile().deleteRecursively()
-            }
-        }
-    }
+    private val token = MCP_TOKEN
+    private val admin = MCP_ADMIN
 
     @Test fun `initialize names the server and its tools capability, in the SDK's JSON`() = mcp {
         val response = post(
@@ -443,7 +348,7 @@ class McpApiTest {
         val read = runtime.tokens.create("Assistant", TokenScope.READ).second
         val device = runtime.tokens.pair("tv-1", "TV")
         val secrets = listOf(token, admin, read, device)
-        val actions = setOf("run_job", "scan_library", "check_for_update", "update_now")
+        val actions = setOf("run_job", "scan_library", "check_for_update", "update_now") + MCP_ACTION_TOOLS
         for (name in tools(admin).filter { it !in actions }) {
             val (_, text) = call(admin, name, argumentsFor(name))
             assertFalse(text.contains("://"), "$name: $text")
@@ -498,8 +403,6 @@ class McpApiTest {
         assertTrue(unknown && why.startsWith("GUIDE_NOT_FOUND: ") && why.contains("call imports"), why)
     }
 
-    private suspend fun Mcp.read() = runtime.tokens.create("Assistant", TokenScope.READ).second
-
     /** Arguments that let each tool that takes some answer on the fixture. */
     private suspend fun Mcp.argumentsFor(name: String): JsonObject = buildJsonObject {
         when (name) {
@@ -522,9 +425,16 @@ class McpApiTest {
         else -> emptyList()
     }
 
-    private fun JsonElement.field(name: String): JsonElement? = (this as? JsonObject)?.get(name)
-
     private companion object {
+        val ACTION_TOOLS = listOf(
+            "set_source_enabled",
+            "probe_source",
+            "switch_session_source",
+            "apply_policy",
+            "edit_station",
+            "decide_merge",
+            "decide_guide_match",
+        )
         val POLICY_TOOLS =
             listOf("policy_findings", "preview_policy", "policy_changes", "explain_station", "guide_matches")
     }

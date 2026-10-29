@@ -82,6 +82,14 @@ internal class HtmlLivePlayer(
 ) : StreamLivePlayer(),
     PlayerTracks by tracks {
     private val autoplay = HtmlAutoplay(video)
+
+    /** Fed from the element once the visualizer asks for it; a cross-origin stream without CORS stays out of it. */
+    private val tap = WebAudioTap(video) {
+        currentStreamUrl?.let { !isCrossOrigin(it) || video.crossOrigin != null } ==
+            true
+    }
+
+    override val audioTap get() = tap.analyzer
     private var loaded = false
 
     private val frameSize = MutableStateFlow(IntSize(1, 1))

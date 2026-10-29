@@ -12,4 +12,5 @@
     <string name="music_lyrics">Lyrics</string>
     <string name="music_favorite">Favorite</string>
     <string name="music_visualizer">Visualizer</string>
+    <string name="music_next_look">Next look</string>
 </resources>

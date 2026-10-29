@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.SecretOrigin
 import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.settings.Settings
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -75,5 +76,18 @@ class EffectiveSettingsTest {
         )
         assertEquals("/srv/sofa/sources.json", setting(custom, "SOFA_SOURCES").value)
         assertEquals("Found in SOFA_DATA_DIR; SOFA_SOURCES is unset", setting(custom, "SOFA_SOURCES").note)
+    }
+
+    @Test fun `every registered startup setting is listed once and runtime ones are not`() {
+        val groups = effectiveSettings(ServerConfig.fromEnvironment(emptyMap()))
+        val listed = groups.flatMap { it.settings }.map { it.name }
+        assertEquals(Settings.all.filter { !it.runtime }.map { it.name }.sorted(), listed.sorted())
+        for (name in listOf("SOFA_MAX_TRANSCODES", "SOFA_HWACCEL", "SOFA_HWACCEL_DEVICE", "SOFA_MULTIVIEW")) {
+            assertTrue(setting(groups, name).isDefault, name)
+        }
+        for (name in listOf("SOFA_UPDATE_IMAGE", "SOFA_REVISION", "SOFA_VERSION")) {
+            assertTrue(setting(groups, name).isDefault, name)
+        }
+        assertEquals("unknown", setting(groups, "SOFA_REVISION").value)
     }
 }

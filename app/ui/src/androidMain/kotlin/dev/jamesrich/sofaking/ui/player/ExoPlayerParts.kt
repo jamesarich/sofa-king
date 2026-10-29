@@ -49,11 +49,8 @@ internal fun newExoPlayer(
         .setEnableDecoderFallback(true)
     return ExoPlayer.Builder(context, renderers)
         .setLoadControl(CaptionSyncLoadControl(captionSync, tuning))
-        // The audible player yields to Assistant and other apps the way the MediaSession promises; see
-        // [ExoLivePlayer.volume].
-        .setAudioAttributes(MEDIA_AUDIO, true)
-        // Unplugged headphones pause the stream rather than move it to the speaker.
-        .setHandleAudioBecomingNoisy(true)
+        // Audio focus and the unplugged-headphones pause start off and follow the volume; see [ExoLivePlayer.volume].
+        .setAudioAttributes(MEDIA_AUDIO, false)
         .setMediaSourceFactory(DefaultMediaSourceFactory(context, extractors))
         .build()
         .apply {

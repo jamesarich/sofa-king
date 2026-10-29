@@ -8,6 +8,8 @@ internal class ItemDetailsActions(
     val onSetWatched: (MediaItem, Boolean) -> Unit,
     val onSelectSeason: (String) -> Unit,
     val onRetry: () -> Unit,
+    /** Loads the season being shown again after it failed. */
+    val onRetrySeason: () -> Unit = {},
     val onPerson: (String) -> Unit = {},
     val onOpenShow: (String) -> Unit = {},
     /** Opens another item's page: an episode from its row's menu, or a title from More like this. */

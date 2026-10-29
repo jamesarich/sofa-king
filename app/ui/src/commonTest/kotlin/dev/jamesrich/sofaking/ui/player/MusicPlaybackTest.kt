@@ -15,6 +15,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -164,8 +165,63 @@ class MusicPlaybackTest {
         assertEquals(true, music.likes.isFavorite(first))
         music.likes.toggle(music.song!!)
         assertEquals(false, music.likes.isFavorite(first))
+        runCurrent()
         assertEquals(listOf("1" to true, "1" to false), taste.likes)
         assertEquals(true, music.likes.isFavorite(song("9").copy(favorite = true)), "a song listed as liked is liked")
+    }
+
+    @Test
+    fun `a like the server refuses goes back to what the song was`() = runTest {
+        val music = music()
+        music.play(album)
+        runCurrent()
+        val first = music.song!!
+        taste.accepts = false
+        music.likes.toggle(first)
+        assertEquals(true, music.likes.isFavorite(first), "the like shows at once")
+        runCurrent()
+        assertEquals(false, music.likes.isFavorite(first))
+    }
+
+    @Test
+    fun `a refused unlike leaves the song liked`() = runTest {
+        val music = music()
+        val liked = song("9").copy(favorite = true)
+        taste.accepts = false
+        music.likes.toggle(liked)
+        assertEquals(false, music.likes.isFavorite(liked))
+        runCurrent()
+        assertEquals(true, music.likes.isFavorite(liked))
+    }
+
+    @Test
+    fun `quick taps on one song reach the server one at a time in order`() = runTest {
+        val music = music()
+        val first = song("1")
+        taste.hold = true
+        music.likes.toggle(first)
+        music.likes.toggle(first)
+        music.likes.toggle(first)
+        runCurrent()
+        assertEquals(listOf("1" to true), taste.likes, "the next call waits for the one in flight")
+        taste.release()
+        runCurrent()
+        assertEquals(listOf("1" to true, "1" to false, "1" to true), taste.likes)
+        assertEquals(1, taste.mostAtOnce)
+        assertEquals(true, music.likes.isFavorite(first))
+    }
+
+    @Test
+    fun `a refused tap after an accepted one goes back to the accepted like`() = runTest {
+        val music = music()
+        val first = song("1")
+        music.likes.toggle(first)
+        runCurrent()
+        taste.accepts = false
+        music.likes.toggle(first)
+        assertEquals(false, music.likes.isFavorite(first))
+        runCurrent()
+        assertEquals(true, music.likes.isFavorite(first))
     }
 
     @Test
@@ -189,12 +245,37 @@ private class TestTaste : SongTaste {
     val plays = mutableListOf<String>()
     val likes = mutableListOf<Pair<String, Boolean>>()
 
+    /** Whether the server takes a like. */
+    var accepts = true
+
+    /** While set, a like waits in flight until [release]. */
+    var hold = false
+    var mostAtOnce = 0
+    private var inFlight = 0
+    private val gate = MutableStateFlow(0)
+
+    fun release() {
+        hold = false
+        gate.value++
+    }
+
     override fun played(songId: String) {
         plays += songId
     }
 
-    override fun favorite(songId: String, favorite: Boolean) {
+    override suspend fun favorite(songId: String, favorite: Boolean): Boolean {
         likes += songId to favorite
+        inFlight++
+        mostAtOnce = maxOf(mostAtOnce, inFlight)
+        try {
+            if (hold) {
+                val at = gate.value
+                gate.first { it != at }
+            }
+            return accepts
+        } finally {
+            inFlight--
+        }
     }
 }
 

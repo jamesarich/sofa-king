@@ -128,7 +128,8 @@ internal class ExoLivePlayer(
 
     /**
      * Audio focus follows the volume: the muted guide preview holds none, so music or another app keeps playing
-     * under it, and the player asks for focus when it becomes audible.
+     * under it, and the player asks for focus when it becomes audible. Unplugged headphones pause the stream rather
+     * than move it to the speaker, only while it is audible.
      */
     override var volume: Float
         get() = exo.volume
@@ -138,10 +139,11 @@ internal class ExoLivePlayer(
             if (audible != handlesAudioFocus) {
                 handlesAudioFocus = audible
                 exo.setAudioAttributes(MEDIA_AUDIO, audible)
+                exo.setHandleAudioBecomingNoisy(audible)
             }
         }
 
-    private var handlesAudioFocus = true
+    private var handlesAudioFocus = false
 
     override var playWhenReady: Boolean
         get() = exo.playWhenReady

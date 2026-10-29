@@ -197,6 +197,7 @@ internal fun LibraryItemDestination(
             onSetWatched = libraryVm::setWatched,
             onSelectSeason = { pickedSeason = it },
             onRetry = page::retry,
+            onRetrySeason = page::retrySeason,
             onPerson = { shell.push(Route.LibrarySearch(query = it)) },
             onOpenShow = { shell.push(Route.LibraryItem(it)) },
             onOpenItem = { shell.push(Route.LibraryItem(it.id)) },

@@ -43,6 +43,7 @@ import dev.jamesrich.sofaking.resources.library_loading
 import dev.jamesrich.sofaking.resources.library_search
 import dev.jamesrich.sofaking.resources.library_unavailable
 import dev.jamesrich.sofaking.resources.library_unavailable_hint
+import dev.jamesrich.sofaking.resources.load_failed_hint
 import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.resources.unconfigured_hint
@@ -81,6 +82,7 @@ internal fun LibraryHomeScreen(
 
         is LibraryHomeState.Failed -> MessageScreen(
             message = stringResource(Res.string.library_load_failed),
+            hint = stringResource(Res.string.load_failed_hint),
             detail = state.message,
             onRetry = actions.onRetry,
         )

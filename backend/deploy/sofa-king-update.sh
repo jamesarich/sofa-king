@@ -79,13 +79,17 @@ state="$dir/backups"
 log() { echo "sofa-king-update: $*"; }
 # Writes the run's outcome for the portal, readable by the config folder's owner, which is the container's user.
 report() {
-  local outcome=$1 message=$2
+  local outcome=$1 message=$2 tmp
   [ -d "$config" ] || return 0
+  # The config folder is the container's: the file is made in root's own folder and renamed over whatever is there,
+  # so root never writes through a link the container left.
+  mkdir -p "$state"
+  tmp=$(mktemp "$state/update-status.XXXXXX")
   printf '{"checkedAt":"%s","image":"%s","running":"%s","candidate":"%s","outcome":"%s","message":"%s"}\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$image" "${from:-}" "${to:-}" "$outcome" "${message//\"/\\\"}" > "$status_file.tmp"
-  chmod 644 "$status_file.tmp"
-  chown --reference="$config" "$status_file.tmp" 2>/dev/null || true
-  mv -f "$status_file.tmp" "$status_file"
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$image" "${from:-}" "${to:-}" "$outcome" "${message//\"/\\\"}" > "$tmp"
+  chmod 644 "$tmp"
+  chown --reference="$config" "$tmp" 2>/dev/null || true
+  mv -fT "$tmp" "$status_file"
 }
 revision() { docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$1" 2>/dev/null || echo unknown; }
 compose() { (cd "$dir" && docker compose "$@"); }
@@ -196,12 +200,22 @@ fi
 
 # Migrations only move forward, so the previous image needs the database from before this one started.
 log "$to was not healthy after ${wait_seconds}s; restoring $from and its database"
-compose stop
-owner=$(stat -c '%u:%g' "$data/backend.sqlite")
-rm -f "$data/backend.sqlite-wal" "$data/backend.sqlite-shm"
-cp "$backup" "$data/backend.sqlite"
-chown "$owner" "$data/backend.sqlite"
+# Kept first, so a restore that fails below is not followed by another try of this image on the next run.
 echo "$candidate" > "$state/failed-image"
+# With the container stopped nothing can put a link in place of the database between the rm and the cp.
+restore_database() {
+  local owner
+  compose stop &&
+    owner=$(stat -c '%u:%g' "$data/backend.sqlite") &&
+    rm -f "$data/backend.sqlite" "$data/backend.sqlite-wal" "$data/backend.sqlite-shm" &&
+    cp "$backup" "$data/backend.sqlite" &&
+    chown -h "$owner" "$data/backend.sqlite"
+}
+if ! restore_database; then
+  log "could not put back the database from $backup; restore it by hand before starting $from"
+  report failed "$to was not healthy after ${wait_seconds}s, and its database backup could not be put back"
+  exit 1
+fi
 docker tag "$previous_tag" "$local_tag"
 if compose up -d --no-build --force-recreate && healthy; then
   log "running $from again"

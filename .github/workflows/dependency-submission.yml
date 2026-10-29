@@ -5,10 +5,10 @@ name: Dependency graph
 on:
   push:
     branches: [main]
+    # Only build files change the resolved graph, since every version is an exact pin in the catalog.
     paths:
-      - "app/**"
-      - "backend/**"
-      - "contract/**"
+      - "**/*.gradle.kts"
+      - "**/gradle.properties"
       - "gradle/**"
       - "build-logic/**"
       - ".github/workflows/dependency-submission.yml"

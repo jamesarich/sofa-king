@@ -51,6 +51,8 @@ data class RecordingMark(
     val runningId: String? = null,
     /** The program's [teamSides] a team rule records, lowercase. */
     val teams: Set<String> = emptySet(),
+    /** The recording is scheduled and loses its slot to others, so it will not happen as things stand. */
+    val conflict: Boolean = false,
 )
 
 /** The server's scheduled recordings and series rules, as the guide marks programs with them. */
@@ -63,6 +65,8 @@ data class RecordingMarks(
     internal val running: Map<String, String> = emptyMap(),
     /** Team rules by each team they name, lowercase, to their ids. */
     internal val teams: Map<String, String> = emptyMap(),
+    /** The scheduled recordings the server flags as in conflict, by [recordingKey]. */
+    internal val conflicts: Set<String> = emptySet(),
 ) {
     fun of(program: Program): RecordingMark {
         val key = recordingKey(program.channelId, program.start)
@@ -70,6 +74,7 @@ data class RecordingMarks(
             recording = key in recordings,
             series = ruleId(program) != null,
             runningId = running[key],
+            conflict = key in conflicts,
             teams = teamSides(program).map { it.lowercase() }.filterTo(HashSet()) { it in teams },
         )
     }
@@ -91,6 +96,8 @@ private fun RecordingsState.Ready.marks() = RecordingMarks(
         .flatMap { rule -> rule.terms.map { it.lowercase() to rule.id } }.toMap(),
     running = recordings.filter { it.state == RecordingState.RECORDING }
         .associate { recordingKey(it.channelId, it.startsAt) to it.id },
+    conflicts = recordings.filter { it.state == RecordingState.SCHEDULED && it.conflict }
+        .mapTo(HashSet()) { recordingKey(it.channelId, it.startsAt) },
 )
 
 /**
@@ -255,6 +262,12 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
         val log = Logger.withTag("SofaKing")
     }
 }
+
+/** Has cleanup keep [recording] or not; the list then reads the server's state, so a refusal shows as it was. */
+internal suspend fun RecordingSchedule.setProtected(recording: DvrRecording, protect: Boolean): Boolean =
+    change("protecting a recording") {
+        updateRecording(recording.id, UpdateRecordingDto(protected = protect))
+    }
 
 /**
  * Records every sports program that names [team] in its title or episode title, on any channel, or deletes the team's

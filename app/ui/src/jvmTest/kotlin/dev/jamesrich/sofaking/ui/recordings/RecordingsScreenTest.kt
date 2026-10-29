@@ -75,4 +75,35 @@ class RecordingsScreenTest {
             press(Key.Enter)
             assertEquals(listOf("play now false", "delete now", "play done true"), calls)
         }
+
+    @Test
+    fun `Protect on a finished recording asks the server to keep it`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            val calls = mutableListOf<String>()
+            val state = RecordingsState.Ready(listOf(recording("done", RecordingState.COMPLETED)), RecordingSpace(0, 0))
+            setContent {
+                SofaKingTheme {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        RecordingsScreen(
+                            state = state,
+                            onPlay = { _, _ -> },
+                            onDelete = { true },
+                            onRetry = {},
+                            onBack = {},
+                            onProtect = { r, protect ->
+                                calls += "protect ${r.id} $protect"
+                                true
+                            },
+                        )
+                    }
+                }
+            }
+            waitForIdle()
+            // Focus starts on Play; Tab moves to Protect.
+            onRoot().performKeyInput { pressKey(Key.Tab) }
+            waitForIdle()
+            onRoot().performKeyInput { pressKey(Key.Enter) }
+            waitForIdle()
+            assertEquals(listOf("protect done true"), calls)
+        }
 }

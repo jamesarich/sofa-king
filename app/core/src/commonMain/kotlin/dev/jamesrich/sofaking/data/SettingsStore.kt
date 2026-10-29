@@ -45,6 +45,8 @@ data class AppSettings(
     /** The top-level tab the app was last on, which [StartupTarget.RESUME] reopens; never synced. */
     val lastTab: TopLevelTab = TopLevelTab.LIVE,
     val guideDensity: GuideDensity = GuideDensity.COMFORTABLE,
+    /** The color scheme this device draws in; never synced, as each screen suits its own room. */
+    val appearance: Appearance = Appearance.SYSTEM,
     /** [Channel.guideId]s the guide and channel list leave out on this device; the server's lineup is untouched. */
     val hiddenChannels: Set<String> = emptySet(),
     /** Whether Channel Up and Down and the D-pad skip [hiddenChannels] too, or only the lists leave them out. */
@@ -110,7 +112,7 @@ data class AppSettings(
             "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, volume=$volume, volumeMuted=$volumeMuted, " +
             "keyLegendShown=$keyLegendShown, startup=$startup, " +
             "startupChannel=$startupChannel, lastTab=$lastTab, guideDensity=$guideDensity, " +
-            "hiddenChannels=$hiddenChannels, " +
+            "appearance=$appearance, hiddenChannels=$hiddenChannels, " +
             "zapSkipsHidden=$zapSkipsHidden, skips=$skips, seekSteps=$seekSteps, " +
             "hideSpoilers=$hideSpoilers, subtitleLook=$subtitleLook, liveBreaks=$liveBreaks, adsDodged=$adsDodged, " +
             "favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
@@ -327,6 +329,8 @@ interface DisplaySettings {
     suspend fun setKeyLegendShown(count: Int)
 
     suspend fun setGuideDensity(density: GuideDensity)
+
+    suspend fun setAppearance(appearance: Appearance)
 
     suspend fun setHideSpoilers(enabled: Boolean)
 }

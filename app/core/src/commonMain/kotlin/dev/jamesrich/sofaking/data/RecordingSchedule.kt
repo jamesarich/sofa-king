@@ -293,6 +293,20 @@ internal suspend fun RecordingSchedule.setProtected(recording: DvrRecording, pro
     }
 
 /**
+ * Schedules a canceled [recording] again, as its program or else as its window ([restoreRequests]); a series rule's
+ * airing comes back as a one-off recording. False when the server refused both or could not be reached.
+ */
+internal suspend fun RecordingSchedule.restore(recording: DvrRecording): Boolean = change("restoring a recording") {
+    var refused: Throwable? = null
+    for (request in restoreRequests(recording)) {
+        val sent = runCatchingCancellable { scheduleRecording(request) }
+        if (sent.isSuccess) return@change
+        refused = sent.exceptionOrNull()
+    }
+    throw refused ?: IllegalStateException("no restore request")
+}
+
+/**
  * Records every sports program that names [team] in its title or episode title, on any channel, or deletes the team's
  * rule with the recordings it scheduled.
  */

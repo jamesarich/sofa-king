@@ -54,6 +54,21 @@ internal class VodTable(private val clock: Clock, private val runner: VodRunner)
         retired += state
     }
 
+    /**
+     * Whether a session of [intent] may start converting: [others] conversions run elsewhere. A watch that finds no
+     * room ends the previews' conversions, the oldest first, one by one until there is, as a live watch ends a preview;
+     * a preview never ends anything.
+     */
+    fun makeRoom(max: Int, others: Int, intent: String): Boolean {
+        fun converting() = sessions.values.count { heavy(it.mode, it.media) } + others
+        fun oldestPreview() = sessions.values.filter { it.intent == Wire.Intent.PREVIEW && heavy(it.mode, it.media) }
+            .minByOrNull { it.startedAt }
+        while (converting() >= max && intent == Wire.Intent.WATCH) {
+            retire(oldestPreview() ?: break, HistoryReason.EVICTED)
+        }
+        return converting() < max
+    }
+
     /** The open session [id], once the expired ones are gone. */
     fun live(id: String): VodState {
         reap()

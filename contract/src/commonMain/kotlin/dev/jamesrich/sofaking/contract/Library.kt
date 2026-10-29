@@ -215,7 +215,10 @@ data class UpdateFavorite(val favorite: Boolean)
  * [startMs], with the audio stream whose index is [audioIndex] (the file's default when null). [subtitleIndex] names
  * a picture subtitle track the server draws into the picture, which converts the stream. With [wholePlaylist] a
  * converted item comes as a playlist of the whole item that seeks anywhere, as a player that cannot ask for a restart
- * needs: its session's [VodSession.startMs] is 0, and the player seeks to [startMs] itself.
+ * needs: its session's [VodSession.startMs] is 0, and the player seeks to [startMs] itself. [intent] is a
+ * [Wire.Intent] value: a `preview` session of a library item (a trailer playing behind a page) holds a short lease and
+ * yields its conversion slot to a `watch` open; a server that does not know the field plays it as `watch`, which
+ * [VodSession.intent] then says.
  */
 @Serializable data class OpenVodPlayback(
     val itemId: String = "",
@@ -225,6 +228,7 @@ data class UpdateFavorite(val favorite: Boolean)
     val recordingId: String? = null,
     val subtitleIndex: Int? = null,
     val wholePlaylist: Boolean = false,
+    val intent: String = Wire.Intent.WATCH,
 )
 
 /** `PATCH /api/v1/vod-sessions/{id}`: renew the lease, and with [startMs] restart a converted stream there. */
@@ -235,7 +239,8 @@ data class UpdateFavorite(val favorite: Boolean)
  * which seeks on its own, or `hls` for the others, whose media time 0 is [startMs] into the item: a seek past what the
  * stream holds asks for a restart there with [UpdateVodPlayback]. [durationMs] is the item's whole length. A recording
  * has [recordingId] and an empty [itemId]; while it records, its stream grows and
- * [durationMs] is the length it will have.
+ * [durationMs] is the length it will have. [intent] is the [Wire.Intent] the server holds the session for; a client
+ * that asked for `preview` and reads `watch` is talking to a server that ignored it.
  */
 @Serializable data class VodSession(
     val id: String,
@@ -246,6 +251,7 @@ data class UpdateFavorite(val favorite: Boolean)
     val durationMs: Long? = null,
     val expiresAt: String = "",
     val recordingId: String? = null,
+    val intent: String = Wire.Intent.WATCH,
 )
 
 /**

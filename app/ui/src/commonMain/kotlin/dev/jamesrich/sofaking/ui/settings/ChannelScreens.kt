@@ -74,8 +74,10 @@ import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.listRowColors
 import dev.jamesrich.sofaking.ui.listRowShapes
 import dev.jamesrich.sofaking.ui.listScreenPadding
+import dev.jamesrich.sofaking.ui.reorderMotion
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.sectionHeading
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.stringResource
@@ -172,6 +174,7 @@ private fun LazyListScope.favoritesSection(
     items(ordered, key = { "fav:${it.guideId}" }) { channel ->
         val index = orderIds.indexOf(channel.guideId)
         FavoriteOrderRow(
+            modifier = reorderMotion(),
             channel = channel,
             canMoveUp = index > 0,
             canMoveDown = index < ordered.lastIndex,
@@ -215,7 +218,7 @@ private fun LazyListScope.hiddenSection(
                     label = channel.label(),
                     checked = channel.guideId !in hidden,
                     onCheckedChange = { shown -> onChannelHiddenChange(channel.guideId, !shown) },
-                    modifier = Modifier.padding(start = 32.dp),
+                    modifier = reorderMotion().padding(start = 32.dp),
                 )
             }
         }
@@ -265,7 +268,13 @@ private fun GroupRow(
 
 /** One favorite with its move buttons; a move that reaches the end of the list hands focus to the other button. */
 @Composable
-private fun FavoriteOrderRow(channel: Channel, canMoveUp: Boolean, canMoveDown: Boolean, onMove: (Int) -> Unit) {
+private fun FavoriteOrderRow(
+    channel: Channel,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMove: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val label = channel.label()
     val upLabel = stringResource(Res.string.channels_move_up, label)
     val downLabel = stringResource(Res.string.channels_move_down, label)
@@ -276,7 +285,7 @@ private fun FavoriteOrderRow(channel: Channel, canMoveUp: Boolean, canMoveDown: 
     LaunchedEffect(canMoveUp) { if (!canMoveUp && upFocused) downFocus.requestFocus() }
     LaunchedEffect(canMoveDown) { if (!canMoveDown && downFocused) upFocus.requestFocus() }
     Row(
-        modifier = Modifier.width(FIELD_WIDTH).focusGroup(),
+        modifier = modifier.width(FIELD_WIDTH).focusGroup(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -340,7 +349,9 @@ fun ChannelPickerScreen(
                 channel = channel,
                 selected = channel.guideId == selected,
                 onClick = { onPick(channel) },
-                modifier = if (channel.guideId == selected) Modifier.focusRequester(selectedFocus) else Modifier,
+                modifier = reorderMotion().then(
+                    if (channel.guideId == selected) Modifier.focusRequester(selectedFocus) else Modifier,
+                ),
             )
         }
     }
@@ -391,7 +402,11 @@ internal fun ScreenTitle(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         LogoMark(40.dp)
-        Text(title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+        Text(
+            title,
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.weight(1f).sectionHeading(),
+        )
         if (showsBackButton(topLevel)) {
             SofaButton(
                 onClick = onBack,

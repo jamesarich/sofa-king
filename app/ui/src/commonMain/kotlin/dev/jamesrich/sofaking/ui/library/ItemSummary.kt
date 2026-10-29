@@ -22,10 +22,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -64,26 +68,41 @@ import dev.jamesrich.sofaking.ui.announcesChanges
 import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.hoursAndMinutes
 import dev.jamesrich.sofaking.ui.oneDecimal
+import dev.jamesrich.sofaking.ui.rememberAmbientTint
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
-/** The backdrop at the top right, fading into the page to the left and below so text over it reads. */
+/**
+ * The backdrop at the top right, fading into the page to the left and below so text over it reads. The page there is a
+ * gradient from the picture's ambient tint down to the theme's background, which the left fade shows through. [video]
+ * draws over the picture and under the fades, as a trailer does.
+ */
 @Composable
-internal fun Hero(url: String?, modifier: Modifier = Modifier) {
+internal fun Hero(url: String?, modifier: Modifier = Modifier, video: @Composable () -> Unit = {}) {
     if (url == null) return
     val page = MaterialTheme.colorScheme.background
-    Box(modifier) {
+    val pageBrush = Brush.verticalGradient(listOf(rememberAmbientTint(url), page))
+    Box(modifier.background(pageBrush)) {
         AsyncImage(url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        video()
         Box(
-            Modifier.fillMaxSize().background(
-                Brush.horizontalGradient(
-                    0f to page,
-                    BACKDROP_FADE_AT to page.copy(alpha = BACKDROP_FADE_ALPHA),
-                    1f to Color.Transparent,
-                ),
-            ),
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        Brush.horizontalGradient(
+                            0f to Color.Black,
+                            BACKDROP_FADE_AT to Color.Black.copy(alpha = BACKDROP_FADE_ALPHA),
+                            1f to Color.Transparent,
+                        ),
+                        blendMode = BlendMode.DstIn,
+                    )
+                }
+                .background(pageBrush),
         )
         Box(
             Modifier

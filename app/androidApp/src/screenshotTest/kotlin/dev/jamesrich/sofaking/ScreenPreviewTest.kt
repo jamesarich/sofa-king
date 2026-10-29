@@ -89,6 +89,26 @@ private fun LibraryHomePhone() = LibraryHomePreview(tv = false)
 @PreviewTest
 @Preview(device = TV)
 @Composable
+private fun LibraryLoadingTv() = LibraryHomePreview(tv = true, loading = true)
+
+@PreviewTest
+@Preview(device = PHONE)
+@Composable
+private fun LibraryLoadingPhone() = LibraryHomePreview(tv = false, loading = true)
+
+@PreviewTest
+@Preview(device = PHONE)
+@Composable
+private fun LibraryHomePhoneLight() = LibraryHomePreview(tv = false, light = true)
+
+@PreviewTest
+@Preview(device = PHONE)
+@Composable
+private fun SettingsPhoneLight() = SettingsPreview(tv = false, light = true)
+
+@PreviewTest
+@Preview(device = TV)
+@Composable
 private fun ShowPageTv() = ShowPagePreview(tv = true)
 
 @PreviewTest

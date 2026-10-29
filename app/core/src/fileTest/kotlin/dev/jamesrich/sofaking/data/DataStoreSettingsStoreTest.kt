@@ -131,6 +131,24 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `appearance follows the system by default and round trips every choice`() = runTest {
+        val store = newStore()
+        assertEquals(Appearance.SYSTEM, store.settings.first().appearance)
+
+        for (appearance in Appearance.entries) {
+            store.setAppearance(appearance)
+            assertEquals(appearance, store.settings.first { it.appearance == appearance }.appearance)
+        }
+    }
+
+    @Test
+    fun `an unrecognized stored appearance falls back to the system`() = runTest {
+        dataStore.edit { it[stringPreferencesKey("appearance")] = "NO_SUCH_LOOK" }
+
+        assertEquals(Appearance.SYSTEM, newStore().settings.first().appearance)
+    }
+
+    @Test
     fun `hidden channels are added and removed and the zap switch persists`() = runTest {
         val store = newStore()
         store.setChannelHidden("a", true)

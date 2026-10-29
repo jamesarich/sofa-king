@@ -53,7 +53,8 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * [item] as a [style] card, as every library page draws one: OK opens it with [onOpen], and the remote's Play key
- * plays an item that plays with [onPlay]. Music has nothing to mark watched, so its cards have no [menu].
+ * plays an item that plays with [onPlay]. Music has nothing to mark watched, so its cards have no [menu]. With
+ * [okPlays], OK or a tap plays an item that plays, and its page opens from the menu's Details or the remote's Info key.
  */
 @Composable
 internal fun LibraryCard(
@@ -63,17 +64,17 @@ internal fun LibraryCard(
     onPlay: (MediaItem) -> Unit,
     menu: CardMenu?,
     modifier: Modifier = Modifier,
+    okPlays: Boolean = false,
 ) {
     val play = if (item.kind.playable) ({ onPlay(item) }) else null
     val cardMenu = menu.takeUnless { item.kind.music }
+    val resumes = okPlays && play != null
+    val click: () -> Unit = if (play != null && okPlays) play else ({ onOpen(item) })
+    val keys = if (resumes) modifier.infoKey { onOpen(item) } else modifier
     when (style) {
-        CardStyle.POSTER -> PosterCard(item, onClick = {
-            onOpen(item)
-        }, onPlay = play, modifier = modifier, menu = cardMenu)
+        CardStyle.POSTER -> PosterCard(item, onClick = click, onPlay = play, modifier = keys, menu = cardMenu)
 
-        CardStyle.WIDE -> WideCard(item, onClick = {
-            onOpen(item)
-        }, onPlay = play, modifier = modifier, menu = cardMenu)
+        CardStyle.WIDE -> WideCard(item, onClick = click, onPlay = play, modifier = keys, menu = cardMenu)
 
         // A track has no page of its own worth opening, so OK plays it.
         CardStyle.SQUARE -> SquareCard(

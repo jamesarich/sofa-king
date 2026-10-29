@@ -27,6 +27,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.PairingFailure
 import dev.jamesrich.sofaking.data.AppSettings
@@ -171,6 +173,7 @@ internal fun LazyListScope.serverSection(
             focusRequester = server.serverFocus,
             imeAction = ImeAction.Next,
             onAction = { server.codeFocus.requestFocus(FocusDirection.Enter) },
+            keyboardType = KeyboardType.Uri,
         )
     }
     // The pairing code is the designed path; the token below it is the fallback.
@@ -299,6 +302,7 @@ private fun TokenFields(
             imeAction = ImeAction.Done,
             onAction = save,
             maskUnfocused = ::maskToken,
+            keyboardType = KeyboardType.Password,
         )
         HelpText(stringResource(Res.string.settings_api_token_help))
         Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -346,6 +350,7 @@ private fun SettingField(
     imeAction: ImeAction,
     onAction: () -> Unit,
     maskUnfocused: ((String) -> String)? = null,
+    keyboardType: KeyboardType = KeyboardType.Unspecified,
 ) {
     Column(Modifier.width(FIELD_WIDTH)) {
         Text(label, style = MaterialTheme.typography.titleSmall)
@@ -356,6 +361,9 @@ private fun SettingField(
             onAction = onAction,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             maskUnfocused = maskUnfocused,
+            keyboardType = keyboardType,
+            capitalization = KeyboardCapitalization.None,
+            autoCorrect = false,
         )
         if (problem != null) {
             Text(

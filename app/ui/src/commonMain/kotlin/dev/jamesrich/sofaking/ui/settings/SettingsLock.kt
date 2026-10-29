@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.AppSettings
@@ -239,6 +240,9 @@ private fun ForgotPin(
             imeAction = ImeAction.Done,
             onAction = remove,
             maskUnfocused = ::maskToken,
+            keyboardType = KeyboardType.Password,
+            capitalization = KeyboardCapitalization.None,
+            autoCorrect = false,
         )
         if (wrongToken) ErrorText(stringResource(Res.string.lock_forgot_wrong))
         SofaButton(onClick = remove, enabled = canRemove) {

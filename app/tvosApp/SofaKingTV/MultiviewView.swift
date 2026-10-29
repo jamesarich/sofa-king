@@ -84,6 +84,7 @@ struct MultiviewView: View {
                         Button { toggle(channel.guideId) } label: {
                             Label("\(channel.number.formatted()) \(channel.name)", systemImage: ticked ? "checkmark.circle.fill" : "circle")
                         }
+                        .accessibilityAddTraits(ticked ? .isSelected : [])
                         .disabled(!ticked && picked.count >= Self.maxTiles)
                     }
                 }
@@ -105,9 +106,17 @@ struct MultiviewView: View {
             .ignoresSafeArea()
         }
         .buttonStyle(BareButtonStyle())
+        .accessibilityLabel(pictureLabel)
         .ignoresSafeArea()
         .onMoveCommand { direction in move(direction) }
         .onExitCommand { back() }
+    }
+
+    /// What VoiceOver reads for the picture: the channel whose sound plays, and that a press watches it full screen.
+    private var pictureLabel: String {
+        let guideId = audio < picked.count ? picked[audio] : nil
+        let name = channels.first { $0.guideId == guideId }?.name ?? ""
+        return "Multiview, sound from \(name). Watch \(name) full screen"
     }
 
     /// Each tile's channel name, low on its left, with a speaker by the one whose sound plays.

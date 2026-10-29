@@ -59,6 +59,21 @@ class CaptionSyncLoadControlTest {
         assertTrue(control.shouldStartPlayback(parameters(bufferedMs = 500)))
     }
 
+    @Test
+    fun `a device is low on memory when flagged or when its heap class is small`() {
+        assertTrue(isLowRam(flaggedLowRam = true, memoryClassMb = 512))
+        assertTrue(isLowRam(flaggedLowRam = false, memoryClassMb = 192))
+        assertFalse(isLowRam(flaggedLowRam = false, memoryClassMb = 256))
+    }
+
+    @Test
+    fun `a low memory device keeps the same start thresholds`() {
+        val control = CaptionSyncLoadControl(CaptionSync(), PlaybackTuning(), defaultDelegate(lowRam = true))
+            .apply { onPrepared(PlayerId.UNSET) }
+        assertFalse(control.shouldStartPlayback(parameters(bufferedMs = 900)))
+        assertTrue(control.shouldStartPlayback(parameters(bufferedMs = 1_000)))
+    }
+
     private fun prepared(sync: CaptionSync, tuning: PlaybackTuning) =
         CaptionSyncLoadControl(sync, tuning).apply { onPrepared(PlayerId.UNSET) }
 

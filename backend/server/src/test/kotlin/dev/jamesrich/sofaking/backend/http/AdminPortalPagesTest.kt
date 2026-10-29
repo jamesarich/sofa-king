@@ -380,7 +380,7 @@ class AdminPortalPagesTest : AdminPortalCase() {
                     empty.contains("Keeps 10 GiB free"),
                 empty,
             )
-            assertTrue(empty.contains("aria-current=\"page\">Recordings<"), "the nav marks the destination")
+            assertTrue(empty.contains("aria-current=\"page\">DVR<"), "the nav marks the destination")
             val csrf = field(empty, "csrf")
 
             val rule = arrayOf("title" to "Evening News", "channelId" to "", "keep" to "3", "newOnly" to "true")

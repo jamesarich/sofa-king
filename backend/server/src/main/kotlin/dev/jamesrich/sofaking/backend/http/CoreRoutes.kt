@@ -137,7 +137,7 @@ internal fun Route.playbackRoutes(runtime: LiveRuntime) {
     }
     get("/media/sessions/{id}/{epoch}/{token}") {
         val epoch = call.parameters["epoch"]?.toIntOrNull()
-            ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Invalid stream epoch")
+            ?: throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "The stream changed; reconnecting")
         runtime.relay.serve(call, call.parameters["id"]!!, epoch, call.parameters["token"]!!)
     }
 }

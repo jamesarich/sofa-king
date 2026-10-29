@@ -2,7 +2,7 @@
 
 The Sofa King app is the front of a home media center: live TV with a program guide, recordings and your own movies and shows, all from your own [Sofa King server](../backend/README.md). It is built for Android TV and Google TV, and the same app runs on Android phones, Linux, macOS and Windows desktops, iOS and the web. Channels, the guide, recordings, the libraries and the streams come from that server; the app includes no subscription.
 
-Three tabs, one remote, Sofa King simple: **Live** for the guide and the channels, **Library** for the movies and shows, and **DVR** for what the server recorded, each of the last two shown when the server keeps it.
+One remote, Sofa King simple: **Live** for the guide and the channels, **Library** for the movies and shows, and **DVR** for what the server recorded, each of the last two shown when the server keeps it, and **Settings** for the server, playback and the device.
 
 ## Why
 
@@ -22,7 +22,7 @@ Three tabs, one remote, Sofa King simple: **Live** for the guide and the channel
 - A full-screen player with channel up and down, number entry, the previous channel, a channel list with Recent, Favorites and filter chips, and a stream card with audio tracks and stream details
 - Closed captions, with per-channel timing on Android and a style setting where the app draws them ([captions](docs/usage.md#captions))
 - A saved lineup that shows at once while the app refreshes from the server
-- Record a program or a series from its details, and a DVR tab that plays recordings as they grow, resumes them and can skip the commercial breaks the server found ([recordings](docs/usage.md#recordings))
+- Record a program or a series from its details, and a DVR tab that plays recordings as they grow, resumes them and can skip the commercial breaks the server found ([DVR](docs/usage.md#dvr))
 - A Library tab with search, Continue watching, recent additions, poster grids and item pages for movies and shows, a seekable player with audio and subtitle choices, Skip intro, and Up next for the following episode ([library](docs/usage.md#library))
 - Music libraries with albums, songs, favorites, radio, synced lyrics and a visualizer ([music](docs/usage.md#music))
 - Reconnection with backoff when a stream fails, and the channel followed by number, then name, when the server's lineup drops its id

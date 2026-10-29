@@ -44,7 +44,7 @@ internal class VodRunner(private val ffmpeg: String, private val directory: Path
             throw ApiFailure(
                 HttpStatusCode.ServiceUnavailable,
                 "TRANSCODER_UNAVAILABLE",
-                "FFmpeg could not start",
+                "The server couldn't start this title",
                 true,
             )
         }

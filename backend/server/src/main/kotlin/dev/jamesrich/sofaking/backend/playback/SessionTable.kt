@@ -56,7 +56,7 @@ internal class SessionTable(private val clock: Clock, capacity: Int) {
             ?: throw ApiFailure(
                 HttpStatusCode.TooManyRequests,
                 Wire.ErrorCode.CAPACITY_EXHAUSTED,
-                "Playback capacity exhausted",
+                "The server is at its playback limit; try again shortly",
                 true,
             )
         end(victim, HistoryReason.EVICTED)

@@ -1,0 +1,57 @@
+/* The app's palette on the site: plum surfaces, amber accents. Colors come from the app's theme and the admin portal. */
+[data-md-color-primary="custom"] {
+  --md-primary-fg-color: #14111f;
+  --md-primary-fg-color--light: #2a2440;
+  --md-primary-fg-color--dark: #0e0b17;
+  --md-primary-bg-color: #f4effa;
+  --md-primary-bg-color--light: #c4bad9;
+}
+
+[data-md-color-accent="custom"] {
+  --md-accent-fg-color: #7a4300;
+  --md-accent-fg-color--transparent: rgba(122, 67, 0, 0.1);
+  --md-accent-bg-color: #14111f;
+  --md-accent-bg-color--light: #14111f;
+}
+
+[data-md-color-scheme="default"] {
+  --md-typeset-a-color: #6b4fd8;
+  --md-default-fg-color: #1d1830;
+  --md-default-fg-color--light: #5b5275;
+  --md-code-bg-color: #f7f4fc;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #14111f;
+  --md-default-bg-color--light: rgba(20, 17, 31, 0.54);
+  --md-default-bg-color--lighter: rgba(20, 17, 31, 0.26);
+  --md-default-bg-color--lightest: rgba(20, 17, 31, 0.07);
+  --md-default-fg-color: #f4effa;
+  --md-default-fg-color--light: #c4bad9;
+  --md-default-fg-color--lighter: #8c80a8;
+  --md-default-fg-color--lightest: #3a3354;
+  --md-code-bg-color: #1f1a30;
+  --md-code-fg-color: #f4effa;
+  --md-typeset-color: #f4effa;
+  --md-typeset-a-color: #c9b8ff;
+  --md-footer-bg-color: #0e0b17;
+  --md-footer-bg-color--dark: #0a0810;
+  --md-accent-fg-color: #ffb547;
+  --md-accent-fg-color--transparent: rgba(255, 181, 71, 0.1);
+  --md-accent-bg-color: #14111f;
+  --md-accent-bg-color--light: #14111f;
+}
+
+.md-typeset a:hover {
+  color: var(--md-accent-fg-color);
+}
+
+.md-header,
+.md-tabs {
+  background-color: #14111f;
+}
+
+.md-nav__link--active,
+.md-nav__item .md-nav__link--active {
+  color: var(--md-accent-fg-color);
+}

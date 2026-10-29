@@ -124,7 +124,12 @@ class MediaRelay(
                         true,
                     )
                 }
-                throw ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
+                throw ApiFailure(
+                    HttpStatusCode.BadGateway,
+                    "UPSTREAM_UNAVAILABLE",
+                    "This channel isn't available right now",
+                    true,
+                )
             }
             when {
                 resource.packaged -> servePackaged(call, id, epoch, resource, stream)
@@ -236,7 +241,12 @@ class MediaRelay(
                 // player's next request); that cancels the wait, and is not the upstream's failure.
                 if (!job.isActive) throw withContext(NonCancellable) { sessions.media.letGo(id) }
                 resource.stats.stalls.incrementAndGet()
-                throw ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
+                throw ApiFailure(
+                    HttpStatusCode.BadGateway,
+                    "UPSTREAM_UNAVAILABLE",
+                    "This channel isn't available right now",
+                    true,
+                )
             }
             call.response.header(HttpHeaders.CacheControl, "no-store")
             call.respondBytesWriter(contentType = ContentType.parse("video/mp2t")) {
@@ -407,7 +417,12 @@ internal suspend fun relayResource(
     path: suspend (String) -> String,
     sent: (Long) -> Unit = {},
     refused: (Int) -> Nothing = {
-        throw ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
+        throw ApiFailure(
+            HttpStatusCode.BadGateway,
+            "UPSTREAM_UNAVAILABLE",
+            "This channel isn't available right now",
+            true,
+        )
     },
     sniffed: suspend (String?) -> Unit = {},
     manifest: suspend (String, URI) -> String = { text, _ -> text },

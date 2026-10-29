@@ -239,7 +239,7 @@ private fun DIV.plexTile(plex: PlexSummary?, now: Instant) {
             plex == null -> {
                 span("value") { small { +"Not set up" } }
                 span("sub") {
-                    +"Plex sync keeps Plex's channel maps in step; the Players page says how to turn it on."
+                    +"Plex sync keeps Plex's channel maps in step; the Plex page says how to turn it on."
                 }
             }
 

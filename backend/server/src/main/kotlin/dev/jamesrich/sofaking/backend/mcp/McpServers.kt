@@ -16,9 +16,11 @@ import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -42,7 +44,10 @@ internal class McpServers(val reads: Server, val admin: Server) {
             reads = server(context.revision) { readTools(context) },
             admin = server(context.revision) {
                 readTools(context)
+                privateReadTools(context)
                 actionTools(context)
+                sourceActionTools(context)
+                policyActionTools(context)
             },
         )
     }
@@ -50,9 +55,21 @@ internal class McpServers(val reads: Server, val admin: Server) {
 
 private const val INSTRUCTIONS =
     "Sofa King is a self-hosted media center: live TV channels from providers, a program guide, a DVR and media " +
-        "libraries, served to the Sofa King apps. These tools read its state for setup and upkeep: start with " +
-        "server_status and needs_attention, then imports, source_problems, jobs and recent_log to see why. Tools " +
-        "that change something are listed only to the admin token."
+        "libraries, served to the Sofa King apps. These tools read its state for setup and upkeep.\n" +
+        "Triage in this order: server_status for the counts, then needs_attention for what the operator must fix. " +
+        "A provider or guide with no channels or an old lastSuccessAt failed to fetch: read imports, then jobs for " +
+        "the last note. Channels that play badly have failing streams: source_problems lists the sources that are " +
+        "not healthy and source_health explains one. recent_log level=error has the server's own reason.\n" +
+        "Ids chain: lineup lists entry ids (the id channel, on_later and the recording tools use); source_problems " +
+        "and channel list source ids (the id source_health takes) and the entries that use them; imports lists " +
+        "provider and guide ids (guide_channels takes a guide id); jobs lists job ids; libraries lists library " +
+        "ids; explain_station takes the stationKey a lineup row shows. A providerChannelId is a provider's " +
+        "channel, not a lineup entry; channel accepts either. Lists are capped: when truncated is true or " +
+        "nextOffset is set, call again with offset or a narrower filter.\n" +
+        "Tools that change something are listed only to the admin token. A destructive one refuses without " +
+        "confirm true: say what it does first. Lineup edits take the revision from preview_policy and preview " +
+        "with dryRun (the default) before they write; a stale revision answers POLICY_CHANGED. Results never " +
+        "include stream URLs, tokens or request headers."
 
 private fun server(revision: String, tools: Server.() -> Unit): Server = Server(
     Implementation(name = "sofa-king", version = revision, title = "Sofa King"),
@@ -81,7 +98,7 @@ internal inline fun <reified T> Server.tool(
 ) {
     addTool(name, description, schema, toolAnnotations = annotations) { request ->
         runCatchingCancellable { run(Arguments(request.arguments ?: JsonObject(emptyMap()))) }.fold(
-            onSuccess = { CallToolResult(listOf(TextContent(toolJson.encodeToString(it)))) },
+            onSuccess = { CallToolResult(listOf(TextContent(scrub(toolJson.encodeToString(it))))) },
             onFailure = { failure -> failed(name, failure) },
         )
     }
@@ -92,10 +109,17 @@ internal fun failed(tool: String, failure: Throwable): CallToolResult {
         "${failure.code}: ${failure.message}"
     } else {
         log.warn("MCP tool failed tool={} class={}", tool, failure.javaClass.simpleName)
-        "INTERNAL_ERROR: the tool failed (${failure.javaClass.simpleName})"
+        "INTERNAL_ERROR: the tool failed (${failure.javaClass.simpleName}); see recent_log level=error"
     }
-    return CallToolResult(listOf(TextContent(text)), isError = true)
+    return CallToolResult(listOf(TextContent(scrub(text))), isError = true)
 }
+
+private val URL_PATTERN = Regex("""[A-Za-z][A-Za-z0-9+.-]*://[^\s"'<>\\]+""")
+private val TOKEN_PATTERN = Regex("""\bsk_[A-Za-z0-9_-]{10,}|(?i:bearer)\s+[A-Za-z0-9._~+/=-]{8,}""")
+
+/** A last guard on every result: a URL or token that reached a field anyway never leaves the server. */
+internal fun scrub(text: String): String =
+    text.replace(URL_PATTERN, "[url removed]").replace(TOKEN_PATTERN, "[token removed]")
 
 internal val READ_ONLY = ToolAnnotations(readOnlyHint = true, openWorldHint = false)
 
@@ -103,6 +127,25 @@ internal val READ_ONLY = ToolAnnotations(readOnlyHint = true, openWorldHint = fa
 internal class Arguments(private val values: JsonObject) {
     fun string(name: String): String? = values[name]?.takeIf { it is JsonPrimitive && it.isString }
         ?.jsonPrimitive?.contentOrNull?.trim()?.ifEmpty { null }
+
+    /** The member of [allowed] that [name] names without regard to case; null when absent, a refusal for another. */
+    fun choice(name: String, allowed: Collection<String>): String? {
+        val value = string(name) ?: return null
+        return allowed.firstOrNull { it.equals(value, ignoreCase = true) }
+            ?: invalid("$name is ${allowed.joinToString(", ")}")
+    }
+
+    /** A true or false value; null when absent, a refusal for anything else. */
+    fun boolean(name: String): Boolean? {
+        val raw = values[name] ?: return null
+        return (raw as? JsonPrimitive)?.takeUnless { it.isString }?.booleanOrNull ?: invalid("$name is true or false")
+    }
+
+    /** A number; null when absent, a refusal for anything else. */
+    fun number(name: String): Double? {
+        val raw = values[name] ?: return null
+        return (raw as? JsonPrimitive)?.takeUnless { it.isString }?.doubleOrNull ?: invalid("$name is a number")
+    }
 
     fun int(name: String, default: Int, range: IntRange): Int {
         val raw = values[name] ?: return default
@@ -112,29 +155,17 @@ internal class Arguments(private val values: JsonObject) {
     }
 }
 
+/** Refuses a destructive [action] unless the call said `confirm: true`. */
+internal fun Arguments.confirmed(action: String) {
+    if (boolean(CONFIRM) != true) {
+        throw ApiFailure(
+            HttpStatusCode.BadRequest,
+            "CONFIRMATION_REQUIRED",
+            "Nothing was done: $action. Tell the operator what it does, then call again with confirm true",
+        )
+    }
+}
+
+internal const val CONFIRM = "confirm"
+
 internal fun invalid(message: String): Nothing = throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", message)
-
-/** A tool's input schema from its [properties], each built by [string], [integer] or [choice]. */
-internal fun schema(vararg properties: Pair<String, JsonObject>, required: List<String> = emptyList()) = ToolSchema(
-    properties = JsonObject(properties.toMap()),
-    required = required.ifEmpty { null },
-)
-
-internal fun string(description: String) = buildJsonObject {
-    put("type", "string")
-    put("description", description)
-}
-
-internal fun integer(description: String, range: IntRange, default: Int) = buildJsonObject {
-    put("type", "integer")
-    put("description", description)
-    put("minimum", range.first)
-    put("maximum", range.last)
-    put("default", default)
-}
-
-internal fun choice(description: String, values: List<String>) = buildJsonObject {
-    put("type", "string")
-    put("description", description)
-    put("enum", buildJsonArray { values.forEach { add(JsonPrimitive(it)) } })
-}

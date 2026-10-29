@@ -11,6 +11,7 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeUiTest
@@ -141,7 +142,41 @@ internal class AppDriver(
                 "failure-semantics.txt",
             ).writeText(ui.onAllNodes(isRoot(), useUnmergedTree = true).printToString(maxDepth = Int.MAX_VALUE))
         }
-        if (cause != null) throw AssertionError(reason, cause) else fail(reason)
+        val state = describeState()
+        val _ = runCatching { File(out, "failure-state.txt").writeText("$reason\n\n$state") }
+        val message = "$reason\n$state"
+        if (cause != null) throw AssertionError(message, cause) else fail(message)
+    }
+
+    /**
+     * What the driver can read of the app's state without touching it: the focus, the screen's visible texts (which
+     * name the route on top), the server's session and request counts with its last requests, and any uncaught
+     * throwable. A failure carries it so a run nobody can reproduce still says where the app was.
+     */
+    fun describeState(): String = buildString {
+        appendLine("focused: ${runCatching { focusedLabel() }.getOrElse { "unreadable (${it.message})" }}")
+        appendLine("focused nodes: ${runCatching { focusedCount() }.getOrDefault(-1)}")
+        appendLine("screen texts: ${runCatching { screenTexts() }.getOrElse { "unreadable (${it.message})" }}")
+        appendLine(
+            "server: ${server.openSessions} open sessions, ${server.sessionsOpened.get()} opened, " +
+                "${server.guideQueries.get()} guide queries",
+        )
+        appendLine("uncaught: ${uncaught.toList().map { it.toString() }}")
+        appendLine("last requests:")
+        server.recentRequests(REQUEST_TRAIL).forEach { appendLine("    $it") }
+    }
+
+    /** The distinct texts and descriptions on screen, in tree order, which show the route on top. */
+    private fun screenTexts(): List<String> {
+        val texts = linkedSetOf<String>()
+        fun visit(node: SemanticsNode) {
+            node.config.getOrNull(SemanticsProperties.Text)?.joinToString(" ")?.let { texts += it.take(LABEL_CHARS) }
+            node.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString(" ")
+                ?.let { texts += it.take(LABEL_CHARS) }
+            node.children.forEach(::visit)
+        }
+        ui.onAllNodes(isRoot(), useUnmergedTree = true).fetchSemanticsNodes().forEach(::visit)
+        return texts.take(SCREEN_TEXTS)
     }
 
     /**
@@ -193,6 +228,8 @@ internal class AppDriver(
         const val REPEAT_MS = 50L
         const val LABEL_CHARS = 40
         const val SETTLE_MS = 5_000L
+        const val REQUEST_TRAIL = 25
+        const val SCREEN_TEXTS = 40
 
         /** The remote's keys, weighted the way people press them: mostly the D-pad, then OK and Back. */
         val REMOTE = listOf(

@@ -42,18 +42,18 @@ class GuideMatches internal constructor(private val service: PolicyService, priv
     }
 
     /** Writes the proposed channel as the station's guide, then applies. */
-    suspend fun accept(choice: GuideMatchChoice): PolicyApplyResult {
+    suspend fun accept(choice: GuideMatchChoice, cause: String = "guide-match"): PolicyApplyResult {
         val channel = guides.channel(choice.guideId, choice.channelId)
             ?: throw ApiFailure(HttpStatusCode.NotFound, "GUIDE_CHANNEL_NOT_FOUND", "Unknown guide channel")
         service.file.edit(null) { tree -> withGuide(tree, choice.station, GuideMapping(choice.guideId, channel.id)) }
-        return service.apply("guide-match")
+        return service.apply(cause)
     }
 
     /**
      * Writes each station's best proposal at [minConfidence] or more (else the policy's `acceptAbove`) in one edit,
      * then applies once. A station whose best two proposals tie on different channels is left for a person.
      */
-    suspend fun acceptAll(minConfidence: Double?): GuideMatchResult {
+    suspend fun acceptAll(minConfidence: Double?, cause: String = "guide-match"): GuideMatchResult {
         val floor = minConfidence ?: service.policy.guideMatches.acceptAbove
         if (floor !in 0.0..1.0) {
             throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "minConfidence must be between 0 and 1")
@@ -69,11 +69,11 @@ class GuideMatches internal constructor(private val service: PolicyService, priv
                 withGuide(next, match.station, GuideMapping(match.guideId, match.channelId))
             }
         }
-        return GuideMatchResult(chosen.size, service.apply("guide-match"))
+        return GuideMatchResult(chosen.size, service.apply(cause))
     }
 
     /** Lists the pair in `guideMatches.dismissed` so it is never proposed again, then applies. */
-    suspend fun dismiss(choice: GuideMatchChoice): PolicyApplyResult {
+    suspend fun dismiss(choice: GuideMatchChoice, cause: String = "guide-match"): PolicyApplyResult {
         service.file.edit(null) { tree ->
             val settings = (tree["guideMatches"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
             val dismissed = (settings["dismissed"] as? JsonArray).orEmpty().toMutableList()
@@ -82,7 +82,7 @@ class GuideMatches internal constructor(private val service: PolicyService, priv
             settings["dismissed"] = JsonArray(dismissed)
             JsonObject(tree.toMutableMap().apply { put("guideMatches", JsonObject(settings)) })
         }
-        return service.apply("guide-match")
+        return service.apply(cause)
     }
 }
 

@@ -267,6 +267,8 @@ A rule has a `title`, an optional `channelId`, `newOnly`, `keep` (0 keeps all), 
 
 `POST /api/v1/mcp` serves the [Model Context Protocol](https://modelcontextprotocol.io), so an AI assistant can look after the server: see what needs attention, why a provider or guide fails, how the jobs ran, what the log says, and what is on and recorded. It speaks MCP's Streamable HTTP transport without sessions, through the official [Kotlin SDK](https://github.com/modelcontextprotocol/kotlin-sdk): each POST carries one JSON-RPC message and is answered as JSON, `GET` and `DELETE` answer `405`, and the client sends `Accept: application/json, text/event-stream`. It takes the admin token, or the API token when no admin token is set, which is listed every tool, or a `read` [token](#tokens), which is listed only the tools that change nothing. Device and hook tokens are refused. [Use with an AI assistant](operations.md#use-with-an-ai-assistant) has the setup.
 
+The server's instructions give the triage order: `server_status`, then `needs_attention`, then `imports` (a fetch failed) against `source_problems` and `source_health` (streams fail), then `recent_log`. The ids chain: `lineup` lists the entry ids that `channel`, `on_later` and the recording tools use, `source_problems` and `channel` list the source ids that `source_health` takes, `imports` lists the provider and guide ids, `jobs` the job ids and `libraries` the library ids. A `providerChannelId` is a provider's channel, not a lineup entry. Every list is bounded: `limit`, and `truncated` or `nextOffset` when more exist. No result carries a stream, playlist or guide URL, a token or a request header; a URL or token that reaches a field anyway is replaced before the result leaves.
+
 The read tools answer as the matching route or portal page does:
 
 | Tool | What it answers |
@@ -276,26 +278,53 @@ The read tools answer as the matching route or portal page does:
 | `update_status` | The running and published builds, whether the server is up to date, when the registry was last asked, and the host updater's last report |
 | `jobs` | The background jobs, as the portal's Jobs page lists them, with the `id`s `run_job` takes |
 | `recent_log` | The Events page's log lines, newest first; `level` (`info`, `warn` (the default) or `error`), `query` and `limit` (1 to 500, default 50) |
-| `watching_now` | `GET /api/v1/admin/sessions` |
+| `watching_now` | `GET /api/v1/admin/sessions` as `total`, `sessions` and `truncated`; `limit` (1 to 200, default 50) |
 | `imports` | Each provider's and guide's import status, as `GET /api/v1/providers` and `GET /api/v1/admin/guides` answer |
-| `source_problems` | The sources that are not healthy or are disabled by hand, with counts by state over all of them; `status` lists one state instead, and `limit` (1 to 1000, default 100) caps the list |
-| `guide_now` | What is on now and next on the enabled channels; `channel`, a number or part of a name, and `limit` (1 to 200 channels, default 50) |
-| `on_later` | `GET /api/v1/guide/on-later` with each program's channel; `kind`, `days` (default 2) and `limit` (default 50) |
-| `recordings` | `GET /api/v1/recordings`, on a server with the DVR |
+| `source_problems` | The sources that are not `HEALTHY` or are disabled by hand, with counts by state over all of them. `status` (`UNVERIFIED`, `HEALTHY`, `SUSPECT`, `QUARANTINED`, `PROBATION` or `ARCHIVED`, any case) lists one state instead, and `limit` (1 to 1000, default 100) caps the list. Each row has `sourceId`, `providerChannelId`, `providerId`, `status`, `manuallyDisabled`, `lastQualifiedAt`, `nextCheckAt` and `entryIds`, the lineup entries that use it |
+| `source_health` | One source: `sourceId` from `source_problems` or `channel`. Its `status`, `why`, `failures` and `recentProbes` (each with `at`, `qualified` and `failureClass`), `quarantineAttempts`, `lastQualifiedAt`, `nextCheckAt`, `probationStartedAt` and `entryIds` |
+| `lineup` | `GET /api/v1/admin/lineup` as the portal's Channels page filters it: `q` (name, number or station key), `group`, `state` (`on`, `off` or `unverified`), `guide` (`ok` or `missing`), `offset` and `limit` (1 to 200, default 50). Answers `total`, `offset`, `limit`, `entries` (`id`, `number`, `name`, `group`, `enabled`, `guideStatus`, `sourceCount`, `autoDisabledReason`, `stationKey`) and `nextOffset` |
+| `channel` | One lineup entry with its sources (`sourceId`, `providerId`, `providerChannelId`, `protocol`, `status`, `manuallyDisabled`, `why`), guide mapping and coverage, and `stationKey`. Takes `id`, a lineup entry id or a provider channel id (then `resolvedFrom` is `providerChannel` and `otherEntryIds` lists further entries that use it), or `number` |
+| `guide_now` | What is on now and next on the enabled channels; `channel`, a number or part of a name, `offset` and `limit` (1 to 200 channels, default 50). Answers `total`, `offset`, `limit`, `channels` and `nextOffset` |
+| `guide_channels` | `GET /api/v1/admin/guides/{id}/channels`, without icon links: `guideId` from `imports`, `q` and `limit` (1 to 200, default 50) |
+| `on_later` | `GET /api/v1/guide/on-later` with each program's channel and its `channelId`, a lineup entry id; `kind`, `days` (default 2) and `limit` (default 50) |
+| `recordings` | `GET /api/v1/recordings` without image links or file paths, on a server with the DVR; `state` (`scheduled`, `recording`, `completed` or `failed`), `offset` and `limit` (1 to 200, default 50). Answers `total`, `recordings`, `nextOffset`, `truncated` and `storage` |
+| `recording_rules` | `GET /api/v1/recording-rules`, on a server with the DVR; `limit` (1 to 200, default 50) |
 | `libraries` | `GET /api/v1/admin/libraries`, on a server with libraries |
 | `search_library` | `GET /api/v1/library/search` for `query`, music included |
-| `library_home` | `GET /api/v1/library/home`, music included |
+| `library_home` | `GET /api/v1/library/home`, music included, with each shelf cut to its first 20 items and its `total` and `truncated` |
+| `policy_findings` | `GET /api/v1/admin/policy/findings`, each list cut to `limit` (1 to 200, default 50) with its `total`; `POLICY_NOT_CONFIGURED` without a policy |
+| `preview_policy` | `GET /api/v1/admin/policy/preview`, each list cut to `limit` with its `total` |
+| `policy_changes` | `GET /api/v1/admin/policy/changes`, newest first, up to `limit` |
+| `explain_station` | `GET /api/v1/admin/stations/{key}` for the `key` a lineup row's `stationKey` shows, without the logo link |
+| `guide_matches` | `GET /api/v1/admin/policy/guide-matches`, best first, up to `limit` with the `total` |
 
-The admin token adds the actions, which delete nothing:
+The admin token also lists two read tools that a read token cannot call, because the admin API does not open their routes to a read token either:
+
+| Tool | What it answers |
+| --- | --- |
+| `playback_history` | `GET /api/v1/admin/history`: ended playback sessions, newest first, with the device or player address, so it shows what each one watched; `since`, `kind` (`live` or `vod`), `client` and `limit` (1 to 200, default 50) |
+| `plex_status` | `GET /api/v1/admin/plex`, the last Plex sync, with each list cut to `limit`; `PLEX_NOT_CONFIGURED` without Plex sync |
+
+The admin token adds the actions. None deletes anything, and the ones that can take channels or streams away refuse without `confirm` set to `true`:
 
 | Tool | What it does |
 | --- | --- |
-| `run_job` | Starts the job with that `job` id now, as the Jobs page's Run now does; `JOB_NOT_FOUND` for one that cannot be started |
-| `scan_library` | Queues a scan of the `library` with that id, or of every library without one |
+| `run_job` | Starts the job with that `job` id now, as the Jobs page's Run now does; `JOB_NOT_FOUND` for one that cannot be started, and `jobs` lists the ids with `canRunNow` |
+| `scan_library` | Queues a scan of the `library` with that id, or of every library without one; `LIBRARY_NOT_FOUND` names `libraries` |
 | `check_for_update` | Asks the registry now and answers as `update_status`, on a server that checks for updates |
-| `update_now` | Asks the host's updater to install the newest image, as the About page's Update now does. The server restarts if a newer image is published, ending every stream; `NO_UPDATER` when no updater has reported |
+| `update_now` | Asks the host's updater to install the newest image, as the About page's Update now does. The server restarts if a newer image is published, ending every stream, so it needs `confirm`; `NO_UPDATER` when no updater has reported. The result says how many sessions were playing |
+| `plex_sync` | `POST /api/v1/admin/plex/sync`, answering the status `plex_status` does; a failure shows in `lastError`, not as a tool error. Absent without Plex sync |
+| `set_source_enabled` | `PATCH /api/v1/sources/{id}`: `sourceId` and `enabled`. Disabling takes the source out of selection and probes, and needs `confirm`; enabling does not |
+| `probe_source` | `POST /api/v1/admin/sources/{id}/probe` for `sourceId`: queued, then `source_health` shows the result once `nextCheckAt` moves. `PROBES_OFF` when probes do not run |
+| `switch_session_source` | `POST /api/v1/admin/sessions/{id}/switch-source` for a `sessionId` from `watching_now`; `NO_OTHER_SOURCE` names `channel` as the tool that shows the sources |
+| `apply_policy` | `POST /api/v1/admin/policy/apply` at the `revision` `preview_policy` showed; needs `confirm` |
+| `edit_station` | `PATCH /api/v1/admin/lineup/{id}` under a policy: `entryId`, `revision` and any of `number`, `name`, `group`, `clearGroup`, `enabled` and `gracenoteId`. With `dryRun` (true by default) it answers the impact, the channels that would turn on or off, renumber, rename or regroup, and writes nothing; `dryRun` false writes and applies |
+| `decide_merge` | Settles two station keys `a` and `b` as `names.aliases` (`decision` `accept`, `a` joins `b`) or `names.never` (`never`), at `revision`, with the same `dryRun` preview |
+| `decide_guide_match` | `POST /api/v1/admin/policy/guide-matches/accept` or `dismiss` for `station`, `guideId` and `channelId` (`decision` `accept` or `dismiss`), or `accept-all` with `acceptAll` true and `minConfidence` |
 
-A tool answers JSON text. A refusal is a result with `isError` and the API's error code and message, such as `INVALID_REQUEST: limit is 1 to 200`; a tool the token is not listed is a JSON-RPC error.
+Every policy write an action makes checks `revision` the way `If-Match` is checked on `PUT /api/v1/admin/policy`: a stale one answers `POLICY_CHANGED` with "call preview_policy again", and nothing is written. The policy runs they cause log `mcp` as their reason in `policy_changes`. A tool that needs `confirm` answers `CONFIRMATION_REQUIRED` without it and does nothing.
+
+A tool answers JSON text. A refusal is a result with `isError` and the API's error code and message, such as `INVALID_REQUEST: limit is 1 to 200`, and it names the tool to call next where there is one. An unexpected failure answers `INTERNAL_ERROR` with the exception's class and points to `recent_log` with `level` `error`. A tool the token is not listed is a JSON-RPC error.
 
 ## Watchlist
 
@@ -379,6 +408,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | GET | `/api/v1/admin/status` | One summary of the server, described [below](#server-status) |
 | GET | `/api/v1/admin/candidates?q=&provider=&limit=&offset=` | Candidates with their sources (`id`, `protocol`, `status`, `manuallyDisabled`) and the lineup entries using them; `q` matches name, exact number or `tvg-id`, case-insensitively; `limit` 1-1000 (default 100) |
 | GET | `/api/v1/admin/sessions` | Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`, `startedAt`, `client` (the player's address, once it made a request), `bytes` sent to the player so far, `offeringId` of the source playing, `bitrateKbps` (the rate over the last 10 seconds or so), `stalls` (media requests the upstream refused or dropped before anything was answered), `segmentsServed` (HLS segments relayed) and `sourceSwitches` (moves to another source, on a failure or by hand). An empty list means nothing is playing |
+| POST | `/api/v1/admin/sources/{id}/probe` | Put the source at the front of the probe queue, as the channel page's Probe now does; `202` with `{"sourceId"}`, and its health updates when the probe ends. `404 SOURCE_NOT_FOUND`, `409 PROBES_OFF` when probes do not run, `409 PROBE_RUNNING` while a probe of it is in flight |
 | POST | `/api/v1/admin/sessions/{id}/switch-source` | Move a live session to its channel's next source, see [source selection](source-health.md#source-selection); answers the session, or `409 NO_OTHER_SOURCE` |
 | GET | `/api/v1/admin/history?since=&kind=&client=&limit=` | Ended playback sessions, the newest end first, described [below](#playback-history) |
 | GET | `/api/v1/admin/events/stream?types=` | The server's events as server-sent events, described [below](#event-stream) |
@@ -412,7 +442,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | POST | `/api/v1/admin/policy/guide-matches/accept-all` | `{"minConfidence"}` (optional): accepts each station's best proposal at that confidence or more, else at `guideMatches.acceptAbove`, and applies once; returns `{"accepted", "applied"}` |
 | POST | `/api/v1/admin/policy/guide-matches/dismiss` | `{"station", "guideId", "channelId"}`: never proposes the channel for the station again, and applies |
 | GET | `/api/v1/admin/stations/{key}` | One station key: the station the policy builds, its pins, and every candidate that names the key or joins it, each `taken`, `skipped` or `claimed` with a `reason` |
-| GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `interval` or `api`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`. It survives a restart; before any sync, `lastSyncAt` is null. 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
+| GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `interval`, `api` or `mcp`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`. It survives a restart; before any sync, `lastSyncAt` is null. 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
 | POST | `/api/v1/admin/plex/sync` | Sync Plex now; returns the same status. A failure is reported in `lastError`, not as an error response |
 | GET | `/api/v1/admin/hdhr/access` | Who may use the tuners: `enabled`, `open` (every address is admitted), `configured` (from `SOFA_HDHR_ALLOW`), `allowed` (from the portal or this API) and `refused`, up to ten addresses refused since the start that are still refused, newest first, each with `address`, `lastAt` and the `path` it asked for |
 | PUT | `/api/v1/admin/hdhr/access` | `{"allowed": ["PLEX_SERVER_IP"]}` replaces the addresses allowed at run time, at most 64 IP literals or CIDR blocks, and returns the same status. It applies at once, without a restart, and is kept in the database; `SOFA_HDHR_ALLOW` still applies beside it. 400 `INVALID_REQUEST` names an entry that does not parse, and nothing changes |
@@ -510,7 +540,7 @@ curl --no-buffer -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://SERVER_HOST
 
 ### Notifications
 
-The [notification](notifications.md) targets, which the Connect page edits too. A target is `id`, `name`, `kind` (`webhook`, `ntfy` or `apprise`), `url`, `hasSecret`, `events`, `enabled`, `createdAt`, `updatedAt` and `lastDelivery`; the secret itself is never returned. `POST` takes `name`, `kind` and `url`, and optionally `secret`, `events` (all but `attention.raised` and `attention.cleared` without it) and `enabled`; `PATCH` takes any of them, and an empty `secret` clears it. The URL is `http` or `https` with a host and no user name, and may be a LAN or loopback address. A delivery is `event`, `at`, `ok`, `status` (null when the target never answered), `error` and `attempts`. A bad field is `400 INVALID_REQUEST`, an unknown id `404 NOTIFICATION_TARGET_NOT_FOUND`.
+The [notification](notifications.md) targets, which the Connect page edits too. A target is `id`, `name`, `kind` (`webhook`, `ntfy` or `apprise`), `url`, `hasSecret`, `events`, `enabled`, `createdAt`, `updatedAt` and `lastDelivery`; the secret itself is never returned, and `url` is masked to its scheme and host (`https://ntfy.sh/…`) because the path is a credential. `POST` takes `name`, `kind` and `url`, and optionally `secret`, `events` (all but `attention.raised` and `attention.cleared` without it) and `enabled`; `PATCH` takes any of them, an empty `secret` clears it, and an empty or masked `url` keeps the stored one. The URL is `http` or `https` with a host and no user name, and may be a LAN or loopback address. A delivery is `event`, `at`, `ok`, `status` (null when the target never answered), `error` and `attempts`. A bad field is `400 INVALID_REQUEST`, an unknown id `404 NOTIFICATION_TARGET_NOT_FOUND`.
 
 ```sh
 curl -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" -H 'Content-Type: application/json' \

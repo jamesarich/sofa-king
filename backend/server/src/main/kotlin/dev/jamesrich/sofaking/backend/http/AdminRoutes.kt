@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.api.CandidatePage
 import dev.jamesrich.sofaking.backend.api.CreateLineupEntry
 import dev.jamesrich.sofaking.backend.api.LineupEntry
 import dev.jamesrich.sofaking.backend.api.LineupOfferingInfo
+import dev.jamesrich.sofaking.backend.api.ProbeQueued
 import dev.jamesrich.sofaking.backend.api.ReorderLineup
 import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
@@ -27,6 +28,19 @@ import io.ktor.server.routing.route
 import java.time.Clock
 import java.time.Instant
 
+/** Puts source [id] at the front of the probe queue; the source's health updates when its probe ends. */
+internal suspend fun queueProbe(runtime: LiveRuntime, id: String): ProbeQueued {
+    if (runtime.feeds.published.offering(id) == null) {
+        throw ApiFailure(HttpStatusCode.NotFound, "SOURCE_NOT_FOUND", "Unknown source")
+    }
+    val probes = runtime.probes
+        ?: throw ApiFailure(HttpStatusCode.Conflict, "PROBES_OFF", "Probes are off on this server")
+    if (!probes.probeNow(id)) {
+        throw ApiFailure(HttpStatusCode.Conflict, "PROBE_RUNNING", "A probe of that source is already running")
+    }
+    return ProbeQueued(id)
+}
+
 /**
  * The admin API under `/api/v1/admin`: the server status, feed candidates, guide channels and the household lineup.
  * JSON only. [revision] is the commit the status reports.
@@ -39,6 +53,9 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
             val id = call.parameters["id"]!!
             runtime.sessions.media.switchSource(id)
             call.respond(runtime.sessions.snapshot().single { it.id == id })
+        }
+        post("/sources/{id}/probe") {
+            call.respond(HttpStatusCode.Accepted, queueProbe(runtime, call.parameters["id"]!!))
         }
         get("/candidates") {
             val params = call.request.queryParameters

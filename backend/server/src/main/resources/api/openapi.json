@@ -186,6 +186,7 @@
           "manuallyDisabled": { "type": "boolean" }, "lastQualifiedAt": { "type": ["string", "null"] }, "nextCheckAt": { "type": ["string", "null"] }
         }
       },
+      "ProbeQueued": { "type": "object", "required": ["sourceId"], "properties": { "sourceId": { "type": "string", "description": "The source whose probe was put at the front of the queue." } } },
       "UpdateSource": { "type": "object", "required": ["manuallyDisabled"], "properties": { "manuallyDisabled": { "type": "boolean" } } },
       "PairingClaim": {
         "type": "object", "required": ["code"],
@@ -358,14 +359,14 @@
       "NotificationTarget": {
         "type": "object", "required": ["id", "name", "kind", "url", "hasSecret", "events", "enabled", "createdAt", "updatedAt"],
         "properties": {
-          "id": { "type": "string" }, "name": { "type": "string" }, "kind": { "type": "string", "enum": ["webhook", "ntfy", "apprise"] }, "url": { "type": "string", "format": "uri" },
+          "id": { "type": "string" }, "name": { "type": "string" }, "kind": { "type": "string", "enum": ["webhook", "ntfy", "apprise"] }, "url": { "type": "string", "description": "The scheme and host with /… for the rest, since the path is a credential." },
           "hasSecret": { "type": "boolean", "description": "Whether a webhook signing key or ntfy access token is set; the API never returns it." },
           "events": { "type": "array", "items": { "$ref": "#/components/schemas/NotificationEvent" } }, "enabled": { "type": "boolean" },
           "createdAt": { "type": "string", "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" },
           "lastDelivery": { "oneOf": [{ "$ref": "#/components/schemas/NotificationDelivery" }, { "type": "null" }], "description": "Null before the first." }
         }
       },
-      "SaveNotificationTarget": { "type": "object", "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 80 }, "kind": { "type": "string", "enum": ["webhook", "ntfy", "apprise"] }, "url": { "type": "string", "format": "uri", "maxLength": 2048, "description": "http or https, with a host and no user name." }, "secret": { "type": "string", "maxLength": 512, "description": "Signs a webhook's body as X-SofaKing-Signature, or is ntfy's bearer token. Empty clears it." }, "events": { "type": "array", "items": { "$ref": "#/components/schemas/NotificationEvent" } }, "enabled": { "type": "boolean" } } },
+      "SaveNotificationTarget": { "type": "object", "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 80 }, "kind": { "type": "string", "enum": ["webhook", "ntfy", "apprise"] }, "url": { "type": "string", "format": "uri", "maxLength": 2048, "description": "http or https, with a host and no user name. Empty, or the masked URL a listing shows, keeps the stored one." }, "secret": { "type": "string", "maxLength": 512, "description": "Signs a webhook's body as X-SofaKing-Signature, or is ntfy's bearer token. Empty clears it." }, "events": { "type": "array", "items": { "$ref": "#/components/schemas/NotificationEvent" } }, "enabled": { "type": "boolean" } } },
       "PairingCode": { "type": "object", "required": ["code", "expiresAt"], "properties": { "code": { "type": "string", "example": "123456" }, "expiresAt": { "type": "string", "format": "date-time" } } },
       "VirtualSource": { "type": "object", "required": ["kind", "value"], "properties": { "kind": { "type": "string", "enum": ["library", "show", "genre", "channel"] }, "value": { "type": "string", "description": "A library ID, a show's item ID, a genre name or a lineup entry ID, by kind. A channel plays in timed slots only." } } },
       "VirtualSlot": { "type": "object", "required": ["source"], "properties": { "source": { "$ref": "#/components/schemas/VirtualSource" }, "shuffle": { "type": "boolean", "default": false }, "start": { "type": ["string", "null"], "description": "HH:MM in the server's time zone, on every slot or none.", "example": "18:00" } } },
@@ -1143,6 +1144,11 @@
       "post": { "tags": ["Admin"], "summary": "Move a live session to its channel's next source", "description": "Passes over the source playing and those the session was switched away from, all of them again once none is left. The session keeps its id and moves to a new epoch: the app re-reads it, and another player's next media request answers 410.", "security": [{ "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "The session on its new source", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ActiveSession" } } } }, "409": { "$ref": "#/components/responses/Error" }, "410": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/sources/{id}/probe": {
+      "post": { "tags": ["Admin"], "summary": "Probe a source now", "description": "Puts the source at the front of the probe queue, so the next free worker probes it whether or not it is due; its health updates when the probe ends. 409 PROBES_OFF when probes do not run, 409 PROBE_RUNNING while a probe of it is in flight.", "security": [{ "adminToken": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "202": { "description": "Queued", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProbeQueued" } } } }, "404": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/history": {
       "get": { "tags": ["Admin"], "summary": "Ended playback sessions, the newest end first", "description": "Live TV, library files and recordings, one row per session once it ends, kept for SOFA_HISTORY_DAYS days (90 by default).", "security": [{ "adminToken": [] }],

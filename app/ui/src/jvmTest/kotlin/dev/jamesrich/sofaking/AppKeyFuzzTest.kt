@@ -103,7 +103,7 @@ class AppKeyFuzzTest {
             }
             val label = focusedLabel()
             label?.let { visited[it] = (visited[it] ?: 0) + 1 }
-            trace += "${key.name}\t$label"
+            trace += "${key.name}\t$label\tsessions ${server.sessionsOpened.get()} opened ${server.openSessions} open"
             if (server.openSessions > 1) failAt("the app holds ${server.openSessions} playback sessions")
         }
     }

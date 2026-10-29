@@ -141,7 +141,7 @@ internal object AdminSessionRows : Table("admin_session") {
     val expiresAt = text("expires_at")
     override val primaryKey = PrimaryKey(key)
 }
-internal object RuntimeSettings : Table("runtime_setting") {
+internal object RuntimeSettingTable : Table("runtime_setting") {
     val key = text("key")
     val value = text("value")
     val updatedAt = text("updated_at")

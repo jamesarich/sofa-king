@@ -14,6 +14,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.RecordingPadding
 import dev.jamesrich.sofaking.data.SeriesRule
+import dev.jamesrich.sofaking.data.nextKeep
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.recordings_series
 import dev.jamesrich.sofaking.resources.recordings_series_all_airings
@@ -128,12 +129,3 @@ private fun seriesSummary(rule: SeriesRule): String = listOfNotNull(
 
 /** The padding after [padding] in the Padding button's steps; a padding set on the portal goes to the default. */
 internal fun nextPadding(padding: RecordingPadding?): RecordingPadding = padding?.next() ?: RecordingPadding.DEFAULT
-
-/** The keep counts the Keep button steps through, all first. */
-internal val KEEP_STEPS = listOf(0, 1, 3, 5, 10)
-
-/**
- * The keep count after [keep]: the next step up, back to all after the last; a count set elsewhere
- * goes to the next step above it.
- */
-internal fun nextKeep(keep: Int): Int = KEEP_STEPS.firstOrNull { it > keep } ?: 0

@@ -57,8 +57,9 @@ final class AppModel {
     var settingsUnlocked = false
     /// Turning on kids mode asks for the Live tab; the tab bar takes it and clears it.
     var liveRequested = false
-    /// Wrong PINs in a row, and when the wait the fifth starts ends; they last as long as the process.
-    private var pinMisses = 0
+    /// Wrong PINs in a row and the wait the fifth starts, which last as long as the process; `pinWaitEnds` is when the
+    /// wait ends, for the lock page to read again then.
+    @ObservationIgnored private let pinThrottle = PinThrottle()
     private(set) var pinWaitEnds: Date?
     private var watches: [Watch] = []
     private var published: [TopShelfChannel] = []
@@ -128,20 +129,17 @@ final class AppModel {
     var recordingsShown: Bool { capabilities?.recordings == true && settings?.kidsMode != true }
 
     /// Whether the lock makes the viewer wait before the next PIN.
-    var pinWaiting: Bool { pinWaitEnds.map { $0 > Date() } ?? false }
+    var pinWaiting: Bool { pinWaitEnds != nil && pinThrottle.waiting }
 
     /// A wrong PIN; the fifth in a row makes the next try wait 30 seconds, and the count starts over.
     func pinMissed() {
-        pinMisses += 1
-        if pinMisses >= 5 {
-            pinMisses = 0
-            pinWaitEnds = Date().addingTimeInterval(30)
-        }
+        pinThrottle.missed()
+        pinWaitEnds = pinThrottle.waiting ? Date().addingTimeInterval(Double(pinThrottle.remainingMs) / 1000) : nil
     }
 
     /// The right PIN, or the lock removed.
     func pinPassed() {
-        pinMisses = 0
+        pinThrottle.passed()
         pinWaitEnds = nil
     }
 

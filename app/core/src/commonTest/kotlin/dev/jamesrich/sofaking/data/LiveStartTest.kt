@@ -1,10 +1,12 @@
-package dev.jamesrich.sofaking.ui.player
+package dev.jamesrich.sofaking.data
 
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class LivePlaylistStartTest {
+class LiveStartTest {
     private fun live(segments: Int) = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n" +
         (0 until segments).joinToString("") { "#EXTINF:2.0,\nseg$it.ts\n" }
 
@@ -19,5 +21,20 @@ class LivePlaylistStartTest {
         assertTrue(startsAlready(live(1) + "#EXT-X-ENDLIST\n"))
         assertTrue(startsAlready("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nmedia.m3u8\n"))
         assertTrue(startsAlready(null))
+    }
+
+    @Test fun `awaiting segments polls once a second until the playlist lists three`() = runTest {
+        var reads = 0
+        awaitLiveSegments { live(++reads) }
+        assertEquals(3, reads)
+    }
+
+    @Test fun `awaiting segments gives up after forty reads of a playlist that never fills`() = runTest {
+        var reads = 0
+        awaitLiveSegments {
+            reads++
+            live(1)
+        }
+        assertEquals(40, reads)
     }
 }

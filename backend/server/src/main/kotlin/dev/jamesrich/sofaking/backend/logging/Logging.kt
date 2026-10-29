@@ -16,25 +16,27 @@ import ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy
 import ch.qos.logback.core.spi.ContextAwareBase
 import ch.qos.logback.core.spi.FilterReply
 import ch.qos.logback.core.util.FileSize
+import dev.jamesrich.sofaking.backend.EnvironmentReader
+import dev.jamesrich.sofaking.backend.settings.SettingType
+import dev.jamesrich.sofaking.backend.settings.Settings
 import java.io.OutputStream
 import java.nio.file.Path
 
 /** `SOFA_LOG_LEVEL`, `SOFA_LOG_FORMAT` and `SOFA_LOG_DAYS`, validated. */
 data class LogSettings(val level: String = "info", val format: String = "text", val days: Int = DEFAULT_LOG_DAYS) {
     companion object {
-        val LEVELS = listOf("trace", "debug", "info", "warn", "error", "off")
-        val FORMATS = listOf("text", "json")
-        val DAYS = 0..MAX_LOG_DAYS
+        val LEVELS = (Settings.LOG_LEVEL.type as SettingType.Choice).values
+        val FORMATS = (Settings.LOG_FORMAT.type as SettingType.Choice).values
+        val DAYS = Settings.LOG_DAYS.range
 
         /** The settings [environment] names; an unknown value is an [IllegalArgumentException] naming the variable. */
         fun from(environment: Map<String, String>): LogSettings {
-            val level = (environment["SOFA_LOG_LEVEL"] ?: "info").trim().lowercase()
-            require(level in LEVELS) { "SOFA_LOG_LEVEL must be one of ${LEVELS.joinToString()}" }
-            val format = (environment["SOFA_LOG_FORMAT"] ?: "text").trim().lowercase()
-            require(format in FORMATS) { "SOFA_LOG_FORMAT must be one of ${FORMATS.joinToString()}" }
-            val days = (environment["SOFA_LOG_DAYS"] ?: DEFAULT_LOG_DAYS.toString()).trim().toIntOrNull()
-            require(days != null && days in DAYS) { "SOFA_LOG_DAYS must be a whole number from 0 to $MAX_LOG_DAYS" }
-            return LogSettings(level, format, days)
+            val env = EnvironmentReader(environment)
+            return LogSettings(
+                env.choice(Settings.LOG_LEVEL),
+                env.choice(Settings.LOG_FORMAT),
+                env.number(Settings.LOG_DAYS),
+            )
         }
     }
 }
@@ -158,7 +160,6 @@ fun logFile(dataDirectory: Path): Path = dataDirectory.resolve(LOG_FOLDER).resol
 
 /** How many days of log files are kept by default, and at most. */
 const val DEFAULT_LOG_DAYS = 14
-private const val MAX_LOG_DAYS = 365
 
 /** The size at which the day's log file rolls early, and the most all of them may take. */
 private const val LOG_FILE_SIZE = "20MB"

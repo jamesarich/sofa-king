@@ -1,0 +1,20 @@
+{
+    "programs": [
+        {
+            "id": "c1e8a2f7-4b90-3d65-a0c3-8e7f5b2d9a14",
+            "channelId": "e765525a-42b9-46cf-821d-d2b5c131c6ba",
+            "startsAt": "2026-10-10T13:30:00Z",
+            "endsAt": "2026-10-10T14:30:00Z",
+            "title": "Evening News",
+            "description": "The day's headlines.",
+            "subTitle": "Local edition",
+            "episode": "S2 E5",
+            "isNew": true,
+            "rating": "TV-G",
+            "icon": "https://guide.example/icons/evening-news.png",
+            "categories": [
+                "News"
+            ]
+        }
+    ]
+}

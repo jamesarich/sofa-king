@@ -10,7 +10,7 @@ import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
 // offer. None deletes anything; update_now restarts the server when a newer image is published.
 
 /** Starts work the server would do on its own schedule anyway; asking twice does no more than once. */
-private val UPKEEP = ToolAnnotations(
+internal val UPKEEP = ToolAnnotations(
     readOnlyHint = false,
     destructiveHint = false,
     idempotentHint = true,
@@ -29,7 +29,11 @@ internal fun Server.actionTools(context: McpContext) {
     ) { arguments ->
         val id = arguments.string(JOB) ?: invalid("job is required")
         if (!runtime.jobs.runNow(id)) {
-            throw ApiFailure(HttpStatusCode.NotFound, "JOB_NOT_FOUND", "No job with that id can be started")
+            throw ApiFailure(
+                HttpStatusCode.NotFound,
+                "JOB_NOT_FOUND",
+                "No job with that id can be started; call jobs, only ids with canRunNow start",
+            )
         }
         ActionResult(true, "Started $id; jobs shows when it ends and how it went")
     }
@@ -42,11 +46,30 @@ internal fun Server.actionTools(context: McpContext) {
             UPKEEP,
         ) { arguments ->
             val id = arguments.string(LIBRARY)
-            val name = id?.let { libraries.library(it).name }
+            val name = id?.let { wanted ->
+                libraries.libraries().firstOrNull { it.id == wanted }?.name ?: throw ApiFailure(
+                    HttpStatusCode.NotFound,
+                    "LIBRARY_NOT_FOUND",
+                    "No library has that id; call libraries for the ids",
+                )
+            }
             libraries.requestScan(id)
             ActionResult(true, "Queued a scan of ${name ?: "every library"}")
         }
     }
+    updateTools(context)
+    runtime.plex?.let { plex ->
+        tool(
+            "plex_sync",
+            "Sync Plex with the lineup now, as the portal's Plex page does, and answer the sync's status as " +
+                "plex_status does. A failure shows in lastError, not as a tool error.",
+            annotations = UPKEEP.copy(openWorldHint = true),
+        ) { plex.sync("mcp").view(DEFAULT_PAGE) }
+    }
+}
+
+private fun Server.updateTools(context: McpContext) {
+    val runtime = context.runtime
     runtime.updates?.let { updates ->
         tool(
             "check_for_update",
@@ -56,23 +79,28 @@ internal fun Server.actionTools(context: McpContext) {
         tool(
             "update_now",
             "Ask the host's updater to install the newest published image now. The server restarts if one is newer, " +
-                "dropping every stream that plays; check update_status and watching_now first.",
-            annotations = UPKEEP.copy(destructiveHint = true),
-        ) { requestUpdate(updates) }
+                "dropping every stream that plays; check update_status and watching_now first. Needs confirm true.",
+            schema(CONFIRM to boolean("Required true: the restart drops every stream that plays")),
+            UPKEEP.copy(destructiveHint = true),
+        ) { arguments ->
+            arguments.confirmed("the server restarts if a newer image is published, dropping every stream that plays")
+            requestUpdate(updates, runtime.sessions.snapshot().size)
+        }
     }
 }
 
-private suspend fun requestUpdate(updates: UpdateChecker): ActionResult = when {
+private suspend fun requestUpdate(updates: UpdateChecker, playing: Int): ActionResult = when {
     updates.state().updater == null ->
         throw ApiFailure(
             HttpStatusCode.Conflict,
             "NO_UPDATER",
-            "The host's updater has not reported, so there is nothing to ask",
+            "The host's updater has not reported, so there is nothing to ask; call update_status",
         )
 
     updates.requestUpdate() -> ActionResult(
         true,
-        "Asked the updater to run; the server restarts if a newer image is published",
+        "Asked the updater to run; the server restarts if a newer image is published. " +
+            "$playing ${if (playing == 1) "session was" else "sessions were"} playing",
     )
 
     else -> throw ApiFailure(

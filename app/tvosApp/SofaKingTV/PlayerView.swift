@@ -367,7 +367,7 @@ struct PlayerView: View {
             // Left while the session opened: the view is gone, and leaving released the session. A switch or a
             // reconnect runs in a task of its own that leaving does not cancel, so the view's presence decides too.
             guard !Task.isCancelled, shown, fromStart == nil, multiview == nil else { return }
-            if let url = URL(string: stream.url) { await StreamStart.settled(url) }
+            if let url = URL(string: stream.url) { await StreamStart.settled(url, core: model.core) }
             guard !Task.isCancelled, shown, fromStart == nil, multiview == nil else { return }
             play(stream)
         } catch {
@@ -397,11 +397,11 @@ struct PlayerView: View {
         player.play()
     }
 
-    /// Reopens the channel after 2, 4, 8 … seconds, up to a minute between tries; the server hands back the held session
-    /// or a new one when the old stream is gone.
+    /// Reopens the channel after 2, 4, 8 and 15 seconds, then every 30, as every client does; the server hands back the
+    /// held session or a new one when the old stream is gone.
     private func scheduleReconnect() {
         guard shown, fromStart == nil, multiview == nil, reconnect == nil || reconnect?.isCancelled == true else { return }
-        let delay = min(60, 2 << min(attempts, 5))
+        let delay = Double(model.core.reconnectDelayMs(attempt: Int32(attempts))) / 1000
         attempts += 1
         reconnect = Task {
             try? await Task.sleep(for: .seconds(delay))

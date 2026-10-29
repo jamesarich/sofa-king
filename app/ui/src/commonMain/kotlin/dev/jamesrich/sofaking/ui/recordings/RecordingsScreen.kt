@@ -21,9 +21,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.DvrRecording
-import dev.jamesrich.sofaking.data.RecordingState
+import dev.jamesrich.sofaking.data.RecordingGroup
+import dev.jamesrich.sofaking.data.RecordingGroupEntry
 import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.SeriesRule
+import dev.jamesrich.sofaking.data.recordingGroups
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.load_failed
 import dev.jamesrich.sofaking.resources.loading
@@ -158,7 +160,7 @@ private fun RecordingList(
 
 /** Each group's heading and its recordings; the one just played, else the first, answers to [firstFocus]. */
 private fun LazyListScope.recordingGroups(
-    groups: List<Pair<RecordingGroup, List<DvrRecording>>>,
+    groups: List<RecordingGroupEntry>,
     returnedFrom: String?,
     time: TimeFormatter,
     onPlay: (DvrRecording, Boolean) -> Unit,
@@ -167,7 +169,7 @@ private fun LazyListScope.recordingGroups(
     firstFocus: FocusRequester,
 ) {
     val firstId = returnedFrom?.takeIf { id -> groups.any { (_, recordings) -> recordings.any { it.id == id } } }
-        ?: groups.firstOrNull()?.second?.firstOrNull()?.id
+        ?: groups.firstOrNull()?.recordings?.firstOrNull()?.id
     groups.forEach { (group, recordings) ->
         item(key = "group-${group.name}") {
             Text(
@@ -189,32 +191,10 @@ private fun LazyListScope.recordingGroups(
     }
 }
 
-/** The list's groups, in the order they show. */
-internal enum class RecordingGroup(val label: StringResource) {
-    NOW(Res.string.recordings_now),
-    RECORDED(Res.string.recordings_recorded),
-    SCHEDULED(Res.string.recordings_scheduled),
-}
-
-/**
- * [recordings] by group, empty groups left out: running ones first, then finished and failed ones newest first,
- * then scheduled ones soonest first. A state a newer server added counts as recorded.
- */
-internal fun recordingGroups(recordings: List<DvrRecording>): List<Pair<RecordingGroup, List<DvrRecording>>> {
-    val byGroup = recordings.groupBy {
-        when (it.state) {
-            RecordingState.RECORDING -> RecordingGroup.NOW
-            RecordingState.SCHEDULED -> RecordingGroup.SCHEDULED
-            else -> RecordingGroup.RECORDED
-        }
+/** The heading over the group. */
+internal val RecordingGroup.label: StringResource
+    get() = when (this) {
+        RecordingGroup.NOW -> Res.string.recordings_now
+        RecordingGroup.RECORDED -> Res.string.recordings_recorded
+        RecordingGroup.SCHEDULED -> Res.string.recordings_scheduled
     }
-    return RecordingGroup.entries.mapNotNull { group ->
-        val list = byGroup[group].orEmpty()
-        val sorted = if (group == RecordingGroup.SCHEDULED) {
-            list.sortedBy { it.startsAt }
-        } else {
-            list.sortedByDescending { it.startsAt }
-        }
-        sorted.takeIf { it.isNotEmpty() }?.let { group to it }
-    }
-}

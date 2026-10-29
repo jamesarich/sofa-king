@@ -69,14 +69,13 @@ internal class PolicySummary(
 
 /**
  * The runtime settings as the page edits them: [current] is what the server uses, [environment] what it started with,
- * [saved] the names whose value comes from the database. [plex] says whether Plex sync is configured, so the interval
- * reads as applying to it or as waiting for it. [errors] are a refused save's messages, and [proposed] its values.
+ * [saved] the names whose value comes from the database. [errors] are a refused save's messages, and [proposed] its
+ * values.
  */
 internal class RuntimeSettingsView(
     val current: RuntimeValues,
     val environment: RuntimeValues,
     val saved: Set<String>,
-    val plex: Boolean,
     val errors: List<String> = emptyList(),
     val proposed: Map<String, String>? = null,
 )

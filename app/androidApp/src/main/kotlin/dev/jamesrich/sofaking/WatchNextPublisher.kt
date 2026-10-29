@@ -29,7 +29,11 @@ import java.util.concurrent.atomic.AtomicReference
  * restricted base classes; they are the library's public API on `WatchNextProgram`, as its own samples call them.
  */
 @SuppressLint("RestrictedApi")
-internal class WatchNextPublisher(private val context: Context) : WatchNext {
+internal class WatchNextPublisher(
+    private val context: Context,
+    /** The server the app is set to; blocks, so it is read on the writer's thread. */
+    private val serverUrl: () -> String?,
+) : WatchNext {
     private val writer = Executors.newSingleThreadExecutor { Thread(it, "watch-next") }
     private val waiting = AtomicReference<List<MediaItem>?>(null)
     private val engage = EngagePublisher(context)
@@ -50,10 +54,11 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
     }
 
     private fun write(items: List<MediaItem>) {
+        val server = serverUrl()
         if (engage.available()) {
             // Once, before the first shelf Engage takes: a Watch Next launcher gets its row from the SDK.
             if (!engaged) clear()
-            if (engage.publish(items)) {
+            if (engage.publish(items, server)) {
                 engaged = true
                 return
             }
@@ -82,7 +87,7 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
             items.forEachIndexed { index, item ->
                 val old = byItem[item.id]
                 if (old != null && !old.isBrowsable) return@forEachIndexed
-                val program = program(item, old, engagedAt = now - index * ENGAGEMENT_STEP_MS)
+                val program = program(item, server, old, engagedAt = now - index * ENGAGEMENT_STEP_MS)
                 if (old == null) {
                     resolver.insert(WatchNextPrograms.CONTENT_URI, program.toContentValues())
                 } else {
@@ -94,7 +99,7 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
                     )
                 }
             }
-            WatchNextArtwork.keepOnly(context, items.mapNotNull { artwork(it)?.first })
+            WatchNextArtwork.keepOnly(context, items.mapNotNull { artwork(it, server)?.first })
         }.onFailure {
             // A launcher without the TV provider, or one that refuses this app's writes, leaves the row as it was.
             Log.w(TAG, "watch next: the row was not updated: $it")
@@ -112,7 +117,7 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
      * [item]'s entry. The launcher orders the row by the last engagement, so an entry keeps its own until its place
      * in the item changes; a new or moved one takes [engagedAt], which keeps the shelf's order.
      */
-    private fun program(item: MediaItem, old: WatchNextProgram?, engagedAt: Long): WatchNextProgram {
+    private fun program(item: MediaItem, server: String?, old: WatchNextProgram?, engagedAt: Long): WatchNextProgram {
         val positionMs = item.progress?.takeIf { it.inProgress }?.positionMs ?: 0
         val type = if (positionMs > 0) {
             WatchNextPrograms.WATCH_NEXT_TYPE_CONTINUE
@@ -138,7 +143,7 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
         } else {
             builder.setType(TvContractCompat.PreviewPrograms.TYPE_MOVIE).setTitle(item.title)
         }
-        artwork(item)?.let { (uri, ratio) -> builder.setPosterArtUri(uri).setPosterArtAspectRatio(ratio) }
+        artwork(item, server)?.let { (uri, ratio) -> builder.setPosterArtUri(uri).setPosterArtAspectRatio(ratio) }
         return builder.build()
     }
 
@@ -151,12 +156,12 @@ internal class WatchNextPublisher(private val context: Context) : WatchNext {
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
     /** The backdrop, which fits the row's wide cards, else the poster, as the launcher may read them. */
-    private fun artwork(item: MediaItem): Pair<Uri, Int>? =
-        item.backdrop?.let { WatchNextArtwork.contentUri(context, it) }?.let {
+    private fun artwork(item: MediaItem, server: String?): Pair<Uri, Int>? =
+        item.backdrop?.let { WatchNextArtwork.contentUri(context, server, it) }?.let {
             it to
                 TvContractCompat.PreviewPrograms.ASPECT_RATIO_16_9
         }
-            ?: item.poster?.let { WatchNextArtwork.contentUri(context, it) }?.let {
+            ?: item.poster?.let { WatchNextArtwork.contentUri(context, server, it) }?.let {
                 it to
                     TvContractCompat.PreviewPrograms.ASPECT_RATIO_MOVIE_POSTER
             }

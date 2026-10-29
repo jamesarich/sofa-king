@@ -35,11 +35,13 @@ SOFAKING_FUZZ_SEED=7 SOFAKING_FUZZ_STEPS=2000 ./gradlew :ui:jvmTest --tests 'dev
 SOFAKING_FUZZ_KEYS=Down,Back,Down,Up ./gradlew :ui:jvmTest --tests 'dev.jamesrich.sofaking.AppKeyFuzzTest.random remote*' --rerun
 ```
 
-The screenshot tests are Google's [Compose Preview Screenshot Testing](https://developer.android.com/studio/preview/compose-screenshot-testing-with-testsuites), run as the `androidApp` module's `screenshotTest` test suite. `androidApp/src/screenshotTest` holds `@PreviewTest` previews of the guide, a program's details, the player's info bar, the Library tab, a show's page and Settings, on a 1080p TV and a phone; the screens and their sample data are in `ui`'s `androidMain` (`dev.jamesrich.sofaking.previews`), on a clock stopped at one evening in UTC. Android Studio shows them as previews. `:androidApp:testDebugScreenshotTestDefaultTestSuite` renders them with the Android layout library on the JVM and fails on a pixel that differs from the reference images in `androidApp/src/screenshotTestDefaultDebug/reference`; its report, with the differences, is in `androidApp/build/reports/tests/testDebugScreenshotTestDefaultTestSuite`. After an intended change to how a screen looks, write the references again and commit them with the change:
+The screenshot tests are Google's [Compose Preview Screenshot Testing](https://developer.android.com/studio/preview/compose-screenshot-testing-with-testsuites), run as the `androidApp` module's `screenshotTest` test suite. `androidApp/src/screenshotTest` holds `@PreviewTest` previews of the guide, a program's details, the player's info bar, the Library tab, a show's page and Settings, on a 1080p TV and a phone; the screens and their sample data are in `ui`'s `androidMain` (`dev.jamesrich.sofaking.previews`), on a clock stopped at one evening in UTC. Android Studio shows them as previews. `:androidApp:testDebugScreenshotTestDefaultTestSuite` renders them with the Android layout library on the JVM and fails on a pixel that differs from the reference images in `androidApp/src/screenshotTestDefaultDebug/reference`; its report, with the differences, is in `androidApp/build/reports/tests/testDebugScreenshotTestDefaultTestSuite`. CI's Linux job compares against the references and never rewrites one. After an intended change to how a screen looks, write the references again and commit them with the change:
 
 ```sh
 ./gradlew :androidApp:updateDebugScreenshotTestDefaultTestSuite
 ```
+
+A red comparison in CI uploads the report and the render results in the `reports-linux` artifact, which show what Linux drew.
 
 To look at the TV layout without a TV, run the desktop app with `./gradlew :ui:run -Psofaking.tv=true`; the keyboard's arrows, Enter and Escape are the remote's.
 

@@ -61,7 +61,7 @@ final class GuidePreview {
         guard active, let channelId, channelId != playingId || model?.livePlayer.currentItem == nil else { return }
         tuning?.cancel()
         tuning = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(350))
+            try? await Task.sleep(for: .milliseconds(PreviewDwellKt.PREVIEW_DEBOUNCE_MS))
             guard !Task.isCancelled else { return }
             await self?.tune(channelId)
         }
@@ -72,7 +72,7 @@ final class GuidePreview {
         do {
             let stream = try await model.core.previewChannel(channelId: channelId)
             guard active, self.channelId == channelId, let url = URL(string: stream.url) else { return }
-            await StreamStart.settled(url)
+            await StreamStart.settled(url, core: model.core)
             guard active, self.channelId == channelId else { return }
             let player = model.livePlayer
             if (player.currentItem?.asset as? AVURLAsset)?.url != url {
@@ -93,21 +93,35 @@ final class GuidePreview {
         resting?.cancel()
         guard active, let channelId, let model else { return }
         let sound = model.settings?.previewSound ?? true
-        let openAfterMs = model.settings?.autoOpenDelay.afterMs?.int64Value
+        // The rest timers are core's `PreviewDwell`, as on the other apps; this only acts on what it says.
+        let dwell = PreviewDwell(
+            suppressedChannelId: suppressed,
+            fullScreenAfterMs: model.settings?.autoOpenDelay.afterMs,
+            pointerDriven: false
+        )
+        dwell.onFocus(channelId: channelId, nowMs: uptimeMs())
         resting = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(5))
-            guard !Task.isCancelled, let self else { return }
-            // Music playing keeps the preview silent; the full screen ends the music.
-            if sound && self.playingId == channelId && (model.music.queue == nil || model.music.paused) {
-                model.livePlayer.isMuted = false
+            while let wait = dwell.nextTransitionMs(nowMs: uptimeMs())?.int64Value {
+                try? await Task.sleep(for: .milliseconds(wait))
+                guard !Task.isCancelled, let self else { return }
+                let now = uptimeMs()
+                // Music playing keeps the preview silent; the full screen ends the music.
+                if sound && !dwell.isMuted(nowMs: now) && self.playingId == channelId && (model.music.queue == nil || model.music.paused) {
+                    model.livePlayer.isMuted = false
+                }
+                guard dwell.opensFullScreen(nowMs: now) else { continue }
+                guard self.active, self.channelId == channelId, self.playingId == channelId,
+                      !self.failed, self.suppressed != channelId, !UIAccessibility.isVoiceOverRunning else { return }
+                self.openFullScreen(channelId)
+                return
             }
-            guard let openAfterMs else { return }
-            try? await Task.sleep(for: .milliseconds(max(openAfterMs - 5000, 0)))
-            guard !Task.isCancelled, self.active, self.channelId == channelId, self.playingId == channelId,
-                  !self.failed, self.suppressed != channelId, !UIAccessibility.isVoiceOverRunning else { return }
-            self.openFullScreen(channelId)
         }
     }
+}
+
+/// A monotonic clock in milliseconds, the one `PreviewDwell` reads.
+private func uptimeMs() -> Int64 {
+    Int64(DispatchTime.now().uptimeNanoseconds / 1_000_000)
 }
 
 /// The band over the guide: the preview's picture beside the focused program's channel, title, times and summary.

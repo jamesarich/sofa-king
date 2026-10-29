@@ -7,6 +7,8 @@ import dev.jamesrich.sofaking.backend.update.UpdateState
 import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.contract.Program
+import dev.jamesrich.sofaking.contract.Recording
+import dev.jamesrich.sofaking.contract.Wire
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import java.time.Duration
 import java.time.Instant
@@ -18,63 +20,117 @@ internal fun Server.readTools(context: McpContext) {
     serverTools(context)
     logTool(context)
     sourceTools(context)
+    lineupTools(context)
     guideTools(context)
-    context.runtime.libraries?.let { libraries ->
-        tool(
-            "libraries",
-            "Every media library with its folder, item counts by kind and how its last scan went.",
-            annotations = READ_ONLY,
-        ) {
-            val counts = libraries.counts()
-            libraries.libraries().map { it.info(counts[it.id].orEmpty()) }
-        }
-        tool(
-            "search_library",
-            "Movies, shows, videos and music whose title holds the query, then those with a matching cast member " +
-                "or director, then episodes; at most 50.",
-            schema(QUERY to string("Words to find, 1 to $QUERY_LIMIT characters"), required = listOf(QUERY)),
-            READ_ONLY,
-        ) { arguments ->
-            val query = arguments.string(QUERY)?.takeIf { it.length <= QUERY_LIMIT }
-                ?: invalid("query is 1 to $QUERY_LIMIT characters")
-            libraries.catalog.search(query, SEARCH_RESULTS, music = true)
-        }
-        tool(
-            "library_home",
-            "What the apps' library home shows: Continue watching, the Watchlist, and Recently added per library.",
-            annotations = READ_ONLY,
-        ) { libraries.catalog.home(music = true) }
+    policyTools(context)
+    libraryTools(context)
+    recordingTools(context)
+}
+
+private fun Server.libraryTools(context: McpContext) {
+    val libraries = context.runtime.libraries ?: return
+    tool(
+        "libraries",
+        "Use first for anything about media libraries: every library with its id, folder, item counts by kind and " +
+            "how its last scan went. scan_library (admin) takes the ids.",
+        annotations = READ_ONLY,
+    ) {
+        val counts = libraries.counts()
+        libraries.libraries().map { it.info(counts[it.id].orEmpty()) }
     }
-    context.runtime.dvr?.let { dvr ->
-        tool(
-            "recordings",
-            "Every recording with its state (scheduled, recording, completed, failed or canceled) and any " +
-                "conflict, scheduled and running soonest first, and the recordings folder's free space.",
-            annotations = READ_ONLY,
-        ) { dvr.recordings() }
+    tool(
+        "search_library",
+        "Find a movie, show, video or music title the libraries hold. Returns movies, shows, videos and music " +
+            "whose title holds the query, then those with a matching cast member or director, then episodes; at " +
+            "most $SEARCH_RESULTS.",
+        schema(QUERY to string("Words to find, 1 to $QUERY_LIMIT characters"), required = listOf(QUERY)),
+        READ_ONLY,
+    ) { arguments ->
+        val query = arguments.string(QUERY)?.takeIf { it.length <= QUERY_LIMIT }
+            ?: invalid("query is 1 to $QUERY_LIMIT characters")
+        libraries.catalog.search(query, SEARCH_RESULTS, music = true)
     }
+    tool(
+        "library_home",
+        "What the apps' library home shows: Continue watching, the Watchlist, and Recently added per library. Each " +
+            "shelf lists its first $SHELF_ITEMS items; its total and truncated say whether more exist.",
+        annotations = READ_ONLY,
+    ) {
+        val home = libraries.catalog.home(music = true)
+        HomeView(
+            home.shelves.map {
+                ShelfView(
+                    it.id,
+                    it.title,
+                    it.libraryId,
+                    it.items.size,
+                    it.items.take(SHELF_ITEMS),
+                    it.items.size > SHELF_ITEMS,
+                )
+            },
+            home.libraries,
+        )
+    }
+}
+
+private fun Server.recordingTools(context: McpContext) {
+    val dvr = context.runtime.dvr ?: return
+    tool(
+        "recordings",
+        "Use for what is scheduled, recording, done or failed on the DVR. Returns recordings (not canceled ones) " +
+            "with state and any conflict, scheduled and running soonest first, then the newest kept, and the " +
+            "recordings folder's free space. Filter with state; page with offset and limit; channelId is a " +
+            "lineup entry id.",
+        schema(
+            "state" to choice("Only recordings in this state", RECORDING_STATES),
+            LIMIT to integer("How many recordings", 1..MAX_PAGE, DEFAULT_PAGE),
+            OFFSET to integer("How many matching recordings to skip", 0..MAX_OFFSET, 0),
+        ),
+        READ_ONLY,
+    ) { arguments ->
+        val state = arguments.choice("state", RECORDING_STATES)
+        val (offset, limit) = arguments.page()
+        val all = dvr.recordings()
+        val matching = all.recordings.filter { state == null || it.state == state }
+        val rows = matching.drop(offset).take(limit)
+        RecordingsPage(
+            matching.size,
+            offset,
+            rows.map { it.row() },
+            nextOffset(offset, limit, matching.size),
+            truncated = offset + rows.size < matching.size,
+            all.storage,
+        )
+    }
+    tool(
+        "recording_rules",
+        "The series and team rules the DVR records by: the title or terms each matches, its channelId (a lineup " +
+            "entry id; absent means any channel), padding, priority and how many it keeps.",
+        schema(LIMIT to integer("How many rules", 1..MAX_PAGE, DEFAULT_PAGE)),
+        READ_ONLY,
+    ) { arguments -> dvr.rules.list().capped(arguments.int(LIMIT, DEFAULT_PAGE, 1..MAX_PAGE)) }
 }
 
 private fun Server.serverTools(context: McpContext) {
     val runtime = context.runtime
     tool(
         "server_status",
-        "The server's health at a glance: build, uptime, channels, source health counts, provider and guide " +
-            "imports with any failing, the lineup policy's last run, Plex sync and how many streams play.",
+        "Use first to see how the server is. Returns the build, uptime, channels, source health counts, provider " +
+            "and guide imports with any failing, the lineup policy's last run, Plex sync and how many streams play.",
         annotations = READ_ONLY,
     ) { serverStatus(runtime, context.clock, context.revision) }
     context.attention?.let { attention ->
         tool(
             "needs_attention",
-            "What the admin portal's home page lists as needing the operator, worst first, each with the portal " +
-                "page that fixes it and the doc that explains it. Empty when all is well.",
+            "Use second: what the admin portal's home page lists as needing the operator, worst first, each with " +
+                "the portal page that fixes it and the doc that explains it. An empty list means all is well.",
             annotations = READ_ONLY,
         ) { attention() }
     }
     tool(
         "update_status",
         "What build runs, what the registry publishes, whether the server is up to date, and what the host's " +
-            "updater last did.",
+            "updater last did. Use before update_now.",
         annotations = READ_ONLY,
     ) {
         runtime.updates?.let { updateInfo(it.state()) }
@@ -82,21 +138,30 @@ private fun Server.serverTools(context: McpContext) {
     }
     tool(
         "jobs",
-        "The background jobs (imports, guide refreshes, policy runs, Plex sync, library scans, backups, update " +
-            "checks): when each last ran, how it went and when it runs next. run_job takes the ids.",
+        "Use to see why something is stale or to find a job id: the background jobs (imports, guide refreshes, " +
+            "policy runs, Plex sync, library scans, backups, update checks) with when each last ran, how it went " +
+            "(lastOk, lastNote) and when it runs next. run_job (admin) starts only the ids with canRunNow.",
         annotations = READ_ONLY,
     ) { runtime.jobs.snapshot().map { it.info() } }
     tool(
         "watching_now",
-        "The live streams playing now: channel, player address, source, bitrate, stalls and source switches.",
-        annotations = READ_ONLY,
-    ) { runtime.sessions.snapshot() }
+        "Who is watching right now: the live streams playing, with the lineup entry (channelId), player address, " +
+            "source (offeringId, a source id source_health takes), bitrate, stalls and source switches. Check " +
+            "before update_now, which drops every stream.",
+        schema(LIMIT to integer("How many streams", 1..MAX_PAGE, DEFAULT_PAGE)),
+        READ_ONLY,
+    ) { arguments ->
+        val sessions = runtime.sessions.snapshot()
+        val limit = arguments.int(LIMIT, DEFAULT_PAGE, 1..MAX_PAGE)
+        WatchingNow(sessions.size, sessions.take(limit), sessions.size > limit)
+    }
 }
 
 private fun Server.logTool(context: McpContext) {
     tool(
         "recent_log",
-        "The server's newest log lines since it started, newest first, as the portal's Events page lists them.",
+        "The server's own reason when something fails: its newest log lines since it started, newest first, as " +
+            "the portal's Events page lists them. Start with level=error. Lines never carry URLs or tokens.",
         schema(
             "level" to choice("The lowest level to list; default warn", listOf("info", "warn", "error")),
             QUERY to string("Only lines whose message or logger holds this"),
@@ -123,59 +188,35 @@ private fun Server.logTool(context: McpContext) {
     }
 }
 
-private fun Server.sourceTools(context: McpContext) {
-    val runtime = context.runtime
-    tool(
-        "imports",
-        "Each provider's and guide's last import: when it last succeeded, its error code, and what it brought in.",
-        annotations = READ_ONLY,
-    ) { Imports(runtime.feeds.statuses, runtime.guides.statuses) }
-    tool(
-        "source_problems",
-        "The stream sources that are not healthy (unverified, suspect, probation, quarantined, archived or " +
-            "withdrawn) or are disabled by hand, with counts by state over every source.",
-        schema(
-            "status" to string("Only sources in this state"),
-            LIMIT to integer("How many sources to list", 1..SOURCE_LIMIT, DEFAULT_SOURCES),
-        ),
-        READ_ONLY,
-    ) { arguments ->
-        val status = arguments.string("status")
-        val limit = arguments.int(LIMIT, DEFAULT_SOURCES, 1..SOURCE_LIMIT)
-        val all = runtime.feeds.sources()
-        val problems = all.filter {
-            if (status != null) it.status == status else it.status != HEALTHY || it.manuallyDisabled
-        }
-        SourceProblems(
-            total = all.size,
-            count = all.groupingBy { it.status }.eachCount().toSortedMap(),
-            manuallyDisabled = all.count { it.manuallyDisabled },
-            sources = problems.take(limit),
-            truncated = problems.size > limit,
-        )
-    }
-}
-
 private fun Server.guideTools(context: McpContext) {
     val runtime = context.runtime
     tool(
         "guide_now",
-        "What is on now and next on the enabled channels, in lineup order.",
+        "What is on now and next on the enabled channels, in lineup order; each row's channelId is a lineup entry " +
+            "id. Filter with channel; page with offset and limit.",
         schema(
             "channel" to string("Only channels with this number, or whose name holds this"),
-            LIMIT to integer("How many channels", 1..GUIDE_CHANNELS, DEFAULT_GUIDE_CHANNELS),
+            LIMIT to integer("How many channels", 1..MAX_PAGE, DEFAULT_PAGE),
+            OFFSET to integer("How many matching channels to skip", 0..MAX_OFFSET, 0),
         ),
         READ_ONLY,
     ) { arguments ->
         val filter = arguments.string("channel")
-        val channels = runtime.catalog.catalog().channels
+        val (offset, limit) = arguments.page()
+        val matching = runtime.catalog.catalog().channels
             .filter { filter == null || it.displayNumber == filter || it.name.contains(filter, ignoreCase = true) }
-            .take(arguments.int(LIMIT, DEFAULT_GUIDE_CHANNELS, 1..GUIDE_CHANNELS))
-        nowNext(context, channels)
+        GuidePage(
+            matching.size,
+            offset,
+            limit,
+            nowNext(context, matching.drop(offset).take(limit)),
+            nextOffset(offset, limit, matching.size),
+        )
     }
     tool(
         "on_later",
-        "Movies, sports, kids' programs or premieres coming up on the enabled channels, soonest first.",
+        "What to record or watch soon: movies, sports, kids' programs or premieres coming up on the enabled " +
+            "channels, soonest first. Each airing carries its channelId (a lineup entry id) for the recording tools.",
         schema(
             "kind" to choice("What to list", listOf("movie", "sports", "kids", "new")),
             "days" to integer("How many days ahead", 1..ON_LATER_DAYS, DEFAULT_ON_LATER_DAYS),
@@ -190,7 +231,7 @@ private fun Server.guideTools(context: McpContext) {
             arguments.int(LIMIT, DEFAULT_ON_LATER, 1..ON_LATER_LIMIT),
         )
         val names = runtime.catalog.catalog().channels.associate { it.id to "${it.displayNumber} ${it.name}" }
-        upcoming.programs.map { it.airing(names[it.channelId]) }
+        upcoming.programs.map { it.airing(names[it.channelId], it.channelId) }
     }
 }
 
@@ -224,8 +265,13 @@ internal fun updateInfo(state: UpdateState) = UpdateInfo(
     requestedAt = state.requestedAt?.toString(),
 )
 
-private fun Program.airing(channel: String? = null) =
-    Airing(title, startsAt, endsAt, subTitle, episode, isNew, categories, channel)
+private fun Program.airing(channel: String? = null, channelId: String? = null) =
+    Airing(title, startsAt, endsAt, subTitle, episode, isNew, categories, channel, channelId)
+
+private fun Recording.row() = RecordingRow(
+    id, channelId, channelName, title, episodeTitle, season, episode, movie, startsAt, endsAt, state, reason, ruleId,
+    bytes, protected, conflict, watched,
+)
 
 private fun JobStatus.info() = JobInfo(
     id = id,
@@ -241,21 +287,22 @@ private fun JobStatus.info() = JobInfo(
     canRunNow = canRunNow,
 )
 
-private const val QUERY = "query"
-private const val LIMIT = "limit"
 private const val QUERY_LIMIT = 100
 private const val SEARCH_RESULTS = 50
-private const val HEALTHY = "healthy"
+private const val SHELF_ITEMS = 20
 private const val LOG_LIMIT = 500
 private const val DEFAULT_LOG_LINES = 50
-private const val SOURCE_LIMIT = 1000
-private const val DEFAULT_SOURCES = 100
-private const val GUIDE_CHANNELS = 200
-private const val DEFAULT_GUIDE_CHANNELS = 50
 private const val ON_LATER_DAYS = 7
 private const val DEFAULT_ON_LATER_DAYS = 2
 private const val ON_LATER_LIMIT = 500
 private const val DEFAULT_ON_LATER = 50
+
+private val RECORDING_STATES = listOf(
+    Wire.RecordingState.SCHEDULED,
+    Wire.RecordingState.RECORDING,
+    Wire.RecordingState.COMPLETED,
+    Wire.RecordingState.FAILED,
+)
 
 /** How far ahead `guide_now` looks for the next program. */
 private val NOW_NEXT_WINDOW = Duration.ofHours(6)

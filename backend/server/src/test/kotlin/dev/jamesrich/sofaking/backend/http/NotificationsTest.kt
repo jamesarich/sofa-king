@@ -33,6 +33,7 @@ class NotificationsTest : AdminPortalCase() {
             }
             assertEquals(HttpStatusCode.Created, created.status)
             assertFalse(created.bodyAsText().contains("hush-hush"))
+            assertFalse(created.bodyAsText().contains("/hook"), "the URL path is never returned")
             val target = json.decodeFromString<NotificationTarget>(created.bodyAsText())
             assertTrue(target.hasSecret && target.enabled)
             val refused = client.post(base) {
@@ -96,6 +97,8 @@ class NotificationsTest : AdminPortalCase() {
             val page = browser.get("/admin/connect").bodyAsText()
             assertTrue(page.contains("Added Phone"))
             assertFalse(page.contains("tk_secret"), "the secret is never shown")
+            assertTrue(page.contains("http://127.0.0.1:1/…"), "the table shows the masked URL")
+            assertFalse(page.contains("/hook"), "the URL path is never shown")
 
             browser.post("/admin/connect/targets/${target.id}/test", "csrf" to csrf)
             assertTrue(browser.get("/admin/connect").bodyAsText().contains("The test failed"))
@@ -106,11 +109,12 @@ class NotificationsTest : AdminPortalCase() {
                 "csrf" to csrf,
                 "name" to "Phone",
                 "kind" to "ntfy",
-                "url" to nowhere,
+                "url" to "",
                 "secret" to "",
                 "event" to "disk.low",
             )
             val saved = runtime.notifications!!.get(target.id)
+            assertEquals("http://127.0.0.1:1/…", saved.url, "a blank URL keeps the one set, shown masked")
             assertEquals(listOf("disk.low"), saved.events)
             assertTrue(saved.hasSecret, "a blank secret keeps the one set")
             val asked = browser.post("/admin/connect/targets/${target.id}/delete", "csrf" to csrf)

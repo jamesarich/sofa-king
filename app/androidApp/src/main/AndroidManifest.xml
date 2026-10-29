@@ -99,7 +99,8 @@
 
         <!-- Holds the music's media session while a song plays, so it plays on behind the app. Exported, as Media3
              asks, so the system's media controls (the notification, Assistant, a Bluetooth headset) can bind to it;
-             the session itself decides which controllers it accepts. -->
+             the session accepts only system and own controllers and withholds the commands that change what plays
+             (SessionAccess). -->
         <service
             android:name="dev.jamesrich.sofaking.ui.player.MusicService"
             android:exported="true"

@@ -1,0 +1,15 @@
+{
+    "id": "d0c4b7e1-6a25-4c8f-8f3e-91b2a7c5e604",
+    "channelIds": [
+        "e765525a-42b9-46cf-821d-d2b5c131c6ba",
+        "fb98844b-c39a-486e-9684-e70c7df97504"
+    ],
+    "audio": 1,
+    "descriptor": {
+        "protocol": "hls",
+        "mimeType": "application/vnd.apple.mpegurl",
+        "url": "/media/multiview/d0c4b7e1-6a25-4c8f-8f3e-91b2a7c5e604/2/4e1d7a90-3b6c-4f12-a8d5-7c0e9b2f1a36.m3u8",
+        "epoch": 2
+    },
+    "expiresAt": "2026-10-10T13:00:45Z"
+}

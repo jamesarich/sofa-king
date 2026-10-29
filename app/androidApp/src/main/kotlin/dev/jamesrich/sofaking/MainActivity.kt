@@ -27,6 +27,7 @@ import dev.jamesrich.sofaking.data.inDirectory
 import dev.jamesrich.sofaking.data.parseAppLink
 import dev.jamesrich.sofaking.data.parsePairingLink
 import dev.jamesrich.sofaking.ui.isTelevision
+import kotlinx.coroutines.runBlocking
 
 /** Starts the shared graph once per process, over the files directory the app has always used. */
 class SofaKingApplication : Application() {
@@ -48,10 +49,11 @@ class SofaKingApplication : Application() {
         }
         val tv = isTelevision()
         val client = ClientInfo(platform = if (tv) "android-tv" else "android", deviceName = Build.MODEL)
+        val storage = AppStorage.inDirectory(filesDir.absolutePath, client)
         initSofaKing(
-            AppStorage.inDirectory(filesDir.absolutePath, client),
+            storage,
             NsdServerDiscovery(this),
-            if (tv) WatchNextPublisher(this) else WatchNext.None,
+            if (tv) WatchNextPublisher(this) { runBlocking { storage.serverUrl() } } else WatchNext.None,
         )
     }
 }

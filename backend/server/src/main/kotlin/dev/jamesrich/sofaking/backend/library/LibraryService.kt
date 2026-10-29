@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.JobProgress
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.launchEvery
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.deleteLibrary
@@ -24,7 +25,6 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -230,12 +230,7 @@ class LibraryService(
     }
 
     fun start(scope: CoroutineScope): Job {
-        scope.launch(CoroutineName("library-scan-timer")) {
-            while (isActive) {
-                requestScan(null)
-                delay(every.toMillis())
-            }
-        }
+        scope.launchEvery("library-scan-timer", every.toMillis()) { requestScan(null) }
         return scope.launch(CoroutineName("library-scan")) {
             while (isActive) {
                 trigger.receive()

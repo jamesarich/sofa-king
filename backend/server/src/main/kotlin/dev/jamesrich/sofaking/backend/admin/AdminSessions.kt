@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.randomUrlToken
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.StoredAdminSession
 import dev.jamesrich.sofaking.backend.store.adminSessions
@@ -7,11 +8,9 @@ import dev.jamesrich.sofaking.backend.store.deleteAdminSession
 import dev.jamesrich.sofaking.backend.store.saveAdminSession
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.util.Base64
 import java.util.HexFormat
 import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.Mac
@@ -39,7 +38,6 @@ class AdminSessions(
     private val lifetime: Duration = LIFETIME,
     private val limit: Int = 32,
 ) {
-    private val random = SecureRandom()
     private val sessions = ConcurrentHashMap<String, AdminSession>()
     private val loaded = Mutex()
 
@@ -95,9 +93,7 @@ class AdminSessions(
         store?.deleteAdminSession(key)
     }
 
-    private fun token(): String = ByteArray(TOKEN_BYTES).also(random::nextBytes).let {
-        Base64.getUrlEncoder().withoutPadding().encodeToString(it)
-    }
+    private fun token(): String = randomUrlToken(TOKEN_BYTES)
 
     private fun hash(id: String): String {
         val mac = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(secret!!.toByteArray(), "HmacSHA256")) }

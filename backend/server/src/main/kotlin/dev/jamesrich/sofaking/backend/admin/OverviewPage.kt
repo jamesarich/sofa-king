@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.api.PolicyApplyResult
-import dev.jamesrich.sofaking.backend.catalog.hash
+import dev.jamesrich.sofaking.backend.hash
 import dev.jamesrich.sofaking.backend.setup.SetupService
 import kotlinx.html.A
 import kotlinx.html.ButtonType

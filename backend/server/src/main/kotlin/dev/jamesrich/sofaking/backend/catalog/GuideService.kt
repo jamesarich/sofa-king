@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.catalog
 import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.api.GuideChannelInfo
 import dev.jamesrich.sofaking.backend.api.GuideStatus
+import dev.jamesrich.sofaking.backend.hash
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
@@ -21,16 +22,14 @@ import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.selects.onTimeout
-import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.time.Duration
@@ -192,16 +191,12 @@ class GuideService(
         triggers[guideId]?.trySend(Unit)
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class) // select { onTimeout }
     fun start(scope: CoroutineScope): List<Job> = configs.map { config ->
         scope.launch(CoroutineName("guide-refresh:${config.id}")) {
             val trigger = triggers.getValue(config.id)
             while (isActive) {
                 refresh(config)
-                select<Unit> {
-                    trigger.onReceive {}
-                    onTimeout(config.refreshSeconds * MS_PER_SECOND) {}
-                }
+                withTimeoutOrNull(config.refreshSeconds * MS_PER_SECOND) { trigger.receive() }
             }
         }
     }

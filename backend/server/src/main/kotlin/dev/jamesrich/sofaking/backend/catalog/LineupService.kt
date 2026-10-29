@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.api.AdoptProvider
 import dev.jamesrich.sofaking.backend.api.AdoptResult
 import dev.jamesrich.sofaking.backend.api.CreateLineupEntry
 import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
+import dev.jamesrich.sofaking.backend.hash
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.lineup
 import dev.jamesrich.sofaking.backend.store.saveLineup

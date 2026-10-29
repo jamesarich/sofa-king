@@ -12,7 +12,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.security.SecureRandom
-import java.util.HexFormat
 
 /** Where a token the server runs with came from. */
 enum class SecretOrigin {
@@ -73,8 +72,7 @@ internal fun readSecretFiles(
 /** Equal strings, compared in time that depends on neither's content nor length. */
 internal fun sameSecret(presented: String?, expected: String): Boolean {
     if (presented == null) return false
-    val digest = { value: String -> MessageDigest.getInstance("SHA-256").digest(value.toByteArray()) }
-    return MessageDigest.isEqual(digest(presented), digest(expected))
+    return MessageDigest.isEqual(hash(presented).toByteArray(), hash(expected).toByteArray())
 }
 
 /**
@@ -91,7 +89,7 @@ internal class SecretsFile(val path: Path, private val random: SecureRandom = Se
     fun resolve(names: List<String>): Pair<Map<String, String>, Set<String>> {
         val stored = read().toMutableMap()
         val generated = names.filter { it !in stored }.toSet()
-        for (name in generated) stored[name] = HexFormat.of().formatHex(ByteArray(TOKEN_BYTES).also(random::nextBytes))
+        for (name in generated) stored[name] = randomHex(TOKEN_BYTES, random)
         if (generated.isNotEmpty()) write(stored)
         return names.associateWith { stored.getValue(it) } to generated
     }

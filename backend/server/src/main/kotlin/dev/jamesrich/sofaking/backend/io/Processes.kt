@@ -6,6 +6,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -36,6 +37,19 @@ internal suspend fun ProcessBuilder.runFor(timeout: Duration): Int? {
         process.terminate()
     }
 }
+
+/**
+ * Blocks until the process exits and returns true; when it has not within [timeout] [unit], kills it, waits for the
+ * exit and returns false. For callers already on a blocking thread; a coroutine uses [runFor].
+ */
+internal fun Process.waitForOrKill(timeout: Long, unit: TimeUnit): Boolean {
+    if (waitFor(timeout, unit)) return true
+    destroyForcibly()
+    waitFor(KILL_WAIT_SECONDS, TimeUnit.SECONDS)
+    return false
+}
+
+private const val KILL_WAIT_SECONDS = 2L
 
 /**
  * Asks the process to end, kills it when it has not within [grace], and waits for the exit without blocking a thread.

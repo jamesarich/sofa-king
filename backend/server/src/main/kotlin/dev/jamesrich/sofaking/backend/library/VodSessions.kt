@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.playback.HistoryKind
 import dev.jamesrich.sofaking.backend.playback.HistoryReason
 import dev.jamesrich.sofaking.backend.playback.PlaybackClient
 import dev.jamesrich.sofaking.backend.playback.SessionHistory
+import dev.jamesrich.sofaking.backend.randomHex
 import dev.jamesrich.sofaking.contract.OpenVodPlayback
 import dev.jamesrich.sofaking.contract.PlaybackDescriptor
 import dev.jamesrich.sofaking.contract.UpdateVodPlayback
@@ -20,11 +21,9 @@ import kotlinx.coroutines.withContext
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
-import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.util.HexFormat
 import java.util.UUID
 
 /** The HLS segment length FFmpeg cuts to, in seconds. */
@@ -173,7 +172,6 @@ class VodSessions(
         set(value) {
             table.history = value
         }
-    private val random = SecureRandom()
 
     /** The items that play, and their text subtitles as WebVTT. */
     val subtitles = VodSubtitles(catalog, ffmpeg, directory)
@@ -352,7 +350,7 @@ class VodSessions(
         table.sessions.values.toList().forEach { table.retire(it, HistoryReason.STOPPED) }
     }
 
-    private fun secret(): String = HexFormat.of().formatHex(ByteArray(SECRET_BYTES).also(random::nextBytes))
+    private fun secret(): String = randomHex(SECRET_BYTES)
 }
 
 /**

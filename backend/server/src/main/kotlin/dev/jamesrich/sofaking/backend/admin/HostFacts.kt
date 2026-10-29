@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.io.waitForOrKill
 import dev.jamesrich.sofaking.backend.library.VideoEncoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -90,10 +91,9 @@ private fun commandOutput(command: List<String>): String? = try {
     val process = ProcessBuilder(command).redirectErrorStream(true).start()
     process.outputStream.close()
     // The lines these commands print fit the pipe's buffer, so the exit comes first and a hang never holds the page.
-    if (process.waitFor(TOOL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+    if (process.waitForOrKill(TOOL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
         process.inputStream.bufferedReader().use { it.readText() }
     } else {
-        process.destroyForcibly()
         null
     }
 } catch (_: IOException) {

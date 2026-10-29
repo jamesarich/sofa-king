@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.api.ServerStatus
+import dev.jamesrich.sofaking.backend.io.waitForOrKill
 import dev.jamesrich.sofaking.backend.jobs.JobStatus
 import dev.jamesrich.sofaking.backend.library.EncoderChecks
 import dev.jamesrich.sofaking.backend.logging.LogEvent
@@ -110,8 +111,7 @@ internal suspend fun ffmpegVersion(ffmpeg: String): String = withContext(Dispatc
         val process = ProcessBuilder(ffmpeg, "-version").redirectErrorStream(true).start()
         // The few lines it prints fit the pipe's buffer, so the exit comes first and an FFmpeg
         // that hangs never holds the page.
-        if (!process.waitFor(VERSION_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-            process.destroyForcibly()
+        if (!process.waitForOrKill(VERSION_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
             return@withContext "not readable at $ffmpeg"
         }
         val line = process.inputStream.bufferedReader().use { it.readLine() }

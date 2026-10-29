@@ -43,23 +43,23 @@ struct ChannelListView: View {
         VStack(alignment: .leading, spacing: 24) {
             PreviewBand(lineup: lineup, preview: preview)
             HStack(spacing: 32) {
-                Picker("Channels", selection: $filter) {
-                    Text("All").tag(ChannelFilter.all)
-                    Text("Favorites").tag(ChannelFilter.favorites)
-                    if !model.recentChannels.isEmpty { Text("Recent").tag(ChannelFilter.recent) }
+                Picker(strings.channelsSection, selection: $filter) {
+                    Text(strings.filterAll).tag(ChannelFilter.all)
+                    Text(strings.filterFavorites).tag(ChannelFilter.favorites)
+                    if !model.recentChannels.isEmpty { Text(strings.filterRecent).tag(ChannelFilter.recent) }
                 }
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 720)
                 NavigationLink {
                     ChannelSearchView(lineup: lineup) { playing = $0 }
                 } label: {
-                    Label("Search", systemImage: "magnifyingglass")
+                    Label(strings.search, systemImage: "magnifyingglass")
                 }
                 if model.capabilities?.onLater == true {
                     NavigationLink {
                         OnLaterView(lineup: lineup)
                     } label: {
-                        Label("On later", systemImage: "calendar")
+                        Label(strings.onLater, systemImage: "calendar")
                     }
                 }
             }
@@ -77,7 +77,7 @@ struct ChannelListView: View {
                 )
             }
         }
-        .navigationTitle(model.settings?.kidsMode == true ? "Sofa King Kids" : "Sofa King")
+        .navigationTitle(model.settings?.kidsMode == true ? "Sofa King Kids" : strings.appName)
         .navigationDestination(item: $detail) { choice in
             ProgramDetailView(lineup: lineup, channel: choice.channel, airing: choice.program) { playing = choice.channel }
         }
@@ -124,7 +124,7 @@ struct ChannelListView: View {
     private var emptyText: String {
         return filter == .favorites
             ? "No favorites yet. Hold the touch surface on a program and choose Add to favorites."
-            : "No channels."
+            : strings.noChannels
     }
 
     /// Back from the player focuses the channel watched, the last one switched to included; a filter that hides it
@@ -166,10 +166,10 @@ private struct ChannelSearchView: View {
             }
         }
         .overlay {
-            if matches.isEmpty { Text("No channel matches.").foregroundStyle(.secondary) }
+            if matches.isEmpty { Text(strings.noChannelMatches).foregroundStyle(.secondary) }
         }
         .searchable(text: $query, prompt: "Channel name or number")
-        .navigationTitle("Search")
+        .navigationTitle(strings.search)
     }
 }
 
@@ -180,7 +180,7 @@ struct FavoriteButton: View {
 
     var body: some View {
         let favorite = model.favorites.contains(channel.guideId)
-        Button(favorite ? "Remove from favorites" : "Add to favorites", systemImage: favorite ? "star.slash" : "star") {
+        Button(favorite ? strings.favoriteRemove : strings.favoriteAdd, systemImage: favorite ? "star.slash" : "star") {
             model.core.toggleFavorite(guideId: channel.guideId)
         }
     }

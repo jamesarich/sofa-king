@@ -34,13 +34,16 @@ Known flakes (re-run once, then investigate):
 
 - `Test (Apple)`, iOS `TouchTests`: most walk failures from 2026-10-25 to 10-26 ("The app stopped", "Lost connection to the application") were a real crash, fixed by #380; a walk that stops is a crash until the app's stdout in the `.xcresult` says otherwise (grep `Uncaught Kotlin exception`). `xcodebuild: error: Unable to find a device matching` before any test ran is CoreSimulator not listing the booted iPhone; the step retries it. `testPlayChannel` "Timed out waiting for Sofa Sports to open full screen" with the guide still on screen was the app's main thread held for 40 s on a loaded runner; the wait is now a minute and the Gradle daemons stop before the tests. A tap on a `combinedClickable` that reaches the app late still reads as a long press, which `play()` closes and retaps.
 - tvOS `RemoteTests` walk "The app stopped": treat it as a crash first. Download the `reports-apple-tv` artifact and read `crashes/*.ips` (plain JSON; `lastExceptionBacktrace`, `termination`). A FrontBoard `0x8BADF00D` watchdog under full runner CPU is a flake; an exception is a bug.
+- tvOS `RemoteTests` focus waits on a loaded runner: `testStartOnDvr` ("Remote presses never focused record.circle Button", "Timed out waiting for the start to reopen DVR") and `testPlayerTransportMenu` ("Could not reach Channels Cell") fail now and then on `main` and unrelated pull requests and pass on a re-run. A focus failure in a test of a screen the change reordered is a break: `testPlayPauseOnSettingsFields` presses only Down, so it must visit the Settings fields in their order on screen.
+- "The runner has received a shutdown signal": GitHub stopped the hosted runner; re-run the job.
 - Registry blips: a yarn `502` in `:kotlinNpmInstall`, a Maven Central or plugin portal timeout, a slow Ubuntu mirror (apt steps go through `.github/actions/apt-install`, which caches the packages).
 - `deploy-pages` 404 "Ensure GitHub Pages has been enabled": a repository setting, not the change.
 
 Not flakes:
 
 - `Check the formatting, analyze, test and build the distribution` (backend) or `Test, lint and build` (app) failing on `e:` compiler errors, `spotlessCheck`, `detekt` or a named test: run the same task locally (the `cloud-build` skill) before pushing again.
-- `testDebugScreenshotTestDefaultTestSuite`: a screen changed on purpose needs its references rewritten with `:androidApp:updateDebugScreenshotTestDefaultTestSuite` and committed; otherwise it is a regression.
+- `testDebugScreenshotTestDefaultTestSuite`: a screen changed on purpose needs references Linux drew, from `:androidApp:updateDebugScreenshotTestDefaultTestSuite` on Linux or the run's `reports-linux` artifact (`results/rendered/`), looked at and committed; a new preview whose reference came from a Mac fails the same way. Otherwise it is a regression.
+- A `[js, node]` failure in a common test that passes on the JVM: JS computes a `Float` as a double, so equality with a folded float constant can fail; compare with a tolerance.
 
 ## 3. Reading an Apple test failure without macOS
 

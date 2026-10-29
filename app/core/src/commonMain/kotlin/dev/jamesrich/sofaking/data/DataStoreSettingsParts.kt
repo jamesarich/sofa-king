@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import dev.jamesrich.sofaking.data.SettingsKeys.ADS_DODGED_DAY
 import dev.jamesrich.sofaking.data.SettingsKeys.ADS_DODGED_MS
 import dev.jamesrich.sofaking.data.SettingsKeys.API_TOKEN
+import dev.jamesrich.sofaking.data.SettingsKeys.APPEARANCE
 import dev.jamesrich.sofaking.data.SettingsKeys.AUTO_OPEN_DELAY
 import dev.jamesrich.sofaking.data.SettingsKeys.AUTO_SKIP_INTROS
 import dev.jamesrich.sofaking.data.SettingsKeys.BUFFER
@@ -258,6 +259,10 @@ internal class DataStoreDisplaySettings(private val dataStore: DataStore<Prefere
 
     override suspend fun setGuideDensity(density: GuideDensity) {
         dataStore.edit { prefs -> prefs[GUIDE_DENSITY] = density.name }
+    }
+
+    override suspend fun setAppearance(appearance: Appearance) {
+        dataStore.edit { prefs -> prefs[APPEARANCE] = appearance.name }
     }
 
     override suspend fun setHideSpoilers(enabled: Boolean) {

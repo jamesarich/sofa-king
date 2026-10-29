@@ -7,9 +7,12 @@ import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.SeriesRule
+import dev.jamesrich.sofaking.data.recordedSoFar
+import dev.jamesrich.sofaking.data.resumeFraction
 import dev.jamesrich.sofaking.data.teamSides
 import dev.jamesrich.sofaking.data.toggleTeam
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 /** The server's recordings and series rules, as the Apple TV app's Recordings tab shows them. */
 interface TvRecordings {
@@ -24,6 +27,12 @@ interface TvRecordings {
     /** Opens [recording] on the session, from the start with [fromStart], else where the household stopped in it. */
     @Throws(Exception::class)
     suspend fun playRecording(recording: DvrRecording, fromStart: Boolean): PlaybackStream
+
+    /** How far into [recording] the household got, 0 to 1; 0 when it has not started it or finished it. */
+    fun recordingResume(recording: DvrRecording): Float
+
+    /** How much of a running [recording] is on disk at [nowMs], milliseconds since the epoch, 0 to 1; else 0. */
+    fun recordingRecorded(recording: DvrRecording, nowMs: Long): Float
 
     /** The player is at [positionMs] in [recordingId]. */
     fun recordingProgress(recordingId: String, positionMs: Long)
@@ -86,6 +95,11 @@ internal class TvRecordingCalls(private val parts: TvParts) : TvRecordings {
     @Throws(Exception::class)
     override suspend fun playRecording(recording: DvrRecording, fromStart: Boolean): PlaybackStream =
         parts.opening { recordings.play(recording, appleTvProfile, fromStart) }
+
+    override fun recordingResume(recording: DvrRecording): Float = recording.resumeFraction ?: 0f
+
+    override fun recordingRecorded(recording: DvrRecording, nowMs: Long): Float =
+        recording.recordedSoFar(Instant.fromEpochMilliseconds(nowMs)) ?: 0f
 
     override fun recordingProgress(recordingId: String, positionMs: Long) = recordings.progress(recordingId, positionMs)
 

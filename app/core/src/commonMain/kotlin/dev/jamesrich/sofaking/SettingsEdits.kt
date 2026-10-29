@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking
 
+import dev.jamesrich.sofaking.data.Appearance
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.BufferPreference
 import dev.jamesrich.sofaking.data.CaptionSettings
@@ -99,6 +100,8 @@ interface DisplayEdits {
 
     fun setGuideDensity(density: GuideDensity)
 
+    fun setAppearance(appearance: Appearance)
+
     fun setHideSpoilers(enabled: Boolean)
 }
 
@@ -183,6 +186,8 @@ internal class StoreDisplayEdits(private val store: DisplaySettings, private val
     override fun setKeyLegendShown(count: Int) = scope.save { store.setKeyLegendShown(count) }
 
     override fun setGuideDensity(density: GuideDensity) = scope.save { store.setGuideDensity(density) }
+
+    override fun setAppearance(appearance: Appearance) = scope.save { store.setAppearance(appearance) }
 
     override fun setHideSpoilers(enabled: Boolean) = scope.save { store.setHideSpoilers(enabled) }
 }

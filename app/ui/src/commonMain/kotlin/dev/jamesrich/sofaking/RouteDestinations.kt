@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.MusicPlayback
 import dev.jamesrich.sofaking.ui.player.NowPlayingScreen
 import dev.jamesrich.sofaking.ui.settings.LicensesScreen
+import dev.jamesrich.sofaking.ui.theme.OverVideo
 
 /**
  * The page for [route], drawn by its destination (LiveDestinations, LibraryDestinations, RecordingsDestinations,
@@ -35,13 +36,13 @@ internal fun RouteDestination(
 
         Route.Licenses -> LicensesScreen(onBack = shell::back)
 
-        is Route.Player -> PlayerDestination(route, shell, vm, player)
+        is Route.Player -> OverVideo { PlayerDestination(route, shell, vm, player) }
 
-        is Route.Multiview -> MultiviewDestination(route, shell, vm, player)
+        is Route.Multiview -> OverVideo { MultiviewDestination(route, shell, vm, player) }
 
-        is Route.Vod -> VodDestination(route, shell, vm, libraryVm, player)
+        is Route.Vod -> OverVideo { VodDestination(route, shell, vm, libraryVm, player) }
 
-        is Route.Recording -> RecordingDestination(route, shell, vm, recordingsVm, player)
+        is Route.Recording -> OverVideo { RecordingDestination(route, shell, vm, recordingsVm, player) }
 
         is Route.LibraryItem -> LibraryItemDestination(route, arrival, shell, libraryVm, music, hideSpoilers)
 

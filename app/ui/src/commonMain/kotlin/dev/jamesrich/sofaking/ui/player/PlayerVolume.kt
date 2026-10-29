@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
@@ -34,13 +35,13 @@ import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
+import dev.jamesrich.sofaking.ui.theme.tvFocus
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 
 /** How far a key press or a wheel notch moves the volume, in percent. */
 internal const val VOLUME_STEP = 5
-private const val VOLUME_TOAST_MS = 1_500L
 
 /**
  * The players' own volume where the app draws a control for it ([adjustable]: a desktop window or a browser page,
@@ -156,10 +157,13 @@ internal fun VolumeControl(onAdjust: () -> Unit, onDone: () -> Unit) {
                 onAdjust()
             },
             onValueChangeFinished = onDone,
-            modifier = Modifier.width(VOLUME_SLIDER_WIDTH).semantics {
-                contentDescription = label
-                stateDescription = levelText
-            },
+            modifier = Modifier
+                .width(VOLUME_SLIDER_WIDTH)
+                .tvFocus(MaterialTheme.shapes.small, focusedScale = 1f)
+                .semantics {
+                    contentDescription = label
+                    stateDescription = levelText
+                },
         )
     }
 }
@@ -174,7 +178,7 @@ internal fun ColumnScope.VolumeToast() {
     LaunchedEffect(volume.nudges) {
         if (volume.nudges == opened) return@LaunchedEffect
         shown = true
-        delay(VOLUME_TOAST_MS)
+        delay(STATE_TOAST_MS)
         shown = false
     }
     AnimatedVisibility(shown, enter = PopIn, exit = PopOut) {

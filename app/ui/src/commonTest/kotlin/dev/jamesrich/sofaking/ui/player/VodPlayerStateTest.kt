@@ -427,4 +427,22 @@ class VodPlayerStateTest {
         state.endScrub()
         assertNull(state.scrubTarget)
     }
+
+    @Test
+    fun `a key in the track card restarts its rest timer`() {
+        val state = playing()
+        state.openTracks()
+        val opened = state.tracksActivity
+        assertFalse(state.down(Key.DirectionDown))
+        assertTrue(state.tracksActivity > opened)
+    }
+
+    @Test
+    fun `opening the track card restarts its rest timer`() {
+        val state = playing()
+        val before = state.tracksActivity
+        state.openTracks()
+        assertTrue(state.tracksOpen)
+        assertTrue(state.tracksActivity > before)
+    }
 }

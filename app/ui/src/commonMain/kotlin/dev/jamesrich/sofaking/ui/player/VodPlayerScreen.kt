@@ -130,6 +130,10 @@ fun VodPlayerScreen(
     VodLifecycleEffects(parts.vod, onStop)
     val status by player.status.collectAsStateWithLifecycle()
     VodBarTimer(state, paused = !status.playWhenReady)
+    VodTracksTimer(state) {
+        state.closeTracks()
+        parts.focus.picture.requestFocus()
+    }
     val spots = rememberVodSpots(title.markers, state)
     // Credits that run to the end, with an episode after them: their button plays it.
     val creditsToNext =
@@ -417,6 +421,7 @@ private fun BoxScope.VodTextAndTracks(parts: VodParts, tracks: VodTracks, barVis
             },
             offsetMs = picks.subtitleOffsetMs.takeIf { picks.subtitles != null },
             onOffset = { picks.subtitleOffsetMs = it },
+            onActivity = state::tracksUsed,
         )
     }
 }

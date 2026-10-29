@@ -26,8 +26,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
-private const val NOTICE_MS = 3_000L
-
 /** The texts of the corner notice: Record's answers and the zoom's name. */
 @Immutable
 internal data class NoticeTexts(
@@ -39,8 +37,8 @@ internal data class NoticeTexts(
 )
 
 /**
- * The short note at the top left for [NOTICE_MS]: Record's answer once the server has taken the change or not, or the
- * new zoom.
+ * The short note at the top left for [NOTICE_TOAST_MS]: Record's answer once the server has taken the change or not,
+ * or the new zoom.
  */
 @Stable
 internal class PlayerNotice(private val scope: CoroutineScope, private val texts: NoticeTexts) {
@@ -98,7 +96,7 @@ internal fun rememberPlayerNotice(): PlayerNotice {
     val notice = remember(scope, texts) { PlayerNotice(scope, texts) }
     LaunchedEffect(notice.text) {
         if (notice.text == null) return@LaunchedEffect
-        delay(NOTICE_MS)
+        delay(NOTICE_TOAST_MS)
         notice.text = null
     }
     return notice

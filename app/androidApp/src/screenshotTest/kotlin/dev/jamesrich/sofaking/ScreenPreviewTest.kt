@@ -6,6 +6,7 @@ import com.android.tools.screenshot.PreviewTest
 import dev.jamesrich.sofaking.previews.GuidePreview
 import dev.jamesrich.sofaking.previews.LibraryHomePreview
 import dev.jamesrich.sofaking.previews.LiveBarPreview
+import dev.jamesrich.sofaking.previews.NowPlayingPreview
 import dev.jamesrich.sofaking.previews.PlayerInfoPreview
 import dev.jamesrich.sofaking.previews.ProgramDetailsPreview
 import dev.jamesrich.sofaking.previews.SettingsPreview
@@ -98,3 +99,19 @@ private fun SettingsTv() = SettingsPreview(tv = true)
 @Preview(device = PHONE)
 @Composable
 private fun SettingsPhone() = SettingsPreview(tv = false)
+
+@PreviewTest
+@Preview(device = PHONE)
+@Composable
+private fun NowPlayingPhone() = NowPlayingPreview(tv = false)
+
+/** A narrow phone, where the button row wraps. */
+@PreviewTest
+@Preview(device = "spec:width=280dp,height=640dp,dpi=420")
+@Composable
+private fun NowPlayingNarrow() = NowPlayingPreview(tv = false)
+
+@PreviewTest
+@Preview(device = TV)
+@Composable
+private fun NowPlayingTv() = NowPlayingPreview(tv = true)

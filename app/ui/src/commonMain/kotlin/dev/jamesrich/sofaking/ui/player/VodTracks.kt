@@ -22,6 +22,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -133,6 +135,7 @@ internal fun BoxScope.TracksCard(
     onSubtitle: (Int?) -> Unit,
     offsetMs: Long? = null,
     onOffset: (Long) -> Unit = {},
+    onActivity: () -> Unit = {},
 ) {
     val focus = remember { FocusRequester() }
     val start = remember { tracksFocus(tracks, audio, subtitle) }
@@ -145,6 +148,7 @@ internal fun BoxScope.TracksCard(
             .width(420.dp)
             .background(SofaOverlayScrim, MaterialTheme.shapes.small)
             .padding(24.dp)
+            .onAnyPointer(onActivity)
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -185,6 +189,16 @@ internal fun BoxScope.TracksCard(
         }
         if (offsetMs != null) {
             SubtitleTiming(offsetMs, onOffset)
+        }
+    }
+}
+
+/** Calls [onActivity] for every pointer event over the node, without consuming any. */
+private fun Modifier.onAnyPointer(onActivity: () -> Unit): Modifier = pointerInput(onActivity) {
+    awaitPointerEventScope {
+        while (true) {
+            awaitPointerEvent(PointerEventPass.Initial)
+            onActivity()
         }
     }
 }

@@ -59,6 +59,45 @@ class AdminPortalWantedTest : AdminPortalCase() {
         }
     }
 
+    @Test fun `a missed row offers Delete and removes the row at once`() = testApplication {
+        portal {
+            val at = Instant.now().minus(Duration.ofDays(1))
+            runtime.store.addRecording(failed("rec-missed", at, "Late Show"))
+            browser.signIn()
+            val page = browser.get("/admin/recordings/wanted").bodyAsText()
+            assertTrue(page.contains("/admin/recordings/wanted/rec-missed/delete"), page)
+            val csrf = field(page, "csrf")
+
+            val gone = browser.post("/admin/recordings/wanted/rec-missed/delete", "csrf" to csrf)
+            assertEquals(HttpStatusCode.SeeOther, gone.status)
+            assertTrue(runtime.dvr!!.recordings().recordings.none { it.id == "rec-missed" })
+            assertFalse(browser.get("/admin/recordings/wanted").bodyAsText().contains("wanted/rec-missed/delete"))
+        }
+    }
+
+    @Test fun `canceling a scheduled recording asks first and changes nothing until confirmed`() = testApplication {
+        portal {
+            val at = Instant.now().plus(Duration.ofHours(3))
+            runtime.store.addRecording(failed("rec-later", at, "Late Show").copy(state = Wire.RecordingState.SCHEDULED))
+            browser.signIn()
+            val csrf = field(browser.get("/admin/recordings/wanted").bodyAsText(), "csrf")
+
+            val asked = browser.post("/admin/recordings/wanted/rec-later/delete", "csrf" to csrf)
+            assertEquals(HttpStatusCode.OK, asked.status)
+            assertTrue(asked.bodyAsText().contains("Cancel Late Show?"))
+            assertTrue(runtime.dvr!!.recordings().recordings.any { it.id == "rec-later" }, "nothing changed yet")
+
+            val done = browser.post("/admin/recordings/wanted/rec-later/delete", "csrf" to csrf, "confirm" to "yes")
+            assertEquals(HttpStatusCode.SeeOther, done.status)
+            assertTrue(runtime.dvr!!.recordings().recordings.none { it.id == "rec-later" })
+        }
+    }
+
+    private fun failed(id: String, at: Instant, title: String) = StoredRecording(
+        id, null, "c", "Channel C", at, at.plusSeconds(1800), Duration.ZERO, Duration.ZERO, title,
+        state = Wire.RecordingState.FAILED, reason = "MISSED", createdAt = at, updatedAt = at,
+    )
+
     @Test fun `each failure reason reads in words`() {
         assertTrue(missedWhy("DISK_FULL").contains("disk filled up"))
         assertTrue(missedWhy("NO_MEDIA").contains("sent nothing"))

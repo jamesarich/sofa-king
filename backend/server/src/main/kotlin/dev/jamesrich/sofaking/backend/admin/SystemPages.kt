@@ -48,8 +48,8 @@ internal class SystemPages(private val portal: Portal, private val events: Event
             } else {
                 session.flash.set(Flash("Started ${job.label}.", Tone.OK, id))
             }
-            // The About page's transcode test comes back to its panel; every other run to the Jobs page.
-            seeOther(call, form["back"]?.takeIf { it == ENCODER_PANEL } ?: "/admin/system/jobs")
+            // A run comes back to the panel that asked for it, from a fixed list; every other run to the Jobs page.
+            seeOther(call, form["back"]?.takeIf { it in JOB_RETURNS } ?: "/admin/system/jobs")
         }
         route.get("/system/events") { call.html(eventsPage(chrome(), eventsView(call.request.queryParameters))) }
         route.get("/system/about") { call.html(aboutPage(chrome(), aboutView())) }

@@ -32,6 +32,9 @@ import kotlinx.html.tr
 /** Where the About page's Run button comes back to. */
 internal const val ENCODER_PANEL = "/admin/system/about#encoder"
 
+/** The pages a job run may come back to; any other `back` value goes to the Jobs page. */
+internal val JOB_RETURNS = setOf(ENCODER_PANEL, PROVIDERS_IMPORTS, PROVIDERS_GUIDES)
+
 /**
  * The About page's encoder panel: what `SOFA_HWACCEL` asked for, what the startup check found and uses, and the newest
  * transcode test with each encoder's speed, with a button that runs it again.

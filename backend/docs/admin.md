@@ -2,7 +2,7 @@
 
 The server serves an admin portal at `/admin` on its own port. Its server-rendered pages show whether everything is healthy, edit channels, merges, groups and provider priority, and manage recordings, series rules and media libraries. It works from a phone browser and without JavaScript; with JavaScript, [htmx](dependencies.md#vendored-htmx) keeps the page in place after an action.
 
-The portal calls the server's services directly, and apart from its runtime settings, the update request, backups, the temporary DEBUG level, TMDB matches made by hand and its own controls (stop a session, run a job or a probe now, ignore a home page item), it changes nothing the [admin API](api.md#admin-api) cannot. It also takes the same paths. Under a [lineup policy](lineup-policy.md), a channel edit is written into the station's override and applied, as `PATCH /api/v1/admin/lineup/{id}` does. A group or provider edit writes the whole policy against the revision the page showed and applies it, as `PUT /api/v1/admin/policy` does.
+The portal calls the server's services directly, and apart from the runtime settings edit, a source probe or job run on request, stopping a session, ignoring a home page item, canceling a pairing code, backups, the temporary DEBUG level, a TMDB match made by hand, and the update check and request, it changes nothing the [admin API](api.md#admin-api) cannot. It also takes the same paths. Under a [lineup policy](lineup-policy.md), a channel edit is written into the station's override and applied, as `PATCH /api/v1/admin/lineup/{id}` does. A group or provider edit writes the whole policy against the revision the page showed and applies it, as `PUT /api/v1/admin/policy` does.
 
 ## Sign in
 

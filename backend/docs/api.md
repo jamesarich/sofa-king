@@ -427,7 +427,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | POST | `/api/v1/admin/libraries` | Add a library from `{"name", "kind", "path"}`; 201 with the library, and its first scan starts. 400 when the folder is outside `SOFA_MEDIA_DIR`, links outside it or does not exist; 409 `LIBRARY_EXISTS` when another library uses it |
 | GET, PATCH, DELETE | `/api/v1/admin/libraries/{id}` | One library; rename it with `{"name"}`; remove it (204), forgetting its items and their watch progress but never touching its files |
 | POST | `/api/v1/admin/libraries/scan` | Queue a scan of the library whose folder holds `{"path"}`, a file or folder, or of every library inside it when it names a folder above them; 202 with `{"libraries"}`, their ids, at once. The path is mapped through `SOFA_LIBRARY_PATH_MAP` first. 404 `LIBRARY_NOT_FOUND` when no library holds it |
-| POST | `/api/v1/admin/libraries/{id}/scan` | Scan now and answer when done: `files`, `added`, `updated`, `missing`, `removed`, and `unavailable` when the folder was missing or empty, in which case nothing changed |
+| POST | `/api/v1/admin/libraries/{id}/scan` | Scan now and answer when done: `files`, `added`, `updated`, `missing`, `removed`, and `unavailable` when the folder was missing or empty, in which case nothing changed. With `?refresh=true` it queues the scan and answers `202` with `libraries`; a music library asks MusicBrainz again for every album and artist |
 
 While a lineup policy is in use, `POST /lineup`, `PUT /lineup/order` and `POST /lineup/adopt` answer `410 Gone` with code `POLICY_MANAGED`; see [lineup policy](lineup-policy.md#api). Without it, the `/policy/*` routes answer `404 POLICY_NOT_CONFIGURED`.
 

@@ -11,6 +11,7 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.LibraryRecord
 import dev.jamesrich.sofaking.backend.library.LibraryService
+import dev.jamesrich.sofaking.backend.library.ScanResult
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
@@ -72,19 +73,18 @@ internal fun Route.libraryAdminRoutes(libraries: LibraryService?) {
         call.respond(HttpStatusCode.Accepted, ScanQueued(queued.map { it.id }))
     }
     post("/libraries/{id}/scan") {
-        val result = loaded().scan(call.parameters["id"]!!)
-        call.respond(
-            LibraryScanInfo(
-                result.files,
-                result.added,
-                result.updated,
-                result.missing,
-                result.removed,
-                result.unavailable,
-            ),
-        )
+        val service = loaded()
+        val id = call.parameters["id"]!!
+        if (call.request.queryParameters["refresh"] == "true") {
+            service.library(id)
+            service.requestScan(id, refresh = true)
+            return@post call.respond(HttpStatusCode.Accepted, ScanQueued(listOf(id)))
+        }
+        call.respond(service.scan(id).info())
     }
 }
+
+private fun ScanResult.info() = LibraryScanInfo(files, added, updated, missing, removed, unavailable)
 
 internal fun LibraryRecord.info(items: Map<String, Int>) =
     LibraryInfo(id, name, kind.wire, path, createdAt, items, scannedAt, scanOk, scanNote)

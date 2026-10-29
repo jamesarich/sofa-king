@@ -39,7 +39,6 @@ import kotlinx.html.th
 import kotlinx.html.thead
 import kotlinx.html.tr
 import kotlinx.html.ul
-import java.time.Instant
 
 internal class HdhrDevice(val name: String, val address: String, val channels: Int)
 
@@ -79,7 +78,7 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex", c
                     )
             }
         } else {
-            plexSync(status, chrome.now)
+            plexSync(status, chrome)
         }
     }
     panel("HDHomeRun tuners", id = "tuners") {
@@ -95,8 +94,14 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex", c
     plexSetup(view)
 }
 
-private fun DIV.plexSync(status: PlexStatus, now: Instant) {
+private fun FlowContent.syncNow(chrome: Chrome) = postForm("/admin/plex/sync", chrome.session, keepScroll = true) {
+    div("actions") { button(type = ButtonType.submit) { +"Sync now" } }
+}
+
+private fun DIV.plexSync(status: PlexStatus, chrome: Chrome) {
+    val now = chrome.now
     if (status.lastError != null) notice("The last sync failed: ${status.lastError}")
+    syncNow(chrome)
     dl("kv") {
         dt { +"Last sync" }
         dd {

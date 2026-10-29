@@ -26,6 +26,7 @@ internal class PlexPages(private val portal: Portal) {
         route.action("/plex/reveal") { session, _ ->
             call.html(plexPage(chrome(call, session), plexView(call, reveal = true)))
         }
+        route.action("/plex/sync") { session, _ -> syncNow(call, session) }
         route.action("/plex/allow") { session, form ->
             val address = form["address"].orEmpty().trim()
             val flash = if (address.isEmpty()) {
@@ -77,6 +78,19 @@ internal class PlexPages(private val portal: Portal) {
                 seeOther(call, "/admin/plex#named-outputs")
             }
         }
+    }
+
+    private suspend fun syncNow(call: ApplicationCall, session: AdminSession) {
+        val plex = runtime.plex
+        val error = plex?.sync("portal")?.lastError
+        session.flash.set(
+            when {
+                plex == null -> Flash("Plex sync is not set up.", Tone.BAD)
+                error != null -> Flash("The sync failed: $error", Tone.BAD)
+                else -> Flash("Synced with Plex.")
+            },
+        )
+        seeOther(call, "/admin/plex#sync")
     }
 
     private suspend fun plexView(call: ApplicationCall, reveal: Boolean): PlexView {

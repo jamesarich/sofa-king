@@ -50,11 +50,11 @@ internal class EngagePublisher(private val context: Context) {
     }
 
     /** Hands [items] to the Engage service, or removes the row when there are none; false when it refused them. */
-    fun publish(items: List<MediaItem>): Boolean = runCatchingCancellable {
+    fun publish(items: List<MediaItem>, serverUrl: String?): Boolean = runCatchingCancellable {
         WatchNextArtwork.grant(context)
         val now = System.currentTimeMillis()
         val entities = items.mapIndexedNotNull { index, item ->
-            entity(item, engagedAt = now - index * ENGAGEMENT_STEP_MS)
+            entity(item, serverUrl, engagedAt = now - index * ENGAGEMENT_STEP_MS)
         }.take(MAX_ENTITIES)
         if (entities.isEmpty()) {
             await(client.deleteContinuationCluster(account))
@@ -64,7 +64,7 @@ internal class EngagePublisher(private val context: Context) {
             val request = PublishContinuationClusterRequest.Builder().setContinuationCluster(cluster.build())
             await(client.publishContinuationCluster(request.build()))
         }
-        WatchNextArtwork.keepOnly(context, items.take(MAX_ENTITIES).mapNotNull { image(it)?.imageUri })
+        WatchNextArtwork.keepOnly(context, items.take(MAX_ENTITIES).mapNotNull { image(it, serverUrl)?.imageUri })
     }.onFailure {
         Log.w(TAG, "engage: Continue watching was not published: $it")
     }.isSuccess
@@ -89,9 +89,9 @@ internal class EngagePublisher(private val context: Context) {
      * [item]'s card: an episode of its show, or a movie, for anything else the shelf plays. Null for an item without
      * the duration or artwork the service requires, which it would refuse the whole row for.
      */
-    private fun entity(item: MediaItem, engagedAt: Long): Entity? {
+    private fun entity(item: MediaItem, serverUrl: String?, engagedAt: Long): Entity? {
         val durationMs = item.durationMs?.takeIf { it > 0 } ?: return null
-        val image = image(item) ?: return null
+        val image = image(item, serverUrl) ?: return null
         val positionMs = item.progress?.takeIf { it.inProgress }?.positionMs ?: 0
         val type = if (positionMs > 0) WatchNextType.TYPE_CONTINUE else WatchNextType.TYPE_NEXT
         val play = PlatformSpecificUri.Builder()
@@ -137,9 +137,9 @@ internal class EngagePublisher(private val context: Context) {
      * The backdrop, the 16:9 picture the row's cards show, else the poster; both through the app's own artwork URIs,
      * as for Watch Next. The sizes are the shape the service lays the card out by, not the file's own.
      */
-    private fun image(item: MediaItem): Image? {
-        val backdrop = item.backdrop?.let { WatchNextArtwork.contentUri(context, it) }
-        val poster = item.poster?.let { WatchNextArtwork.contentUri(context, it) }
+    private fun image(item: MediaItem, serverUrl: String?): Image? {
+        val backdrop = item.backdrop?.let { WatchNextArtwork.contentUri(context, serverUrl, it) }
+        val poster = item.poster?.let { WatchNextArtwork.contentUri(context, serverUrl, it) }
         return when {
             backdrop != null -> image(backdrop, BACKDROP_WIDTH, BACKDROP_HEIGHT)
             poster != null -> image(poster, POSTER_WIDTH, POSTER_HEIGHT)

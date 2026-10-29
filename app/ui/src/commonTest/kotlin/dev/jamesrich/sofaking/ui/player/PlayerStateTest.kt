@@ -474,6 +474,11 @@ class PlayerStateTest {
     }
 
     @Test
+    fun `a screen reader holds the bar`() {
+        assertTrue(barHeld(paused = false, scrubbing = false, failed = false, autoSkip = false, screenReader = true))
+    }
+
+    @Test
     fun `a scrub or an intro countdown holds the bar`() {
         assertTrue(barHeld(paused = false, scrubbing = true, failed = false, autoSkip = false))
         assertTrue(barHeld(paused = false, scrubbing = false, failed = false, autoSkip = true))

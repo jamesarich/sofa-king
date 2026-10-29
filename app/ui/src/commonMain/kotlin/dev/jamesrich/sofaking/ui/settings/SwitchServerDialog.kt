@@ -21,6 +21,7 @@ import dev.jamesrich.sofaking.resources.pairing_switch
 import dev.jamesrich.sofaking.resources.pairing_switch_cancel
 import dev.jamesrich.sofaking.resources.pairing_switch_message
 import dev.jamesrich.sofaking.resources.pairing_switch_title
+import dev.jamesrich.sofaking.ui.sectionHeading
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import org.jetbrains.compose.resources.stringResource
 
@@ -38,6 +39,7 @@ fun SwitchServerDialog(requested: String, current: String, onSwitch: () -> Unit,
                 Text(
                     stringResource(Res.string.pairing_switch_title, requested),
                     style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.sectionHeading(),
                 )
                 Text(
                     stringResource(Res.string.pairing_switch_message, current),

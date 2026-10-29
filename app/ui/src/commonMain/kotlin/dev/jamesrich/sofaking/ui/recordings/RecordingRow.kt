@@ -46,6 +46,7 @@ import dev.jamesrich.sofaking.resources.recordings_until
 import dev.jamesrich.sofaking.resources.recordings_watched
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.TimeFormatter
+import dev.jamesrich.sofaking.ui.announcesChanges
 import dev.jamesrich.sofaking.ui.formatBytes
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import kotlinx.datetime.format.MonthNames
@@ -89,7 +90,9 @@ internal fun RecordingRow(
                     }
                 }
                 if (recording.canProtect) {
-                    ProtectButton(recording.protected) { actions.run { onProtect(recording, !recording.protected) } }
+                    ProtectButton(recording.protected, recording.title) {
+                        actions.run { onProtect(recording, !recording.protected) }
+                    }
                 }
                 EndButton(
                     recording,
@@ -97,7 +100,7 @@ internal fun RecordingRow(
                     onPress = { if (undoes) onCancel(recording) else actions.confirmThen { onDelete(recording) } },
                     modifier = deleteModifier,
                 )
-                if (actions.confirming) KeepButton(actions, deleteFocus)
+                if (actions.confirming) KeepButton(actions, deleteFocus, recording.title)
             }
             if (actions.failed) ChangeFailed()
         }
@@ -145,22 +148,21 @@ private fun EndButton(
     onPress: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SofaButton(modifier = modifier, onClick = onPress) {
+    SofaButton(modifier = modifier.announcesChanges(), onClick = onPress) {
         val state = recording.state
-        Text(
-            if (actions.confirming) {
-                stringResource(confirmLabel(state), recording.title)
-            } else {
-                stringResource(deleteLabel(state))
-            },
-        )
+        if (actions.confirming) {
+            Text(stringResource(confirmLabel(state), recording.title))
+        } else {
+            NamedLabel(stringResource(deleteLabel(state)), recording.title)
+        }
     }
 }
 
 @Composable
-private fun ProtectButton(protected: Boolean, onClick: () -> Unit) {
+private fun ProtectButton(protected: Boolean, title: String, onClick: () -> Unit) {
     SofaButton(onClick = onClick) {
-        Text(stringResource(if (protected) Res.string.recordings_unprotect else Res.string.recordings_protect))
+        val label = if (protected) Res.string.recordings_unprotect else Res.string.recordings_protect
+        NamedLabel(stringResource(label), title)
     }
 }
 

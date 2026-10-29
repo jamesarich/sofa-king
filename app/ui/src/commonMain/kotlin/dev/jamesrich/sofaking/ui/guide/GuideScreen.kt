@@ -30,6 +30,8 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
@@ -118,7 +120,11 @@ fun GuideScreen(
             .onPreviewKeyEvent { event -> state.onKeyEvent(event.key, event.type, backAction, controls) }
             .restartsRestOnPointer(dwell, state),
     ) {
-        GuideColumn(state, nav, channels, span, lineup, favorites, preview, shown, actions, recordingMarks, open)
+        // The TV's side panel is no window, so a screen reader would still walk the grid under it.
+        val behindPanel = state.details != null && LocalLayoutProfile.current.tv
+        Box(Modifier.fillMaxSize().semantics { if (behindPanel) hideFromAccessibility() }) {
+            GuideColumn(state, nav, channels, span, lineup, favorites, preview, shown, actions, recordingMarks, open)
+        }
         ChannelNumberBadge(state.numbers)
         GuideDetails(state, nav, channels, span.now, lineup, favorites, recordingMarks, actions, open)
     }

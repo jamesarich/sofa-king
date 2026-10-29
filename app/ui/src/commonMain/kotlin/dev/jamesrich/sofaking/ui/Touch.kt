@@ -8,8 +8,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+
+/**
+ * Gives a gesture-only surface (a picture that shows its controls on a tap) a click a screen reader can perform:
+ * a button named [label], plus [extra] actions for gestures with no tap of their own (a swipe).
+ */
+internal fun Modifier.pictureButton(
+    label: String,
+    onPress: () -> Unit,
+    extra: List<CustomAccessibilityAction> = emptyList(),
+): Modifier = semantics {
+    role = Role.Button
+    onClick(label = label) {
+        onPress()
+        true
+    }
+    if (extra.isNotEmpty()) customActions = extra
+}
 
 /** Marks a section title as a heading, so a screen reader can jump between sections. */
 internal fun Modifier.sectionHeading(): Modifier = semantics { heading() }

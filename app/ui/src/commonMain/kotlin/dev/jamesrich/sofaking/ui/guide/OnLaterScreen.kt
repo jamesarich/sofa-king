@@ -57,6 +57,7 @@ import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.sectionHeading
 import dev.jamesrich.sofaking.ui.theme.SofaChip
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.StringResource
@@ -109,7 +110,7 @@ internal fun OnLaterScreen(
             Modifier.fillMaxSize().screenPadding().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(stringResource(Res.string.on_later), style = MaterialTheme.typography.headlineSmall)
+            OnLaterTitle()
             KindChips(kind, onKind = { kind = it })
             when (val s = shown) {
                 OnLaterLoad.Loading -> MessageScreen(stringResource(Res.string.loading), loading = true)
@@ -271,4 +272,13 @@ private fun OnLaterRow(
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+@Composable
+private fun OnLaterTitle() {
+    Text(
+        stringResource(Res.string.on_later),
+        style = MaterialTheme.typography.headlineSmall,
+        modifier = Modifier.sectionHeading(),
+    )
 }

@@ -35,11 +35,22 @@ internal const val FOCUS_ROW_SLOT = 1
 /** The guide's row density; the app provides the setting, and the TV keeps the comfortable default. */
 internal val LocalGuideDensity = staticCompositionLocalOf { GuideDensity.COMFORTABLE }
 
+/**
+ * A fixed [base] height grown with the system font [fontScale] above 1, so large text is not clipped in a cell. A TV
+ * keeps its metrics at any scale.
+ */
+internal fun scaledForText(base: Dp, profile: LayoutProfile, fontScale: Float): Dp =
+    if (profile.tv) base else base * maxOf(1f, fontScale)
+
 /** A channel row's height at [density]. */
-internal fun rowHeight(density: GuideDensity): Dp = when (density) {
-    GuideDensity.COMFORTABLE -> ROW_HEIGHT
-    GuideDensity.COMPACT -> COMPACT_ROW_HEIGHT
-}
+internal fun rowHeight(density: GuideDensity, profile: LayoutProfile, fontScale: Float): Dp = scaledForText(
+    when (density) {
+        GuideDensity.COMFORTABLE -> ROW_HEIGHT
+        GuideDensity.COMPACT -> COMPACT_ROW_HEIGHT
+    },
+    profile,
+    fontScale,
+)
 
 /** The pinned column's width; a compact-width window gives the timeline the rest of a phone held upright. */
 internal fun pinWidth(profile: LayoutProfile): Dp = if (profile.compactWidth) COMPACT_PIN_WIDTH else PIN_WIDTH

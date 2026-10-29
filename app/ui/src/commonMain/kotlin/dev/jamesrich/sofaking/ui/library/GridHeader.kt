@@ -45,6 +45,7 @@ import dev.jamesrich.sofaking.resources.library_view_artists
 import dev.jamesrich.sofaking.resources.library_view_favorites
 import dev.jamesrich.sofaking.resources.library_view_songs
 import dev.jamesrich.sofaking.resources.loading
+import dev.jamesrich.sofaking.ui.sectionHeading
 import dev.jamesrich.sofaking.ui.theme.SofaActionChip
 import dev.jamesrich.sofaking.ui.theme.SofaChip
 import org.jetbrains.compose.resources.StringResource
@@ -61,7 +62,12 @@ internal fun GridHeader(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(library?.name.orEmpty(), style = MaterialTheme.typography.headlineMedium, maxLines = 1)
+            Text(
+                library?.name.orEmpty(),
+                style = MaterialTheme.typography.headlineMedium,
+                maxLines = 1,
+                modifier = Modifier.sectionHeading(),
+            )
             grid?.takeIf { !it.loading || it.items.isNotEmpty() }?.let {
                 Text(
                     pluralStringResource(Res.plurals.library_items_count, it.total, it.total),

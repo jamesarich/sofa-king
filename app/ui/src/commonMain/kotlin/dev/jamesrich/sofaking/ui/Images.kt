@@ -11,10 +11,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
@@ -46,7 +44,7 @@ private const val CROSSFADE_MS = 150
 @Composable
 internal fun rememberFadingRequest(url: String): ImageRequest {
     val context = LocalPlatformContext.current
-    val animates = rememberCoroutineScope().coroutineContext[MotionDurationScale]?.scaleFactor != 0f
+    val animates = rememberMotionEnabled()
     return remember(url, animates, context) {
         ImageRequest.Builder(context).data(url).crossfade(if (animates) CROSSFADE_MS else 0).build()
     }

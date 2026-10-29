@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.jamesrich.sofaking.ui.rememberScreenReaderActive
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.delay
 import kotlin.time.Clock
@@ -63,10 +64,10 @@ internal fun PlayerTimers(state: PlayerState, player: LivePlayer) {
     }
     // The bar stays up while paused or failed, as the library player's does.
     val failed = state.failure != null
-    LaunchedEffect(state.overlayVisible, state.overlayRequest, paused, failed) {
-        if (!state.overlayVisible || barHeld(paused, scrubbing = false, failed = failed, autoSkip = false)) {
-            return@LaunchedEffect
-        }
+    val screenReader = rememberScreenReaderActive()
+    LaunchedEffect(state.overlayVisible, state.overlayRequest, paused, failed, screenReader) {
+        val held = barHeld(paused, scrubbing = false, failed = failed, autoSkip = false, screenReader = screenReader)
+        if (!state.overlayVisible || held) return@LaunchedEffect
         delay(BAR_IDLE_MS)
         state.overlayVisible = false
     }

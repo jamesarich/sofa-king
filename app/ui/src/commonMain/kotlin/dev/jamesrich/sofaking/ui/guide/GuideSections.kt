@@ -33,6 +33,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
@@ -44,6 +45,7 @@ import dev.jamesrich.sofaking.resources.guide_cell_airing
 import dev.jamesrich.sofaking.resources.guide_cell_later
 import dev.jamesrich.sofaking.resources.guide_cell_none
 import dev.jamesrich.sofaking.resources.guide_details
+import dev.jamesrich.sofaking.resources.guide_details_watch
 import dev.jamesrich.sofaking.resources.guide_favorite
 import dev.jamesrich.sofaking.resources.guide_later
 import dev.jamesrich.sofaking.resources.guide_later_day
@@ -92,12 +94,13 @@ internal fun rememberGuideRowEnv(
     val favoriteLabel = stringResource(Res.string.guide_favorite)
     val toggleFavoriteLabel = stringResource(Res.string.guide_toggle_favorite)
     val detailsLabel = stringResource(Res.string.guide_details)
+    val watchLabel = stringResource(Res.string.guide_details_watch)
     val laterLabel = stringResource(if (dayOffset == 0) Res.string.guide_later else Res.string.guide_later_day)
     val haptics = rememberHaptics()
     return remember(
         cellAiring, cellLater, cellNone, timeFormat, noListing, listingLoading, guideLoading, noGuide, guideOutOfDate,
         favoriteLabel,
-        toggleFavoriteLabel, detailsLabel, laterLabel,
+        toggleFavoriteLabel, detailsLabel, watchLabel, laterLabel,
         minutePx, minStickyTextPx, scrollState, onCellFocus, onPlay, onToggleFavorite, onOpenDetails, onJumpTo, haptics,
     ) {
         GuideRowEnv(
@@ -120,6 +123,7 @@ internal fun rememberGuideRowEnv(
             onToggleFavorite = onToggleFavorite,
             onOpenDetails = onOpenDetails,
             detailsLabel = detailsLabel,
+            watchLabel = watchLabel,
             laterLabel = laterLabel,
             onJumpTo = onJumpTo,
             haptics = haptics,
@@ -139,7 +143,8 @@ internal fun GuideTimeHeader(
     nowMinute: Long?,
     timeFormat: TimeFormatter,
 ) {
-    Row(Modifier.fillMaxWidth().height(HEADER_HEIGHT)) {
+    val headerHeight = scaledForText(HEADER_HEIGHT, LocalLayoutProfile.current, LocalDensity.current.fontScale)
+    Row(Modifier.fillMaxWidth().height(headerHeight)) {
         Box(
             Modifier.width(pinWidth(LocalLayoutProfile.current)).fillMaxHeight(),
             contentAlignment = Alignment.CenterStart,

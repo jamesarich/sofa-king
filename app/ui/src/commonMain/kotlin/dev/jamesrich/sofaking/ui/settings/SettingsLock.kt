@@ -64,6 +64,8 @@ import dev.jamesrich.sofaking.resources.settings_lock_remove
 import dev.jamesrich.sofaking.resources.settings_lock_set
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.TvTextField
+import dev.jamesrich.sofaking.ui.announcesChanges
+import dev.jamesrich.sofaking.ui.fieldSemantics
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
@@ -205,8 +207,9 @@ private fun PinEntry(
     onRecover: () -> Unit,
 ) {
     Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(Res.string.lock_pin), style = MaterialTheme.typography.titleSmall)
-        PinField(pin, pinFocus, ImeAction.Done, onAction = unlock)
+        val pinName = stringResource(Res.string.lock_pin)
+        Text(pinName, style = MaterialTheme.typography.titleSmall)
+        PinField(pin, pinFocus, ImeAction.Done, onAction = unlock, name = pinName, error = error)
         if (error != null) ErrorText(error)
         Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             SofaButton(main = true, onClick = unlock, enabled = canUnlock) {
@@ -227,6 +230,7 @@ private fun ForgotPin(
     canRemove: Boolean,
     remove: () -> Unit,
 ) {
+    val wrongMessage = stringResource(Res.string.lock_forgot_wrong).takeIf { wrongToken }
     Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!hasToken) {
             HelpText(stringResource(Res.string.lock_forgot_no_token))
@@ -243,8 +247,10 @@ private fun ForgotPin(
             keyboardType = KeyboardType.Password,
             capitalization = KeyboardCapitalization.None,
             autoCorrect = false,
+            name = stringResource(Res.string.settings_api_token),
+            error = wrongMessage,
         )
-        if (wrongToken) ErrorText(stringResource(Res.string.lock_forgot_wrong))
+        if (wrongMessage != null) ErrorText(wrongMessage)
         SofaButton(onClick = remove, enabled = canRemove) {
             Text(stringResource(Res.string.lock_remove))
         }
@@ -261,10 +267,13 @@ private fun PinField(
     focusRequester: FocusRequester,
     imeAction: ImeAction,
     onAction: () -> Unit,
+    name: String,
+    error: String? = null,
 ) {
     OutlinedSecureTextField(
         state = state,
-        modifier = Modifier.focusRequester(focusRequester),
+        modifier = Modifier.focusRequester(focusRequester).fieldSemantics(name, error),
+        isError = error != null,
         textStyle = MaterialTheme.typography.bodyLarge,
         inputTransformation = InputTransformation.maxLengthReject(SettingsPin.LENGTH),
         textObfuscationMode = TextObfuscationMode.Hidden,
@@ -279,7 +288,7 @@ internal fun ErrorText(text: String) {
         text,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.error,
-        modifier = Modifier.width(FIELD_WIDTH),
+        modifier = Modifier.width(FIELD_WIDTH).announcesChanges(),
     )
 }
 
@@ -374,17 +383,26 @@ private fun NewPinFields(
 ) {
     val firstText = first.text.toString()
     val againText = again.text.toString()
+    val firstError = stringResource(Res.string.settings_lock_pin_invalid)
+        .takeIf { firstText.isNotEmpty() && !SettingsPin.isValid(firstText) }
+    val againError = stringResource(Res.string.settings_lock_pin_mismatch)
+        .takeIf { againText.isNotEmpty() && SettingsPin.isValid(firstText) && againText != firstText }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(Res.string.settings_lock_pin), style = MaterialTheme.typography.titleSmall)
-        PinField(first, firstFocus, ImeAction.Next, onAction = { againFocus.requestFocus() })
-        if (firstText.isNotEmpty() && !SettingsPin.isValid(firstText)) {
-            ErrorText(stringResource(Res.string.settings_lock_pin_invalid))
-        }
-        Text(stringResource(Res.string.settings_lock_pin_again), style = MaterialTheme.typography.titleSmall)
-        PinField(again, againFocus, ImeAction.Done, onAction = set)
-        if (againText.isNotEmpty() && SettingsPin.isValid(firstText) && againText != firstText) {
-            ErrorText(stringResource(Res.string.settings_lock_pin_mismatch))
-        }
+        val pinName = stringResource(Res.string.settings_lock_pin)
+        Text(pinName, style = MaterialTheme.typography.titleSmall)
+        PinField(
+            first,
+            firstFocus,
+            ImeAction.Next,
+            onAction = { againFocus.requestFocus() },
+            name = pinName,
+            error = firstError,
+        )
+        if (firstError != null) ErrorText(firstError)
+        val againName = stringResource(Res.string.settings_lock_pin_again)
+        Text(againName, style = MaterialTheme.typography.titleSmall)
+        PinField(again, againFocus, ImeAction.Done, onAction = set, name = againName, error = againError)
+        if (againError != null) ErrorText(againError)
         Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             SofaButton(main = true, onClick = set, enabled = canSet) {
                 Text(stringResource(Res.string.settings_lock_confirm))

@@ -26,6 +26,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -39,6 +40,8 @@ import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.ProgramFacts
 import dev.jamesrich.sofaking.data.breakFacts
 import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.a11y_open_channel_list
+import dev.jamesrich.sofaking.resources.a11y_show_controls
 import dev.jamesrich.sofaking.resources.break_watching
 import dev.jamesrich.sofaking.resources.no_channels
 import dev.jamesrich.sofaking.resources.now_playing
@@ -51,9 +54,11 @@ import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
 import dev.jamesrich.sofaking.ui.WindowFullScreen
+import dev.jamesrich.sofaking.ui.blocksLetterShortcut
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.isLongPress
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.pictureButton
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.repeatCountOrNull
@@ -220,6 +225,19 @@ private fun LiveSurface(
                 stringResource(Res.string.now_playing),
                 stringResource(Res.string.now_playing_channel),
             )
+            .pictureButton(
+                stringResource(Res.string.a11y_show_controls),
+                onPress = {
+                    state.attended = true
+                    if (breakTakes(Key.Back)) parts.cover.dismissed = true else state.tap()
+                },
+                extra = listOf(
+                    CustomAccessibilityAction(stringResource(Res.string.a11y_open_channel_list)) {
+                        state.openMiniGuide()
+                        true
+                    },
+                ),
+            )
             .liveKeys(parts, controls, breakTakes, hasAudioChoice = audioTracks.isNotEmpty())
             .liveTouches(parts, breakTakes, LocalWindowFullScreen.current, LocalLastInput.current),
     ) {
@@ -269,6 +287,7 @@ private fun Modifier.liveKeys(
     breakTakes: (Key) -> Boolean,
     hasAudioChoice: Boolean,
 ): Modifier = onPreviewKeyEvent { event ->
+    if (event.blocksLetterShortcut()) return@onPreviewKeyEvent false
     val state = parts.state
     state.attended = true
     if (breakTakes(event.key)) {

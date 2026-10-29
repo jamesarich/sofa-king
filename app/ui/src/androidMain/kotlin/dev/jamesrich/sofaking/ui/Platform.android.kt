@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Activity
 import android.app.UiModeManager
 import android.content.ActivityNotFoundException
@@ -44,15 +45,32 @@ internal actual fun rememberSystem24HourClock(): Boolean {
     return remember(context) { android.text.format.DateFormat.is24HourFormat(context) }
 }
 
-/** TalkBack's touch exploration, followed while the screen is up: it can be switched on over an open guide. */
+/**
+ * Whether a screen reader is on: touch exploration, or a service giving spoken feedback, which is how TalkBack runs on
+ * a TV, where there is no touch to explore.
+ */
+internal fun screenReaderOn(touchExploration: Boolean, spokenFeedbackServices: Int): Boolean =
+    touchExploration || spokenFeedbackServices > 0
+
+private fun AccessibilityManager.screenReaderOn(): Boolean = screenReaderOn(
+    isTouchExplorationEnabled,
+    getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_SPOKEN).size,
+)
+
+/** The screen reader, followed while the screen is up: it can be switched on over an open guide. */
 @Composable
 internal actual fun rememberScreenReaderActive(): Boolean {
     val manager = LocalContext.current.getSystemService(AccessibilityManager::class.java)
-    var active by remember(manager) { mutableStateOf(manager?.isTouchExplorationEnabled == true) }
+    var active by remember(manager) { mutableStateOf(manager?.screenReaderOn() == true) }
     DisposableEffect(manager) {
-        val listener = AccessibilityManager.TouchExplorationStateChangeListener { active = it }
-        manager?.addTouchExplorationStateChangeListener(listener)
-        onDispose { manager?.removeTouchExplorationStateChangeListener(listener) }
+        val touch = AccessibilityManager.TouchExplorationStateChangeListener { active = manager.screenReaderOn() }
+        val services = AccessibilityManager.AccessibilityStateChangeListener { active = manager.screenReaderOn() }
+        manager?.addTouchExplorationStateChangeListener(touch)
+        manager?.addAccessibilityStateChangeListener(services)
+        onDispose {
+            manager?.removeTouchExplorationStateChangeListener(touch)
+            manager?.removeAccessibilityStateChangeListener(services)
+        }
     }
     return active
 }

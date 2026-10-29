@@ -51,6 +51,7 @@ import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.WindowFullScreen
 import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
+import dev.jamesrich.sofaking.ui.blocksLetterShortcut
 import dev.jamesrich.sofaking.ui.guide.GuideShortcut
 import dev.jamesrich.sofaking.ui.guide.LocalGuideDensity
 import dev.jamesrich.sofaking.ui.guide.guideShortcut
@@ -328,6 +329,7 @@ private fun Modifier.appKeys(
     volume: PlayerVolume,
     windowFullScreen: WindowFullScreen?,
 ): Modifier = onPreviewKeyEvent { event ->
+    if (event.blocksLetterShortcut()) return@onPreviewKeyEvent false
     if (windowFullScreen != null && event.key.togglesFullScreen(inPlayer = shell.nav.top.playsFullScreen)) {
         if (event.type == KeyEventType.KeyUp) windowFullScreen.toggle()
         return@onPreviewKeyEvent true

@@ -180,7 +180,11 @@ struct GuideGrid: View {
                     .buttonStyle(GuideCellStyle())
                     .frame(width: max(width, 8), height: Self.rowHeight)
                     .focused($focus, equals: .cell(guideId: channel.guideId, startMs: cell.startMs))
-                    .accessibilityLabel("\(channel.name), \(cell.program?.title ?? "No program information")")
+                    .accessibilityLabel(cellDescription(channel, cell, marks: marks))
+                    .accessibilityAction(named: model.favorites.contains(channel.guideId) ? strings.favoriteRemove : strings.favoriteAdd) {
+                        model.core.toggleFavorite(guideId: channel.guideId)
+                    }
+                    .accessibilityAction(named: "Program details") { details(channel, upcoming(cell.program)) }
                     .contextMenu {
                         Button("Program details", systemImage: "info.circle") { details(channel, upcoming(cell.program)) }
                         FavoriteButton(channel: channel)
@@ -256,6 +260,22 @@ struct GuideGrid: View {
     private func upcoming(_ program: Program?) -> Program? {
         guard let program, model.core.start(of: program) > Date() else { return nil }
         return program
+    }
+
+    /// What VoiceOver reads for a cell: the channel, the program, when it airs or that it is on now, and a recording mark.
+    private func cellDescription(_ channel: Channel, _ cell: GuideSegment, marks: RecordingMarks?) -> String {
+        guard let program = cell.program else {
+            return spokenStrings.guideCellNone(channel: channel.name, reason: "No program information")
+        }
+        let time = Date.FormatStyle(date: .omitted, time: .shortened)
+        return spokenStrings.guideCell(
+            channel: channel.name,
+            title: program.title,
+            start: model.core.start(of: program).formatted(time),
+            stop: model.core.end(of: program).formatted(time),
+            airing: cell.covers(Int64(now.timeIntervalSince1970 * 1000)),
+            recording: marks.map { model.core.recordingMark(marks: $0, program: program).recording } ?? false
+        )
     }
 
     private func timeText(_ program: Program) -> String {

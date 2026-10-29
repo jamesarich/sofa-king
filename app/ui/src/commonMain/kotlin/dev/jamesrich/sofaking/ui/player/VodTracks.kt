@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.SubtitleRaise
 import dev.jamesrich.sofaking.data.Subtitles
+import dev.jamesrich.sofaking.data.stepSubtitleOffset
+import dev.jamesrich.sofaking.data.subtitleOffsetText
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.stream_card_audio
 import dev.jamesrich.sofaking.resources.vod_tracks_earlier
@@ -43,7 +45,6 @@ import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import org.jetbrains.compose.resources.stringResource
-import kotlin.math.abs
 
 /**
  * One audio or subtitle track the item offers: its index, and what the picker calls it. A [picture] subtitle has
@@ -102,23 +103,6 @@ internal fun tracksFocus(tracks: VodTracks, audio: Int?, subtitle: Int?): Tracks
     )
 
     else -> TracksFocus.Subtitle(subtitle?.takeIf { s -> tracks.subtitles.any { it.index == s } })
-}
-
-/** How far one press of Earlier or Later moves the subtitles, and how far from the file's own timing they may go. */
-internal const val SUBTITLE_OFFSET_STEP_MS = 250L
-internal const val SUBTITLE_OFFSET_MAX_MS = 10_000L
-
-/** [offsetMs] moved [steps] presses later (earlier when negative), within [SUBTITLE_OFFSET_MAX_MS] either way. */
-internal fun stepSubtitleOffset(offsetMs: Long, steps: Int): Long =
-    (offsetMs + steps * SUBTITLE_OFFSET_STEP_MS).coerceIn(-SUBTITLE_OFFSET_MAX_MS, SUBTITLE_OFFSET_MAX_MS)
-
-/** An offset as the card shows it: "+0.25 s" for later, "−1.5 s" for earlier, "0 s" for the file's own timing. */
-internal fun subtitleOffsetText(offsetMs: Long): String {
-    if (offsetMs == 0L) return "0 s"
-    val ms = abs(offsetMs)
-    val fraction = (ms % 1000).toString().padStart(3, '0').trimEnd('0')
-    val seconds = if (fraction.isEmpty()) "${ms / 1000}" else "${ms / 1000}.$fraction"
-    return "${if (offsetMs > 0) "+" else "\u2212"}$seconds s"
 }
 
 /**

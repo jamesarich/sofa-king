@@ -231,6 +231,17 @@ class OutputTest {
         assertTrue(client.get("/output/playlist.m3u?token=$output").bodyAsText().contains(hls.id), "the full list")
     }
 
+    @Test fun `a named output is found and deleted by any casing of its name`() = outputLists {
+        client.put("/api/v1/admin/outputs/Kids") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody("""{"channels":["6"]}""")
+        }
+        assertEquals(HttpStatusCode.OK, client.get("/output/Kids/playlist.m3u?token=$output").status)
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/v1/admin/outputs/Kids") { bearerAuth(token) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.get("/output/kids/playlist.m3u?token=$output").status)
+    }
+
     @Test fun `a named output takes the output token and an unknown one answers 404`() = outputLists {
         client.put("/api/v1/admin/outputs/news") {
             bearerAuth(token)

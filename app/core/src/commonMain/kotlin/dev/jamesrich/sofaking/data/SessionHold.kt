@@ -162,6 +162,7 @@ internal class SessionHold(
         if (current.value?.sessionId != held.sessionId) return
         current.value = null
         items.remove(held.sessionId)
+        if (!kind.reopens) return
         val again = kind.reopening(held, itemPositionMs)
         // A reopen that fails leaves no session; the player's own failure path tunes again with backoff.
         val reopened = try {
@@ -186,6 +187,9 @@ internal sealed interface SessionKind {
 
     /** What opens in place of [held] once the server dropped it, the player last at [positionMs] in an item. */
     fun reopening(held: PlaybackStream, positionMs: Long): SessionKind
+
+    /** False for a session nobody waits on, such as a trailer behind a page: once dropped it is simply gone. */
+    val reopens: Boolean get() = true
 }
 
 internal class LiveSessionKind(
@@ -215,6 +219,8 @@ internal class ItemSessionKind(val request: ItemRequest, private val startMs: Lo
     override suspend fun release(api: SofaKingApi, sessionId: String) = api.releaseVod(sessionId)
 
     override fun reopening(held: PlaybackStream, positionMs: Long): SessionKind = ItemSessionKind(request, positionMs)
+
+    override val reopens: Boolean get() = request.intent != PlaybackIntent.PREVIEW
 }
 
 /** A multiview of [channelIds] with the sound of tile [audio]; a reopen keeps the tile the sound was last moved to. */
@@ -237,6 +243,8 @@ internal data class ItemRequest(
     val audioIndex: Int?,
     val subtitleIndex: Int?,
     val recording: Boolean = false,
+    /** [PlaybackIntent.PREVIEW] for a trailer behind a page: a short lease, ended first, never reopened. */
+    val intent: PlaybackIntent = PlaybackIntent.WATCH,
 ) {
     fun dto(startMs: Long) = OpenVodPlaybackDto(
         itemId = if (recording) "" else itemId,
@@ -253,6 +261,7 @@ internal data class ItemRequest(
         recordingId = itemId.takeIf { recording },
         subtitleIndex = subtitleIndex,
         wholePlaylist = profile.wholePlaylist,
+        intent = intent.wire,
     )
 }
 
@@ -279,7 +288,7 @@ private fun itemStream(api: SofaKingApi, session: VodSessionDto, itemId: String,
     url = api.mediaUrl(session.descriptor),
     mimeType = mediaMimeType(session.descriptor),
     epoch = session.descriptor.epoch,
-    intent = PlaybackIntent.WATCH,
+    intent = PlaybackIntent.fromWire(session.intent) ?: PlaybackIntent.WATCH,
     seekable = true,
     itemId = itemId,
     mode = session.mode,

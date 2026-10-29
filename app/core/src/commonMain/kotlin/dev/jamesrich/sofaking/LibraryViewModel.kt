@@ -188,8 +188,11 @@ interface LibraryPlayback {
     /** The song [itemId] played far enough to count: one more play for Recently played, Most played and the radio. */
     fun played(itemId: String) = Unit
 
-    /** Likes or unlikes the song, album or artist [itemId] for the household. */
-    fun setFavorite(itemId: String, favorite: Boolean) = Unit
+    /**
+     * Likes or unlikes the song, album or artist [itemId] for the household; true once the server has it, and then its
+     * grid card and pages show the server's item.
+     */
+    suspend fun setFavorite(itemId: String, favorite: Boolean): Boolean = true
 }
 
 /**
@@ -455,13 +458,12 @@ internal class LibraryPlayer(
         }
     }
 
-    override fun setFavorite(itemId: String, favorite: Boolean) {
-        val repository = repository() ?: return
-        scope.launch {
-            runCatchingCancellable { repository.setFavorite(itemId, favorite) }.onFailure { e ->
-                log.w { "liking failed: ${e.describe()}" }
-            }
-        }
+    override suspend fun setFavorite(itemId: String, favorite: Boolean): Boolean {
+        val repository = repository() ?: return false
+        return runCatchingCancellable { repository.setFavorite(itemId, favorite) }
+            .onSuccess(onChanged)
+            .onFailure { e -> log.w { "liking failed: ${e.describe()}" } }
+            .isSuccess
     }
 
     private fun save(itemId: String, positionMs: Long, durationMs: Long?, refresh: Boolean) {

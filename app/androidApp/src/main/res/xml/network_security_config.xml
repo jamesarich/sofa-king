@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The Sofa King server serves plain HTTP on the LAN. -->
+<!-- The Sofa King server serves plain HTTP on the LAN at an address the app cannot know ahead, so the base must stay
+     cleartext. The update check and the APK download go to GitHub, which always uses HTTPS and never needs it. -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true" />
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">github.com</domain>
+        <domain includeSubdomains="false">api.github.com</domain>
+        <domain includeSubdomains="true">githubusercontent.com</domain>
+    </domain-config>
 </network-security-config>

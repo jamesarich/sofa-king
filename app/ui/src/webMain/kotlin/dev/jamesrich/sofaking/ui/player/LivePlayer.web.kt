@@ -101,6 +101,7 @@ internal class HtmlLivePlayer(
 
     init {
         video.addEventListener("playing") {
+            tap.resume()
             mutableStatus.update { it.copy(state = PlaybackState.READY, isPlaying = true) }
         }
         video.addEventListener("pause") { mutableStatus.update { it.copy(isPlaying = false) } }
@@ -292,6 +293,7 @@ internal class HtmlLivePlayer(
     override fun release() {
         stop()
         autoplay.release()
+        tap.close()
     }
 
     private fun updateFrameSize() {

@@ -8,6 +8,7 @@
     <string name="recordings_empty">Nothing recorded yet</string>
     <string name="recordings_empty_hint">Open a program's details in the guide and choose Record.</string>
     <string name="recordings_unavailable">This server doesn't record</string>
+    <string name="recordings_unavailable_hint">This server is too old to record. Update it, then open this tab again.</string>
     <string name="recordings_space">%1$s free of %2$s</string>
     <string name="recordings_until">Recording until %1$s</string>
     <string name="recordings_failed">Failed</string>

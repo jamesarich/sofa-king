@@ -21,6 +21,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 private val log = Logger.withTag("SofaKing")
 
@@ -44,15 +46,15 @@ internal interface SongTaste {
     /** The song [songId] played far enough to count. */
     fun played(songId: String)
 
-    /** The song [songId] is liked, or no longer. */
-    fun favorite(songId: String, favorite: Boolean)
+    /** The song [songId] is liked, or no longer; true once the server has it. */
+    suspend fun favorite(songId: String, favorite: Boolean): Boolean
 
     companion object {
         /** Tells nobody. */
         val None: SongTaste = object : SongTaste {
             override fun played(songId: String) = Unit
 
-            override fun favorite(songId: String, favorite: Boolean) = Unit
+            override suspend fun favorite(songId: String, favorite: Boolean) = true
         }
     }
 }
@@ -85,7 +87,7 @@ internal class MusicPlayback(
         private set
 
     /** The viewer's likes, over what the songs the queue holds said when they were listed. */
-    val likes = SongLikes(taste)
+    val likes = SongLikes(taste, scope)
 
     private val plays = PlayCounter(taste)
 
@@ -297,19 +299,39 @@ internal class MusicPlayback(
 /** What the system's media surfaces show for a song: its title, its artist and its album's cover. */
 internal fun MediaItem.nowPlaying(): NowPlaying = NowPlaying(title, songLine(this).orEmpty(), poster)
 
-/** The viewer's likes of songs, over what each song said when it was listed. */
+/**
+ * The viewer's likes of songs, over what each song said when it was listed. A like shows at once; a song's calls to the
+ * server run one at a time in the order tapped, and a like the server did not take goes back to what it last took.
+ */
 @Stable
-internal class SongLikes(private val taste: SongTaste) {
+internal class SongLikes(private val taste: SongTaste, private val scope: CoroutineScope) {
     private val liked = mutableStateMapOf<String, Boolean>()
+    private val confirmed = mutableMapOf<String, Boolean>()
+    private val pending = mutableMapOf<String, Int>()
+    private val locks = mutableMapOf<String, Mutex>()
 
     /** Whether the household likes [song]. */
     fun isFavorite(song: MediaItem): Boolean = liked[song.id] ?: song.favorite
 
     /** Likes [song], or unlikes it. */
     fun toggle(song: MediaItem) {
+        val id = song.id
         val now = !isFavorite(song)
-        liked[song.id] = now
-        taste.favorite(song.id, now)
+        if (id !in confirmed) confirmed[id] = !now
+        liked[id] = now
+        pending[id] = (pending[id] ?: 0) + 1
+        val lock = locks.getOrPut(id) { Mutex() }
+        scope.launch {
+            try {
+                lock.withLock {
+                    if (taste.favorite(id, now)) confirmed[id] = now
+                }
+            } finally {
+                val left = (pending[id] ?: 1) - 1
+                pending[id] = left
+                if (left == 0) liked[id] = confirmed.getValue(id)
+            }
+        }
     }
 }
 

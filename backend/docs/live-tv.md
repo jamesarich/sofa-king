@@ -49,7 +49,7 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_HDHR_DEVICE_ID` | Derived from the server identity | Eight hex digits Plex identifies the tuner by; keep it stable or Plex sees a new device |
 | `SOFA_HDHR_NAME` | `Sofa King` | Friendly name Plex shows, 1-64 characters without control characters |
 | `SOFA_HDHR_ALLOW` | Unset | Client IPs or CIDR blocks admitted to the HDHomeRun routes, comma separated (for example `PLEX_SERVER_IP` or `LAN_CIDR`). The portal's Plex page allows more at run time. With neither, a loopback bind admits this machine but not a reverse proxy, and any other bind admits none |
-| `SOFA_HDHR_EXTRA_PORTS` | Unset | Further ports the server listens on, comma separated, up to 7. Each is one more HDHomeRun device (`SOFA_HDHR_NAME 2`, and so on) carrying its share of the lineup. See [several devices](#several-devices-for-a-large-lineup) |
+| `SOFA_HDHR_EXTRA_PORTS` | Unset | Further ports the server listens on, comma separated, up to 15. Each is one more HDHomeRun device (`SOFA_HDHR_NAME 2`, and so on) carrying its share of the lineup. See [several devices](#several-devices-for-a-large-lineup) |
 | `SOFA_HDHR_DEVICE_SIZE` | `250` | With a lineup policy, channels per HDHomeRun device; devices hold consecutive ranges of the lineup. 1 to 5000 |
 | `SOFA_HDHR_PUBLIC_PORTS` | `SOFA_PORT`, then `SOFA_HDHR_EXTRA_PORTS` | The host ports Plex reaches each device on, comma separated, one per device in device order. Set it when Docker publishes the ports under other numbers |
 | `SOFA_PLEX_URL` | Unset | The Plex server to [keep in step](#keep-plex-in-step) with the lineup, as `http(s)://HOST[:PORT]` with no path, query or credentials (for example `http://host.docker.internal:32400`). Set it with `SOFA_PLEX_TOKEN`; requires `SOFA_HDHR_ENABLED` |
@@ -243,7 +243,7 @@ The token is the Plex server's `X-Plex-Token`, and anyone holding it administers
 
 ### Several devices for a large lineup
 
-`SOFA_HDHR_EXTRA_PORTS` lists further ports the server listens on, up to seven. Each port is one more HDHomeRun device, named `SOFA_HDHR_NAME 2`, `SOFA_HDHR_NAME 3` and so on, and each carries its share of the lineup.
+`SOFA_HDHR_EXTRA_PORTS` lists further ports the server listens on, up to 15. Each port is one more HDHomeRun device, named `SOFA_HDHR_NAME 2`, `SOFA_HDHR_NAME 3` and so on, and each carries its share of the lineup.
 
 - The lineup is split by a stable hash of each entry's ID, so a channel stays on its device when other channels change. Changing the number of ports reassigns channels across the devices.
 - With a [lineup policy](lineup-policy.md#hdhomerun-devices), devices hold consecutive ranges instead: the first `SOFA_HDHR_DEVICE_SIZE` enabled channels in number order on the first device, the next on the second. Channels beyond the last device's range stay on it, and the server logs that more ports are needed.

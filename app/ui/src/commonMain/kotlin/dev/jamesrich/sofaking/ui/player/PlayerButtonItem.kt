@@ -1,9 +1,20 @@
 package dev.jamesrich.sofaking.ui.player
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.captions_off
+import dev.jamesrich.sofaking.resources.captions_on
+import dev.jamesrich.sofaking.resources.player_control_captions
+import dev.jamesrich.sofaking.resources.player_control_pause
+import dev.jamesrich.sofaking.resources.player_control_play
+import dev.jamesrich.sofaking.resources.player_control_retry
 import dev.jamesrich.sofaking.resources.player_control_sleep
+import dev.jamesrich.sofaking.resources.player_control_stream
 import dev.jamesrich.sofaking.resources.player_sleep_end_item
 import dev.jamesrich.sofaking.resources.player_sleep_end_program
 import dev.jamesrich.sofaking.resources.player_sleep_minutes
@@ -41,7 +52,41 @@ internal fun zoomButtonItem(zoom: VideoZoom, onClick: () -> Unit): PlayerButtonI
     onClick,
 )
 
-/** The library player's speeds, which its Speed button steps through and back to the first. */
+/** Retry once the stream has [failed]; play or pause, as [paused] says, until then. */
+@Composable
+internal fun playPauseButtonItem(
+    paused: Boolean,
+    failed: Boolean,
+    onPlayPause: () -> Unit,
+    onRetry: () -> Unit,
+): PlayerButtonItem = if (failed) {
+    PlayerButtonItem(Icons.Filled.Refresh, stringResource(Res.string.player_control_retry), onRetry)
+} else {
+    PlayerButtonItem(
+        if (paused) Icons.Filled.PlayArrow else SofaIcons.Pause,
+        stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause),
+        onPlayPause,
+    )
+}
+
+/** Captions on either bar, with their on or off state for a screen reader. */
+@Composable
+internal fun captionsButtonItem(captionsOn: Boolean, onClick: () -> Unit): PlayerButtonItem = PlayerButtonItem(
+    if (captionsOn) SofaIcons.ClosedCaption else SofaIcons.ClosedCaptionOff,
+    stringResource(Res.string.player_control_captions),
+    onClick,
+    state = stringResource(if (captionsOn) Res.string.captions_on else Res.string.captions_off),
+)
+
+/** The stream card's button, with the audio-track icon where there is a track to pick. */
+@Composable
+internal fun streamInfoButtonItem(hasAudioChoice: Boolean, onClick: () -> Unit): PlayerButtonItem = PlayerButtonItem(
+    if (hasAudioChoice) SofaIcons.Audiotrack else Icons.Filled.Info,
+    stringResource(Res.string.player_control_stream),
+    onClick,
+)
+
+/** The library player's speeds,which its Speed button steps through and back to the first. */
 internal val PLAYBACK_SPEEDS = listOf(1f, 1.25f, 1.5f, 2f)
 
 /** The speed after [speed] on the Speed button; one not in [PLAYBACK_SPEEDS] goes back to normal. */

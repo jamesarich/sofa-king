@@ -5,10 +5,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.android.tools.screenshot.PreviewTest
 import dev.jamesrich.sofaking.previews.GuidePreview
 import dev.jamesrich.sofaking.previews.LibraryHomePreview
+import dev.jamesrich.sofaking.previews.LiveBarPreview
 import dev.jamesrich.sofaking.previews.PlayerInfoPreview
 import dev.jamesrich.sofaking.previews.ProgramDetailsPreview
 import dev.jamesrich.sofaking.previews.SettingsPreview
 import dev.jamesrich.sofaking.previews.ShowPagePreview
+import dev.jamesrich.sofaking.previews.VodBarPreview
 
 /*
  * The main screens on a 1080p TV and a phone, compared against the reference images in
@@ -46,6 +48,26 @@ private fun PlayerInfoTv() = PlayerInfoPreview(tv = true)
 @Preview(device = PHONE)
 @Composable
 private fun PlayerInfoPhone() = PlayerInfoPreview(tv = false)
+
+@PreviewTest
+@Preview(device = TV)
+@Composable
+private fun LiveBarTv() = LiveBarPreview(tv = true)
+
+@PreviewTest
+@Preview(device = PHONE)
+@Composable
+private fun LiveBarPhone() = LiveBarPreview(tv = false)
+
+@PreviewTest
+@Preview(device = TV)
+@Composable
+private fun VodBarTv() = VodBarPreview(tv = true)
+
+@PreviewTest
+@Preview(device = PHONE)
+@Composable
+private fun VodBarPhone() = VodBarPreview(tv = false)
 
 @PreviewTest
 @Preview(device = TV)

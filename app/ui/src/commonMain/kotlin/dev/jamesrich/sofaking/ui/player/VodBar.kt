@@ -33,9 +33,6 @@ import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.SeekSteps
 import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.resources.Res
-import dev.jamesrich.sofaking.resources.captions_off
-import dev.jamesrich.sofaking.resources.captions_on
-import dev.jamesrich.sofaking.resources.player_control_captions
 import dev.jamesrich.sofaking.resources.retry
 import dev.jamesrich.sofaking.resources.vod_control_back
 import dev.jamesrich.sofaking.resources.vod_control_back_to_live
@@ -143,12 +140,7 @@ internal fun vodButtonItem(
 
     VodButton.TRACKS -> PlayerButtonItem(SofaIcons.Subtitles, stringResource(Res.string.vod_tracks_title), onClick)
 
-    VodButton.CAPTIONS -> PlayerButtonItem(
-        if (captionsOn) SofaIcons.ClosedCaption else SofaIcons.ClosedCaptionOff,
-        stringResource(Res.string.player_control_captions),
-        onClick,
-        state = stringResource(if (captionsOn) Res.string.captions_on else Res.string.captions_off),
-    )
+    VodButton.CAPTIONS -> captionsButtonItem(captionsOn, onClick)
 
     VodButton.ZOOM -> zoomButtonItem(zoom, onClick)
 
@@ -209,8 +201,8 @@ internal fun BoxScope.VodInfoBar(
                 .widthIn(max = 1200.dp)
                 .fillMaxWidth()
                 .background(SofaOverlayScrim, MaterialTheme.shapes.small)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(BAR_CARD_PADDING),
+            verticalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING),
         ) {
             VodBarHeading(title, mode)
             VodSeekArea(parts, title)
@@ -303,8 +295,8 @@ private fun VodBarButtons(parts: VodParts, buttons: List<PlayerButtonItem>, cont
     if (LocalLastInput.current.kind == InputKind.POINTER) {
         FlowRow(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING),
             itemVerticalAlignment = Alignment.CenterVertically,
         ) {
             val steps = state.steps

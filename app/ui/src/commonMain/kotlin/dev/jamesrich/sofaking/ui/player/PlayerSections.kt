@@ -13,11 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.MaterialTheme
@@ -38,24 +35,17 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.StreamHealth
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.resources.Res
-import dev.jamesrich.sofaking.resources.captions_off
-import dev.jamesrich.sofaking.resources.captions_on
 import dev.jamesrich.sofaking.resources.guide_details_add_favorite
 import dev.jamesrich.sofaking.resources.guide_details_cancel_recording
 import dev.jamesrich.sofaking.resources.guide_details_record
 import dev.jamesrich.sofaking.resources.guide_details_remove_favorite
-import dev.jamesrich.sofaking.resources.player_control_captions
 import dev.jamesrich.sofaking.resources.player_control_channel_down
 import dev.jamesrich.sofaking.resources.player_control_channel_up
 import dev.jamesrich.sofaking.resources.player_control_channels
 import dev.jamesrich.sofaking.resources.player_control_from_start
 import dev.jamesrich.sofaking.resources.player_control_guide
 import dev.jamesrich.sofaking.resources.player_control_multiview
-import dev.jamesrich.sofaking.resources.player_control_pause
-import dev.jamesrich.sofaking.resources.player_control_play
 import dev.jamesrich.sofaking.resources.player_control_previous
-import dev.jamesrich.sofaking.resources.player_control_retry
-import dev.jamesrich.sofaking.resources.player_control_stream
 import dev.jamesrich.sofaking.resources.player_live
 import dev.jamesrich.sofaking.resources.retry
 import dev.jamesrich.sofaking.resources.tuning
@@ -315,15 +305,20 @@ private class LiveBarButtons(
             bar.control(toPicture = true) { state.recallLastChannel() },
         )
 
-        LiveButton.PLAY_PAUSE -> playPause()
-
-        LiveButton.CAPTIONS -> captions()
-
-        LiveButton.STREAM_INFO -> PlayerButtonItem(
-            if (hasAudioChoice) SofaIcons.Audiotrack else Icons.Filled.Info,
-            stringResource(Res.string.player_control_stream),
-            state::openStreamCard,
+        LiveButton.PLAY_PAUSE -> playPauseButtonItem(
+            paused,
+            state.failure != null,
+            bar.control { controls.playPause() },
+            bar.control { controls.retry() },
         )
+
+        // Captions hand the D-pad back to the picture, so Left and Right set the timing while the toast shows.
+        LiveButton.CAPTIONS -> captionsButtonItem(
+            state.captionsOn,
+            bar.control(toPicture = true) { controls.toggleCaptions() },
+        )
+
+        LiveButton.STREAM_INFO -> streamInfoButtonItem(hasAudioChoice, state::openStreamCard)
 
         LiveButton.ZOOM -> zoomButtonItem(zoom, bar.control { controls.zoom() })
 
@@ -354,31 +349,6 @@ private class LiveBarButtons(
             onGuide,
         )
     }
-
-    /** Retry once the stream has failed; play or pause until then. */
-    @Composable
-    private fun playPause(): PlayerButtonItem = if (state.failure != null) {
-        PlayerButtonItem(
-            Icons.Filled.Refresh,
-            stringResource(Res.string.player_control_retry),
-            bar.control { controls.retry() },
-        )
-    } else {
-        PlayerButtonItem(
-            if (paused) Icons.Filled.PlayArrow else SofaIcons.Pause,
-            stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause),
-            bar.control { controls.playPause() },
-        )
-    }
-
-    /** Captions hand the D-pad back to the picture, so Left and Right set the timing while the toast shows. */
-    @Composable
-    private fun captions(): PlayerButtonItem = PlayerButtonItem(
-        if (state.captionsOn) SofaIcons.ClosedCaption else SofaIcons.ClosedCaptionOff,
-        stringResource(Res.string.player_control_captions),
-        bar.control(toPicture = true) { controls.toggleCaptions() },
-        state = stringResource(if (state.captionsOn) Res.string.captions_on else Res.string.captions_off),
-    )
 
     @Composable
     private fun record(): PlayerButtonItem {
@@ -417,8 +387,8 @@ private fun PointerControls(
 ) {
     FlowRow(
         Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING),
         itemVerticalAlignment = Alignment.CenterVertically,
     ) {
         ControlIcon(

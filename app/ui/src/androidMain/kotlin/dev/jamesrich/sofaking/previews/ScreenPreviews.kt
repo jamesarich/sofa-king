@@ -1,11 +1,19 @@
 package dev.jamesrich.sofaking.previews
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -14,10 +22,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.ItemDetailState
 import dev.jamesrich.sofaking.LibraryHomeState
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.Appearance
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
@@ -87,6 +97,7 @@ import dev.jamesrich.sofaking.ui.player.vodButtonItem
 import dev.jamesrich.sofaking.ui.player.zoomButtonItem
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -234,7 +245,7 @@ fun VodBarPreview(tv: Boolean, modifier: Modifier = Modifier) = Frame(tv) {
 
 /** The Library tab:Continue watching, recent additions and the libraries. */
 @Composable
-fun LibraryHomePreview(tv: Boolean) = Frame(tv) {
+fun LibraryHomePreview(tv: Boolean, light: Boolean = false) = Frame(tv, light) {
     LibraryHomeScreen(LibraryHomeState.Ready(Samples.home), LibraryHomeActions({}, {}, {}, {}))
 }
 
@@ -251,15 +262,50 @@ fun ShowPagePreview(tv: Boolean) = Frame(tv) {
 
 /** Settings for a paired server that offers libraries and recordings. */
 @Composable
-fun SettingsPreview(tv: Boolean) = Frame(tv) {
+fun SettingsPreview(tv: Boolean, light: Boolean = false) = Frame(tv, light) {
     SettingsScreen(
-        settings = AppSettings(serverUrl = "http://sofa.example:9193", apiToken = "token", captionsEnabled = true),
+        settings = AppSettings(
+            serverUrl = "http://sofa.example:9193",
+            apiToken = "token",
+            captionsEnabled = true,
+            appearance = if (light) Appearance.LIGHT else Appearance.SYSTEM,
+        ),
         onSave = { _, _ -> },
         onBack = {},
         channelCount = Samples.channels.size,
         libraryOffered = true,
         recordingsOffered = true,
     )
+}
+
+private const val ICONS_PER_ROW = 3
+
+/** The player's `SofaIcons` at 64dp with their names, to compare the hand-copied paths with Material's. */
+@Composable
+fun PlayerIconsPreview(modifier: Modifier = Modifier) = Frame(tv = false) {
+    val icons = listOf(
+        "Undo" to SofaIcons.Undo,
+        "Redo" to SofaIcons.Redo,
+        "Lyrics" to SofaIcons.Lyrics,
+        "Cancel" to SofaIcons.Cancel,
+        "FastForward" to SofaIcons.FastForward,
+        "Replay" to SofaIcons.Replay,
+        "Subtitles" to SofaIcons.Subtitles,
+        "Replay10" to SofaIcons.Replay10,
+        "Forward30" to SofaIcons.Forward30,
+    )
+    Column(modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        icons.chunked(ICONS_PER_ROW).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                row.forEach { (name, icon) ->
+                    Column(Modifier.width(120.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(icon, contentDescription = name, modifier = Modifier.size(64.dp))
+                        Text(name, style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+        }
+    }
 }
 
 /** The Now playing page for a song with lyrics, held open on its first moment. */
@@ -288,11 +334,11 @@ private object HoldingSongSessions : SongSessions {
     override fun release(itemId: String) = Unit
 }
 
-/** The app's theme, layout profile and background around [content], on the fixed clock. */
+/** The app's theme (the light one when [light]), layout profile and background around [content], on the fixed clock. */
 @Composable
-private fun Frame(tv: Boolean, content: @Composable () -> Unit) {
+private fun Frame(tv: Boolean, light: Boolean = false, content: @Composable () -> Unit) {
     val sizeClass = currentWindowAdaptiveInfoV2().windowSizeClass
-    SofaKingTheme {
+    SofaKingTheme(if (light) Appearance.LIGHT else Appearance.DARK) {
         CompositionLocalProvider(
             LocalLayoutProfile provides LayoutProfile.of(tv, sizeClass),
             LocalClock provides Samples.clock,

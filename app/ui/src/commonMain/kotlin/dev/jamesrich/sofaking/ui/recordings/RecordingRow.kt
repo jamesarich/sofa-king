@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.ui.recordings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +44,7 @@ import dev.jamesrich.sofaking.resources.recordings_stop
 import dev.jamesrich.sofaking.resources.recordings_unprotect
 import dev.jamesrich.sofaking.resources.recordings_until
 import dev.jamesrich.sofaking.resources.recordings_watched
+import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.formatBytes
 import dev.jamesrich.sofaking.ui.theme.SofaButton
@@ -57,11 +59,55 @@ internal fun RecordingRow(
     onPlay: (DvrRecording, Boolean) -> Unit,
     onDelete: suspend (DvrRecording) -> Boolean,
     onProtect: suspend (DvrRecording, Boolean) -> Boolean,
+    onCancel: (DvrRecording) -> Unit,
     modifier: Modifier = Modifier,
     firstButtonModifier: Modifier = Modifier,
 ) {
     val actions = rememberRowActions(recording.id)
-    Column(modifier.widthIn(max = 960.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    val undoes = undoesInsteadOfConfirming(LocalLayoutProfile.current.tv, recording.state)
+    Row(modifier.widthIn(max = 960.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        RecordingThumb(recording)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            RecordingTexts(recording, time)
+            RecordedSoFarBar(recording)
+            RowButtons(actions) {
+                val deleteFocus = remember { FocusRequester() }
+                val deleteModifier =
+                    (if (recording.playable) Modifier else firstButtonModifier).focusRequester(deleteFocus)
+                if (recording.playable) {
+                    SofaButton(onClick = { onPlay(recording, false) }, modifier = firstButtonModifier) {
+                        Text(
+                            stringResource(
+                                if (recording.inProgress) Res.string.recordings_resume else Res.string.recordings_play,
+                            ),
+                        )
+                    }
+                    if (recording.inProgress) {
+                        SofaButton(onClick = {
+                            onPlay(recording, true)
+                        }) { Text(stringResource(Res.string.recordings_from_start)) }
+                    }
+                }
+                if (recording.canProtect) {
+                    ProtectButton(recording.protected) { actions.run { onProtect(recording, !recording.protected) } }
+                }
+                EndButton(
+                    recording,
+                    actions,
+                    onPress = { if (undoes) onCancel(recording) else actions.confirmThen { onDelete(recording) } },
+                    modifier = deleteModifier,
+                )
+                if (actions.confirming) KeepButton(actions, deleteFocus)
+            }
+            if (actions.failed) ChangeFailed()
+        }
+    }
+}
+
+/** The title, the episode line and the state line. */
+@Composable
+private fun RecordingTexts(recording: DvrRecording, time: TimeFormatter) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             recording.title,
             style = MaterialTheme.typography.titleMedium,
@@ -88,42 +134,18 @@ internal fun RecordingRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        RowButtons(actions) {
-            val deleteFocus = remember { FocusRequester() }
-            val deleteModifier = (if (recording.playable) Modifier else firstButtonModifier).focusRequester(deleteFocus)
-            if (recording.playable) {
-                SofaButton(onClick = { onPlay(recording, false) }, modifier = firstButtonModifier) {
-                    Text(
-                        stringResource(
-                            if (recording.inProgress) Res.string.recordings_resume else Res.string.recordings_play,
-                        ),
-                    )
-                }
-                if (recording.inProgress) {
-                    SofaButton(onClick = {
-                        onPlay(recording, true)
-                    }) { Text(stringResource(Res.string.recordings_from_start)) }
-                }
-            }
-            if (recording.canProtect) {
-                ProtectButton(recording.protected) { actions.run { onProtect(recording, !recording.protected) } }
-            }
-            EndButton(recording, actions, onDelete = { onDelete(recording) }, modifier = deleteModifier)
-            if (actions.confirming) KeepButton(actions, deleteFocus)
-        }
-        if (actions.failed) ChangeFailed()
     }
 }
 
-/** Stop, Cancel or Delete; after the first press it asks by name, and [KeepButton] backs out. */
+/** Stop, Cancel or Delete; [onPress] asks by name first or acts at once, and [KeepButton] backs out of the ask. */
 @Composable
 private fun EndButton(
     recording: DvrRecording,
     actions: RowActions,
-    onDelete: suspend () -> Boolean,
+    onPress: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SofaButton(modifier = modifier, onClick = { actions.confirmThen(onDelete) }) {
+    SofaButton(modifier = modifier, onClick = onPress) {
         val state = recording.state
         Text(
             if (actions.confirming) {

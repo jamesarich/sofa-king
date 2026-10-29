@@ -64,4 +64,23 @@ class RecordingListTest {
         assertFalse(recording("b", RecordingState.SCHEDULED, "2026-10-18T18:00:00Z").canProtect)
         assertFalse(recording("c", RecordingState.RECORDING, "2026-10-18T18:00:00Z").canProtect)
     }
+
+    @Test
+    fun `a handheld cancels a scheduled recording at once and offers undo`() {
+        assertTrue(undoesInsteadOfConfirming(tv = false, state = RecordingState.SCHEDULED))
+    }
+
+    @Test
+    fun `a TV keeps the question for a scheduled recording`() {
+        assertFalse(undoesInsteadOfConfirming(tv = true, state = RecordingState.SCHEDULED))
+    }
+
+    @Test
+    fun `stopping and deleting ask first on every device`() {
+        for (tv in listOf(true, false)) {
+            assertFalse(undoesInsteadOfConfirming(tv, RecordingState.RECORDING))
+            assertFalse(undoesInsteadOfConfirming(tv, RecordingState.COMPLETED))
+            assertFalse(undoesInsteadOfConfirming(tv, RecordingState.FAILED))
+        }
+    }
 }

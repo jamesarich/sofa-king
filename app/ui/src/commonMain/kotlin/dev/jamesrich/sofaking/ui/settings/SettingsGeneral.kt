@@ -12,6 +12,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.Appearance
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideDensity
@@ -20,6 +21,10 @@ import dev.jamesrich.sofaking.data.StartupTarget
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.resources.settings_ads_dodged
+import dev.jamesrich.sofaking.resources.settings_appearance
+import dev.jamesrich.sofaking.resources.settings_appearance_dark
+import dev.jamesrich.sofaking.resources.settings_appearance_light
+import dev.jamesrich.sofaking.resources.settings_appearance_system
 import dev.jamesrich.sofaking.resources.settings_auto_open
 import dev.jamesrich.sofaking.resources.settings_auto_open_10
 import dev.jamesrich.sofaking.resources.settings_auto_open_30
@@ -180,6 +185,27 @@ private fun LazyListScope.guideRows(
                 Text(stringResource(Res.string.settings_channels_open))
             }
         }
+    }
+}
+
+/** The color scheme this device draws in; the list of pages shows it everywhere but on a TV. */
+internal fun LazyListScope.appearanceRow(settings: AppSettings, actions: SettingsActions) {
+    item {
+        SettingChoice(
+            label = stringResource(Res.string.settings_appearance),
+            stored = settings.appearance,
+            choices = Appearance.entries,
+            choiceLabel = {
+                stringResource(
+                    when (it) {
+                        Appearance.SYSTEM -> Res.string.settings_appearance_system
+                        Appearance.DARK -> Res.string.settings_appearance_dark
+                        Appearance.LIGHT -> Res.string.settings_appearance_light
+                    },
+                )
+            },
+            onChange = actions.onAppearanceChanged,
+        )
     }
 }
 

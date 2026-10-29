@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -35,6 +36,7 @@ import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.NavDisplay
 import coil3.compose.setSingletonImageLoaderFactory
 import dev.jamesrich.sofaking.data.AppLink
+import dev.jamesrich.sofaking.data.Appearance
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.resources.Res
@@ -65,8 +67,10 @@ import dev.jamesrich.sofaking.ui.rememberPlayerWindow
 import dev.jamesrich.sofaking.ui.rememberSystemTimeZone
 import dev.jamesrich.sofaking.ui.sofaKingImageLoader
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
+import dev.jamesrich.sofaking.ui.theme.rememberDarkTheme
 import dev.jamesrich.sofaking.ui.togglesFullScreen
 import dev.jamesrich.sofaking.ui.trackLastInput
+import kotlinx.coroutines.flow.map
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
 
@@ -77,7 +81,8 @@ import kotlin.math.abs
  * live channel to play from a `sofaking://vod` or `sofaking://live` link, such as the Android TV home screen's Watch
  * Next row or a home automation's shortcut, handed back the same way through [onLinkHandle]. [windowFullScreen] is
  * the host window's full screen where the app can switch it (a desktop window, a browser page). [onLaunchReady]
- * runs once the cold start knows its first page, which a platform's launch screen waits for.
+ * runs once the cold start knows its first page, which a platform's launch screen waits for. [onDarkThemeChange] is
+ * told whether the app draws dark, so the host can set its system bars' icons to match.
  */
 @Composable
 fun App(
@@ -88,9 +93,17 @@ fun App(
     onLinkHandle: () -> Unit = {},
     windowFullScreen: WindowFullScreen? = null,
     onLaunchReady: () -> Unit = {},
+    onDarkThemeChange: (dark: Boolean) -> Unit = {},
+    // The same ViewModel the shell takes below; until the settings load, the theme follows the system.
+    settingsVm: LineupViewModel = viewModel { appGraph.lineupViewModel() },
 ) {
     setSingletonImageLoaderFactory(::sofaKingImageLoader)
-    SofaKingTheme {
+    val appearance by remember(settingsVm) { settingsVm.settings.map { it?.appearance ?: Appearance.SYSTEM } }
+        .collectAsStateWithLifecycle(Appearance.SYSTEM)
+    val currentOnDarkThemeChange by rememberUpdatedState(onDarkThemeChange)
+    val dark = rememberDarkTheme(appearance)
+    LaunchedEffect(dark) { currentOnDarkThemeChange(dark) }
+    SofaKingTheme(appearance) {
         val lastInput = rememberLastInput()
         CompositionLocalProvider(
             LocalLayoutProfile provides rememberLayoutProfile(),

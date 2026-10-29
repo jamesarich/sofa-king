@@ -118,13 +118,47 @@ private struct RecordingRow: View {
 
     var body: some View {
         HStack(spacing: 24) {
+            thumbnail
             VStack(alignment: .leading, spacing: 6) {
                 Text(recording.title).font(.headline).lineLimit(1)
                 Text(model.core.recordingSubtitle(recording)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                recordedSoFar
             }
             Spacer()
             if let status {
                 Text(status).font(.caption).foregroundStyle(recording.state == .failed ? Color.sofaError : Color.sofaMauve)
+            }
+        }
+    }
+
+    /// The program's picture, 16:9, with a bar along its bottom for how far the household got.
+    private var thumbnail: some View {
+        let resume = model.core.recordingResume(recording: recording)
+        return ZStack(alignment: .bottom) {
+            Rectangle().fill(.quaternary)
+            AsyncImage(url: recording.imageUrl.flatMap(URL.init(string:))) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFill()
+                }
+            }
+            if resume > 0 {
+                ProgressView(value: Double(resume)).tint(Color.sofaMauve)
+            }
+        }
+        .frame(width: 160, height: 90)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// How much of a running recording is on disk, read again each minute.
+    @ViewBuilder
+    private var recordedSoFar: some View {
+        if recording.state == .recording {
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                let fraction = model.core.recordingRecorded(
+                    recording: recording,
+                    nowMs: Int64(context.date.timeIntervalSince1970 * 1000)
+                )
+                ProgressView(value: Double(fraction)).tint(Color.sofaMauve)
             }
         }
     }

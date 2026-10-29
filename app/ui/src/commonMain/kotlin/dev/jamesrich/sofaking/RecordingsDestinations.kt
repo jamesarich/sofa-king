@@ -46,6 +46,7 @@ internal fun RecordingsDestination(
         },
         onRuleDelete = recordingsVm::deleteRule,
         onProtect = recordingsVm::setProtected,
+        onRestore = recordingsVm::restore,
         returnedFrom = arrival.returnedFrom,
         headerFocused = headerFocused,
     )

@@ -139,6 +139,7 @@ private fun settingsActions(shell: AppShellState, vm: LineupViewModel, libraryVm
         onStartupChanged = vm::setStartup,
         onChooseStartupChannel = { shell.push(Route.StartupChannel) },
         onGuideDensityChanged = vm::setGuideDensity,
+        onAppearanceChanged = vm::setAppearance,
         onManageChannels = { shell.push(Route.Channels) },
         onOpenPage = { shell.push(Route.SettingsSection(it)) },
         onOpenLicenses = { shell.push(Route.Licenses) },

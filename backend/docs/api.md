@@ -267,6 +267,8 @@ A rule has a `title`, an optional `channelId`, `newOnly`, `keep` (0 keeps all), 
 
 `POST /api/v1/mcp` serves the [Model Context Protocol](https://modelcontextprotocol.io), so an AI assistant can look after the server: see what needs attention, why a provider or guide fails, how the jobs ran, what the log says, and what is on and recorded. It speaks MCP's Streamable HTTP transport without sessions, through the official [Kotlin SDK](https://github.com/modelcontextprotocol/kotlin-sdk): each POST carries one JSON-RPC message and is answered as JSON, `GET` and `DELETE` answer `405`, and the client sends `Accept: application/json, text/event-stream`. It takes the admin token, or the API token when no admin token is set, which is listed every tool, or a `read` [token](#tokens), which is listed only the tools that change nothing. Device and hook tokens are refused. [Use with an AI assistant](operations.md#use-with-an-ai-assistant) has the setup.
 
+The server's instructions give the triage order: `server_status`, then `needs_attention`, then `imports` (a fetch failed) against `source_problems` and `source_health` (streams fail), then `recent_log`. The ids chain: `lineup` lists the entry ids that `channel`, `on_later` and the recording tools use, `source_problems` and `channel` list the source ids that `source_health` takes, `imports` lists the provider and guide ids, `jobs` the job ids and `libraries` the library ids. A `providerChannelId` is a provider's channel, not a lineup entry. Every list is bounded: `limit`, and `truncated` or `nextOffset` when more exist. No result carries a stream, playlist or guide URL, a token or a request header; a URL or token that reaches a field anyway is replaced before the result leaves.
+
 The read tools answer as the matching route or portal page does:
 
 | Tool | What it answers |
@@ -276,26 +278,43 @@ The read tools answer as the matching route or portal page does:
 | `update_status` | The running and published builds, whether the server is up to date, when the registry was last asked, and the host updater's last report |
 | `jobs` | The background jobs, as the portal's Jobs page lists them, with the `id`s `run_job` takes |
 | `recent_log` | The Events page's log lines, newest first; `level` (`info`, `warn` (the default) or `error`), `query` and `limit` (1 to 500, default 50) |
-| `watching_now` | `GET /api/v1/admin/sessions` |
+| `watching_now` | `GET /api/v1/admin/sessions` as `total`, `sessions` and `truncated`; `limit` (1 to 200, default 50) |
 | `imports` | Each provider's and guide's import status, as `GET /api/v1/providers` and `GET /api/v1/admin/guides` answer |
-| `source_problems` | The sources that are not healthy or are disabled by hand, with counts by state over all of them; `status` lists one state instead, and `limit` (1 to 1000, default 100) caps the list |
-| `guide_now` | What is on now and next on the enabled channels; `channel`, a number or part of a name, and `limit` (1 to 200 channels, default 50) |
-| `on_later` | `GET /api/v1/guide/on-later` with each program's channel; `kind`, `days` (default 2) and `limit` (default 50) |
-| `recordings` | `GET /api/v1/recordings`, on a server with the DVR |
+| `source_problems` | The sources that are not `HEALTHY` or are disabled by hand, with counts by state over all of them. `status` (`UNVERIFIED`, `HEALTHY`, `SUSPECT`, `QUARANTINED`, `PROBATION` or `ARCHIVED`, any case) lists one state instead, and `limit` (1 to 1000, default 100) caps the list. Each row has `sourceId`, `providerChannelId`, `providerId`, `status`, `manuallyDisabled`, `lastQualifiedAt`, `nextCheckAt` and `entryIds`, the lineup entries that use it |
+| `source_health` | One source: `sourceId` from `source_problems` or `channel`. Its `status`, `why`, `failures` and `recentProbes` (each with `at`, `qualified` and `failureClass`), `quarantineAttempts`, `lastQualifiedAt`, `nextCheckAt`, `probationStartedAt` and `entryIds` |
+| `lineup` | `GET /api/v1/admin/lineup` as the portal's Channels page filters it: `q` (name, number or station key), `group`, `state` (`on`, `off` or `unverified`), `guide` (`ok` or `missing`), `offset` and `limit` (1 to 200, default 50). Answers `total`, `offset`, `limit`, `entries` (`id`, `number`, `name`, `group`, `enabled`, `guideStatus`, `sourceCount`, `autoDisabledReason`, `stationKey`) and `nextOffset` |
+| `channel` | One lineup entry with its sources (`sourceId`, `providerId`, `providerChannelId`, `protocol`, `status`, `manuallyDisabled`, `why`), guide mapping and coverage, and `stationKey`. Takes `id`, a lineup entry id or a provider channel id (then `resolvedFrom` is `providerChannel` and `otherEntryIds` lists further entries that use it), or `number` |
+| `guide_now` | What is on now and next on the enabled channels; `channel`, a number or part of a name, `offset` and `limit` (1 to 200 channels, default 50). Answers `total`, `offset`, `limit`, `channels` and `nextOffset` |
+| `guide_channels` | `GET /api/v1/admin/guides/{id}/channels`, without icon links: `guideId` from `imports`, `q` and `limit` (1 to 200, default 50) |
+| `on_later` | `GET /api/v1/guide/on-later` with each program's channel and its `channelId`, a lineup entry id; `kind`, `days` (default 2) and `limit` (default 50) |
+| `recordings` | `GET /api/v1/recordings` without image links or file paths, on a server with the DVR; `state` (`scheduled`, `recording`, `completed` or `failed`), `offset` and `limit` (1 to 200, default 50). Answers `total`, `recordings`, `nextOffset`, `truncated` and `storage` |
+| `recording_rules` | `GET /api/v1/recording-rules`, on a server with the DVR; `limit` (1 to 200, default 50) |
 | `libraries` | `GET /api/v1/admin/libraries`, on a server with libraries |
 | `search_library` | `GET /api/v1/library/search` for `query`, music included |
-| `library_home` | `GET /api/v1/library/home`, music included |
+| `library_home` | `GET /api/v1/library/home`, music included, with each shelf cut to its first 20 items and its `total` and `truncated` |
+| `policy_findings` | `GET /api/v1/admin/policy/findings`, each list cut to `limit` (1 to 200, default 50) with its `total`; `POLICY_NOT_CONFIGURED` without a policy |
+| `preview_policy` | `GET /api/v1/admin/policy/preview`, each list cut to `limit` with its `total` |
+| `policy_changes` | `GET /api/v1/admin/policy/changes`, newest first, up to `limit` |
+| `explain_station` | `GET /api/v1/admin/stations/{key}` for the `key` a lineup row's `stationKey` shows, without the logo link |
+| `guide_matches` | `GET /api/v1/admin/policy/guide-matches`, best first, up to `limit` with the `total` |
+
+The admin token also lists two read tools that a read token cannot call, because the admin API does not open their routes to a read token either:
+
+| Tool | What it answers |
+| --- | --- |
+| `playback_history` | `GET /api/v1/admin/history`: ended playback sessions, newest first, with the device or player address, so it shows what each one watched; `since`, `kind` (`live` or `vod`), `client` and `limit` (1 to 200, default 50) |
+| `plex_status` | `GET /api/v1/admin/plex`, the last Plex sync, with each list cut to `limit`; `PLEX_NOT_CONFIGURED` without Plex sync |
 
 The admin token adds the actions, which delete nothing:
 
 | Tool | What it does |
 | --- | --- |
-| `run_job` | Starts the job with that `job` id now, as the Jobs page's Run now does; `JOB_NOT_FOUND` for one that cannot be started |
-| `scan_library` | Queues a scan of the `library` with that id, or of every library without one |
+| `run_job` | Starts the job with that `job` id now, as the Jobs page's Run now does; `JOB_NOT_FOUND` for one that cannot be started, and `jobs` lists the ids with `canRunNow` |
+| `scan_library` | Queues a scan of the `library` with that id, or of every library without one; `LIBRARY_NOT_FOUND` names `libraries` |
 | `check_for_update` | Asks the registry now and answers as `update_status`, on a server that checks for updates |
 | `update_now` | Asks the host's updater to install the newest image, as the About page's Update now does. The server restarts if a newer image is published, ending every stream; `NO_UPDATER` when no updater has reported |
 
-A tool answers JSON text. A refusal is a result with `isError` and the API's error code and message, such as `INVALID_REQUEST: limit is 1 to 200`; a tool the token is not listed is a JSON-RPC error.
+A tool answers JSON text. A refusal is a result with `isError` and the API's error code and message, such as `INVALID_REQUEST: limit is 1 to 200`, and it names the tool to call next where there is one. An unexpected failure answers `INTERNAL_ERROR` with the exception's class and points to `recent_log` with `level` `error`. A tool the token is not listed is a JSON-RPC error.
 
 ## Watchlist
 

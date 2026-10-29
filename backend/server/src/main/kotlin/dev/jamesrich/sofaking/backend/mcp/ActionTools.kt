@@ -29,7 +29,11 @@ internal fun Server.actionTools(context: McpContext) {
     ) { arguments ->
         val id = arguments.string(JOB) ?: invalid("job is required")
         if (!runtime.jobs.runNow(id)) {
-            throw ApiFailure(HttpStatusCode.NotFound, "JOB_NOT_FOUND", "No job with that id can be started")
+            throw ApiFailure(
+                HttpStatusCode.NotFound,
+                "JOB_NOT_FOUND",
+                "No job with that id can be started; call jobs, only ids with canRunNow start",
+            )
         }
         ActionResult(true, "Started $id; jobs shows when it ends and how it went")
     }
@@ -42,7 +46,13 @@ internal fun Server.actionTools(context: McpContext) {
             UPKEEP,
         ) { arguments ->
             val id = arguments.string(LIBRARY)
-            val name = id?.let { libraries.library(it).name }
+            val name = id?.let { wanted ->
+                libraries.libraries().firstOrNull { it.id == wanted }?.name ?: throw ApiFailure(
+                    HttpStatusCode.NotFound,
+                    "LIBRARY_NOT_FOUND",
+                    "No library has that id; call libraries for the ids",
+                )
+            }
             libraries.requestScan(id)
             ActionResult(true, "Queued a scan of ${name ?: "every library"}")
         }
@@ -67,7 +77,7 @@ private suspend fun requestUpdate(updates: UpdateChecker): ActionResult = when {
         throw ApiFailure(
             HttpStatusCode.Conflict,
             "NO_UPDATER",
-            "The host's updater has not reported, so there is nothing to ask",
+            "The host's updater has not reported, so there is nothing to ask; call update_status",
         )
 
     updates.requestUpdate() -> ActionResult(

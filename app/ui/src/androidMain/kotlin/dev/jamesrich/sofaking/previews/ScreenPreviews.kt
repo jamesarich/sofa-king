@@ -18,6 +18,7 @@ import dev.jamesrich.sofaking.ItemDetailState
 import dev.jamesrich.sofaking.LibraryHomeState
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.Appearance
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
@@ -234,7 +235,7 @@ fun VodBarPreview(tv: Boolean, modifier: Modifier = Modifier) = Frame(tv) {
 
 /** The Library tab:Continue watching, recent additions and the libraries. */
 @Composable
-fun LibraryHomePreview(tv: Boolean) = Frame(tv) {
+fun LibraryHomePreview(tv: Boolean, light: Boolean = false) = Frame(tv, light) {
     LibraryHomeScreen(LibraryHomeState.Ready(Samples.home), LibraryHomeActions({}, {}, {}, {}))
 }
 
@@ -251,9 +252,14 @@ fun ShowPagePreview(tv: Boolean) = Frame(tv) {
 
 /** Settings for a paired server that offers libraries and recordings. */
 @Composable
-fun SettingsPreview(tv: Boolean) = Frame(tv) {
+fun SettingsPreview(tv: Boolean, light: Boolean = false) = Frame(tv, light) {
     SettingsScreen(
-        settings = AppSettings(serverUrl = "http://sofa.example:9193", apiToken = "token", captionsEnabled = true),
+        settings = AppSettings(
+            serverUrl = "http://sofa.example:9193",
+            apiToken = "token",
+            captionsEnabled = true,
+            appearance = if (light) Appearance.LIGHT else Appearance.SYSTEM,
+        ),
         onSave = { _, _ -> },
         onBack = {},
         channelCount = Samples.channels.size,
@@ -288,11 +294,11 @@ private object HoldingSongSessions : SongSessions {
     override fun release(itemId: String) = Unit
 }
 
-/** The app's theme, layout profile and background around [content], on the fixed clock. */
+/** The app's theme (the light one when [light]), layout profile and background around [content], on the fixed clock. */
 @Composable
-private fun Frame(tv: Boolean, content: @Composable () -> Unit) {
+private fun Frame(tv: Boolean, light: Boolean = false, content: @Composable () -> Unit) {
     val sizeClass = currentWindowAdaptiveInfoV2().windowSizeClass
-    SofaKingTheme {
+    SofaKingTheme(if (light) Appearance.LIGHT else Appearance.DARK) {
         CompositionLocalProvider(
             LocalLayoutProfile provides LayoutProfile.of(tv, sizeClass),
             LocalClock provides Samples.clock,

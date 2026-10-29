@@ -64,6 +64,7 @@ import dev.jamesrich.sofaking.ui.player.PlayerError
 import dev.jamesrich.sofaking.ui.player.VideoZoom
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
+import dev.jamesrich.sofaking.ui.theme.OverVideo
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import kotlinx.coroutines.delay
@@ -314,19 +315,21 @@ private fun BoxScope.TuningBadge(visible: Boolean) {
         enter = PopIn,
         exit = PopOut,
     ) {
-        Row(
-            Modifier
-                .background(SofaOverlayScrim, MaterialTheme.shapes.small)
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            SofaLoader(size = 16.dp)
-            Text(
-                stringResource(Res.string.tuning),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
+        OverVideo {
+            Row(
+                Modifier
+                    .background(SofaOverlayScrim, MaterialTheme.shapes.small)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                SofaLoader(size = 16.dp)
+                Text(
+                    stringResource(Res.string.tuning),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+            }
         }
     }
 }

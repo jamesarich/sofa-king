@@ -2,9 +2,7 @@
 <resources>
     <string name="mini_guide_title">Channels</string>
     <string name="mini_guide_last_channel">Last channel</string>
-    <string name="mini_guide_recent">Recent</string>
     <string name="mini_guide_empty_favorites">No favorites yet. The star above adds the channel you are watching.</string>
-    <string name="mini_guide_next">Next: %1$s at %2$s</string>
     <string name="player_paused">Paused</string>
     <string name="player_paused_resumes_live">Paused · %1$d s behind live · resumes at live</string>
     <string name="player_paused_resumes_live_after">Paused · %1$d s behind live · live again after %2$d s paused</string>
@@ -73,7 +71,7 @@
     <string name="player_control_play">Play</string>
     <string name="vod_starting">Starting</string>
     <string name="vod_waiting_converter">Waiting for a free converter</string>
-    <string name="vod_cant_play">Can't play this</string>
+    <string name="vod_cant_play">Can't play this title</string>
     <string name="vod_cant_play_retry">Press OK to try again, or Back to leave.</string>
     <string name="vod_control_back">Back %1$d seconds</string>
     <string name="vod_control_forward">Forward %1$d seconds</string>
@@ -104,12 +102,11 @@
     <string name="vod_control_skip_credits_countdown">Skip credits (%1$d)</string>
     <string name="vod_subtitles_on">Subtitles on</string>
     <string name="vod_subtitles_off">Subtitles off</string>
-    <string name="vod_no_subtitles">No subtitles for this</string>
+    <string name="vod_no_subtitles">No subtitles for this title</string>
     <string name="player_control_back">Back</string>
     <string name="vod_seek_description">Position</string>
     <string name="player_recording">Recording %1$s</string>
     <string name="player_recording_canceled">Canceled the recording of %1$s</string>
-    <string name="player_recording_failed">The server didn't take that change. Try again.</string>
     <string name="vod_subtitles_failed">The subtitles didn't load</string>
     <string name="vod_up_next">Up next</string>
     <string name="vod_up_next_in">Playing in %1$d s</string>
@@ -152,7 +149,6 @@
     <string name="break_fact_directed_by">Directed by %1$s</string>
     <string name="break_fact_tagline">“%1$s”</string>
     <string name="break_fact_rating">Rated %1$s out of 10 on TMDB</string>
-    <string name="break_fact_next">Next at %2$s: %1$s</string>
     <string name="break_fact_and">%1$s and %2$s</string>
     <string name="player_control_from_start">Watch from start</string>
     <string name="vod_control_back_to_live">Back to live</string>

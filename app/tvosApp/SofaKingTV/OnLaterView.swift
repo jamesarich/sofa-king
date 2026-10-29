@@ -26,7 +26,7 @@ struct OnLaterView: View {
             .pickerStyle(.segmented)
             if failed {
                 Text("On later could not be loaded.").foregroundStyle(.secondary)
-                Button("Try again") { attempt += 1 }
+                Button(strings.retry) { attempt += 1 }
             } else if let airings {
                 if airings.isEmpty {
                     Text("Nothing like this is on in the next two days.").foregroundStyle(.secondary)

@@ -33,9 +33,9 @@ extension AppModel {
                 self?.sleep = endsAt.map { SleepTimer(until: $0) } ?? SleepTimer(atEnd: true)
             })
         }
-        let menu = UIMenu(title: "Sleep timer", image: UIImage(systemName: "moon.zzz"), children: actions)
+        let menu = UIMenu(title: strings.sleepTimer, image: UIImage(systemName: "moon.zzz"), children: actions)
         if let until = timer.until, until != endsAt {
-            menu.subtitle = "Stops in \(max(1, Int((until.timeIntervalSinceNow / 60).rounded(.up)))) min"
+            menu.subtitle = strings.sleepIn(minutes: Int32(max(1, Int((until.timeIntervalSinceNow / 60).rounded(.up)))))
         } else if timer.isOn, let endTitle {
             menu.subtitle = endTitle
         }

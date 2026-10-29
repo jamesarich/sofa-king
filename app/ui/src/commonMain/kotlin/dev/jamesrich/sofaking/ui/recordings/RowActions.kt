@@ -16,10 +16,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.resources.Res
-import dev.jamesrich.sofaking.resources.recordings_change_failed
+import dev.jamesrich.sofaking.resources.change_failed
+import dev.jamesrich.sofaking.resources.recordings_keep
+import dev.jamesrich.sofaking.ui.theme.SofaButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -84,11 +87,22 @@ internal fun RowButtons(actions: RowActions, content: @Composable RowScope.() ->
     )
 }
 
+/** Backs out of a pending confirmation and puts focus back on the button that asked, which [asker] names. */
+@Composable
+internal fun KeepButton(actions: RowActions, asker: FocusRequester) {
+    SofaButton(onClick = {
+        actions.confirming = false
+        asker.requestFocus()
+    }) {
+        Text(stringResource(Res.string.recordings_keep))
+    }
+}
+
 /** The line under a row whose last change did not take. */
 @Composable
 internal fun ChangeFailed() {
     Text(
-        stringResource(Res.string.recordings_change_failed),
+        stringResource(Res.string.change_failed),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.error,
     )

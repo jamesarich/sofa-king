@@ -31,9 +31,9 @@ struct RecordingsView: View {
                     failed = !done
                 }
             }
-            Button("Keep it", role: .cancel) {}
+            Button(recordingStrings.keepIt, role: .cancel) {}
         }
-        .alert(recordingStrings.changeFailed, isPresented: $failed) {
+        .alert(strings.changeFailed, isPresented: $failed) {
             Button("OK") {}
         }
     }
@@ -175,7 +175,7 @@ private struct SeriesRow: View {
         }
         .confirmationDialog("Stop recording \(rule.title)? What it recorded so far is kept.", isPresented: $stopping, titleVisibility: .visible) {
             Button(recordingStrings.seriesStop, role: .destructive) { change { try await model.core.deleteRule(rule: rule) } }
-            Button("Keep it", role: .cancel) {}
+            Button(recordingStrings.keepIt, role: .cancel) {}
         }
     }
 

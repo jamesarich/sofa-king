@@ -1,7 +1,7 @@
 import SwiftUI
 import SofaKingCore
 
-/// The server address and token, what covers live ads, and whether the favorites follow the household's. The address must be a usable URL before the lineup loads.
+/// The server address, the pairing code and the token, what covers live ads, and whether the favorites follow the household's. The address must be a usable URL before the lineup loads.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -30,14 +30,8 @@ struct SettingsView: View {
                     .keyboardType(.URL)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
-                SecureField(strings.apiToken, text: $token)
             }
-            // Saving a changed address or token reloads the lineup by itself.
-            Button(strings.settingsSave) {
-                model.core.saveServer(url: url, apiToken: token)
-                dismiss()
-            }
-            Section("Pair with a code") {
+            Section(strings.pairWithCode) {
                 TextField(strings.pairingCodeLabel, text: $code)
                     .keyboardType(.numberPad)
                 Button(pairing ? strings.pairing : strings.pair) {
@@ -54,6 +48,16 @@ struct SettingsView: View {
                 Text(strings.pairingHelp)
                     .font(.caption).foregroundStyle(.secondary)
             }
+            // Saving a changed address or token reloads the lineup by itself.
+            Section {
+                SecureField(strings.apiToken, text: $token)
+                Button(strings.settingsSave) {
+                    model.core.saveServer(url: url, apiToken: token)
+                    dismiss()
+                }
+            } footer: {
+                Text(strings.apiTokenHelp)
+            }
             Section {
                 Picker(strings.liveBreaks, selection: Binding(
                     get: { model.settings?.liveBreaks ?? .play },
@@ -63,6 +67,12 @@ struct SettingsView: View {
                     Text(strings.liveBreaksScreenMuted).tag(LiveBreaks.screenMuted)
                     Text(strings.liveBreaksScreen).tag(LiveBreaks.screen)
                 }
+            } header: {
+                Text(strings.livePage)
+            } footer: {
+                Text(strings.liveBreaksHelp)
+            }
+            Section {
                 Picker(strings.autoOpen, selection: Binding(
                     get: { model.settings?.autoOpenDelay ?? .after10Seconds },
                     set: { model.core.setAutoOpenDelay(delay: $0) }
@@ -72,18 +82,24 @@ struct SettingsView: View {
                     Text(strings.autoOpenOff).tag(AutoOpenDelay.off)
                 }
                 .pickerStyle(.navigationLink)
+            } footer: {
+                Text(strings.autoOpenHelp)
+            }
+            Section {
                 Toggle(strings.previewSound, isOn: Binding(
                     get: { model.settings?.previewSound ?? true },
                     set: { model.core.setPreviewSound(enabled: $0) }
                 ))
+            } footer: {
+                Text(strings.previewSoundHelp)
+            }
+            Section {
                 Toggle("Captions", isOn: Binding(
                     get: { model.settings?.captionsEnabled ?? false },
                     set: { model.core.setCaptionsEnabled(enabled: $0) }
                 ))
-            } header: {
-                Text(strings.livePage)
             } footer: {
-                Text("On streaming channels that mark their ads, such as Pluto TV and Tubi, a bouncing logo covers them. Show picture brings the picture back. The guide's preview plays the focused channel muted, turns its sound on after 5 seconds unless Play preview sound is off, and opens it full screen after the rest set here. Captions shows a channel's or a recording's closed captions, in the look set in the Apple TV's Settings › Accessibility › Subtitles and Captioning; the player's Subtitles panel turns them on and off too.")
+                Text(strings.captionsHelp)
             }
             if model.capabilities?.household == true {
                 Section {
@@ -99,15 +115,23 @@ struct SettingsView: View {
             }
             Section {
                 SkipModePicker(title: strings.skipIntros, kind: .intros)
+            } header: {
+                Text(strings.libraryPage)
+            } footer: {
+                Text(strings.skipIntrosHelp)
+            }
+            Section {
                 SkipModePicker(title: strings.skipCredits, kind: .credits)
+            } footer: {
+                Text(strings.skipCreditsHelp)
+            }
+            Section {
                 Toggle(strings.hideSpoilers, isOn: Binding(
                     get: { model.settings?.hideSpoilers ?? false },
                     set: { model.core.setHideSpoilers(enabled: $0) }
                 ))
-            } header: {
-                Text(strings.libraryPage)
             } footer: {
-                Text("Automatically, Skip intro or Skip credits counts down 5 seconds and then skips; pausing stops it. With a button, it waits for a press. Off, intros and credits play. Hide spoilers keeps back the summaries of episodes you have not started and blurs their pictures.")
+                Text(strings.hideSpoilersHelp)
             }
             ParentalControlsSection()
             Section(strings.aboutSection) {

@@ -269,15 +269,15 @@ struct PlayerView: View {
         ) { [guideId = channel.guideId] _ in model.core.toggleFavorite(guideId: guideId) }
         let all = model.lineup?.channels ?? []
         let groups: [UIMenu] = [
-            channelMenu("Recent", model.recentChannels, inline: true),
-            channelMenu("Favorites", all.filter { model.favorites.contains($0.guideId) }, inline: true),
+            channelMenu(strings.filterRecent, model.recentChannels, inline: true),
+            channelMenu(strings.filterFavorites, all.filter { model.favorites.contains($0.guideId) }, inline: true),
             channelMenu("All channels", all, inline: false),
         ].compactMap { $0 }
         let channels = UIMenu(title: "Channels", image: UIImage(systemName: "list.bullet"), children: groups)
         let programEnd = model.lineup.flatMap { model.core.nowAndNext(lineup: $0, channel: channel).now }.map {
             Date(timeIntervalSince1970: Double(model.core.endEpochMs(program: $0)) / 1000)
         }
-        let sleep = model.sleepMenu(endTitle: programEnd == nil ? nil : "End of this program", endsAt: programEnd)
+        let sleep = model.sleepMenu(endTitle: programEnd == nil ? nil : strings.sleepEndProgram, endsAt: programEnd)
         let items: [UIMenuElement?] = [fromStartAction, recordAction, star, channels, multiviewAction, sleep]
         return items.compactMap { $0 }
     }

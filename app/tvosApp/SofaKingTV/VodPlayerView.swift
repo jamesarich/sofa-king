@@ -101,7 +101,7 @@ struct VodPlayerView: View {
 
     var body: some View {
         ZStack {
-            VodController(player: player, menus: trackMenus + [model.sleepMenu(endTitle: "End of this one", endsAt: nil)], actions: contextualActions).ignoresSafeArea()
+            VodController(player: player, menus: trackMenus + [model.sleepMenu(endTitle: strings.sleepEndItem, endsAt: nil)], actions: contextualActions).ignoresSafeArea()
             if let subtitleText {
                 Text(subtitleText)
                     .font(.title3)
@@ -125,7 +125,7 @@ struct VodPlayerView: View {
             if let failure {
                 VStack(spacing: 24) {
                     Text(failure)
-                    Button("Try again") { Task { await open() } }
+                    Button(strings.retry) { Task { await open() } }
                 }
                 .padding()
                 .background(.thinMaterial, in: .rect(cornerRadius: 16))

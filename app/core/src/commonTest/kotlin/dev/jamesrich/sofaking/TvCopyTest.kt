@@ -61,7 +61,7 @@ class TvCopyTest {
     fun `the lock footer follows whether a PIN and kids mode are on`() {
         assertEquals(TvCopy.lockHelpFooter, TvCopy.lockFooter(locked = false, kidsMode = false))
         assertEquals(TvCopy.kidsOn, TvCopy.lockFooter(locked = true, kidsMode = true))
-        assertTrue("Kids mode keeps the guide" in TvCopy.lockFooter(locked = true, kidsMode = false))
+        assertTrue("Kids mode shows only" in TvCopy.lockFooter(locked = true, kidsMode = false))
     }
 
     @Test

@@ -474,4 +474,56 @@ class ProbeWorkerTest {
             dir.toFile().deleteRecursively()
         }
     }
+
+    private suspend fun claimOrder(healthyFirst: String?): List<String> {
+        val dir = Files.createTempDirectory("sofa-probe-first-pass-")
+        try {
+            HttpClient(CIO).use { http ->
+                openStore(dir).use { store ->
+                    val clock = MutableClock()
+                    for (provider in listOf("a", "b")) {
+                        val offerings = (1..4).map {
+                            Offering("$provider$it", "$provider-c$it", provider, "http://x.test/$provider$it", "hls")
+                        }
+                        val channels = (1..4).map { Channel("$provider-c$it", "$it", "Station $it") }
+                        store.saveSnapshot(FeedSnapshot(provider, channels, offerings, clock.now.toString()))
+                    }
+                    val feeds = FeedService(
+                        listOf(FeedConfig("a", "http://x.test/a.m3u"), FeedConfig("b", "http://x.test/b.m3u")),
+                        store,
+                        http,
+                        clock,
+                    )
+                    feeds.initialize()
+                    if (healthyFirst != null) {
+                        store.recordObservation(healthyFirst, Observation("seed", clock.now, true, null), clock.now)
+                    }
+                    val order = mutableListOf<String>()
+                    val worker = ProbeWorker(
+                        feeds,
+                        store,
+                        clock,
+                        "unused",
+                        config = ProbeConfig(firstPassPerProvider = 2),
+                    ) { offering, _ ->
+                        order += offering.id
+                        null
+                    }
+                    while (worker.step()) Unit
+                    return order
+                }
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test fun `a first pass claims the first sources of every provider with no healthy source before the rest`() =
+        runBlocking<Unit> {
+            assertEquals(listOf("a1", "b1", "a2", "b2", "a3", "a4", "b3", "b4"), claimOrder(null))
+        }
+
+    @Test fun `a provider that already has a healthy source gets no first pass`() = runBlocking<Unit> {
+        assertEquals(listOf("b1", "b2", "a1", "a2", "a3", "b3", "b4"), claimOrder("a4"))
+    }
 }

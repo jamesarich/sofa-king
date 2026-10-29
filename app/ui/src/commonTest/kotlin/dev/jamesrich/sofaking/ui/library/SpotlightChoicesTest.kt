@@ -101,7 +101,10 @@ class SpotlightChoicesTest {
 
     @Test
     fun `a placeholder card is as big as the real one`() {
-        assertEquals(POSTER_WIDTH to (2f / 3f), skeletonCardSize(CardStyle.POSTER))
+        val (width, ratio) = skeletonCardSize(CardStyle.POSTER)
+        assertEquals(POSTER_WIDTH, width)
+        // A float constant is folded at compile time, so compare within a tolerance: JS computes 2f / 3f as a double.
+        assertEquals(2f / 3f, ratio, 0.0001f)
         assertEquals(WIDE_WIDTH, skeletonCardSize(CardStyle.WIDE).first)
     }
 }

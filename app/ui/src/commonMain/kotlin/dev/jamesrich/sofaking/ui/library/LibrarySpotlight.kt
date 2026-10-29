@@ -68,7 +68,10 @@ internal fun Spotlight(
     compact: Boolean = false,
 ) {
     val motion = rememberMotionEnabled()
-    Box(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.inverseSurface)) {
+    val colors = MaterialTheme.colorScheme
+    // With no art the panel fades from a raised surface into the page, so it never reads as a bright block.
+    val panel = Brush.verticalGradient(listOf(colors.surfaceContainerHigh, colors.background))
+    Box(modifier.fillMaxWidth().background(panel)) {
         Crossfade(
             targetState = item,
             animationSpec = if (motion) tween(FADE_MS) else snap(),
@@ -93,7 +96,7 @@ private fun SpotlightContent(item: MediaItem, onPlay: ((MediaItem) -> Unit)?, in
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, SCRIM_BOTTOM))))
             Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(SCRIM_START, Color.Transparent))))
         }
-        val ink = if (art != null) Color.White else MaterialTheme.colorScheme.inverseOnSurface
+        val ink = if (art != null) Color.White else MaterialTheme.colorScheme.onSurface
         val padding = if (compact) {
             Modifier.padding(
                 16.dp,

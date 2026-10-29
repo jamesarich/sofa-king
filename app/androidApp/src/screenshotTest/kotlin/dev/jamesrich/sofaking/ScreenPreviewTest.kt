@@ -6,6 +6,7 @@ import com.android.tools.screenshot.PreviewTest
 import dev.jamesrich.sofaking.previews.GuidePreview
 import dev.jamesrich.sofaking.previews.LibraryHomePreview
 import dev.jamesrich.sofaking.previews.LiveBarPreview
+import dev.jamesrich.sofaking.previews.PlayerIconsPreview
 import dev.jamesrich.sofaking.previews.PlayerInfoPreview
 import dev.jamesrich.sofaking.previews.ProgramDetailsPreview
 import dev.jamesrich.sofaking.previews.SettingsPreview
@@ -68,6 +69,11 @@ private fun VodBarTv() = VodBarPreview(tv = true)
 @Preview(device = PHONE)
 @Composable
 private fun VodBarPhone() = VodBarPreview(tv = false)
+
+@PreviewTest
+@Preview(device = PHONE)
+@Composable
+private fun PlayerIcons() = PlayerIconsPreview()
 
 @PreviewTest
 @Preview(device = TV)

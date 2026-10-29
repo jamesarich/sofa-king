@@ -62,6 +62,7 @@ import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
@@ -278,7 +279,7 @@ private fun MultiviewStatus(play: MultiviewPlay, hint: Boolean, modifier: Modifi
         else -> return
     }
     Column(
-        modifier.padding(24.dp).background(SofaOverlayScrim, MaterialTheme.shapes.small).padding(16.dp),
+        modifier.screenPadding().background(SofaOverlayScrim, MaterialTheme.shapes.small).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         lines.forEachIndexed { index, line ->

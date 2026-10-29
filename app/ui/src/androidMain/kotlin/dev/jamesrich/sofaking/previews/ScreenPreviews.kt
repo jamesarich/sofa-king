@@ -1,11 +1,19 @@
 package dev.jamesrich.sofaking.previews
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -14,6 +22,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.ItemDetailState
 import dev.jamesrich.sofaking.LibraryHomeState
 import dev.jamesrich.sofaking.contract.Wire
@@ -79,6 +88,7 @@ import dev.jamesrich.sofaking.ui.player.vodButtonItem
 import dev.jamesrich.sofaking.ui.player.zoomButtonItem
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlinx.datetime.TimeZone
 import kotlin.time.Clock
@@ -249,6 +259,36 @@ fun SettingsPreview(tv: Boolean) = Frame(tv) {
         libraryOffered = true,
         recordingsOffered = true,
     )
+}
+
+private const val ICONS_PER_ROW = 3
+
+/** The player's `SofaIcons` at 64dp with their names, to compare the hand-copied paths with Material's. */
+@Composable
+fun PlayerIconsPreview(modifier: Modifier = Modifier) = Frame(tv = false) {
+    val icons = listOf(
+        "Undo" to SofaIcons.Undo,
+        "Redo" to SofaIcons.Redo,
+        "Lyrics" to SofaIcons.Lyrics,
+        "Cancel" to SofaIcons.Cancel,
+        "FastForward" to SofaIcons.FastForward,
+        "Replay" to SofaIcons.Replay,
+        "Subtitles" to SofaIcons.Subtitles,
+        "Replay10" to SofaIcons.Replay10,
+        "Forward30" to SofaIcons.Forward30,
+    )
+    Column(modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        icons.chunked(ICONS_PER_ROW).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                row.forEach { (name, icon) ->
+                    Column(Modifier.width(120.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(icon, contentDescription = name, modifier = Modifier.size(64.dp))
+                        Text(name, style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+        }
+    }
 }
 
 /** The app's theme, layout profile and background around [content], on the fixed clock. */

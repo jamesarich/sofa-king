@@ -317,7 +317,7 @@ internal object SofaIcons {
         )
     }
 
-    /** Start over. */
+    /** Start over, and watch from the start. */
     val Replay: ImageVector by lazy {
         pathIcon(
             "Filled.Replay",
@@ -347,8 +347,38 @@ internal object SofaIcons {
         )
     }
 
-    /** Skip a commercial break. */
+    /** Skip a break, an intro or the credits. */
     val FastForward: ImageVector by lazy { pathIcon("Filled.FastForward", "M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z") }
+
+    /** A step back of a length the numbered icon does not name. */
+    val Undo: ImageVector by lazy {
+        pathIcon(
+            "Filled.Undo",
+            "M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 " +
+                "7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z",
+        )
+    }
+
+    /** A step forward of a length the numbered icon does not name. */
+    val Redo: ImageVector by lazy {
+        pathIcon(
+            "Filled.Redo",
+            "M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 " +
+                "1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z",
+        )
+    }
+
+    /** The song's lyrics. */
+    val Lyrics: ImageVector by lazy { pathIcon("Filled.Notes", "M3 18h12v-2H3v2zM3 6v2h18V6H3zm0 7h18v-2H3v2z") }
+
+    /** Cancel a recording. */
+    val Cancel: ImageVector by lazy {
+        pathIcon(
+            "Filled.Cancel",
+            "M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 " +
+                "7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z",
+        )
+    }
 
     /** Record, in the live player. */
     val Record: ImageVector by lazy { pathIcon("Filled.FiberManualRecord", "M12,4a8,8 0,1 0,0 16a8,8 0,1 0,0 -16z") }

@@ -140,7 +140,7 @@ internal fun BoxScope.TracksCard(
     LaunchedEffect(Unit) { requestFocusWhenAttached(focus) }
     Column(
         Modifier
-            .align(Alignment.CenterEnd)
+            .align(Alignment.TopEnd)
             .screenPadding()
             .width(420.dp)
             .background(SofaOverlayScrim, MaterialTheme.shapes.small)

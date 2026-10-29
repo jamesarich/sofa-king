@@ -1,11 +1,15 @@
 package dev.jamesrich.sofaking.ui.player
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -75,6 +79,34 @@ internal fun FullScreenControl() {
         ),
         fullScreen::toggle,
     )
+}
+
+/**
+ * The touch row of either player: [start], the [primary] button, [end], then the [buttons], the volume and full
+ * screen, wrapping when the width runs out.
+ */
+@Composable
+internal fun PointerControlRow(
+    start: PlayerButtonItem,
+    primary: PlayerButtonItem,
+    end: PlayerButtonItem,
+    onVolumeAdjust: () -> Unit,
+    onVolumeFinish: () -> Unit,
+    buttons: @Composable () -> Unit,
+) {
+    FlowRow(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        ControlIcon(start.icon, start.label, start.onClick)
+        ControlIcon(primary.icon, primary.label, primary.onClick, primary = true)
+        ControlIcon(end.icon, end.label, end.onClick)
+        buttons()
+        VolumeControl(onAdjust = onVolumeAdjust, onDone = onVolumeFinish)
+        FullScreenControl()
+    }
 }
 
 internal val CONTROL_SIZE = 48.dp

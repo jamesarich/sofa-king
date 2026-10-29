@@ -250,7 +250,10 @@ private fun Modifier.cellActions(
         interactionSource = interactions,
         indication = null,
         onLongClickLabel = env.detailsLabel,
-        onLongClick = { env.onOpenDetails(channel, cell) },
+        onLongClick = {
+            env.haptics.longPress()
+            env.onOpenDetails(channel, cell)
+        },
         onClick = { env.onPlay(channel) },
     )
 

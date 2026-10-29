@@ -51,6 +51,7 @@ import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
+import dev.jamesrich.sofaking.ui.sectionHeading
 import dev.jamesrich.sofaking.ui.theme.SofaActionChip
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaChip
@@ -197,7 +198,7 @@ private fun LazyListScope.extrasAndRelated(
                 stringResource(Res.string.library_popular),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(sides),
+                modifier = Modifier.padding(sides).sectionHeading(),
             )
         }
         itemsIndexed(detail.popular, key = { _, song -> "popular-${song.id}" }) { index, song ->
@@ -364,7 +365,7 @@ private fun Cast(detail: MediaItemDetail, onPerson: (String) -> Unit, sides: Pad
             ),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(sides),
+            modifier = Modifier.padding(sides).sectionHeading(),
         )
         LazyRow(
             contentPadding = sides,

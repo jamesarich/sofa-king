@@ -32,6 +32,7 @@ import dev.jamesrich.sofaking.resources.recordings_series_take_all
 import dev.jamesrich.sofaking.resources.recordings_series_take_new
 import dev.jamesrich.sofaking.resources.recordings_series_use_any_channel
 import dev.jamesrich.sofaking.ui.paddingName
+import dev.jamesrich.sofaking.ui.sectionHeading
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import org.jetbrains.compose.resources.stringResource
 
@@ -47,6 +48,7 @@ internal fun LazyListScope.seriesRules(
             stringResource(Res.string.recordings_series),
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.sectionHeading(),
         )
     }
     items(rules, key = { "rule-${it.id}" }) { rule -> SeriesRow(rule, onRuleChange, onRuleDelete) }

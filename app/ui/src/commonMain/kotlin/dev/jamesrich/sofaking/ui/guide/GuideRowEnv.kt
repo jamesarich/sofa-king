@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.semantics
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.ui.Haptics
 import dev.jamesrich.sofaking.ui.NoListing
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.noListing
@@ -41,6 +42,7 @@ internal class GuideRowEnv(
     val laterLabel: String,
     /** A Later line's program was chosen: the grid jumps to its cell. */
     val onJumpTo: (Channel, Program) -> Unit,
+    val haptics: Haptics,
 ) {
     /** The text of a stretch with no program, as [noListing] decides. */
     fun noListingFor(channel: Channel): String = when (channel.noListing(guideLoading)) {

@@ -10,6 +10,7 @@ import java.io.IOException
 import java.nio.file.AccessDeniedException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.HexFormat
 
@@ -67,6 +68,13 @@ internal fun readSecretFiles(
         origins[name] = SecretOrigin.FILE
     }
     return resolved to origins
+}
+
+/** Equal strings, compared in time that depends on neither's content nor length. */
+internal fun sameSecret(presented: String?, expected: String): Boolean {
+    if (presented == null) return false
+    val digest = { value: String -> MessageDigest.getInstance("SHA-256").digest(value.toByteArray()) }
+    return MessageDigest.isEqual(digest(presented), digest(expected))
 }
 
 /**

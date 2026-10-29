@@ -2,11 +2,11 @@ package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.OutputConfig
-import dev.jamesrich.sofaking.backend.admin.sameSecret
 import dev.jamesrich.sofaking.backend.api.NamedOutput
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
+import dev.jamesrich.sofaking.backend.sameSecret
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode

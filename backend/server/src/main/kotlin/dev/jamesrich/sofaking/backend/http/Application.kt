@@ -23,9 +23,6 @@ import io.ktor.server.request.path
 import io.ktor.server.routing.routing
 import io.ktor.server.sse.SSE
 import io.ktor.util.AttributeKey
-import io.ktor.util.cio.ChannelIOException
-import io.ktor.utils.io.ClosedByteChannelException
-import io.ktor.utils.io.ConnectionClosedException
 import java.time.Clock
 
 /**
@@ -159,14 +156,3 @@ internal fun compressible(path: String?): Boolean = path != null && path != EVEN
     path.startsWith("/api/") || path == "/admin" || path.startsWith("/admin/") || path.startsWith("$WEB_APP_PATH/") ||
         path == "/output/playlist.m3u" || path == "/output/guide.xml" || path == "/lineup.json"
     )
-
-/** A write or read that failed because the client's connection is gone, as Ktor, Netty and the JDK each report it. */
-internal fun clientAbort(cause: Throwable): Boolean {
-    val causes = generateSequence(cause) { it.cause }.take(4)
-    return causes.any { error ->
-        error is ClosedByteChannelException || error is ConnectionClosedException || error is ChannelIOException ||
-            error is java.nio.channels.ClosedChannelException ||
-            (error is java.io.IOException && error.message?.let { ioAbortMessage.containsMatchIn(it) } == true)
-    }
-}
-private val ioAbortMessage = Regex("(?i)broken pipe|connection reset|connection or inbound has closed")

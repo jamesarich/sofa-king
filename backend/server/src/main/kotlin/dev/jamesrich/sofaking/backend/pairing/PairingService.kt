@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.backend.pairing
 
-import dev.jamesrich.sofaking.backend.admin.sameSecret
+import dev.jamesrich.sofaking.backend.sameSecret
 import dev.jamesrich.sofaking.contract.Wire
 import java.security.SecureRandom
 import java.time.Clock

@@ -361,7 +361,7 @@ class MigrationsTest {
         }
     }
 
-    @Test fun `every db migration file is listed in Migrations, in version order`() {
+    @Test fun `every db migration file is listed in version order`() {
         // Tests run in the server's project directory; the files are the sources, not what the last build copied.
         val folder = java.nio.file.Path.of("src/main/resources/db")
         assertTrue(Files.isDirectory(folder), "no migrations folder at ${folder.toAbsolutePath()}")
@@ -384,7 +384,7 @@ class MigrationsTest {
                 named.matchEntire(it)!!.groupValues[1].toInt()
             },
             listed.map { it.version },
-            "Migrations.kt lists other versions than the files: $onDisk",
+            "Migration.kt lists other versions than the files: $onDisk",
         )
         for ((file, migration) in onDisk.zip(
             listed,

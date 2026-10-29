@@ -318,7 +318,7 @@ private fun MoreToggles(music: MusicPlayback, lyrics: LyricsChoice?, visuals: Vi
     }
     lyrics?.let {
         Toggle(
-            SofaIcons.Subtitles,
+            SofaIcons.Lyrics,
             stringResource(Res.string.music_lyrics),
             stringResource(if (it.shown) Res.string.music_on else Res.string.music_off),
             it.shown,

@@ -293,34 +293,38 @@ private fun VodBarButtons(parts: VodParts, buttons: List<PlayerButtonItem>, cont
     val state = parts.state
     val vod = parts.vod
     if (LocalLastInput.current.kind == InputKind.POINTER) {
-        FlowRow(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING, Alignment.CenterHorizontally),
-            verticalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING),
-            itemVerticalAlignment = Alignment.CenterVertically,
-        ) {
-            val steps = state.steps
-            ControlIcon(stepBackIcon(steps), stringResource(Res.string.vod_control_back, steps.backSeconds), {
-                vod.seek(state.positionMs - steps.backMs)
-                state.showInfo()
-            })
-            val paused = !vod.player.status.collectAsStateWithLifecycle().value.playWhenReady
-            PlayPauseControl(paused, failed = state.failure != null, onPlayPause = {
+        val steps = state.steps
+        val paused = !vod.player.status.collectAsStateWithLifecycle().value.playWhenReady
+        PointerControlRow(
+            start = PlayerButtonItem(
+                stepBackIcon(steps),
+                stringResource(Res.string.vod_control_back, steps.backSeconds),
+                onClick = {
+                    vod.seek(state.positionMs - steps.backMs)
+                    state.showInfo()
+                },
+            ),
+            primary = playPauseButtonItem(paused, failed = state.failure != null, onPlayPause = {
                 controls.playPause()
                 state.showInfo()
-            }, onRetry = controls::retry, primary = true)
-            ControlIcon(stepForwardIcon(steps), stringResource(Res.string.vod_control_forward, steps.forwardSeconds), {
-                vod.seek(state.positionMs + steps.forwardMs)
+            }, onRetry = controls::retry),
+            end = PlayerButtonItem(
+                stepForwardIcon(steps),
+                stringResource(Res.string.vod_control_forward, steps.forwardSeconds),
+                onClick = {
+                    vod.seek(state.positionMs + steps.forwardMs)
+                    state.showInfo()
+                },
+            ),
+            onVolumeAdjust = state::showInfo,
+            onVolumeFinish = {
                 state.showInfo()
-            })
+                parts.focus.picture.requestFocus()
+            },
+        ) {
             PlayerButtonRow(buttons, entry = parts.focus.buttons, onFocus = {
                 state.buttonsFocused = it
             }, showLabel = false)
-            VolumeControl(onAdjust = state::showInfo, onDone = {
-                state.showInfo()
-                parts.focus.picture.requestFocus()
-            })
-            FullScreenControl()
         }
     } else if (buttons.isNotEmpty()) {
         PlayerButtonRow(buttons, entry = parts.focus.buttons, onFocus = { state.buttonsFocused = it }, showLabel = true)
@@ -365,8 +369,8 @@ internal fun VodParts.press(
 
 /** The step back's icon: the numbered one for the default 10 seconds, the plain one for any other step. */
 private fun stepBackIcon(steps: SeekSteps): ImageVector =
-    if (steps.backSeconds == SeekSteps.DEFAULT_BACK_SECONDS) SofaIcons.Replay10 else SofaIcons.Replay
+    if (steps.backSeconds == SeekSteps.DEFAULT_BACK_SECONDS) SofaIcons.Replay10 else SofaIcons.Undo
 
 /** The step forward's icon: the numbered one for the default 30 seconds, the plain one for any other step. */
 private fun stepForwardIcon(steps: SeekSteps): ImageVector =
-    if (steps.forwardSeconds == SeekSteps.DEFAULT_FORWARD_SECONDS) SofaIcons.Forward30 else SofaIcons.FastForward
+    if (steps.forwardSeconds == SeekSteps.DEFAULT_FORWARD_SECONDS) SofaIcons.Forward30 else SofaIcons.Redo

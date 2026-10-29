@@ -46,6 +46,16 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
 
+/** The preview band's player and how [prefs] play it. */
+private fun guidePreview(player: LivePlayer, vm: LineupViewModel, prefs: AppSettings) = GuidePreview(
+    player = player,
+    sessions = vm.sessions,
+    captionsEnabled = prefs.captionsEnabled,
+    captionStyle = prefs.captionStyle,
+    autoOpenDelay = prefs.autoOpenDelay,
+    sound = prefs.previewSound,
+)
+
 /** The guide, once the cold start has decided where to land, or what stands in for it while there is no lineup. */
 @Composable
 internal fun GuideDestination(
@@ -101,19 +111,14 @@ internal fun GuideDestination(
                 onRecord = vm::toggleRecording,
                 onRecordSeries = vm::toggleSeriesRecording,
                 onRecordTeam = vm::toggleTeamRecording,
+                onRecordKeyword = vm::toggleKeywordRecording,
+                onRecordWindow = vm::recordWindow,
                 onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
                 onToggleWatchlist = vm::toggleWatchlist,
                 watchlisted = { program -> watchlist.has(program).takeIf { watchlist.offered } },
                 onOnLater = { shell.push(Route.OnLater) }.takeIf { capabilities.onLater },
             ),
-            preview = GuidePreview(
-                player = player,
-                sessions = vm.sessions,
-                captionsEnabled = prefs.captionsEnabled,
-                captionStyle = prefs.captionStyle,
-                autoOpenDelay = prefs.autoOpenDelay,
-                sound = prefs.previewSound,
-            ),
+            preview = guidePreview(player, vm, prefs),
             recordingMarks = recordingMarks.takeIf { capabilities.recordings },
             headerFocus = headerFocus,
             shown = shell.top == Route.Guide,
@@ -151,6 +156,7 @@ internal fun OnLaterDestination(shell: AppShellState, vm: LineupViewModel) {
             onRecord = vm::toggleRecording,
             onRecordSeries = vm::toggleSeriesRecording,
             onRecordTeam = vm::toggleTeamRecording,
+            onRecordWindow = vm::recordWindow,
             onWatchFromStart = { shell.push(Route.Recording(it, fromStart = true)) },
             onToggleWatchlist = vm::toggleWatchlist,
             watchlisted = { program -> watchlist.has(program).takeIf { watchlist.offered } },

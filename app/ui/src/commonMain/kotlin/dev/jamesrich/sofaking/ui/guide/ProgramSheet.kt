@@ -48,6 +48,8 @@ import dev.jamesrich.sofaking.data.Airing
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMark
+import dev.jamesrich.sofaking.data.RecordingWindow
+import dev.jamesrich.sofaking.data.SeriesOptions
 import dev.jamesrich.sofaking.data.teamSides
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.guide_details_add_favorite
@@ -115,8 +117,9 @@ internal fun ProgramSheet(
     onDismiss: () -> Unit,
     recording: RecordingMark? = null,
     onRecord: suspend (Program) -> Boolean = { false },
-    onRecordSeries: suspend (Program) -> Boolean = { false },
+    onRecordSeries: suspend (Program, SeriesOptions) -> Boolean = { _, _ -> false },
     onRecordTeam: suspend (String) -> Boolean = { false },
+    onRecordWindow: suspend (Channel, RecordingWindow) -> Boolean = { _, _ -> false },
     onWatchFromStart: (recordingId: String) -> Unit = {},
     airings: List<Airing> = emptyList(),
     onShowAiring: (Airing) -> Unit = {},
@@ -133,9 +136,8 @@ internal fun ProgramSheet(
         // A recording being written plays from the program's start, while the program is still on.
         val fromStart = recording?.runningId?.takeIf { recordable != null }?.let { id -> { onWatchFromStart(id) } }
         SheetButtons(details.channel, isFavorite, watchFocus, onWatch, fromStart, onToggleFavorite, onDismiss)
-        if (recordable != null && recording != null) {
-            RecordButtons(recordable, recording, RecordActions(onRecord, onRecordSeries, onRecordTeam))
-        }
+        val actions = RecordActions(onRecord, onRecordSeries, onRecordTeam, onRecordWindow)
+        RecordSection(details.channel, recordable, recording, actions)
         val program = details.program
         if (program != null && watchlisted != null) WatchlistButton(program, watchlisted, onToggleWatchlist)
         if (airings.isNotEmpty()) {
@@ -400,102 +402,6 @@ private fun SheetButtons(
             )
         }
         SofaButton(onClick = onDismiss) { Text(stringResource(Res.string.guide_details_close), maxLines = 1) }
-    }
-}
-
-/** What the record buttons ask of the server; each answers false when it did not take the change. */
-private class RecordActions(
-    val onRecord: suspend (Program) -> Boolean,
-    val onRecordSeries: suspend (Program) -> Boolean,
-    val onRecordTeam: suspend (String) -> Boolean,
-)
-
-/**
- * Record or cancel the program, record or stop its series, and record or stop each team a sports program names, with
- * a line when the server did not take the change. A press waits for the server, so a second press cannot undo the
- * first before the marks catch up.
- */
-@Composable
-private fun RecordButtons(program: Program, mark: RecordingMark, actions: RecordActions) {
-    val scope = rememberCoroutineScope()
-    var busy by remember(program) { mutableStateOf(false) }
-    var failed by remember(program) { mutableStateOf(false) }
-    val teams = remember(program) { teamSides(program) }
-    fun run(action: suspend (Program) -> Boolean) {
-        if (busy) return
-        busy = true
-        scope.launch {
-            try {
-                failed = !action(program)
-            } finally {
-                busy = false
-            }
-        }
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            SofaButton(onClick = { run(actions.onRecord) }, modifier = Modifier.announcesChanges()) {
-                Text(
-                    stringResource(
-                        if (mark.recording) {
-                            Res.string.guide_details_cancel_recording
-                        } else {
-                            Res.string.guide_details_record
-                        },
-                    ),
-                    maxLines = 1,
-                )
-            }
-            SofaButton(onClick = { run(actions.onRecordSeries) }, modifier = Modifier.announcesChanges()) {
-                Text(
-                    stringResource(
-                        if (mark.series) {
-                            Res.string.guide_details_stop_series
-                        } else {
-                            Res.string.guide_details_record_series
-                        },
-                    ),
-                    maxLines = 1,
-                )
-            }
-            for (team in teams) {
-                TeamButton(team, recorded = team.lowercase() in mark.teams) {
-                    run { actions.onRecordTeam(team) }
-                }
-            }
-        }
-        if (mark.conflict) {
-            Text(
-                stringResource(Res.string.guide_details_record_conflict),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-        if (failed) {
-            Text(
-                stringResource(Res.string.guide_details_record_failed),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.announcesChanges(),
-            )
-        }
-    }
-}
-
-/** Record [team], or Stop recording it once a team rule has it. */
-@Composable
-private fun TeamButton(team: String, recorded: Boolean, onClick: () -> Unit) {
-    SofaButton(onClick = onClick, modifier = Modifier.announcesChanges()) {
-        Text(
-            stringResource(
-                if (recorded) Res.string.guide_details_stop_team else Res.string.guide_details_record_team,
-                team,
-            ),
-            maxLines = 1,
-        )
     }
 }
 

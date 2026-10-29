@@ -41,7 +41,9 @@ internal fun RecordingsDestination(
         onDelete = recordingsVm::delete,
         onRetry = recordingsVm::refresh,
         onBack = tabBack,
-        onRuleChange = { rule, newOnly, keep -> recordingsVm.updateRule(rule, newOnly, keep) },
+        onRuleChange = { rule, edit ->
+            recordingsVm.updateRule(rule, edit.newOnly, edit.keep, edit.padding, edit.anyChannel)
+        },
         onRuleDelete = recordingsVm::deleteRule,
         onProtect = recordingsVm::setProtected,
         returnedFrom = arrival.returnedFrom,

@@ -64,7 +64,7 @@ fun RecordingsScreen(
     onDelete: suspend (DvrRecording) -> Boolean,
     onRetry: () -> Unit,
     onBack: () -> Unit,
-    onRuleChange: suspend (rule: SeriesRule, newOnly: Boolean, keep: Int) -> Boolean = { _, _, _ -> false },
+    onRuleChange: suspend (rule: SeriesRule, edit: RuleEdit) -> Boolean = { _, _ -> false },
     onRuleDelete: suspend (SeriesRule) -> Boolean = { false },
     onProtect: suspend (recording: DvrRecording, protect: Boolean) -> Boolean = { _, _ -> false },
     /** The recording just played, which takes focus again on the way back. */
@@ -111,7 +111,7 @@ private fun RecordingList(
     state: RecordingsState.Ready,
     onPlay: (DvrRecording, Boolean) -> Unit,
     onDelete: suspend (DvrRecording) -> Boolean,
-    onRuleChange: suspend (SeriesRule, Boolean, Int) -> Boolean,
+    onRuleChange: suspend (SeriesRule, RuleEdit) -> Boolean,
     onRuleDelete: suspend (SeriesRule) -> Boolean,
     onProtect: suspend (DvrRecording, Boolean) -> Boolean,
     returnedFrom: String?,

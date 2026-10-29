@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.data.DvrRecording
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.RecordingPadding
 import dev.jamesrich.sofaking.data.RecordingSchedule
 import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.SeriesRule
@@ -56,8 +57,13 @@ class RecordingsViewModel(
      * Changes [rule]: whether it takes new episodes only, and how many recordings it keeps (0 for all). False when the
      * server refused or could not be reached; the list reloads either way.
      */
-    suspend fun updateRule(rule: SeriesRule, newOnly: Boolean = rule.newOnly, keep: Int = rule.keep): Boolean =
-        schedule.updateRule(rule, newOnly, keep)
+    suspend fun updateRule(
+        rule: SeriesRule,
+        newOnly: Boolean = rule.newOnly,
+        keep: Int = rule.keep,
+        padding: RecordingPadding? = null,
+        anyChannel: Boolean = false,
+    ): Boolean = schedule.updateRule(rule, newOnly, keep, padding, anyChannel)
 
     /** Deletes [rule] and the recordings it scheduled; what it recorded stays. */
     suspend fun deleteRule(rule: SeriesRule): Boolean = schedule.deleteRule(rule)

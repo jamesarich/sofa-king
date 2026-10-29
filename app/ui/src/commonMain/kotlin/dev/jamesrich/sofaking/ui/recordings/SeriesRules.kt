@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.jamesrich.sofaking.data.RecordingPadding
 import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.data.nextKeep
 import dev.jamesrich.sofaking.resources.Res
@@ -24,16 +25,20 @@ import dev.jamesrich.sofaking.resources.recordings_series_keep_all_short
 import dev.jamesrich.sofaking.resources.recordings_series_keep_button
 import dev.jamesrich.sofaking.resources.recordings_series_keeps
 import dev.jamesrich.sofaking.resources.recordings_series_new_only
+import dev.jamesrich.sofaking.resources.recordings_series_padding_button
+import dev.jamesrich.sofaking.resources.recordings_series_padding_summary
 import dev.jamesrich.sofaking.resources.recordings_series_stop
 import dev.jamesrich.sofaking.resources.recordings_series_take_all
 import dev.jamesrich.sofaking.resources.recordings_series_take_new
+import dev.jamesrich.sofaking.resources.recordings_series_use_any_channel
+import dev.jamesrich.sofaking.ui.paddingName
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import org.jetbrains.compose.resources.stringResource
 
 /** The Series heading and one row per series rule, when there are any. */
 internal fun LazyListScope.seriesRules(
     rules: List<SeriesRule>,
-    onRuleChange: suspend (SeriesRule, Boolean, Int) -> Boolean,
+    onRuleChange: suspend (SeriesRule, RuleEdit) -> Boolean,
     onRuleDelete: suspend (SeriesRule) -> Boolean,
 ) {
     if (rules.isEmpty()) return
@@ -51,7 +56,7 @@ internal fun LazyListScope.seriesRules(
 @Composable
 private fun SeriesRow(
     rule: SeriesRule,
-    onChange: suspend (SeriesRule, Boolean, Int) -> Boolean,
+    onChange: suspend (SeriesRule, RuleEdit) -> Boolean,
     onDelete: suspend (SeriesRule) -> Boolean,
 ) {
     val actions = rememberRowActions(rule.id)
@@ -65,7 +70,7 @@ private fun SeriesRow(
             overflow = TextOverflow.Ellipsis,
         )
         RowButtons(actions) {
-            SofaButton(onClick = { actions.run { onChange(rule, !rule.newOnly, rule.keep) } }) {
+            SofaButton(onClick = { actions.run { onChange(rule, RuleEdit(!rule.newOnly, rule.keep)) } }) {
                 val take = if (rule.newOnly) {
                     Res.string.recordings_series_take_all
                 } else {
@@ -73,13 +78,26 @@ private fun SeriesRow(
                 }
                 Text(stringResource(take))
             }
-            SofaButton(onClick = { actions.run { onChange(rule, rule.newOnly, nextKeep(rule.keep)) } }) {
+            SofaButton(onClick = { actions.run { onChange(rule, RuleEdit(rule.newOnly, nextKeep(rule.keep))) } }) {
                 val count = if (rule.keep == 0) {
                     stringResource(Res.string.recordings_series_keep_all_short)
                 } else {
                     rule.keep.toString()
                 }
                 Text(stringResource(Res.string.recordings_series_keep_button, count))
+            }
+            val padding = nextPadding(rule.padding)
+            SofaButton(
+                onClick = { actions.run { onChange(rule, RuleEdit(rule.newOnly, rule.keep, padding = padding)) } },
+            ) {
+                Text(stringResource(Res.string.recordings_series_padding_button, paddingName(rule.padding)))
+            }
+            if (rule.channelId != null) {
+                SofaButton(onClick = {
+                    actions.run { onChange(rule, RuleEdit(rule.newOnly, rule.keep, anyChannel = true)) }
+                }) {
+                    Text(stringResource(Res.string.recordings_series_use_any_channel))
+                }
             }
             SofaButton(onClick = { actions.confirmThen { onDelete(rule) } }) {
                 val stop = if (actions.confirming) {
@@ -105,5 +123,9 @@ private fun seriesSummary(rule: SeriesRule): String = listOfNotNull(
     } else {
         stringResource(Res.string.recordings_series_keeps, rule.keep)
     },
+    stringResource(Res.string.recordings_series_padding_summary, paddingName(rule.padding)),
     stringResource(Res.string.recordings_series_any_channel).takeIf { rule.channelId == null },
 ).joinToString(" · ")
+
+/** The padding after [padding] in the Padding button's steps; a padding set on the portal goes to the default. */
+internal fun nextPadding(padding: RecordingPadding?): RecordingPadding = padding?.next() ?: RecordingPadding.DEFAULT

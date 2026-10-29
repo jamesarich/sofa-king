@@ -193,13 +193,13 @@ private class CustomShape(def: CustomDef) {
         val radius = s["rad"] * canvas.height
         val angle = s["ang"]
         val additive = s["additive"] >= 0.5
-        val centre = floatArrayOf(s["r"].toFloat(), s["g"].toFloat(), s["b"].toFloat(), s["a"].toFloat())
+        val center = floatArrayOf(s["r"].toFloat(), s["g"].toFloat(), s["b"].toFloat(), s["a"].toFloat())
         val edge = floatArrayOf(s["r2"].toFloat(), s["g2"].toFloat(), s["b2"].toFloat(), s["a2"].toFloat())
         val xs = FloatArray(sides) { (cx + radius * cos(angle + 2 * PI * it / sides)).toFloat() }
         val ys = FloatArray(sides) { (cy - radius * sin(angle + 2 * PI * it / sides)).toFloat() }
         for (k in 0 until sides) {
             val next = (k + 1) % sides
-            triangle(canvas, cx.toFloat(), cy.toFloat(), xs[k], ys[k], xs[next], ys[next], centre, edge, additive)
+            triangle(canvas, cx.toFloat(), cy.toFloat(), xs[k], ys[k], xs[next], ys[next], center, edge, additive)
         }
         val border = Triple(s["border_r"].toFloat(), s["border_g"].toFloat(), s["border_b"].toFloat())
         val borderAlpha = s["border_a"].toFloat().coerceIn(0f, 1f)
@@ -222,7 +222,7 @@ private class CustomShape(def: CustomDef) {
         y1: Float,
         x2: Float,
         y2: Float,
-        centre: FloatArray,
+        center: FloatArray,
         edge: FloatArray,
         additive: Boolean,
     ) {
@@ -244,10 +244,10 @@ private class CustomShape(def: CustomDef) {
                 canvas.plot(
                     x,
                     y,
-                    centre[0] + (edge[0] - centre[0]) * t,
-                    centre[1] + (edge[1] - centre[1]) * t,
-                    centre[2] + (edge[2] - centre[2]) * t,
-                    (centre[3] + (edge[3] - centre[3]) * t).coerceIn(0f, 1f),
+                    center[0] + (edge[0] - center[0]) * t,
+                    center[1] + (edge[1] - center[1]) * t,
+                    center[2] + (edge[2] - center[2]) * t,
+                    (center[3] + (edge[3] - center[3]) * t).coerceIn(0f, 1f),
                     additive,
                 )
             }

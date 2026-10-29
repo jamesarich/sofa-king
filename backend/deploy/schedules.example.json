@@ -1,0 +1,27 @@
+[
+  {
+    "id": "darkmatter",
+    "kind": "wurl",
+    "url": "https://epg-prod.ohlscdn.wurl.com/ohlscdn_tricoast_tv_dark_matter_01_us_cf.json"
+  },
+  {
+    "id": "cgtnbiz",
+    "kind": "cgtn",
+    "url": "http://49.233.55.102/xml?platform=PLATFORM_0&channel=191&timezone=-8&start={date}&days=7&format=download"
+  },
+  {
+    "id": "entrepreneur",
+    "kind": "wurl",
+    "url": "https://epg-prod.ohlscdn.wurl.com/ohlscdn_cineverse_entrepreneurtv_entrepreneurtv_1_us_cf.json"
+  },
+  {
+    "id": "blackenterprise",
+    "kind": "wurl",
+    "url": "https://epg-prod.ohlscdn.wurl.com/ohlscdn_videoelephant_limited_blackenterprisestreamingnetwork_1_us_cf.json"
+  },
+  {
+    "id": "reallife",
+    "kind": "frequency",
+    "url": "https://epg.frequency.com/output?id=1170&format=xmltv"
+  }
+]

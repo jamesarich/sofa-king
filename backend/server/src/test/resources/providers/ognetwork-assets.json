@@ -1,0 +1,8 @@
+{
+  "data": [
+    {"id": 459995, "ext_id": "tv:all-in-one-bundle", "type": "package", "name": "All-In-One bundle"},
+    {"id": 460063, "ext_id": "nigbati_tv", "type": "channel", "name": "Nigbati TV", "epg": {"id": 159669, "ext_id": "nigbati_tv"}, "lcn": 52},
+    {"id": 460072, "ext_id": "amusic_channel", "type": "channel", "name": "AMusic Channel", "epg": {"id": 159678, "ext_id": "amusic_channel"}, "lcn": 53},
+    {"id": 469075, "ext_id": "world_within_stories", "type": "channel", "name": "World Within Stories", "epg": {"id": 160222, "ext_id": "world_within_stories"}, "lcn": 90}
+  ]
+}

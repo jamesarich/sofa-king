@@ -1,0 +1,11 @@
+{
+  "data": {
+    "id": 460072,
+    "ext_id": "amusic_channel",
+    "type": "channel",
+    "name": "AMusic Channel",
+    "resources": [
+      {"id": 45013043, "state": "deployed", "type": "picture", "category": "poster_blueprint"}
+    ]
+  }
+}

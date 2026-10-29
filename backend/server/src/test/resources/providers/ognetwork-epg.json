@@ -1,0 +1,12 @@
+{
+  "data": [
+    {"id": 660299507, "start_time": "2026-10-05T08:47:00Z", "end_time": "2026-10-05T10:09:00Z", "name": "Delivery Boy", "channel": {"id": 159669, "ext_id": "nigbati_tv"}},
+    {"id": 804803300, "start_time": "2026-10-10T12:00:00Z", "end_time": "2026-10-10T14:00:00Z", "name": "Ajewole 2", "description": "Movie", "channel": {"id": 159669, "ext_id": "nigbati_tv"}},
+    {"id": 804803301, "start_time": "2026-10-10T14:00:00Z", "end_time": "2026-10-10T16:30:00Z", "name": "Oko Mi", "description": "A farmer takes on the city.", "channel": {"id": 159669, "ext_id": "nigbati_tv"}},
+    {"id": 804803302, "start_time": "2026-10-10T16:00:00Z", "end_time": "2026-10-10T18:00:00Z", "name": "Late Show", "episode_description": "Talk and music.", "channel": {"id": 159669, "ext_id": "nigbati_tv"}},
+    {"id": 804803400, "start_time": "2026-10-10T18:00:00Z", "end_time": "2026-10-10T19:00:00Z", "name": "Stale Sync", "channel": {"id": 159669, "ext_id": "nigbati_tv"}},
+    {"id": 804803401, "start_time": "2026-10-10T18:00:00Z", "end_time": "2026-10-10T19:00:00Z", "name": "Fresh Sync", "channel": {"id": 159669, "ext_id": "nigbati_tv"}},
+    {"id": 804803500, "start_time": "2026-10-10T13:00:00Z", "end_time": "2026-10-10T14:00:00Z", "name": "Afro Mix", "channel": {"id": 159678, "ext_id": "amusic_channel"}},
+    {"id": 804803600, "start_time": "2026-10-10T13:00:00Z", "end_time": "2026-10-10T14:00:00Z", "name": "Not Mapped", "channel": {"id": 999999, "ext_id": "unlisted"}}
+  ]
+}

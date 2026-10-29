@@ -93,6 +93,8 @@ struct PlayerView: View {
             model.core.stopWatching()
         }
         .onChange(of: scenePhase) { _, phase in
+            // A cover over the channel owns the shared player slot and its own session.
+            guard fromStart == nil, multiview == nil else { return }
             switch phase {
             case .background:
                 stopCovering()

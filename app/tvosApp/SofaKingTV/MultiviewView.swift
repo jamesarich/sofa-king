@@ -168,6 +168,7 @@ struct MultiviewView: View {
         opening?.cancel()
         itemObservers.removeAll()
         player.replaceCurrentItem(with: nil)
+        Task { try? await model.core.release() }
         failure = nil
         watching = false
     }

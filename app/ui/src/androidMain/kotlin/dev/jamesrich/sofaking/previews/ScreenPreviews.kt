@@ -243,10 +243,14 @@ fun VodBarPreview(tv: Boolean, modifier: Modifier = Modifier) = Frame(tv) {
     }
 }
 
-/** The Library tab:Continue watching, recent additions and the libraries. */
+/**
+ * The Library tab: Continue watching, recent additions and the libraries, or while it [loading], the spotlight's frame
+ * and placeholder rows at card size.
+ */
 @Composable
-fun LibraryHomePreview(tv: Boolean, light: Boolean = false) = Frame(tv, light) {
-    LibraryHomeScreen(LibraryHomeState.Ready(Samples.home), LibraryHomeActions({}, {}, {}, {}))
+fun LibraryHomePreview(tv: Boolean, light: Boolean = false, loading: Boolean = false) = Frame(tv, light) {
+    val state = if (loading) LibraryHomeState.Loading else LibraryHomeState.Ready(Samples.home)
+    LibraryHomeScreen(state, LibraryHomeActions({}, {}, {}, {}))
 }
 
 /** A show's page on the season with the next episode. */

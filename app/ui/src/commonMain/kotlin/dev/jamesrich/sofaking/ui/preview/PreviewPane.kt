@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -135,15 +136,24 @@ internal fun PreviewDetails(
                 WholeLinesText(it, MaterialTheme.typography.bodySmall, Modifier.fillMaxWidth().weight(1f))
             }
         }
-        program?.icon?.let {
-            AsyncImage(
-                model = it,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.padding(
-                    start = 16.dp,
-                ).size(width = DETAIL_IMAGE_WIDTH, height = DETAIL_IMAGE_HEIGHT).clip(MaterialTheme.shapes.small),
-            )
+        program?.icon?.let { icon ->
+            // The frame holds its place at once; the image loads only once focus has rested on the program, so
+            // holding a key down the grid starts no image request per cell.
+            val settled = key(icon) { rememberSettled(true, showAfterMs = DETAIL_IMAGE_SETTLE_MS) }
+            Box(
+                Modifier.padding(start = 16.dp)
+                    .size(width = DETAIL_IMAGE_WIDTH, height = DETAIL_IMAGE_HEIGHT)
+                    .clip(MaterialTheme.shapes.small),
+            ) {
+                if (settled) {
+                    AsyncImage(
+                        model = icon,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
         }
     }
 }
@@ -171,6 +181,9 @@ private fun TitleWithBadges(program: Program, live: Boolean) = Row(verticalAlign
 /** The program image beside the details: 16:9, as tall as the text column under the chips. */
 private val DETAIL_IMAGE_WIDTH = 160.dp
 private val DETAIL_IMAGE_HEIGHT = 90.dp
+
+/** How long focus rests on a program before its image is requested. */
+private const val DETAIL_IMAGE_SETTLE_MS = 250L
 
 /**
  * Muted live preview of [channel] on the app's shared [player]. Opens a preview session through [sessions]

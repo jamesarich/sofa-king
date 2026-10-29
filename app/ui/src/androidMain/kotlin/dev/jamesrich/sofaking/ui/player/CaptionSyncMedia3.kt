@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import android.app.ActivityManager
 import android.content.Context
 import android.os.Looper
 import androidx.media3.common.Timeline
@@ -61,6 +62,43 @@ class CaptionSyncRenderersFactory(
     }
 }
 
+/** The largest heap class, in MB, that counts as a low-memory device when the system does not flag it. */
+internal const val LOW_RAM_MEMORY_CLASS_MB = 192
+
+/** The buffer cap on a low-memory device: with the player's other allocations a default-sized one risks the heap. */
+internal const val LOW_RAM_TARGET_BUFFER_BYTES = 32 * 1024 * 1024
+
+/** Whether the device is short on memory: flagged by the system, or an app heap class of [LOW_RAM_MEMORY_CLASS_MB]. */
+internal fun isLowRam(flaggedLowRam: Boolean, memoryClassMb: Int): Boolean =
+    flaggedLowRam || memoryClassMb <= LOW_RAM_MEMORY_CLASS_MB
+
+/** [isLowRam] for this device. */
+internal fun Context.isLowRamDevice(): Boolean {
+    val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return false
+    return isLowRam(am.isLowRamDevice, am.memoryClass)
+}
+
+/**
+ * The stock load control with the buffer durations the live player wants. On a [lowRam] device the buffer is also
+ * capped in bytes, by size rather than by time, so a high-bitrate stream cannot outgrow the heap; the durations
+ * stay the same.
+ */
+@UnstableApi
+internal fun defaultDelegate(lowRam: Boolean): LoadControl = DefaultLoadControl.Builder()
+    .setBufferDurationsMs(
+        DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+        DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+        BufferPreference.FAST_START.startMs,
+        BufferPreference.FAST_START.rebufferMs,
+    )
+    .apply {
+        if (lowRam) {
+            setTargetBufferBytes(LOW_RAM_TARGET_BUFFER_BYTES)
+            setPrioritizeTimeOverSizeThresholds(false)
+        }
+    }
+    .build()
+
 /**
  * Forwards every PlayerId/Parameters overload explicitly: Kotlin `by` delegation skips Java default
  * methods, and LoadControl's defaults throw "not implemented". Playback starts once the caption lead and the
@@ -71,14 +109,7 @@ class CaptionSyncRenderersFactory(
 class CaptionSyncLoadControl(
     private val sync: CaptionSync,
     private val tuning: PlaybackTuning = PlaybackTuning(),
-    private val delegate: LoadControl = DefaultLoadControl.Builder()
-        .setBufferDurationsMs(
-            DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
-            DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
-            BufferPreference.FAST_START.startMs,
-            BufferPreference.FAST_START.rebufferMs,
-        )
-        .build(),
+    private val delegate: LoadControl = defaultDelegate(lowRam = false),
 ) : LoadControl {
     override fun onPrepared(playerId: PlayerId) = delegate.onPrepared(playerId)
 

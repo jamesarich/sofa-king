@@ -87,6 +87,7 @@ internal fun LibraryHomeDestination(
             onSearch = { voice -> shell.push(Route.LibrarySearch(), Arrival(search = voice)) },
             menu = cardMenu(shell, libraryVm),
             onRemoveFromContinue = libraryVm::removeFromContinue,
+            onRefresh = libraryVm::refreshHome,
         ),
         returnedFrom = arrival.returnedFrom,
         headerFocused = headerFocused,

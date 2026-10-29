@@ -10,6 +10,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -79,6 +80,8 @@ class SofaKingRepository(
             val guide = HashMap<String, List<Program>>()
             val removed = HashSet<String>()
             for (window in listOf(first) + rest) {
+                // The browser has one thread for everything, so each chunk's mapping hands it back.
+                yield()
                 guide += SofaKingMapper.programs(window)
                 removed += SofaKingMapper.removed(window)
             }

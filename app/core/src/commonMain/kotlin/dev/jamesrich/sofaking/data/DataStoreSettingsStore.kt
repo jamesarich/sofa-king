@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retryWhen
 import okio.Path.Companion.toPath
+import kotlin.concurrent.Volatile
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -40,7 +41,23 @@ class DataStoreSettingsStore(
             delay(readRetry)
             true
         }
-        .map(::readSettings)
+        .map(LatestRead(::readSettings)::of)
+}
+
+/**
+ * Reads [read] once per [Preferences] snapshot. DataStore hands every collector the same instance for one state, so
+ * the collectors of the settings flow share one read per emission while each keeps its own cold flow, and a collector
+ * that starts after a write still gets that write.
+ */
+internal class LatestRead(private val read: (Preferences) -> AppSettings) {
+    private class Read(val from: Preferences, val settings: AppSettings)
+
+    @Volatile private var latest: Read? = null
+
+    fun of(preferences: Preferences): AppSettings {
+        latest?.takeIf { it.from === preferences }?.let { return it.settings }
+        return read(preferences).also { latest = Read(preferences, it) }
+    }
 }
 
 /** A preferences store in [file]; a corrupt file is replaced with defaults. Create one per file, as a DI single. */

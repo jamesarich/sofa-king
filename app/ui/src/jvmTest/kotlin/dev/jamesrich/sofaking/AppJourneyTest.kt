@@ -69,7 +69,8 @@ class AppJourneyTest {
         assertFocused("Search")
         keys("Down")
         assertFocused(CONTINUE_CARD)
-        keys("OK")
+        // OK on Continue watching resumes, so the page is one Info press away.
+        keys("Info")
         assertFocused("Play")
         keys("Back")
         assertFocused(CONTINUE_CARD)

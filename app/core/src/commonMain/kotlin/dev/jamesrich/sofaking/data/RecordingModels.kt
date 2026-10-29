@@ -120,7 +120,12 @@ data class SeriesRule(
     val keep: Int,
     val kind: String = Wire.RuleMatchKind.TITLE,
     val terms: List<String> = emptyList(),
-)
+    val startPaddingSeconds: Int = RecordingPadding.DEFAULT.startSeconds,
+    val endPaddingSeconds: Int = RecordingPadding.DEFAULT.endSeconds,
+) {
+    /** The padding choice this rule's seconds match, or null for a padding set on the portal. */
+    val padding: RecordingPadding? get() = RecordingPadding.of(startPaddingSeconds, endPaddingSeconds)
+}
 
 internal fun RecordingRuleDto.toModel() = SeriesRule(
     id,
@@ -130,6 +135,8 @@ internal fun RecordingRuleDto.toModel() = SeriesRule(
     keep,
     match?.kind ?: Wire.RuleMatchKind.TITLE,
     match?.terms.orEmpty(),
+    startPaddingSeconds,
+    endPaddingSeconds,
 )
 
 /** What the recordings folder's disk holds free and in all. */

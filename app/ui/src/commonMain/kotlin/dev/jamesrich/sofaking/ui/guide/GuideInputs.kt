@@ -6,6 +6,8 @@ import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.data.RecordingWindow
+import dev.jamesrich.sofaking.data.SeriesOptions
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.ZapScope
 import kotlin.time.Instant
@@ -39,10 +41,14 @@ data class GuideActions(
     val onLoadGuideWindow: (Instant) -> Unit,
     /** Records the program or cancels its recording; false when the server did not take it. */
     val onRecord: suspend (Program) -> Boolean = notRecorded,
-    /** Records the program's series or stops it; false when the server did not take it. */
-    val onRecordSeries: suspend (Program) -> Boolean = notRecorded,
+    /** Records the program's series with the options for a new rule, or stops it; false when the server refused. */
+    val onRecordSeries: suspend (Program, SeriesOptions) -> Boolean = { _, _ -> false },
     /** Records every game of a team on any channel, or stops; false when the server did not take it. */
     val onRecordTeam: suspend (String) -> Boolean = { false },
+    /** Records everything matching the search text on any channel, or stops; false when the server refused. */
+    val onRecordKeyword: suspend (String) -> Boolean = { false },
+    /** Records the channel from now for the window, guide or not; false when the server did not take it. */
+    val onRecordWindow: suspend (Channel, RecordingWindow) -> Boolean = { _, _ -> false },
     /** Plays a recording still being written from the start of its program. */
     val onWatchFromStart: (recordingId: String) -> Unit = {},
     /** Adds the program's title to the household's watchlist or takes it off; false when the server did not take it. */

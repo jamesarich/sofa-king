@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui.recordings
 
 import dev.jamesrich.sofaking.data.DvrRecording
+import dev.jamesrich.sofaking.data.RecordingPadding
 import dev.jamesrich.sofaking.data.RecordingState
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import kotlinx.datetime.TimeZone
@@ -70,6 +71,13 @@ class RecordingListTest {
         assertEquals(listOf(1, 3, 5, 10, 0), KEEP_STEPS.map(::nextKeep))
         assertEquals(5, nextKeep(4), "a count set on the portal goes to the next step above it")
         assertEquals(0, nextKeep(25))
+    }
+
+    @Test
+    fun `the Padding button steps through the choices and sends a portal value to the default`() {
+        assertEquals(RecordingPadding.NONE, nextPadding(RecordingPadding.DEFAULT))
+        assertEquals(RecordingPadding.DEFAULT, nextPadding(RecordingPadding.OVERRUN))
+        assertEquals(RecordingPadding.DEFAULT, nextPadding(null))
     }
 
     @Test

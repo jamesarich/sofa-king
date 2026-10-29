@@ -48,6 +48,22 @@
     <string name="recordings_series_keep_all_short">All</string>
     <string name="recordings_series_stop">Stop series</string>
     <string name="recordings_series_confirm_stop">Stop series?</string>
+    <string name="recordings_series_padding_button">Padding: %1$s</string>
+    <string name="recordings_series_padding_summary">Padding %1$s</string>
+    <string name="recordings_series_use_any_channel">Any channel</string>
+    <string name="recording_padding_default">Default</string>
+    <string name="recording_padding_none">None</string>
+    <string name="recording_padding_five">5 min</string>
+    <string name="recording_padding_fifteen">15 min</string>
+    <string name="recording_padding_overrun">Long games</string>
+    <string name="recording_padding_custom">Custom</string>
+    <string name="recording_series_this_channel">This channel only</string>
+    <string name="recording_window_half_hour">Record next 30 min</string>
+    <string name="recording_window_one_hour">Record next hour</string>
+    <string name="recording_window_two_hours">Record next 2 hours</string>
+    <string name="recording_window_started">Recording started</string>
+    <string name="recording_keyword_record">Record everything matching “%1$s”</string>
+    <string name="recording_keyword_stop">Stop recording “%1$s”</string>
     <string name="recordings_skip_commercials">Skip commercials</string>
     <string name="recordings_skip_commercials_help">Automatically, playback jumps over the breaks the server found in a recording. With a button, Skip break comes up and waits for a press. Off, breaks play.</string>
 </resources>

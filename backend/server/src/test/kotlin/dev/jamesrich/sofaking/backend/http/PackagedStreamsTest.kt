@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.catalog.MediaFixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
+import dev.jamesrich.sofaking.backend.pollUntil
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.OpenPlayback
 import dev.jamesrich.sofaking.contract.PlaybackSession
@@ -90,7 +91,7 @@ class PackagedStreamsTest {
                     assertTrue(apple.bodyAsText().lines().none { it.startsWith("#EXT-X-STREAM-INF") })
 
                     client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }
-                    repeat(50) { if (runtime.relay.packaged > 0) Thread.sleep(100) }
+                    pollUntil(10_000, 100) { runtime.relay.packaged == 0 }
                     assertEquals(0, runtime.relay.packaged, "releasing the session stops its FFmpeg")
                 } finally {
                     runtime.close()

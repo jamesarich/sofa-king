@@ -1,0 +1,26 @@
+{
+    "rules": [
+        {
+            "id": "7a3c91d2-0e5b-4f48-9b6d-2c1f8e4a5d03",
+            "title": "Home games",
+            "channelId": "fb98844b-c39a-486e-9684-e70c7df97504",
+            "newOnly": false,
+            "keep": 3,
+            "startPaddingSeconds": 120,
+            "endPaddingSeconds": 600,
+            "priority": 2,
+            "createdAt": "2026-10-21T14:02:11.318204512Z",
+            "match": {
+                "kind": "team",
+                "terms": [
+                    "Rangers",
+                    "Bruins"
+                ],
+                "categories": [
+                    "Sports",
+                    "Hockey"
+                ]
+            }
+        }
+    ]
+}

@@ -58,6 +58,12 @@ internal class FakeServer(private val recordings: Boolean = true, private val mu
     val guideQueries = AtomicInteger()
     val sessionsOpened = AtomicInteger()
 
+    /** Every request the app made, as "METHOD path" in order, so a failure can show which screens it opened. */
+    private val requestLog: MutableList<String> = Collections.synchronizedList(mutableListOf())
+
+    /** The last [count] requests, oldest first. */
+    fun recentRequests(count: Int): List<String> = synchronized(requestLog) { requestLog.takeLast(count) }
+
     /** Each open live session's channel and intent, so a re-read or a renewal answers with what the app opened. */
     private val liveSessions: MutableMap<String, Pair<String, String>> = Collections.synchronizedMap(mutableMapOf())
     private val vodSessions: MutableMap<String, String> = Collections.synchronizedMap(mutableMapOf())
@@ -168,6 +174,7 @@ internal class FakeServer(private val recordings: Boolean = true, private val mu
 
     private fun handle(exchange: HttpExchange) {
         val request = Request(exchange)
+        requestLog += "${request.method} ${request.path}"
         if (!live(exchange, request) && !library(exchange, request)) exchange.notFound(request.path)
     }
 

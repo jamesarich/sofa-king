@@ -19,7 +19,7 @@ import dev.jamesrich.sofaking.data.RecordingWindow
 import dev.jamesrich.sofaking.data.SeriesOptions
 import dev.jamesrich.sofaking.data.keywordTerm
 import dev.jamesrich.sofaking.resources.Res
-import dev.jamesrich.sofaking.resources.guide_details_record_failed
+import dev.jamesrich.sofaking.resources.change_failed
 import dev.jamesrich.sofaking.resources.recording_keyword_record
 import dev.jamesrich.sofaking.resources.recording_keyword_stop
 import dev.jamesrich.sofaking.resources.recording_series_this_channel
@@ -99,7 +99,7 @@ internal fun WindowButtons(channel: Channel, onRecordWindow: suspend (Channel, R
         }
         if (failed) {
             Text(
-                stringResource(Res.string.guide_details_record_failed),
+                stringResource(Res.string.change_failed),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.announcesChanges(),
@@ -136,7 +136,7 @@ internal fun KeywordRecordButton(query: String, marks: RecordingMarks, onRecordK
         modifier = Modifier.announcesChanges(),
     ) {
         val label = when {
-            failed -> stringResource(Res.string.guide_details_record_failed)
+            failed -> stringResource(Res.string.change_failed)
             recorded -> stringResource(Res.string.recording_keyword_stop, term)
             else -> stringResource(Res.string.recording_keyword_record, term)
         }

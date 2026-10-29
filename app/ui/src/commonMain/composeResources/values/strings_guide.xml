@@ -12,7 +12,7 @@
     <string name="guide_tomorrow">Tomorrow</string>
     <string name="guide_later">Later today</string>
     <string name="guide_later_day">Later</string>
-    <string name="guide_range">%1$s %2$s - %3$s</string>
+    <string name="guide_range">%1$s %2$s to %3$s</string>
     <string name="guide_cell_airing">%1$s, %2$s, %3$s to %4$s, airing now</string>
     <string name="guide_cell_later">%1$s, %2$s, %3$s to %4$s</string>
     <string name="guide_cell_none">%1$s, %2$s</string>
@@ -31,8 +31,6 @@
     <string name="guide_details_stop_team">Stop recording %1$s</string>
     <string name="guide_details_add_to_watchlist">Add to watchlist</string>
     <string name="guide_details_remove_from_watchlist">Remove from watchlist</string>
-    <string name="guide_details_record_conflict">Won't record: no free slot then</string>
-    <string name="guide_details_record_failed">The server didn't take that change. Try again.</string>
     <string name="guide_details_more_airings">More airings (%1$d)</string>
     <string name="guide_airings_title">More airings</string>
     <string name="guide_airings_back">Back</string>

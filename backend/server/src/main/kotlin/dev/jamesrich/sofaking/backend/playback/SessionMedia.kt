@@ -95,7 +95,12 @@ class SessionMedia internal constructor(
     suspend fun resourcePath(id: String, epoch: Int, url: String): String = table.mutex.withLock {
         val session = table.active(id)
         if (session.epoch != epoch) {
-            throw ApiFailure(HttpStatusCode.Gone, Wire.ErrorCode.STREAM_CHANGED, "Fetch current descriptor", true)
+            throw ApiFailure(
+                HttpStatusCode.Gone,
+                Wire.ErrorCode.STREAM_CHANGED,
+                "The stream changed; reconnecting",
+                true,
+            )
         }
         "/media/sessions/$id/$epoch/${session.resource(url)}"
     }

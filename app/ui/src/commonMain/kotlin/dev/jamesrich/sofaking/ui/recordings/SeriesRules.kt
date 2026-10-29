@@ -9,7 +9,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.RecordingPadding
@@ -101,7 +104,10 @@ private fun SeriesRow(
                     Text(stringResource(Res.string.recordings_series_use_any_channel))
                 }
             }
-            SofaButton(onClick = { actions.confirmThen { onDelete(rule) } }) {
+            val stopFocus = remember { FocusRequester() }
+            SofaButton(modifier = Modifier.focusRequester(stopFocus), onClick = {
+                actions.confirmThen { onDelete(rule) }
+            }) {
                 val stop = if (actions.confirming) {
                     Res.string.recordings_series_confirm_stop
                 } else {
@@ -109,6 +115,7 @@ private fun SeriesRow(
                 }
                 Text(stringResource(stop))
             }
+            if (actions.confirming) KeepButton(actions, stopFocus)
         }
         if (actions.failed) ChangeFailed()
     }

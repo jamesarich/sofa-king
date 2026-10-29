@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -67,11 +68,15 @@ fun MessageScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             LogoMark(96.dp)
-            Text(
-                stringResource(Res.string.tagline),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (loading) {
+                // Decorative: a screen reader gets the message, not the slogan.
+                Text(
+                    stringResource(Res.string.tagline),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clearAndSetSemantics {},
+                )
+            }
             Spacer(Modifier.height(8.dp))
             if (loading) SofaLoader(size = 56.dp)
             Text(message, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)

@@ -119,6 +119,8 @@ internal class RuntimeOptions(
     val probes: Boolean,
     val plexDebounceMillis: Long,
     val restart: () -> Unit,
+    /** Builds the setup service in place of the one that asks TMDB, fanart.tv and ListenBrainz; for tests. */
+    val setup: ((ServerConfig, () -> Unit) -> SetupService)? = null,
 )
 
 /**
@@ -212,7 +214,7 @@ internal class RuntimeAssembly(
             TsRemux(config.ffmpeg, loopback, config.qualityFloors),
             logos, http,
             scope, policy, plex, started, jobs, settings, worker, PairingService(clock), updates,
-            setupService(config, options.restart, http),
+            options.setup?.invoke(config, options.restart) ?: setupService(config, options.restart, http),
             libraries, vod, dvr, loopback,
             HdhrAccess(config.hdhr.allow, ServerConfig.isLoopback(config.host), store, clock).also { it.load() },
             listener,

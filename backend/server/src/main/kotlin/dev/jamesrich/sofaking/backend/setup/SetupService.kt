@@ -87,6 +87,17 @@ class SetupService(
     fun fromEnvironment(secret: SavedSecret): Boolean =
         secretOrigins[secret.variable].let { it == SecretOrigin.ENVIRONMENT || it == SecretOrigin.FILE }
 
+    /** Whether the server started with a value for [secret], from the environment or `secrets.json`. */
+    fun isSet(secret: SavedSecret): Boolean = when (secret) {
+        SavedSecret.TMDB -> hasTmdb
+        SavedSecret.FANART -> hasFanart
+        SavedSecret.LISTENBRAINZ -> hasListenBrainz
+    }
+
+    private val hasTmdb = config.tmdb != null
+    private val hasFanart = config.fanartKey != null
+    private val hasListenBrainz = config.listenBrainzToken != null
+
     private val tmdbLanguage = config.tmdb?.language ?: "en-US"
 
     /** Whether a restart has been requested and the process is about to end. */
@@ -238,10 +249,13 @@ class SetupService(
         const val EXIT_DELAY_MILLIS = 1500L
 
         /** Ends the process shortly, with status 0; the shutdown hooks stop the server and close the store first. */
-        fun exitForRestart() {
+        fun exitForRestart() = afterDelay(EXIT_DELAY_MILLIS) { exitProcess(0) }
+
+        /** Runs [action] on a daemon thread once [millis] have passed, so the caller's response goes out first. */
+        internal fun afterDelay(millis: Long, action: () -> Unit) {
             thread(name = "restart", isDaemon = true) {
-                Thread.sleep(EXIT_DELAY_MILLIS)
-                exitProcess(0)
+                Thread.sleep(millis)
+                action()
             }
         }
     }

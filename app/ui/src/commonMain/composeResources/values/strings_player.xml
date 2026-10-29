@@ -6,7 +6,6 @@
     <string name="mini_guide_empty_favorites">No favorites yet. The star above adds the channel you are watching.</string>
     <string name="mini_guide_next">Next: %1$s at %2$s</string>
     <string name="player_paused">Paused</string>
-    <string name="player_paused_behind">Paused · %1$d s behind live</string>
     <string name="player_paused_resumes_live">Paused · %1$d s behind live · resumes at live</string>
     <string name="player_paused_resumes_live_after">Paused · %1$d s behind live · live again after %2$d s paused</string>
     <string name="player_live">Live</string>
@@ -56,7 +55,6 @@
     <string name="stream_card_mbps">%1$s Mb/s</string>
     <string name="stream_card_size">%1$d × %2$d</string>
     <string name="player_control_guide">Guide</string>
-    <string name="player_control_zoom">Zoom</string>
     <string name="player_control_multiview">Multiview</string>
     <string name="player_zoom_fit">Fit</string>
     <string name="player_zoom_fill">Fill</string>

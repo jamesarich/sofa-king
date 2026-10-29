@@ -10,6 +10,7 @@ import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
 import dev.jamesrich.sofaking.backend.health.FailureClass
 import dev.jamesrich.sofaking.backend.health.Observation
+import dev.jamesrich.sofaking.backend.setup.SetupService
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.recordObservation
 import io.ktor.client.request.bearerAuth
@@ -37,6 +38,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.nio.file.Files
+import java.nio.file.Path
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -61,7 +63,7 @@ internal suspend fun Mcp.read() = runtime.tokens.create("Assistant", TokenScope.
 
 internal fun JsonElement.field(name: String): JsonElement? = (this as? JsonObject)?.get(name)
 
-internal class Mcp(val builder: ApplicationTestBuilder, val runtime: LiveRuntime) {
+internal class Mcp(val builder: ApplicationTestBuilder, val runtime: LiveRuntime, val dir: Path) {
     var id = 0
 
     suspend fun post(bearer: String?, method: String, params: JsonObject = JsonObject(emptyMap())): HttpResponse =
@@ -115,46 +117,56 @@ private const val POLICY_TEXT =
         """"numbering":{"floor":100},"stations":{"station":{"group":"Local"}}}"""
 
 /** A server with the fixture provider, or with a lineup policy over the fixture and alt providers. */
-internal fun mcp(withPolicy: Boolean = false, probes: Boolean = false, block: suspend Mcp.() -> Unit) =
-    testApplication {
-        val dir = Files.createTempDirectory("sofa-mcp-")
-        Fixture().use { fixture ->
-            val sources = dir.resolve("sources.json")
-            val feeds = if (withPolicy) listOf(fixture.feed, fixture.altFeed) else listOf(fixture.feed)
-            Files.writeString(
-                sources,
-                if (withPolicy) {
-                    """{"providers":${Json.encodeToString(
-                        feeds,
-                    )},"guides":[]}"""
-                } else {
-                    Json.encodeToString(feeds)
-                },
-            )
-            val policyFile = dir.resolve("policy.json").takeIf {
-                withPolicy
-            }?.also { Files.writeString(it, POLICY_TEXT) }
-            val config = ServerConfig(
+internal fun mcp(
+    withPolicy: Boolean = false,
+    probes: Boolean = false,
+    restart: () -> Unit = SetupService::exitForRestart,
+    setup: ((ServerConfig, () -> Unit) -> SetupService)? = null,
+    configure: (ServerConfig) -> ServerConfig = { it },
+    block: suspend Mcp.() -> Unit,
+) = testApplication {
+    val dir = Files.createTempDirectory("sofa-mcp-")
+    Fixture().use { fixture ->
+        val sources = dir.resolve("sources.json")
+        val feeds = if (withPolicy) listOf(fixture.feed, fixture.altFeed) else listOf(fixture.feed)
+        Files.writeString(
+            sources,
+            if (withPolicy) {
+                """{"providers":${Json.encodeToString(
+                    feeds,
+                )},"guides":[]}"""
+            } else {
+                Json.encodeToString(feeds)
+            },
+        )
+        val policyFile = dir.resolve("policy.json").takeIf {
+            withPolicy
+        }?.also { Files.writeString(it, POLICY_TEXT) }
+        val config = configure(
+            ServerConfig(
                 "0.0.0.0", 8080, dir, sources, MCP_TOKEN, allowLoopbackUpstreams = true, adminToken = MCP_ADMIN,
                 hdhr = HdhrConfig(enabled = false), revision = "abc1234", policyFile = policyFile,
-            )
-            val store = openStore(dir)
-            val runtime = LiveRuntime.create(
-                store,
-                config,
-                MutableClock(),
-                policyDebounceMillis = 3_600_000,
-                probes = probes,
-            )
-            try {
-                for (feed in feeds) runtime.feeds.refresh(feed)
-                runtime.adoptAll()
-                application { backendModule(store, MutableClock(), runtime, MCP_TOKEN, MCP_ADMIN, config = config) }
-                Mcp(this, runtime).block()
-            } finally {
-                runtime.close()
-                store.close()
-                dir.toFile().deleteRecursively()
-            }
+            ),
+        )
+        val store = openStore(dir)
+        val runtime = LiveRuntime.create(
+            store,
+            config,
+            MutableClock(),
+            policyDebounceMillis = 3_600_000,
+            probes = probes,
+            restart = restart,
+            setup = setup,
+        )
+        try {
+            for (feed in feeds) runtime.feeds.refresh(feed)
+            runtime.adoptAll()
+            application { backendModule(store, MutableClock(), runtime, MCP_TOKEN, MCP_ADMIN, config = config) }
+            Mcp(this, runtime, dir).block()
+        } finally {
+            runtime.close()
+            store.close()
+            dir.toFile().deleteRecursively()
         }
     }
+}

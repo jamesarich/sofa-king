@@ -6,7 +6,9 @@ import dev.jamesrich.sofaking.backend.events.EventType
 import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.addRecording
+import dev.jamesrich.sofaking.backend.store.deleteRecording
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.store.recordingsIn
 import dev.jamesrich.sofaking.contract.Wire
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.toList
@@ -41,6 +43,32 @@ class DvrAlertsTest {
         alerts.checkConflicts()
         val conflicts = seen().filter { it.type == EventType.RECORDING_CONFLICT }
         assertEquals(listOf("c"), conflicts.map { it.data["id"]!!.jsonPrimitive.content })
+    }
+
+    @Test fun `the conflict count follows the last check`() = alerts { store, alerts, _ ->
+        assertEquals(0, alerts.conflictCount())
+        store.addRecording(recording("a", 1))
+        store.addRecording(recording("b", 2))
+        alerts.checkConflicts()
+        assertEquals(1, alerts.conflictCount(), "the second of two at once on one slot")
+        store.deleteRecording("b")
+        assertEquals(1, alerts.conflictCount(), "until the next check")
+        alerts.checkConflicts()
+        assertEquals(0, alerts.conflictCount())
+    }
+
+    @Test fun `recordings in states returns only recordings in those states`() = alerts { store, _, _ ->
+        store.addRecording(recording("a", 1))
+        store.addRecording(recording("b", 2).copy(state = Wire.RecordingState.RECORDING))
+        store.addRecording(recording("c", 3).copy(state = Wire.RecordingState.COMPLETED))
+        assertEquals(
+            setOf("a", "b"),
+            store.recordingsIn(Wire.RecordingState.SCHEDULED, Wire.RecordingState.RECORDING).map {
+                it.id
+            }.toSet(),
+        )
+        assertEquals(listOf("b"), store.recordingsIn(Wire.RecordingState.RECORDING).map { it.id })
+        assertEquals(emptyList(), store.recordingsIn(Wire.RecordingState.FAILED))
     }
 
     @Test fun `disk low is published as the free space drops under the floor, once until it recovers`() =

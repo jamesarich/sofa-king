@@ -40,6 +40,15 @@ import kotlin.test.assertTrue
 
 /** The ads, watching now, API, viewers, library and recordings pages. */
 class AdminPortalPagesTest : AdminPortalCase() {
+    @Test fun `a page render counts conflicts and checks the folder without reading recordings`() = testApplication {
+        portal {
+            browser.signIn()
+            runtime.store.query { exec("DROP TABLE recording") }
+            assertEquals(HttpStatusCode.OK, browser.get("/admin/system/events").status)
+            assertEquals(HttpStatusCode.OK, browser.get("/admin/system/jobs").status)
+        }
+    }
+
     @Test fun `the ads page lists each channel's census by its lineup name`() = testApplication {
         portal(basePolicy) {
             runtime.policy!!.apply("test")

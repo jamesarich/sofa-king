@@ -24,6 +24,7 @@ import kotlinx.coroutines.withContext
 import java.nio.file.Path
 import java.time.Clock
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 /** Below this share of a file, a stop counts as not started; at or past [WATCHED_AT], as watched. */
@@ -86,7 +87,10 @@ internal class View(
     val similar: List<String> = emptyList(),
     /** For an artist, the ids of their songs ListenBrainz's listeners play most, most played first. */
     val popular: List<String> = emptyList(),
-)
+) {
+    /** [sortTitle] of the title, built once on first sort instead of on every comparison. */
+    val sortKey: String by lazy(LazyThreadSafetyMode.PUBLICATION) { sortTitle(item.title) }
+}
 
 /** Every present item of every library, built once per change to the libraries. */
 internal class Snapshot(
@@ -128,6 +132,13 @@ internal class Snapshot(
             "INVALID_REQUEST",
             "kind is album or track, in a Music library",
         )
+    }
+
+    private val genreLists = ConcurrentHashMap<Pair<String, String?>, List<String>>()
+
+    /** Every genre of what [listed] returns for [library] and [kind], computed once per snapshot. */
+    fun genresOf(library: LibraryRecord, kind: String?): List<String> = genreLists.getOrPut(library.id to kind) {
+        listed(library, kind).flatMap { it.item.genres }.distinctBy { it.lowercase() }.sortedBy { it.lowercase() }
     }
 
     /** Whether a client that shows [music] or not sees [view]. */
@@ -266,14 +277,7 @@ class LibraryCatalog internal constructor(
         val states = playStates()
         val order = itemOrder(sort ?: "title", snapshot, states, libraryId)
         val tops = snapshot.listed(library, kind)
-        val wanted = genre?.trim()?.ifEmpty { null }
-        val all = tops
-            .filter { view -> wanted == null || view.item.genres.any { it.equals(wanted, ignoreCase = true) } }
-            .filter { view -> !favorites || states[view.record.id]?.favorite == true }
-            .map { it to it.out(snapshot, states) }
-            .filter { (_, item) ->
-                !unwatched || item.unwatched > 0 || (item.kind != Wire.ItemKind.SHOW && item.playState?.watched != true)
-            }
+        val all = tops.listed(snapshot, states, genre?.trim()?.ifEmpty { null }, favorites, unwatched)
             .sortedWith(compareBy(order) { it.first })
         val from = cursor?.let {
             it.toIntOrNull()?.takeIf { offset -> offset >= 0 }
@@ -281,10 +285,11 @@ class LibraryCatalog internal constructor(
         } ?: 0
         val page = all.drop(from).take(limit)
         val next = (from + page.size).takeIf { it < all.size }?.toString()
-        val genres = tops.flatMap { it.item.genres }.distinctBy { it.lowercase() }.sortedBy { it.lowercase() }
+        val genres = snapshot.genresOf(library, kind)
         val counted = (sort ?: "title") == "title" && cursor == null
         val letters = if (counted) letterRuns(all.map { it.first.item.title }) else null
-        return LibraryPage(page.map { it.second }, all.size, next, genres, letters)
+        val shown = page.map { (view, built) -> built ?: view.out(snapshot, states) }
+        return LibraryPage(shown, all.size, next, genres, letters)
     }
 
     /** An item's page; one in a Music library is found only by a client that shows [music]. */
@@ -341,9 +346,9 @@ class LibraryCatalog internal constructor(
             view.record.parentId == null && needle !in view.item.title.lowercase() &&
                 (view.cast + view.directors).any { needle in it.lowercase() }
         }
-        val found = tops.sortedBy { sortTitle(it.item.title) } + credited.sortedBy { sortTitle(it.item.title) } +
+        val found = tops.sortedBy { it.sortKey } + credited.sortedBy { it.sortKey } +
             rest.filter { it.record.kind in SEARCHED_CHILDREN }
-                .sortedWith(compareBy({ SEARCHED_CHILDREN.indexOf(it.record.kind) }, { sortTitle(it.item.title) }))
+                .sortedWith(compareBy({ SEARCHED_CHILDREN.indexOf(it.record.kind) }, { it.sortKey }))
         val people = credited.flatMap { view ->
             (view.cast + view.directors).filter { needle in it.lowercase() }.distinct()
         }
@@ -367,7 +372,7 @@ class LibraryCatalog internal constructor(
                     (ids.tvdb != null && item.tvdbId == ids.tvdb) ||
                     (ids.imdb != null && item.imdbId == ids.imdb)
                 )
-        }.sortedBy { sortTitle(it.item.title) }
+        }.sortedBy { it.sortKey }
         return LibraryPage(found.map { it.out(snapshot, states) }, found.size)
     }
 
@@ -433,6 +438,25 @@ class LibraryCatalog internal constructor(
         } else {
             store.savePlayStates(listOf(state))
         }
+    }
+}
+
+/**
+ * The views of [this] that pass the filters, each with its built item only when the unwatched filter had to build it,
+ * since nothing else reads an item's watch state before the page does.
+ */
+private fun List<View>.listed(
+    snapshot: Snapshot,
+    states: Map<String, PlayStateRecord>,
+    genre: String?,
+    favorites: Boolean,
+    unwatched: Boolean,
+): List<Pair<View, LibraryItem?>> {
+    val matching = filter { view -> genre == null || view.item.genres.any { it.equals(genre, ignoreCase = true) } }
+        .filter { view -> !favorites || states[view.record.id]?.favorite == true }
+    if (!unwatched) return matching.map { it to null }
+    return matching.map { it to it.out(snapshot, states) }.filter { (_, item) ->
+        item.unwatched > 0 || (item.kind != Wire.ItemKind.SHOW && item.playState?.watched != true)
     }
 }
 

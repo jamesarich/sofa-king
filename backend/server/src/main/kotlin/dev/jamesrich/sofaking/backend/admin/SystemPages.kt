@@ -154,6 +154,9 @@ internal class SystemPages(private val portal: Portal, private val events: Event
         )
     }
 
+    /** The support snapshot as the About page copies it. */
+    suspend fun snapshotJson(): String = snapshot().toJson()
+
     private suspend fun snapshot(): SupportSnapshot = SupportSnapshot(
         portal.clock.instant().toString(),
         aboutServer(),

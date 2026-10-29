@@ -173,7 +173,7 @@ The server answers the [Model Context Protocol](api.md#mcp) at `/api/v1/mcp`, so
 - Playback and recordings: `watching_now`, `recordings` and `recording_rules`.
 - Libraries: `libraries`, `search_library` and `library_home`.
 
-With the admin token it can also read `playback_history` and `plex_status`, run a job, scan a library, check for an update and ask the updater to install one (`update_now`, with `confirm`), sync Plex (`plex_sync`), turn a source off or on (`set_source_enabled`, disabling with `confirm`), probe a source (`probe_source`), move a playing session to another source (`switch_session_source`), and change the lineup: `edit_station` and `decide_merge` preview their impact first (`dryRun`, the default) and write only with `dryRun` false, `decide_guide_match` settles a proposed guide channel, and `apply_policy` runs the policy with `confirm`. Each policy write names the `revision` from `preview_policy`, and a stale one is refused. No tool shows a stream URL, a token or a request header.
+With the admin token it can also read `playback_history` and `plex_status`, run a job, scan a library, check for an update and ask the updater to install one (`update_now`, with `confirm`), sync Plex (`plex_sync`), turn a source off or on (`set_source_enabled`, disabling with `confirm`), probe a source (`probe_source`), move a playing session to another source (`switch_session_source`), and change the lineup: `edit_station` and `decide_merge` preview their impact first (`dryRun`, the default) and write only with `dryRun` false, `decide_guide_match` settles a proposed guide channel, and `apply_policy` runs the policy with `confirm`. It can also schedule a recording (`schedule_recording`), cancel or delete one (`cancel_recording`, with `confirm`, and `deleteFile` for a finished one), manage recording rules (`manage_recording_rule`, deleting with `confirm`), list, pair and forget devices (`devices`, forgetting with `confirm`) and list or test notification targets (`notifications`). It cannot make a token. Each policy write names the `revision` from `preview_policy`, and a stale one is refused. No tool shows a stream URL, a token or a request header.
 
 Pick the token for what the assistant may do. A read token, made on the portal's Settings page under Access tokens with Read as what it opens, lets it look and change nothing. It also sees the log, the recordings, the guide and the libraries, which the read routes of the admin API do not show, and not the playback history or the Plex status. The admin token lets it act too; give it only to an assistant you trust with the portal. Then add the server to the assistant, for Claude Code:
 
@@ -183,6 +183,18 @@ claude mcp add --transport http sofa-king http://SERVER_HOST:9193/api/v1/mcp \
 ```
 
 The assistant must reach the server's address, and must send the token as a bearer header: an assistant that runs in the cloud cannot reach a server on the home network. Revoke a read token on the Settings page to cut the assistant off.
+
+### Set up a server with an assistant
+
+With the admin token an assistant can walk a first run. Ask it to use the `triage_server` prompt, or go step by step:
+
+1. `setup_status` shows the providers and guides in the source file (kind, host and interval, never a URL or header), whether a lineup policy exists, which of the TMDB, fanart.tv and ListenBrainz keys are set, and the folders a library may use. Providers still go in the source file or the portal's Sources page.
+2. `write_starter_policy` writes the starter lineup policy for those providers when there is none. It restarts the server, so the assistant asks you first.
+3. `add_library` adds a movies, shows, videos or music library from one of those folders and queues its scan.
+4. `set_api_key` saves a TMDB token, fanart.tv key or ListenBrainz token after the service accepts it, then restarts the server. A key the environment sets is refused with `..._FROM_ENVIRONMENT`.
+5. `preview_policy` and the `review_policy_change` prompt take over from there.
+
+A key you give an assistant is in its transcript, and the server never repeats it. Prefer the Library page in the portal, or the `SOFA_*` variables, for a key you do not want an assistant to hold. Each restart ends every stream and the server is back in about a minute. The `sofa-king://support-snapshot` resource is what to attach to a bug report.
 
 ## Rotating tokens
 

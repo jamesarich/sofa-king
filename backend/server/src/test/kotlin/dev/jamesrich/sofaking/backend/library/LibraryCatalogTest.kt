@@ -378,4 +378,41 @@ class LibraryCatalogTest {
         assertEquals(listOf("Heat"), s.service.catalog.search("michael mann", 10).items.map { it.title })
         assertEquals(emptyList(), s.service.catalog.search("heat", 10).people, "a title match names nobody")
     }
+
+    @Test fun `a library pages in article-free title order by cursor`() = runBlocking<Unit> {
+        val s = setup()
+        val movies = s.root.resolve("movies")
+        val titles = listOf("The Zebra", "A Apple", "an Egg", "Banana", "banana", "Cherry", "Theory", "42")
+        titles.forEachIndexed { i, title -> movies.file("$title (${2000 + i % 2})/$title (${2000 + i % 2}).mkv") }
+        val library = s.service.create("Movies", LibraryKind.MOVIES, movies.toString())
+        s.service.scan(library.id)
+        val catalog = s.service.catalog
+        val everything = catalog.items(library.id, null, false, null, 100)
+        val expected = everything.items.sortedWith(compareBy({ sortTitle(it.title) }, { it.year }))
+        assertEquals(expected.map { it.id }, everything.items.map { it.id })
+        assertEquals(titles.size, everything.total)
+
+        val seen = ArrayList<String>()
+        var cursor: String? = null
+        do {
+            val page = catalog.items(library.id, "title", false, cursor, 3)
+            assertTrue(page.items.size <= 3)
+            assertEquals(everything.genres, page.genres)
+            seen += page.items.map { it.id }
+            cursor = page.next
+        } while (cursor != null)
+        assertEquals(everything.items.map { it.id }, seen)
+
+        val runs = everything.letters!!
+        assertEquals(titles.size, runs.sumOf { it.count })
+        assertEquals(listOf("#", "A", "B", "C", "E", "T", "Z"), runs.map { it.letter })
+        assertNull(catalog.items(library.id, "title", false, "3", 3).letters)
+
+        val watchedFirst = everything.items.first()
+        catalog.updatePlayState(watchedFirst.id, UpdatePlayState(positionMs = 0, watched = true))
+        val unwatched = catalog.items(library.id, null, true, null, 100)
+        assertEquals(everything.items.drop(1).map { it.id }, unwatched.items.map { it.id })
+        assertEquals(titles.size - 1, unwatched.total)
+        assertEquals(everything.genres, unwatched.genres, "the genre list ignores the filters")
+    }
 }

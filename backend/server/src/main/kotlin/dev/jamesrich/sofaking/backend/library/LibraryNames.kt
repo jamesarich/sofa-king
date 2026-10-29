@@ -156,10 +156,12 @@ internal fun letterRuns(titles: List<String>): List<LetterCount> {
     return runs
 }
 
+private val ARTICLES = arrayOf("the ", "a ", "an ")
+
 /** The name a list sorts by: lower case, without a leading English article. */
 internal fun sortTitle(title: String): String {
     val lower = title.lowercase().trim()
-    for (article in listOf("the ", "a ", "an ")) {
+    for (article in ARTICLES) {
         if (lower.startsWith(article) && lower.length > article.length) {
             return lower.substring(article.length)
         }

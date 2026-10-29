@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pairing_switch_title">Switch to %1$s?</string>
+    <string name="pairing_switch_message">This device stops using %1$s.</string>
+    <string name="pairing_switch">Switch</string>
+    <string name="pairing_switch_cancel">Cancel</string>
+</resources>

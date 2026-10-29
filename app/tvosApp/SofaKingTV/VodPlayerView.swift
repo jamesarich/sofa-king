@@ -70,6 +70,8 @@ struct VodPlayerView: View {
     @State private var earlyEnds = 0
     @State private var earlyEndAtMs: Int64 = 0
     @State private var backgrounded = false
+    /// False once the player has left: a restart or reopen still running then must not load a stream.
+    @State private var shown = false
     @State private var next: MediaItem?
     /// The Up next card asks "Still watching?" and leaves when it runs out, rather than playing `next`.
     @State private var stillWatching = false
@@ -139,6 +141,7 @@ struct VodPlayerView: View {
         }
         .task { await open() }
         .onAppear {
+            shown = true
             // A movie, an episode or a recording ends the music.
             model.music.stop()
             // A renewal that finds the stream replaced hands back the new URL for the same item.
@@ -160,6 +163,7 @@ struct VodPlayerView: View {
             }
         }
         .onDisappear {
+            shown = false
             replaced?.cancel()
             detailWatch?.cancel()
             itemObservers.removeAll()
@@ -201,7 +205,9 @@ struct VodPlayerView: View {
                 backgrounded = false
                 Task {
                     do {
-                        if let s = try await waitForConverter({ try await model.core.reopen() }) { load(s) } else { await open() }
+                        let s = try await waitForConverter { try await model.core.reopen() }
+                        guard shown else { return }
+                        if let s { load(s) } else { await open() }
                     } catch {
                         failure = error.localizedDescription
                     }
@@ -381,7 +387,7 @@ struct VodPlayerView: View {
             player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero)
         } else {
             Task {
-                if let restarted = try? await model.core.restartItemAt(positionMs: ms) { load(restarted) }
+                if let restarted = try? await model.core.restartItemAt(positionMs: ms), shown { load(restarted) }
             }
         }
     }
@@ -490,7 +496,8 @@ struct VodPlayerView: View {
         let picture = subtitleIndex.flatMap { isPicture($0) ? $0 : nil } ?? -1
         Task {
             do {
-                load(try await waitForConverter { try await model.core.switchItemTracks(item: item, positionMs: at, audioIndex: audio, subtitleIndex: picture) })
+                let s = try await waitForConverter { try await model.core.switchItemTracks(item: item, positionMs: at, audioIndex: audio, subtitleIndex: picture) }
+                if shown { load(s) }
             } catch {
                 failure = error.localizedDescription
             }
@@ -522,7 +529,9 @@ struct VodPlayerView: View {
         let at = positionMs
         Task {
             do {
-                if let restarted = try await waitForConverter({ try await model.core.restartItemAt(positionMs: at) }) { load(restarted, at: at) } else { await open() }
+                let restarted = try await waitForConverter { try await model.core.restartItemAt(positionMs: at) }
+                guard shown else { return }
+                if let restarted { load(restarted, at: at) } else { await open() }
             } catch {
                 failure = error.localizedDescription
             }

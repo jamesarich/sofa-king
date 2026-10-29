@@ -31,6 +31,11 @@ final class BonjourBrowser: NSObject, HostServerBrowser {
 
     private func update(_ results: Set<NWBrowser.Result>) {
         let names = Set(results.compactMap { Self.name(of: $0.endpoint) })
+        for (name, connection) in resolving where !names.contains(name) {
+            connection.stateUpdateHandler = nil
+            connection.cancel()
+            resolving[name] = nil
+        }
         for name in found.subtracting(names) {
             found.remove(name)
             listener?.lost(name: name)

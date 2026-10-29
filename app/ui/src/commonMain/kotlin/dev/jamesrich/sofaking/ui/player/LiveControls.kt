@@ -15,9 +15,9 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.change_failed
 import dev.jamesrich.sofaking.resources.player_recording
 import dev.jamesrich.sofaking.resources.player_recording_canceled
-import dev.jamesrich.sofaking.resources.player_recording_failed
 import dev.jamesrich.sofaking.resources.player_zoom_notice
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -88,7 +88,7 @@ internal fun rememberPlayerNotice(): PlayerNotice {
     val texts = NoticeTexts(
         recording = stringResource(Res.string.player_recording),
         canceled = stringResource(Res.string.player_recording_canceled),
-        failed = stringResource(Res.string.player_recording_failed),
+        failed = stringResource(Res.string.change_failed),
         zoom = stringResource(Res.string.player_zoom_notice),
         zoomLabels = VideoZoom.entries.associateWith { stringResource(it.label) },
     )

@@ -1,6 +1,6 @@
 # Recordings
 
-The server records programs from the guide into the [recordings folder](deploy.md#the-recordings-folder) (`SOFA_RECORDINGS_DIR`), as MPEG-TS files named the way Plex, Jellyfin, Emby and Kodi scan them. Manage recordings and series rules on the portal's [Recordings](admin.md#recordings) page, in the app (Record in a program's details and the [Recordings tab](../../app/docs/usage.md#recordings)), or through the [API](api.md#recordings) with the API token.
+The server records programs from the guide into the [recordings folder](deploy.md#the-recordings-folder) (`SOFA_RECORDINGS_DIR`), as MPEG-TS files named the way Plex, Jellyfin, Emby and Kodi scan them. Manage recordings and series rules in the portal's [DVR](admin.md#dvr) section, in the app (Record in a program's details and the [DVR tab](../../app/docs/usage.md#dvr)), or through the [API](api.md#recordings) with the API token.
 
 ## Record a program
 
@@ -23,7 +23,7 @@ curl -sS -X POST -H "Authorization: Bearer $SOFA_API_TOKEN" -H 'Content-Type: ap
   http://localhost:9193/api/v1/recordings
 ```
 
-The window runs without padding, spans at most 12 hours and starts at most 14 days ahead, and the server holds at most 100 waiting one-off recordings; without a `title` the recording takes the channel's name. It is named like a show with no episode numbers, under the date it starts. The portal's Recordings page has the same form under Record a time window.
+The window runs without padding, spans at most 12 hours and starts at most 14 days ahead, and the server holds at most 100 waiting one-off recordings; without a `title` the recording takes the channel's name. It is named like a show with no episode numbers, under the date it starts. The portal's DVR section has the same form under Record a time window.
 
 ## Record a series
 
@@ -50,7 +50,7 @@ A rule's `match.kind` is `title`, `team` or `keyword`:
 - `team` matches any of `terms` as a whole word, ignoring case, in the program's title or episode title, on a program with one of `categories` among its guide categories as a word (`Sports` matches `Sports event`). Without `terms` the team is the rule's `title`, and without `categories` it is `Sports`. `{"title":"Packers","match":{"kind":"team"}}` records `NFL Football` with the episode title `Bears at Packers` on any channel.
 - `keyword` matches any of `terms` as a whole word in the title, episode title or description, in one of `categories` when any is given. It needs at least one term.
 
-Each takes up to 20 terms and 20 categories of up to 100 characters. The rule's `title` then only names it in the lists; recordings take their program's title as usual. The rule list answers its `match`; a title rule answers none. The app's program details offer Record for each team a sports program names, and the portal's Recordings page adds any of the three.
+Each takes up to 20 terms and 20 categories of up to 100 characters. The rule's `title` then only names it in the lists; recordings take their program's title as usual. The rule list answers its `match`; a title rule answers none. The app's program details offer Record for each team a sports program names, and the portal's DVR section adds any of the three.
 
 `PATCH /api/v1/recording-rules/{id}` changes any of these but the title and the match; `"anyChannel":true` clears the channel. The schedule is rebuilt after every guide import, every rule change and every 30 minutes, over the days the guide covers (`SOFA_XMLTV_DAYS`, 3 by default). An airing is skipped when a recording of the same episode is already scheduled, running or kept: the same season and episode numbers, or the same episode title when the guide gives no numbers. An airing with neither, such as a news show, is recorded every time. When the guide moves or drops an airing, its scheduled recording follows. Deleting a scheduled airing of a rule cancels it for good; deleting the rule drops its scheduled recordings and keeps what it recorded.
 
@@ -97,7 +97,7 @@ While a recording runs, the DVR checks the free space every five seconds. Below 
 
 ## Subscribe in a calendar
 
-`/output/recordings.ics` lists the scheduled and running recordings as calendar events, so a calendar app shows when the DVR records. Make a read token on the portal's Settings page, under Access tokens, and subscribe to `http://SERVER_HOST:9193/output/recordings.ics?token=TOKEN` (Google Calendar: Other calendars, From URL; Apple Calendar: File, New Calendar Subscription). The output token works there too. Each event covers the recording's window, paddings included, and a recording in a conflict carries `X-SOFA-KING-CONFLICT:TRUE`. The feed asks to be refreshed every 15 minutes; how often an app does is up to it. The portal's Recordings section shows the same schedule, and the recordings done, on its [Calendar](admin.md#pages) tab.
+`/output/recordings.ics` lists the scheduled and running recordings as calendar events, so a calendar app shows when the DVR records. Make a read token on the portal's Settings page, under Access tokens, and subscribe to `http://SERVER_HOST:9193/output/recordings.ics?token=TOKEN` (Google Calendar: Other calendars, From URL; Apple Calendar: File, New Calendar Subscription). The output token works there too. Each event covers the recording's window, paddings included, and a recording in a conflict carries `X-SOFA-KING-CONFLICT:TRUE`. The feed asks to be refreshed every 15 minutes; how often an app does is up to it. The portal's DVR section shows the same schedule, and the recordings done, on its [Calendar](admin.md#pages) tab.
 
 ## Limitations
 

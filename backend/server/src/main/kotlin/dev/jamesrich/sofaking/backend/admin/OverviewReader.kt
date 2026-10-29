@@ -189,7 +189,7 @@ internal class OverviewReader(private val portal: Portal) {
                         "host: sudo chown -R UID:GID ./recordings, with the UID and GID from .env (1000 by " +
                         "default).",
                     "/admin/recordings",
-                    "Recordings",
+                    "DVR",
                     "recordings-unwritable",
                     "troubleshooting.md#recordings",
                 ),

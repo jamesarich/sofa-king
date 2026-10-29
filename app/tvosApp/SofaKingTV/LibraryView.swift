@@ -31,7 +31,7 @@ struct LibraryHomeView: View {
         case let ready as LibraryHomeStateReady:
             if ready.home.shelves.isEmpty && ready.home.libraries.isEmpty {
                 ContentUnavailableView(
-                    "Nothing here yet",
+                    strings.libraryEmpty,
                     systemImage: "film.stack",
                     description: Text("The server adds what it finds on its next library scan.")
                 )
@@ -40,9 +40,9 @@ struct LibraryHomeView: View {
             }
         case let failed as LibraryHomeStateFailed:
             VStack(spacing: 32) {
-                Text("The library didn't load").font(.title2)
+                Text(strings.libraryLoadFailed).font(.title2)
                 Text(failed.message).foregroundStyle(.secondary)
-                Button("Try again") { model.core.refreshLibrary() }
+                Button(strings.retry) { model.core.refreshLibrary() }
             }
         case is LibraryHomeStateUnavailable:
             ContentUnavailableView(
@@ -153,12 +153,12 @@ struct LibraryGridView: View {
                     if let error = shown.error {
                         VStack(alignment: .leading, spacing: 16) {
                             Text(error).foregroundStyle(.secondary)
-                            Button("Try again") { model.core.loadMore() }
+                            Button(strings.retry) { model.core.loadMore() }
                         }
                     } else if shown.loading {
                         ProgressView()
                     } else if shown.items.isEmpty {
-                        Text(unwatched ? "Everything here is watched" : "Nothing here yet").foregroundStyle(.secondary)
+                        Text(unwatched ? "Everything here is watched" : strings.libraryEmpty).foregroundStyle(.secondary)
                     }
                 } else {
                     ProgressView()
@@ -231,7 +231,7 @@ private struct LibraryTile: View {
         }
         .padding(24)
         .frame(width: 400, height: 225, alignment: .leading)
-        .background(library.kind == .shows ? Color.teal.opacity(0.35) : library.kind == .music ? Color.pink.opacity(0.35) : Color.indigo.opacity(0.35))
+        .background(library.kind == .shows ? Color.sofaLavenderDeep : library.kind == .music ? Color.sofaAmberDeep : Color.sofaPlumRaised)
     }
 }
 
@@ -271,7 +271,7 @@ private struct WatchBadge: View {
 
     var body: some View {
         if item.progress?.watched == true {
-            Image(systemName: "checkmark.circle.fill").font(.title3).padding(10).accessibilityLabel("Watched")
+            Image(systemName: "checkmark.circle.fill").font(.title3).padding(10).accessibilityLabel(strings.libraryWatched)
         } else if item.unwatched > 0 && !item.kind.playable {
             Text("\(item.unwatched)").font(.caption).bold()
                 .padding(.horizontal, 10).padding(.vertical, 4)
@@ -337,13 +337,13 @@ extension MediaItem {
 /// What kind of extra `kind` is, as a card's second line says it; by name, as `short` is not a name Swift sees.
 func extraLabel(_ kind: ExtraKind) -> String {
     switch kind.name {
-    case "TRAILER": "Trailer"
-    case "FEATURETTE": "Featurette"
-    case "BEHIND_THE_SCENES": "Behind the scenes"
-    case "DELETED_SCENE": "Deleted scene"
-    case "INTERVIEW": "Interview"
-    case "SCENE": "Scene"
-    case "SHORT": "Short"
-    default: "Extra"
+    case "TRAILER": strings.extraTrailer
+    case "FEATURETTE": strings.extraFeaturette
+    case "BEHIND_THE_SCENES": strings.extraBehindTheScenes
+    case "DELETED_SCENE": strings.extraDeletedScene
+    case "INTERVIEW": strings.extraInterview
+    case "SCENE": strings.extraScene
+    case "SHORT": strings.extraShort
+    default: strings.extraOther
     }
 }

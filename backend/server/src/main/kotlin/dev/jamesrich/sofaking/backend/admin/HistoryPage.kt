@@ -54,7 +54,7 @@ internal class HistoryView(
     val available: Boolean,
 )
 
-/** The History page under Players: the playback sessions that ended, newest first, with filters. */
+/** The History page under Devices: the playback sessions that ended, newest first, with filters. */
 internal class HistoryPages(private val portal: Portal) {
     private val runtime get() = portal.runtime
 

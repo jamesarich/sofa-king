@@ -38,9 +38,9 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | Symptom | Check |
 | --- | --- |
 | Can't play this channel | The server could not open a playback session, the stream ended, or the failure has no closer headline; the code names why. Press OK to retry or pick another channel. |
-| Can't reach the stream | The player could not connect to the stream or lost it. On a desktop with VLC installed, every failure the player reports shows this headline; on iOS, a connection that failed or timed out; in a browser, every one except an unsupported format. The player reconnects with backoff; press OK to retry now. |
-| The stream refused the connection | On Android and iOS, the server's relay answered the stream request with an HTTP error, for example while it switches sources. The player reconnects with backoff; press OK to retry now. |
-| This stream format isn't supported | On Android, the player could not read or decode the stream; on iOS, it did not recognize the format. In a browser, the channel streams a format the browser does not play; the server packages MPEG-TS as HLS for the web app, so this is another format, or a server from before that. |
+| Can't reach this stream. Check the server and try again. | The player could not connect to the stream or lost it. On a desktop with VLC installed, every failure the player reports shows this headline; on iOS, a connection that failed or timed out; in a browser, every one except an unsupported format. The player reconnects with backoff; press OK to retry now. |
+| The server refused this stream. Try again, or try another one. | On Android and iOS, the server's relay answered the stream request with an HTTP error, for example while it switches sources. The player reconnects with backoff; press OK to retry now. |
+| This stream's format isn't supported. Try another one. | On Android, the player could not read or decode the stream; on iOS, it did not recognize the format. In a browser, the channel streams a format the browser does not play; the server packages MPEG-TS as HLS for the web app, so this is another format, or a server from before that. |
 | `CAPACITY_EXHAUSTED` | Every playback slot on the server holds a watch session, from this app or another client, or one session has more than 12 media requests open at once. Stop a session, or raise the server's `SOFA_MAX_SESSIONS`. |
 | `CHANNEL_NOT_FOUND` | The server's lineup changed. The app reloads it and follows the channel by number, then name. |
 | Preview unavailable | The server refused the preview session or the stream failed. The channel does not open full screen by itself. Focus another channel and come back. |
@@ -95,7 +95,7 @@ Only through a connection the server allows, such as a VPN or an HTTPS reverse p
 
 ### Does it record or play in the background?
 
-It records: on a server that records, the program details offer Record and Record series, and recordings play from the DVR tab, as [recordings](usage.md#recordings) describes. On an Android phone or tablet, leaving the app while something plays shrinks it into a [picture-in-picture](usage.md#remote-controls) window that keeps playing. Music plays on behind the app, with its controls in the notification or Control Center ([music](usage.md#music)). Video does not play in the background elsewhere: it stops when the app leaves the screen, and returning opens the same channel at the live edge, or a library item or recording where it stopped.
+It records: on a server that records, the program details offer Record and Record series, and recordings play from the DVR tab, as [DVR](usage.md#dvr) describes. On an Android phone or tablet, leaving the app while something plays shrinks it into a [picture-in-picture](usage.md#remote-controls) window that keeps playing. Music plays on behind the app, with its controls in the notification or Control Center ([music](usage.md#music)). Video does not play in the background elsewhere: it stops when the app leaves the screen, and returning opens the same channel at the live edge, or a library item or recording where it stopped.
 
 ### Why will a snapshot APK not install over my build?
 

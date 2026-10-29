@@ -12,8 +12,7 @@ class TvCopyParityTest {
 
     /** Resource name to why the Apple TV app words it differently on purpose. */
     private val deliberate = mapOf(
-        "settings_lock_help" to "The Siri Remote has no CC key to name",
-        "lock_forgot_no_token" to "tvOS has no way to clear an app's data, so the app is deleted and installed again",
+        "guide_favorites_none" to "The Siri Remote has a touch surface where the other apps have OK",
         "settings_pairing_help" to "No QR scan on tvOS, and the address field is on the same page",
     )
 

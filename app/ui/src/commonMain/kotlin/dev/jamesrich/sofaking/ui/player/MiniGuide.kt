@@ -50,11 +50,11 @@ import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.filter_all
 import dev.jamesrich.sofaking.resources.filter_favorites
+import dev.jamesrich.sofaking.resources.filter_recent
 import dev.jamesrich.sofaking.resources.mini_guide_empty_favorites
 import dev.jamesrich.sofaking.resources.mini_guide_last_channel
-import dev.jamesrich.sofaking.resources.mini_guide_next
-import dev.jamesrich.sofaking.resources.mini_guide_recent
 import dev.jamesrich.sofaking.resources.mini_guide_title
+import dev.jamesrich.sofaking.resources.next_at
 import dev.jamesrich.sofaking.ui.ChannelLogo
 import dev.jamesrich.sofaking.ui.ProgressBar
 import dev.jamesrich.sofaking.ui.formatNumber
@@ -161,7 +161,7 @@ private fun MiniGuideChips(
                     selected = filter == option,
                     onClick = { onFilter(option) },
                     label = when (option) {
-                        MiniGuideFilter.RECENT -> stringResource(Res.string.mini_guide_recent)
+                        MiniGuideFilter.RECENT -> stringResource(Res.string.filter_recent)
                         MiniGuideFilter.FAVORITES -> stringResource(Res.string.filter_favorites)
                         MiniGuideFilter.SCOPE -> scope?.label.orEmpty()
                         MiniGuideFilter.ALL -> stringResource(Res.string.filter_all)
@@ -197,7 +197,7 @@ private fun ColumnScope.MiniGuideList(
                     row = row,
                     program = program,
                     nextLine = next?.let {
-                        stringResource(Res.string.mini_guide_next, it.title, timeFormat.format(it.start))
+                        stringResource(Res.string.next_at, it.title, timeFormat.format(it.start))
                     },
                     guideLoading = lineup.guideLoading,
                     now = now,

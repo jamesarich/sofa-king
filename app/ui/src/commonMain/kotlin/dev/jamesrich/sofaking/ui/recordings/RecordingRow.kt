@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.DvrRecording
@@ -86,7 +89,8 @@ internal fun RecordingRow(
             )
         }
         RowButtons(actions) {
-            val deleteModifier = if (recording.playable) Modifier else firstButtonModifier
+            val deleteFocus = remember { FocusRequester() }
+            val deleteModifier = (if (recording.playable) Modifier else firstButtonModifier).focusRequester(deleteFocus)
             if (recording.playable) {
                 SofaButton(onClick = { onPlay(recording, false) }, modifier = firstButtonModifier) {
                     Text(
@@ -104,12 +108,30 @@ internal fun RecordingRow(
             if (recording.canProtect) {
                 ProtectButton(recording.protected) { actions.run { onProtect(recording, !recording.protected) } }
             }
-            SofaButton(modifier = deleteModifier, onClick = { actions.confirmThen { onDelete(recording) } }) {
-                val state = recording.state
-                Text(stringResource(if (actions.confirming) confirmLabel(state) else deleteLabel(state)))
-            }
+            EndButton(recording, actions, onDelete = { onDelete(recording) }, modifier = deleteModifier)
+            if (actions.confirming) KeepButton(actions, deleteFocus)
         }
         if (actions.failed) ChangeFailed()
+    }
+}
+
+/** Stop, Cancel or Delete; after the first press it asks by name, and [KeepButton] backs out. */
+@Composable
+private fun EndButton(
+    recording: DvrRecording,
+    actions: RowActions,
+    onDelete: suspend () -> Boolean,
+    modifier: Modifier = Modifier,
+) {
+    SofaButton(modifier = modifier, onClick = { actions.confirmThen(onDelete) }) {
+        val state = recording.state
+        Text(
+            if (actions.confirming) {
+                stringResource(confirmLabel(state), recording.title)
+            } else {
+                stringResource(deleteLabel(state))
+            },
+        )
     }
 }
 

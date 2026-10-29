@@ -20,14 +20,14 @@ import dev.jamesrich.sofaking.data.RecordingWindow
 import dev.jamesrich.sofaking.data.SeriesOptions
 import dev.jamesrich.sofaking.data.teamSides
 import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.change_failed
 import dev.jamesrich.sofaking.resources.guide_details_cancel_recording
 import dev.jamesrich.sofaking.resources.guide_details_record
-import dev.jamesrich.sofaking.resources.guide_details_record_conflict
-import dev.jamesrich.sofaking.resources.guide_details_record_failed
 import dev.jamesrich.sofaking.resources.guide_details_record_series
 import dev.jamesrich.sofaking.resources.guide_details_record_team
 import dev.jamesrich.sofaking.resources.guide_details_stop_series
 import dev.jamesrich.sofaking.resources.guide_details_stop_team
+import dev.jamesrich.sofaking.resources.recordings_conflict
 import dev.jamesrich.sofaking.ui.announcesChanges
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import kotlinx.coroutines.launch
@@ -123,14 +123,14 @@ private fun RecordNotes(conflict: Boolean, failed: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (conflict) {
             Text(
-                stringResource(Res.string.guide_details_record_conflict),
+                stringResource(Res.string.recordings_conflict),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
             )
         }
         if (failed) {
             Text(
-                stringResource(Res.string.guide_details_record_failed),
+                stringResource(Res.string.change_failed),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.announcesChanges(),

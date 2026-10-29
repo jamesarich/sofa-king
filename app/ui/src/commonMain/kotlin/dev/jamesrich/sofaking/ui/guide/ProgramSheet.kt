@@ -57,8 +57,6 @@ import dev.jamesrich.sofaking.resources.guide_details_cancel_recording
 import dev.jamesrich.sofaking.resources.guide_details_close
 import dev.jamesrich.sofaking.resources.guide_details_more_airings
 import dev.jamesrich.sofaking.resources.guide_details_record
-import dev.jamesrich.sofaking.resources.guide_details_record_conflict
-import dev.jamesrich.sofaking.resources.guide_details_record_failed
 import dev.jamesrich.sofaking.resources.guide_details_record_series
 import dev.jamesrich.sofaking.resources.guide_details_record_team
 import dev.jamesrich.sofaking.resources.guide_details_remove_favorite

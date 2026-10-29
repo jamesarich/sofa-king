@@ -61,6 +61,7 @@ import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_BAND_HEIGHT
 import dev.jamesrich.sofaking.ui.preview.PreviewDetails
 import dev.jamesrich.sofaking.ui.preview.PreviewVideo
+import dev.jamesrich.sofaking.ui.rememberHaptics
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Duration.Companion.minutes
@@ -92,11 +93,12 @@ internal fun rememberGuideRowEnv(
     val toggleFavoriteLabel = stringResource(Res.string.guide_toggle_favorite)
     val detailsLabel = stringResource(Res.string.guide_details)
     val laterLabel = stringResource(if (dayOffset == 0) Res.string.guide_later else Res.string.guide_later_day)
+    val haptics = rememberHaptics()
     return remember(
         cellAiring, cellLater, cellNone, timeFormat, noListing, listingLoading, guideLoading, noGuide, guideOutOfDate,
         favoriteLabel,
         toggleFavoriteLabel, detailsLabel, laterLabel,
-        minutePx, minStickyTextPx, scrollState, onCellFocus, onPlay, onToggleFavorite, onOpenDetails, onJumpTo,
+        minutePx, minStickyTextPx, scrollState, onCellFocus, onPlay, onToggleFavorite, onOpenDetails, onJumpTo, haptics,
     ) {
         GuideRowEnv(
             cellAiring = cellAiring,
@@ -120,6 +122,7 @@ internal fun rememberGuideRowEnv(
             detailsLabel = detailsLabel,
             laterLabel = laterLabel,
             onJumpTo = onJumpTo,
+            haptics = haptics,
         )
     }
 }

@@ -51,6 +51,7 @@ import dev.jamesrich.sofaking.resources.vod_starting
 import dev.jamesrich.sofaking.resources.vod_subtitles_failed
 import dev.jamesrich.sofaking.resources.vod_waiting_converter
 import dev.jamesrich.sofaking.ui.BackHandler
+import dev.jamesrich.sofaking.ui.Haptics
 import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.KeepScreenOn
 import dev.jamesrich.sofaking.ui.LastInput
@@ -61,6 +62,7 @@ import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.WindowFullScreen
+import dev.jamesrich.sofaking.ui.rememberHaptics
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.repeatCountOrNull
 import dev.jamesrich.sofaking.ui.screenPadding
@@ -259,7 +261,7 @@ private fun VodSurface(
                     nowMs = scrubClock(),
                 )
             }
-            .vodTouches(parts, LocalWindowFullScreen.current, LocalLastInput.current),
+            .vodTouches(parts, LocalWindowFullScreen.current, LocalLastInput.current, rememberHaptics()),
     ) {
         player.Video(Modifier.fillMaxSize(), zoom) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
         if (captions.on == true) {
@@ -282,18 +284,25 @@ private fun VodSurface(
  * A tap shows or hides the bar. A double click switches a window the app can make [fullScreen]; on a phone or tablet
  * a double tap on the picture's left or right third steps back or forward, as the buttons do.
  */
-private fun Modifier.vodTouches(parts: VodParts, fullScreen: WindowFullScreen?, lastInput: LastInput): Modifier {
+private fun Modifier.vodTouches(
+    parts: VodParts,
+    fullScreen: WindowFullScreen?,
+    lastInput: LastInput,
+    haptics: Haptics,
+): Modifier {
     val state = parts.state
-    return pointerInput(fullScreen) {
+    return pointerInput(fullScreen, haptics) {
         detectTapGestures(
             onDoubleTap = { offset ->
                 if (fullScreen != null) {
                     fullScreen.toggle()
                 } else {
-                    when (doubleTapSeek(offset.x, size.width.toFloat())) {
+                    val direction = doubleTapSeek(offset.x, size.width.toFloat())
+                    when (direction) {
                         -1 -> parts.vod.seek(state.positionMs - state.steps.backMs)
                         1 -> parts.vod.seek(state.positionMs + state.steps.forwardMs)
                     }
+                    if (direction != 0) haptics.step()
                     state.showInfo()
                 }
             },

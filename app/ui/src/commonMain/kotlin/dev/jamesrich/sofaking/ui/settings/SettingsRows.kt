@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.ui.listRowColors
 import dev.jamesrich.sofaking.ui.listRowShapes
+import dev.jamesrich.sofaking.ui.sectionHeading
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import kotlinx.coroutines.launch
 
@@ -60,7 +61,7 @@ internal fun SectionHeader(title: String) {
         title,
         style = MaterialTheme.typography.titleLarge,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 8.dp),
+        modifier = Modifier.padding(top = 8.dp).sectionHeading(),
     )
 }
 

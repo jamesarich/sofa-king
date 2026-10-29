@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
 import coil3.compose.rememberAsyncImagePainter
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import dev.jamesrich.sofaking.data.ScrubTiles
 import kotlin.math.roundToInt
 
@@ -41,7 +42,7 @@ internal fun ScrubThumbnail(tiles: ScrubTiles, targetMs: Long, modifier: Modifie
     val tile = tiles.tileAt(targetMs) ?: return
     val context = LocalPlatformContext.current
     val request = remember(tile.url, context) {
-        ImageRequest.Builder(context).data(tile.url).size(coil3.size.Size.ORIGINAL).build()
+        ImageRequest.Builder(context).data(tile.url).size(coil3.size.Size.ORIGINAL).crossfade(false).build()
     }
     val painter = rememberAsyncImagePainter(request)
     val height = SCRUB_THUMBNAIL_WIDTH * tiles.tileHeight / tiles.tileWidth

@@ -4,13 +4,13 @@ The Sofa King server is the heart of a self-hosted media center for a home netwo
 
 - **Live TV.** One channel lineup built from free streaming services, broadcasters' own free feeds, HDHomeRun tuners, M3U playlists and XMLTV guides, served to the Sofa King app, to Plex as an HDHomeRun tuner, and to M3U and XMLTV players.
 - **Recordings.** A DVR that records programs, time windows and series from the guide, finds their commercial breaks and keeps them in the folder layout media servers scan.
-- **Media libraries.** Your own movies, shows and other videos from a read-only folder, with details and artwork, watch progress, episodes' intros found for Skip intro, and playback converted on the fly for a device that cannot take the file.
+- **Media libraries.** Your own movies, shows, other videos and music from a read-only folder, with details and artwork, watch progress, episodes' intros found for Skip intro, and playback converted on the fly for a device that cannot take the file.
 
 The [Sofa King app](../app/README.md) plays all three on TVs, phones, desktops, iOS, Apple TV and the web.
 
 ## Why
 
-- **One container does the whole job.** Native clients for 17 free streaming (FAST) services, the free feeds of about twenty broadcasters and HDHomeRun tuners share one container with an HDHomeRun emulation for Plex, a DVR and a library server, so there is no separate playlist tool, tuner proxy or recorder to run.
+- **One container does the whole job.** Native clients for 21 free streaming (FAST) services, the free feeds of about twenty broadcasters and HDHomeRun tuners share one container with an HDHomeRun emulation for Plex, a DVR and a library server, so there is no separate playlist tool, tuner proxy or recorder to run.
 - **The service clients run on your server.** Hosted FAST playlists have been taken down after DMCA notices. Here the server talks to the services itself; only Samsung TV Plus and The Roku Channel take their channel lists from a published mirror.
 - **One station per channel.** The same channel from several services becomes one station with the others as fallbacks. Channels whose names only roughly match are merged when their schedules agree, and kept apart otherwise.
 - **Numbers stay put.** Every number the server assigns is written back to the lineup policy file, so a channel keeps its number through rebuilds and on a new server.
@@ -24,7 +24,7 @@ The [Sofa King app](../app/README.md) plays all three on TVs, phones, desktops, 
 
 Live TV:
 
-- Native clients for 17 free streaming services, broadcasters' own free feeds and HDHomeRun tuners, with their guides ([providers](docs/providers.md))
+- Native clients for 21 free streaming services, broadcasters' own free feeds and HDHomeRun tuners, with their guides ([providers](docs/providers.md))
 - M3U playlists and XMLTV guides, plain or gzip
 - A [lineup policy](docs/lineup-policy.md) file that rebuilds the same lineup on any server, with a preview before any change
 - Groups, stable numbers, logos, guide mapping and failover order, stored in SQLite
@@ -38,7 +38,7 @@ Live TV:
 Recordings and media libraries:
 
 - [Recordings](docs/recordings.md) of one program, a time window or a whole series, in the folder layout Plex, Jellyfin, Emby and Kodi scan, with cleanup by keep count, age and free space, and commercial breaks found by Comskip
-- [Media libraries](docs/libraries.md): movies, shows and other videos from a read-only folder, scanned with their `.nfo` files and artwork, with details from TMDB when a token is set, household watch progress, and TV episodes' intros found by their repeated audio
+- [Media libraries](docs/libraries.md): movies, shows, other videos and music from a read-only folder, scanned with their `.nfo` files, tags and artwork, with details from TMDB when a token is set and from MusicBrainz for music, household watch progress, and TV episodes' intros found by their repeated audio
 - Library files and recordings played as they are, or copied or converted to HLS by FFmpeg for a player that cannot take the file, on the CPU or a GPU
 
 Running it:
@@ -47,6 +47,7 @@ Running it:
 - An [admin portal](docs/admin.md) at `/admin` that shows what needs attention, sets up the sources and a starter lineup, edits channels, merges, groups and provider priority, manages recordings and series rules, adds media libraries, pairs devices with a code, keeps database backups, and asks the host's updater for a new image
 - The Sofa King [web app](docs/deploy.md#serve-the-web-app) at `/app/`, built from the same commit as the server
 - [Notifications](docs/notifications.md) to ntfy, Apprise or a webhook when a recording fails, a source breaks or an update is published
+- An [MCP endpoint](docs/api.md#mcp) at `/api/v1/mcp` that lets an AI assistant check on the server ([setup](docs/operations.md#use-with-an-ai-assistant))
 - A Docker image for `linux/amd64` and `linux/arm64`, with an SBOM and build provenance
 
 ## Clients

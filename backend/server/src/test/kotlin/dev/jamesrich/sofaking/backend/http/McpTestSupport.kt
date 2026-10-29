@@ -37,6 +37,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.nio.file.Files
+import java.nio.file.Path
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -61,7 +62,7 @@ internal suspend fun Mcp.read() = runtime.tokens.create("Assistant", TokenScope.
 
 internal fun JsonElement.field(name: String): JsonElement? = (this as? JsonObject)?.get(name)
 
-internal class Mcp(val builder: ApplicationTestBuilder, val runtime: LiveRuntime) {
+internal class Mcp(val builder: ApplicationTestBuilder, val runtime: LiveRuntime, val dir: Path) {
     var id = 0
 
     suspend fun post(bearer: String?, method: String, params: JsonObject = JsonObject(emptyMap())): HttpResponse =
@@ -150,7 +151,7 @@ internal fun mcp(withPolicy: Boolean = false, probes: Boolean = false, block: su
                 for (feed in feeds) runtime.feeds.refresh(feed)
                 runtime.adoptAll()
                 application { backendModule(store, MutableClock(), runtime, MCP_TOKEN, MCP_ADMIN, config = config) }
-                Mcp(this, runtime).block()
+                Mcp(this, runtime, dir).block()
             } finally {
                 runtime.close()
                 store.close()

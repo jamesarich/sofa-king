@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.dvr.Dvr
 import dev.jamesrich.sofaking.contract.CreateRecordingRule
+import dev.jamesrich.sofaking.contract.Recording
 import dev.jamesrich.sofaking.contract.RecordingRuleList
 import dev.jamesrich.sofaking.contract.ScheduleRecording
 import dev.jamesrich.sofaking.contract.UpdateRecording
@@ -25,6 +26,12 @@ internal val MANUAL_HORIZON: Duration = Duration.ofDays(14)
 
 /** How many one-off recordings may wait to run before another time window is refused. */
 internal const val MAX_SCHEDULED_ONE_OFFS = 100
+
+/** Schedules [request] after the limits on a time window, the same for the route and the MCP tool. */
+internal suspend fun Dvr.scheduleChecked(request: ScheduleRecording, now: Instant): Recording {
+    if (request.endsAt != null) checkManualLimits(this, request, now)
+    return schedule(request)
+}
 
 /** Refuses a time window that starts beyond [MANUAL_HORIZON] or would be one more than [MAX_SCHEDULED_ONE_OFFS]. */
 private suspend fun checkManualLimits(dvr: Dvr, request: ScheduleRecording, now: Instant) {
@@ -55,8 +62,7 @@ internal fun Route.recordingRoutes(dvr: Dvr, clock: Clock) {
         get { call.respond(dvr.recordings()) }
         post {
             val request = call.appBody<ScheduleRecording>()
-            if (request.endsAt != null) checkManualLimits(dvr, request, clock.instant())
-            call.respond(HttpStatusCode.Created, dvr.schedule(request))
+            call.respond(HttpStatusCode.Created, dvr.scheduleChecked(request, clock.instant()))
         }
         get("/{id}") { call.respond(dvr.recording(call.parameters["id"]!!)) }
         patch("/{id}") { call.respond(dvr.update(call.parameters["id"]!!, call.appBody<UpdateRecording>())) }

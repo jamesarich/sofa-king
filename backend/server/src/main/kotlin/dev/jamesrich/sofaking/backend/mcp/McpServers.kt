@@ -14,6 +14,8 @@ import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -24,6 +26,7 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.serializer
 import org.slf4j.LoggerFactory
 import java.time.Clock
 
@@ -48,6 +51,8 @@ internal class McpServers(val reads: Server, val admin: Server) {
                 actionTools(context)
                 sourceActionTools(context)
                 policyActionTools(context)
+                dvrTools(context)
+                householdTools(context)
             },
         )
     }
@@ -67,7 +72,9 @@ private const val INSTRUCTIONS =
         "channel, not a lineup entry; channel accepts either. Lists are capped: when truncated is true or " +
         "nextOffset is set, call again with offset or a narrower filter.\n" +
         "Tools that change something are listed only to the admin token. A destructive one refuses without " +
-        "confirm true: say what it does first. Lineup edits take the revision from preview_policy and preview " +
+        "confirm true: say what it does first. Recording tools take a lineup entry id and an ISO-8601 start from " +
+        "on_later or guide_now; cancel_recording refuses to delete a finished recording's file unless deleteFile " +
+        "is true. No tool creates an API token. Lineup edits take the revision from preview_policy and preview " +
         "with dryRun (the default) before they write; a stale revision answers POLICY_CHANGED. Results never " +
         "include stream URLs, tokens or request headers."
 
@@ -82,6 +89,9 @@ internal val toolJson = Json {
     encodeDefaults = true
     explicitNulls = false
 }
+
+/** This value as JSON, for a tool whose operations answer different shapes. */
+internal inline fun <reified T> T.asJson(): JsonElement = toolJson.encodeToJsonElement(serializer<T>(), this)
 
 private val log = LoggerFactory.getLogger("dev.jamesrich.sofaking.backend.mcp.McpTools")
 
@@ -147,6 +157,23 @@ internal class Arguments(private val values: JsonObject) {
         return (raw as? JsonPrimitive)?.takeUnless { it.isString }?.doubleOrNull ?: invalid("$name is a number")
     }
 
+    /** A whole number in [range]; null when absent, a refusal for anything else. */
+    fun intOrNull(name: String, range: IntRange): Int? {
+        if (values[name] == null) return null
+        return int(name, range.first, range)
+    }
+
+    /** A list of strings, trimmed with the empty ones dropped; null when absent, a refusal for anything else. */
+    fun strings(name: String): List<String>? {
+        val raw = values[name] ?: return null
+        val array = raw as? JsonArray
+        val items = array?.map { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content?.trim() }
+        if (items == null || items.any { it == null } || items.size > MAX_LIST_ARGUMENT) {
+            invalid("$name is a list of up to $MAX_LIST_ARGUMENT strings")
+        }
+        return items.filterNotNull().filter { it.isNotEmpty() }
+    }
+
     fun int(name: String, default: Int, range: IntRange): Int {
         val raw = values[name] ?: return default
         val value = (raw as? JsonPrimitive)?.intOrNull
@@ -167,5 +194,6 @@ internal fun Arguments.confirmed(action: String) {
 }
 
 internal const val CONFIRM = "confirm"
+private const val MAX_LIST_ARGUMENT = 20
 
 internal fun invalid(message: String): Nothing = throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", message)

@@ -21,6 +21,12 @@ internal fun string(description: String) = buildJsonObject {
     put("description", description)
 }
 
+internal fun strings(description: String) = buildJsonObject {
+    put("type", "array")
+    put("description", description)
+    put("items", buildJsonObject { put("type", "string") })
+}
+
 internal fun boolean(description: String) = buildJsonObject {
     put("type", "boolean")
     put("description", description)

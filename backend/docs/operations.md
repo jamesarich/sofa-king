@@ -193,3 +193,19 @@ The output token goes in URLs, so changing it means editing every player and Ple
 ## Restarts and shutdown
 
 On `SIGTERM` the server stops accepting connections, closes the imports, probes and relays, and then closes the database. The Compose file allows 20 seconds for this. In-memory playback sessions end with the process, so schedule restarts outside viewing hours when possible. A [setup write](admin.md#setup) or a [restore](#restore) from the portal, or a setup write from the admin API, ends the process the same way once it has answered, and the Compose file's `restart: unless-stopped` starts it again; a server run some other way needs starting again by hand.
+
+## Direct broadcaster schedules
+
+When an aggregator lists a channel but omits its programs, `scripts/refresh-schedules.py` converts verified broadcaster feeds into XMLTV files. It supports Wurl JSON (including series and episodes), Frequency XMLTV with an explicit unsigned zero timezone, and CGTN XMLTV with ISO timestamps. CGTN URLs can use `{date}` for the current UTC date. The converter preserves the supplied timezone; it does not infer a timezone for missing values.
+
+Copy `deploy/schedules.example.json` to a private configuration file. Each entry has a unique `id`, `kind` (`wurl`, `frequency` or `cgtn`) and `url`. The example names five public broadcaster feeds. Verify the channel and schedule against the stream before assigning it; providers can change their feeds.
+
+Run with Python 3.11 or newer:
+
+```sh
+python3 scripts/refresh-schedules.py /path/to/schedules.json /path/to/public/schedules
+```
+
+Serve the output directory through an existing HTTP server. Add each file's HTTP URL to `guides` in the server source configuration with an hourly refresh, then assign its XMLTV channel ID to the matching lineup entry. Saving the source configuration restarts the server. Preserve existing providers and guides when editing it.
+
+Schedule the same command hourly with cron or a systemd timer. Use `flock` to prevent overlapping runs. Keep the converter and its configuration outside the HTTP document root. A feed is published atomically only after its timestamps, titles and upcoming programs pass validation. Failed feeds retain their last valid file, other feeds continue, and the command exits nonzero if any feed fails. Monitor that exit status: retained schedules eventually expire. Logs report feed IDs, counts and exception types without source URLs or credentials.

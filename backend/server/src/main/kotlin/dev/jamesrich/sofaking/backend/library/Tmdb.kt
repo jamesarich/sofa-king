@@ -233,8 +233,5 @@ private fun failureOf(status: HttpStatusCode): String? = when (status) {
     else -> "TMDB_HTTP_${status.value}"
 }
 
-/** The TMDB image at [path] (`/abc.jpg`) in [size] (`w500`, `w1280`, `original`). */
-internal fun tmdbImageUrl(path: String, size: String): String = "https://image.tmdb.org/t/p/$size$path"
-
 /** The notice TMDB's terms ask every product that uses its API to show. */
 const val TMDB_NOTICE = "This product uses the TMDB API but is not endorsed or certified by TMDB."

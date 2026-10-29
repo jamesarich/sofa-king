@@ -40,6 +40,13 @@ class RecordingFiles internal constructor(val root: Path, private val freeSpace:
             (running.toString() != except && Files.exists(root.resolve(running)))
     }
 
+    /** Makes the empty file at [relative], so [taken] sees it before the recorder writes its first bytes. */
+    internal suspend fun claim(relative: Path) = withContext(Dispatchers.IO) {
+        val file = root.resolve(relative)
+        Files.createDirectories(file.parent)
+        if (!Files.exists(file)) Files.createFile(file)
+    }
+
     /** Moves a finished recording's [partial] file to [final], under the folder, and prunes what it leaves empty. */
     internal suspend fun place(partial: Path, final: Path) = withContext(Dispatchers.IO) {
         Files.createDirectories(root.resolve(final).parent)

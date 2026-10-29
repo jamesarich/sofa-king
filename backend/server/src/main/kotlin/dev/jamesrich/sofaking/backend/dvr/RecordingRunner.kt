@@ -92,7 +92,7 @@ internal class RecordingRunner(
                     val relative = latest.path?.takeIf { it.startsWith(RecordingLayout.IN_PROGRESS) }?.let(Path::of)
                         ?: RecordingLayout.inProgress(
                             RecordingLayout.path(latest.name, latest.startsAt, zone) { files.taken(it) },
-                        )
+                        ).also { files.claim(it) }
                     latest.copy(
                         state = Wire.RecordingState.RECORDING,
                         reason = null,
@@ -141,7 +141,12 @@ internal class RecordingRunner(
     }.also { finished() }
 
     private suspend fun fail(latest: StoredRecording, partial: Path?, reason: String, now: Instant) {
-        withContext(Dispatchers.IO) { partial?.let(Files::deleteIfExists) }
+        withContext(Dispatchers.IO) {
+            partial?.let {
+                Files.deleteIfExists(it)
+                files.pruneEmpty(it.parent)
+            }
+        }
         val failed =
             latest.copy(state = Wire.RecordingState.FAILED, reason = reason, path = null, bytes = 0, updatedAt = now)
         store.saveRecording(failed)

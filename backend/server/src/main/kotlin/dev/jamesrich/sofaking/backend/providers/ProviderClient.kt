@@ -1,12 +1,15 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
+import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import dev.jamesrich.sofaking.backend.catalog.ProgramRating
 import kotlinx.serialization.Serializable
 import java.net.URLEncoder
 import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 /**
  * A channel as its service lists it. [id] is the service's own stable identifier and doubles as the
@@ -153,6 +156,24 @@ internal suspend fun <T : Any> ProviderContext.findListed(
     invalidate(key)
     find()
 } ?: throw ProviderFailure(missing, transient = false)
+
+/** The guide's view of a provider's channel. */
+internal fun ProviderChannel.toGuideChannel() = GuideChannel(id, name, logo)
+
+/** Fails the import when a service lists no channels at all. */
+internal fun requireChannels(list: Collection<*>) {
+    if (list.isEmpty()) throw ProviderFailure("Channel list is empty")
+}
+
+internal fun requireChannels(map: Map<*, *>) {
+    if (map.isEmpty()) throw ProviderFailure("Channel list is empty")
+}
+
+/** Millisecond UTC timestamps, such as `2026-10-17T23:00:00.000Z`, for the query strings of Vizio and Hallmark. */
+internal val ISO_MILLIS: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
+
+internal fun urlEncoded(value: String): String = URLEncoder.encode(value, Charsets.UTF_8)
 
 /** An ISO-8601 instant, or null for anything else. */
 internal fun instantOrNull(value: String): Instant? = try {

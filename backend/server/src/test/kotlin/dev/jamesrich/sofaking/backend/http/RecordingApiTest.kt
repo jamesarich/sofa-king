@@ -171,6 +171,38 @@ class RecordingApiTest {
         }
     }
 
+    @Test fun `a time window starting beyond the horizon answers 400`() = testApplication {
+        dvrApi {
+            val far = Instant.now().plus(MANUAL_HORIZON).plusSeconds(3600)
+            assertError(
+                HttpStatusCode.BadRequest,
+                "INVALID_REQUEST",
+                send(HttpMethod.Post, RECORDINGS, schedule(far.toString(), far.plusSeconds(1800).toString())),
+            )
+            val near = Instant.now().plus(MANUAL_HORIZON).minusSeconds(3600)
+            val accepted =
+                send(HttpMethod.Post, RECORDINGS, schedule(near.toString(), near.plusSeconds(1800).toString()))
+            assertEquals(HttpStatusCode.Created, accepted.status, accepted.bodyAsText())
+        }
+    }
+
+    @Test fun `a time window past the cap of waiting one-off recordings answers 409`() = testApplication {
+        dvrApi {
+            repeat(MAX_SCHEDULED_ONE_OFFS) { index ->
+                val start = window.plusSeconds(index * 3600L)
+                val created =
+                    send(HttpMethod.Post, RECORDINGS, schedule(start.toString(), start.plusSeconds(60).toString()))
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+            }
+            val next = window.plusSeconds(MAX_SCHEDULED_ONE_OFFS * 3600L)
+            assertError(
+                HttpStatusCode.Conflict,
+                "SCHEDULE_FULL",
+                send(HttpMethod.Post, RECORDINGS, schedule(next.toString(), next.plusSeconds(60).toString())),
+            )
+        }
+    }
+
     @Test fun `a schedule for an unknown channel or program answers 404, and for an ended one 409`() = testApplication {
         dvrApi {
             assertError(

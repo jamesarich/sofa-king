@@ -137,6 +137,8 @@
     <string name="break_corner_first">Corner! You saw it. Nobody will believe you.</string>
     <string name="break_corner_again">Corner number %1$d. Sofa King lucky.</string>
     <string name="break_watching">You're watching: %1$s</string>
+    <string name="break_show_picture">Press OK to show the picture</string>
+    <string name="break_show_picture_tap">Tap to show the picture</string>
     <string name="break_ads_dodged">Ads dodged today: %1$s</string>
     <string name="break_fact_episode">This episode: %1$s</string>
     <string name="break_fact_first_aired">First aired in %1$d</string>

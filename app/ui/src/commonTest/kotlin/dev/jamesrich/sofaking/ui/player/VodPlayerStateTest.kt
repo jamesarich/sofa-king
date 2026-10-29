@@ -2,6 +2,9 @@ package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import dev.jamesrich.sofaking.data.EARLY_END_MS
+import dev.jamesrich.sofaking.data.VodMarker
+import dev.jamesrich.sofaking.data.VodMarkerKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -426,5 +429,23 @@ class VodPlayerStateTest {
         assertEquals(300_000L, state.scrubTarget)
         state.endScrub()
         assertNull(state.scrubTarget)
+    }
+
+    @Test
+    fun `a key in the track card restarts its rest timer`() {
+        val state = playing()
+        state.openTracks()
+        val opened = state.tracksActivity
+        assertFalse(state.down(Key.DirectionDown))
+        assertTrue(state.tracksActivity > opened)
+    }
+
+    @Test
+    fun `opening the track card restarts its rest timer`() {
+        val state = playing()
+        val before = state.tracksActivity
+        state.openTracks()
+        assertTrue(state.tracksOpen)
+        assertTrue(state.tracksActivity > before)
     }
 }

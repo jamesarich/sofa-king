@@ -20,6 +20,7 @@ import dev.jamesrich.sofaking.backend.store.programs
 import dev.jamesrich.sofaking.backend.store.recording
 import dev.jamesrich.sofaking.backend.store.recordingRules
 import dev.jamesrich.sofaking.backend.store.recordings
+import dev.jamesrich.sofaking.backend.store.recordingsIn
 import dev.jamesrich.sofaking.backend.store.saveRecording
 import dev.jamesrich.sofaking.contract.Recording
 import dev.jamesrich.sofaking.contract.RecordingList
@@ -84,7 +85,9 @@ class Dvr(
 
     /** The recordings folder on disk. */
     val files = RecordingFiles(root, freeSpace)
-    private val alerts = DvrAlerts(store, events, capacity)
+
+    /** The conflicts the last check found and the events about them; reading them reads no table. */
+    internal val alerts = DvrAlerts(store, events, capacity)
 
     /** The series rules; a change reschedules. */
     val rules = DvrRules(store, lineup, clock) { requestSchedule("rule") }
@@ -264,6 +267,7 @@ class Dvr(
             }
         }
         stopping?.let { runner.stop(it) }
+        alerts.checkConflicts()
     }
 
     // Scheduling
@@ -306,25 +310,23 @@ class Dvr(
     suspend fun tick() {
         val now = clock.instant()
         mutex.withLock {
-            val all = store.recordings()
-            for (missed in all.filter { it.state == Wire.RecordingState.SCHEDULED && it.recordUntil <= now }) {
+            val open = store.recordingsIn(Wire.RecordingState.SCHEDULED, Wire.RecordingState.RECORDING)
+            for (missed in open.filter { it.state == Wire.RecordingState.SCHEDULED && it.recordUntil <= now }) {
                 val failed = missed.copy(state = Wire.RecordingState.FAILED, reason = "MISSED", updatedAt = now)
                 store.saveRecording(failed)
                 events.recordingChanged(failed)
                 log.warn("recording missed id={} title=\"{}\"", missed.id, missed.title)
             }
-            val due = all.filter {
-                (it.state == Wire.RecordingState.SCHEDULED || it.state == Wire.RecordingState.RECORDING) &&
-                    it.recordFrom <= now && now < it.recordUntil && !runner.isRunning(it.id)
-            }
+            val due = open.filter { it.recordFrom <= now && now < it.recordUntil && !runner.isRunning(it.id) }
             // Earliest first, so when slots run short the recording whose window opened first gets one.
             for (recording in due.sortedBy { it.recordFrom }) runner.launch(recording, scope)
         }
-        for (orphan in store.recordings().filter {
-            it.state == Wire.RecordingState.RECORDING && it.recordUntil <= now && !runner.isRunning(it.id)
+        for (orphan in store.recordingsIn(Wire.RecordingState.RECORDING).filter {
+            it.recordUntil <= now && !runner.isRunning(it.id)
         }) {
             runner.finish(orphan, null)
         }
+        withContext(Dispatchers.IO) { files.writable() }
         val floor = retention().freeGib.toLong() * GIB
         runner.guardSpace(now, floor) { cull("space") }
         alerts.space(files.free(), floor)

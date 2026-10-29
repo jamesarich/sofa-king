@@ -102,14 +102,52 @@ class MusicGridTest {
         val model = viewModel(server)
         runCurrent()
 
-        model.setFavorite("s1", true)
+        assertTrue(model.setFavorite("s1", true))
         model.played("s1")
         runCurrent()
         assertEquals(
             listOf("PUT /api/v1/library/items/s1/favorite", "POST /api/v1/library/items/s1/played"),
-            server.http.requests.map { "${it.method} ${it.path}" }.takeLast(2),
+            server.http.requests.filter { it.method != "GET" }.map { "${it.method} ${it.path}" },
         )
         assertTrue("true" in server.http.requests.first { it.method == "PUT" }.body)
+    }
+
+    @Test
+    fun `a like the server refuses is reported as not taken`() = fixture.viewModelTest {
+        val server = RouteServer(this) { method, path, _ ->
+            when {
+                method == "PUT" && path == "/api/v1/library/items/s1/favorite" -> 500 to "{}"
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+
+        assertFalse(model.setFavorite("s1", true))
+    }
+
+    @Test
+    fun `the item the server sends back for a like replaces the grid card`() = fixture.viewModelTest {
+        val server = RouteServer(this) { method, path, _ ->
+            when {
+                method == "PUT" && path == "/api/v1/library/items/s1/favorite" ->
+                    200 to """{"id":"s1","libraryId":"music","kind":"track","title":"S","favorite":true}"""
+
+                path == "/api/v1/libraries/music/items" ->
+                    200 to """{"items":[{"id":"s1","libraryId":"music","kind":"track","title":"S"}],"total":1}"""
+
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+        model.openGrid("music", view = MusicView.SONGS)
+        runCurrent()
+        assertFalse(model.grid.value!!.items.single().favorite)
+
+        assertTrue(model.setFavorite("s1", true))
+        runCurrent()
+        assertTrue(model.grid.value!!.items.single().favorite)
     }
 
     @Test

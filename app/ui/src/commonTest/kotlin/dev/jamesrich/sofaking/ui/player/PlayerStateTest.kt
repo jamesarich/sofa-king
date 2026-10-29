@@ -465,4 +465,23 @@ class PlayerStateTest {
         assertTrue(state.down(Key.MediaPlayPause))
         assertEquals(listOf("picture", "playPause"), controls.calls)
     }
+
+    @Test
+    fun `the bar stays up while paused or failed and leaves otherwise`() {
+        assertFalse(barHeld(paused = false, scrubbing = false, failed = false, autoSkip = false))
+        assertTrue(barHeld(paused = true, scrubbing = false, failed = false, autoSkip = false))
+        assertTrue(barHeld(paused = false, scrubbing = false, failed = true, autoSkip = false))
+    }
+
+    @Test
+    fun `a scrub or an intro countdown holds the bar`() {
+        assertTrue(barHeld(paused = false, scrubbing = true, failed = false, autoSkip = false))
+        assertTrue(barHeld(paused = false, scrubbing = false, failed = false, autoSkip = true))
+    }
+
+    @Test
+    fun `side cards rest for fifteen seconds and notices outlast state toasts`() {
+        assertEquals(15_000L, PANEL_IDLE_MS)
+        assertTrue(NOTICE_TOAST_MS > STATE_TOAST_MS)
+    }
 }

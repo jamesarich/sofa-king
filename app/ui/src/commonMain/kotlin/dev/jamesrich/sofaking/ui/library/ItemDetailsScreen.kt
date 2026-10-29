@@ -42,13 +42,17 @@ import dev.jamesrich.sofaking.resources.library_members
 import dev.jamesrich.sofaking.resources.library_popular
 import dev.jamesrich.sofaking.resources.library_related
 import dev.jamesrich.sofaking.resources.library_season
+import dev.jamesrich.sofaking.resources.library_season_failed
 import dev.jamesrich.sofaking.resources.library_specials
+import dev.jamesrich.sofaking.resources.load_failed_hint
 import dev.jamesrich.sofaking.resources.loading
+import dev.jamesrich.sofaking.resources.retry
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.theme.SofaActionChip
+import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaChip
 import org.jetbrains.compose.resources.stringResource
 
@@ -75,6 +79,7 @@ internal fun ItemDetailsScreen(
 
         is ItemDetailState.Failed -> MessageScreen(
             stringResource(Res.string.library_load_failed),
+            hint = stringResource(Res.string.load_failed_hint),
             detail = state.message,
             onRetry = actions.onRetry,
         )
@@ -132,7 +137,7 @@ private fun Details(
                     item(key = "seasons") { Seasons(seasons, selectedSeasonId, actions.onSelectSeason, sides) }
                 }
                 if (seasons.isNotEmpty() && season is ItemDetailState.Failed) {
-                    item(key = "season-failed") { SeasonFailed(season.message, sides) }
+                    item(key = "season-failed") { SeasonFailed(actions.onRetrySeason, sides) }
                 }
                 if (albums.isNotEmpty()) {
                     item(key = "albums") {
@@ -270,15 +275,17 @@ private fun Albums(
     )
 }
 
-/** Why a show's season did not load, under its chips. */
+/** A season that did not load, under its chips, with a Retry that loads it again. */
 @Composable
-private fun SeasonFailed(message: String, sides: PaddingValues) {
-    Text(
-        message,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(sides),
-    )
+private fun SeasonFailed(onRetry: () -> Unit, sides: PaddingValues) {
+    Column(Modifier.padding(sides), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            stringResource(Res.string.library_season_failed),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        SofaButton(onClick = onRetry) { Text(stringResource(Res.string.retry)) }
+    }
 }
 
 /** How far clear of the screen's edges, outside the overscan, focus keeps what it lands on. */

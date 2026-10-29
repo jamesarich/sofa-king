@@ -70,6 +70,8 @@ Network and cache file work run on the IO dispatcher (the default dispatcher on 
 | Apple TV | `NSUserDefaults`, under `sofaking.preferences`, since tvOS may purge any file; an older build's file under Caches moves there on first read. The recent channels and the library's Continue watching are also written as JSON into the `group.dev.jamesrich.sofaking` app group's defaults for the Top Shelf extension | `lineup-cache.bin` under Caches |
 | Web | DataStore's localStorage store for the page's origin, under `sofaking.preferences`; an older build's `sofaking.settings` entry moves there on first read | DataStore's localStorage store under `sofaking.lineupCache` |
 
+Android and desktops also keep the last three [crash reports](security.md#crash-reports) as JSON files under `crashes/` beside those (`files/crashes/` on Android), until the next start sends them to the server.
+
 On a desktop, `<dir>` is the OS's per-user app data directory:
 
 | OS | Directory |

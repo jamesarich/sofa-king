@@ -34,7 +34,7 @@ internal fun rememberMusicPlayback(playback: AppPlayback, sessions: PlaybackSess
         val taste = object : SongTaste {
             override fun played(songId: String) = library.played(songId)
 
-            override fun favorite(songId: String, favorite: Boolean) = library.setFavorite(songId, favorite)
+            override suspend fun favorite(songId: String, favorite: Boolean) = library.setFavorite(songId, favorite)
         }
         MusicPlayback(player, sessions.songs(), scope, taste)
     }

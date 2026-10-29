@@ -3,6 +3,8 @@ package dev.jamesrich.sofaking.ui.player
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import dev.jamesrich.sofaking.data.AUTO_SKIP_MS
+import dev.jamesrich.sofaking.data.VodMarker
 import dev.jamesrich.sofaking.ui.secondsUp
 import dev.jamesrich.sofaking.ui.uptimeMs
 

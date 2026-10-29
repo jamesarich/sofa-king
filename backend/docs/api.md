@@ -11,7 +11,7 @@ The server also issues tokens of its own, each starting `sk_`, stored only as a 
 | Kind | Where it comes from | What it opens |
 | --- | --- | --- |
 | `api` | A device [pairing](#pair-a-client), one per `clientId`; forgetting the device revokes it | What `SOFA_API_TOKEN` opens, except `/api/v1/admin` and `/api/v1/hooks` |
-| `read` | The portal's Settings page or `POST /api/v1/admin/tokens`, for a dashboard or a calendar | The [dashboard summary](#dashboard-summary) `GET /api/v1/status`, the [recordings calendar](#player-outputs) `/output/recordings.ics` (also as `?token=`), `GET` of `/api/v1/admin/status`, `/sessions`, `/guides`, `/lineup`, `/policy/preview`, `/policy/findings`, `/policy/changes` and `/libraries`, with what lies under each, and the [MCP endpoint](#mcp)'s read tools |
+| `read` | The portal's Settings page or `POST /api/v1/admin/tokens`, for a dashboard or a calendar | The [dashboard summary](#dashboard-summary) `GET /api/v1/status`, the [recordings calendar](#player-outputs) `/output/recordings.ics` (also as `?token=`), `GET` of `/api/v1/admin/status`, `/sessions`, `/guides`, `/lineup`, `/policy/preview`, `/policy/findings`, `/policy/changes`, `/libraries` and `/diagnostics/crashes`, with what lies under each, and the [MCP endpoint](#mcp)'s read tools |
 | `hook` | The same, for Sonarr and Radarr | The [hooks](#hooks) only: `/api/v1/hooks` and the Emby-style routes |
 
 `SOFA_API_TOKEN` stays valid beside them, for scripts and devices set up by hand, and opens the hooks too.
@@ -27,7 +27,8 @@ These routes take no token: `/healthz`, `/readyz`, the [web app](deploy.md#serve
 | GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`, `recordings`, `watchlist`, `multiview`, `music`) |
 | POST | `/api/v1/pair` | Exchange a pairing code for a token of the device's own, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429` |
 | GET | `/api/v1/preferences/{clientId}` | The preferences the client with that id last saved, see [viewer preferences](#viewer-preferences); `404 VIEWER_NOT_FOUND` before its first save |
-| PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt` |
+| PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt`. A token paired to a client writes only that client, `403 CLIENT_MISMATCH` otherwise; the shared API token and issued tokens without a client write any. A new client past 200 viewers answers `409 VIEWER_LIMIT` |
+| POST | `/api/v1/diagnostics/crashes` | A device reports the last crash it kept, see [crash reports](#crash-reports); `204`. 10 reports a minute per client address, then `429` |
 | GET | `/api/v1/household/preferences` | The household's shared favorites and hidden channels, see [viewer preferences](#viewer-preferences); an empty document with an empty `updatedAt` before the first save |
 | PUT | `/api/v1/household/preferences` | Replace the household's shared favorites and hidden channels; answers the stored document with the server's `updatedAt` |
 | GET | `/api/v1/channels` | Catalog revision and the enabled lineup entries as channels; supports ETag/If-None-Match |
@@ -43,7 +44,7 @@ These routes take no token: `/healthz`, `/readyz`, the [web app](deploy.md#serve
 | GET | `/api/v1/playback-sessions/{id}/ad-break?aheadMs=` | Whether the session's player shows an ad: `inBreak` and, when the stream planned the break, `remainingMs`. `aheadMs` is how much the player has loaded past the picture; see [architecture](architecture.md#playback) |
 | DELETE | `/api/v1/playback-sessions/{id}` | Release the session; returns 204 |
 | GET | `/api/v1/recordings` | Every [recording](#recordings), scheduled and running soonest first, then the rest newest first, and the recordings folder's `storage` |
-| POST | `/api/v1/recordings` | Record the program on `channelId` that starts at `startsAt`, or with `endsAt` (and an optional `title`) that [time window](recordings.md#record-a-time-window); `201`, or the existing recording. `404 CHANNEL_NOT_FOUND` or `PROGRAM_NOT_FOUND`, `409 PROGRAM_ENDED` |
+| POST | `/api/v1/recordings` | Record the program on `channelId` that starts at `startsAt`, or with `endsAt` (and an optional `title`) that [time window](recordings.md#record-a-time-window); `201`, or the existing recording. `404 CHANNEL_NOT_FOUND` or `PROGRAM_NOT_FOUND`, `409 PROGRAM_ENDED`. A time window may start at most 14 days ahead (`400 INVALID_REQUEST`), and a window past 100 waiting one-off recordings answers `409 SCHEDULE_FULL` |
 | GET | `/api/v1/recordings/{id}` | One recording; `404 RECORDING_NOT_FOUND` |
 | PATCH | `/api/v1/recordings/{id}` | Set `protected`, `positionMs` or `watched` |
 | DELETE | `/api/v1/recordings/{id}` | Cancel a scheduled recording, stop a running one, or delete a finished one and its file; returns 204 |
@@ -187,6 +188,23 @@ Each list holds at most 1,000 distinct ids. The server sets `updatedAt` and answ
 
 The household keeps one more document under `/api/v1/household/preferences`, with `favorites` and `hidden` as above and the same limits, which every device that shares favorites keeps in step the same way. Each device still keeps its own document too, with its recent list. A server that offers it says `household` in the bootstrap's capabilities.
 
+## Crash reports
+
+An app that crashed sends the last crash it kept to its own server with `POST /api/v1/diagnostics/crashes`, behind a device's `api` token or `SOFA_API_TOKEN`; a `read` token cannot post. The app does it only while its Send crash reports setting is on. The body is a `CrashReport` of at most 64 KiB:
+
+| Field | Contents |
+| --- | --- |
+| `id` | The app's id for the crash; a report posted again with an id the server holds is stored once |
+| `occurredAt` | When it crashed, as an instant |
+| `exception` | The exception class; a report without one answers `400 INVALID_REQUEST` |
+| `message` | The exception's message, at most 300 characters |
+| `frames` | The stack trace's frames, at most 60 of 200 characters |
+| `appVersion`, `platform`, `osVersion`, `device` | The app's version, `android-tv`, `android` or `desktop`, the system's version and the device model |
+
+The server scrubs every field again on arrival: anything shaped like a URL, an e-mail or IP address, a bearer token or a long token, and any quoted text, becomes a placeholder. It answers `204`, stores the report with the paired device it came from (the token's `clientId` and the device's name, else the reported model) and keeps the newest 100. Nothing is forwarded: the reports are for this server's admin and its [MCP](#mcp) `client_crashes` tool only. A request over its limit answers `429` with no error body.
+
+`GET /api/v1/admin/diagnostics/crashes?limit=` (1 to 100, default 20) lists them newest first, each with `id`, `clientId` (null for the shared token), `clientName`, `receivedAt`, `occurredAt`, `exception`, `message`, `frames`, `appVersion`, `platform`, `osVersion` and `device`. A `read` token may call it. The [portal's Crashes page](admin.md#crashes) shows the same list, and the home page lists a crash received in the last day as needing attention.
+
 ## Media libraries
 
 `library` in the bootstrap capabilities says the server has the routes below. `music` says the server has Music libraries to list and plays their tracks. The routes leave out [Music](libraries.md#music) libraries and their items unless the request names `music` in a `Sofa-Library-Kinds` header (comma separated kinds), since an app that does not know music would play a track as a video. Items are what a [library scan](libraries.md) found, with what TMDB knows filled in; a `.nfo` beside a file wins over TMDB's text, and the library's own images over TMDB's. `kind` is `movie`, `show`, `season`, `episode` or `video`. A show's `children` counts its seasons (or its episodes when it has no season folders) and `unwatched` its unwatched episodes; an episode names its show in `showId` and `showTitle`. `videoHeight` and `hdr` come from FFprobe, for a 4K, HD or HDR badge.
@@ -290,6 +308,7 @@ The read tools answer as the matching route or portal page does:
 | `recordings` | `GET /api/v1/recordings` without image links or file paths, on a server with the DVR; `state` (`scheduled`, `recording`, `completed` or `failed`), `offset` and `limit` (1 to 200, default 50). Answers `total`, `recordings`, `nextOffset`, `truncated` and `storage` |
 | `recording_rules` | `GET /api/v1/recording-rules`, on a server with the DVR; `limit` (1 to 200, default 50) |
 | `libraries` | `GET /api/v1/admin/libraries`, on a server with libraries |
+| `client_crashes` | `GET /api/v1/admin/diagnostics/crashes`, the [crashes](#crash-reports) the apps reported, scrubbed; `limit` (1 to 100, default 10) |
 | `search_library` | `GET /api/v1/library/search` for `query`, music included |
 | `library_home` | `GET /api/v1/library/home`, music included, with each shelf cut to its first 20 items and its `total` and `truncated` |
 | `policy_findings` | `GET /api/v1/admin/policy/findings`, each list cut to `limit` (1 to 200, default 50) with its `total`; `POLICY_NOT_CONFIGURED` without a policy |
@@ -305,7 +324,7 @@ The admin token also lists two read tools that a read token cannot call, because
 | `playback_history` | `GET /api/v1/admin/history`: ended playback sessions, newest first, with the device or player address, so it shows what each one watched; `since`, `kind` (`live` or `vod`), `client` and `limit` (1 to 200, default 50) |
 | `plex_status` | `GET /api/v1/admin/plex`, the last Plex sync, with each list cut to `limit`; `PLEX_NOT_CONFIGURED` without Plex sync |
 
-The admin token adds the actions. None deletes anything, and the ones that can take channels or streams away refuse without `confirm` set to `true`:
+The admin token adds the actions. The ones that can take channels, streams, recordings or devices away refuse without `confirm` set to `true`. No tool creates an API token, so a secret never lands in the assistant's transcript; make tokens on the portal's Settings page:
 
 | Tool | What it does |
 | --- | --- |
@@ -321,10 +340,42 @@ The admin token adds the actions. None deletes anything, and the ones that can t
 | `edit_station` | `PATCH /api/v1/admin/lineup/{id}` under a policy: `entryId`, `revision` and any of `number`, `name`, `group`, `clearGroup`, `enabled` and `gracenoteId`. With `dryRun` (true by default) it answers the impact, the channels that would turn on or off, renumber, rename or regroup, and writes nothing; `dryRun` false writes and applies |
 | `decide_merge` | Settles two station keys `a` and `b` as `names.aliases` (`decision` `accept`, `a` joins `b`) or `names.never` (`never`), at `revision`, with the same `dryRun` preview |
 | `decide_guide_match` | `POST /api/v1/admin/policy/guide-matches/accept` or `dismiss` for `station`, `guideId` and `channelId` (`decision` `accept` or `dismiss`), or `accept-all` with `acceptAll` true and `minConfidence` |
+| `schedule_recording` | `POST /api/v1/recordings`: a `channelId` (a lineup entry id from `on_later` or `guide_now`) and the `startsAt` of a guide program, or with `endsAt` (at most 12 hours later) and an optional `title` a time window. Answers the recording; the route's refusals (`CHANNEL_NOT_FOUND`, `PROGRAM_NOT_FOUND`, `PROGRAM_ENDED`, `INVALID_REQUEST`) are the tool's. Absent without the DVR |
+| `cancel_recording` | `DELETE /api/v1/recordings/{id}` for a `recordingId` from `recordings`: cancels a scheduled recording, stops a running one, deletes a finished one. Needs `confirm`; a finished, failed or protected recording also needs `deleteFile` true, since its file goes with it, and answers `FILE_DELETE_REQUIRED` without |
+| `manage_recording_rule` | `op` `create`, `update` or `delete` on `/api/v1/recording-rules`. `create` takes a `title` and optionally `match` (`title`, `team` or `keyword`) with `terms` and `categories`, `channelId`, `newOnly`, `keep`, the paddings and `priority`; `update` takes an `id` and any of `channelId`, `anyChannel`, `newOnly`, `keep`, the paddings and `priority`; `delete` takes an `id`, needs `confirm`, removes the rule's scheduled recordings, keeps what it recorded and answers how many it removed in `recordingsRemoved` |
+| `devices` | `op` `list` answers each device's `clientId`, name, platform, first and last seen and its token's label, creation and last use, never a secret or hash. `pair` answers a six-digit `code` and its `expiresAt`, as `POST /api/v1/admin/pairing-codes` does. `forget` takes a `clientId`, needs `confirm`, and revokes the device and its token as `DELETE /api/v1/admin/viewers/{clientId}` does |
+| `notifications` | `op` `list` answers each target with its `host` only, never the URL whose path is the credential, its events and newest delivery, and with `targetId` that target's recent deliveries; `test` sends `targetId` a test notification and answers the delivery, as `POST /api/v1/admin/notifications/{id}/test` does. Absent without notifications |
+
+The admin token also lists the setup tools, which write what the portal's setup pages write. None returns an API key or token, and a key or token the environment sets is reported as set, never shown:
+
+| Tool | What it does |
+| --- | --- |
+| `setup_status` | `GET /api/v1/admin/source-file` reduced to what is safe to show: each provider's `id`, `kind` (`m3u` or `native`), `service`, `host` and `refreshSeconds`, and each guide's `id`, `host`, `provider` and `refreshSeconds`; never a URL, a header or a `${NAME}` value (a host that is a `${NAME}` reference is left out). Also `hasSourceFile`, `hasPolicy`, `canWriteStarterPolicy`, `keys` (`tmdb`, `fanart` and `listenbrainz`, each with `set` and `fromEnvironment`) and `libraryFolders` (`roots` and the `folders` a library may use) |
+| `set_api_key` | `PUT /api/v1/admin/tmdb-token`, `fanart-key` or `listenbrainz-token`: `service` (`tmdb`, `fanart` or `listenbrainz`), `value` and `confirm`. The service is asked to accept the value first; the refusals are the routes' (`TMDB_REJECTED`, `TMDB_UNREACHABLE` and `TMDB_FROM_ENVIRONMENT`, with `FANART` or `LISTENBRAINZ` for the others, and `INVALID_REQUEST` for a value that cannot be a key), and nothing is saved then. The result never holds the value. The server restarts about 1.5 seconds after the result is sent, ending every stream, so it needs `confirm` |
+| `write_starter_policy` | `POST /api/v1/admin/policy/starter`: the starter lineup policy for the source file's providers, then a restart, so it needs `confirm`; `POLICY_EXISTS` and `NO_SOURCES` as the route answers |
+| `add_library` | `POST /api/v1/admin/libraries`: `name`, `kind` (`movies`, `shows`, `videos` or `music`) and a `path` from `setup_status`. Answers the library and queues its scan; `LIBRARY_EXISTS` for a folder another library uses. Absent without libraries |
 
 Every policy write an action makes checks `revision` the way `If-Match` is checked on `PUT /api/v1/admin/policy`: a stale one answers `POLICY_CHANGED` with "call preview_policy again", and nothing is written. The policy runs they cause log `mcp` as their reason in `policy_changes`. A tool that needs `confirm` answers `CONFIRMATION_REQUIRED` without it and does nothing.
 
 A tool answers JSON text. A refusal is a result with `isError` and the API's error code and message, such as `INVALID_REQUEST: limit is 1 to 200`, and it names the tool to call next where there is one. An unexpected failure answers `INTERNAL_ERROR` with the exception's class and points to `recent_log` with `level` `error`. A tool the token is not listed is a JSON-RPC error.
+
+### Resources and prompts
+
+The endpoint also serves three read-only resources (`resources/list`, `resources/read`) and three prompts (`prompts/list`, `prompts/get`). The server declares resources with `listChanged` and `subscribe` false, since the transport has no stream to push on. Like tools, a resource is listed only to a token that may read it:
+
+| Resource | Holds | Token |
+| --- | --- | --- |
+| `sofa-king://openapi.json` | The OpenAPI description of the REST API, as `/admin/api/openapi.json` serves it | read or admin |
+| `sofa-king://support-snapshot` | The About page's support snapshot: status, server facts, every job and what needs attention. It holds no token, stream URL or request header | read or admin |
+| `sofa-king://policy` | The lineup policy with its `revision`, as `GET /api/v1/admin/policy` answers; `POLICY_NOT_CONFIGURED` without a policy | admin only, since the admin API does not open the policy to a read token |
+
+Prompts are fixed instructions that put the tools in order. Both tokens list them; a step marked admin needs the admin token, and the prompt tells an assistant with a read token to stop before it.
+
+| Prompt | Steps |
+| --- | --- |
+| `triage_server` | `server_status`, `needs_attention`, `imports`, `jobs`, then `recent_log` at `error` |
+| `diagnose_channel` | Takes `channel`, a name or number: `lineup`, `channel`, `source_health`, `recent_log`, then (admin) `probe_source` and `switch_session_source` |
+| `review_policy_change` | `preview_policy`, then (admin) `edit_station` with `dryRun`, a check with the operator, `edit_station` with `dryRun` false and `apply_policy` |
 
 ## Watchlist
 
@@ -411,6 +462,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | POST | `/api/v1/admin/sources/{id}/probe` | Put the source at the front of the probe queue, as the channel page's Probe now does; `202` with `{"sourceId"}`, and its health updates when the probe ends. `404 SOURCE_NOT_FOUND`, `409 PROBES_OFF` when probes do not run, `409 PROBE_RUNNING` while a probe of it is in flight |
 | POST | `/api/v1/admin/sessions/{id}/switch-source` | Move a live session to its channel's next source, see [source selection](source-health.md#source-selection); answers the session, or `409 NO_OTHER_SOURCE` |
 | GET | `/api/v1/admin/history?since=&kind=&client=&limit=` | Ended playback sessions, the newest end first, described [below](#playback-history) |
+| GET | `/api/v1/admin/diagnostics/crashes?limit=` | The crashes the apps reported, newest first, described [below](#crash-reports) |
 | GET | `/api/v1/admin/events/stream?types=` | The server's events as server-sent events, described [below](#event-stream) |
 | GET, POST | `/api/v1/admin/notifications` | The notification targets; add one, described [below](#notifications) |
 | GET, PATCH, DELETE | `/api/v1/admin/notifications/{id}` | One target; change or remove it |
@@ -675,17 +727,17 @@ Errors contain `code`, `message` and `retryable`:
 
 | Status | Codes |
 | --- | --- |
-| 400 | `INVALID_REQUEST` (a malformed body or path), `INVALID_QUERY` (a guide query or `days` out of range), `INVALID_POLICY` (a policy write that fails validation, with every error in `message`), `INVALID_SOURCES` (a source file write that fails validation) |
+| 400 | `INVALID_REQUEST` (a malformed body or path, or any other bad parameter), `INVALID_QUERY` (only a guide query or its `days` out of range), `INVALID_POLICY` (a policy write that fails validation, with every error in `message`), `INVALID_SOURCES` (a source file write that fails validation) |
 | 401 | `AUTH_REQUIRED` |
-| 403 | `PAIRING_INVALID` (a wrong, spent or expired pairing code), `LOOPBACK_ONLY` (a server with no API token answers only requests from its own machine, see [security](security.md)) |
-| 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND`, `RESOURCE_NOT_FOUND` (an unknown route, logo or media resource), `POLICY_NOT_CONFIGURED`, `PLEX_NOT_CONFIGURED`, `VIEWER_NOT_FOUND`, `TOKEN_NOT_FOUND`, `PROGRAM_NOT_FOUND`, `RECORDING_NOT_FOUND`, `RULE_NOT_FOUND`, `RECORDING_MISSING` (a recording whose file is gone), `LIBRARY_NOT_FOUND`, `LIBRARIES_NOT_AVAILABLE`, `ITEM_NOT_FOUND`, `ITEM_MISSING` (a library item whose file is gone) |
-| 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS`, `POLICY_CHANGED` (a stale `If-Match` or a policy file changed on disk), `STATION_CONFLICT` (a merge of two stations that both have overrides), `POLICY_EXISTS`, `NO_SOURCES` (a starter policy over an existing policy or no providers), `PROGRAM_ENDED`, `RECORDING_NOT_READY` (nothing written yet; retryable), `LIBRARY_EXISTS` |
+| 403 | `PAIRING_INVALID` (a wrong, spent or expired pairing code), `CLIENT_MISMATCH` (a token paired to one client writing the preferences of another), `LOOPBACK_ONLY` (a server with no API token answers only requests from its own machine, see [security](security.md)) |
+| 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND`, `RESOURCE_NOT_FOUND` (an unknown route, logo or media resource), `POLICY_NOT_CONFIGURED`, `PLEX_NOT_CONFIGURED`, `VIEWER_NOT_FOUND`, `TOKEN_NOT_FOUND`, `PROGRAM_NOT_FOUND`, `RECORDING_NOT_FOUND`, `RULE_NOT_FOUND`, `RECORDING_MISSING` (a recording whose file is gone), `LIBRARY_NOT_FOUND`, `LIBRARIES_NOT_AVAILABLE`, `HISTORY_NOT_AVAILABLE`, `RECORDINGS_NOT_AVAILABLE`, `NOTIFICATIONS_NOT_AVAILABLE` (the server runs without that feature), `ITEM_NOT_FOUND`, `ITEM_MISSING` (a library item whose file is gone) |
+| 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS`, `POLICY_CHANGED` (a stale `If-Match` or a policy file changed on disk), `STATION_CONFLICT` (a merge of two stations that both have overrides), `POLICY_EXISTS`, `NO_SOURCES` (a starter policy over an existing policy or no providers), `PROGRAM_ENDED`, `SCHEDULE_FULL` (100 one-off recordings already wait), `VIEWER_LIMIT` (200 viewers are kept), `RECORDING_NOT_READY` (nothing written yet; retryable), `LIBRARY_EXISTS` |
 | 410 | `SESSION_EXPIRED`, `STREAM_CHANGED`, `POLICY_MANAGED` |
-| 413 | `REQUEST_TOO_LARGE`, answered before the token is checked |
+| 413 | `REQUEST_TOO_LARGE`, answered before the token is checked, for every `POST` and `PUT` |
 | 422 | `FORMAT_UNSUPPORTED` (an HLS playlist with variables, content steering or a non-HTTP resource) |
 | 428 | `PRECONDITION_REQUIRED` (a policy write without `If-Match`) |
 | 429 | `CAPACITY_EXHAUSTED` (no session slot is free or can be freed, or a session already has 12 media requests in flight) |
-| 500 | `INTERNAL_ERROR` |
+| 500 | `INTERNAL_ERROR`, `SECRETS_UNWRITABLE` (the data directory refused a token or key write) |
 | 502 | `UPSTREAM_UNAVAILABLE`, `UPSTREAM_REJECTED`, `INVALID_MANIFEST` |
 | 503 | `NOT_READY`, `SOURCE_UNAVAILABLE`, `SETUP_UNAVAILABLE`, `CAPACITY_EXHAUSTED` (every library playback slot, `SOFA_MAX_TRANSCODES`, is converting), `TRANSCODER_UNAVAILABLE` (FFmpeg could not start), `MULTIVIEW_UNAVAILABLE` (the server does not draw [multiview](#multiview)) |
 

@@ -10,13 +10,9 @@ import kotlinx.coroutines.delay
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 
-private const val CAPTION_TOAST_MS = 2_000L
-
 /** How long after the CC key Left and Right keep adjusting the channel's caption timing; each press restarts it. */
 internal const val CAPTION_TIMING_WINDOW_MS = 3_000L
 private const val MINI_GUIDE_IDLE_MS = 8_000L
-private const val STREAM_CARD_IDLE_MS = 15_000L
-private const val LIVE_TOAST_MS = 1_500L
 private const val SLEEP_CHECK_MS = 1_000L
 
 /**
@@ -35,7 +31,7 @@ internal fun PlayerTimers(state: PlayerState, player: LivePlayer) {
     }
     LaunchedEffect(state.streamCardOpen, state.streamCardActivity) {
         if (!state.streamCardOpen) return@LaunchedEffect
-        delay(STREAM_CARD_IDLE_MS)
+        delay(PANEL_IDLE_MS)
         state.streamCardOpen = false
     }
     // The card's figures move while it is open: the buffer every second, the formats when the engine changes them.
@@ -54,7 +50,7 @@ internal fun PlayerTimers(state: PlayerState, player: LivePlayer) {
             state.pauseState = null
             if (wasPaused?.resumesLive == true) {
                 state.liveToast = true
-                delay(LIVE_TOAST_MS)
+                delay(STATE_TOAST_MS)
                 state.liveToast = false
             }
             return@LaunchedEffect
@@ -65,15 +61,18 @@ internal fun PlayerTimers(state: PlayerState, player: LivePlayer) {
             delay(1.seconds)
         }
     }
-    // The bar stays up while paused, as the library player's does.
-    LaunchedEffect(state.overlayVisible, state.overlayRequest, paused) {
-        if (!state.overlayVisible || paused) return@LaunchedEffect
+    // The bar stays up while paused or failed, as the library player's does.
+    val failed = state.failure != null
+    LaunchedEffect(state.overlayVisible, state.overlayRequest, paused, failed) {
+        if (!state.overlayVisible || barHeld(paused, scrubbing = false, failed = failed, autoSkip = false)) {
+            return@LaunchedEffect
+        }
         delay(BAR_IDLE_MS)
         state.overlayVisible = false
     }
     LaunchedEffect(state.captionToast) {
         val toast = state.captionToast ?: return@LaunchedEffect
-        delay(if (toast.timingMs != null) CAPTION_TIMING_WINDOW_MS else CAPTION_TOAST_MS)
+        delay(if (toast.timingMs != null) CAPTION_TIMING_WINDOW_MS else STATE_TOAST_MS)
         state.captionToast = null
     }
 }

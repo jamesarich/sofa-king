@@ -2,12 +2,9 @@ package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.input.key.Key
-import dev.jamesrich.sofaking.contract.Wire
-import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.ScrubTiles
 import dev.jamesrich.sofaking.data.SeekSteps
-import dev.jamesrich.sofaking.data.SkipMode
-import dev.jamesrich.sofaking.data.Skips
+import dev.jamesrich.sofaking.data.VodMarker
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
@@ -24,87 +21,6 @@ data class VodTitle(
     /** Thumbnails shown over the seek bar while scrubbing, for a library file the server has made them for. */
     val scrub: ScrubTiles? = null,
 )
-
-/** A span of the item from [startMs] to [endMs]. */
-data class VodMarker(val startMs: Long, val endMs: Long, val kind: VodMarkerKind)
-
-enum class VodMarkerKind {
-    /** A commercial break, which playback can skip on its own. */
-    BREAK,
-
-    /** An episode's intro, which the bar offers to skip; it is not drawn on the seek bar. */
-    INTRO,
-
-    /** An episode's end credits, which the bar offers to skip, or to leave for the next episode; not drawn either. */
-    CREDITS,
-}
-
-/** Where a seek lands: in the stream the player holds, at its own time, or in a conversion restarted there. */
-internal sealed interface VodSeekPlan {
-    data class InStream(val streamMs: Long) : VodSeekPlan
-    data class Restart(val itemMs: Long) : VodSeekPlan
-}
-
-/**
- * Where a seek to [targetMs] in the item lands. A file played as it is seeks anywhere in it. A converted stream
- * starts at [PlaybackStream.offsetMs] and holds what the server has written so far ([writtenMs], the stream's own
- * length): a target inside that, short of its edge, seeks in the stream; anything before it or past it restarts
- * the conversion there. The target stays [END_GUARD_MS] short of a known end, so a seek never lands on the last frame.
- */
-internal fun vodSeekPlan(stream: PlaybackStream, targetMs: Long, writtenMs: Long?, itemDurationMs: Long?): VodSeekPlan {
-    val target =
-        itemDurationMs?.let { targetMs.coerceIn(0, (it - END_GUARD_MS).coerceAtLeast(0)) } ?: targetMs.coerceAtLeast(0)
-    if (stream.mode == Wire.VodMode.DIRECT) return VodSeekPlan.InStream(target)
-    val streamMs = target - stream.offsetMs
-    val edge = (writtenMs ?: 0) - EDGE_MARGIN_MS
-    return if (streamMs in 0..edge) VodSeekPlan.InStream(streamMs) else VodSeekPlan.Restart(target)
-}
-
-/**
- * The end of the break playback just ran into, to skip to; null otherwise. Only a break whose start lies between
- * [previousMs] and [nowMs] counts, so a viewer who seeks into a break on purpose stays in it.
- */
-internal fun breakToSkip(markers: List<VodMarker>, previousMs: Long, nowMs: Long): Long? {
-    if (nowMs <= previousMs || nowMs - previousMs > SKIP_WINDOW_MS) return null
-    return markers.firstOrNull {
-        it.kind == VodMarkerKind.BREAK && it.startMs > previousMs && it.startMs <= nowMs && nowMs < it.endMs
-    }?.endMs
-}
-
-/** The end of the commercial break [positionMs] is in, to skip to; null outside one. */
-internal fun breakEndAt(markers: List<VodMarker>, positionMs: Long): Long? =
-    markers.firstOrNull { it.kind == VodMarkerKind.BREAK && positionMs >= it.startMs && positionMs < it.endMs }?.endMs
-
-/** The intro [positionMs] is in; null outside one. */
-internal fun introAt(markers: List<VodMarker>, positionMs: Long): VodMarker? =
-    segmentAt(markers, positionMs, VodMarkerKind.INTRO)
-
-/** The credits [positionMs] is in; null outside them. */
-internal fun creditsAt(markers: List<VodMarker>, positionMs: Long): VodMarker? =
-    segmentAt(markers, positionMs, VodMarkerKind.CREDITS)
-
-/** An intro or the credits playback is in, and how [Skips] says to meet it. */
-internal data class SegmentSkip(val marker: VodMarker, val mode: SkipMode)
-
-/** The intro or credits [positionMs] is in, unless [skips] turns that kind off; null outside them. */
-internal fun segmentToSkip(markers: List<VodMarker>, positionMs: Long, skips: Skips): SegmentSkip? {
-    introAt(markers, positionMs)?.takeIf { skips.intros != SkipMode.OFF }?.let { return SegmentSkip(it, skips.intros) }
-    return creditsAt(markers, positionMs)?.takeIf {
-        skips.credits != SkipMode.OFF
-    }?.let { SegmentSkip(it, skips.credits) }
-}
-
-private fun segmentAt(markers: List<VodMarker>, positionMs: Long, kind: VodMarkerKind): VodMarker? =
-    markers.firstOrNull { it.kind == kind && positionMs >= it.startMs && positionMs < it.endMs }
-
-/**
- * Whether [credits] run to the end of an item [durationMs] long, give or take [CREDITS_END_SLACK_MS], so that past
- * them there is nothing left to watch and the next episode is what skipping them means.
- */
-internal fun creditsRunToEnd(credits: VodMarker, durationMs: Long?): Boolean =
-    durationMs != null && credits.endMs >= durationMs - CREDITS_END_SLACK_MS
-
-private const val CREDITS_END_SLACK_MS = 1_000L
 
 /** What a key does in the seekable player. */
 internal enum class VodAction {
@@ -197,15 +113,6 @@ internal class VodScrub {
 /** When the item ends if it plays on from [positionMs] at [now] at [speed]; null while its length is unknown. */
 internal fun vodEndsAt(now: Instant, positionMs: Long, durationMs: Long?, speed: Float = 1f): Instant? =
     durationMs?.takeIf { it > 0 }?.let { now + ((it - positionMs).coerceAtLeast(0) / speed).toLong().milliseconds }
-
-/** How far short of a known end a seek may land. */
-internal const val END_GUARD_MS = 2_000L
-
-/** How far short of the written edge a seek still counts as inside the converted stream. */
-internal const val EDGE_MARGIN_MS = 4_000L
-
-/** Two position readings further apart than this are a seek, not playback, so a break they span is not skipped. */
-internal const val SKIP_WINDOW_MS = 3_000L
 
 /** Where a seek to [positionMs] lands in a seekable item: never before its start, nor past [durationMs] when known. */
 internal fun clampSeek(positionMs: Long, durationMs: Long?): Long =

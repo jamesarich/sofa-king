@@ -25,6 +25,7 @@ internal fun Server.readTools(context: McpContext) {
     policyTools(context)
     libraryTools(context)
     recordingTools(context)
+    diagnosticsTools(context)
 }
 
 private fun Server.libraryTools(context: McpContext) {
@@ -268,7 +269,7 @@ internal fun updateInfo(state: UpdateState) = UpdateInfo(
 private fun Program.airing(channel: String? = null, channelId: String? = null) =
     Airing(title, startsAt, endsAt, subTitle, episode, isNew, categories, channel, channelId)
 
-private fun Recording.row() = RecordingRow(
+internal fun Recording.row() = RecordingRow(
     id, channelId, channelName, title, episodeTitle, season, episode, movie, startsAt, endsAt, state, reason, ruleId,
     bytes, protected, conflict, watched,
 )

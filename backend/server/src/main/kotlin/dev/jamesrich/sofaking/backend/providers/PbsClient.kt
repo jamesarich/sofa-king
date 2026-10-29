@@ -35,7 +35,7 @@ class PbsClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
-        val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
+        val index = channels.map { it.channel.toGuideChannel() }
         val programs = ArrayList<GuideProgram>()
         for (station in channels.filter { it.channel.id in wanted }.map { it.station }.distinctBy { it.id }) {
             val wantedFeeds = channels.filter {

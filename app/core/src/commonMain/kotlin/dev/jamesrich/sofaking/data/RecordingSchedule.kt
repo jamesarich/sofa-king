@@ -67,7 +67,12 @@ data class RecordingMarks(
     internal val teams: Map<String, String> = emptyMap(),
     /** The scheduled recordings the server flags as in conflict, by [recordingKey]. */
     internal val conflicts: Set<String> = emptySet(),
+    /** Keyword rules by each term they name, lowercase, to their ids. */
+    internal val keywords: Map<String, String> = emptyMap(),
 ) {
+    /** Whether a keyword rule records [query], by the term [keywordTerm] makes of it. */
+    fun recordsKeyword(query: String): Boolean = keywordTerm(query)?.lowercase() in keywords
+
     fun of(program: Program): RecordingMark {
         val key = recordingKey(program.channelId, program.start)
         return RecordingMark(
@@ -98,6 +103,8 @@ private fun RecordingsState.Ready.marks() = RecordingMarks(
         .associate { recordingKey(it.channelId, it.startsAt) to it.id },
     conflicts = recordings.filter { it.state == RecordingState.SCHEDULED && it.conflict }
         .mapTo(HashSet()) { recordingKey(it.channelId, it.startsAt) },
+    keywords = rules.filter { it.kind == Wire.RuleMatchKind.KEYWORD }
+        .flatMap { rule -> rule.terms.map { it.lowercase() to rule.id } }.toMap(),
 )
 
 /**
@@ -180,16 +187,17 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
 
     /**
      * Records every airing of [program]'s title on its channel, or deletes the series rule that takes it, with the
-     * recordings that rule scheduled.
+     * recordings that rule scheduled. A new rule takes [options]: its padding, and any channel instead of this one.
      */
-    suspend fun toggleSeries(program: Program): Boolean = records && change("recording a series") {
-        val id = _marks.value.ruleId(program)
-        if (id != null) {
-            deleteRecordingRule(id)
-        } else {
-            createRecordingRule(CreateRecordingRuleDto(program.title.trim(), program.channelId))
+    suspend fun toggleSeries(program: Program, options: SeriesOptions = SeriesOptions()): Boolean =
+        records && change("recording a series") {
+            val id = _marks.value.ruleId(program)
+            if (id != null) {
+                deleteRecordingRule(id)
+            } else {
+                createRecordingRule(seriesRule(program, options))
+            }
         }
-    }
 
     /** Cancels a scheduled recording, stops a running one, or deletes a finished one and its file. */
     internal suspend fun delete(recording: DvrRecording): Boolean = change("deleting a recording") {
@@ -197,12 +205,27 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
         edit { it.copy(recordings = it.recordings.filterNot { r -> r.id == recording.id }) }
     }
 
-    /** Changes [rule]: whether it takes new episodes only, and how many recordings it keeps (0 for all). */
-    internal suspend fun updateRule(rule: SeriesRule, newOnly: Boolean, keep: Int): Boolean =
-        change("changing a series rule") {
-            val fresh = updateRecordingRule(rule.id, UpdateRecordingRuleDto(newOnly = newOnly, keep = keep)).toModel()
-            edit { it.copy(rules = it.rules.map { r -> if (r.id == fresh.id) fresh else r }) }
-        }
+    /**
+     * Changes [rule]: whether it takes new episodes only, how many recordings it keeps (0 for all), its [padding]
+     * when set, and with [anyChannel] the channel it is limited to.
+     */
+    internal suspend fun updateRule(
+        rule: SeriesRule,
+        newOnly: Boolean,
+        keep: Int,
+        padding: RecordingPadding? = null,
+        anyChannel: Boolean = false,
+    ): Boolean = change("changing a series rule") {
+        val update = UpdateRecordingRuleDto(
+            newOnly = newOnly,
+            keep = keep,
+            startPaddingSeconds = padding?.startSeconds,
+            endPaddingSeconds = padding?.endSeconds,
+            anyChannel = anyChannel.takeIf { it },
+        )
+        val fresh = updateRecordingRule(rule.id, update).toModel()
+        edit { it.copy(rules = it.rules.map { r -> if (r.id == fresh.id) fresh else r }) }
+    }
 
     /** Deletes [rule] and the recordings it scheduled; what it recorded stays. */
     internal suspend fun deleteRule(rule: SeriesRule): Boolean = change("deleting a series rule") {
@@ -280,5 +303,26 @@ suspend fun RecordingSchedule.toggleTeam(team: String): Boolean = records && cha
     } else {
         val match = RuleMatch(Wire.RuleMatchKind.TEAM, listOf(team.trim()))
         createRecordingRule(CreateRecordingRuleDto(team.trim(), match = match))
+    }
+}
+
+/**
+ * Records [channelId] for [window] from [now], whatever the guide lists; the only way to record a channel with no
+ * guide. False when the server refused or could not be reached.
+ */
+suspend fun RecordingSchedule.recordWindow(channelId: String, window: RecordingWindow, now: Instant): Boolean =
+    records && change("recording a window") {
+        scheduleRecording(windowRecording(channelId, window, now))
+    }
+
+/**
+ * Records every program that names [query] as a word or phrase in its title, episode title or description, on any
+ * channel, or deletes the keyword rule that does with the recordings it scheduled.
+ */
+suspend fun RecordingSchedule.toggleKeyword(query: String): Boolean {
+    val term = keywordTerm(query) ?: return false
+    return records && change("recording a keyword") {
+        val id = marks.value.keywords[term.lowercase()]
+        if (id != null) deleteRecordingRule(id) else createRecordingRule(keywordRule(term))
     }
 }

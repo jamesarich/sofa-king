@@ -19,6 +19,8 @@ import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.MusicView
 import dev.jamesrich.sofaking.data.ScrubTiles
+import dev.jamesrich.sofaking.data.VodMarker
+import dev.jamesrich.sofaking.data.VodMarkerKind
 import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialAudio
 import dev.jamesrich.sofaking.data.initialSeasonId
@@ -46,8 +48,6 @@ import dev.jamesrich.sofaking.ui.library.LibrarySearchScreen
 import dev.jamesrich.sofaking.ui.library.stillOrBackdrop
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.MusicPlayback
-import dev.jamesrich.sofaking.ui.player.VodMarker
-import dev.jamesrich.sofaking.ui.player.VodMarkerKind
 import dev.jamesrich.sofaking.ui.player.VodPlayerScreen
 import dev.jamesrich.sofaking.ui.player.VodTitle
 import dev.jamesrich.sofaking.ui.player.VodTrack
@@ -197,6 +197,7 @@ internal fun LibraryItemDestination(
             onSetWatched = libraryVm::setWatched,
             onSelectSeason = { pickedSeason = it },
             onRetry = page::retry,
+            onRetrySeason = page::retrySeason,
             onPerson = { shell.push(Route.LibrarySearch(query = it)) },
             onOpenShow = { shell.push(Route.LibraryItem(it)) },
             onOpenItem = { shell.push(Route.LibraryItem(it.id)) },

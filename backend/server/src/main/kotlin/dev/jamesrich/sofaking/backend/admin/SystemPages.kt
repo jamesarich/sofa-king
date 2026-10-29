@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.logging.logFile
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.AdChannelRecord
 import dev.jamesrich.sofaking.backend.store.adChannels
+import dev.jamesrich.sofaking.backend.store.clientCrashes
 import dev.jamesrich.sofaking.backend.store.library
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
 import io.ktor.http.ContentDisposition
@@ -52,6 +53,9 @@ internal class SystemPages(private val portal: Portal, private val events: Event
             seeOther(call, form["back"]?.takeIf { it in JOB_RETURNS } ?: "/admin/system/jobs")
         }
         route.get("/system/events") { call.html(eventsPage(chrome(), eventsView(call.request.queryParameters))) }
+        route.get("/system/crashes") {
+            call.html(crashesPage(chrome(), runtime.store.clientCrashes(CRASHES_SHOWN)))
+        }
         route.get("/system/about") { call.html(aboutPage(chrome(), aboutView())) }
         route.action("/system/update/check") { session, _ ->
             val state = updates().check()
@@ -150,6 +154,9 @@ internal class SystemPages(private val portal: Portal, private val events: Event
         )
     }
 
+    /** The support snapshot as the About page copies it. */
+    suspend fun snapshotJson(): String = snapshot().toJson()
+
     private suspend fun snapshot(): SupportSnapshot = SupportSnapshot(
         portal.clock.instant().toString(),
         aboutServer(),
@@ -187,3 +194,4 @@ internal class SystemPages(private val portal: Portal, private val events: Event
 }
 
 private const val EVENT_QUERY_LIMIT = 200
+private const val CRASHES_SHOWN = 50

@@ -23,6 +23,11 @@ class ItemPageViewModel(private val open: (id: String) -> ItemPage, itemId: Stri
     /** Loads the item's page again. */
     fun retry() = page.refresh()
 
+    /** Loads the listed season again. */
+    fun retrySeason() {
+        seasonPage?.refresh()
+    }
+
     /** The page of the season [id] the show lists; the season listed before it is let go. */
     fun season(id: String): StateFlow<ItemDetailState> {
         val season = seasonPage?.takeIf { it.id == id } ?: open(id).also {

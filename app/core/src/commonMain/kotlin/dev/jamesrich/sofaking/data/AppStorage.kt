@@ -13,6 +13,8 @@ class AppStorage(
     val lineupCache: DataStore<CachedLineup?>,
     /** How the device introduces itself to the server; the entry point knows the platform. */
     val client: ClientInfo = ClientInfo(),
+    /** The crashes the app kept for the server; none on a platform that records no crashes. */
+    val crashes: CrashStore = CrashStore.None,
 ) {
     /** The server the settings name, as a usable URL; null while there is none. */
     suspend fun serverUrl(): String? = ServerAddress.normalizeUrl(readSettings(settings.data.first()).serverUrl)

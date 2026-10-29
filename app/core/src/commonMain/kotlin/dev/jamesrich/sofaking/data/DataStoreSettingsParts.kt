@@ -35,6 +35,7 @@ import dev.jamesrich.sofaking.data.SettingsKeys.PREVIEW_SOUND
 import dev.jamesrich.sofaking.data.SettingsKeys.RECENT_CHANNELS
 import dev.jamesrich.sofaking.data.SettingsKeys.SEEK_BACK_SECONDS
 import dev.jamesrich.sofaking.data.SettingsKeys.SEEK_FORWARD_SECONDS
+import dev.jamesrich.sofaking.data.SettingsKeys.SEND_CRASH_REPORTS
 import dev.jamesrich.sofaking.data.SettingsKeys.SEPARATOR
 import dev.jamesrich.sofaking.data.SettingsKeys.SERVER_URL
 import dev.jamesrich.sofaking.data.SettingsKeys.SETTINGS_PIN
@@ -319,6 +320,10 @@ internal class DataStoreDeviceSettings(private val dataStore: DataStore<Preferen
 
     override suspend fun setShareFavorites(on: Boolean) {
         dataStore.edit { prefs -> prefs[SHARE_FAVORITES] = on }
+    }
+
+    override suspend fun setSendCrashReports(on: Boolean) {
+        dataStore.edit { prefs -> prefs[SEND_CRASH_REPORTS] = on }
     }
 
     override suspend fun applyHouseholdPreferences(hidden: Set<String>, favorites: List<String>, syncedAt: String) {

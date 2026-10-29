@@ -9,14 +9,14 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.DvrRecording
 import dev.jamesrich.sofaking.data.RecordingState
 import dev.jamesrich.sofaking.data.RecordingsState
+import dev.jamesrich.sofaking.data.VodMarker
+import dev.jamesrich.sofaking.data.VodMarkerKind
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.resources.recordings_loading
 import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.player.LivePlayer
-import dev.jamesrich.sofaking.ui.player.VodMarker
-import dev.jamesrich.sofaking.ui.player.VodMarkerKind
 import dev.jamesrich.sofaking.ui.player.VodPlayerScreen
 import dev.jamesrich.sofaking.ui.player.VodTitle
 import dev.jamesrich.sofaking.ui.recordings.RecordingsScreen
@@ -41,7 +41,9 @@ internal fun RecordingsDestination(
         onDelete = recordingsVm::delete,
         onRetry = recordingsVm::refresh,
         onBack = tabBack,
-        onRuleChange = { rule, newOnly, keep -> recordingsVm.updateRule(rule, newOnly, keep) },
+        onRuleChange = { rule, edit ->
+            recordingsVm.updateRule(rule, edit.newOnly, edit.keep, edit.padding, edit.anyChannel)
+        },
         onRuleDelete = recordingsVm::deleteRule,
         onProtect = recordingsVm::setProtected,
         returnedFrom = arrival.returnedFrom,

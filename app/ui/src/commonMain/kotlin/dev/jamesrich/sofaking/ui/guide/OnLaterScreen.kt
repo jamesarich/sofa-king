@@ -174,6 +174,7 @@ private fun OnLaterDetails(
         onRecord = actions.onRecord,
         onRecordSeries = actions.onRecordSeries,
         onRecordTeam = actions.onRecordTeam,
+        onRecordWindow = actions.onRecordWindow,
         onWatchFromStart = { recordingId ->
             onShow(null)
             actions.onWatchFromStart(recordingId)

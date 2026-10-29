@@ -82,8 +82,9 @@ fun Application.backendModule(
             adminRoutes(runtime, clock, revision, hdhr.enabled)
             statusSummaryRoutes(runtime, clock, revision)
             historyRoutes(runtime, clock)
+            diagnosticsRoutes(runtime, clock)
             viewerRoutes(runtime, clock, apiToken)
-            runtime.dvr?.let { recordingRoutes(it) }
+            runtime.dvr?.let { recordingRoutes(it, clock) }
             watchlistRoutes(runtime.watchlist)
             playbackRoutes(runtime)
             outputRoutes(runtime, clock, outputs, apiToken)
@@ -97,11 +98,21 @@ fun Application.backendModule(
             runtime.vod?.let { vodRoutes(it) }
             runtime.multiview?.let { multiviewRoutes(it) }
             if (hdhr.enabled) hdhrRoutes(runtime, hdhr, store)
-            mcpRoutes(McpServers.create(McpContext(runtime, clock, revision, portal?.let { it::attention })))
+            mcpRoutes(mcpServers(runtime, clock, revision, portal))
             portal?.install(this)
         }
     }
 }
+
+private fun mcpServers(runtime: LiveRuntime, clock: Clock, revision: String, portal: AdminPortal?) = McpServers.create(
+    McpContext(
+        runtime,
+        clock,
+        revision,
+        portal?.let { it::attention },
+        supportSnapshot = portal?.let { it::supportSnapshot },
+    ),
+)
 
 /**
  * The path routing matches: empty segments dropped, each segment percent-decoded. Null when a segment is undecodable,

@@ -11,7 +11,11 @@ import dev.jamesrich.sofaking.backend.api.Viewer
 import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.store.MAX_VIEWERS
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.store.saveViewerPreferences
+import dev.jamesrich.sofaking.backend.store.touchViewer
+import dev.jamesrich.sofaking.backend.store.viewer
 import dev.jamesrich.sofaking.contract.ApiError
 import dev.jamesrich.sofaking.contract.Bootstrap
 import dev.jamesrich.sofaking.contract.HouseholdPreferences
@@ -209,6 +213,30 @@ class ViewerApiTest {
         clock.now = clock.now.plusSeconds(60)
         assertEquals(HttpStatusCode.OK, save("phone.2", "{}").status)
         assertEquals(listOf("phone.2", "tv-1"), list().map { it.clientId })
+    }
+
+    @Test fun `a token paired to a client writes only that client`() = viewers {
+        val own = pair()
+        val refused = save("phone.2", "{}", bearer = own)
+        assertEquals(HttpStatusCode.Forbidden, refused.status)
+        assertEquals("CLIENT_MISMATCH", Json.decodeFromString<ApiError>(refused.bodyAsText()).code)
+        assertNull(store.viewer("phone.2"))
+        assertEquals(HttpStatusCode.OK, save("tv-1", "{}", bearer = own).status)
+        assertEquals(HttpStatusCode.OK, save("phone.2", "{}").status, "the shared API token writes any client")
+    }
+
+    @Test fun `a token paired without a client id writes any client`() = viewers {
+        val anonymous = Json.decodeFromString<PairingResult>(claim(PairingClaim(issue().code)).bodyAsText()).apiToken
+        assertEquals(HttpStatusCode.OK, save("tv-1", "{}", bearer = anonymous).status)
+    }
+
+    @Test fun `saving preferences for a new client is refused once the server keeps its most viewers`() = viewers {
+        repeat(MAX_VIEWERS) { store.touchViewer("c$it", "", "", clock.now) }
+        store.saveViewerPreferences("c0", ViewerPreferences(), clock.now)
+        val refused = save("one-too-many", "{}")
+        assertEquals(HttpStatusCode.Conflict, refused.status)
+        assertEquals("VIEWER_LIMIT", Json.decodeFromString<ApiError>(refused.bodyAsText()).code)
+        assertEquals(HttpStatusCode.OK, save("c1", "{}").status, "a known client still saves")
     }
 
     @Test fun `a bad client id or an oversized list is refused`() = viewers {

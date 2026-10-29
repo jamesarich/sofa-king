@@ -109,9 +109,8 @@ internal class Portal(
                 runtime.guides.statuses.count { it.errorCode != null }
         val refused = if (hdhr.enabled) runtime.hdhrAccess.refusals().size else 0
         val plexCount = (if (plex?.lastError != null) 1 else 0) + (plex?.missingDevices?.size ?: 0) + refused
-        val recordings = runtime.dvr?.let { dvr ->
-            dvr.recordings().recordings.count { it.conflict } + (if (dvr.files.writable()) 0 else 1)
-        } ?: 0
+        val recordings =
+            runtime.dvr?.let { dvr -> dvr.alerts.conflictCount() + (if (dvr.files.lastWritable()) 0 else 1) } ?: 0
         return mapOf(
             "jobs" to jobs, "merges" to merges, "required" to required, "plex" to plexCount,
             "channels" to merges + required, "sources" to sources, "players" to plexCount, "system" to jobs,

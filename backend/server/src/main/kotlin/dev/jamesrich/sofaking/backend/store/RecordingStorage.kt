@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.contract.RecordingBreak
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.statements.UpdateBuilder
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -14,6 +15,11 @@ import java.time.Duration
 import java.time.Instant
 
 suspend fun BackendStore.recordings(): List<StoredRecording> = read { Recordings.selectAll().map { it.recording() } }
+
+/** The recordings in any of [states], read through the `(state, starts_at)` index instead of the whole table. */
+suspend fun BackendStore.recordingsIn(vararg states: String): List<StoredRecording> = read {
+    Recordings.selectAll().where { Recordings.state inList states.toList() }.map { it.recording() }
+}
 
 suspend fun BackendStore.recording(id: String): StoredRecording? = read {
     Recordings.selectAll().where {

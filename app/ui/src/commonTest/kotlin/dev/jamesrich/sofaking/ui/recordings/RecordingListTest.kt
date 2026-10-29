@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui.recordings
 
 import dev.jamesrich.sofaking.data.DvrRecording
+import dev.jamesrich.sofaking.data.RecordingPadding
 import dev.jamesrich.sofaking.data.RecordingState
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import kotlinx.datetime.TimeZone
@@ -41,6 +42,13 @@ class RecordingListTest {
             "News 4 · Sun Oct 18, 6:00 PM",
             recordingSubtitle(recording("r", RecordingState.COMPLETED, "2026-10-18T18:00:00Z"), time),
         )
+    }
+
+    @Test
+    fun `the Padding button steps through the choices and sends a portal value to the default`() {
+        assertEquals(RecordingPadding.NONE, nextPadding(RecordingPadding.DEFAULT))
+        assertEquals(RecordingPadding.DEFAULT, nextPadding(RecordingPadding.OVERRUN))
+        assertEquals(RecordingPadding.DEFAULT, nextPadding(null))
     }
 
     @Test

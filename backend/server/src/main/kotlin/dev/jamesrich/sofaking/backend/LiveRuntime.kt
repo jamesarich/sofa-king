@@ -174,7 +174,7 @@ class LiveRuntime(
     companion object {
         /**
          * [probes] false keeps the probe worker from starting, for tests over fixtures; [restart] is what a
-         * setup write ends the process with.
+         * setup write ends the process with; [setup] replaces the setup service, for tests.
          */
         suspend fun create(
             store: BackendStore,
@@ -184,6 +184,7 @@ class LiveRuntime(
             probes: Boolean = true,
             plexDebounceMillis: Long = 120_000,
             restart: () -> Unit = SetupService::exitForRestart,
+            setup: ((ServerConfig, () -> Unit) -> SetupService)? = null,
         ): LiveRuntime {
             val started = clock.instant()
             val assembly =
@@ -191,7 +192,7 @@ class LiveRuntime(
                     store,
                     config,
                     clock,
-                    RuntimeOptions(policyDebounceMillis, probes, plexDebounceMillis, restart),
+                    RuntimeOptions(policyDebounceMillis, probes, plexDebounceMillis, restart, setup),
                 )
             // Whatever fails before the runtime is whole stops its background work and closes its client.
             var created = false

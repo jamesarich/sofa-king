@@ -82,6 +82,8 @@ class LibraryArtwork(
     /** One lock per stripe of keys, so a key always has the same one and two fetches of it never run at once. */
     private val locks = Array(LOCK_STRIPES) { Mutex() }
 
+    private val frames = SingleFlight<Artwork>()
+
     private fun lockFor(key: String): Mutex = locks[Math.floorMod(key.hashCode(), LOCK_STRIPES)]
 
     /** The image [source] names, or null when it is gone, outside its library folder, or TMDB could not supply it. */
@@ -121,12 +123,11 @@ class LibraryArtwork(
     /** A JPEG of the video's frame, 640 wide, taken once and kept beside the TMDB images. */
     private suspend fun frame(source: ArtSource.Frame): Artwork? {
         val ffmpeg = ffmpeg ?: return null
-        val video = source.root.resolve(source.relative).normalize()
-        if (!video.startsWith(source.root.normalize())) return null
+        val video = source.root.resolveInside(source.relative) ?: return null
         val key = "frame-" + hash(source.toString())
         val file = directory.resolve(key)
         if (withContext(Dispatchers.IO) { Files.isRegularFile(file) }) return Artwork(file, "image/jpeg")
-        return lockFor(key).withLock {
+        return frames.once(key) {
             val partial = directory.resolve("$key.part.jpg")
             try {
                 withContext(Dispatchers.IO) {
@@ -171,10 +172,8 @@ class LibraryArtwork(
 
     private suspend fun local(source: ArtSource.Local): Artwork? = withContext(Dispatchers.IO) {
         val type = typeOf(source.relative) ?: return@withContext null
-        val file = source.root.resolve(source.relative).normalize()
-        if (!file.startsWith(source.root.normalize()) || !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
-            return@withContext null
-        }
+        val file = source.root.resolveInside(source.relative) ?: return@withContext null
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) return@withContext null
         Artwork(file, type)
     }
 

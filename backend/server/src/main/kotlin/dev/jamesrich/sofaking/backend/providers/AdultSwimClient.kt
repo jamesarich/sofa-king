@@ -23,7 +23,7 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
-        val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
+        val index = channels.map { it.channel.toGuideChannel() }
         val programs = ArrayList<GuideProgram>()
         for (channel in channels.filter { it.channel.id in wanted }) {
             val rows = context.http.get(

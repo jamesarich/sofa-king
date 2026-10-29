@@ -3,6 +3,10 @@ import SwiftUI
 import TVServices
 import SofaKingCore
 
+/// The words the Compose screens share with this app, kept in core so the two cannot drift apart.
+let strings = TvCopy.shared
+let recordingStrings = TvRecordingCopy.shared
+
 @main
 struct SofaKingTVApp: App {
     @State private var model = AppModel()
@@ -306,14 +310,14 @@ struct ContentView: View {
 
     private var tabs: some View {
         TabView(selection: $tab) {
-            live.tabItem { Label("Live", systemImage: "tv") }.tag(AppTab.live)
+            live.tabItem { Label(strings.tabLive, systemImage: "tv") }.tag(AppTab.live)
             if libraryInBar {
-                LibraryHomeView().tabItem { Label("Library", systemImage: "film.stack") }.tag(AppTab.library)
+                LibraryHomeView().tabItem { Label(strings.tabLibrary, systemImage: "film.stack") }.tag(AppTab.library)
             }
             if recordingsInBar {
-                RecordingsView().tabItem { Label("DVR", systemImage: "record.circle") }.tag(AppTab.recordings)
+                RecordingsView().tabItem { Label(strings.tabDvr, systemImage: "record.circle") }.tag(AppTab.recordings)
             }
-            NavigationStack { SettingsGate() }.tabItem { Label("Settings", systemImage: "gear") }.tag(AppTab.settings)
+            NavigationStack { SettingsGate() }.tabItem { Label(strings.tabSettings, systemImage: "gear") }.tag(AppTab.settings)
         }
         .onChange(of: model.requestedChannel) { _, requested in
             // A Top Shelf channel plays from the Live tab.
@@ -359,13 +363,13 @@ struct ContentView: View {
                 SettingsGate()
             case let failed as LineupStateFailed:
                 VStack(spacing: 32) {
-                    Text("Couldn't reach the Sofa King server").font(.title2)
+                    Text(strings.loadFailed).font(.title2)
                     Text(failed.message).foregroundStyle(.secondary)
-                    Button("Try again") { model.core.refresh() }
-                    NavigationLink("Settings") { SettingsGate() }
+                    Button(strings.retry) { model.core.refresh() }
+                    NavigationLink(strings.tabSettings) { SettingsGate() }
                 }
             default:
-                ProgressView("Sofa King close, loading channels…")
+                ProgressView(strings.loading)
             }
         }
     }
@@ -374,10 +378,6 @@ struct ContentView: View {
 extension PairingFailure {
     /// What to tell the viewer when pairing fails this way.
     var message: String {
-        switch self {
-        case .invalidCode: "That code didn't work. Codes last ten minutes and work once; show a new one in the admin portal."
-        case .olderServer: "This server is too old to pair with a code; enter its API token instead."
-        default: "No Sofa King server answered at that address."
-        }
+        strings.pairingFailure(failure: self)
     }
 }

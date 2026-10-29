@@ -1,8 +1,10 @@
 package dev.jamesrich.sofaking.ui.guide
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
@@ -115,7 +118,7 @@ fun GuideScreen(
             .onPreviewKeyEvent { event -> state.onKeyEvent(event.key, event.type, backAction, controls) }
             .restartsRestOnPointer(dwell, state),
     ) {
-        GuideColumn(state, nav, channels, span, lineup, favorites, preview, shown, actions, open)
+        GuideColumn(state, nav, channels, span, lineup, favorites, preview, shown, actions, recordingMarks, open)
         ChannelNumberBadge(state.numbers)
         GuideDetails(state, nav, channels, span.now, lineup, favorites, recordingMarks, actions, open)
     }
@@ -144,6 +147,7 @@ private fun GuideColumn(
     preview: GuidePreview,
     shown: Boolean,
     actions: GuideActions,
+    recordingMarks: RecordingMarks?,
     open: (Channel, Boolean) -> Unit,
 ) {
     val timeFormat = rememberTimeFormatter()
@@ -159,7 +163,9 @@ private fun GuideColumn(
             onOnLater = actions.onOnLater,
         )
     }
-    val searchBar: @Composable (Modifier) -> Unit = { barModifier -> GuideSearchBar(state, nav, barModifier) }
+    val searchBar: @Composable (Modifier) -> Unit = { barModifier ->
+        GuideSearchBar(state, nav, recordingMarks, actions.onRecordKeyword, barModifier)
+    }
     // 16dp here is spacing, not overscan.
     Column(
         modifier = Modifier.fillMaxSize().screenPadding(
@@ -334,17 +340,28 @@ private fun GuideChips(
 }
 
 @Composable
-private fun GuideSearchBar(state: GuideState, nav: GuideNavigator, modifier: Modifier = Modifier) {
+private fun GuideSearchBar(
+    state: GuideState,
+    nav: GuideNavigator,
+    recordingMarks: RecordingMarks?,
+    onRecordKeyword: suspend (String) -> Boolean,
+    modifier: Modifier = Modifier,
+) {
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
-    SearchField(
-        state = state.searchText,
-        focusRequester = nav.searchField,
-        hint = stringResource(Res.string.guide_search_hint),
-        // A phone's keyboard in landscape can leave the results no room, so no row takes focus; it goes away then.
-        onDone = { if (!focusManager.moveFocus(FocusDirection.Down)) keyboard?.hide() },
-        modifier = modifier,
-    )
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        SearchField(
+            state = state.searchText,
+            focusRequester = nav.searchField,
+            hint = stringResource(Res.string.guide_search_hint),
+            // A phone's keyboard in landscape can leave the results no room, so no row takes focus; it goes away then.
+            onDone = { if (!focusManager.moveFocus(FocusDirection.Down)) keyboard?.hide() },
+            modifier = Modifier.weight(1f),
+        )
+        if (recordingMarks != null) {
+            KeywordRecordButton(state.searchText.text.toString(), recordingMarks, onRecordKeyword)
+        }
+    }
 }
 
 /**
@@ -379,6 +396,7 @@ private fun GuideDetails(
         onRecord = actions.onRecord,
         onRecordSeries = actions.onRecordSeries,
         onRecordTeam = actions.onRecordTeam,
+        onRecordWindow = actions.onRecordWindow,
         onWatchFromStart = { recordingId ->
             state.details = null
             actions.onWatchFromStart(recordingId)

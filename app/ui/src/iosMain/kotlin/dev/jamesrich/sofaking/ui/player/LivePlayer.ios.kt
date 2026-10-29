@@ -13,6 +13,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.UIKitView
 import dev.jamesrich.sofaking.data.PlaybackProfile
+import dev.jamesrich.sofaking.data.TimeSpan
+import dev.jamesrich.sofaking.data.durationFromRanges
+import dev.jamesrich.sofaking.data.loadedAheadMs
 import dev.jamesrich.sofaking.visualizer.AudioAnalyzer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
@@ -261,11 +264,7 @@ internal class AvLivePlayer(
     override val durationMs: Long?
         get() {
             val item = av.currentItem?.takeIf { isSeekable } ?: return null
-            val seconds = CMTimeGetSeconds(item.duration).takeIf { it.isFinite() && it > 0 }
-                ?: (item.seekableTimeRanges.lastOrNull() as? NSValue)?.CMTimeRangeValue?.useContents {
-                    start.value.toDouble() / start.timescale + duration.value.toDouble() / duration.timescale
-                }?.takeIf { it.isFinite() && it > 0 }
-            return seconds?.let { (it * 1000).toLong() }
+            return durationFromRanges(CMTimeGetSeconds(item.duration), item.seekableTimeRanges.toTimeSpans())
         }
 
     /** The end of the loaded range the picture is in, less the picture's time. */
@@ -273,14 +272,7 @@ internal class AvLivePlayer(
         get() {
             if (stream?.seekable != false) return null
             val item = av.currentItem ?: return null
-            val now = CMTimeGetSeconds(av.currentTime()).takeIf { it.isFinite() } ?: return null
-            val end = item.loadedTimeRanges.mapNotNull { range ->
-                (range as? NSValue)?.CMTimeRangeValue?.useContents {
-                    val from = start.value.toDouble() / start.timescale
-                    from to from + duration.value.toDouble() / duration.timescale
-                }
-            }.firstOrNull { (from, to) -> now >= from && now <= to }?.second ?: return null
-            return ((end - now) * 1000).toLong().coerceAtLeast(0L)
+            return loadedAheadMs(CMTimeGetSeconds(av.currentTime()), item.loadedTimeRanges.toTimeSpans())
         }
 
     override fun seekTo(positionMs: Long) {
@@ -374,6 +366,15 @@ internal class AvLivePlayer(
             playWhenReady -> playing && shown
             else -> item.status == AVPlayerItemStatusReadyToPlay && shown
         }
+    }
+}
+
+/** AVFoundation's time ranges (boxed `CMTimeRange`s) as seconds. */
+@OptIn(ExperimentalForeignApi::class)
+private fun List<*>.toTimeSpans(): List<TimeSpan> = mapNotNull { range ->
+    (range as? NSValue)?.CMTimeRangeValue?.useContents {
+        val from = start.value.toDouble() / start.timescale
+        TimeSpan(from, from + duration.value.toDouble() / duration.timescale)
     }
 }
 

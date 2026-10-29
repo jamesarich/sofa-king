@@ -19,6 +19,7 @@ fun AppStorage.Companion.inDirectory(directory: String, client: ClientInfo = Cli
     settings = preferencesDataStore(Path(directory, "datastore", "settings.preferences_pb").toString()),
     lineupCache = lineupCacheDataStore(Path(directory, "lineup-cache.bin").toString()),
     client = client,
+    crashes = FileCrashStore(Path(directory, "crashes").toString()),
 )
 
 /**

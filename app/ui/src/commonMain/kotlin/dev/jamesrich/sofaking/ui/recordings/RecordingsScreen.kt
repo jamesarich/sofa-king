@@ -28,6 +28,7 @@ import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.data.recordingGroups
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.load_failed
+import dev.jamesrich.sofaking.resources.load_failed_hint
 import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.resources.recordings_empty
 import dev.jamesrich.sofaking.resources.recordings_empty_hint
@@ -37,6 +38,7 @@ import dev.jamesrich.sofaking.resources.recordings_recorded
 import dev.jamesrich.sofaking.resources.recordings_scheduled
 import dev.jamesrich.sofaking.resources.recordings_space
 import dev.jamesrich.sofaking.resources.recordings_unavailable
+import dev.jamesrich.sofaking.resources.recordings_unavailable_hint
 import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.resources.unconfigured_hint
 import dev.jamesrich.sofaking.ui.BackHandler
@@ -62,7 +64,7 @@ fun RecordingsScreen(
     onDelete: suspend (DvrRecording) -> Boolean,
     onRetry: () -> Unit,
     onBack: () -> Unit,
-    onRuleChange: suspend (rule: SeriesRule, newOnly: Boolean, keep: Int) -> Boolean = { _, _, _ -> false },
+    onRuleChange: suspend (rule: SeriesRule, edit: RuleEdit) -> Boolean = { _, _ -> false },
     onRuleDelete: suspend (SeriesRule) -> Boolean = { false },
     onProtect: suspend (recording: DvrRecording, protect: Boolean) -> Boolean = { _, _ -> false },
     /** The recording just played, which takes focus again on the way back. */
@@ -79,10 +81,14 @@ fun RecordingsScreen(
             hint = stringResource(Res.string.unconfigured_hint),
         )
 
-        RecordingsState.Unavailable -> MessageScreen(stringResource(Res.string.recordings_unavailable))
+        RecordingsState.Unavailable -> MessageScreen(
+            stringResource(Res.string.recordings_unavailable),
+            hint = stringResource(Res.string.recordings_unavailable_hint),
+        )
 
         is RecordingsState.Failed -> MessageScreen(
             stringResource(Res.string.load_failed),
+            hint = stringResource(Res.string.load_failed_hint),
             detail = state.message,
             onRetry = onRetry,
         )
@@ -105,7 +111,7 @@ private fun RecordingList(
     state: RecordingsState.Ready,
     onPlay: (DvrRecording, Boolean) -> Unit,
     onDelete: suspend (DvrRecording) -> Boolean,
-    onRuleChange: suspend (SeriesRule, Boolean, Int) -> Boolean,
+    onRuleChange: suspend (SeriesRule, RuleEdit) -> Boolean,
     onRuleDelete: suspend (SeriesRule) -> Boolean,
     onProtect: suspend (DvrRecording, Boolean) -> Boolean,
     returnedFrom: String?,

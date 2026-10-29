@@ -24,6 +24,7 @@
     <string name="library_empty">Nothing here yet</string>
     <string name="library_empty_hint">The server adds what it finds on its next library scan.</string>
     <string name="library_pick_title">Pick a title to see it here</string>
+    <string name="library_season_failed">Couldn't load this season</string>
     <string name="library_load_failed">The library didn't load</string>
     <plurals name="library_items_count">
         <item quantity="one">%1$d item</item>

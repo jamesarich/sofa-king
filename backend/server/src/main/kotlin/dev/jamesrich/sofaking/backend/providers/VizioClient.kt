@@ -5,8 +5,6 @@ import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import kotlinx.serialization.json.JsonElement
 import java.time.Duration
-import java.time.Instant
-import java.time.format.DateTimeFormatter
 
 /**
  * Vizio WatchFree+ as the SmartCast app reads it: an open channel list whose clear HLS URLs carry `{ADID}`-style
@@ -24,14 +22,14 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
-        val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
+        val index = channels.map { it.channel.toGuideChannel() }
         if (channels.none { it.channel.id in wanted }) return ParsedGuide(index, emptyList())
         val byStation = channels.filter { it.airingsKey != null && it.channel.id in wanted }.associate {
             it.airingsKey!! to
                 it.channel.id
         }
         val now = context.clock.instant()
-        val window = "start=${TIMESTAMP.format(now)}&end=${TIMESTAMP.format(now.plus(EPG_HORIZON))}"
+        val window = "start=${ISO_MILLIS.format(now)}&end=${ISO_MILLIS.format(now.plus(EPG_HORIZON))}"
         // channelCount counts stations in the airings feed's own order, not the channel list's, so one call
         // misses the tail; each further page starts at a wanted channel no earlier page covered.
         val done = HashSet<String>()
@@ -57,8 +55,8 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
     private fun airing(airing: JsonElement, byStation: Map<String, String>): GuideProgram? {
         val channelId = airing.str("stationId")?.let(byStation::get) ?: return null
         val title = airing.str("title") ?: return null
-        val start = airing.str("timeStart")?.let(::instant) ?: return null
-        val end = airing.str("timeEnd")?.let(::instant)?.takeIf { it > start } ?: return null
+        val start = airing.str("timeStart")?.let(::instantOrNull) ?: return null
+        val end = airing.str("timeEnd")?.let(::instantOrNull)?.takeIf { it > start } ?: return null
         return GuideProgram(
             channelId,
             start,
@@ -81,7 +79,7 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
     private suspend fun fetchChannels(): List<Listed> {
         val payload = context.http.get("$apiBase/channels", HEADERS).require("Vizio channels").json()
         val result = payload["channels"].array.mapNotNull(::listing).distinctBy { it.channel.id }
-        if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(result)
         return result
     }
 
@@ -113,16 +111,6 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
         )
     }
 
-    private fun instant(value: String): Instant? = try {
-        Instant.parse(value)
-    } catch (_: Exception) {
-        try {
-            java.time.OffsetDateTime.parse(value).toInstant()
-        } catch (_: Exception) {
-            null
-        }
-    }
-
     companion object {
         private const val API_BASE = "https://watchfreeplus-epg-prod.smartcasttv.com/api"
         private const val CHANNELS = "channels"
@@ -132,9 +120,6 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
         private val EPG_HORIZON = Duration.ofHours(24)
         private const val MAX_AIRINGS_PAGES = 20
         private val URL_LIFETIME = Duration.ofHours(1)
-        private val TIMESTAMP = DateTimeFormatter.ofPattern(
-            "uuuu-MM-dd'T'HH:mm:ss.SSS'Z'",
-        ).withZone(java.time.ZoneOffset.UTC)
         private val HEADERS = mapOf("User-Agent" to "okhttp/4.12.0", "Accept" to "application/json")
 
         /** The values the anonymous SmartCast mobile client sends; `ADID` is this install's device id. */

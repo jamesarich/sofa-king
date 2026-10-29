@@ -246,13 +246,7 @@ struct PlayerView: View {
     /// The end of the loaded range the picture is in, less the picture's time: what AVPlayer has loaded past it.
     private func loadedAheadMs() -> Int64? {
         guard let item = player.currentItem else { return nil }
-        let now = player.currentTime().seconds
-        guard now.isFinite else { return nil }
-        for value in item.loadedTimeRanges {
-            let range = value.timeRangeValue
-            if now >= range.start.seconds && now <= range.end.seconds { return Int64((range.end.seconds - now) * 1000) }
-        }
-        return nil
+        return model.core.loadedAheadMs(nowSeconds: player.currentTime().seconds, ranges: timeSpans(item.loadedTimeRanges))?.int64Value
     }
 
     private func applyBreakSound() {
@@ -445,4 +439,9 @@ private struct PlayerController: UIViewControllerRepresentable {
         controller.contextualActions = actions
         context.coordinator.rootView = breakScreen
     }
+}
+
+/// AVPlayer's time ranges as the seconds spans core's `loadedAheadMs` and `durationFromRanges` read.
+func timeSpans(_ ranges: [NSValue]) -> [TimeSpan] {
+    ranges.map { TimeSpan(startSeconds: $0.timeRangeValue.start.seconds, endSeconds: $0.timeRangeValue.end.seconds) }
 }

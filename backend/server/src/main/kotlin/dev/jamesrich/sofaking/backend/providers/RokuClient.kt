@@ -120,7 +120,7 @@ class RokuClient(private val context: ProviderContext) : ProviderClient {
                 listOf("us"),
             )
         }.sortedBy { it.number?.toLongOrNull() ?: Long.MAX_VALUE }
-        if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(result)
         return result
     }
 

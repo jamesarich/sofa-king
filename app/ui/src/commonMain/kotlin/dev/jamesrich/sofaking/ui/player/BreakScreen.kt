@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -239,8 +240,7 @@ internal fun BreakScreen(
         val area = with(density) { IntSize(maxWidth.roundToPx(), maxHeight.roundToPx()) }
         val unit = with(density) { logoSize.roundToPx() }
         val lineWidth = maxWidth * LINE_SHARE
-        val safeX = maxWidth * SAFE_SHARE
-        val safeY = maxHeight * SAFE_SHARE
+        val safe = PaddingValues(horizontal = maxWidth * SAFE_SHARE, vertical = maxHeight * SAFE_SHARE)
         val motion = remember {
             BreakMotion(Bounce(area.width * START_X, area.height * START_Y, right = true, down = true))
         }
@@ -267,10 +267,11 @@ internal fun BreakScreen(
                     color = ink.copy(alpha = FAINT_ALPHA),
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(horizontal = safeX, vertical = safeY),
+                        .padding(safe),
                 )
             }
             BouncingMark(motion, logoSize)
+            ShowPictureHint(ink, Modifier.align(Alignment.BottomCenter).padding(safe))
             val left = remainingMs?.invoke()
             val fact by remember(facts) {
                 derivedStateOf {
@@ -514,7 +515,7 @@ private const val FACT_NANOS = FACT_SECONDS * 1_000_000_000L
 private const val FACT_FADE_MS = 600
 
 /** How see-through the faint lines and the clock are. */
-private const val FAINT_ALPHA = 0.7f
+internal const val FAINT_ALPHA = 0.7f
 
 /** How far in from the screen's edges the clock sits, as a share of each side: inside a TV's overscan. */
 private const val SAFE_SHARE = 0.05f

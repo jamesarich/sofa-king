@@ -32,7 +32,10 @@ internal class VodKeyHandler(
         if (type == KeyEventType.KeyDown) cancelAutoSkip()
         val taken = when {
             // The card's rows take the D-pad and OK; Back closes it through the BackHandler.
-            tracksOpen -> false
+            tracksOpen -> {
+                tracksUsed()
+                false
+            }
 
             state.next != null -> upNextKey(key, type, controls)
 

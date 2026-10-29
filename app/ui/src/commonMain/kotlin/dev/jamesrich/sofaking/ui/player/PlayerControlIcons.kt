@@ -1,9 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -11,24 +8,18 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.player_control_exit_full_screen
 import dev.jamesrich.sofaking.resources.player_control_full_screen
-import dev.jamesrich.sofaking.resources.player_control_pause
-import dev.jamesrich.sofaking.resources.player_control_play
-import dev.jamesrich.sofaking.resources.player_control_retry
 import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
-import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.stringResource
 
 /**
  * One player control, for a finger, a mouse or the D-pad: the icon carries the label as its description. The center
- * touch control is [primary], Material's medium icon button; [size] is the tonal button's, 48 dp unless the row it
- * sits in is tighter.
+ * touch control is [primary], Material's medium icon button; the others are [CONTROL_SIZE] tonal buttons.
  */
 @Composable
 internal fun ControlIcon(
@@ -37,7 +28,6 @@ internal fun ControlIcon(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     primary: Boolean = false,
-    size: Dp = CONTROL_SIZE,
 ) {
     if (primary) {
         FilledIconButton(
@@ -49,7 +39,7 @@ internal fun ControlIcon(
     } else {
         FilledTonalIconButton(
             onClick = onClick,
-            modifier = modifier.size(size).tvFocus(IconButtonDefaults.filledShape),
+            modifier = modifier.size(CONTROL_SIZE).tvFocus(IconButtonDefaults.filledShape),
         ) {
             Icon(icon, contentDescription = label)
         }
@@ -65,32 +55,14 @@ internal fun PlayPauseControl(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     primary: Boolean = false,
-    size: Dp = CONTROL_SIZE,
 ) {
-    if (failed) {
-        ControlIcon(
-            Icons.Filled.Refresh,
-            stringResource(Res.string.player_control_retry),
-            onRetry,
-            modifier = modifier,
-            primary = primary,
-            size = size,
-        )
-    } else {
-        ControlIcon(
-            if (paused) Icons.Filled.PlayArrow else SofaIcons.Pause,
-            stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause),
-            onPlayPause,
-            modifier = modifier,
-            primary = primary,
-            size = size,
-        )
-    }
+    val item = playPauseButtonItem(paused, failed, onPlayPause, onRetry)
+    ControlIcon(item.icon, item.label, item.onClick, modifier = modifier, primary = primary)
 }
 
 /** Switches the window's full screen, as F does; nothing where the app cannot switch it (Android and iOS). */
 @Composable
-internal fun FullScreenControl(size: Dp = CONTROL_SIZE) {
+internal fun FullScreenControl() {
     val fullScreen = LocalWindowFullScreen.current ?: return
     ControlIcon(
         if (fullScreen.isFullScreen) SofaIcons.FullscreenExit else SofaIcons.Fullscreen,
@@ -102,8 +74,16 @@ internal fun FullScreenControl(size: Dp = CONTROL_SIZE) {
             },
         ),
         fullScreen::toggle,
-        size = size,
     )
 }
 
 internal val CONTROL_SIZE = 48.dp
+
+/** The gap between the controls of a player bar's row, and between the rows and lines of its panel. */
+internal val BAR_ROW_SPACING = 8.dp
+
+/** The gap between a row of controls and the name of the one focused. */
+internal val BAR_LABEL_GAP = 4.dp
+
+/** The padding inside a player bar's panel. */
+internal val BAR_CARD_PADDING = 24.dp

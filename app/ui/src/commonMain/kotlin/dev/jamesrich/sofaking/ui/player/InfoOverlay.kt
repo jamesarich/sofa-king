@@ -74,7 +74,7 @@ internal fun InfoOverlay(
             .widthIn(max = 720.dp)
             .fillMaxWidth()
             .background(SofaOverlayScrim, MaterialTheme.shapes.small)
-            .padding(24.dp)
+            .padding(BAR_CARD_PADDING)
             .semantics { liveRegion = LiveRegionMode.Polite },
     ) {
         InfoHeader(channel, scope, captionsOn, captionAdvanceMs)
@@ -95,7 +95,7 @@ internal fun InfoOverlay(
             )
         }
         if (showKeyLegend) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(BAR_ROW_SPACING))
             KeyLegend()
         }
     }

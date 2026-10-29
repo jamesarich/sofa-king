@@ -22,7 +22,6 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.resources.Res
@@ -125,7 +124,7 @@ internal fun Key.volumeKey(): VolumeKey? = when (this) {
  * moves, to keep the bar up; [onDone] when the switch is pressed or the slider let go, to hand focus back.
  */
 @Composable
-internal fun VolumeControl(onAdjust: () -> Unit, onDone: () -> Unit, size: Dp = CONTROL_SIZE) {
+internal fun VolumeControl(onAdjust: () -> Unit, onDone: () -> Unit) {
     val volume = LocalPlayerVolume.current
     if (!volume.adjustable) return
     val silent = volume.muted || volume.level == 0
@@ -145,7 +144,6 @@ internal fun VolumeControl(onAdjust: () -> Unit, onDone: () -> Unit, size: Dp = 
                 volume.toggleMute()
                 onDone()
             },
-            size = size,
         )
         val shown = if (volume.muted) 0f else volume.level.toFloat()
         val slider = rememberSliderState(shown, trackRange = 0f..AppSettings.MAX_VOLUME.toFloat())

@@ -2,16 +2,21 @@ package dev.jamesrich.sofaking.previews
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import dev.jamesrich.sofaking.ItemDetailState
 import dev.jamesrich.sofaking.LibraryHomeState
+import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
@@ -29,9 +34,12 @@ import dev.jamesrich.sofaking.data.MediaShelf
 import dev.jamesrich.sofaking.data.PlayProgress
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.ui.InputKind
+import dev.jamesrich.sofaking.ui.LastInput
 import dev.jamesrich.sofaking.ui.LayoutProfile
 import dev.jamesrich.sofaking.ui.LocalClock
 import dev.jamesrich.sofaking.ui.LocalClockFormat
+import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.LocalTimeZone
 import dev.jamesrich.sofaking.ui.guide.GuideActions
@@ -45,8 +53,30 @@ import dev.jamesrich.sofaking.ui.library.ItemDetailsScreen
 import dev.jamesrich.sofaking.ui.library.LibraryHomeActions
 import dev.jamesrich.sofaking.ui.library.LibraryHomeScreen
 import dev.jamesrich.sofaking.ui.player.CaptionSync
+import dev.jamesrich.sofaking.ui.player.InfoBar
 import dev.jamesrich.sofaking.ui.player.InfoOverlay
+import dev.jamesrich.sofaking.ui.player.PlayerButtonItem
+import dev.jamesrich.sofaking.ui.player.PlayerButtonRow
+import dev.jamesrich.sofaking.ui.player.PlayerFocus
+import dev.jamesrich.sofaking.ui.player.SleepTimer
 import dev.jamesrich.sofaking.ui.player.UnavailableLivePlayer
+import dev.jamesrich.sofaking.ui.player.VideoZoom
+import dev.jamesrich.sofaking.ui.player.VodButton
+import dev.jamesrich.sofaking.ui.player.VodControls
+import dev.jamesrich.sofaking.ui.player.VodEnding
+import dev.jamesrich.sofaking.ui.player.VodInfoBar
+import dev.jamesrich.sofaking.ui.player.VodParts
+import dev.jamesrich.sofaking.ui.player.VodPlayerState
+import dev.jamesrich.sofaking.ui.player.VodSession
+import dev.jamesrich.sofaking.ui.player.VodTitle
+import dev.jamesrich.sofaking.ui.player.VodToasts
+import dev.jamesrich.sofaking.ui.player.VodTrackPicks
+import dev.jamesrich.sofaking.ui.player.captionsButtonItem
+import dev.jamesrich.sofaking.ui.player.playPauseButtonItem
+import dev.jamesrich.sofaking.ui.player.sleepButtonItem
+import dev.jamesrich.sofaking.ui.player.streamInfoButtonItem
+import dev.jamesrich.sofaking.ui.player.vodButtonItem
+import dev.jamesrich.sofaking.ui.player.zoomButtonItem
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
@@ -114,7 +144,84 @@ fun PlayerInfoPreview(tv: Boolean, modifier: Modifier = Modifier) = Frame(tv) {
     }
 }
 
-/** The Library tab: Continue watching, recent additions and the libraries. */
+/** The live player's info bar: the program on now above the button row. */
+@Composable
+fun LiveBarPreview(tv: Boolean, modifier: Modifier = Modifier) = Frame(tv) {
+    val entry = remember { FocusRequester() }
+    val sleep = remember { SleepTimer() }
+    val items = listOf(
+        PlayerButtonItem(Icons.AutoMirrored.Filled.List, "Channels", {}),
+        playPauseButtonItem(paused = false, failed = false, onPlayPause = {}, onRetry = {}),
+        captionsButtonItem(captionsOn = true, onClick = {}),
+        streamInfoButtonItem(hasAudioChoice = true, onClick = {}),
+        zoomButtonItem(VideoZoom.FIT, {}),
+        sleepButtonItem(sleep, {}),
+    )
+    Box(modifier.fillMaxSize()) {
+        InfoBar(visible = true) {
+            InfoOverlay(
+                lineup = Samples.lineup,
+                channel = Samples.channels[0],
+                now = Samples.now,
+                captionsOn = true,
+                captionAdvanceMs = 1_500,
+                scope = "News 1/4",
+            )
+            PlayerButtonRow(items, entry, onFocus = {}, showLabel = tv)
+        }
+    }
+}
+
+/** The library and recordings player's info bar: title, seek bar, times and the button row. */
+@Composable
+fun VodBarPreview(tv: Boolean, modifier: Modifier = Modifier) = Frame(tv) {
+    val scope = rememberCoroutineScope()
+    val parts = remember {
+        val vod = VodSession(
+            VodPlayerState(),
+            UnavailableLivePlayer(CaptionSync(), "PREVIEW"),
+            PlaybackSessions(),
+            "m0",
+            scope,
+        )
+        vod.state.positionMs = 1_800_000
+        vod.state.durationMs = 6_480_000
+        val toasts = VodToasts()
+        VodParts(vod, VodTrackPicks(null, null, vod, toasts), toasts, VodEnding(), PlayerFocus())
+    }
+    val sleep = remember { SleepTimer() }
+    val buttons = listOf(
+        VodButton.CAPTIONS,
+        VodButton.ZOOM,
+        VodButton.SLEEP,
+        VodButton.SPEED,
+        VodButton.START_OVER,
+        VodButton.NEXT,
+    ).map {
+        vodButtonItem(it, captionsOn = true, VideoZoom.FIT, null, false, sleep, speed = 1f, onClick = {})
+    }
+    val controls = remember {
+        object : VodControls {
+            override fun seek(targetMs: Long) = Unit
+            override fun playPause() = Unit
+            override fun retry() = Unit
+            override fun toggleCaptions() = Unit
+            override fun zoom() = Unit
+            override fun focusButtons() = Unit
+            override fun focusPicture() = Unit
+            override fun playNext() = Unit
+            override fun exit() = Unit
+        }
+    }
+    val input = remember { LastInput(if (tv) InputKind.KEYS else InputKind.POINTER) }
+    CompositionLocalProvider(LocalLastInput provides input) {
+        Box(modifier.fillMaxSize()) {
+            VodInfoBar(parts, VodTitle("The Long Night", "Harbor Patrol"), Wire.VodMode.DIRECT, true, buttons, controls)
+        }
+    }
+}
+
+/** The Library tab:Continue watching, recent additions and the libraries. */
 @Composable
 fun LibraryHomePreview(tv: Boolean) = Frame(tv) {
     LibraryHomeScreen(LibraryHomeState.Ready(Samples.home), LibraryHomeActions({}, {}, {}, {}))

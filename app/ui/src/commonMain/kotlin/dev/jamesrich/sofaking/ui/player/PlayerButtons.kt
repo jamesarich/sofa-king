@@ -25,7 +25,6 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.player_control_back
 import dev.jamesrich.sofaking.ui.InputKind
@@ -225,13 +224,13 @@ internal fun PlayerButtonRow(
 ) {
     // The focused button by place, so its label follows a press that changes it (Pause to Play, Zoom: Fit to Fill).
     var focusedIndex by remember { mutableStateOf<Int?>(null) }
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(BAR_LABEL_GAP)) {
         Row(
             Modifier.focusGroup().onFocusChanged {
                 onFocus(it.hasFocus)
                 if (!it.hasFocus) focusedIndex = null
             },
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             items.forEachIndexed { position, item ->

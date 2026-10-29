@@ -61,6 +61,7 @@ import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.music_favorite
 import dev.jamesrich.sofaking.resources.music_lyrics
 import dev.jamesrich.sofaking.resources.music_next
+import dev.jamesrich.sofaking.resources.music_next_look
 import dev.jamesrich.sofaking.resources.music_now_playing
 import dev.jamesrich.sofaking.resources.music_off
 import dev.jamesrich.sofaking.resources.music_on
@@ -104,10 +105,11 @@ internal fun NowPlayingScreen(
     val choice = lyrics?.let { LyricsChoice(it, showLyrics) { showLyrics = !showLyrics } }
     var showVisuals by rememberSaveable { mutableStateOf(false) }
     val tap = music.audioTap
-    val visuals = tap?.let { VisualsChoice(showVisuals) { showVisuals = !showVisuals } }
+    var skips by rememberSaveable { mutableIntStateOf(0) }
+    val visuals = tap?.let { VisualsChoice(showVisuals, { showVisuals = !showVisuals }, { skips++ }) }
     Box(Modifier.fillMaxSize()) {
         if (tap != null && showVisuals) {
-            MusicVisualizer(tap, song.id, Modifier.fillMaxSize())
+            MusicVisualizer(tap, song.id, skips, Modifier.fillMaxSize())
             // The controls stay legible over a bright picture.
             Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = VISUALS_SCRIM)))
         }
@@ -117,8 +119,11 @@ internal fun NowPlayingScreen(
     }
 }
 
-/** Whether the visualizer shows behind the page, and the button that [toggle]s it; where the engine can be tapped. */
-private class VisualsChoice(val shown: Boolean, val toggle: () -> Unit)
+/**
+ * Whether the visualizer shows behind the page, the button that [toggle]s it and the one that asks for the [next] look;
+ * where the engine can be tapped.
+ */
+private class VisualsChoice(val shown: Boolean, val toggle: () -> Unit, val next: () -> Unit)
 
 /** A song's [lyrics], [shown] in the cover's place or not, and the button that [toggle]s them. */
 private class LyricsChoice(val lyrics: Lyrics, val shown: Boolean, val toggle: () -> Unit)
@@ -311,6 +316,7 @@ private fun MoreToggles(music: MusicPlayback, lyrics: LyricsChoice?, visuals: Vi
             it.shown,
             it.toggle,
         )
+        if (it.shown) ControlIcon(SofaIcons.AutoAwesome, stringResource(Res.string.music_next_look), it.next)
     }
 }
 

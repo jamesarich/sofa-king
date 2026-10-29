@@ -436,6 +436,16 @@ internal object SofaIcons {
         pathIcon("Filled.GraphicEq", "M7 18h2V6H7v12zm4 4h2V2h-2v20zm-8-8h2v-4H3v4zm12 4h2V6h-2v12zm4-8v4h2v-4h-2z")
     }
 
+    /** A new look, on Now Playing: a large sparkle and two small ones. */
+    val AutoAwesome: ImageVector by lazy {
+        pathIcon(
+            "Filled.AutoAwesome",
+            "M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5" +
+                "L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25" +
+                "L19 15z",
+        )
+    }
+
     /** An icon from its SVG path data, as the icon set's sources give it. */
     private fun pathIcon(name: String, pathData: String): ImageVector =
         materialIcon(name) { addPath(addPathNodes(pathData), fill = SolidColor(Color.Black)) }

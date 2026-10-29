@@ -6,6 +6,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -21,20 +22,23 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 /**
- * A MilkDrop-style visualizer of what [tap] hears, filling its box. The next of the built-in presets takes over when
- * [song] changes and every [PRESET_MS] after that, the old picture melting into the new one.
+ * A MilkDrop-style visualizer of what [tap] hears, filling its box. The next look takes over when [song] changes, when
+ * [skips] counts up and every [PRESET_MS] after that, the old picture melting into the new one. The looks are the
+ * built-in presets, then the classic pack in a shuffled order once it has loaded.
  */
 @Composable
-internal fun MusicVisualizer(tap: AudioAnalyzer, song: String?, modifier: Modifier = Modifier) {
+internal fun MusicVisualizer(tap: AudioAnalyzer, song: String?, skips: Int, modifier: Modifier = Modifier) {
     DisposableEffect(tap) {
         tap.want(true)
         onDispose { tap.want(false) }
     }
+
     val bitmap = remember { PixelBitmap(WIDTH, HEIGHT) }
     val visualizer = remember { Visualizer(WIDTH, HEIGHT, Presets.all.first()) }
+    val looks by produceState(Presets.all) { value = Presets.all + ClassicPack.presets().shuffled() }
     var preset by remember { mutableIntStateOf(0) }
-    LaunchedEffect(song) { preset++ }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(song, skips) {
+        preset++
         while (true) {
             delay(PRESET_MS)
             preset++
@@ -50,7 +54,7 @@ internal fun MusicVisualizer(tap: AudioAnalyzer, song: String?, modifier: Modifi
             last = now
             if (preset != applied) {
                 applied = preset
-                visualizer.preset = Presets.all[applied % Presets.all.size]
+                visualizer.preset = looks[applied % looks.size]
             }
             val audio = tap.frame(dt)
             bitmap.set(withContext(Dispatchers.Default) { visualizer.render(audio, dt) })

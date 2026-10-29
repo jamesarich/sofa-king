@@ -137,4 +137,18 @@ class VisualizerTest {
         assertEquals(b.init, pack[1].init)
         assertEquals(a.values, pack[0].values)
     }
+
+    @Test
+    fun `a source that is read and not pushed is asked for its samples before each frame`() {
+        val analyzer = AudioAnalyzer(rate)
+        val asked = ArrayList<Double>()
+        analyzer.beforeFrame = { dt ->
+            asked += dt
+            analyzer.push(FloatArray(100) { 0.25f }, 100, 1)
+        }
+        val frame = analyzer.frame(0.04)
+        assertEquals(listOf(0.04), asked)
+        assertEquals(0.25f, frame.left.last())
+        assertEquals(0.25f, frame.right.last(), "a mono source fills both channels")
+    }
 }

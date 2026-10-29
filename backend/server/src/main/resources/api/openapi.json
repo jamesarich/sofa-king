@@ -397,6 +397,29 @@
           "updateAvailable": { "type": ["boolean", "null"], "description": "Whether a newer image is published; null until the update check has an answer." }
         }
       },
+      "CrashReport": { "type": "object", "properties": {
+        "id": { "type": "string", "description": "The app's id for the crash, so a report sent twice is stored once." },
+        "occurredAt": { "type": "string", "format": "date-time" },
+        "exception": { "type": "string", "description": "The exception class; required, non-empty." },
+        "message": { "type": "string", "description": "Scrubbed of addresses, tokens and quoted text; at most 300 characters." },
+        "frames": { "type": "array", "items": { "type": "string" }, "description": "The stack trace's frames, at most 60." },
+        "appVersion": { "type": "string" },
+        "platform": { "type": "string", "description": "android-tv, android or desktop" },
+        "osVersion": { "type": "string" },
+        "device": { "type": "string", "description": "The device model" } } },
+      "ClientCrash": { "type": "object", "required": ["id", "receivedAt"], "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": ["string", "null"], "description": "The paired device whose token sent it; null for the shared token." },
+        "clientName": { "type": "string", "description": "The paired device's name, else the reported device model." },
+        "receivedAt": { "type": "string", "format": "date-time" },
+        "occurredAt": { "type": "string" },
+        "exception": { "type": "string" },
+        "message": { "type": "string" },
+        "frames": { "type": "array", "items": { "type": "string" } },
+        "appVersion": { "type": "string" },
+        "platform": { "type": "string" },
+        "osVersion": { "type": "string" },
+        "device": { "type": "string" } } },
       "HistoryEntry": {
         "type": "object",
         "required": ["id", "kind", "mode", "reason", "startedAt", "endedAt"],
@@ -1149,6 +1172,16 @@
       "post": { "tags": ["Admin"], "summary": "Probe a source now", "description": "Puts the source at the front of the probe queue, so the next free worker probes it whether or not it is due; its health updates when the probe ends. 409 PROBES_OFF when probes do not run, 409 PROBE_RUNNING while a probe of it is in flight.", "security": [{ "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "202": { "description": "Queued", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProbeQueued" } } } }, "404": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/diagnostics/crashes": {
+      "post": { "tags": ["Viewers"], "summary": "Report a crash the app kept", "description": "An app sends the last crash it kept from the run before, if its viewer allows it. The server scrubs anything shaped like an address or a token again, stores the report with the device it came from, keeps the newest 100, and never forwards one. A report with an id the server holds is accepted and stored once. At most 64 KiB; 10 reports a minute per client address, then 429. A read token does not open it.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CrashReport" } } } },
+        "responses": { "204": { "description": "Stored" }, "400": { "$ref": "#/components/responses/Error" }, "413": { "$ref": "#/components/responses/Error" }, "429": { "description": "Too many reports from this address" } } }
+    },
+    "/api/v1/admin/diagnostics/crashes": {
+      "get": { "tags": ["Admin"], "summary": "The crashes the apps reported, newest first", "description": "What apps posted to /api/v1/diagnostics/crashes, scrubbed, with the device that sent each. The newest 100 are kept.", "security": [{ "adminToken": [] }, { "readToken": [] }],
+        "parameters": [ { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } } ],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ClientCrash" } } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/history": {
       "get": { "tags": ["Admin"], "summary": "Ended playback sessions, the newest end first", "description": "Live TV, library files and recordings, one row per session once it ends, kept for SOFA_HISTORY_DAYS days (90 by default).", "security": [{ "adminToken": [] }],

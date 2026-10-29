@@ -50,6 +50,8 @@ class ServerConnection(
     viewerSync: ViewerSync? = null,
     /** Keeps the favorites and hidden channels in step with the household's, while this device shares them. */
     private val householdSync: HouseholdSync? = null,
+    /** Sends the crashes the app kept to the server, while the setting allows; null sends none. */
+    crashReporter: CrashReporter? = null,
 ) {
     private val work = scope + logFailures
 
@@ -82,6 +84,7 @@ class ServerConnection(
             }
         }
         if (viewerSync != null) work.launch { viewerSync.run(api) }
+        if (crashReporter != null) work.launch { crashReporter.run(api) }
     }
 
     /**

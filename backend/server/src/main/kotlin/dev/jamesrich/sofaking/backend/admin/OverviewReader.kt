@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.health.HealthState
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.allHealth
+import dev.jamesrich.sofaking.backend.store.clientCrashes
 import dev.jamesrich.sofaking.backend.store.ignoredAttention
 import dev.jamesrich.sofaking.backend.store.library
 import io.ktor.server.routing.get
@@ -39,7 +40,7 @@ internal class OverviewReader(private val portal: Portal) {
         val unverified = stations?.count { it.disabledReason == "unverified" }
         val all = (
             sourceAttention(now) + deviceAttention(plex) + tunerAttention(applied?.result, requiredOff.orEmpty()) +
-                lineupAttention(applied?.result, guide) + encoderAttention(runtime.vod?.encoders)
+                lineupAttention(applied?.result, guide) + encoderAttention(runtime.vod?.encoders) + crashAttention(now)
             ).sortedBy { listOf(Tone.BAD, Tone.WARN, Tone.OK, Tone.OFF).indexOf(it.tone) }
         // An ignored item stays out while its text is what it was when ignored; a change brings it back.
         val ignored = runtime.store.ignoredAttention()
@@ -79,6 +80,23 @@ internal class OverviewReader(private val portal: Portal) {
         if (unverified == null || unverified == 0) return null
         val left = firstProbesLeft(policy.probeTargets(), runtime.store.allHealth())
         return if (left == 0) null else probes.rate.timeFor(left, portal.clock.instant())
+    }
+
+    /** Crashes the apps reported in the last day, the newest named; they stay on the System, Crashes page after. */
+    private suspend fun crashAttention(now: Instant): List<Attention> {
+        val recent = runtime.store.clientCrashes(CRASH_ATTENTION_LIMIT, now.minus(CRASH_WINDOW))
+        val newest = recent.firstOrNull() ?: return emptyList()
+        return listOf(
+            Attention(
+                Tone.WARN,
+                "${plural(recent.size, "app crash", "app crashes")} reported in the last day",
+                "${newest.exception} on ${newest.clientName.ifEmpty { newest.device }}, app ${newest.appVersion}",
+                "/admin/system/crashes",
+                "Crashes",
+                "client-crashes",
+                "admin.md#crashes",
+            ),
+        )
     }
 
     /** Imports that failed, or that the server still waits for. */
@@ -341,6 +359,10 @@ private const val REQUIRED_NAMED = 5
 
 /** How long the server waits for a first import before the home page mentions it. */
 private val IMPORT_GRACE = Duration.ofMinutes(10)
+
+/** How far back a reported crash still needs attention, and how many the home page counts. */
+private val CRASH_WINDOW = Duration.ofDays(1)
+private const val CRASH_ATTENTION_LIMIT = 100
 
 internal fun guideStatus(entry: LineupEntryRecord, coverage: Map<String, Map<String, Instant>>, now: Instant): String {
     val guide = entry.guide ?: return "unassigned"

@@ -11,7 +11,7 @@ The server also issues tokens of its own, each starting `sk_`, stored only as a 
 | Kind | Where it comes from | What it opens |
 | --- | --- | --- |
 | `api` | A device [pairing](#pair-a-client), one per `clientId`; forgetting the device revokes it | What `SOFA_API_TOKEN` opens, except `/api/v1/admin` and `/api/v1/hooks` |
-| `read` | The portal's Settings page or `POST /api/v1/admin/tokens`, for a dashboard or a calendar | The [dashboard summary](#dashboard-summary) `GET /api/v1/status`, the [recordings calendar](#player-outputs) `/output/recordings.ics` (also as `?token=`), `GET` of `/api/v1/admin/status`, `/sessions`, `/guides`, `/lineup`, `/policy/preview`, `/policy/findings`, `/policy/changes` and `/libraries`, with what lies under each, and the [MCP endpoint](#mcp)'s read tools |
+| `read` | The portal's Settings page or `POST /api/v1/admin/tokens`, for a dashboard or a calendar | The [dashboard summary](#dashboard-summary) `GET /api/v1/status`, the [recordings calendar](#player-outputs) `/output/recordings.ics` (also as `?token=`), `GET` of `/api/v1/admin/status`, `/sessions`, `/guides`, `/lineup`, `/policy/preview`, `/policy/findings`, `/policy/changes`, `/libraries` and `/diagnostics/crashes`, with what lies under each, and the [MCP endpoint](#mcp)'s read tools |
 | `hook` | The same, for Sonarr and Radarr | The [hooks](#hooks) only: `/api/v1/hooks` and the Emby-style routes |
 
 `SOFA_API_TOKEN` stays valid beside them, for scripts and devices set up by hand, and opens the hooks too.
@@ -28,6 +28,7 @@ These routes take no token: `/healthz`, `/readyz`, the [web app](deploy.md#serve
 | POST | `/api/v1/pair` | Exchange a pairing code for a token of the device's own, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429` |
 | GET | `/api/v1/preferences/{clientId}` | The preferences the client with that id last saved, see [viewer preferences](#viewer-preferences); `404 VIEWER_NOT_FOUND` before its first save |
 | PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt`. A token paired to a client writes only that client, `403 CLIENT_MISMATCH` otherwise; the shared API token and issued tokens without a client write any. A new client past 200 viewers answers `409 VIEWER_LIMIT` |
+| POST | `/api/v1/diagnostics/crashes` | A device reports the last crash it kept, see [crash reports](#crash-reports); `204`. 10 reports a minute per client address, then `429` |
 | GET | `/api/v1/household/preferences` | The household's shared favorites and hidden channels, see [viewer preferences](#viewer-preferences); an empty document with an empty `updatedAt` before the first save |
 | PUT | `/api/v1/household/preferences` | Replace the household's shared favorites and hidden channels; answers the stored document with the server's `updatedAt` |
 | GET | `/api/v1/channels` | Catalog revision and the enabled lineup entries as channels; supports ETag/If-None-Match |
@@ -187,6 +188,23 @@ Each list holds at most 1,000 distinct ids. The server sets `updatedAt` and answ
 
 The household keeps one more document under `/api/v1/household/preferences`, with `favorites` and `hidden` as above and the same limits, which every device that shares favorites keeps in step the same way. Each device still keeps its own document too, with its recent list. A server that offers it says `household` in the bootstrap's capabilities.
 
+## Crash reports
+
+An app that crashed sends the last crash it kept to its own server with `POST /api/v1/diagnostics/crashes`, behind a device's `api` token or `SOFA_API_TOKEN`; a `read` token cannot post. The app does it only while its Send crash reports setting is on. The body is a `CrashReport` of at most 64 KiB:
+
+| Field | Contents |
+| --- | --- |
+| `id` | The app's id for the crash; a report posted again with an id the server holds is stored once |
+| `occurredAt` | When it crashed, as an instant |
+| `exception` | The exception class; a report without one answers `400 INVALID_REQUEST` |
+| `message` | The exception's message, at most 300 characters |
+| `frames` | The stack trace's frames, at most 60 of 200 characters |
+| `appVersion`, `platform`, `osVersion`, `device` | The app's version, `android-tv`, `android` or `desktop`, the system's version and the device model |
+
+The server scrubs every field again on arrival: anything shaped like a URL, an e-mail or IP address, a bearer token or a long token, and any quoted text, becomes a placeholder. It answers `204`, stores the report with the paired device it came from (the token's `clientId` and the device's name, else the reported model) and keeps the newest 100. Nothing is forwarded: the reports are for this server's admin and its [MCP](#mcp) `client_crashes` tool only. A request over its limit answers `429` with no error body.
+
+`GET /api/v1/admin/diagnostics/crashes?limit=` (1 to 100, default 20) lists them newest first, each with `id`, `clientId` (null for the shared token), `clientName`, `receivedAt`, `occurredAt`, `exception`, `message`, `frames`, `appVersion`, `platform`, `osVersion` and `device`. A `read` token may call it. The [portal's Crashes page](admin.md#crashes) shows the same list, and the home page lists a crash received in the last day as needing attention.
+
 ## Media libraries
 
 `library` in the bootstrap capabilities says the server has the routes below. `music` says the server has Music libraries to list and plays their tracks. The routes leave out [Music](libraries.md#music) libraries and their items unless the request names `music` in a `Sofa-Library-Kinds` header (comma separated kinds), since an app that does not know music would play a track as a video. Items are what a [library scan](libraries.md) found, with what TMDB knows filled in; a `.nfo` beside a file wins over TMDB's text, and the library's own images over TMDB's. `kind` is `movie`, `show`, `season`, `episode` or `video`. A show's `children` counts its seasons (or its episodes when it has no season folders) and `unwatched` its unwatched episodes; an episode names its show in `showId` and `showTitle`. `videoHeight` and `hdr` come from FFprobe, for a 4K, HD or HDR badge.
@@ -290,6 +308,7 @@ The read tools answer as the matching route or portal page does:
 | `recordings` | `GET /api/v1/recordings` without image links or file paths, on a server with the DVR; `state` (`scheduled`, `recording`, `completed` or `failed`), `offset` and `limit` (1 to 200, default 50). Answers `total`, `recordings`, `nextOffset`, `truncated` and `storage` |
 | `recording_rules` | `GET /api/v1/recording-rules`, on a server with the DVR; `limit` (1 to 200, default 50) |
 | `libraries` | `GET /api/v1/admin/libraries`, on a server with libraries |
+| `client_crashes` | `GET /api/v1/admin/diagnostics/crashes`, the [crashes](#crash-reports) the apps reported, scrubbed; `limit` (1 to 100, default 10) |
 | `search_library` | `GET /api/v1/library/search` for `query`, music included |
 | `library_home` | `GET /api/v1/library/home`, music included, with each shelf cut to its first 20 items and its `total` and `truncated` |
 | `policy_findings` | `GET /api/v1/admin/policy/findings`, each list cut to `limit` (1 to 200, default 50) with its `total`; `POLICY_NOT_CONFIGURED` without a policy |
@@ -443,6 +462,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | POST | `/api/v1/admin/sources/{id}/probe` | Put the source at the front of the probe queue, as the channel page's Probe now does; `202` with `{"sourceId"}`, and its health updates when the probe ends. `404 SOURCE_NOT_FOUND`, `409 PROBES_OFF` when probes do not run, `409 PROBE_RUNNING` while a probe of it is in flight |
 | POST | `/api/v1/admin/sessions/{id}/switch-source` | Move a live session to its channel's next source, see [source selection](source-health.md#source-selection); answers the session, or `409 NO_OTHER_SOURCE` |
 | GET | `/api/v1/admin/history?since=&kind=&client=&limit=` | Ended playback sessions, the newest end first, described [below](#playback-history) |
+| GET | `/api/v1/admin/diagnostics/crashes?limit=` | The crashes the apps reported, newest first, described [below](#crash-reports) |
 | GET | `/api/v1/admin/events/stream?types=` | The server's events as server-sent events, described [below](#event-stream) |
 | GET, POST | `/api/v1/admin/notifications` | The notification targets; add one, described [below](#notifications) |
 | GET, PATCH, DELETE | `/api/v1/admin/notifications/{id}` | One target; change or remove it |

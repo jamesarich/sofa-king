@@ -41,6 +41,6 @@ Say no early rather than after an install:
 
 ## Privacy
 
-The server and the app send nothing about you to anyone. There is no telemetry, no analytics and no crash reporting. The app talks to your server and, for the update check, to GitHub's public releases API with no identifier ([app security](../app/docs/security.md)). The server's requests go to the sources, guides and logos you configure, to TMDB when you give it a token, and to the container registry for its update check ([outbound requests](../backend/docs/security.md#outbound-requests)).
+The server and the app send nothing about you to anyone. There is no telemetry, no analytics and no crash reporting service. When the Android or desktop app crashes, it keeps the error, the app and system versions and the device model, and at its next start sends them to your own server, never to anyone else; the Send crash reports to your server setting turns it off. The app talks to your server and, for the update check, to GitHub's public releases API with no identifier ([app security](../app/docs/security.md)). The server's requests go to the sources, guides and logos you configure, to TMDB when you give it a token, and to the container registry for its update check ([outbound requests](../backend/docs/security.md#outbound-requests)).
 
 Moving from Plex or Jellyfin? [Coming from Plex or Jellyfin](migrating.md) keeps your folders and your other server running while the household switches.

@@ -54,7 +54,10 @@ import dev.jamesrich.sofaking.resources.app_name
 import dev.jamesrich.sofaking.resources.licenses_title
 import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.resources.settings_channels_loaded
+import dev.jamesrich.sofaking.resources.settings_crash_reports
+import dev.jamesrich.sofaking.resources.settings_crash_reports_help
 import dev.jamesrich.sofaking.resources.settings_section_about
+import dev.jamesrich.sofaking.resources.settings_section_diagnostics
 import dev.jamesrich.sofaking.resources.settings_title
 import dev.jamesrich.sofaking.resources.settings_tmdb_notice
 import dev.jamesrich.sofaking.resources.settings_update_address
@@ -128,6 +131,7 @@ class SettingsActions(
     val onSkipChanged: (SkipKind, SkipMode) -> Unit = { _, _ -> },
     val onSeekStepsChanged: (SeekSteps) -> Unit = {},
     val onHideSpoilersChanged: (Boolean) -> Unit = {},
+    val onSendCrashReportsChanged: (Boolean) -> Unit = {},
     val onSubtitleLookChanged: (SubtitleLook) -> Unit = {},
     val onLiveBreaksChanged: (LiveBreaks) -> Unit = {},
     /** Loads the lineup and the library home again from the server. */
@@ -229,6 +233,8 @@ fun SettingsScreen(
                     if (unconfigured) serverSection()
                     pageRows(settings, offer, focus::page, actions.onOpenPage)
                     if (!unconfigured) serverSection()
+                    // Offered once there is a server, since that is where a crash report goes.
+                    if (!unconfigured) diagnosticsRows(settings, actions)
                     // About: the app, its version and what is loaded, then where the build stands against the
                     // published snapshot.
                     item { SectionHeader(stringResource(Res.string.settings_section_about)) }
@@ -238,6 +244,19 @@ fun SettingsScreen(
                 else -> pageContent(page, settings, actions, offer, channels, startup, subtitleLook, focus)
             }
         }
+    }
+}
+
+/** The crash reports row: what the app keeps after a crash goes to the server above and nowhere else. */
+private fun LazyListScope.diagnosticsRows(settings: AppSettings, actions: SettingsActions) {
+    item { SectionHeader(stringResource(Res.string.settings_section_diagnostics)) }
+    item {
+        SettingToggle(
+            label = stringResource(Res.string.settings_crash_reports),
+            help = stringResource(Res.string.settings_crash_reports_help),
+            stored = settings.sendCrashReports,
+            onChange = actions.onSendCrashReportsChanged,
+        )
     }
 }
 

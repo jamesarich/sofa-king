@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.AppStorage
+import dev.jamesrich.sofaking.data.CrashReporter
 import dev.jamesrich.sofaking.data.DataStoreSettingsStore
 import dev.jamesrich.sofaking.data.HouseholdSync
 import dev.jamesrich.sofaking.data.ServerConnection
@@ -57,6 +58,7 @@ internal class AppGraph(
             playbackProtocols = if (playsHlsOnly) listOf(Wire.Protocol.HLS) else emptyList(),
             viewerSync = ViewerSync(settings, storage.client),
             householdSync = HouseholdSync(settings),
+            crashReporter = CrashReporter(storage.crashes, settings),
         )
     }
 

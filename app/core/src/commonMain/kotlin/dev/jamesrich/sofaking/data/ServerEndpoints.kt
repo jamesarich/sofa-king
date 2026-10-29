@@ -37,6 +37,11 @@ internal suspend fun SofaKingApi.savePreferences(
     http.put("preferences/" + clientId.encodeURLPathPart()) { json(preferences) }.decode()
 }
 
+/** Reports a crash to the server, which stores it for its admin and keeps it to itself; the answer has no body. */
+internal suspend fun SofaKingApi.sendCrashReport(report: CrashReportDto) = call {
+    http.post("diagnostics/crashes") { json(report) }.checkSuccess()
+}
+
 /** The household's shared favorites and hidden channels; an empty `updatedAt` before any device saved them. */
 internal suspend fun SofaKingApi.householdPreferences(): HouseholdPreferencesDto = call {
     http.get("household/preferences").decode()

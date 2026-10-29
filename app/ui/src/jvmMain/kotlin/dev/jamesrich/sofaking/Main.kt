@@ -10,6 +10,8 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.ClientInfo
+import dev.jamesrich.sofaking.data.CrashContext
+import dev.jamesrich.sofaking.data.CrashRecorder
 import dev.jamesrich.sofaking.data.JmdnsServerDiscovery
 import dev.jamesrich.sofaking.data.inDirectory
 import dev.jamesrich.sofaking.resources.Res
@@ -24,10 +26,9 @@ import java.util.concurrent.TimeUnit
 
 /** Sofa King on Linux, macOS and Windows desktops; a keyboard's arrows, Enter and Escape stand in for the remote. */
 fun main() {
-    initSofaKing(
-        AppStorage.inDirectory(desktopDataDirectory().absolutePath, ClientInfo("desktop", hostName())),
-        JmdnsServerDiscovery(),
-    )
+    val storage = AppStorage.inDirectory(desktopDataDirectory().absolutePath, ClientInfo("desktop", hostName()))
+    keepCrashes(CrashRecorder(storage.crashes, desktopCrashContext()))
+    initSofaKing(storage, JmdnsServerDiscovery())
     application {
         val state = rememberWindowState(width = 1280.dp, height = 720.dp)
         val fullScreen = remember(state) { DesktopFullScreen(state) }
@@ -39,6 +40,26 @@ fun main() {
             // Below this the guide has no room for a row; the layout adapts to anything larger.
             LaunchedEffect(Unit) { window.minimumSize = Dimension(MIN_WIDTH, MIN_HEIGHT) }
             App(windowFullScreen = fullScreen)
+        }
+    }
+}
+
+/** The desktop's crash report context: the build, the system and its architecture, never the computer's name. */
+private fun desktopCrashContext() = CrashContext(
+    BuildInfo.VERSION,
+    "desktop",
+    System.getProperty("os.name").orEmpty() + " " + System.getProperty("os.version").orEmpty(),
+    System.getProperty("os.arch").orEmpty(),
+)
+
+/** Keeps the crash of an uncaught exception for the next start, then lets the JVM report it as it would. */
+private fun keepCrashes(recorder: CrashRecorder) {
+    val previous = Thread.getDefaultUncaughtExceptionHandler()
+    Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+        try {
+            recorder.record(error.javaClass.name, error.message, error.stackTraceToString())
+        } finally {
+            if (previous != null) previous.uncaughtException(thread, error) else error.printStackTrace()
         }
     }
 }

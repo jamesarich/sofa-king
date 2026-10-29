@@ -127,6 +127,10 @@ internal fun Application.installLimits() {
             rateLimiter(limit = PAIR_CLAIMS_PER_MINUTE, refillPeriod = 1.minutes)
             requestKey { call -> call.request.origin.remoteAddress }
         }
+        register(CRASH_REPORT_LIMIT) {
+            rateLimiter(limit = CRASH_REPORTS_PER_MINUTE, refillPeriod = 1.minutes)
+            requestKey { call -> call.request.origin.remoteAddress }
+        }
     }
     install(ContentNegotiation) {
         // First, so the MCP endpoint's messages are written as the SDK writes them and everything else as ours.
@@ -243,7 +247,7 @@ private suspend fun ApplicationCall.refused(
 
 /**
  * The reads a `read` token opens: the dashboard summary, and the admin API's status, sessions, guides, the lineup,
- * policy findings and libraries.
+ * policy findings, libraries and the crashes the apps reported.
  */
 private val READ_SCOPE_PATHS = listOf(
     STATUS_SUMMARY_PATH,
@@ -255,6 +259,7 @@ private val READ_SCOPE_PATHS = listOf(
     "/api/v1/admin/policy/findings",
     "/api/v1/admin/policy/changes",
     "/api/v1/admin/libraries",
+    "/api/v1/admin/diagnostics/crashes",
 )
 
 /** The inbound hooks under `/api`, which a `hook` token opens and nothing else does but the API token. */

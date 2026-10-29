@@ -10,6 +10,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.util.HexFormat
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -91,5 +92,5 @@ internal fun webhookBody(notification: Notification, identity: NotifyIdentity): 
 internal fun signature(secret: String, body: String): String {
     val mac = Mac.getInstance("HmacSHA256")
     mac.init(SecretKeySpec(secret.toByteArray(), "HmacSHA256"))
-    return "sha256=" + mac.doFinal(body.toByteArray()).joinToString("") { "%02x".format(it) }
+    return "sha256=" + HexFormat.of().formatHex(mac.doFinal(body.toByteArray()))
 }

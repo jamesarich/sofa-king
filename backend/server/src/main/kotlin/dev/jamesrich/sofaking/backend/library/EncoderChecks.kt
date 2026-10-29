@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.backend.io.waitForOrKill
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import kotlinx.coroutines.CoroutineName
@@ -224,8 +225,7 @@ private fun runFfmpeg(command: List<String>, timeoutSeconds: Long): Attempt {
                 lines.filter { it.isNotBlank() }.forEach { last.set(it.trim()) }
             }
         }
-        if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
-            process.destroyForcibly()
+        if (!process.waitForOrKill(timeoutSeconds, TimeUnit.SECONDS)) {
             return Attempt(false, elapsed(started), "timed out after $timeoutSeconds s")
         }
         reader.join(READER_WAIT_MS)

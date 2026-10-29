@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.backend.admin
 
-import dev.jamesrich.sofaking.backend.catalog.hash
+import dev.jamesrich.sofaking.backend.hash
 import kotlinx.html.BODY
 import kotlinx.html.ButtonType
 import kotlinx.html.FlowContent

@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.playback
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.io.clientAbort
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
+import dev.jamesrich.sofaking.backend.randomUrlToken
 import dev.jamesrich.sofaking.backend.sameSecret
 import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.backend.upstream.RELAY_CREDENTIAL_HEADER
@@ -31,8 +32,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
-import java.security.SecureRandom
-import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -67,9 +66,7 @@ class LoopbackRelay(
     /** Answers a request for a file of one of the server's own streams: the call, the stream, and the file's name. */
     @Volatile var local: (suspend (ApplicationCall, String, String) -> Unit)? = null
 
-    private val localKey: String = ByteArray(32).also(random::nextBytes).let {
-        Base64.getUrlEncoder().withoutPadding().encodeToString(it)
-    }
+    private val localKey: String = randomUrlToken(KEY_BYTES)
 
     /**
      * Where stream [id] of the server's own is fetched, starting the listener and admitting the route in the address
@@ -84,9 +81,7 @@ class LoopbackRelay(
     /** One FFmpeg run's source and the resources its playlists named, by opaque token. */
     internal class Lease(val stream: ResolvedStream, val stalls: StallWatch?) {
         val id: String = UUID.randomUUID().toString()
-        val credential: String = ByteArray(32).also(random::nextBytes).let {
-            Base64.getUrlEncoder().withoutPadding().encodeToString(it)
-        }
+        val credential: String = randomUrlToken(KEY_BYTES)
         private val resources = ResourceMap()
 
         @Synchronized fun root(protocol: String): String = resourceToken(
@@ -241,11 +236,10 @@ class LoopbackRelay(
         }
         leases.clear()
     }
-
-    private companion object {
-        val random = SecureRandom()
-    }
 }
+
+/** Random bytes in a lease credential and in the key of the `/local/` route. */
+private const val KEY_BYTES = 32
 
 /** The upstream's own error statuses, passed on as they are; anything else is a bad gateway. */
 private val UPSTREAM_ERRORS = 400..599

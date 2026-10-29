@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.LineupPolicy
 import dev.jamesrich.sofaking.backend.api.SourcePin
+import dev.jamesrich.sofaking.backend.hash
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.Path

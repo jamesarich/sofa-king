@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.upstream.RedirectProblem
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
 import dev.jamesrich.sofaking.backend.upstream.followRedirects
+import dev.jamesrich.sofaking.backend.upstream.isGzip
 import dev.jamesrich.sofaking.backend.upstream.sameOrigin
 import io.ktor.client.HttpClient
 import io.ktor.client.request.header
@@ -196,16 +197,15 @@ class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPol
         private val CREDENTIAL_HEADERS = setOf("authorization", "cookie", "proxy-authorization")
 
         /** The inflated size is bounded by [limit] too: a small gzip can expand far past the compressed cap. */
-        internal fun gunzipped(bytes: ByteArray, limit: Int = DEFAULT_LIMIT): ByteArray =
-            if (bytes.size >= 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()) {
-                val inflated = GZIPInputStream(ByteArrayInputStream(bytes)).use { it.readNBytes(limit + 1) }
-                if (inflated.size > limit) {
-                    throw ProviderFailure("Provider response exceeds ${limit / KIB} KiB once inflated")
-                }
-                inflated
-            } else {
-                bytes
+        internal fun gunzipped(bytes: ByteArray, limit: Int = DEFAULT_LIMIT): ByteArray = if (isGzip(bytes)) {
+            val inflated = GZIPInputStream(ByteArrayInputStream(bytes)).use { it.readNBytes(limit + 1) }
+            if (inflated.size > limit) {
+                throw ProviderFailure("Provider response exceeds ${limit / KIB} KiB once inflated")
             }
+            inflated
+        } else {
+            bytes
+        }
     }
 }
 

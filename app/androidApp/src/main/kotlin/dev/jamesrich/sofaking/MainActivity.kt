@@ -20,6 +20,8 @@ import androidx.core.view.WindowCompat
 import dev.jamesrich.sofaking.data.AppLink
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.ClientInfo
+import dev.jamesrich.sofaking.data.CrashContext
+import dev.jamesrich.sofaking.data.CrashRecorder
 import dev.jamesrich.sofaking.data.NsdServerDiscovery
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.WatchNext
@@ -50,11 +52,36 @@ class SofaKingApplication : Application() {
         val tv = isTelevision()
         val client = ClientInfo(platform = if (tv) "android-tv" else "android", deviceName = Build.MODEL)
         val storage = AppStorage.inDirectory(filesDir.absolutePath, client)
+        keepCrashes(CrashRecorder(storage.crashes, crashContext(client.platform)))
         initSofaKing(
             storage,
             NsdServerDiscovery(this),
             if (tv) WatchNextPublisher(this) { runBlocking { storage.serverUrl() } } else WatchNext.None,
         )
+    }
+
+    /** What a crash report says about this device: nothing personal, only the build, the system and the model. */
+    private fun crashContext(platform: String): CrashContext {
+        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION") // The flags overload starts at API 33.
+            packageManager.getPackageInfo(packageName, 0)
+        }
+        val system = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
+        return CrashContext(info.versionName.orEmpty(), platform, system, Build.MODEL)
+    }
+}
+
+/** Keeps the crash of an uncaught exception for the next start, then lets the system end the process as it would. */
+private fun keepCrashes(recorder: CrashRecorder) {
+    val previous = Thread.getDefaultUncaughtExceptionHandler()
+    Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+        try {
+            recorder.record(error.javaClass.name, error.message, error.stackTraceToString())
+        } finally {
+            previous?.uncaughtException(thread, error)
+        }
     }
 }
 

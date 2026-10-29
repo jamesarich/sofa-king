@@ -25,6 +25,7 @@ internal fun Server.readTools(context: McpContext) {
     policyTools(context)
     libraryTools(context)
     recordingTools(context)
+    diagnosticsTools(context)
 }
 
 private fun Server.libraryTools(context: McpContext) {

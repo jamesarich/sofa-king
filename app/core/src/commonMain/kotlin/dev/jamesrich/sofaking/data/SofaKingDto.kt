@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.contract.Catalog
 import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.contract.ChannelGuide
 import dev.jamesrich.sofaking.contract.ClientProfile
+import dev.jamesrich.sofaking.contract.CrashReport
 import dev.jamesrich.sofaking.contract.CreateRecordingRule
 import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.contract.GuideWindow
@@ -74,6 +75,7 @@ internal typealias PairingClaimDto = PairingClaim
 internal typealias PairingResultDto = PairingResult
 internal typealias ViewerPreferencesDto = ViewerPreferences
 internal typealias HouseholdPreferencesDto = HouseholdPreferences
+internal typealias CrashReportDto = CrashReport
 internal typealias LibraryDto = Library
 internal typealias LibraryItemDto = LibraryItem
 internal typealias LibraryPageDto = LibraryPage

@@ -38,6 +38,7 @@ import dev.jamesrich.sofaking.data.SettingsKeys.PREVIEW_SOUND
 import dev.jamesrich.sofaking.data.SettingsKeys.RECENT_CHANNELS
 import dev.jamesrich.sofaking.data.SettingsKeys.SEEK_BACK_SECONDS
 import dev.jamesrich.sofaking.data.SettingsKeys.SEEK_FORWARD_SECONDS
+import dev.jamesrich.sofaking.data.SettingsKeys.SEND_CRASH_REPORTS
 import dev.jamesrich.sofaking.data.SettingsKeys.SEPARATOR
 import dev.jamesrich.sofaking.data.SettingsKeys.SERVER_URL
 import dev.jamesrich.sofaking.data.SettingsKeys.SETTINGS_PIN
@@ -114,6 +115,7 @@ internal object SettingsKeys {
     val KIDS_MODE = booleanPreferencesKey("kids_mode")
     val SHARE_FAVORITES = booleanPreferencesKey("share_favorites")
     val HOUSEHOLD_SYNCED_AT = stringPreferencesKey("household_synced_at")
+    val SEND_CRASH_REPORTS = booleanPreferencesKey("send_crash_reports")
     const val SEPARATOR = '\t'
 }
 
@@ -161,6 +163,8 @@ internal fun readSettings(prefs: Preferences): AppSettings = AppSettings(
     kidsMode = prefs[KIDS_MODE] == true,
     shareFavorites = prefs[SHARE_FAVORITES] == true,
     householdSyncedAt = prefs[HOUSEHOLD_SYNCED_AT].orEmpty(),
+    // On until switched off, so a value missing reads as on.
+    sendCrashReports = prefs[SEND_CRASH_REPORTS] != false,
 )
 
 /** The skip modes; until one is set, the switch an older build kept stands in for it (on is automatic). */

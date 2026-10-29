@@ -246,6 +246,11 @@ class LineupViewModel(
         viewModelScope.save { store.setShareFavorites(on) }
     }
 
+    /** Sends the crash the app kept to the server at the next start, or stops and forgets any kept. */
+    fun setSendCrashReports(on: Boolean) {
+        viewModelScope.save { store.setSendCrashReports(on) }
+    }
+
     /** Turns kids mode on, once a PIN is set, or off. */
     fun setKidsMode(on: Boolean) {
         viewModelScope.save { store.setKidsMode(on) }

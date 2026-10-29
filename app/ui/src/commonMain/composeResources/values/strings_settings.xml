@@ -131,6 +131,9 @@
     <string name="lock_forgot_no_token">This server runs without an API token, so the only way to remove the PIN is to clear the app's data on this device.</string>
     <string name="lock_forgot_wrong">That's not the server's API token.</string>
     <string name="lock_remove">Remove the PIN</string>
+    <string name="settings_section_diagnostics">Diagnostics</string>
+    <string name="settings_crash_reports">Send crash reports to your server</string>
+    <string name="settings_crash_reports_help">After a crash, the app sends what went wrong to your Sofa King server when it next starts: the error, the app version and this device's model. Never your server address, password, channels or titles, and never anywhere else. Off keeps nothing.</string>
     <string name="settings_section_about">About</string>
     <string name="settings_page_live_tv">Live TV</string>
     <string name="settings_page_live_tv_summary">Startup, guide preview, ads and channels</string>

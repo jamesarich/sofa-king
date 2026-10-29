@@ -88,6 +88,11 @@ data class AppSettings(
     val shareFavorites: Boolean = false,
     /** The `updatedAt` of the household's shared copy this device last pushed or took over; empty before any. */
     val householdSyncedAt: String = "",
+    /**
+     * Whether a crash the app kept is sent to the configured server at the next start. The report goes to that server
+     * only, never to anyone else, and holds no address, token, channel or title.
+     */
+    val sendCrashReports: Boolean = true,
 ) {
     /** True while Settings asks for a PIN before it opens. */
     val settingsLocked: Boolean get() = settingsPin.isNotEmpty()
@@ -111,7 +116,7 @@ data class AppSettings(
             "favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
             "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, " +
             "trackChoices=${trackChoices.size}, kidsMode=$kidsMode, shareFavorites=$shareFavorites, " +
-            "householdSyncedAt=$householdSyncedAt)"
+            "householdSyncedAt=$householdSyncedAt, sendCrashReports=$sendCrashReports)"
 
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
@@ -356,6 +361,9 @@ interface DeviceSettings {
 
     /** Turns [AppSettings.shareFavorites] on or off. */
     suspend fun setShareFavorites(on: Boolean)
+
+    /** Turns [AppSettings.sendCrashReports] on or off. */
+    suspend fun setSendCrashReports(on: Boolean)
 
     /**
      * Takes over the household's shared copy: [hidden] replaces the hidden set and [favorites] the starred set and

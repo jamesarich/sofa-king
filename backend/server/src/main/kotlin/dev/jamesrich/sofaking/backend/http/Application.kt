@@ -82,6 +82,7 @@ fun Application.backendModule(
             adminRoutes(runtime, clock, revision, hdhr.enabled)
             statusSummaryRoutes(runtime, clock, revision)
             historyRoutes(runtime, clock)
+            diagnosticsRoutes(runtime, clock)
             viewerRoutes(runtime, clock, apiToken)
             runtime.dvr?.let { recordingRoutes(it) }
             watchlistRoutes(runtime.watchlist)

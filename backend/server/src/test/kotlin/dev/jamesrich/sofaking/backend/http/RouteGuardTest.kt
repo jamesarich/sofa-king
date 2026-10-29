@@ -186,6 +186,7 @@ class RouteGuardTest {
         "/api/v1/admin/policy/findings",
         "/api/v1/admin/policy/changes",
         "/api/v1/admin/libraries",
+        "/api/v1/admin/diagnostics/crashes",
     )
 
     private suspend fun ApplicationTestBuilder.call(endpoint: Endpoint, token: String? = null): HttpResponse =

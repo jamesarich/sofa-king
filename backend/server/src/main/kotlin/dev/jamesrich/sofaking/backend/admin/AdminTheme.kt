@@ -122,6 +122,7 @@ internal val NAV: List<Section> = listOf(
             "/admin/system/jobs",
             "/admin/system/backup",
             "/admin/system/events",
+            "/admin/system/crashes",
             "/admin/api",
         ),
     ),
@@ -160,6 +161,7 @@ internal val SYSTEM_TABS =
         Tab("/admin/system/jobs", "Jobs", "jobs"),
         Tab("/admin/system/backup", "Backup"),
         Tab("/admin/system/events", "Events"),
+        Tab("/admin/system/crashes", "Crashes"),
         Tab("/admin/api", "API"),
     )
 

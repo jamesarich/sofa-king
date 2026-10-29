@@ -4,8 +4,8 @@ import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
-import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.catalog.stableId
+import dev.jamesrich.sofaking.backend.hash
 import dev.jamesrich.sofaking.backend.store.IdentityStore
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode

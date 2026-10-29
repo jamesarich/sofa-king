@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.backend.MIB
-import dev.jamesrich.sofaking.backend.catalog.hash
+import dev.jamesrich.sofaking.backend.hash
 import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.logos.LogoCache

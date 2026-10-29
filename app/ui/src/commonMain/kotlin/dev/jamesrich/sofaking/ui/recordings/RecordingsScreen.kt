@@ -52,7 +52,7 @@ import org.jetbrains.compose.resources.stringResource
 /**
  * The server's recordings in three groups: running now, recorded, and scheduled. A recorded or running one plays
  * with [onPlay] (resuming where the household stopped unless `fromStart`); [onDelete] stops, cancels or deletes one
- * after a second press confirms it. The series rules follow the
+ * after a second press confirms it; [onProtect] has cleanup keep a finished one or not. The series rules follow the
  * recordings: [onRuleChange] sets whether one takes repeats and how many it keeps, and [onRuleDelete] stops one.
  */
 @Composable
@@ -64,6 +64,7 @@ fun RecordingsScreen(
     onBack: () -> Unit,
     onRuleChange: suspend (rule: SeriesRule, newOnly: Boolean, keep: Int) -> Boolean = { _, _, _ -> false },
     onRuleDelete: suspend (SeriesRule) -> Boolean = { false },
+    onProtect: suspend (recording: DvrRecording, protect: Boolean) -> Boolean = { _, _ -> false },
     /** The recording just played, which takes focus again on the way back. */
     returnedFrom: String? = null,
     /** Whether the header above has focus; the list scrolls back to the top under it. */
@@ -92,6 +93,7 @@ fun RecordingsScreen(
             onDelete,
             onRuleChange,
             onRuleDelete,
+            onProtect,
             returnedFrom,
             headerFocused,
         )
@@ -105,6 +107,7 @@ private fun RecordingList(
     onDelete: suspend (DvrRecording) -> Boolean,
     onRuleChange: suspend (SeriesRule, Boolean, Int) -> Boolean,
     onRuleDelete: suspend (SeriesRule) -> Boolean,
+    onProtect: suspend (DvrRecording, Boolean) -> Boolean,
     returnedFrom: String?,
     headerFocused: Boolean,
 ) {
@@ -150,7 +153,7 @@ private fun RecordingList(
                 }
             }
         }
-        recordingGroups(groups, returnedFrom, time, onPlay, onDelete, firstFocus)
+        recordingGroups(groups, returnedFrom, time, onPlay, onDelete, onProtect, firstFocus)
         seriesRules(state.rules, onRuleChange, onRuleDelete)
     }
 }
@@ -162,6 +165,7 @@ private fun LazyListScope.recordingGroups(
     time: TimeFormatter,
     onPlay: (DvrRecording, Boolean) -> Unit,
     onDelete: suspend (DvrRecording) -> Boolean,
+    onProtect: suspend (DvrRecording, Boolean) -> Boolean,
     firstFocus: FocusRequester,
 ) {
     val firstId = returnedFrom?.takeIf { id -> groups.any { (_, recordings) -> recordings.any { it.id == id } } }
@@ -180,6 +184,7 @@ private fun LazyListScope.recordingGroups(
                 time,
                 onPlay,
                 onDelete,
+                onProtect,
                 firstButtonModifier = if (recording.id == firstId) Modifier.focusRequester(firstFocus) else Modifier,
             )
         }

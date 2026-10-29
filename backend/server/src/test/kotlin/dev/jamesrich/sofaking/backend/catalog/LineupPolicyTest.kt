@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.api.PolicyNames
 import dev.jamesrich.sofaking.backend.api.PolicyProvider
 import dev.jamesrich.sofaking.backend.api.SourcePin
 import dev.jamesrich.sofaking.backend.api.StationOverride
+import dev.jamesrich.sofaking.backend.hash
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals

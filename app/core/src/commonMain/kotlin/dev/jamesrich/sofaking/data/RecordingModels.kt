@@ -90,6 +90,8 @@ data class DvrRecording(
     val positionMs: Long,
     val watched: Boolean,
     val breaks: List<CommercialBreak>,
+    /** A scheduled recording that loses its slot to others: it will not record unless one frees up. */
+    val conflict: Boolean = false,
 ) {
     /** True once something is written: a running recording plays as it grows. */
     val playable: Boolean get() = state == RecordingState.RECORDING || state == RecordingState.COMPLETED
@@ -157,5 +159,6 @@ internal fun RecordingDto.toModel(): DvrRecording? {
         breaks = breaks.filter {
             it.endMs > it.startMs
         }.sortedBy { it.startMs }.map { CommercialBreak(it.startMs, it.endMs) },
+        conflict = conflict,
     )
 }

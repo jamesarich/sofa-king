@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.KIB
+import dev.jamesrich.sofaking.backend.upstream.isGzip
 import dev.jamesrich.sofaking.contract.Channel
 import java.io.ByteArrayInputStream
 import java.io.FilterInputStream
@@ -186,7 +187,7 @@ object FeedParser {
             read += count
         }
         if (read > 0) stream.unread(head, 0, read)
-        return if (read == 2 && head[0] == 0x1f.toByte() && head[1] == 0x8b.toByte()) {
+        return if (read == 2 && isGzip(head)) {
             GZIPInputStream(stream, GZIP_BUFFER)
         } else {
             stream

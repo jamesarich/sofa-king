@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.api.ProviderStatus
 import dev.jamesrich.sofaking.backend.api.SourceStatus
 import dev.jamesrich.sofaking.backend.api.UpdateSource
+import dev.jamesrich.sofaking.backend.hash
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.providers.NativeServices
@@ -30,21 +31,17 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.readBuffer
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.selects.onTimeout
-import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.io.readByteArray
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
-import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
-import java.util.HexFormat
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.channels.Channel as Trigger
@@ -311,16 +308,12 @@ class FeedService(
         triggers[providerId]?.trySend(Unit)
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class) // select { onTimeout }
     fun start(scope: CoroutineScope): List<Job> = configs.map { config ->
         scope.launch(CoroutineName("feed-refresh:${config.id}")) {
             val trigger = triggers.getValue(config.id)
             while (isActive) {
                 refresh(config)
-                select<Unit> {
-                    trigger.onReceive {}
-                    onTimeout(config.refreshInterval * MS_PER_SECOND) {}
-                }
+                withTimeoutOrNull(config.refreshInterval * MS_PER_SECOND) { trigger.receive() }
             }
         }
     }
@@ -364,9 +357,3 @@ private const val PLAYLIST_LIMIT = 16 * MIB
 /** This list with the status of provider [id] replaced by what [update] makes of it. */
 private fun List<ProviderStatus>.replacing(id: String, update: (ProviderStatus) -> ProviderStatus) =
     map { if (it.id == id) update(it) else it }
-
-/** The SHA-256 of [value]'s UTF-8 bytes, hex. */
-fun hash(value: String): String = hash(value.toByteArray())
-
-/** The SHA-256 of [bytes], hex. */
-fun hash(bytes: ByteArray): String = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes))

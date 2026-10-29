@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.SavedSecret
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.library.LIBRARY_SCAN_JOB
 import dev.jamesrich.sofaking.backend.library.LibraryKind
@@ -25,9 +26,9 @@ internal class LibraryPages(private val portal: Portal) {
     fun install(route: Route) = with(portal) {
         route.get("/library") { call.html(libraryPage(chrome(), libraryView())) }
         route.action("/library") { session, form -> add(call, session, form) }
-        route.action("/library/tmdb") { session, form -> tmdb(call, session, form) }
-        route.action("/library/fanart") { session, form -> fanart(call, session, form) }
-        route.action("/library/listenbrainz") { session, form -> listenBrainz(call, session, form) }
+        for (secret in SavedSecret.entries) {
+            route.action("/library/${secret.anchor}") { session, form -> saveSecret(call, session, form, secret) }
+        }
         route.action("/library/{id}/scan") { session, _ ->
             val id = call.parameters["id"]!!
             val library = runtime.store.library(id)
@@ -83,54 +84,26 @@ internal class LibraryPages(private val portal: Portal) {
         }
     }
 
-    private suspend fun tmdb(call: ApplicationCall, session: AdminSession, form: Parameters) {
-        val setup = runtime.setup ?: return seeOther(call, "/admin/library#tmdb")
+    private suspend fun saveSecret(
+        call: ApplicationCall,
+        session: AdminSession,
+        form: Parameters,
+        secret: SavedSecret,
+    ) {
+        val setup = runtime.setup ?: return seeOther(call, "/admin/library#${secret.anchor}")
         try {
-            setup.saveTmdbToken(form["token"].orEmpty())
+            setup.save(secret, form[secret.noun].orEmpty())
             call.html(
                 restartingPage(
                     portal.theme(call),
-                    "Saved the TMDB token to ${setup.secretsPath}. The libraries scan again once the server " +
-                        "is back and fill in details and artwork.",
-                ),
-            )
-        } catch (e: ApiFailure) {
-            call.html(libraryPage(portal.chrome(call, session), libraryView(tmdbError = e.message)), e.status)
-        }
-    }
-
-    private suspend fun listenBrainz(call: ApplicationCall, session: AdminSession, form: Parameters) {
-        val setup = runtime.setup ?: return seeOther(call, "/admin/library#listenbrainz")
-        try {
-            setup.saveListenBrainzToken(form["token"].orEmpty())
-            call.html(
-                restartingPage(
-                    portal.theme(call),
-                    "Saved the ListenBrainz token to ${setup.secretsPath}. Music libraries scan again once the " +
-                        "server is back and fill in artists' most played songs.",
+                    "Saved the ${secret.service} ${secret.noun} to ${setup.secretsPath}. ${secret.effect}",
                 ),
             )
         } catch (e: ApiFailure) {
             call.html(
-                libraryPage(portal.chrome(call, session), libraryView(listenBrainzError = e.message)),
+                libraryPage(portal.chrome(call, session), libraryView(secretError = secret to e.message)),
                 e.status,
             )
-        }
-    }
-
-    private suspend fun fanart(call: ApplicationCall, session: AdminSession, form: Parameters) {
-        val setup = runtime.setup ?: return seeOther(call, "/admin/library#fanart")
-        try {
-            setup.saveFanartKey(form["key"].orEmpty())
-            call.html(
-                restartingPage(
-                    portal.theme(call),
-                    "Saved the fanart.tv key to ${setup.secretsPath}. Music libraries scan again once the server " +
-                        "is back and fill in artists' pictures and backdrops.",
-                ),
-            )
-        } catch (e: ApiFailure) {
-            call.html(libraryPage(portal.chrome(call, session), libraryView(fanartError = e.message)), e.status)
         }
     }
 
@@ -161,9 +134,7 @@ internal class LibraryPages(private val portal: Portal) {
     private suspend fun libraryView(
         errors: List<String> = emptyList(),
         proposed: Map<String, String>? = null,
-        tmdbError: String? = null,
-        fanartError: String? = null,
-        listenBrainzError: String? = null,
+        secretError: Pair<SavedSecret, String>? = null,
     ): LibraryView {
         val service = libraries()
         return LibraryView(
@@ -172,12 +143,10 @@ internal class LibraryPages(private val portal: Portal) {
             service.folders.choices().map { it.toString() },
             runtime.jobs.snapshot().any { it.id == LIBRARY_SCAN_JOB && it.running }, errors, proposed,
             service.metadata?.enabled == true,
-            tmdbSettable = runtime.setup?.tmdbFromEnvironment == false, tmdbError = tmdbError,
             fanart = portal.config?.fanartKey != null,
-            fanartSettable = runtime.setup?.fanartFromEnvironment == false, fanartError = fanartError,
             listenBrainz = portal.config?.listenBrainzToken != null,
-            listenBrainzSettable = runtime.setup?.listenBrainzFromEnvironment == false,
-            listenBrainzError = listenBrainzError,
+            settable = SavedSecret.entries.filterTo(mutableSetOf()) { runtime.setup?.fromEnvironment(it) == false },
+            secretError = secretError,
             suggestions = service.folders.suggestions(),
         )
     }

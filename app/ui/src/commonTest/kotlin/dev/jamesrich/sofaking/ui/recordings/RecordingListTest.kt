@@ -6,6 +6,8 @@ import dev.jamesrich.sofaking.ui.TimeFormatter
 import kotlinx.datetime.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 class RecordingListTest {
@@ -39,5 +41,19 @@ class RecordingListTest {
             "News 4 · Sun Oct 18, 6:00 PM",
             recordingSubtitle(recording("r", RecordingState.COMPLETED, "2026-10-18T18:00:00Z"), time),
         )
+    }
+
+    @Test
+    fun `only a scheduled recording in conflict will not record`() {
+        assertTrue(recording("a", RecordingState.SCHEDULED, "2026-10-18T18:00:00Z").copy(conflict = true).wontRecord)
+        assertFalse(recording("b", RecordingState.SCHEDULED, "2026-10-18T18:00:00Z").wontRecord)
+        assertFalse(recording("c", RecordingState.COMPLETED, "2026-10-18T18:00:00Z").copy(conflict = true).wontRecord)
+    }
+
+    @Test
+    fun `only a finished recording can be protected`() {
+        assertTrue(recording("a", RecordingState.COMPLETED, "2026-10-18T18:00:00Z").canProtect)
+        assertFalse(recording("b", RecordingState.SCHEDULED, "2026-10-18T18:00:00Z").canProtect)
+        assertFalse(recording("c", RecordingState.RECORDING, "2026-10-18T18:00:00Z").canProtect)
     }
 }

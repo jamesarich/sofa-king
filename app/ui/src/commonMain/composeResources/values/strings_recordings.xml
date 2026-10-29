@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="recordings_title">Recordings</string>
     <string name="nav_dvr">DVR</string>
     <string name="recordings_loading">Sofa King close, loading recordings…</string>
     <string name="recordings_now">Recording now</string>
@@ -23,6 +22,10 @@
     <string name="recordings_ended_early_source">Ended early: lost the channel's source</string>
     <string name="recordings_ended_early_channel_gone">Ended early: the channel left the lineup</string>
     <string name="recordings_watched">Watched</string>
+    <string name="recordings_protected">Protected</string>
+    <string name="recordings_protect">Protect</string>
+    <string name="recordings_unprotect">Unprotect</string>
+    <string name="recordings_conflict">Won't record: no free slot then</string>
     <string name="recordings_play">Play</string>
     <string name="recordings_resume">Resume</string>
     <string name="recordings_from_start">From start</string>

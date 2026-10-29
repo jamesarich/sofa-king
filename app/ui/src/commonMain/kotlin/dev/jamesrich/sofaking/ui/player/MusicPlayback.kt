@@ -155,7 +155,7 @@ internal class MusicPlayback(
     /** Pauses or plays; a song [hold] opens again where it was. */
     fun togglePause() {
         when {
-            song == null -> Unit
+            song == null || (opening && !loaded) -> Unit
             !loaded || player.status.value.state == PlaybackState.IDLE -> openSong(heldAtMs)
             player.playWhenReady -> player.pause()
             else -> player.play()
@@ -179,8 +179,9 @@ internal class MusicPlayback(
 
     /** Stops the music for now: the player stops and the session goes free, and Play picks the song up again. */
     fun hold() {
-        if (!loaded) return
-        heldAtMs = positionMs
+        if (!loaded && !opening) return
+        // While a song opens, heldAtMs is already where it opens from.
+        if (loaded) heldAtMs = positionMs
         open?.cancel()
         player.stop()
         song?.let { sessions.release(it.id) }
@@ -193,7 +194,7 @@ internal class MusicPlayback(
      */
     fun stop(release: Boolean = true) {
         open?.cancel()
-        if (release && loaded) player.stop()
+        if (release && (loaded || opening)) player.stop()
         if (release) song?.let { sessions.release(it.id) }
         stream = null
         queue = null
@@ -258,6 +259,8 @@ internal class MusicPlayback(
         open?.cancel()
         failure = null
         heldAtMs = startMs
+        // The last song's stream would lend this one its place and length until the new one opens.
+        if (stream?.itemId != song.id) stream = null
         if (startMs == 0L) plays.reset()
         // Set before the launch, so the session this open releases does not read as another taking the player.
         opening = true

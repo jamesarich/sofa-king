@@ -38,6 +38,11 @@ final class ServerBrowser {
     private func update(_ results: Set<NWBrowser.Result>) {
         let names = Set(results.compactMap { Self.name(of: $0.endpoint) })
         servers.removeAll { !names.contains($0.name) }
+        for (name, connection) in resolving where !names.contains(name) {
+            connection.stateUpdateHandler = nil
+            connection.cancel()
+            resolving[name] = nil
+        }
         for result in results {
             guard let name = Self.name(of: result.endpoint), resolving[name] == nil,
                   !servers.contains(where: { $0.name == name }) else { continue }

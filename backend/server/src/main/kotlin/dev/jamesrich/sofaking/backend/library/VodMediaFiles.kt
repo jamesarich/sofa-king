@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.backend.sameSecret
 import dev.jamesrich.sofaking.contract.Wire
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -7,7 +8,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.nio.file.Files
 import java.nio.file.Path
-import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
 
@@ -114,7 +114,5 @@ class VodMediaFiles internal constructor(
         }
 
         fun firstSegment(state: VodState) = if (fragmentedMp4(state.mode, state.media)) "seg0.m4s" else "seg0.ts"
-
-        fun sameSecret(a: String, b: String) = MessageDigest.isEqual(a.toByteArray(), b.toByteArray())
     }
 }

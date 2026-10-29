@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.setup
 
+import dev.jamesrich.sofaking.backend.SavedSecret
 import dev.jamesrich.sofaking.backend.SecretOrigin
 import dev.jamesrich.sofaking.backend.SecretsFile
 import dev.jamesrich.sofaking.backend.ServerConfig
@@ -18,10 +19,8 @@ import dev.jamesrich.sofaking.backend.catalog.sourceBytes
 import dev.jamesrich.sofaking.backend.catalog.validatePolicy
 import dev.jamesrich.sofaking.backend.catalog.validateSources
 import dev.jamesrich.sofaking.backend.io.atomicWrite
-import dev.jamesrich.sofaking.backend.library.FanartFailure
-import dev.jamesrich.sofaking.backend.library.ListenBrainzFailure
+import dev.jamesrich.sofaking.backend.library.ServiceFailure
 import dev.jamesrich.sofaking.backend.library.TmdbConfig
-import dev.jamesrich.sofaking.backend.library.TmdbFailure
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -54,13 +53,13 @@ class SetupService(
     private val restart: () -> Unit = ::exitForRestart,
     private val environment: Map<String, String> = System.getenv(),
     /**
-     * Asks TMDB whether it takes a token, failing with [TmdbFailure]; the runtime passes a
+     * Asks TMDB whether it takes a token, failing with [ServiceFailure]; the runtime passes a
      * [dev.jamesrich.sofaking.backend.library.TmdbClient] check.
      */
     private val checkTmdb: suspend (TmdbConfig) -> Unit = {},
-    /** Asks fanart.tv whether it takes a key, failing with [FanartFailure]; the runtime passes a client's check. */
+    /** Asks fanart.tv whether it takes a key, failing with [ServiceFailure]; the runtime passes a client's check. */
     private val checkFanart: suspend (String) -> Unit = {},
-    /** Asks ListenBrainz whether it takes a user token, failing with [ListenBrainzFailure]. */
+    /** Asks ListenBrainz whether it takes a user token, failing with [ServiceFailure]. */
     private val checkListenBrainz: suspend (String) -> Unit = {},
 ) {
     private val log = LoggerFactory.getLogger(SetupService::class.java)
@@ -79,23 +78,14 @@ class SetupService(
     /** Whether a starter policy may be written: the server runs no policy and there is no policy file yet. */
     val canWriteStarterPolicy: Boolean get() = !hasPolicy && !Files.exists(policyPath)
 
-    /** Where the portal saves the TMDB token: `secrets.json` in the data directory. */
+    /** Where the portal saves the secrets: `secrets.json` in the data directory. */
     val secretsPath: Path = config.dataDirectory.resolve(SecretsFile.NAME)
 
-    /** Whether the environment sets the TMDB token, which then cannot be saved from here. */
-    val tmdbFromEnvironment: Boolean = config.secretOrigins["SOFA_TMDB_TOKEN"].let {
-        it == SecretOrigin.ENVIRONMENT || it == SecretOrigin.FILE
-    }
+    private val secretOrigins = config.secretOrigins
 
-    /** Whether the environment sets the fanart.tv key, which then cannot be saved from here. */
-    val fanartFromEnvironment: Boolean = config.secretOrigins["SOFA_FANART_KEY"].let {
-        it == SecretOrigin.ENVIRONMENT || it == SecretOrigin.FILE
-    }
-
-    /** Whether the environment sets the ListenBrainz token, which then cannot be saved from here. */
-    val listenBrainzFromEnvironment: Boolean = config.secretOrigins["SOFA_LISTENBRAINZ_TOKEN"].let {
-        it == SecretOrigin.ENVIRONMENT || it == SecretOrigin.FILE
-    }
+    /** Whether the environment sets [secret], which then cannot be saved from here. */
+    fun fromEnvironment(secret: SavedSecret): Boolean =
+        secretOrigins[secret.variable].let { it == SecretOrigin.ENVIRONMENT || it == SecretOrigin.FILE }
 
     private val tmdbLanguage = config.tmdb?.language ?: "en-US"
 
@@ -178,137 +168,51 @@ class SetupService(
     }
 
     /**
-     * Checks [token] with TMDB, stores it in [secretsPath] and restarts, so the libraries read details and artwork from
-     * TMDB. Fails with 400 INVALID_REQUEST when it cannot be a token, 400 TMDB_REJECTED when TMDB refuses it, 502
-     * TMDB_UNREACHABLE when TMDB cannot be asked and 409 TMDB_FROM_ENVIRONMENT when the environment sets it; nothing is
-     * written then. The token never reaches a log or an error message.
+     * Checks [value] with [secret]'s service, stores it in [secretsPath] and restarts, so the libraries use it. Fails
+     * with 400 INVALID_REQUEST when it cannot be a secret, 400 `X_REJECTED` when the service refuses it, 502
+     * `X_UNREACHABLE` when the service cannot be asked and 409 `X_FROM_ENVIRONMENT` when the environment sets it, `X`
+     * being the secret's prefix; nothing is written then. The value never reaches a log or an error message.
      */
-    suspend fun saveTmdbToken(token: String): SetupResult = mutex.withLock {
-        if (tmdbFromEnvironment) {
+    suspend fun save(secret: SavedSecret, value: String): SetupResult = mutex.withLock {
+        if (fromEnvironment(secret)) {
             throw ApiFailure(
                 HttpStatusCode.Conflict,
-                "TMDB_FROM_ENVIRONMENT",
-                "SOFA_TMDB_TOKEN is set in the environment; change it there",
+                "${secret.prefix}_FROM_ENVIRONMENT",
+                "${secret.variable} is set in the environment; change it there",
             )
         }
-        val trimmed = token.trim()
+        val trimmed = value.trim()
         if (trimmed.length < ServerConfig.TOKEN_MIN_LENGTH || trimmed.any { it <= ' ' || it == '\u007f' }) {
-            throw ApiFailure(
-                HttpStatusCode.BadRequest,
-                "INVALID_REQUEST",
-                "A TMDB API read access token or API key has at least 32 characters and no spaces",
-            )
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", secret.invalid)
         }
         try {
-            checkTmdb(TmdbConfig(trimmed, tmdbLanguage))
-        } catch (e: TmdbFailure) {
-            if (e.code == "TMDB_AUTH") {
-                throw ApiFailure(HttpStatusCode.BadRequest, "TMDB_REJECTED", "TMDB did not accept the token", cause = e)
-            }
-            throw ApiFailure(
-                HttpStatusCode.BadGateway,
-                "TMDB_UNREACHABLE",
-                "TMDB could not be asked (${e.code}); try again",
-                cause = e,
-            )
-        }
-        storeSecret(secretsPath, SecretsFile.TMDB_TOKEN, trimmed)
-        log.info("setup: saved the TMDB token in {}", secretsPath)
-        requestRestart()
-        SetupResult(secretsPath.toString(), true)
-    }
-
-    /**
-     * Checks [key] with fanart.tv, stores it in [secretsPath] and restarts, so Music libraries take artists' pictures
-     * and backdrops from fanart.tv. Fails with 400 INVALID_REQUEST when it cannot be a key, 400 FANART_REJECTED when
-     * fanart.tv refuses it, 502 FANART_UNREACHABLE when fanart.tv cannot be asked and 409 FANART_FROM_ENVIRONMENT
-     * when the environment sets it; nothing is written then. The key never reaches a log or an error message.
-     */
-    suspend fun saveFanartKey(key: String): SetupResult = mutex.withLock {
-        if (fanartFromEnvironment) {
-            throw ApiFailure(
-                HttpStatusCode.Conflict,
-                "FANART_FROM_ENVIRONMENT",
-                "SOFA_FANART_KEY is set in the environment; change it there",
-            )
-        }
-        val trimmed = key.trim()
-        if (trimmed.length < ServerConfig.TOKEN_MIN_LENGTH || trimmed.any { it <= ' ' || it == '\u007f' }) {
-            throw ApiFailure(
-                HttpStatusCode.BadRequest,
-                "INVALID_REQUEST",
-                "A fanart.tv API key has 32 characters and no spaces",
-            )
-        }
-        try {
-            checkFanart(trimmed)
-        } catch (e: FanartFailure) {
-            if (e.code == "FANART_AUTH") {
+            check(secret, trimmed)
+        } catch (e: ServiceFailure) {
+            if (e.code == "${secret.prefix}_AUTH") {
                 throw ApiFailure(
                     HttpStatusCode.BadRequest,
-                    "FANART_REJECTED",
-                    "fanart.tv did not accept the key",
+                    "${secret.prefix}_REJECTED",
+                    "${secret.service} did not accept the ${secret.noun}",
                     cause = e,
                 )
             }
             throw ApiFailure(
                 HttpStatusCode.BadGateway,
-                "FANART_UNREACHABLE",
-                "fanart.tv could not be asked (${e.code}); try again",
+                "${secret.prefix}_UNREACHABLE",
+                "${secret.service} could not be asked (${e.code}); try again",
                 cause = e,
             )
         }
-        storeSecret(secretsPath, SecretsFile.FANART_KEY, trimmed)
-        log.info("setup: saved the fanart.tv key in {}", secretsPath)
+        storeSecret(secretsPath, secret.key, trimmed)
+        log.info("setup: saved the {} {} in {}", secret.service, secret.noun, secretsPath)
         requestRestart()
         SetupResult(secretsPath.toString(), true)
     }
 
-    /**
-     * Checks [token] with ListenBrainz, stores it in [secretsPath] and restarts, so Music libraries ask for artists'
-     * most played songs. Fails with 400 INVALID_REQUEST when it cannot be a token, 400 LISTENBRAINZ_REJECTED when
-     * ListenBrainz refuses it, 502 LISTENBRAINZ_UNREACHABLE when ListenBrainz cannot be asked and 409
-     * LISTENBRAINZ_FROM_ENVIRONMENT when the environment sets it; nothing is written then. The token never reaches a
-     * log or an error message.
-     */
-    suspend fun saveListenBrainzToken(token: String): SetupResult = mutex.withLock {
-        if (listenBrainzFromEnvironment) {
-            throw ApiFailure(
-                HttpStatusCode.Conflict,
-                "LISTENBRAINZ_FROM_ENVIRONMENT",
-                "SOFA_LISTENBRAINZ_TOKEN is set in the environment; change it there",
-            )
-        }
-        val trimmed = token.trim()
-        if (trimmed.length < ServerConfig.TOKEN_MIN_LENGTH || trimmed.any { it <= ' ' || it == '\u007f' }) {
-            throw ApiFailure(
-                HttpStatusCode.BadRequest,
-                "INVALID_REQUEST",
-                "A ListenBrainz user token is at least 32 characters with no spaces",
-            )
-        }
-        try {
-            checkListenBrainz(trimmed)
-        } catch (e: ListenBrainzFailure) {
-            if (e.code == "LISTENBRAINZ_AUTH") {
-                throw ApiFailure(
-                    HttpStatusCode.BadRequest,
-                    "LISTENBRAINZ_REJECTED",
-                    "ListenBrainz did not accept the token",
-                    cause = e,
-                )
-            }
-            throw ApiFailure(
-                HttpStatusCode.BadGateway,
-                "LISTENBRAINZ_UNREACHABLE",
-                "ListenBrainz could not be asked (${e.code}); try again",
-                cause = e,
-            )
-        }
-        storeSecret(secretsPath, SecretsFile.LISTENBRAINZ_TOKEN, trimmed)
-        log.info("setup: saved the ListenBrainz token in {}", secretsPath)
-        requestRestart()
-        SetupResult(secretsPath.toString(), true)
+    private suspend fun check(secret: SavedSecret, value: String) = when (secret) {
+        SavedSecret.TMDB -> checkTmdb(TmdbConfig(value, tmdbLanguage))
+        SavedSecret.FANART -> checkFanart(value)
+        SavedSecret.LISTENBRAINZ -> checkListenBrainz(value)
     }
 
     private suspend fun writeStarter(providers: List<FeedConfig>) {

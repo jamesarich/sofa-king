@@ -1,8 +1,8 @@
 package dev.jamesrich.sofaking.backend.logos
 
-import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.catalog.normalizeLogoUrl
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
+import dev.jamesrich.sofaking.backend.hash
 import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
@@ -36,11 +36,9 @@ import kotlinx.io.readByteArray
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
-import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.util.HexFormat
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 
@@ -175,7 +173,7 @@ class LogoCache(
                         source,
                         image.contentType,
                         bytes.size.toLong(),
-                        sha256(bytes),
+                        hash(bytes),
                         fetchedAt = at,
                         failedAt = null,
                         failures = 0,
@@ -249,9 +247,6 @@ class LogoCache(
 
         private fun ByteArray.startsWith(signature: IntArray): Boolean =
             size >= signature.size && signature.indices.all { this[it] == signature[it].toByte() }
-
-        private fun sha256(bytes: ByteArray): String =
-            HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes))
     }
 }
 

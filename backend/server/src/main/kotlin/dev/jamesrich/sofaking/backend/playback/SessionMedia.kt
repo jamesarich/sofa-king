@@ -178,7 +178,7 @@ class SessionMedia internal constructor(
 
     /**
      * The source of session [id] stalled or fell below a quality floor ([reason]), so the session moves to the
-     * channel's next eligible source it has not played, cancelling its requests but [except], and the source it left
+     * channel's next eligible source it has not played, canceling its requests but [except], and the source it left
      * comes back. Null when no such source is left, and the session stays. At an [epoch] other than the session's, it
      * has moved on already, and its current source comes back.
      */

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.setup
 
+import dev.jamesrich.sofaking.backend.SavedSecret
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.admin.SetupView
 import dev.jamesrich.sofaking.backend.admin.applyPlaylistForm
@@ -311,14 +312,24 @@ class SetupServiceTest {
                     checked += tmdb.token
                     if (tmdb.token != good) throw dev.jamesrich.sofaking.backend.library.TmdbFailure("TMDB_AUTH")
                 })
-                assertFalse(setup.tmdbFromEnvironment)
-                assertEquals("INVALID_REQUEST", assertFailsWith<ApiFailure> { setup.saveTmdbToken("too short") }.code)
+                assertFalse(setup.fromEnvironment(SavedSecret.TMDB))
+                assertEquals(
+                    "INVALID_REQUEST",
+                    assertFailsWith<ApiFailure> {
+                        setup.save(SavedSecret.TMDB, "too short")
+                    }.code,
+                )
                 assertEquals(emptyList(), checked, "a value that cannot be a token is never sent to TMDB")
-                assertEquals("TMDB_REJECTED", assertFailsWith<ApiFailure> { setup.saveTmdbToken("u".repeat(40)) }.code)
+                assertEquals(
+                    "TMDB_REJECTED",
+                    assertFailsWith<ApiFailure> {
+                        setup.save(SavedSecret.TMDB, "u".repeat(40))
+                    }.code,
+                )
                 assertFalse(Files.exists(dir.resolve("secrets.json")))
                 assertEquals(0, restarts)
 
-                val result = setup.saveTmdbToken("  $good\n")
+                val result = setup.save(SavedSecret.TMDB, "  $good\n")
                 assertEquals(dir.resolve("secrets.json").toString(), result.path)
                 assertEquals(1, restarts)
                 assertEquals(
@@ -338,8 +349,13 @@ class SetupServiceTest {
                 )
                 assertEquals("e".repeat(40), fromEnvironment.tmdb?.token, "the environment wins")
                 val locked = SetupService(fromEnvironment, restart = { restarts++ })
-                assertTrue(locked.tmdbFromEnvironment)
-                assertEquals("TMDB_FROM_ENVIRONMENT", assertFailsWith<ApiFailure> { locked.saveTmdbToken(good) }.code)
+                assertTrue(locked.fromEnvironment(SavedSecret.TMDB))
+                assertEquals(
+                    "TMDB_FROM_ENVIRONMENT",
+                    assertFailsWith<ApiFailure> {
+                        locked.save(SavedSecret.TMDB, good)
+                    }.code,
+                )
             } finally {
                 dir.toFile().deleteRecursively()
             }
@@ -353,10 +369,20 @@ class SetupServiceTest {
             val setup = SetupService(config(dir), restart = { restarts++ }, checkFanart = { key ->
                 if (key != good) throw dev.jamesrich.sofaking.backend.library.FanartFailure("FANART_AUTH")
             })
-            assertEquals("INVALID_REQUEST", assertFailsWith<ApiFailure> { setup.saveFanartKey("short") }.code)
-            assertEquals("FANART_REJECTED", assertFailsWith<ApiFailure> { setup.saveFanartKey("u".repeat(32)) }.code)
+            assertEquals(
+                "INVALID_REQUEST",
+                assertFailsWith<ApiFailure> {
+                    setup.save(SavedSecret.FANART, "short")
+                }.code,
+            )
+            assertEquals(
+                "FANART_REJECTED",
+                assertFailsWith<ApiFailure> {
+                    setup.save(SavedSecret.FANART, "u".repeat(32))
+                }.code,
+            )
             assertFalse(Files.exists(dir.resolve("secrets.json")))
-            setup.saveFanartKey(" $good\n")
+            setup.save(SavedSecret.FANART, " $good\n")
             assertEquals(1, restarts)
             val loaded = ServerConfig.load(mapOf("SOFA_DATA_DIR" to dir.toString()), {})
             assertEquals(good, loaded.fanartKey)
@@ -365,7 +391,12 @@ class SetupServiceTest {
                 ServerConfig.load(mapOf("SOFA_DATA_DIR" to dir.toString(), "SOFA_FANART_KEY" to "e".repeat(32)), {})
             assertEquals("e".repeat(32), fromEnvironment.fanartKey, "the environment wins")
             val locked = SetupService(fromEnvironment, restart = {})
-            assertEquals("FANART_FROM_ENVIRONMENT", assertFailsWith<ApiFailure> { locked.saveFanartKey(good) }.code)
+            assertEquals(
+                "FANART_FROM_ENVIRONMENT",
+                assertFailsWith<ApiFailure> {
+                    locked.save(SavedSecret.FANART, good)
+                }.code,
+            )
         } finally {
             dir.toFile().deleteRecursively()
         }
@@ -379,13 +410,18 @@ class SetupServiceTest {
             val setup = SetupService(config(dir), restart = { restarts++ }, checkListenBrainz = { token ->
                 if (token != good) throw ListenBrainzFailure("LISTENBRAINZ_AUTH")
             })
-            assertEquals("INVALID_REQUEST", assertFailsWith<ApiFailure> { setup.saveListenBrainzToken("short") }.code)
+            assertEquals(
+                "INVALID_REQUEST",
+                assertFailsWith<ApiFailure> {
+                    setup.save(SavedSecret.LISTENBRAINZ, "short")
+                }.code,
+            )
             assertEquals(
                 "LISTENBRAINZ_REJECTED",
-                assertFailsWith<ApiFailure> { setup.saveListenBrainzToken("u".repeat(36)) }.code,
+                assertFailsWith<ApiFailure> { setup.save(SavedSecret.LISTENBRAINZ, "u".repeat(36)) }.code,
             )
             assertFalse(Files.exists(dir.resolve("secrets.json")))
-            setup.saveListenBrainzToken(" $good\n")
+            setup.save(SavedSecret.LISTENBRAINZ, " $good\n")
             assertEquals(1, restarts)
             val loaded = ServerConfig.load(mapOf("SOFA_DATA_DIR" to dir.toString()), {})
             assertEquals(good, loaded.listenBrainzToken)
@@ -397,7 +433,7 @@ class SetupServiceTest {
             val locked = SetupService(fromEnvironment, restart = {})
             assertEquals(
                 "LISTENBRAINZ_FROM_ENVIRONMENT",
-                assertFailsWith<ApiFailure> { locked.saveListenBrainzToken(good) }.code,
+                assertFailsWith<ApiFailure> { locked.save(SavedSecret.LISTENBRAINZ, good) }.code,
             )
         } finally {
             dir.toFile().deleteRecursively()
@@ -412,7 +448,7 @@ class SetupServiceTest {
                 }, checkTmdb = {
                     throw dev.jamesrich.sofaking.backend.library.TmdbFailure("TMDB_UNREACHABLE (ConnectException)")
                 })
-            val failure = assertFailsWith<ApiFailure> { setup.saveTmdbToken("t".repeat(40)) }
+            val failure = assertFailsWith<ApiFailure> { setup.save(SavedSecret.TMDB, "t".repeat(40)) }
             assertEquals(HttpStatusCode.BadGateway, failure.status)
             assertEquals("TMDB_UNREACHABLE", failure.code)
             assertFalse(Files.exists(dir.resolve("secrets.json")))

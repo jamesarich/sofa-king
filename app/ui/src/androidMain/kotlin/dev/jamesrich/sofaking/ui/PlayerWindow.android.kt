@@ -7,6 +7,7 @@ import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,14 +20,10 @@ import androidx.core.pip.VideoPlaybackPictureInPicture
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.media3.common.Player
-import androidx.media3.common.VideoSize
-import dev.jamesrich.sofaking.ui.player.ExoLivePlayer
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.findActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asExecutor
-import kotlin.math.roundToInt
 
 /**
  * Hides the system bars while a player is on top, and on a phone or tablet hands the player to Jetpack's core-pip,
@@ -99,19 +96,6 @@ private fun rememberPictureInPicture(activity: ComponentActivity, player: LivePl
  */
 @Composable
 private fun rememberVideoAspect(player: LivePlayer): Rational? {
-    val exo = (player as? ExoLivePlayer)?.exo ?: return null
-    var aspect by remember(exo) { mutableStateOf(exo.videoSize.aspect()) }
-    DisposableEffect(exo) {
-        val listener = object : Player.Listener {
-            override fun onVideoSizeChanged(videoSize: VideoSize) {
-                aspect = videoSize.aspect()
-            }
-        }
-        exo.addListener(listener)
-        onDispose { exo.removeListener(listener) }
-    }
-    return aspect
+    val size by player.videoSize.collectAsState()
+    return size?.takeIf { it.width > 0 && it.height > 0 }?.let { Rational(it.width, it.height) }
 }
-
-private fun VideoSize.aspect(): Rational? =
-    if (width <= 0 || height <= 0) null else Rational((width * pixelWidthHeightRatio).roundToInt(), height)

@@ -27,7 +27,7 @@ class NamedOutputs(private val store: BackendStore) {
 
     suspend fun list(): List<NamedOutput> = store.namedOutputs()
 
-    suspend fun get(name: String): NamedOutput? = list().firstOrNull { it.name == name }
+    suspend fun get(name: String): NamedOutput? = normalized(name).let { key -> list().firstOrNull { it.name == key } }
 
     /** Saves [output], replacing the one of its name; refused with 400 when it is not valid. */
     suspend fun put(output: NamedOutput): NamedOutput = mutex.withLock {
@@ -42,9 +42,10 @@ class NamedOutputs(private val store: BackendStore) {
 
     /** Deletes the output named [name]; false when there was none. */
     suspend fun delete(name: String): Boolean = mutex.withLock {
+        val key = normalized(name)
         val outputs = list()
-        if (outputs.none { it.name == name }) return@withLock false
-        store.saveNamedOutputs(outputs.filterNot { it.name == name })
+        if (outputs.none { it.name == key }) return@withLock false
+        store.saveNamedOutputs(outputs.filterNot { it.name == key })
         true
     }
 }
@@ -57,8 +58,11 @@ internal fun NamedOutput.holds(entry: LineupEntryRecord?): Boolean {
         entry.number in channels || entry.id in channels
 }
 
+/** The stored form of an output name; every lookup goes through it so `Kids` finds `kids`. */
+private fun normalized(name: String): String = name.trim().lowercase()
+
 private fun validated(output: NamedOutput): NamedOutput {
-    val name = output.name.trim().lowercase()
+    val name = normalized(output.name)
     if (!OUTPUT_NAME.matches(name) || name in RESERVED) {
         invalid("An output name is 1 to 32 lowercase letters, digits and hyphens, and not stream")
     }

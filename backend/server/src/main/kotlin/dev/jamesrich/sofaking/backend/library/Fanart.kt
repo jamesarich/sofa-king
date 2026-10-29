@@ -15,7 +15,7 @@ import kotlinx.serialization.json.Json
  * A failed fanart.tv call; [code] is a short class for job notes (`FANART_AUTH`, `FANART_HTTP_500`), with no URL or
  * key.
  */
-class FanartFailure(val code: String) : RuntimeException(code)
+class FanartFailure(code: String) : ServiceFailure(code)
 
 private val fanartJson = Json {
     ignoreUnknownKeys = true

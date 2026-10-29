@@ -14,9 +14,9 @@ import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.StationAvailability
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
-import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.catalog.stationId
 import dev.jamesrich.sofaking.backend.catalog.suggestedAliases
+import dev.jamesrich.sofaking.backend.hash
 import dev.jamesrich.sofaking.backend.health.Observation
 import dev.jamesrich.sofaking.backend.pollUntil
 import dev.jamesrich.sofaking.backend.store.openStore

@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.MediaFixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
+import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.pollUntil
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.openStore
@@ -50,6 +51,7 @@ class HdhrStreamTest {
         val store: BackendStore,
         val server: RealServer,
         val channels: List<Channel>,
+        val clock: MutableClock,
     ) : AutoCloseable {
         override fun close() {
             server.close()
@@ -62,10 +64,11 @@ class HdhrStreamTest {
         val sources = dir.resolve("sources.json")
         Files.writeString(sources, Json.encodeToString(feeds))
         val store = openStore(dir)
+        val clock = MutableClock()
         val runtime = LiveRuntime.create(
             store,
             ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, hdhr = hdhr),
-            MutableClock(),
+            clock,
         )
         feeds.forEach { runtime.feeds.refresh(it) }
         runtime.adoptAll()
@@ -77,7 +80,7 @@ class HdhrStreamTest {
                 }.bodyAsText(),
             ).channels
         }
-        return Stack(runtime, store, server, channels)
+        return Stack(runtime, store, server, channels, clock)
     }
 
     private fun ffmpegChildren(): Int = ProcessHandle.current().children().filter {
@@ -100,8 +103,9 @@ class HdhrStreamTest {
                                 assertEquals(1, stack.runtime.remux.active())
                                 assertEquals(1, stack.runtime.sessions.count())
                                 assertEquals(1, ffmpegChildren())
-                                // Longer than the player idle lease would matter for: the
+                                // Past the idle lease and a few of the one-second expiry sweeps: the
                                 // request itself holds the session.
+                                stack.clock.now = stack.clock.now.plus(SessionManager.EXTERNAL_IDLE).plusSeconds(1)
                                 delay(2500)
                                 val later = body.readHead(188 * 5)
                                 assertEquals(1, stack.runtime.sessions.count())

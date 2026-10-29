@@ -394,7 +394,7 @@ class BackendStoreTest {
             logger.addAppender(seen)
             try {
                 openStore(directory()).use { store ->
-                    store.query { Thread.sleep(600) }
+                    store.query { Thread.sleep(1500) }
                     store.query { }
                 }
                 val slow = seen.list.filter { it.formattedMessage.startsWith("slow database transaction") }

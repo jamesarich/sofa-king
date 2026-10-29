@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
-import dev.jamesrich.sofaking.backend.catalog.hash
+import dev.jamesrich.sofaking.backend.hash
 import dev.jamesrich.sofaking.backend.io.runFor
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers

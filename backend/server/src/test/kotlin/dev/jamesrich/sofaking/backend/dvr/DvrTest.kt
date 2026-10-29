@@ -102,22 +102,28 @@ class DvrTest {
         block: suspend (Path, LiveRuntime) -> Unit,
     ) = runBlocking<Unit> {
         val dir = Files.createTempDirectory(prefix)
-        val guide = guideServer(programs)
-        MediaFixture().use { media ->
-            val runtime = runtime(dir, media, guide)
+        try {
+            val guide = guideServer(programs)
             try {
-                block(dir, runtime)
+                MediaFixture().use { media ->
+                    val runtime = runtime(dir, media, guide)
+                    try {
+                        block(dir, runtime)
+                    } finally {
+                        runtime.close()
+                        runtime.store.close()
+                    }
+                }
             } finally {
-                runtime.close()
-                runtime.store.close()
                 guide.stop(0)
             }
+        } finally {
+            dir.toFile().deleteRecursively()
         }
-        dir.toFile().deleteRecursively()
     }
 
     @Test fun `a series rule records the live channel into the TV folder and leaves nothing in progress`() {
-        val start = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(2)
+        val start = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(4)
         val programs = listOf(
             Triple("Test Show", start, start.plusSeconds(6)),
             Triple("Other", start.plusSeconds(6), start.plusSeconds(600)),
@@ -216,49 +222,60 @@ class DvrTest {
     fun `a shutdown mid-window leaves the recording running, and the next start resumes it into the same file`() =
         runBlocking<Unit> {
             val dir = Files.createTempDirectory("sofa-dvr-resume-")
-            val guide = guideServer(emptyList())
-            MediaFixture().use { media ->
-                val first = runtime(dir, media, guide)
-                val (id, partial) = try {
-                    val dvr = assertNotNull(first.dvr)
-                    val live = first.lineup.entries().single { it.number == "2" }
-                    val start = Instant.now().truncatedTo(ChronoUnit.SECONDS)
-                    val id = dvr.schedule(
-                        ScheduleRecording(live.id, start.toString(), start.plusSeconds(20).toString(), "Resumed"),
-                    ).id
-                    id to pollFor(30_000, 100) {
-                        first.store.recordings().single().path?.let { dir.resolve("recordings").resolve(it) }?.takeIf {
-                            Files.exists(it) && Files.size(it) > 0
-                        }
-                    }
-                } finally {
-                    first.close()
-                    first.store.close()
-                }
-                val before = openStore(dir).use { store ->
-                    val stopped = store.recordings().single()
-                    assertEquals(Wire.RecordingState.RECORDING, stopped.state)
-                    assertEquals(partial, dir.resolve("recordings").resolve(assertNotNull(stopped.path)))
-                    Files.size(partial)
-                }
-                val second = runtime(dir, media, guide)
+            try {
+                val guide = guideServer(emptyList())
                 try {
-                    val dvr = assertNotNull(second.dvr)
-                    val done = pollFor(60_000, 200) {
-                        dvr.recording(id).takeIf {
-                            it.state == Wire.RecordingState.COMPLETED || it.state == Wire.RecordingState.FAILED
+                    MediaFixture().use { media ->
+                        val first = runtime(dir, media, guide)
+                        val (id, partial) = try {
+                            val dvr = assertNotNull(first.dvr)
+                            val live = first.lineup.entries().single { it.number == "2" }
+                            val start = Instant.now().truncatedTo(ChronoUnit.SECONDS)
+                            val id = dvr.schedule(
+                                ScheduleRecording(
+                                    live.id,
+                                    start.toString(),
+                                    start.plusSeconds(20).toString(),
+                                    "Resumed",
+                                ),
+                            ).id
+                            id to pollFor(30_000, 100) {
+                                first.store.recordings().single().path
+                                    ?.let { dir.resolve("recordings").resolve(it) }
+                                    ?.takeIf { Files.exists(it) && Files.size(it) > 0 }
+                            }
+                        } finally {
+                            first.close()
+                            first.store.close()
+                        }
+                        val before = openStore(dir).use { store ->
+                            val stopped = store.recordings().single()
+                            assertEquals(Wire.RecordingState.RECORDING, stopped.state)
+                            assertEquals(partial, dir.resolve("recordings").resolve(assertNotNull(stopped.path)))
+                            Files.size(partial)
+                        }
+                        val second = runtime(dir, media, guide)
+                        try {
+                            val dvr = assertNotNull(second.dvr)
+                            val done = pollFor(60_000, 200) {
+                                dvr.recording(id).takeIf {
+                                    it.state == Wire.RecordingState.COMPLETED || it.state == Wire.RecordingState.FAILED
+                                }
+                            }
+                            assertEquals(Wire.RecordingState.COMPLETED, done.state, done.reason)
+                            assertTrue(done.bytes > before, "resumed ${done.bytes} bytes over $before")
+                            assertFalse(Files.exists(partial))
+                        } finally {
+                            second.close()
+                            second.store.close()
                         }
                     }
-                    assertEquals(Wire.RecordingState.COMPLETED, done.state, done.reason)
-                    assertTrue(done.bytes > before, "resumed ${done.bytes} bytes over $before")
-                    assertFalse(Files.exists(partial))
                 } finally {
-                    second.close()
-                    second.store.close()
                     guide.stop(0)
                 }
+            } finally {
+                dir.toFile().deleteRecursively()
             }
-            dir.toFile().deleteRecursively()
         }
 
     @Test fun `a manual recording takes a time window on a channel without a guide`() {

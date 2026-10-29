@@ -2,6 +2,9 @@ package dev.jamesrich.sofaking.backend.pairing
 
 import dev.jamesrich.sofaking.backend.api.ApiTokenInfo
 import dev.jamesrich.sofaking.backend.api.TokenScope
+import dev.jamesrich.sofaking.backend.hash
+import dev.jamesrich.sofaking.backend.randomHex
+import dev.jamesrich.sofaking.backend.randomUrlToken
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.StoredApiToken
 import dev.jamesrich.sofaking.backend.store.activeApiTokens
@@ -11,12 +14,9 @@ import dev.jamesrich.sofaking.backend.store.revokeClientApiTokens
 import dev.jamesrich.sofaking.backend.store.saveApiToken
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
-import java.util.Base64
-import java.util.HexFormat
 
 /** How stale a token's stored last use may get before a request writes it again. */
 private val USE_RESOLUTION: Duration = Duration.ofMinutes(1)
@@ -47,8 +47,12 @@ class IssuedTokens(
         val now = clock.instant()
         if (token.lastUsedAt == null || token.lastUsedAt.plus(USE_RESOLUTION).isBefore(now)) {
             lock.withLock {
-                byHash = byHash?.plus(token.secretHash to token.copy(lastUsedAt = now))
-                store.markApiTokenUsed(token.id, now)
+                // A revoke may have reloaded the cache since the read above; a revoked token must not come back.
+                val current = byHash
+                if (current?.get(token.secretHash)?.id == token.id) {
+                    byHash = current.plus(token.secretHash to token.copy(lastUsedAt = now))
+                    store.markApiTokenUsed(token.id, now)
+                }
             }
         }
         return token
@@ -85,13 +89,9 @@ class IssuedTokens(
         store.revokeClientApiTokens(clientId, clock.instant()).also { reload() }
     }
 
-    private fun hash(secret: String): String =
-        HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(secret.toByteArray()))
-
     private suspend fun issue(label: String, scope: TokenScope, clientId: String?): Pair<ApiTokenInfo, String> {
-        val secret = ISSUED_TOKEN_PREFIX +
-            Base64.getUrlEncoder().withoutPadding().encodeToString(ByteArray(SECRET_BYTES).also(random::nextBytes))
-        val id = HexFormat.of().formatHex(ByteArray(ID_BYTES).also(random::nextBytes))
+        val secret = ISSUED_TOKEN_PREFIX + randomUrlToken(SECRET_BYTES, random)
+        val id = randomHex(ID_BYTES, random)
         val token = StoredApiToken(id, label, hash(secret), scope, clientId, clock.instant(), null)
         store.saveApiToken(token)
         reload()

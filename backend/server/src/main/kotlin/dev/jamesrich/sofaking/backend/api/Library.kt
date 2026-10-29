@@ -43,6 +43,12 @@ import kotlinx.serialization.Serializable
 /** A TMDB API read access token or v3 API key for the libraries' details and artwork. */
 @Serializable data class SaveTmdbToken(val token: String)
 
+/** A fanart.tv API key for Music libraries' artwork. */
+@Serializable data class SaveFanartKey(val key: String)
+
+/** A ListenBrainz user token for artists' most played songs. */
+@Serializable data class SaveListenBrainzToken(val token: String)
+
 /** `POST /api/v1/admin/libraries/scan`: a file or folder that changed, as Sonarr or Radarr names it. */
 @Serializable data class ScanPath(val path: String)
 

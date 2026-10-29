@@ -20,15 +20,13 @@ import io.ktor.http.isSuccess
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.selects.onTimeout
-import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -220,16 +218,12 @@ class UpdateChecker(
     }
 
     /** Runs the check after [firstCheckAfter], then every [every] and whenever Run now asks. */
-    @OptIn(ExperimentalCoroutinesApi::class) // select { onTimeout }
     fun start(scope: CoroutineScope): Job? {
         if (image == null) return null
         return scope.launch(CoroutineName("update-check")) {
             var wait = firstCheckAfter.toMillis()
             while (isActive) {
-                select<Unit> {
-                    requests.onReceive { }
-                    onTimeout(wait) { }
-                }
+                withTimeoutOrNull(wait) { requests.receive() }
                 check()
                 wait = every.toMillis()
             }

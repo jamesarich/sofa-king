@@ -115,6 +115,21 @@
         "type": "object", "required": ["programs"],
         "properties": { "programs": { "type": "array", "items": { "$ref": "#/components/schemas/Program" } } }
       },
+      "ProgramFacts": {
+        "type": "object", "description": "What TMDB says about a live program; kind is empty, with nothing else set, when TMDB lists no program of that title or the server has no TMDB token.",
+        "properties": {
+          "kind": { "type": "string", "enum": ["", "show", "movie"] }, "year": { "type": ["integer", "null"], "description": "When a show first aired, or a movie came out" },
+          "endYear": { "type": ["integer", "null"], "description": "When a show that has ended last aired" }, "studio": { "type": ["string", "null"], "description": "The network a show first aired on, or the studio that made a movie" },
+          "seasons": { "type": ["integer", "null"] }, "episodes": { "type": ["integer", "null"] },
+          "cast": { "type": "array", "items": { "type": "string" }, "description": "The first few billed, in billing order" },
+          "creators": { "type": "array", "items": { "type": "string" }, "description": "Who created a show, or directed a movie" },
+          "tagline": { "type": ["string", "null"] }, "rating": { "type": ["number", "null"], "description": "TMDB's average vote, out of 10" }
+        }
+      },
+      "AdBreakState": {
+        "type": "object", "description": "Whether the session's player shows an ad.",
+        "properties": { "inBreak": { "type": "boolean" }, "remainingMs": { "type": ["integer", "null"], "description": "How long the break has left, when the playlist says" } }
+      },
       "Program": {
         "type": "object",
         "properties": {
@@ -254,6 +269,7 @@
         "type": "object",
         "properties": { "positionMs": { "type": "integer", "minimum": 0 }, "durationMs": { "type": ["integer", "null"], "minimum": 0 }, "watched": { "type": ["boolean", "null"], "description": "Set by hand; wins over the position. The only field a show or season takes." }, "dismissed": { "type": ["boolean", "null"], "description": "True takes a movie, video or episode off Continue watching, false puts it back; either leaves its position and watched flag." } }
       },
+      "UpdateFavorite": { "type": "object", "required": ["favorite"], "properties": { "favorite": { "type": "boolean" } } },
       "ClientProfile": {
         "type": "object", "description": "What the player decodes as is.",
         "properties": {
@@ -562,6 +578,8 @@
         "type": "object", "properties": { "allowed": { "type": "array", "maxItems": 64, "items": { "type": "string", "description": "An IP literal or CIDR block" } } }, "required": ["allowed"]
       },
       "SaveTmdbToken": { "type": "object", "description": "A TMDB API read access token or v3 API key.", "properties": { "token": { "type": "string", "minLength": 32 } }, "required": ["token"] },
+      "SaveFanartKey": { "type": "object", "description": "A fanart.tv API key.", "properties": { "key": { "type": "string", "minLength": 32 } }, "required": ["key"] },
+      "SaveListenBrainzToken": { "type": "object", "description": "A ListenBrainz user token.", "properties": { "token": { "type": "string", "minLength": 32 } }, "required": ["token"] },
       "Discover": {
         "type": "object",
         "properties": {
@@ -852,7 +870,7 @@
     "/api/v1/pair": {
       "post": { "tags": ["Viewers"], "summary": "Claim a pairing code for a token of the device's own", "description": "The code comes from the admin portal's Devices page or POST /api/v1/admin/pairing-codes; it is live for ten minutes and works once, and five wrong claims void it. The answer is a new token for this clientId, which revokes the one it was paired with before; forgetting the device revokes it. No bearer token: 10 claims a minute per client address, then 429. A server without an API token answers an empty one.", "security": [],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PairingClaim" } } } },
-        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PairingResult" } } } }, "403": { "description": "PAIRING_INVALID", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "429": { "description": "Too many claims from this address" } } }
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PairingResult" } } } }, "400": { "description": "INVALID_REQUEST: a malformed claim or client id", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "403": { "description": "PAIRING_INVALID", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "429": { "description": "Too many claims from this address" } } }
     },
     "/api/v1/preferences/{clientId}": {
       "get": { "tags": ["Viewers"], "summary": "The preferences this client last saved", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
@@ -876,7 +894,7 @@
     "/api/v1/guide/query": {
       "post": { "tags": ["Live TV"], "summary": "Programs overlapping a window for up to 200 channels", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideQuery" } } } },
-        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideWindow" } } } }, "409": { "description": "RESYNC_REQUIRED: the revision changed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideWindow" } } } }, "400": { "description": "INVALID_QUERY or INVALID_REQUEST", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "409": { "description": "RESYNC_REQUIRED: the revision changed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/guide/on-later": {
       "get": { "tags": ["Live TV"], "summary": "Movies, sports, kids' programs or premieres coming up on the enabled channels", "description": "Programs that have not ended and start within days, soonest first. A movie needs a Movie or Film category beside a film genre and no News or Sports one; sports and kids match their categories; new is a Premiere category or a new airing of a season's first episode.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
@@ -886,6 +904,14 @@
           { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 200 } }
         ],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpcomingPrograms" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/program-facts": {
+      "get": { "tags": ["Live TV"], "summary": "What TMDB says about a live program", "description": "Found by its exact guide title, for the break screen to show a fact at a time. Every field is empty when TMDB lists no such title or the server has no TMDB token.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "parameters": [
+          { "name": "title", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 200 } },
+          { "name": "movie", "in": "query", "description": "true searches movies first", "schema": { "type": "boolean", "default": false } }
+        ],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProgramFacts" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/providers": {
       "get": { "tags": ["Sources"], "summary": "Each provider's import status and counts", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
@@ -918,6 +944,11 @@
       "delete": { "tags": ["Playback"], "summary": "Release the session", "description": "Idempotent; cancels its upstream requests.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "204": { "description": "Released" } } }
+    },
+    "/api/v1/playback-sessions/{id}/ad-break": {
+      "get": { "tags": ["Playback"], "summary": "Whether the session's player shows an ad", "description": "For a player that cannot read the playlist's ad marks: the server places the picture from the last segment the player fetched and aheadMs, how much it has loaded past the picture.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "aheadMs", "in": "query", "schema": { "type": "integer", "format": "int64", "default": 0 } }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdBreakState" } } } }, "400": { "$ref": "#/components/responses/Error" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/media/sessions/{id}/{epoch}/{token}": {
       "get": { "tags": ["Playback"], "summary": "A playlist, segment, key or live TS stream of the session", "description": "No token: the random resource token authorizes it until the session ends or its epoch changes. An older epoch answers 410 STREAM_CHANGED; a source no longer selectable answers 503 SOURCE_UNAVAILABLE; more than 12 requests at once answer 429.", "security": [],
@@ -993,6 +1024,15 @@
       "put": { "tags": ["Library"], "summary": "Record where playback stopped, or mark an item watched", "description": "A stop in the first 5% leaves the item where it was; one at 90% or later marks it watched. A show or season takes watched only, and marks every episode in it.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePlayState" } } } },
         "responses": { "200": { "description": "The item", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItem" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/api/v1/library/items/{id}/favorite": {
+      "put": { "tags": ["Library"], "summary": "Like or unlike a song, album or artist", "description": "Feeds the music radio. Only for a client that sends music in Sofa-Library-Kinds; any other finds no Music item.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateFavorite" } } } },
+        "responses": { "200": { "description": "The item", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItem" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/api/v1/library/items/{id}/played": {
+      "post": { "tags": ["Library"], "summary": "Count one play of a song", "description": "Feeds the music radio. Only for a client that sends music in Sofa-Library-Kinds; an album or artist answers 404.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
+        "responses": { "200": { "description": "The song", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItem" } } } }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/lyrics": {
       "get": { "tags": ["Library"], "summary": "A song's lyrics as LRC text", "description": "An .lrc file beside the track wins; else, unless SOFA_MUSICBRAINZ=false, LRCLIB's synced lyrics, else its plain ones, asked the first time and kept. Synced lines start with [mm:ss.xx] tags; plain lyrics have none.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
@@ -1230,6 +1270,16 @@
     "/api/v1/admin/tmdb-token": {
       "put": { "tags": ["Admin"], "summary": "Save the TMDB token and restart", "description": "Asks TMDB whether it takes the token, stores it as tmdbToken in secrets.json in the data directory and ends the process once the response is sent. 400 INVALID_REQUEST for a value that cannot be a token, 400 TMDB_REJECTED when TMDB refuses it, 502 TMDB_UNREACHABLE when TMDB cannot be asked, 409 TMDB_FROM_ENVIRONMENT when SOFA_TMDB_TOKEN sets it, 500 SECRETS_UNWRITABLE when secrets.json cannot be read or written; nothing is written then. SOFA_TMDB_TOKEN wins over the saved token.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveTmdbToken" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupResult" } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "500": { "$ref": "#/components/responses/Error" }, "502": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/fanart-key": {
+      "put": { "tags": ["Admin"], "summary": "Save the fanart.tv key and restart", "description": "Asks fanart.tv whether it takes the key, stores it as fanartKey in secrets.json in the data directory and ends the process once the response is sent. 400 INVALID_REQUEST for a value that cannot be a key, 400 FANART_REJECTED when fanart.tv refuses it, 502 FANART_UNREACHABLE when fanart.tv cannot be asked, 409 FANART_FROM_ENVIRONMENT when SOFA_FANART_KEY sets it, 500 SECRETS_UNWRITABLE when secrets.json cannot be read or written; nothing is written then. SOFA_FANART_KEY wins over the saved key.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveFanartKey" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupResult" } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "500": { "$ref": "#/components/responses/Error" }, "502": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/listenbrainz-token": {
+      "put": { "tags": ["Admin"], "summary": "Save the ListenBrainz token and restart", "description": "Asks ListenBrainz whether it takes the token, stores it as listenBrainzToken in secrets.json in the data directory and ends the process once the response is sent. 400 INVALID_REQUEST for a value that cannot be a token, 400 LISTENBRAINZ_REJECTED when ListenBrainz refuses it, 502 LISTENBRAINZ_UNREACHABLE when ListenBrainz cannot be asked, 409 LISTENBRAINZ_FROM_ENVIRONMENT when SOFA_LISTENBRAINZ_TOKEN sets it, 500 SECRETS_UNWRITABLE when secrets.json cannot be read or written; nothing is written then. SOFA_LISTENBRAINZ_TOKEN wins over the saved token.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveListenBrainzToken" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupResult" } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "500": { "$ref": "#/components/responses/Error" }, "502": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/plex": {

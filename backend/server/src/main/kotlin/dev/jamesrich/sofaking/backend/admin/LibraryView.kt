@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.SavedSecret
 import dev.jamesrich.sofaking.backend.library.ItemKind
 import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.LibraryRecord
@@ -22,22 +23,14 @@ internal class LibraryView(
     val proposed: Map<String, String>? = null,
     /** Whether TMDB lookups are on (`SOFA_TMDB_TOKEN` is set, or a token was saved here). */
     val tmdb: Boolean = false,
-    /** Whether the page may save a TMDB token: setup is available and the environment does not set one. */
-    val tmdbSettable: Boolean = false,
-    /** Why the last token was not saved. */
-    val tmdbError: String? = null,
     /** Whether a fanart.tv key is set (`SOFA_FANART_KEY`, or a key saved here). */
     val fanart: Boolean = false,
-    /** Whether the page may save a fanart.tv key: setup is available and the environment does not set one. */
-    val fanartSettable: Boolean = false,
-    /** Why the last fanart.tv key was not saved. */
-    val fanartError: String? = null,
     /** Whether a ListenBrainz token is set (`SOFA_LISTENBRAINZ_TOKEN`, or a token saved here). */
     val listenBrainz: Boolean = false,
-    /** Whether the page may save a ListenBrainz token: setup is available and the environment does not set one. */
-    val listenBrainzSettable: Boolean = false,
-    /** Why the last ListenBrainz token was not saved. */
-    val listenBrainzError: String? = null,
+    /** The secrets the page may save: setup is available and the environment does not set them. */
+    val settable: Set<SavedSecret> = emptySet(),
+    /** Why the last secret was not saved, and which one. */
+    val secretError: Pair<SavedSecret, String>? = null,
     /** Folders whose names say what they hold, each one click from a library. */
     val suggestions: List<LibrarySuggestion> = emptyList(),
 )

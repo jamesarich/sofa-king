@@ -165,9 +165,17 @@ The [native providers](providers.md) call each service's public endpoints. A ser
 
 ## Use with an AI assistant
 
-The server answers the [Model Context Protocol](api.md#mcp) at `/api/v1/mcp`, so an assistant such as Claude Code can check on it: what needs attention, which imports fail and why, how the jobs ran, what the log says, and what is on and recorded. With the admin token it can also run a job, scan a library, check for an update and ask the updater to install one.
+The server answers the [Model Context Protocol](api.md#mcp) at `/api/v1/mcp`, so an assistant such as Claude Code can check on it. Its read tools cover:
 
-Pick the token for what the assistant may do. A read token, made on the portal's Settings page under Access tokens with Read as what it opens, lets it look and change nothing. The admin token lets it act too; give it only to an assistant you trust with the portal. Then add the server to the assistant, for Claude Code:
+- Triage: `server_status`, `needs_attention`, `update_status`, `jobs`, `imports` (a provider or guide fetch failed), `source_problems` and `source_health` (streams fail), and `recent_log`.
+- The lineup: `lineup`, `channel`, `guide_now`, `guide_channels` and `on_later`.
+- The lineup policy: `policy_findings`, `preview_policy`, `policy_changes`, `explain_station` and `guide_matches`.
+- Playback and recordings: `watching_now`, `recordings` and `recording_rules`.
+- Libraries: `libraries`, `search_library` and `library_home`.
+
+With the admin token it can also read `playback_history` and `plex_status`, run a job, scan a library, check for an update and ask the updater to install one. No tool shows a stream URL, a token or a request header.
+
+Pick the token for what the assistant may do. A read token, made on the portal's Settings page under Access tokens with Read as what it opens, lets it look and change nothing. It also sees the log, the recordings, the guide and the libraries, which the read routes of the admin API do not show, and not the playback history or the Plex status. The admin token lets it act too; give it only to an assistant you trust with the portal. Then add the server to the assistant, for Claude Code:
 
 ```sh
 claude mcp add --transport http sofa-king http://SERVER_HOST:9193/api/v1/mcp \

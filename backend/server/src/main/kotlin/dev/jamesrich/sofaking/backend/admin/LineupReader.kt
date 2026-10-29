@@ -1,35 +1,19 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.catalog.CHANGES_LIMIT
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.health.HealthStatus
 import dev.jamesrich.sofaking.backend.store.allHealth
 import dev.jamesrich.sofaking.backend.store.recentObservations
 import io.ktor.server.routing.get
+import java.time.Clock
 
 /** The Channels pages' rows: each lineup entry with its policy station, guide state, health and override. */
 internal class LineupReader(private val portal: Portal) {
     private val runtime get() = portal.runtime
 
-    suspend fun rows(): List<StationRow> {
-        val stations = runtime.policy?.lastApplied()?.stations.orEmpty().associateBy { it.id }
-        val overrides = runtime.policy?.policy?.let { p ->
-            p.stations.filter { (key, station) -> isOverride(key, station, p) }.keys
-        }.orEmpty()
-        val coverage = runtime.guides.coverage
-        val health = runtime.store.allHealth()
-        val now = portal.clock.instant()
-        return runtime.lineup.entries().map { entry ->
-            val station = stations[entry.id]
-            StationRow(
-                entry,
-                station,
-                guideStatus(entry, coverage, now),
-                healthy = entry.offeringIds.count { health[it]?.status == HealthStatus.HEALTHY },
-                overridden = station?.key?.let { it in overrides } == true,
-            )
-        }
-    }
+    suspend fun rows(): List<StationRow> = stationRows(runtime, portal.clock)
 
     /** The entries the newest run that changed anything touched, by lineup entry id. */
     private suspend fun changedInLastRun(): Set<String> {
@@ -138,6 +122,27 @@ internal class LineupReader(private val portal: Portal) {
                 )
             }
         }
+    }
+}
+
+/** Every lineup entry as a row with its policy station, guide state, healthy source count and override. */
+internal suspend fun stationRows(runtime: LiveRuntime, clock: Clock): List<StationRow> {
+    val stations = runtime.policy?.lastApplied()?.stations.orEmpty().associateBy { it.id }
+    val overrides = runtime.policy?.policy?.let { p ->
+        p.stations.filter { (key, station) -> isOverride(key, station, p) }.keys
+    }.orEmpty()
+    val coverage = runtime.guides.coverage
+    val health = runtime.store.allHealth()
+    val now = clock.instant()
+    return runtime.lineup.entries().map { entry ->
+        val station = stations[entry.id]
+        StationRow(
+            entry,
+            station,
+            guideStatus(entry, coverage, now),
+            healthy = entry.offeringIds.count { health[it]?.status == HealthStatus.HEALTHY },
+            overridden = station?.key?.let { it in overrides } == true,
+        )
     }
 }
 

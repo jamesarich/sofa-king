@@ -5,6 +5,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.android.tools.screenshot.PreviewTest
 import dev.jamesrich.sofaking.previews.GuidePreview
 import dev.jamesrich.sofaking.previews.LibraryHomePreview
+import dev.jamesrich.sofaking.previews.LibraryLoadingPreview
 import dev.jamesrich.sofaking.previews.LiveBarPreview
 import dev.jamesrich.sofaking.previews.NowPlayingPreview
 import dev.jamesrich.sofaking.previews.PlayerInfoPreview
@@ -79,6 +80,16 @@ private fun LibraryHomeTv() = LibraryHomePreview(tv = true)
 @Preview(device = PHONE)
 @Composable
 private fun LibraryHomePhone() = LibraryHomePreview(tv = false)
+
+@PreviewTest
+@Preview(device = TV)
+@Composable
+private fun LibraryLoadingTv() = LibraryLoadingPreview(tv = true)
+
+@PreviewTest
+@Preview(device = PHONE)
+@Composable
+private fun LibraryLoadingPhone() = LibraryLoadingPreview(tv = false)
 
 @PreviewTest
 @Preview(device = TV)

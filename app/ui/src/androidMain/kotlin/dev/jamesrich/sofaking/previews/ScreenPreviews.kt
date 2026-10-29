@@ -238,6 +238,12 @@ fun LibraryHomePreview(tv: Boolean) = Frame(tv) {
     LibraryHomeScreen(LibraryHomeState.Ready(Samples.home), LibraryHomeActions({}, {}, {}, {}))
 }
 
+/** The Library tab while it loads: the spotlight's frame and placeholder rows at card size. */
+@Composable
+fun LibraryLoadingPreview(tv: Boolean) = Frame(tv) {
+    LibraryHomeScreen(LibraryHomeState.Loading, LibraryHomeActions({}, {}, {}, {}))
+}
+
 /** A show's page on the season with the next episode. */
 @Composable
 fun ShowPagePreview(tv: Boolean) = Frame(tv) {

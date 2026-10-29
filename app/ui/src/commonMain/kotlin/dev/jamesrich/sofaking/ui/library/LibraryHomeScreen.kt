@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui.library
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -9,21 +10,32 @@ import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.pullToRefresh
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -32,6 +44,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.LibraryHomeState
+import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.data.MediaShelf
 import dev.jamesrich.sofaking.resources.Res
@@ -39,7 +52,6 @@ import dev.jamesrich.sofaking.resources.library_empty
 import dev.jamesrich.sofaking.resources.library_empty_hint
 import dev.jamesrich.sofaking.resources.library_library_chip
 import dev.jamesrich.sofaking.resources.library_load_failed
-import dev.jamesrich.sofaking.resources.library_loading
 import dev.jamesrich.sofaking.resources.library_search
 import dev.jamesrich.sofaking.resources.library_unavailable
 import dev.jamesrich.sofaking.resources.library_unavailable_hint
@@ -47,10 +59,12 @@ import dev.jamesrich.sofaking.resources.load_failed_hint
 import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.resources.unconfigured_hint
+import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.theme.SofaActionChip
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -68,7 +82,7 @@ internal fun LibraryHomeScreen(
     headerFocused: Boolean = false,
 ) {
     when (state) {
-        LibraryHomeState.Loading -> MessageScreen(stringResource(Res.string.library_loading), loading = true)
+        LibraryHomeState.Loading -> LibrarySkeleton(modifier)
 
         LibraryHomeState.Unconfigured -> MessageScreen(
             stringResource(Res.string.unconfigured),
@@ -116,41 +130,129 @@ private fun Shelves(
     LaunchedEffect(returnedFrom) {
         if (returnedFrom != null) requestFocusWhenAttached(returnFocus)
     }
+    val profile = LocalLayoutProfile.current
+    val staysPut = profile.spotlightStaysPut
+    // The spotlight follows the card focus last reached on Continue watching or Recently added. It only reads this.
+    val focused = remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     // Back or Up to the header shows the page from its top, so Down lands on the first row.
     LaunchedEffect(headerFocused) { if (headerFocused) listState.animateScrollToItem(0) }
     // The item returned to may sit in several rows; the first takes the requester.
     val returnShelf = returnedFrom?.let { id -> shelves.firstOrNull { shelf -> shelf.items.any { it.id == id } }?.key }
-    LazyColumn(
-        // The remote's Search key opens the search by voice from anywhere on the page.
-        modifier.fillMaxSize().onPreviewKeyEvent { event ->
-            if (event.key == Key.Search && event.type == KeyEventType.KeyDown) {
-                actions.onSearch(true)
-                true
-            } else {
-                false
+    Column(modifier.fillMaxSize()) {
+        if (staysPut) {
+            SpotlightSlot(shelves, {
+                focused.value
+            }, actions, profile.tv, insets, false, Modifier.weight(SPOTLIGHT_HEIGHT_SHARE))
+        }
+        val listShare = if (staysPut) 1f - SPOTLIGHT_HEIGHT_SHARE else 1f
+        RefreshBox(!profile.tv, actions.onRefresh, shelves, Modifier.weight(listShare)) {
+            LazyColumn(
+                // The remote's Search key opens the search by voice from anywhere on the page.
+                Modifier.fillMaxSize().searchKey { actions.onSearch(true) },
+                state = listState,
+                contentPadding = PaddingValues(top = 8.dp, bottom = insets.calculateBottomPadding() + 16.dp),
+                verticalArrangement = Arrangement.spacedBy(28.dp),
+            ) {
+                // Without room to stay put, the spotlight is the list's first card and shows the first item.
+                if (!staysPut) {
+                    item(key = "spotlight") {
+                        val card = Modifier.padding(insets.horizontalOnly()).height(COMPACT_SPOTLIGHT_HEIGHT)
+                        SpotlightSlot(shelves, {
+                            null
+                        }, actions, profile.tv, insets, true, card.clip(CardDefaults.shape))
+                    }
+                }
+                item(key = "chips") { LibraryChips(libraries, actions, returnedFrom, returnFocus, searchFocus, insets) }
+                items(shelves, key = { it.key }, contentType = { "shelf" }) { shelf ->
+                    Shelf(
+                        shelf,
+                        actions,
+                        insets,
+                        focusItem = if (shelf.key == returnShelf) {
+                            returnedFrom
+                        } else {
+                            null
+                        },
+                        focusRequester = returnFocus,
+                        onFocus = if (staysPut && feedsSpotlight(shelf)) {
+                            { item -> focused.value = item.id }
+                        } else {
+                            null
+                        },
+                    )
+                }
             }
-        },
-        state = listState,
-        contentPadding = PaddingValues(top = 8.dp, bottom = insets.calculateBottomPadding() + 16.dp),
-        verticalArrangement = Arrangement.spacedBy(28.dp),
-    ) {
-        item(key = "chips") { LibraryChips(libraries, actions, returnedFrom, returnFocus, searchFocus, insets) }
-        items(shelves, key = { it.key }, contentType = { "shelf" }) { shelf ->
-            Shelf(
-                shelf,
-                actions,
-                insets,
-                focusItem = if (shelf.key == returnShelf) {
-                    returnedFrom
-                } else {
-                    null
-                },
-                focusRequester = returnFocus,
-            )
         }
     }
 }
+
+/** Reads the focused item's id here, so a focus move recomposes only the spotlight and not the shelves. */
+@Composable
+private fun SpotlightSlot(
+    shelves: List<MediaShelf>,
+    focusedId: () -> String?,
+    actions: LibraryHomeActions,
+    tv: Boolean,
+    insets: PaddingValues,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Spotlight(
+        item = spotlightItem(shelves, focusedId()),
+        onPlay = actions.onPlayItem.takeUnless { tv },
+        insets = insets,
+        modifier = modifier,
+        compact = compact,
+    )
+}
+
+/** Pulls the shelves down to read them again where there is no remote; a TV reads them when its tab opens. */
+@Composable
+private fun RefreshBox(
+    enabled: Boolean,
+    onRefresh: (() -> Unit)?,
+    shelves: List<MediaShelf>,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    var refreshing by remember { mutableStateOf(false) }
+    // New shelves end the indicator; a reload that changes nothing ends it after a moment.
+    LaunchedEffect(shelves) { refreshing = false }
+    LaunchedEffect(refreshing) {
+        if (refreshing) {
+            delay(REFRESH_SHOWN_MS)
+            refreshing = false
+        }
+    }
+    val pull = enabled && onRefresh != null
+    val state = rememberPullToRefreshState()
+    Box(
+        modifier.pullToRefresh(
+            isRefreshing = refreshing,
+            state = state,
+            enabled = pull,
+            onRefresh = {
+                refreshing = true
+                onRefresh?.invoke()
+            },
+        ),
+    ) {
+        content()
+        if (pull) {
+            PullToRefreshDefaults.Indicator(state, refreshing, Modifier.align(Alignment.TopCenter))
+        }
+    }
+}
+
+/** The remote's Search key runs [onSearch] from anywhere on the page. */
+private fun Modifier.searchKey(onSearch: () -> Unit): Modifier = onPreviewKeyEvent { event ->
+    val search = event.key == Key.Search && event.type == KeyEventType.KeyDown
+    if (search) onSearch()
+    search
+}
+
+private const val REFRESH_SHOWN_MS = 1500L
 
 /** Search, then a chip per library; focus coming back from either lands on its chip ([returnFocus]). */
 @Composable
@@ -204,6 +306,8 @@ private fun Shelf(
     insets: PaddingValues,
     focusItem: String?,
     focusRequester: FocusRequester,
+    /** Called with the card that takes focus, on the shelves that feed the spotlight. */
+    onFocus: ((MediaItem) -> Unit)? = null,
 ) {
     val style = cardStyleFor(shelf)
     val menu = actions.menuFor(shelf)
@@ -217,8 +321,21 @@ private fun Shelf(
             horizontalArrangement = Arrangement.spacedBy(CARD_GAP),
         ) {
             items(shelf.items, key = { it.id }) { item ->
-                val focus = if (item.id == focusItem) Modifier.focusRequester(focusRequester) else Modifier
-                LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, menu, focus)
+                val returning = if (item.id == focusItem) Modifier.focusRequester(focusRequester) else Modifier
+                val tracking = if (onFocus != null) {
+                    Modifier.onFocusChanged { if (it.hasFocus) onFocus(item) }
+                } else {
+                    Modifier
+                }
+                LibraryCard(
+                    item,
+                    style,
+                    actions.onOpenItem,
+                    actions.onPlayItem,
+                    menu,
+                    returning.then(tracking),
+                    okPlays = cardOkFor(shelf, item) == CardOk.PLAY,
+                )
             }
         }
     }

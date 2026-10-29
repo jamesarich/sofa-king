@@ -26,8 +26,6 @@ targets:
         CADisableMinimumFrameDurationOnPhone: true
         UILaunchScreen:
           UIColorName: LaunchBackground
-        # The Compose theme is dark only, so the system's keyboard, alerts and sheets match it.
-        UIUserInterfaceStyle: Dark
         # Landscape only, which on iPad requires full screen (no Split View or Slide Over).
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]

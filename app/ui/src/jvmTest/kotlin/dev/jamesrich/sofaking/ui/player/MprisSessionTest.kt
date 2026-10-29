@@ -3,6 +3,8 @@ package dev.jamesrich.sofaking.ui.player
 import org.freedesktop.dbus.connections.impl.DBusConnectionBuilder
 import org.freedesktop.dbus.interfaces.Properties
 import org.freedesktop.dbus.types.Variant
+import org.junit.Assume
+import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.test.AfterTest
@@ -11,18 +13,31 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
-/** The MPRIS session on a private bus from `dbus-daemon`, which the Linux runners and desktops have. */
+/**
+ * The MPRIS session on a private bus from `dbus-daemon`, which the Linux runners and desktops have. A machine without
+ * the daemon skips the test that needs it.
+ */
 class MprisSessionTest {
-    private val daemon = ProcessBuilder("dbus-daemon", "--session", "--nofork", "--print-address=1").start()
-    private val address = daemon.inputReader().readLine()
+    private var daemon: Process? = null
 
     @AfterTest
     fun stopDaemon() {
-        daemon.destroy()
+        daemon?.destroy()
+    }
+
+    /** Starts a private bus and returns its address, or skips the test when `dbus-daemon` is not on the PATH. */
+    private fun startBus(): String {
+        val onPath = System.getenv("PATH").orEmpty().split(File.pathSeparatorChar)
+            .any { it.isNotEmpty() && File(it, "dbus-daemon").canExecute() }
+        Assume.assumeTrue("dbus-daemon is not on the PATH", onPath)
+        val started = ProcessBuilder("dbus-daemon", "--session", "--nofork", "--print-address=1").start()
+        daemon = started
+        return checkNotNull(started.inputReader().readLine()) { "dbus-daemon printed no address" }
     }
 
     @Test
     fun `media controls change the channel and read what is playing`() {
+        val address = startBus()
         val steps = LinkedBlockingQueue<Int>()
         val session = assertNotNull(
             MprisSession.open(UnavailableLivePlayer(CaptionSync(), "NONE"), steps::put, "Sofa King", address),

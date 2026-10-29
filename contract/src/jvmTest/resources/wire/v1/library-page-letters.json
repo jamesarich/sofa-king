@@ -1,0 +1,70 @@
+{
+    "items": [
+        {
+            "id": "a2d7e5f4-91c0-3c1b-b3a9-5e0f7c4d2b68",
+            "libraryId": "0b6f2a53-47d1-4d0e-8a0b-6c2f6d1e9a77",
+            "kind": "album",
+            "title": "Harbor Lights",
+            "parentId": "e91b6a30-5d2f-3f0e-8c47-2a7d9b1c4f05",
+            "showId": null,
+            "showTitle": null,
+            "year": 2019,
+            "season": null,
+            "episode": null,
+            "episodeEnd": null,
+            "aired": null,
+            "overview": null,
+            "durationMs": null,
+            "poster": "/artwork/a2d7e5f4-91c0-3c1b-b3a9-5e0f7c4d2b68/poster?v=7b1e0c9d2a44",
+            "backdrop": null,
+            "addedAt": "2026-10-12T09:30:00Z",
+            "genres": [
+                "Indie"
+            ],
+            "contentRating": null,
+            "rating": null,
+            "videoHeight": null,
+            "hdr": false,
+            "children": 11,
+            "unwatched": 0,
+            "playState": null,
+            "extra": null,
+            "tmdbId": null,
+            "tvdbId": null,
+            "imdbId": null,
+            "artistId": "e91b6a30-5d2f-3f0e-8c47-2a7d9b1c4f05",
+            "artist": "The Tidewater",
+            "trackArtist": null,
+            "album": null,
+            "track": null,
+            "disc": null,
+            "favorite": false,
+            "plays": 0,
+            "lastPlayedAt": null
+        }
+    ],
+    "total": 120,
+    "next": "eyJvIjoxMDB9",
+    "genres": [
+        "Indie",
+        "Jazz"
+    ],
+    "letters": [
+        {
+            "letter": "#",
+            "count": 4
+        },
+        {
+            "letter": "A",
+            "count": 31
+        },
+        {
+            "letter": "H",
+            "count": 85
+        }
+    ],
+    "people": [
+        "Mara Lin",
+        "Joe Okafor"
+    ]
+}

@@ -105,6 +105,59 @@ class WireFixturesTest {
         assertEquals("Movie Night", watchlist.next?.title)
     }
 
+    @Test
+    fun `a music item keeps its artist album track and listening fields`() {
+        val strict = Json { explicitNulls = false }
+        val track = strict.decodeFromString<LibraryItem>(fixture("v1/library-item-music.json"))
+        assertEquals(Wire.ItemKind.TRACK, track.kind)
+        assertEquals("e91b6a30-5d2f-3f0e-8c47-2a7d9b1c4f05", track.artistId)
+        assertEquals("The Tidewater", track.artist)
+        assertEquals("The Tidewater feat. Mara Lin", track.trackArtist)
+        assertEquals("Harbor Lights", track.album)
+        assertEquals(4, track.track)
+        assertEquals(2, track.disc)
+        assertEquals(true, track.favorite)
+        assertEquals(12, track.plays)
+        assertEquals("2026-10-13T18:05:00Z", track.lastPlayedAt)
+        assertEquals(true, track.playState?.dismissed)
+    }
+
+    @Test
+    fun `a library page keeps its letters and the people a search found`() {
+        val strict = Json { explicitNulls = false }
+        val page = strict.decodeFromString<LibraryPage>(fixture("v1/library-page-letters.json"))
+        assertEquals(listOf(LetterCount("#", 4), LetterCount("A", 31), LetterCount("H", 85)), page.letters)
+        assertEquals(listOf("Mara Lin", "Joe Okafor"), page.people)
+        assertEquals(Wire.ItemKind.ALBUM, page.items.single().kind)
+        assertEquals(120, page.total)
+    }
+
+    @Test
+    fun `a rule keeps what it matches`() {
+        val strict = Json { explicitNulls = false }
+        val rule = strict.decodeFromString<RecordingRuleList>(fixture("v1/recording-rule-match.json")).rules.single()
+        assertEquals(
+            RuleMatch(Wire.RuleMatchKind.TEAM, listOf("Rangers", "Bruins"), listOf("Sports", "Hockey")),
+            rule.match,
+        )
+    }
+
+    @Test
+    fun `the ad break and multiview and on later fixtures decode`() {
+        val strict = Json { explicitNulls = false }
+        assertEquals(
+            AdBreakState(true, 42000),
+            strict.decodeFromString<AdBreakState>(fixture("v1/ad-break-state.json")),
+        )
+        val multiview = strict.decodeFromString<MultiviewSession>(fixture("v1/multiview-session.json"))
+        assertEquals(2, multiview.channelIds.size)
+        assertEquals(1, multiview.audio)
+        assertEquals(2, multiview.descriptor.epoch)
+        val program = strict.decodeFromString<UpcomingPrograms>(fixture("v1/upcoming-programs.json")).programs.single()
+        assertEquals("Evening News", program.title)
+        assertEquals(listOf("News"), program.categories)
+    }
+
     /**
      * The full fixtures hold a value in every field, so the server's check types each one rather than only finding it
      * present; they decode with no unknown field. A field added later is absent from them, which the rules allow.

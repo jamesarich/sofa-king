@@ -41,6 +41,9 @@ struct PlayerView: View {
     @State private var multiview: Channel?
     /// The channel the multiview's click picked to watch full screen.
     @State private var multiviewPick: Channel?
+    /// The channel's logo bytes for the info panel, and the program the item's metadata was last set for.
+    @State private var logo: Data?
+    @State private var metadataKey = ""
 
     init(channel: Channel) {
         _channel = State(initialValue: channel)
@@ -63,6 +66,7 @@ struct PlayerView: View {
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
+                refreshMetadata()
                 if model.sleep.due() {
                     model.sleep = SleepTimer()
                     dismiss()
@@ -71,6 +75,13 @@ struct PlayerView: View {
             }
         }
         .task(id: "\(channel.guideId) \(liveBreaks.name)") { await watchAdBreaks() }
+        .task(id: channel.guideId) {
+            logo = nil
+            metadataKey = ""
+            logo = await ArtworkData.load(channel.logo)
+            metadataKey = ""
+            refreshMetadata()
+        }
         .onChange(of: breakScreen != nil) { _, up in
             applyBreakSound()
             if up { startCovering() } else { stopCovering() }
@@ -115,6 +126,24 @@ struct PlayerView: View {
             model.requestedChannel = nil
             switchTo(next)
         }
+    }
+
+    /// Sets the playing item's info panel, Control Center and Siri metadata: the program on now as the title, the
+    /// channel as the subtitle and the channel's logo as the artwork. Runs each tick and sets only when the program,
+    /// the channel or the logo changed.
+    private func refreshMetadata() {
+        guard let item = player.currentItem else { return }
+        let now = model.lineup.flatMap { model.core.nowAndNext(lineup: $0, channel: channel).now }
+        let key = "\(channel.guideId)|\(now?.title ?? "")|\(now.map { model.core.epochMs(program: $0) } ?? 0)|\(logo?.count ?? 0)|\(ObjectIdentifier(item).hashValue)"
+        guard key != metadataKey else { return }
+        metadataKey = key
+        let channelName = "\(channel.number.formatted()) \(channel.name)"
+        item.externalMetadata = playerMetadata(
+            title: now?.title ?? channel.name,
+            subtitle: now == nil ? nil : channelName,
+            summary: now.flatMap { model.core.summary(program: $0) },
+            artwork: logo
+        )
     }
 
     /// The app's one live player, which the guide's preview may already be playing this channel on.

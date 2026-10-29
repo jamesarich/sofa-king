@@ -82,6 +82,7 @@ import dev.jamesrich.sofaking.ui.panelEdgeMargin
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.sectionHeading
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -324,13 +325,18 @@ private fun Heading(details: ProgramDetails, now: Instant, guideLoading: Boolean
     val program = details.program
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (program == null) {
-            Text(details.channel.noListingText(guideLoading), style = MaterialTheme.typography.titleLarge)
+            Text(
+                details.channel.noListingText(guideLoading),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.sectionHeading(),
+            )
         } else {
             Text(
                 program.title,
                 style = MaterialTheme.typography.titleLarge,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.sectionHeading(),
             )
             program.episodeLine()?.let {
                 Text(

@@ -51,6 +51,7 @@ import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
+import dev.jamesrich.sofaking.ui.sectionHeading
 import dev.jamesrich.sofaking.ui.theme.SofaActionChip
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaChip
@@ -73,6 +74,7 @@ internal fun ItemDetailsScreen(
     actions: ItemDetailsActions,
     returnedFrom: String? = null,
     hideSpoilers: Boolean = false,
+    trailer: TrailerSource? = null,
 ) {
     when (state) {
         ItemDetailState.Loading -> MessageScreen(stringResource(Res.string.library_loading), loading = true)
@@ -84,7 +86,8 @@ internal fun ItemDetailsScreen(
             onRetry = actions.onRetry,
         )
 
-        is ItemDetailState.Ready -> Details(state.detail, season, selectedSeasonId, actions, returnedFrom, hideSpoilers)
+        is ItemDetailState.Ready ->
+            Details(state.detail, season, selectedSeasonId, actions, returnedFrom, hideSpoilers, trailer)
     }
 }
 
@@ -96,6 +99,7 @@ private fun Details(
     actions: ItemDetailsActions,
     returnedFrom: String?,
     hideSpoilers: Boolean,
+    trailer: TrailerSource?,
 ) {
     val item = detail.item
     val insets = screenInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Vertical).asPaddingValues()
@@ -118,7 +122,7 @@ private fun Details(
     val episodeMenu = episodeMenu(actions)
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val heroHeight = maxHeight * HERO_FRACTION
-        Hero(item.backdrop ?: item.poster, Modifier.fillMaxWidth().height(heroHeight))
+        DetailsHero(detail, trailer, Modifier.fillMaxWidth().height(heroHeight))
         // Focus scrolls only to show what it lands on, so arriving on Play keeps the title above it on screen.
         ScrollOnlyWhenHidden(FOCUS_EDGE) {
             LazyColumn(
@@ -197,7 +201,7 @@ private fun LazyListScope.extrasAndRelated(
                 stringResource(Res.string.library_popular),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(sides),
+                modifier = Modifier.padding(sides).sectionHeading(),
             )
         }
         itemsIndexed(detail.popular, key = { _, song -> "popular-${song.id}" }) { index, song ->
@@ -364,7 +368,7 @@ private fun Cast(detail: MediaItemDetail, onPerson: (String) -> Unit, sides: Pad
             ),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(sides),
+            modifier = Modifier.padding(sides).sectionHeading(),
         )
         LazyRow(
             contentPadding = sides,

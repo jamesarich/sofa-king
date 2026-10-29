@@ -5,9 +5,9 @@ import SofaKingCore
 
 /// A live channel's or a recording's closed captions on AVPlayer, on or off as the app's CC setting says, as on the
 /// other apps. The system draws them in the look set in the Apple TV's Settings › Accessibility › Subtitles and
-/// Captioning; turning them on or off in the transport bar's Subtitles panel becomes the setting. The panel's On and
-/// Off show and set the system's caption display type rather than the item's selection, so the setting goes to the
-/// display type too: On is always on, and Off takes back an always on the app set.
+/// Captioning. The system's "always on" display type also turns them on, and is only read here, never written: the
+/// panel's On and Off set it themselves, and the app's setting follows the item's selection. The track is the one the
+/// system's preferred languages and its Closed Captions + SDH choice rank first.
 @MainActor
 enum StreamCaptions {
     /// Applies the setting to `item` once it is ready, and saves the viewer's picks after; keep the observers as long
@@ -20,18 +20,22 @@ enum StreamCaptions {
                 Task { @MainActor in
                     guard let group = try? await item.asset.loadMediaSelectionGroup(for: .legible) else { return }
                     legible.group = group
-                    let on = model.settings?.captionsEnabled ?? false
-                    item.select(on ? group.options.first : nil, in: group)
-                    show(on)
+                    legible.type = MACaptionAppearanceGetDisplayType(.user)
+                    let on = (model.settings?.captionsEnabled ?? false) || legible.type == .alwaysOn
+                    item.select(on ? preferredOption(in: group) : nil, in: group)
                 }
             },
-            // The panel's On changes only the display type, so it selects the captions here.
+            // The panel's On and Off change the display type, so the selection follows it; other caption look changes
+            // arrive here too and leave the selection alone.
             NotificationCenter.default.publisher(for: captionSettingsChanged).sink { _ in
                 Task { @MainActor in
                     guard let group = legible.group else { return }
-                    let on = MACaptionAppearanceGetDisplayType(.user) == .alwaysOn
-                    guard on != (model.settings?.captionsEnabled ?? false) else { return }
-                    item.select(on ? group.options.first : nil, in: group)
+                    let type = MACaptionAppearanceGetDisplayType(.user)
+                    guard type != legible.type else { return }
+                    legible.type = type
+                    let on = type == .alwaysOn
+                    guard on != (item.currentMediaSelection.selectedMediaOption(in: group) != nil) else { return }
+                    item.select(on ? preferredOption(in: group) : nil, in: group)
                 }
             },
             NotificationCenter.default.publisher(for: AVPlayerItem.mediaSelectionDidChangeNotification, object: item).sink { _ in
@@ -46,18 +50,26 @@ enum StreamCaptions {
 
     private static let captionSettingsChanged = Notification.Name(kMACaptionAppearanceSettingsChangedNotification as String)
 
-    /// Sets the system's display type to match `on`, as the Subtitles panel shows it.
-    private static func show(_ on: Bool) {
-        let type = MACaptionAppearanceGetDisplayType(.user)
-        if on, type != .alwaysOn {
-            MACaptionAppearanceSetDisplayType(.user, .alwaysOn)
-        } else if !on, type == .alwaysOn {
-            MACaptionAppearanceSetDisplayType(.user, .automatic)
+    /// The caption track the system's languages and its SDH choice rank first, never a forced-only one.
+    private static func preferredOption(in group: AVMediaSelectionGroup) -> AVMediaSelectionOption? {
+        let regular = AVMediaSelectionGroup.mediaSelectionOptions(
+            from: group.options, withoutMediaCharacteristics: [.containsOnlyForcedSubtitles]
+        )
+        let ranked = AVMediaSelectionGroup.mediaSelectionOptions(
+            from: regular, filteredAndSortedAccordingToPreferredLanguages: Locale.preferredLanguages
+        )
+        let wanted = (MACaptionAppearanceCopyPreferredCaptioningMediaCharacteristics(.user).takeRetainedValue() as? [String] ?? [])
+            .map { AVMediaCharacteristic(rawValue: $0) }
+        if !wanted.isEmpty,
+           let match = AVMediaSelectionGroup.mediaSelectionOptions(from: ranked, withMediaCharacteristics: wanted).first {
+            return match
         }
+        return ranked.first ?? regular.first ?? group.options.first
     }
 
-    /// The item's caption group, once loaded.
+    /// The item's caption group, once loaded, and the display type the last look at the system's setting found.
     private final class Legible {
         var group: AVMediaSelectionGroup?
+        var type: MACaptionAppearanceDisplayType = .automatic
     }
 }

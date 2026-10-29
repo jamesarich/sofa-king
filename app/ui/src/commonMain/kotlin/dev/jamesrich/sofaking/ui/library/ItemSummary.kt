@@ -76,15 +76,17 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * The backdrop at the top right, fading into the page to the left and below so text over it reads. The page there is a
- * gradient from the picture's ambient tint down to the theme's background, which the left fade shows through.
+ * gradient from the picture's ambient tint down to the theme's background, which the left fade shows through. [video]
+ * draws over the picture and under the fades, as a trailer does.
  */
 @Composable
-internal fun Hero(url: String?, modifier: Modifier = Modifier) {
+internal fun Hero(url: String?, modifier: Modifier = Modifier, video: @Composable () -> Unit = {}) {
     if (url == null) return
     val page = MaterialTheme.colorScheme.background
     val pageBrush = Brush.verticalGradient(listOf(rememberAmbientTint(url), page))
     Box(modifier.background(pageBrush)) {
         AsyncImage(url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        video()
         Box(
             Modifier
                 .fillMaxSize()

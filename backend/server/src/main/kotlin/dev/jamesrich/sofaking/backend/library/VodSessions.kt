@@ -68,6 +68,11 @@ internal class SubtitleSource(val stream: SubtitleStream, val file: Path?) {
 /** How long an idle VOD session lasts. */
 private val LEASE: Duration = Duration.ofMinutes(5)
 
+/** How long an idle preview lasts, as long as a live preview: the app renews well inside it. */
+private val PREVIEW_LEASE: Duration = Duration.ofSeconds(45)
+
+private val INTENTS = setOf(Wire.Intent.PREVIEW, Wire.Intent.WATCH)
+
 private const val SECRET_BYTES = 16
 
 /**
@@ -107,6 +112,10 @@ internal class VodState(
     var runStart: Int = 0,
     /** Who opened it, for the history. */
     val client: PlaybackClient? = null,
+    /** A [Wire.Intent] value: a preview yields its conversion slot to a watch. */
+    val intent: String = Wire.Intent.WATCH,
+    /** How long the session lasts past its last renewal or media request. */
+    val lease: Duration = LEASE,
 ) {
     /** Held while this session's FFmpeg is stopped and started again, off the sessions' lock. */
     val restarting = Mutex()
@@ -150,6 +159,7 @@ class VodSessions(
     private val directory: Path,
     private val maxConverting: Int = 2,
     private val lease: Duration = LEASE,
+    private val previewLease: Duration = PREVIEW_LEASE,
     private val recordings: (suspend (String) -> PlayableFile?)? = null,
     private val probe: suspend (Path) -> MediaInfo? = { null },
     encoder: VideoEncoder = VideoEncoder(),
@@ -179,7 +189,7 @@ class VodSessions(
     val subtitles = VodSubtitles(catalog, ffmpeg, directory)
 
     /** The files behind the sessions' media URLs. */
-    val files = VodMediaFiles(table, runner, clock, lease)
+    val files = VodMediaFiles(table, runner, clock)
 
     /** Clears what an earlier run left behind and checks the hardware encoder, if one is set, can encode. */
     suspend fun start() {
@@ -191,6 +201,9 @@ class VodSessions(
     suspend fun open(request: OpenVodPlayback, from: PlaybackClient? = null): VodSession {
         if (request.startMs < 0) {
             throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "startMs is not negative")
+        }
+        if (request.intent !in INTENTS) {
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Invalid playback intent")
         }
         request.recordingId?.let { return openRecording(it, request, from) }
         val (item, file) = subtitles.itemFile(request.itemId)
@@ -222,6 +235,9 @@ class VodSessions(
     private suspend fun openRecording(id: String, request: OpenVodPlayback, from: PlaybackClient?): VodSession {
         if (request.subtitleIndex != null) {
             throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "A recording has no subtitle tracks to draw")
+        }
+        if (request.intent == Wire.Intent.PREVIEW) {
+            throw ApiFailure(HttpStatusCode.BadRequest, "INVALID_REQUEST", "Only a library item plays as a preview")
         }
         val playable =
             recordings?.invoke(id)
@@ -274,11 +290,11 @@ class VodSessions(
         // key frames, which nothing lists.
         val whole =
             request.wholePlaylist && mode == Wire.VodMode.TRANSCODE && !growing && durationMs != null && durationMs > 0
+        val leaseOf = if (request.intent == Wire.Intent.PREVIEW) previewLease else lease
         return gate.withLock {
             table.locked {
                 table.reap()
-                val converting = table.sessions.values.count { heavy(it.mode, it.media) } + others()
-                if (heavy(mode, media) && converting >= maxConverting) {
+                if (heavy(mode, media) && !table.makeRoom(maxConverting, others(), request.intent)) {
                     throw ApiFailure(
                         HttpStatusCode.ServiceUnavailable,
                         Wire.ErrorCode.CAPACITY_EXHAUSTED,
@@ -290,8 +306,10 @@ class VodSessions(
                     UUID.randomUUID().toString(), itemId, recordingId, file, growing, mode, durationMs,
                     audio?.index, burn, media, secret(), epoch = 1,
                     startMs = if (mode == Wire.VodMode.DIRECT || whole) 0 else request.startMs,
-                    expires = clock.instant().plus(lease), startedAt = clock.instant(),
-                    whole = whole, client = from,
+                    expires = clock.instant().plus(leaseOf),
+                    startedAt = clock.instant(),
+                    whole = whole, client = from, intent = request.intent,
+                    lease = leaseOf,
                     runStart = if (whole) (request.startMs / SEGMENT_MS).toInt() else 0,
                 )
                 // A conversion that fails to start leaves its folder, and maybe its FFmpeg, to dispose.
@@ -322,7 +340,7 @@ class VodSessions(
         // A recording may have finished and moved since the stream started, so a restart finds its file again.
         val recordingId = table.locked { table.live(id).recordingId }
         val playable = if (start != null && recordingId != null) recordings?.invoke(recordingId) else null
-        val state = table.locked { table.live(id).also { it.expires = clock.instant().plus(lease) } }
+        val state = table.locked { table.live(id).also { it.expires = clock.instant().plus(it.lease) } }
         // A whole playlist seeks anywhere already; a restart there only renews it.
         if (start != null && state.mode != Wire.VodMode.DIRECT && !state.whole) {
             // Stopped and started off the sessions' lock, so a slow FFmpeg exit holds up only this session.
@@ -362,7 +380,7 @@ class VodSessions(
  * Whether a session in [mode] takes one of the conversions `SOFA_MAX_TRANSCODES` allows: converting sound alone costs
  * little, so music never waits for one or holds one.
  */
-private fun heavy(mode: String, media: MediaInfo?) = mode != Wire.VodMode.DIRECT && !media.audioOnly
+internal fun heavy(mode: String, media: MediaInfo?) = mode != Wire.VodMode.DIRECT && !media.audioOnly
 
 /** Drawing subtitles into the picture means encoding it, and a file still recording is never played directly. */
 private fun modeOf(
@@ -384,7 +402,7 @@ private fun VodState.wire(): VodSession {
     } else {
         PlaybackDescriptor("hls", "application/vnd.apple.mpegurl", "$base/index.m3u8", epoch)
     }
-    return VodSession(id, itemId, mode, descriptor, startMs, durationMs, expires.toString(), recordingId)
+    return VodSession(id, itemId, mode, descriptor, startMs, durationMs, expires.toString(), recordingId, intent)
 }
 
 /** The container family a client names for FFprobe's format names. */

@@ -19,11 +19,14 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 
 /**
  * Single-line Material 3 text entry whose outline thickens in the primary color when focused. [maskUnfocused]
  * rewrites what is shown while the field is not being edited (a secret's last characters); the text itself is
- * untouched.
+ * untouched. [keyboardType], [capitalization] and [autoCorrect] steer the on-screen keyboard; left unset they follow
+ * the platform's default.
  */
 @Composable
 internal fun TvTextField(
@@ -34,6 +37,9 @@ internal fun TvTextField(
     modifier: Modifier = Modifier,
     hint: String? = null,
     maskUnfocused: ((String) -> String)? = null,
+    keyboardType: KeyboardType = KeyboardType.Unspecified,
+    capitalization: KeyboardCapitalization = KeyboardCapitalization.Unspecified,
+    autoCorrect: Boolean? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val mask = if (focused || maskUnfocused == null) {
@@ -48,7 +54,12 @@ internal fun TvTextField(
         placeholder = hint?.let { { Text(it, style = MaterialTheme.typography.bodyLarge) } },
         lineLimits = TextFieldLineLimits.SingleLine,
         outputTransformation = mask,
-        keyboardOptions = KeyboardOptions(imeAction = imeAction),
+        keyboardOptions = KeyboardOptions(
+            capitalization = capitalization,
+            autoCorrectEnabled = autoCorrect,
+            keyboardType = keyboardType,
+            imeAction = imeAction,
+        ),
         onKeyboardAction = KeyboardActionHandler { onAction() },
     )
 }

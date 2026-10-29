@@ -127,6 +127,16 @@ interface ItemSessions {
     ): PlaybackStream
 
     /**
+     * Opens the library item [itemId], a trailer, as a preview behind a page, but only while the app holds no
+     * session: the check and the open are one step, so it never releases what another screen opened. Null when
+     * something is held, no server is set, or the server did not hold the session as a preview (an older one plays it
+     * as a watch, which would take a conversion slot nothing can reclaim, so it is released at once). The session is
+     * renewed like any other and never reopened when the server drops it, and releasing it leaves nothing to reopen.
+     * [play] or a channel's tune replaces it, as they replace anything held.
+     */
+    suspend fun preview(itemId: String, profile: PlaybackProfile): PlaybackStream?
+
+    /**
      * Plays the recording [recordingId] from [startMs] as [play] plays a library item; one still recording follows
      * the file as it grows. The stream's [PlaybackStream.itemId] is the recording's id.
      */
@@ -206,7 +216,7 @@ class PlaybackSessions private constructor(
             if (itemId != null && held?.itemId != itemId) return@withLock
             if (forget) {
                 hold.resumable = null
-            } else if (held != null) {
+            } else if (held != null && hold.items[held.sessionId]?.intent != PlaybackIntent.PREVIEW) {
                 hold.resumable = when {
                     held.isMultiview -> Resumable.Multiview(held.tiles, held.audioTile)
 
@@ -312,6 +322,18 @@ internal class ItemPlaying(private val hold: SessionHold) : ItemSessions {
         audioIndex: Int?,
         subtitleIndex: Int?,
     ): PlaybackStream = openItem(ItemRequest(itemId, profile, audioIndex, subtitleIndex), startMs)
+
+    override suspend fun preview(itemId: String, profile: PlaybackProfile): PlaybackStream? = with(hold) {
+        mutex.withLock {
+            val api = api ?: return null
+            if (current.value != null) return null
+            val request = ItemRequest(itemId, profile, null, null, intent = PlaybackIntent.PREVIEW)
+            val stream = open(api, ItemSessionKind(request, 0))
+            if (stream.intent == PlaybackIntent.PREVIEW) return stream
+            releaseHeld(api, stream)
+            null
+        }
+    }
 
     override suspend fun playRecording(recordingId: String, profile: PlaybackProfile, startMs: Long): PlaybackStream =
         openItem(ItemRequest(recordingId, profile, audioIndex = null, subtitleIndex = null, recording = true), startMs)

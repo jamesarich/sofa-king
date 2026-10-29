@@ -35,6 +35,7 @@ import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.resources.retry
 import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.BackHandler
+import dev.jamesrich.sofaking.ui.LocalKidsMode
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.library.CardMenu
 import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
@@ -45,6 +46,8 @@ import dev.jamesrich.sofaking.ui.library.LibraryHomeActions
 import dev.jamesrich.sofaking.ui.library.LibraryHomeScreen
 import dev.jamesrich.sofaking.ui.library.LibrarySearchActions
 import dev.jamesrich.sofaking.ui.library.LibrarySearchScreen
+import dev.jamesrich.sofaking.ui.library.TrailerSessions
+import dev.jamesrich.sofaking.ui.library.TrailerSource
 import dev.jamesrich.sofaking.ui.library.stillOrBackdrop
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.MusicPlayback
@@ -173,6 +176,8 @@ internal fun LibraryItemDestination(
     libraryVm: LibraryViewModel,
     music: MusicPlayback,
     hideSpoilers: Boolean,
+    trailerPlayer: LivePlayer,
+    trailerSessions: TrailerSessions,
     page: ItemPageViewModel = viewModel { ItemPageViewModel(libraryVm::openItem, route.itemId) },
 ) {
     val detail by page.detail.collectAsStateWithLifecycle()
@@ -208,6 +213,7 @@ internal fun LibraryItemDestination(
         ),
         returnedFrom = arrival.returnedFrom,
         hideSpoilers = hideSpoilers,
+        trailer = TrailerSource(trailerPlayer, trailerSessions, music.song != null, LocalKidsMode.current),
     )
 }
 

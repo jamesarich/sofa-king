@@ -48,6 +48,10 @@ object TvCopy {
     val favoriteAdd = twin("guide_details_add_favorite", "Add to favorites")
     val favoriteRemove = twin("guide_details_remove_favorite", "Remove from favorites")
 
+    val subtitleTiming = twin("vod_tracks_timing", "Subtitle timing")
+    val subtitleEarlier = twin("vod_tracks_earlier", "Earlier")
+    val subtitleLater = twin("vod_tracks_later", "Later")
+
     // Pairing
     private val pairingCode = twin(
         "settings_pairing_failed_code",

@@ -8,6 +8,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,11 +23,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.VodMarker
 import dev.jamesrich.sofaking.data.VodMarkerKind
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.vod_seek_description
+import dev.jamesrich.sofaking.resources.vod_seek_state
+import dev.jamesrich.sofaking.ui.formatPlayTime
+import dev.jamesrich.sofaking.ui.rememberHaptics
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.stringResource
@@ -75,6 +80,15 @@ internal fun VodSeekSlider(
     val played = MaterialTheme.colorScheme.primary
     val marker = MaterialTheme.colorScheme.tertiary
     val description = stringResource(Res.string.vod_seek_description)
+    val playedWholeSecondMs by remember(state) {
+        derivedStateOf { state.value.toLong() / MS_PER_SECOND * MS_PER_SECOND }
+    }
+    val stateText = stringResource(
+        Res.string.vod_seek_state,
+        formatPlayTime(playedWholeSecondMs),
+        formatPlayTime(lengthMs),
+    )
+    val haptics = rememberHaptics()
     Slider(
         state = state,
         onValueChange = {
@@ -84,12 +98,16 @@ internal fun VodSeekSlider(
         },
         onValueChangeFinished = {
             dragging = false
+            haptics.release()
             onSeek(state.value.toLong())
         },
         modifier = Modifier
             .fillMaxWidth()
             .tvFocus(MaterialTheme.shapes.small, focusedScale = 1f)
-            .semantics { contentDescription = description },
+            .semantics {
+                contentDescription = description
+                stateDescription = stateText
+            },
         track = { s ->
             Canvas(Modifier.fillMaxWidth().height(12.dp)) {
                 drawSeekTrack(s.value / lengthMs, lengthMs, markers, played, marker)
@@ -121,3 +139,5 @@ private fun DrawScope.drawSeekTrack(
         )
     }
 }
+
+private const val MS_PER_SECOND = 1000L

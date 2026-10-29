@@ -14,7 +14,7 @@ Open Settings in the [admin portal](admin.md) and choose the Connect tab. Add a 
 | Secret | Optional. ntfy's access token, sent as `Authorization: Bearer`, or the key a webhook's body is signed with. The server never shows it again; leave it blank when you edit a target to keep it |
 | Events | What the target receives, below. A new target takes all but the attention items, which the home page already shows |
 
-Then choose Test on its row: the server sends a test notification at once and the page says whether it arrived. Turn off pauses a target without losing it, Edit changes it, and Remove deletes it with its deliveries. The Last delivery column shows whether the newest one arrived, or why it failed.
+Then choose Test on its row: the server sends a test notification at once and the page says whether it arrived. Turn off pauses a target without losing it, Edit changes it, and Remove asks once, then deletes it with its deliveries. The Last delivery column shows whether the newest one arrived, or why it failed.
 
 The same targets are in the [admin API](api.md#notifications) under `/api/v1/admin/notifications`.
 

@@ -113,7 +113,10 @@ class NotificationsTest : AdminPortalCase() {
             val saved = runtime.notifications!!.get(target.id)
             assertEquals(listOf("disk.low"), saved.events)
             assertTrue(saved.hasSecret, "a blank secret keeps the one set")
-            browser.post("/admin/connect/targets/${target.id}/delete", "csrf" to csrf)
+            val asked = browser.post("/admin/connect/targets/${target.id}/delete", "csrf" to csrf)
+            assertTrue(asked.bodyAsText().contains("Remove Phone?"))
+            assertEquals(1, runtime.notifications!!.list().size)
+            browser.post("/admin/connect/targets/${target.id}/delete", "csrf" to csrf, "confirm" to "yes")
             assertTrue(runtime.notifications!!.list().isEmpty())
         }
     }

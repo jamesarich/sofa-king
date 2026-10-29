@@ -30,15 +30,28 @@ internal class SettingsPages(private val portal: Portal) {
             call.html(settingsPage(chrome(call, session), view))
         }
         route.action("/settings/tokens/create") { session, form -> createToken(call, session, form) }
-        route.action("/settings/tokens/{id}/revoke") { session, _ ->
+        route.action("/settings/tokens/{id}/revoke") { session, form ->
             val id = call.parameters["id"]!!
             val label = runtime.tokens.all().firstOrNull { it.id == id }?.label
-            if (label == null || !runtime.tokens.revoke(id)) {
+            if (label == null) {
                 session.flash.set(Flash("That token is already revoked.", Tone.WARN))
-            } else {
-                session.flash.set(Flash("Revoked the $label token."))
+                return@action seeOther(call, "/admin/settings#tokens")
             }
-            seeOther(call, "/admin/settings#tokens")
+            val ask = Ask(
+                "Revoke the $label token?",
+                "Players using it stop working.",
+                "/admin/settings/tokens/$id/revoke",
+                "/admin/settings#tokens",
+                "Revoke",
+            )
+            call.confirmed(session, form, ask, { settingsPage(it, settingsView()) }) {
+                if (runtime.tokens.revoke(id)) {
+                    session.flash.set(Flash("Revoked the $label token."))
+                } else {
+                    session.flash.set(Flash("That token is already revoked.", Tone.WARN))
+                }
+                seeOther(call, "/admin/settings#tokens")
+            }
         }
         route.action("/settings/runtime/check") { _, form ->
             // The form asks, on every change, whether its values differ from what the server uses; the
@@ -142,4 +155,3 @@ internal class SettingsPages(private val portal: Portal) {
 }
 
 private const val MAX_TOKEN_LABEL = 80
-internal const val CHANGES_LIMIT = 1000

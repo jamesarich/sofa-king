@@ -271,7 +271,10 @@ class AdminPortalPagesTest : AdminPortalCase() {
             }
             assertFalse(listed.contains(token), "the API token never reaches the page")
 
-            val forgot = browser.post("/admin/viewers/den-tv/forget", "csrf" to field(listed, "csrf"))
+            val csrf = field(listed, "csrf")
+            assertTrue(browser.post("/admin/viewers/den-tv/forget", "csrf" to csrf).bodyAsText().contains("Forget "))
+            assertEquals(HttpStatusCode.OK, api.get("/api/v1/preferences/den-tv") { bearerAuth(token) }.status)
+            val forgot = browser.post("/admin/viewers/den-tv/forget", "csrf" to csrf, "confirm" to "yes")
             assertEquals(HttpStatusCode.SeeOther, forgot.status)
             assertTrue(browser.get("/admin/viewers").bodyAsText().contains("No device has paired"))
             assertEquals(HttpStatusCode.NotFound, api.get("/api/v1/preferences/den-tv") { bearerAuth(token) }.status)

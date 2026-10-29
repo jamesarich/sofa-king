@@ -69,6 +69,7 @@ internal fun layout(
             content()
         }
         siteFooter(chrome)
+        chrome?.ask?.let { askDialog(chrome, it) }
         val flash = chrome?.flash
         if (flash != null) {
             div("toast ${flash.tone.css}") {

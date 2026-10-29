@@ -63,9 +63,19 @@ internal class PlexPages(private val portal: Portal) {
         }
         route.action("/plex/outputs/delete") { session, form ->
             val name = form["name"].orEmpty()
-            runtime.namedOutputs.delete(name)
-            session.flash.set(Flash("Deleted the $name output."))
-            seeOther(call, "/admin/plex#named-outputs")
+            val ask = Ask(
+                "Delete the $name output?",
+                "Players using its playlist or guide address stop getting channels.",
+                "/admin/plex/outputs/delete",
+                "/admin/plex#named-outputs",
+                "Delete",
+                listOf("name" to name),
+            )
+            call.confirmed(session, form, ask, { plexPage(it, plexView(call, reveal = false)) }) {
+                runtime.namedOutputs.delete(name)
+                session.flash.set(Flash("Deleted the $name output."))
+                seeOther(call, "/admin/plex#named-outputs")
+            }
         }
     }
 
@@ -94,7 +104,7 @@ internal class PlexPages(private val portal: Portal) {
                 null
             },
             enabledChannels = enabled.size,
-            tuners = hdhr.tuners,
+            tuners = runtime.settings.current.hdhrTuners,
             status = portal.plexStatus?.status(),
             access = if (hdhr.enabled) runtime.hdhrAccess.status(true) else null,
             namedOutputs = runtime.namedOutputs.list().map { output ->

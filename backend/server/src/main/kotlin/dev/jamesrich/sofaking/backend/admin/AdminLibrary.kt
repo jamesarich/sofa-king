@@ -52,7 +52,6 @@ internal fun libraryPage(chrome: Chrome, view: LibraryView): String = layout("Li
     )
     tabs(chrome, "/admin/library", LIBRARY_TABS)
     librariesPanel(chrome, view)
-    removeDialog(chrome, view)
     tmdbPanel(chrome, view)
     fanartPanel(chrome, view)
     listenBrainzPanel(chrome, view)
@@ -178,26 +177,6 @@ private fun TR.libraryActions(chrome: Chrome, library: LibraryRecord) = td("nowr
             attributes["aria-label"] =
                 "Remove ${library.name}"
             +"Remove"
-        }
-    }
-}
-
-private fun MAIN.removeDialog(chrome: Chrome, view: LibraryView) {
-    view.removing?.let { library ->
-        askDialog(
-            chrome,
-            "Remove ${library.name}?",
-            "/admin/library/${library.id}/remove",
-            "/admin/library#libraries",
-            "Remove",
-            danger = true,
-        ) {
-            p {
-                +(
-                    "The app stops showing it, and its watch progress is forgotten. The files in ${library.path} " +
-                        "stay where they are; add the folder again to bring it back."
-                    )
-            }
         }
     }
 }

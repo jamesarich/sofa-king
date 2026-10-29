@@ -257,6 +257,18 @@ class VirtualChannelsTest {
         assertEquals(true, stored.slots.single().shuffle)
         assertEquals(30, stored.breaks?.everyMinutes)
         assertTrue("Every 30 minutes" in edited)
+
+        val asked = browser.submitForm("/admin/virtual/${stored.id}/delete", parameters { append("csrf", csrf) })
+        assertTrue("Delete Movie night?" in asked.bodyAsText())
+        assertEquals(1, runtime.virtual!!.channels().size)
+        browser.submitForm(
+            "/admin/virtual/${stored.id}/delete",
+            parameters {
+                append("csrf", csrf)
+                append("confirm", "yes")
+            },
+        )
+        assertTrue(runtime.virtual!!.channels().isEmpty())
     }
 
     @Test fun `the live playlist marks each new piece and numbers its segments on`() {

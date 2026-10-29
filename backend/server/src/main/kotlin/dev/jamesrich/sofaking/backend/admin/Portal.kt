@@ -59,18 +59,34 @@ internal class Portal(
     }
 
     /** The page furniture for [session]; takes the one-shot notice unless [flash] replaces it. */
-    suspend fun chrome(call: ApplicationCall, session: AdminSession, flash: Flash? = null): Chrome = Chrome(
-        session,
-        clock.instant(),
-        flash ?: session.flash.getAndSet(null),
-        badges(),
-        config?.revision ?: "unknown",
-        runtime.startedAt,
-        theme(call),
-        // A page answering a POST sends a theme change back to the section it belongs to;
-        // the posted path is the action.
-        if (call.request.httpMethod == HttpMethod.Get) call.request.uri else "/admin",
-    )
+    suspend fun chrome(call: ApplicationCall, session: AdminSession, flash: Flash? = null, ask: Ask? = null): Chrome =
+        Chrome(
+            session,
+            clock.instant(),
+            flash ?: session.flash.getAndSet(null),
+            badges(),
+            config?.revision ?: "unknown",
+            runtime.startedAt,
+            theme(call),
+            // A page answering a POST sends a theme change back to the section it belongs to;
+            // the posted path is the action.
+            if (call.request.httpMethod == HttpMethod.Get) call.request.uri else "/admin",
+            ask,
+        )
+
+    /**
+     * Runs [perform] once the form says `confirm=yes`. Without it, answers with [page] showing [ask] over it and
+     * changes nothing, so the check works without JavaScript.
+     */
+    suspend fun ApplicationCall.confirmed(
+        session: AdminSession,
+        form: Parameters,
+        ask: Ask,
+        page: suspend (Chrome) -> String,
+        perform: suspend () -> Unit,
+    ) {
+        if (form["confirm"] == "yes") perform() else html(page(chrome(this, session, ask = ask)))
+    }
 
     /** The furniture for the page answering this request. */
     suspend fun RoutingContext.chrome(flash: Flash? = null): Chrome = chrome(call, call.session(), flash)

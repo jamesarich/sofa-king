@@ -33,18 +33,27 @@ internal class ViewerPages(private val portal: Portal) {
             session.flash.set(Flash("Canceled the pairing code."))
             seeOther(call, "/admin/viewers")
         }
-        route.action("/viewers/{clientId}/forget") { session, _ ->
+        route.action("/viewers/{clientId}/forget") { session, form ->
             val clientId = call.parameters["clientId"]!!
             val viewer = runtime.store.viewers().firstOrNull { it.clientId == clientId }
-            val revoked = runtime.tokens.revokeClient(clientId)
-            if (!runtime.store.forgetViewer(clientId) && revoked == 0) {
-                session.flash.set(Flash("That device is already gone.", Tone.WARN))
-            } else {
-                val name = viewer?.name?.ifEmpty { null } ?: "the device"
-                val token = if (revoked > 0) " and revoked its token; it pairs again to reconnect" else ""
-                session.flash.set(Flash("Forgot $name$token."))
+            val name = viewer?.name?.ifEmpty { null } ?: "the device"
+            val ask = Ask(
+                "Forget $name?",
+                "Its saved preferences go and its token stops working. It pairs again to reconnect.",
+                "/admin/viewers/$clientId/forget",
+                "/admin/viewers#devices",
+                "Forget",
+            )
+            call.confirmed(session, form, ask, { viewersPage(it, viewersView(call)) }) {
+                val revoked = runtime.tokens.revokeClient(clientId)
+                if (!runtime.store.forgetViewer(clientId) && revoked == 0) {
+                    session.flash.set(Flash("That device is already gone.", Tone.WARN))
+                } else {
+                    val token = if (revoked > 0) " and revoked its token; it pairs again to reconnect" else ""
+                    session.flash.set(Flash("Forgot $name$token."))
+                }
+                seeOther(call, "/admin/viewers#devices")
             }
-            seeOther(call, "/admin/viewers#devices")
         }
     }
 

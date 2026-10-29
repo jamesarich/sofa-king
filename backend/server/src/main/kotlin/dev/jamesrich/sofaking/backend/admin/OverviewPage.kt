@@ -310,7 +310,7 @@ private fun DIV.lineupTiles(view: OverviewView) {
 }
 
 private fun FlowContent.lastRunPanel(run: PolicyApplyResult?, now: Instant) =
-    panel("Last lineup run", aside = { a("/admin/settings#changes") { +"Change log" } }) {
+    panel("Last lineup run", aside = { a("/admin/system/changes#changes") { +"Change log" } }) {
         if (run == null) {
             p("muted") {
                 +(

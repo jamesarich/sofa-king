@@ -48,6 +48,8 @@ internal class Chrome(
     val startedAt: Instant? = null,
     val theme: String? = null,
     val back: String = "/admin",
+    /** A question the page asks before an action runs; [layout] shows it over the page. */
+    val ask: Ask? = null,
 )
 
 /** The schemes the operator can pin; anything else follows the device. */

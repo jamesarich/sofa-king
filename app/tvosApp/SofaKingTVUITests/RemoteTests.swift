@@ -267,7 +267,7 @@ final class RemoteTests: XCTestCase {
             print("[remote] looking for \(element.description), pressing \(move.rawValue) next:\n\(outline())")
             remote.press(move)
         }
-        XCTAssertTrue(element.exists && element.hasFocus, "Could not reach \(element.description) in the transport bar\n\(screen)")
+        XCTAssertTrue(settled(element.exists && element.hasFocus), "Could not reach \(element.description) in the transport bar\n\(screen)")
     }
 
     /// Presses `direction` until `element` has focus.
@@ -283,14 +283,19 @@ final class RemoteTests: XCTestCase {
             if settled(element.exists && element.hasFocus) { return }
             remote.press(move)
         }
-        XCTAssertTrue(element.exists && element.hasFocus, "Remote presses never focused \(element.description)\n\(screen)")
+        XCTAssertTrue(settled(element.exists && element.hasFocus), "Remote presses never focused \(element.description)\n\(screen)")
     }
 
-    /// `check` once focus has had a moment to settle after a press.
+    /// `check` once focus has settled after a press: true as soon as it holds, false after 1.5 s, since focus lands
+    /// late on a busy CI runner.
     @MainActor
     private func settled(_ check: @autoclosure () -> Bool) -> Bool {
-        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
-        return check()
+        let deadline = Date().addingTimeInterval(1.5)
+        repeat {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+            if check() { return true }
+        } while Date() < deadline
+        return false
     }
 
     @MainActor

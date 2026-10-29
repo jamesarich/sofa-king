@@ -10,7 +10,7 @@ Open Settings in the [admin portal](admin.md) and choose the Connect tab. Add a 
 | --- | --- |
 | Name | What the table calls it, such as Phone or Home Assistant |
 | Kind | ntfy, Apprise API or Webhook (JSON) |
-| URL | Where to send: the ntfy topic URL, the Apprise API notify URL, or the webhook URL. `http` or `https`, with no user name in it. Addresses on your network and on the server itself are allowed: unlike a source, a target is your own choice |
+| URL | Where to send: the ntfy topic URL, the Apprise API notify URL, or the webhook URL. `http` or `https`, with no user name in it. Addresses on your network and on the server itself are allowed: unlike a source, a target is your own choice. A webhook or topic URL is a secret, so the table and the API show only its scheme and host; leave the field blank when you edit a target to keep the URL |
 | Secret | Optional. ntfy's access token, sent as `Authorization: Bearer`, or the key a webhook's body is signed with. The server never shows it again; leave it blank when you edit a target to keep it |
 | Events | What the target receives, below. A new target takes all but the attention items, which the home page already shows |
 

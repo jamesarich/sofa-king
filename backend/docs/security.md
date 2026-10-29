@@ -59,7 +59,7 @@ The server makes requests to the playlist, guide, logo and stream hosts that you
 
 Details are in [live TV: upstream addresses and provider headers](live-tv.md#provider-headers).
 
-[Notifications](notifications.md) go only to the targets an admin adds, and the upstream address policy does not apply to them: a target may be a LAN or loopback address, such as Home Assistant or an Apprise API container beside the server. Its URL must be `http` or `https` without user information, redirects are not followed, and its secret is never returned by the API or written to the log, which names a target by its id.
+[Notifications](notifications.md) go only to the targets an admin adds, and the upstream address policy does not apply to them: a target may be a LAN or loopback address, such as Home Assistant or an Apprise API container beside the server. Its URL must be `http` or `https` without user information, redirects are not followed, and its secret is never returned by the API or written to the log, which names a target by its id. The API and the portal show its URL as the scheme and host only (`https://ntfy.sh/…`), since a webhook or topic path is a credential; an edit that leaves the URL empty keeps the stored one.
 
 ## Hardening checklist
 
@@ -67,7 +67,7 @@ Details are in [live TV: upstream addresses and provider headers](live-tv.md#pro
 - The output token is generated at the first start like the others. Rotate it when a playlist URL has been shared further than you meant, as [operations](operations.md#rotating-tokens) describes.
 - Mount the media folder read only (`:ro`), as [media libraries](libraries.md#mount-the-media-folder) shows; the server never writes to it. Pass `SOFA_TMDB_TOKEN` through `SOFA_TMDB_TOKEN_FILE` like the other tokens.
 - Allow only the Plex server's address onto the tuners, or set `SOFA_HDHR_ENABLED=false` when Plex is not used.
-- Keep the data directory (`deploy/config` with Docker) private to the user the server runs as. The database holds native provider session tokens, the [playback history](api.md#playback-history) (what each device and player address watched, for `SOFA_HISTORY_DAYS` days), `secrets.json` holds the generated tokens and the TMDB token the portal saved, and the source file can hold playlist URLs with credentials. `deploy/.env` and `deploy/config/` are ignored by Git.
+- Keep the data directory (`deploy/config` with Docker) private to the user the server runs as. At start the server makes the database and the sources file owner-only (mode `600`, on a POSIX file system; it logs one warning when it cannot) and leaves the folder's own mode alone, so a media server on the host can still read recordings kept in it. The database holds native provider session tokens, the [playback history](api.md#playback-history) (what each device and player address watched, for `SOFA_HISTORY_DAYS` days), `secrets.json` holds the generated tokens and the TMDB token the portal saved, and the source file can hold playlist URLs with credentials. `deploy/.env` and `deploy/config/` are ignored by Git.
 - With [automatic updates](deploy.md#update-automatically), the updater's database backups hold the same session tokens as the database. Those in the config folder are readable by the container's user alone, and the fallback backups in the Compose directory by root alone.
 - [Inspect the published image's provenance and SBOM](deploy.md#inspect-the-published-image) before you run it.
 - Use HTTPS, through a reverse proxy, for any token that crosses a network you do not control.

@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.events.EventType
 import dev.jamesrich.sofaking.backend.pollFor
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.notificationDeliveries
+import dev.jamesrich.sofaking.backend.store.notificationTargets
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.HttpClient
@@ -93,6 +94,28 @@ class NotifierTest {
         assertEquals("Sofa King test", body["title"]!!.jsonPrimitive.content)
         assertEquals("info", body["type"]!!.jsonPrimitive.content)
     }
+
+    @Test fun `a target's URL is masked to its host in every answer`() = case { _, service, _ ->
+        val real = "https://hooks.example:8443/services/T000/B000/hunter2"
+        val created = service.create(SaveNotificationTarget("Hooks", NotifyKind.WEBHOOK, real))
+        assertEquals("https://hooks.example:8443/…", created.url)
+        assertEquals(created.url, service.list().single().url)
+        assertEquals(created.url, service.get(created.id).url)
+        assertFalse(service.list().toString().contains("hunter2"))
+    }
+
+    @Test fun `an update with a blank or masked URL keeps the stored one and delivery uses it`() =
+        case { store, service, sent ->
+            val real = "https://ntfy.example/sofa-private-topic"
+            val target = service.create(SaveNotificationTarget("Phone", NotifyKind.NTFY, real))
+            service.update(target.id, SaveNotificationTarget(name = "Mobile", url = ""))
+            service.update(target.id, SaveNotificationTarget(url = target.url))
+            assertEquals(real, store.notificationTargets().single().url)
+            service.test(target.id)
+            assertEquals(real, sent.single().request.url.toString().substringBefore('?'))
+            service.update(target.id, SaveNotificationTarget(url = "https://other.example/topic"))
+            assertEquals("https://other.example/topic", store.notificationTargets().single().url)
+        }
 
     @Test fun `a failing target is tried three times, and a refusal once`() = runBlocking {
         val answers = mutableListOf(HttpStatusCode.ServiceUnavailable, HttpStatusCode.BadGateway, HttpStatusCode.OK)

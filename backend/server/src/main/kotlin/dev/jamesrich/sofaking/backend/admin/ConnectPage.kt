@@ -32,7 +32,6 @@ import kotlinx.html.textInput
 import kotlinx.html.th
 import kotlinx.html.thead
 import kotlinx.html.tr
-import java.net.URI
 
 private val KIND_LABELS = linkedMapOf(
     NotifyKind.NTFY to "ntfy",
@@ -106,12 +105,12 @@ internal class ConnectPages(private val portal: Portal) {
         }
     }
 
-    /** Adds a target from [form], or changes [id]'s; a blank secret on a change keeps the one it has. */
+    /** Adds a target from [form], or changes [id]'s; a blank secret or URL on a change keeps the one it has. */
     private suspend fun save(form: Parameters, id: String?): Flash = attempt(id) { service ->
         val body = SaveNotificationTarget(
             name = form["name"].orEmpty(),
             kind = form["kind"].orEmpty(),
-            url = form["url"].orEmpty(),
+            url = form["url"]?.takeIf { it.isNotBlank() || id == null }.orEmpty(),
             secret = form["secret"]?.takeIf { it.isNotEmpty() || id == null },
             events = form.getAll("event").orEmpty(),
             enabled = if (id == null) true else null,
@@ -188,7 +187,7 @@ private fun FlowContent.targetsTable(chrome: Chrome, targets: List<NotificationT
                     }
                     td {
                         +KIND_LABELS.getValue(target.kind)
-                        span("muted small mono") { +" ${hostOf(target.url)}" }
+                        span("muted small mono") { +" ${target.url}" }
                     }
                     td { +"${target.events.size} of ${NotifyEvent.ALL.size}" }
                     td("nowrap") { lastDelivery(chrome, target) }
@@ -259,7 +258,7 @@ private fun FlowContent.targetForm(chrome: Chrome, target: NotificationTarget?) 
                 }
             }
         }
-        textField("$key-url", "url", "URL", target?.url, "https://ntfy.sh/your-topic or http://192.0.2.10:8000/notify")
+        urlField(key, target)
         div("field") {
             label {
                 htmlFor = "$key-secret"
@@ -289,19 +288,36 @@ private fun FlowContent.targetForm(chrome: Chrome, target: NotificationTarget?) 
     }
 }
 
-private fun FlowContent.textField(id: String, name: String, text: String, current: String?, hint: String) =
-    div("field") {
-        label {
-            htmlFor = id
-            +text
-        }
-        textInput(name = name) {
-            this.id = id
-            required = true
-            value = current.orEmpty()
-        }
-        span("hint") { +hint }
-    }
+/** The URL is never filled in: a change shows the masked one as its hint, and a blank field keeps the stored URL. */
+private fun FlowContent.urlField(key: String, target: NotificationTarget?) = textField(
+    "$key-url",
+    "url",
+    "URL",
+    null,
+    if (target == null) {
+        "https://ntfy.sh/your-topic or http://192.0.2.10:8000/notify"
+    } else {
+        "Set to ${target.url}; leave blank to keep it. The path is a secret, so it is never shown."
+    },
+    required = target == null,
+)
 
-/** The host [url] sends to, so the table shows where without the topic or key a path may carry. */
-private fun hostOf(url: String): String = runCatching { URI(url).host }.getOrNull() ?: ""
+private fun FlowContent.textField(
+    id: String,
+    name: String,
+    text: String,
+    current: String?,
+    hint: String,
+    required: Boolean = true,
+) = div("field") {
+    label {
+        htmlFor = id
+        +text
+    }
+    textInput(name = name) {
+        this.id = id
+        this.required = required
+        value = current.orEmpty()
+    }
+    span("hint") { +hint }
+}

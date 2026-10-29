@@ -84,6 +84,10 @@ object ServiceCatalog {
         ServiceInfo("tcl", "TCL TV+", "TCL's free channels"),
         ServiceInfo("stirr", "STIRR", "Sinclair's local and national channels"),
         ServiceInfo("freelivesports", "FreeLiveSports.tv", "Free sports channels"),
+        ServiceInfo("cw", "The CW", "The CW app's free channels, such as ION, Court TV and FilmRise"),
+        ServiceInfo("zeam", "Zeam", "Local news and free channels from Zeam"),
+        ServiceInfo("ognetwork", "OG Network", "OG Network's free channels"),
+        ServiceInfo("mansa", "Mansa", "Mansa's free channels of Black culture"),
         ServiceInfo("localnow", "Local Now", "Local news for one market, and national channels", listOf(dma, market)),
         ServiceInfo(
             "pbs",

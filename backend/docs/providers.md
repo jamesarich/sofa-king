@@ -4,7 +4,7 @@ A native provider is a client for one free streaming service built into the serv
 
 The clients are unofficial. They call the same public endpoints each service's own web or TV client calls, with no account and no credentials, and they stop working whenever the service changes them. Using them may be against a service's terms of service. The clients send ad-insertion identifiers that are random per install, not a device's identifiers.
 
-The server supports 17 streaming services, the free feeds of about twenty broadcasters (`direct`) and HDHomeRun tuners. Each one is listed below with its endpoints and its known fragility.
+The server supports 21 streaming services, the free feeds of about twenty broadcasters (`direct`) and HDHomeRun tuners. Each one is listed below with its endpoints and its known fragility.
 
 ## Configuration
 
@@ -39,7 +39,7 @@ The portal's Sources page writes this file: every service is a switch, with its 
 | Field | Default | Description |
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
-| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo`, `pluto`, `tubi`, `direct`, `hdhomerun` |
+| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo`, `pluto`, `tubi`, `cw`, `zeam`, `ognetwork`, `mansa`, `direct`, `hdhomerun` |
 | `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` and `fallbackUrl` for `samsung`, `region` for `whale`, `region` and `forwardedFor` for `pluto` and `plex`, `dma` and `market` for `localnow`, `market` for `xumo`, `url` (required) and `transcode` for `hdhomerun` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
@@ -184,6 +184,30 @@ Fragility: the boot's `appVersion` is the web client's and may be refused when P
 tubitv.com/live as a signed-out visitor sees it. The page's `window.__data` state carries the `tubitv_us_linear` containers and their channel IDs. The public `oz/epg/programming` endpoint, 50 IDs a request, answers each channel's title, thumbnail, HLS manifest (with a token valid about three days) and about two days of programs, which are the guide. The snapshot is kept 30 minutes. The group is the first themed container that lists the channel. Featured, Recommended, Recently Added and Favorites group only what nothing else does. Tubi has no channel numbers. Channels with `needs_login`, or a resource with a `license_server`, are left out. A resolve asks `programming` for that one channel and hands its manifest to the relay for an hour.
 
 Fragility: the channel IDs come from the page's server-rendered state. A page served without them fails the import as provider evidence, and the last complete snapshot stays.
+
+### zeam (Zeam)
+
+The zeam.com/live page embeds a `var json=` blob whose "All Channels" group lists about 400 stations, each with its station ID, logo and a v4 `schedule.json` URL. The guide fetches only the wanted channels' schedules, six at a time; a schedule that answers 403 or 404 means that channel has no guide. A resolve asks `api/services/StreamInfo?stationId=N` for a master playlist whose token lasts about 90 seconds. Its variant and key URLs answer only the User-Agent that fetched the master, so the client sends a fixed one and hands the relay the same. The `siteBase` option overrides the site.
+
+Fragility: the lineup comes from a script blob in the page. Schedules are large, over a megabyte for some channels, and looped channels list multi-day blocks under one title. StreamInfo answers 500 for an unknown station, so a channel is gone only when the page drops it.
+
+### ognetwork (OG Network)
+
+The site's `catalog.json` lists about 84 small channels. Everything else goes through the Sotal cloud SDP: the web app's anonymous token, kept in provider state and replaced once when refused, then each channel asset's `hls-live` resource, and a `playback-sessions` call per tune that answers a `noisypeak` HLS URL behind a redirect, valid about 10 minutes. A resolve checks the master and first variant, and a channel whose playlist has no segments fails as a gone offering. The guide is one `epg-events` call of about 10 MB. The `catalogUrl` and `apiBase` options override both endpoints.
+
+Fragility: an unofficial API. Some channels serve empty playlists, the operator allows three playback sessions at once, and the catalog carries no channel numbers.
+
+### cw (The CW)
+
+One feed from the CW web player, `data.cwtv.com/feed/app-2/landing/epg/page_1/pagesize_75/...`, lists The CW's free channels (ION, Court TV, FilmRise and others) with each one's clear Amagi HLS URL and its programs, from a few hours back to about 16 hours ahead. The trailing `cacheversion_N` changes every 15 minutes so the CDN copy stays fresh. Channel IDs are the feed's slugs. Channels marked `has_drm` or not HLS are left out, and "To Be Announced" filler is dropped from the guide. The `feedBase` option overrides the feed path.
+
+Fragility: `app-2` and `apiversion_24` are fixed in the path, so a version change on the CW's side ends it. The feed is one 1.4 MB document, and its guide is shorter than a day.
+
+### mansa (Mansa)
+
+One `POST` to the Kanku playlist API with `{"size":200}` lists Mansa's channels. Only `FAST` entries are kept; `VIRTUAL` ones are on-demand playlists without a stream. Streams are MediaTailor, Amagi or Ottera HLS; the Wurl MediaTailor URLs carry percent-encoded `{DEVICE_ID}`-style ad macros, which a resolve fills. The guide is one shared Kanku EPG feed of about a day, matched to channels by ID, then by normalized name. The `playlistUrl` and `guideUrl` options override both endpoints.
+
+Fragility: an unofficial API that can change shape. Some channels' schedules stop updating, so a few channels have no guide at a time.
 
 ### hdhomerun (HDHomeRun tuner)
 

@@ -3,15 +3,21 @@ name: Screenshots
 # The documentation's screenshots, from every platform a runner can show headlessly: the web app in Chrome and the Linux
 # desktop app on a virtual display, the Android phone, tablet and TV apps in emulators, and the iPhone, iPad and Apple TV
 # apps in simulators, each against the server's installed distribution serving the showcase lineup (Blender's open movies
-# as live channels and libraries, app/scripts/showcase.py). Uploads one artifact per platform; copy the ones the docs use
-# into docs/images. By hand, and on changes to the scripts or this file.
+# as live channels and libraries, app/scripts/showcase.py), plus the server's admin portal in Chrome. Each platform's
+# pictures upload as one artifact; the images job converts the ones app/scripts/doc-images.json names to the WebP files
+# under docs/images and uploads them as `docs-images`, and the propose job opens a pull request with the ones that
+# changed. Weekly on main, by hand, and on changes to the scripts or this file (without the pull request).
 on:
+  schedule:
+    - cron: "17 5 * * 1"
   workflow_dispatch:
   pull_request:
     paths:
       - "app/scripts/screenshots.py"
       - "app/scripts/showcase.py"
       - "app/scripts/fixture_server.py"
+      - "app/scripts/doc_images.py"
+      - "app/scripts/doc-images.json"
       - ".github/workflows/screenshots.yml"
       - ".github/actions/apt-install/**"
 
@@ -101,6 +107,15 @@ jobs:
       - name: Take the desktop screenshots
         working-directory: app
         run: python3 scripts/screenshots.py desktop --app "ui/build/compose/binaries/main/app/Sofa King/bin/Sofa King" --out build/screenshots/desktop
+      - name: Take the light web and desktop screenshots
+        working-directory: app
+        run: |
+          python3 scripts/screenshots.py web --appearance light --app ui/build/dist/wasmJs/productionExecutable --channel chrome --out build/screenshots/web
+          python3 scripts/screenshots.py desktop --appearance light --app "ui/build/compose/binaries/main/app/Sofa King/bin/Sofa King" --out build/screenshots/desktop
+      # The portal needs no app, only the server against the showcase, in both color schemes.
+      - name: Take the admin portal screenshots
+        working-directory: app
+        run: python3 scripts/screenshots.py admin --channel chrome --out build/screenshots/admin
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -118,12 +133,15 @@ jobs:
           - kind: phone
             target: google_apis
             profile: pixel_7
+            looks: dark light
           - kind: tablet
             target: google_apis
             profile: pixel_tablet
+            looks: dark light
           - kind: tv
             target: android-tv
             profile: tv_1080p
+            looks: dark
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -169,7 +187,7 @@ jobs:
           profile: ${{ matrix.profile }}
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
-          script: python3 app/scripts/screenshots.py android-${{ matrix.kind }} --app app/androidApp/build/outputs/apk/debug/androidApp-debug.apk --out app/build/screenshots/android-${{ matrix.kind }}
+          script: for look in ${{ matrix.looks }}; do python3 app/scripts/screenshots.py android-${{ matrix.kind }} --appearance $look --app app/androidApp/build/outputs/apk/debug/androidApp-debug.apk --out app/build/screenshots/android-${{ matrix.kind }}; done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -257,3 +275,93 @@ jobs:
           name: screenshots-apple
           path: app/build/screenshots/
           if-no-files-found: ignore
+
+  # Converts the pictures the mapping names to the documentation's WebP files and lists the ones that differ from
+  # docs/images, on a pull request too, so the conversion and the comparison run before the first scheduled one.
+  images:
+    name: Documentation images
+    needs: [linux, android, apple]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install ImageMagick
+        uses: ./.github/actions/apt-install
+        with:
+          packages: imagemagick
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: screenshots-*
+          merge-multiple: true
+          path: build/screenshots
+      - name: Convert to WebP
+        run: python3 app/scripts/doc_images.py convert --src build/screenshots --out build/docs-images/docs/images
+      - name: List the changed images
+        run: |
+          python3 app/scripts/doc_images.py changes --new build/docs-images/docs/images --old docs/images --body build/changes.md
+          { echo '### Images that differ from docs/images'; echo; cat build/changes.md; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-images
+          path: build/docs-images/
+          if-no-files-found: error
+
+  # Commits the changed images to bot/docs-screenshots and opens or updates the pull request for them. Never on a pull
+  # request, and only from main. Needs the repository setting "Allow GitHub Actions to create and approve pull
+  # requests"; without it the branch is still pushed and the log names the link that opens the pull request by hand.
+  propose:
+    name: Propose the images
+    needs: images
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      BRANCH: bot/docs-screenshots
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install ImageMagick
+        uses: ./.github/actions/apt-install
+        with:
+          packages: imagemagick
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docs-images
+          path: build/docs-images
+      - name: Copy the changed images over docs/images
+        id: changes
+        run: |
+          count=$(python3 app/scripts/doc_images.py changes --new build/docs-images/docs/images --old docs/images --copy --body build/changes.md)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+      - name: Push the branch and open the pull request
+        if: steps.changes.outputs.count != '0'
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -C "$BRANCH"
+          git add docs/images
+          git commit -m 'docs: refresh the screenshots'
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.git" "$BRANCH"
+          {
+            echo 'The weekly screenshots run on main shows these images differently from docs/images.'
+            echo
+            cat build/changes.md
+            echo
+            echo "Rendered by [this run]($RUN_URL). A new image is not drawn by any page yet; add it where it belongs before merging. Pushes made with the workflow token start no checks: close and reopen this pull request to run them."
+          } > build/body.md
+          number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh pr edit "$number" --body-file build/body.md
+          elif ! gh pr create --base main --head "$BRANCH" --title 'docs: refresh the screenshots' --body-file build/body.md; then
+            echo "::warning::The branch is pushed but the workflow token cannot open pull requests. Open https://github.com/${GH_REPO}/compare/main...${BRANCH} by hand, or turn on 'Allow GitHub Actions to create and approve pull requests' in the repository's Actions settings."
+          fi

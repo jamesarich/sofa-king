@@ -173,7 +173,7 @@ The app opens `sofaking://` links on Android, Android TV, iOS and Apple TV, so a
 | `sofaking://live/NUMBER` | The channel with that number full screen on Live, such as `sofaking://live/5.1`; a channel's name works in place of its number. Back lands on the guide. |
 | `sofaking://vod/ID` | The library item with that id in the player, from where the household stopped. Back lands on the Library tab. |
 | `sofaking://vod/ID?t=SECONDS` | The same item, that many seconds in. |
-| `sofaking://pair?server=URL&code=CODE` | Pairs with that server, as the admin portal's QR code does. |
+| `sofaking://pair?server=URL&code=CODE` | Pairs with that server, as the admin portal's QR code does. With no server saved, or with the one the link names, it pairs at once; with another server saved, a dialog asks "Switch to HOST?" and says that this device stops using the saved one. Cancel is focused first; Switch pairs, Cancel drops the link. The Apple TV app pairs at once. |
 
 On Android and Android TV only `pair` opens from a web page; `live` and `vod` open from another app, from the home screen's Watch Next row, or from `adb shell am start -a android.intent.action.VIEW -d sofaking://live/5.1`, the way Home Assistant's Android TV integration starts an app. A channel or item the server does not have leaves the app where it was. The Apple TV's Top Shelf uses the same `vod` links, and its older `sofaking://channel/ID` links still open the channel.
 

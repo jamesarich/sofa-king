@@ -26,7 +26,7 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
         val channels = listed()
         return ParsedGuide(
             channels.map {
-                GuideChannel(it.channel.id, it.channel.name, it.channel.logo)
+                it.channel.toGuideChannel()
             },
             channels.filter {
                 it.channel.id in
@@ -63,7 +63,7 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
                 listing(id, channel, group)?.let { result[id] = it }
             }
         }
-        if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(result)
         return result.values.toList()
     }
 

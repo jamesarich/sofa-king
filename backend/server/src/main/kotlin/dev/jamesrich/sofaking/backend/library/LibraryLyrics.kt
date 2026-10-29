@@ -96,11 +96,10 @@ class LibraryLyrics internal constructor(
 
     /** The `.lrc` file named as the track [relative] in the library folder [root], when there is one. */
     private suspend fun beside(root: Path, relative: String): String? = withContext(Dispatchers.IO) {
-        val track = root.resolve(relative).normalize()
-        val file = track.resolveSibling(track.fileName.toString().substringBeforeLast('.') + ".lrc")
-        file.takeIf {
-            it.startsWith(root.normalize()) && Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS) &&
-                Files.size(it) <= LYRICS_LIMIT
+        val track = Path.of(relative)
+        val lrc = track.resolveSibling(track.fileName.toString().substringBeforeLast('.') + ".lrc")
+        root.resolveInside(lrc.toString())?.takeIf {
+            Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS) && Files.size(it) <= LYRICS_LIMIT
         }?.let { Files.readString(it) }
     }
 

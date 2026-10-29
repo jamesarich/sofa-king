@@ -45,7 +45,7 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
-        val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
+        val index = channels.map { it.channel.toGuideChannel() }
         val start = context.clock.instant().truncatedTo(ChronoUnit.HOURS)
         val programs = ArrayList<GuideProgram>()
         for (batch in channels.map { it.channel.id }.filter { it in wanted }.chunked(GUIDE_BATCH)) {
@@ -114,7 +114,7 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
             },
         )
         val result = payload["data"].array.mapNotNull { listing(it, categories) }.distinctBy { it.channel.id }
-        if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(result)
         return result
     }
 

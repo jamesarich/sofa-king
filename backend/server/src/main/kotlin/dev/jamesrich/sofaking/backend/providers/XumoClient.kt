@@ -41,7 +41,7 @@ class XumoClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
-        val index = channels.map { GuideChannel(it.id, it.name, it.logo) }
+        val index = channels.map { it.toGuideChannel() }
         val ids = channels.map { it.id }.filter { it in wanted }.toSet()
         if (ids.isEmpty()) return ParsedGuide(index, emptyList())
         val now = context.clock.instant().atOffset(ZoneOffset.UTC).truncatedTo(ChronoUnit.HOURS)
@@ -174,7 +174,7 @@ class XumoClient(private val context: ProviderContext) : ProviderClient {
         )
             .require("Xumo channel list").json()
         val result = payload["channel"]["item"].array.mapNotNull(::channel).distinctBy { it.id }
-        if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(result)
         return result
     }
 

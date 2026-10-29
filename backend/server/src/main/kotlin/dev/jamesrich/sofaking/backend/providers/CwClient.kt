@@ -23,7 +23,7 @@ class CwClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
-        val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
+        val index = channels.map { it.channel.toGuideChannel() }
         val programs = channels.filter { it.channel.id in wanted }.flatMap { channel ->
             channel.programs.mapNotNull { program(channel.channel.id, it) }
         }
@@ -74,7 +74,7 @@ class CwClient(private val context: ProviderContext) : ProviderClient {
             page++
         }
         val channels = result.distinctBy { it.channel.id }
-        if (channels.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(channels)
         return channels
     }
 

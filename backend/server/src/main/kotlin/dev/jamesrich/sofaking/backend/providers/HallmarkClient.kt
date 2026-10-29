@@ -5,7 +5,6 @@ import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import java.time.Duration
-import java.time.format.DateTimeFormatter
 
 /**
  * Hallmark+'s four free linear channels: static clear HLS on Akamai, a channel catalog that names each channel's
@@ -36,8 +35,8 @@ class HallmarkClient(private val context: ProviderContext) : ProviderClient {
             val contentId =
                 catalog[channel.identifier]?.first
                     ?: throw ProviderFailure("Hallmark catalog does not list ${channel.identifier}")
-            val url = "$apiBase/channels/$contentId/schedule?from=${TIMESTAMP.format(from)}&" +
-                "until=${TIMESTAMP.format(from.plus(GUIDE_HORIZON))}&locale=en"
+            val url = "$apiBase/channels/$contentId/schedule?from=${ISO_MILLIS.format(from)}&" +
+                "until=${ISO_MILLIS.format(from.plus(GUIDE_HORIZON))}&locale=en"
             context.http.get(url, HEADERS).require("Hallmark schedule").json()["data"].array.mapNotNullTo(programs) {
                 val epg = it["display"]["epg"]
                 guideProgram(
@@ -77,9 +76,6 @@ class HallmarkClient(private val context: ProviderContext) : ProviderClient {
         private const val API_BASE = "https://www.hallmarkplus.com/api/core/catalog"
         private const val CATALOG = "catalog"
         private val GUIDE_HORIZON = Duration.ofHours(48)
-        private val TIMESTAMP = DateTimeFormatter.ofPattern(
-            "uuuu-MM-dd'T'HH:mm:ss.SSS'Z'",
-        ).withZone(java.time.ZoneOffset.UTC)
         private const val USER_AGENT = "Mozilla/5.0"
         private val HEADERS = mapOf(
             "User-Agent" to USER_AGENT,

@@ -24,7 +24,7 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
         val channels = listed()
         return ParsedGuide(
             channels.map {
-                GuideChannel(it.channel.id, it.channel.name, it.channel.logo)
+                it.channel.toGuideChannel()
             },
             channels.filter {
                 it.channel.id in
@@ -55,7 +55,7 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
         val result = rows.sortedBy { it["channelNumber"].long ?: Long.MAX_VALUE }
             .mapNotNull(::listing)
             .distinctBy { it.channel.id }
-        if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(result)
         return result
     }
 

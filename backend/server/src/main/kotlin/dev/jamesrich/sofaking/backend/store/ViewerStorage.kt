@@ -50,14 +50,21 @@ suspend fun BackendStore.touchViewer(clientId: String, name: String, platform: S
     Unit
 }
 
-/** Replaces [clientId]'s preferences with [preferences], stamped [now]; the stored document is returned. */
+/** The most viewers the server keeps; a save that would add one more is refused. */
+const val MAX_VIEWERS = 200
+
+/**
+ * Replaces [clientId]'s preferences with [preferences], stamped [now]; the stored document is returned, or null when
+ * [clientId] is new and [MAX_VIEWERS] viewers exist already.
+ */
 suspend fun BackendStore.saveViewerPreferences(
     clientId: String,
     preferences: ViewerPreferences,
     now: Instant,
-): ViewerPreferences = query {
+): ViewerPreferences? = query {
     val at = now.toString()
     val existing = Viewers.selectAll().where { Viewers.clientId eq clientId }.singleOrNull()
+    if (existing == null && Viewers.selectAll().count() >= MAX_VIEWERS) return@query null
     val name = preferences.name.ifEmpty { existing?.get(Viewers.name).orEmpty() }
     val platform = preferences.platform.ifEmpty { existing?.get(Viewers.platform).orEmpty() }
     val stored = preferences.copy(name = name, platform = platform, updatedAt = at)

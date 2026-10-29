@@ -26,7 +26,7 @@ class MansaClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
-        val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
+        val index = channels.map { it.channel.toGuideChannel() }
         if (channels.none { it.channel.id in wanted }) return ParsedGuide(index, emptyList())
         val byId = channels.associate { it.channel.id to it.channel.id }
         val byName = channels.associate { normalized(it.channel.name) to it.channel.id }
@@ -62,7 +62,7 @@ class MansaClient(private val context: ProviderContext) : ProviderClient {
     private suspend fun fetchPlaylist(): List<Listed> {
         val payload = context.http.post(playlistUrl, HEADERS, REQUEST_BODY).require("Mansa playlist").json()
         val result = payload["channels"].array.mapNotNull(::listing).distinctBy { it.channel.id }
-        if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(result)
         return result
     }
 

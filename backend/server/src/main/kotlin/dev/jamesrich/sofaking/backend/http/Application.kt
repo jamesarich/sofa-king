@@ -84,7 +84,7 @@ fun Application.backendModule(
             historyRoutes(runtime, clock)
             diagnosticsRoutes(runtime, clock)
             viewerRoutes(runtime, clock, apiToken)
-            runtime.dvr?.let { recordingRoutes(it) }
+            runtime.dvr?.let { recordingRoutes(it, clock) }
             watchlistRoutes(runtime.watchlist)
             playbackRoutes(runtime)
             outputRoutes(runtime, clock, outputs, apiToken)

@@ -31,7 +31,7 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
-        val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
+        val index = channels.map { it.channel.toGuideChannel() }
         val ids = channels.map { it.channel.id }.filter { it in wanted }
         val now = context.clock.instant()
         val programs = ArrayList<GuideProgram>()
@@ -91,7 +91,7 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
                 result.putIfAbsent(channel.channel.id, channel)
             }
         }
-        if (result.isEmpty()) throw ProviderFailure("Channel list is empty")
+        requireChannels(result)
         return result.values.toList()
     }
 

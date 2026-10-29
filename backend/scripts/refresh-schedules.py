@@ -55,6 +55,29 @@ def wurl(data):
             ET.SubElement(p, 'desc').text = value(asset, 'description')
     return root
 
+def ctvcraft(data):
+    doc = ET.fromstring(data)
+    if doc.tag != 'channels':
+        raise ValueError('Not a CTVCraft export')
+    root = ET.Element('tv')
+    for source in doc.findall('channel'):
+        channel = source.attrib['id']
+        ET.SubElement(ET.SubElement(root, 'channel', id=channel), 'display-name').text = source.findtext('title')
+        for item in source.findall('items/item'):
+            start = dt.datetime.fromisoformat(item.findtext('startTime'))
+            if start.tzinfo is None:
+                raise ValueError('Program without timezone')
+            end = start + dt.timedelta(seconds=int(item.findtext('duration')))
+            if end <= dt.datetime.now(UTC):
+                continue
+            p = ET.SubElement(root, 'programme', channel=channel, start=stamp(start), stop=stamp(end))
+            ET.SubElement(p, 'title').text = item.findtext('title')
+            if item.findtext('description'):
+                ET.SubElement(p, 'desc').text = item.findtext('description')
+            if item.findtext('genre'):
+                ET.SubElement(p, 'category').text = item.findtext('genre')
+    return root
+
 def xmltv(data, kind):
     root = ET.fromstring(data)
     if root.tag != 'tv':
@@ -77,11 +100,16 @@ def refresh(config, output):
         try:
             if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,63}', source['id']):
                 raise ValueError('Invalid feed id')
-            if source['kind'] not in ('wurl', 'frequency', 'cgtn'):
+            if source['kind'] not in ('wurl', 'ctvcraft', 'frequency', 'cgtn'):
                 raise ValueError('Unknown feed format')
             url = source['url'].replace('{date}', dt.datetime.now(UTC).strftime('%Y-%m-%d'))
             data = fetch(url)
-            root = wurl(data) if source['kind'] == 'wurl' else xmltv(data, source['kind'])
+            if source['kind'] == 'wurl':
+                root = wurl(data)
+            elif source['kind'] == 'ctvcraft':
+                root = ctvcraft(data)
+            else:
+                root = xmltv(data, source['kind'])
             programs = root.findall('programme')
             upcoming = 0
             for p in programs:

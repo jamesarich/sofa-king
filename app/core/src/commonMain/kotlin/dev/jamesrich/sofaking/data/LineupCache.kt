@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromByteArray
@@ -122,7 +123,7 @@ class CachedLineup internal constructor(
      */
     @ProtoNumber(number = 4) internal val guideBytes: ByteArray = ByteArray(0),
 ) {
-    internal fun toLineup(at: Instant): Lineup = Lineup(toChannels(), guide(at))
+    internal suspend fun toLineup(at: Instant): Lineup = Lineup(toChannels(), guide(at))
 
     internal fun toChannels(): List<Channel> = channels.map { channel ->
         require(channel.groups.isNotEmpty()) { "channel without a group" }
@@ -137,7 +138,7 @@ class CachedLineup internal constructor(
     }
 
     /** The programs that have not ended at [at], by channel. */
-    internal fun guide(at: Instant): Map<String, List<Program>> {
+    internal suspend fun guide(at: Instant): Map<String, List<Program>> {
         val entries = if (guideBytes.isEmpty()) {
             this.guide
         } else {
@@ -146,7 +147,9 @@ class CachedLineup internal constructor(
             ).guide
         }
         val guide = HashMap<String, List<Program>>()
-        for (entry in entries) {
+        for ((i, entry) in entries.withIndex()) {
+            // The browser has one thread for everything, so a long mapping hands it back now and then.
+            if (i % YIELD_EVERY == YIELD_EVERY - 1) yield()
             val programs = entry.programs.mapNotNull {
                 it.toProgram(entry.channelId).takeIf { program -> program.stop > at }
             }
@@ -156,6 +159,9 @@ class CachedLineup internal constructor(
     }
 
     internal companion object {
+        /** Channels mapped between hand-backs to the dispatcher. */
+        const val YIELD_EVERY = 50
+
         fun of(key: String, lineup: Lineup) = CachedLineup(
             key = key,
             channels = lineup.channels.map {

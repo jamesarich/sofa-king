@@ -219,6 +219,16 @@ Regenerate it after a large change to startup, the guide or the player, with one
 
 The device needs Android 13 or later, or root. The run installs the generator's build over the existing app, which must therefore be signed with the same key, and `android.injected.androidTest.leaveApksInstalledAfterRun` in `gradle.properties` keeps it installed afterwards, with its settings. Commit the regenerated profile files.
 
+## Classic visualizer pack
+
+`ui/src/commonMain/composeResources/files/presets.txt` is the pack the Visualizer cycles through after its built-in looks, one `@@ name` line per preset, then the preset as `MilkPreset.toText` writes it. It is made from a folder of `.milk` files, such as a clone of the projectM classic pack, by `PresetPackTest` in `core`, which does nothing without its first variable:
+
+```sh
+SOFAKING_VIS_PACK_IN=/path/to/milk-files SOFAKING_VIS_PACK_OUT=/tmp/pack.txt ./gradlew :core:jvmTest --tests '*PresetPackTest*' -i
+```
+
+The test runs each file against a made-up song and keeps the ones whose equations all compile, that draw something neither black nor washed out, that move, and that render in under 700 ms at 64 by 36. The log counts what it dropped and why. Take every second one of what is left to keep the file to a few megabytes, then drop presets whose equations repeat another's under a new name; the app reads the whole file the first time the Visualizer shows, off the main thread. `ClassicPackTest` in `ui` checks the bundled file: every preset parses, none repeats, and each compiles and draws a few frames. Credits and the takedown line are in [dependencies](dependencies.md).
+
 ## Signing
 
 Release APKs are minified with R8. With a release key they are signed with it; without one they are signed with the local debug key, so a local `assembleRelease` still works and its APK is for testing. The build reads the key from Gradle properties or the matching environment variables:

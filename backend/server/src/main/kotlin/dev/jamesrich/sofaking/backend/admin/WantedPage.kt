@@ -63,6 +63,39 @@ internal class WantedPages(private val portal: Portal) {
             session.flash.set(flash)
             seeOther(call, "/admin/recordings/wanted#conflicts")
         }
+        route.action("/recordings/wanted/{id}/delete") { session, form ->
+            val dvr = runtime.dvr ?: return@action seeOther(call, "/admin")
+            val id = call.parameters["id"]!!
+            val recording = try {
+                dvr.recording(id)
+            } catch (_: ApiFailure) {
+                session.flash.set(Flash("That recording is already gone.", Tone.WARN))
+                return@action seeOther(call, "/admin/recordings/wanted")
+            }
+            val scheduled = recording.state == Wire.RecordingState.SCHEDULED
+            val ask = Ask(
+                "Cancel ${recording.title}?",
+                "It loses its slot to other recordings and is not recorded. Schedule it by hand to bring it back.",
+                "/admin/recordings/wanted/$id/delete",
+                "/admin/recordings/wanted#conflicts",
+                "Cancel recording",
+            )
+            val remove: suspend () -> Unit = {
+                val message = try {
+                    dvr.delete(id)
+                    if (scheduled) "Canceled ${recording.title}." else "Deleted ${recording.title}."
+                } catch (_: ApiFailure) {
+                    "That recording is already gone."
+                }
+                session.flash.set(Flash(message))
+                seeOther(call, "/admin/recordings/wanted")
+            }
+            if (scheduled) {
+                call.confirmed(session, form, ask, { wantedPage(it, view(dvr)) }, remove)
+            } else {
+                remove()
+            }
+        }
     }
 
     private suspend fun view(dvr: Dvr): WantedView {
@@ -116,7 +149,7 @@ private fun FlowContent.conflictsPanel(chrome: Chrome, view: WantedView) = panel
     wantedTable(chrome, view, view.conflicts, "Recordings that lose their slot", "When" to "Action") { recording ->
         val rule = recording.ruleId?.let(view.rules::get)
         when {
-            rule == null -> span("muted small") { +"One-off" }
+            rule == null -> wantedDelete(chrome, recording, "Cancel recording")
 
             !view.canPutFirst(rule) -> span("muted small") { +"Already first" }
 
@@ -137,8 +170,17 @@ private fun FlowContent.missedPanel(chrome: Chrome, view: WantedView) = panel("M
     }
     wantedTable(chrome, view, view.missed, "Recordings that failed", "Aired" to "Why") { recording ->
         span("small") { +missedWhy(recording.reason) }
+        wantedDelete(chrome, recording, "Delete")
     }
 }
+
+private fun FlowContent.wantedDelete(chrome: Chrome, recording: Recording, label: String) =
+    postForm("/admin/recordings/wanted/${recording.id}/delete", chrome.session) {
+        button(type = ButtonType.submit, classes = "small") {
+            attributes["aria-label"] = "$label ${recording.title}"
+            +label
+        }
+    }
 
 private fun FlowContent.wantedTable(
     chrome: Chrome,

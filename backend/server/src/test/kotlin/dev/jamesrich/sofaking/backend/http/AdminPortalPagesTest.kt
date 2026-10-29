@@ -62,6 +62,34 @@ class AdminPortalPagesTest : AdminPortalCase() {
         }
     }
 
+    @Test fun `Import now on the Sources page runs the job and comes back to the panel`() = testApplication {
+        portal {
+            browser.signIn()
+            val page = browser.get("/admin/providers").bodyAsText()
+            assertTrue(page.contains("/admin/system/jobs/import:fixture/run"), page)
+            val csrf = field(page, "csrf")
+
+            val run = browser.post(
+                "/admin/system/jobs/import:fixture/run",
+                "csrf" to csrf,
+                "back" to "/admin/providers#imports",
+            )
+            assertEquals(HttpStatusCode.SeeOther, run.status)
+            assertEquals("/admin/providers#imports", run.headers[HttpHeaders.Location])
+        }
+    }
+
+    @Test fun `a job run goes back to the Jobs page for any other back address`() = testApplication {
+        portal {
+            browser.signIn()
+            val csrf = field(browser.get("/admin/providers").bodyAsText(), "csrf")
+            for (back in listOf("https://evil.example/", "//evil.example", "/admin/providers#elsewhere")) {
+                val run = browser.post("/admin/system/jobs/import:fixture/run", "csrf" to csrf, "back" to back)
+                assertEquals("/admin/system/jobs", run.headers[HttpHeaders.Location], back)
+            }
+        }
+    }
+
     @Test
     fun `watching now lists each session with its player, and Stop ends it after a confirmation`() = testApplication {
         portal {

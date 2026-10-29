@@ -4,13 +4,16 @@ import dev.jamesrich.sofaking.backend.api.GuideStatus
 import dev.jamesrich.sofaking.backend.api.PolicyProvider
 import dev.jamesrich.sofaking.backend.api.ProviderStatus
 import kotlinx.html.A
+import kotlinx.html.ButtonType
 import kotlinx.html.FlowContent
 import kotlinx.html.MAIN
 import kotlinx.html.a
 import kotlinx.html.aside
+import kotlinx.html.button
 import kotlinx.html.caption
 import kotlinx.html.div
 import kotlinx.html.emptyMap
+import kotlinx.html.hiddenInput
 import kotlinx.html.id
 import kotlinx.html.p
 import kotlinx.html.s
@@ -24,7 +27,6 @@ import kotlinx.html.td
 import kotlinx.html.th
 import kotlinx.html.thead
 import kotlinx.html.tr
-import java.time.Instant
 
 /**
  * A configured provider: its import status, what kind it is, and the policy entries that take its channels, by index.
@@ -81,12 +83,12 @@ internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() 
             playlistsPanel(chrome, setup)
             setup.confirm?.let { setupConfirm(chrome, it, "/admin/providers#services") }
         }
-        importsPanel(view, chrome.now)
+        importsPanel(view, chrome)
         sourceFilePanel(view.providerSummaries, view.guideSummaries)
-        guidesPanel(view.guides, chrome.now)
+        guidesPanel(view.guides, chrome)
     }
 
-private fun FlowContent.importsPanel(view: ProvidersView, now: Instant) = panel(
+private fun FlowContent.importsPanel(view: ProvidersView, chrome: Chrome) = panel(
     "Channel providers",
     id = "imports",
     aside = {
@@ -121,9 +123,10 @@ private fun FlowContent.importsPanel(view: ProvidersView, now: Instant) = panel(
                         }
                         td("muted") { +row.kind }
                         td("num") { +thousands(status.channels) }
-                        td("nowrap") { ago(status.lastSuccessAt, now) }
+                        td("nowrap") { ago(status.lastSuccessAt, chrome.now) }
                         td {
                             importChip(status.errorCode, status.error, status.lastSuccessAt)
+                            importNow(chrome, "import:${status.id}", PROVIDERS_IMPORTS)
                             if (status.skippedEntries > 0) {
                                 span("muted small") { +" ${thousands(status.skippedEntries)} skipped" }
                             }
@@ -136,6 +139,16 @@ private fun FlowContent.importsPanel(view: ProvidersView, now: Instant) = panel(
     }
 }
 
+internal const val PROVIDERS_IMPORTS = "/admin/providers#imports"
+internal const val PROVIDERS_GUIDES = "/admin/providers#guides"
+
+/** Runs the import job [job] now and comes back to [back]. */
+private fun FlowContent.importNow(chrome: Chrome, job: String, back: String) =
+    postForm("/admin/system/jobs/$job/run", chrome.session, keepScroll = true) {
+        hiddenInput(name = "back") { value = back }
+        button(type = ButtonType.submit, classes = "quiet") { +"Import now" }
+    }
+
 /** The import's state, with why the last one failed beside a failure. */
 private fun FlowContent.importChip(errorCode: String?, error: String?, lastSuccessAt: String?) {
     when {
@@ -146,7 +159,7 @@ private fun FlowContent.importChip(errorCode: String?, error: String?, lastSucce
     if (errorCode != null && error != null) p("why small muted") { +error }
 }
 
-private fun FlowContent.guidesPanel(guides: List<GuideStatus>, now: Instant) = panel("Guides", id = "guides") {
+private fun FlowContent.guidesPanel(guides: List<GuideStatus>, chrome: Chrome) = panel("Guides", id = "guides") {
     if (guides.isEmpty()) {
         p("muted") { +"No guide sources are configured." }
     } else {
@@ -171,8 +184,11 @@ private fun FlowContent.guidesPanel(guides: List<GuideStatus>, now: Instant) = p
                             }
                             td("num") { +thousands(guide.channels) }
                             td("num") { +thousands(guide.programs) }
-                            td("nowrap") { ago(guide.lastSuccessAt, now) }
-                            td { importChip(guide.errorCode, guide.error, guide.lastSuccessAt) }
+                            td("nowrap") { ago(guide.lastSuccessAt, chrome.now) }
+                            td {
+                                importChip(guide.errorCode, guide.error, guide.lastSuccessAt)
+                                importNow(chrome, "guide:${guide.id}", PROVIDERS_GUIDES)
+                            }
                         }
                     }
                 }

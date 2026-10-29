@@ -1404,8 +1404,8 @@
         "responses": { "204": { "description": "Removed" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/libraries/{id}/scan": {
-      "post": { "tags": ["Library"], "summary": "Scan a library now", "description": "Answers when the scan ends. A folder that is missing, or empty while the library held files, reads as unmounted: unavailable is true and nothing changes.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
-        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryScanInfo" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+      "post": { "tags": ["Library"], "summary": "Scan a library now", "description": "Answers when the scan ends. A folder that is missing, or empty while the library held files, reads as unmounted: unavailable is true and nothing changes. With refresh=true it queues the scan and answers 202 at once, and a music library asks MusicBrainz again for every album and artist.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "refresh", "in": "query", "schema": { "type": "boolean", "default": false } }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryScanInfo" } } } }, "202": { "description": "Queued", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/hooks/servarr": {
       "post": { "tags": ["Hooks"], "summary": "Sonarr's or Radarr's Webhook connection", "description": "Queues a scan of the library holding the event's series or movie folder.", "security": [{ "hookToken": [] }, { "apiToken": [] }],

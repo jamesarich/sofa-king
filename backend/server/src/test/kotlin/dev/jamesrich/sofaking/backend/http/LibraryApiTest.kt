@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.api.ScanQueued
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.library.INTRO_JOB
 import dev.jamesrich.sofaking.backend.library.IntroRecord
@@ -31,6 +32,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.headers
 import io.ktor.client.request.options
+import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.query
 import io.ktor.client.request.setBody
@@ -68,6 +70,16 @@ class LibraryApiTest {
             listOf(Library(library.id, "TV", "shows", 1)),
             json.decodeFromString<List<Library>>(text("/api/v1/libraries")),
         )
+    }
+
+    @Test fun `a scan with refresh queues the scan and answers at once`() = twoEpisodes {
+        val now = client.post("/api/v1/admin/libraries/${library.id}/scan") { bearerAuth(token) }
+        assertEquals(HttpStatusCode.OK, now.status)
+        val queued = client.post("/api/v1/admin/libraries/${library.id}/scan?refresh=true") { bearerAuth(token) }
+        assertEquals(HttpStatusCode.Accepted, queued.status)
+        assertEquals(listOf(library.id), json.decodeFromString<ScanQueued>(queued.bodyAsText()).libraries)
+        val unknown = client.post("/api/v1/admin/libraries/nope/scan?refresh=true") { bearerAuth(token) }
+        assertEquals(HttpStatusCode.NotFound, unknown.status)
     }
 
     @Test fun `a library pages its items and refuses an unknown sort or library`() = twoEpisodes {

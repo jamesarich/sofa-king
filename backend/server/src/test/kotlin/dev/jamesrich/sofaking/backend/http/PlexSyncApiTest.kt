@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.PlexConfig
 import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.admin.PlexStatusSource
 import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.api.PolicyApplyResult
 import dev.jamesrich.sofaking.backend.api.PolicyFindings
@@ -12,7 +13,9 @@ import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.pollUntil
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.ApiError
+import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.headers
@@ -26,6 +29,7 @@ import io.ktor.client.statement.request
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headers
+import io.ktor.http.parameters
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
@@ -134,7 +138,16 @@ class PlexSyncApiTest {
                 plexDebounceMillis = 200,
             )
             try {
-                application { backendModule(store, MutableClock(), runtime, token, admin) }
+                application {
+                    backendModule(
+                        store,
+                        MutableClock(),
+                        runtime,
+                        token,
+                        admin,
+                        plexStatus = runtime.plex?.let { sync -> PlexStatusSource { sync.status() } },
+                    )
+                }
                 for (provider in runtime.feeds.configs) runtime.feeds.refresh(provider)
                 block(runtime)
             } finally {
@@ -188,6 +201,29 @@ class PlexSyncApiTest {
         assertTrue(put.uri.startsWith("/media/grabbers/devices/20/channelmap?"))
         assertTrue(plex.seen.all { it.token == plexToken && plexToken !in it.uri })
         assertEquals(2, plex.seen.count { it.uri == "/livetv/dvrs/10/reloadGuide" })
+    }
+
+    @Test fun `the portal's Sync now maps the channels and the page offers it`() = plexSync { plex, _ ->
+        val browser = createClient {
+            install(HttpCookies)
+            followRedirects = false
+        }
+        browser.submitForm("/admin/login", parameters { append("token", admin) })
+        val page = browser.get("/admin/plex").bodyAsText()
+        assertTrue(page.contains("""action="/admin/plex/sync""""), "the sync panel has the form")
+        val csrf = Regex("""name="csrf" value="([^"]*)"""").find(page)!!.groupValues[1]
+
+        val synced = browser.submitForm("/admin/plex/sync", parameters { append("csrf", csrf) })
+        assertEquals(HttpStatusCode.SeeOther, synced.status)
+        assertEquals(2, plex.syncs())
+        assertEquals(
+            "portal",
+            json.decodeFromString<PlexStatus>(
+                client.get("/api/v1/admin/plex") {
+                    bearerAuth(admin)
+                }.bodyAsText(),
+            ).lastCause,
+        )
     }
 
     private suspend fun ApplicationTestBuilder.apply(): PolicyApplyResult =

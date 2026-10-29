@@ -97,6 +97,11 @@ class AdminPortal(
         McpAttention(it.tone.name.lowercase(), it.title, it.detail, it.action, it.href, it.doc)
     }
 
+    private val system by lazy { SystemPages(portal, events) }
+
+    /** The About page's support snapshot, for the MCP endpoint. */
+    internal suspend fun supportSnapshot(): String = system.snapshotJson()
+
     /** Publishes the home page's attention changes to the event stream until [scope] ends. */
     fun watchAttention(scope: CoroutineScope): Job =
         AttentionWatch(OverviewReader(portal), portal.runtime.events).start(scope)
@@ -118,7 +123,7 @@ class AdminPortal(
             PlexPages(portal).install(this)
             SettingsPages(portal).install(this)
             ConnectPages(portal).install(this)
-            SystemPages(portal, events).install(this)
+            system.install(this)
             ActivityPages(portal).install(this)
             BackupPages(portal).install(this)
             LogPages(portal).install(this)

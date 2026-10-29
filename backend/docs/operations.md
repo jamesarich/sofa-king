@@ -184,6 +184,18 @@ claude mcp add --transport http sofa-king http://SERVER_HOST:9193/api/v1/mcp \
 
 The assistant must reach the server's address, and must send the token as a bearer header: an assistant that runs in the cloud cannot reach a server on the home network. Revoke a read token on the Settings page to cut the assistant off.
 
+### Set up a server with an assistant
+
+With the admin token an assistant can walk a first run. Ask it to use the `triage_server` prompt, or go step by step:
+
+1. `setup_status` shows the providers and guides in the source file (kind, host and interval, never a URL or header), whether a lineup policy exists, which of the TMDB, fanart.tv and ListenBrainz keys are set, and the folders a library may use. Providers still go in the source file or the portal's Sources page.
+2. `write_starter_policy` writes the starter lineup policy for those providers when there is none. It restarts the server, so the assistant asks you first.
+3. `add_library` adds a movies, shows, videos or music library from one of those folders and queues its scan.
+4. `set_api_key` saves a TMDB token, fanart.tv key or ListenBrainz token after the service accepts it, then restarts the server. A key the environment sets is refused with `..._FROM_ENVIRONMENT`.
+5. `preview_policy` and the `review_policy_change` prompt take over from there.
+
+A key you give an assistant is in its transcript, and the server never repeats it. Prefer the Library page in the portal, or the `SOFA_*` variables, for a key you do not want an assistant to hold. Each restart ends every stream and the server is back in about a minute. The `sofa-king://support-snapshot` resource is what to attach to a bug report.
+
 ## Rotating tokens
 
 Tokens come from the environment (`deploy/.env` for Docker), from the file a `_FILE` variable names, or, for a token none of those sets, from `secrets.json` in the config folder. Each change takes effect after a restart, and any client holding the old value gets `401` until it is updated. The `sk_` tokens the server issues (devices', read and hook tokens) change without a restart, and rotating the API token leaves them working.

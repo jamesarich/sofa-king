@@ -327,9 +327,36 @@ The admin token adds the actions. The ones that can take channels, streams, reco
 | `devices` | `op` `list` answers each device's `clientId`, name, platform, first and last seen and its token's label, creation and last use, never a secret or hash. `pair` answers a six-digit `code` and its `expiresAt`, as `POST /api/v1/admin/pairing-codes` does. `forget` takes a `clientId`, needs `confirm`, and revokes the device and its token as `DELETE /api/v1/admin/viewers/{clientId}` does |
 | `notifications` | `op` `list` answers each target with its `host` only, never the URL whose path is the credential, its events and newest delivery, and with `targetId` that target's recent deliveries; `test` sends `targetId` a test notification and answers the delivery, as `POST /api/v1/admin/notifications/{id}/test` does. Absent without notifications |
 
+The admin token also lists the setup tools, which write what the portal's setup pages write. None returns an API key or token, and a key or token the environment sets is reported as set, never shown:
+
+| Tool | What it does |
+| --- | --- |
+| `setup_status` | `GET /api/v1/admin/source-file` reduced to what is safe to show: each provider's `id`, `kind` (`m3u` or `native`), `service`, `host` and `refreshSeconds`, and each guide's `id`, `host`, `provider` and `refreshSeconds`; never a URL, a header or a `${NAME}` value (a host that is a `${NAME}` reference is left out). Also `hasSourceFile`, `hasPolicy`, `canWriteStarterPolicy`, `keys` (`tmdb`, `fanart` and `listenbrainz`, each with `set` and `fromEnvironment`) and `libraryFolders` (`roots` and the `folders` a library may use) |
+| `set_api_key` | `PUT /api/v1/admin/tmdb-token`, `fanart-key` or `listenbrainz-token`: `service` (`tmdb`, `fanart` or `listenbrainz`), `value` and `confirm`. The service is asked to accept the value first; the refusals are the routes' (`TMDB_REJECTED`, `TMDB_UNREACHABLE` and `TMDB_FROM_ENVIRONMENT`, with `FANART` or `LISTENBRAINZ` for the others, and `INVALID_REQUEST` for a value that cannot be a key), and nothing is saved then. The result never holds the value. The server restarts about 1.5 seconds after the result is sent, ending every stream, so it needs `confirm` |
+| `write_starter_policy` | `POST /api/v1/admin/policy/starter`: the starter lineup policy for the source file's providers, then a restart, so it needs `confirm`; `POLICY_EXISTS` and `NO_SOURCES` as the route answers |
+| `add_library` | `POST /api/v1/admin/libraries`: `name`, `kind` (`movies`, `shows`, `videos` or `music`) and a `path` from `setup_status`. Answers the library and queues its scan; `LIBRARY_EXISTS` for a folder another library uses. Absent without libraries |
+
 Every policy write an action makes checks `revision` the way `If-Match` is checked on `PUT /api/v1/admin/policy`: a stale one answers `POLICY_CHANGED` with "call preview_policy again", and nothing is written. The policy runs they cause log `mcp` as their reason in `policy_changes`. A tool that needs `confirm` answers `CONFIRMATION_REQUIRED` without it and does nothing.
 
 A tool answers JSON text. A refusal is a result with `isError` and the API's error code and message, such as `INVALID_REQUEST: limit is 1 to 200`, and it names the tool to call next where there is one. An unexpected failure answers `INTERNAL_ERROR` with the exception's class and points to `recent_log` with `level` `error`. A tool the token is not listed is a JSON-RPC error.
+
+### Resources and prompts
+
+The endpoint also serves three read-only resources (`resources/list`, `resources/read`) and three prompts (`prompts/list`, `prompts/get`). The server declares resources with `listChanged` and `subscribe` false, since the transport has no stream to push on. Like tools, a resource is listed only to a token that may read it:
+
+| Resource | Holds | Token |
+| --- | --- | --- |
+| `sofa-king://openapi.json` | The OpenAPI description of the REST API, as `/admin/api/openapi.json` serves it | read or admin |
+| `sofa-king://support-snapshot` | The About page's support snapshot: status, server facts, every job and what needs attention. It holds no token, stream URL or request header | read or admin |
+| `sofa-king://policy` | The lineup policy with its `revision`, as `GET /api/v1/admin/policy` answers; `POLICY_NOT_CONFIGURED` without a policy | admin only, since the admin API does not open the policy to a read token |
+
+Prompts are fixed instructions that put the tools in order. Both tokens list them; a step marked admin needs the admin token, and the prompt tells an assistant with a read token to stop before it.
+
+| Prompt | Steps |
+| --- | --- |
+| `triage_server` | `server_status`, `needs_attention`, `imports`, `jobs`, then `recent_log` at `error` |
+| `diagnose_channel` | Takes `channel`, a name or number: `lineup`, `channel`, `source_health`, `recent_log`, then (admin) `probe_source` and `switch_session_source` |
+| `review_policy_change` | `preview_policy`, then (admin) `edit_station` with `dryRun`, a check with the operator, `edit_station` with `dryRun` false and `apply_policy` |
 
 ## Watchlist
 

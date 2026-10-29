@@ -37,6 +37,8 @@ internal class McpContext(
     val revision: String,
     /** The home page's attention items; null when the server runs without the portal. */
     val attention: (suspend () -> List<McpAttention>)?,
+    /** The About page's support snapshot as JSON; null when the server runs without the portal. */
+    val supportSnapshot: (suspend () -> String)? = null,
     val log: EventRing = EventRing.shared,
 )
 
@@ -44,9 +46,17 @@ internal class McpContext(
 internal class McpServers(val reads: Server, val admin: Server) {
     companion object {
         fun create(context: McpContext): McpServers = McpServers(
-            reads = server(context.revision) { readTools(context) },
+            reads = server(context.revision) {
+                readTools(context)
+                sharedResources(context)
+                prompts()
+            },
             admin = server(context.revision) {
                 readTools(context)
+                sharedResources(context)
+                adminResources(context)
+                prompts()
+                setupTools(context)
                 privateReadTools(context)
                 actionTools(context)
                 sourceActionTools(context)
@@ -75,12 +85,22 @@ private const val INSTRUCTIONS =
         "confirm true: say what it does first. Recording tools take a lineup entry id and an ISO-8601 start from " +
         "on_later or guide_now; cancel_recording refuses to delete a finished recording's file unless deleteFile " +
         "is true. No tool creates an API token. Lineup edits take the revision from preview_policy and preview " +
-        "with dryRun (the default) before they write; a stale revision answers POLICY_CHANGED. Results never " +
+        "with dryRun (the default) before they write; a stale revision answers POLICY_CHANGED. Setup (admin): " +
+        "setup_status shows what is configured and which API keys are set, never their values; set_api_key, " +
+        "write_starter_policy and add_library change it, and the first two restart the server. Resources hold the " +
+        "OpenAPI document and the support snapshot, and the admin token's also the lineup policy; prompts " +
+        "triage_server, diagnose_channel and review_policy_change lay out the order of tools. Results never " +
         "include stream URLs, tokens or request headers."
 
 private fun server(revision: String, tools: Server.() -> Unit): Server = Server(
     Implementation(name = "sofa-king", version = revision, title = "Sofa King"),
-    ServerOptions(ServerCapabilities(tools = ServerCapabilities.Tools(listChanged = false))),
+    ServerOptions(
+        ServerCapabilities(
+            tools = ServerCapabilities.Tools(listChanged = false),
+            resources = ServerCapabilities.Resources(listChanged = false, subscribe = false),
+            prompts = ServerCapabilities.Prompts(listChanged = false),
+        ),
+    ),
     INSTRUCTIONS,
 ).apply(tools)
 

@@ -91,6 +91,6 @@
     <string name="library_extra_other">Extra</string>
     <string name="library_directors">Directed by %1$s</string>
     <string name="library_subtitles">Subtitles: %1$s</string>
-    <string name="library_spoiler_hidden">Unwatched episode. Hide spoilers keeps its summary back.</string>
+    <string name="library_spoiler_hidden">Unwatched episode. Its summary is hidden by Hide spoilers.</string>
     <string name="library_remove_from_continue">Remove from Continue watching</string>
 </resources>

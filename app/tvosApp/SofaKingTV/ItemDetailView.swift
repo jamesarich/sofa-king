@@ -22,9 +22,9 @@ struct ItemDetailView: View {
                 page(ready.detail)
             case let failed as ItemDetailStateFailed:
                 VStack(spacing: 32) {
-                    Text("The library didn't load").font(.title2)
+                    Text(strings.libraryLoadFailed).font(.title2)
                     Text(failed.message).foregroundStyle(.secondary)
-                    Button("Try again") { model.core.refreshItem(id: itemId) }
+                    Button(strings.retry) { model.core.refreshItem(id: itemId) }
                 }
             default:
                 ProgressView()
@@ -389,7 +389,7 @@ private struct EpisodeRow: View {
                 HStack {
                     Text([episode.episodeLabel, episode.title].compactMap { $0 }.joined(separator: " · ")).font(.headline).lineLimit(1)
                     if episode.progress?.watched == true {
-                        Image(systemName: "checkmark.circle.fill").accessibilityLabel("Watched")
+                        Image(systemName: "checkmark.circle.fill").accessibilityLabel(strings.libraryWatched)
                     }
                 }
                 let meta = [episode.runtime, episode.aired].compactMap { $0 }

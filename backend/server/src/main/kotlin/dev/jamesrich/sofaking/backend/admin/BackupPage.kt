@@ -115,7 +115,7 @@ internal class BackupPages(private val portal: Portal) {
 
                 else -> Unit
             }
-            part.dispose()
+            part.release()
         }
         when {
             !sameSecret(csrf, session.csrf) ->

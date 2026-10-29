@@ -85,7 +85,7 @@ docker compose up -d
 
 With your own build, rebuild it as [build](deploy.md#build) shows instead of pulling, or on a host without a JDK as [deploy your build](deploy.md#deploy-your-build-to-a-host-without-a-jdk) shows. `docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' sofa-king-backend` prints the commit a running container was built from; `GET /api/v1/admin/status` and the admin portal footer report the same commit as `revision`. The portal's [About page](admin.md#update) says whether the published image is newer and lets you start the updater from the browser.
 
-Schema migrations run at startup and only move forward. The server records each applied version in `schema_version`, and a server that does not know a version in the database refuses to start (`Unsupported database schema`). A rollback therefore needs both the previous image and the backup taken before the upgrade. [Restore](#restore) that backup, then start the previous image, from the Compose directory:
+Schema migrations run at startup and only move forward. The server records each applied version in `schema_version`, and a server that does not know a version in the database refuses to start (`Unsupported database schema`). A rollback therefore needs both the previous image and the backup taken before the upgrade. [Restore](#restore) that backup, which drops whatever the newer image wrote after it was taken, such as recordings and watch state, then start the previous image, from the Compose directory:
 
 ```sh
 docker tag sofa-king-backend:previous "$(docker compose config --images)"

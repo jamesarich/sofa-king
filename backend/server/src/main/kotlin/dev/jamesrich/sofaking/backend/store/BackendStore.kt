@@ -249,6 +249,7 @@ suspend fun openStore(dataDirectory: Path, clock: Clock = Clock.systemUTC()): Ba
                 exec("SELECT 1")
             }
         }
+        withContext(Dispatchers.IO) { restrictDataAccess(dataDirectory) }
         val reader = withContext(readLane.dispatcher) { databaseAt(dataDirectory, readOnly = true) }
         store = BackendStore(database, writer, reader, readLane, clock)
         store.initialize()

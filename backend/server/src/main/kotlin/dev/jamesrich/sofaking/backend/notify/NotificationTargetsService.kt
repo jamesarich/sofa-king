@@ -30,7 +30,7 @@ class NotificationTargetsService(
     private val clock: Clock,
     private val notifier: Notifier,
 ) {
-    /** Every target with its newest delivery, the secrets left out. */
+    /** Every target with its newest delivery, the secrets left out and the URL masked to its host. */
     suspend fun list(): List<NotificationTarget> {
         val last = store.lastNotificationDeliveries()
         return store.notificationTargets().map { it.toWire(last[it.id]) }
@@ -55,13 +55,16 @@ class NotificationTargetsService(
         return target.toWire(null)
     }
 
-    /** Changes the fields [body] gives; an empty secret clears it. */
+    /**
+     * Changes the fields [body] gives; an empty secret clears it. An empty URL, or the masked one a listing shows,
+     * keeps the stored URL.
+     */
     suspend fun update(id: String, body: SaveNotificationTarget): NotificationTarget {
         val before = stored(id)
         val after = before.copy(
             name = body.name?.let(::name) ?: before.name,
             kind = body.kind?.let(::kind) ?: before.kind,
-            url = body.url?.let(::url) ?: before.url,
+            url = body.url?.takeIf { it.isNotBlank() && it.trim() != maskedUrl(before.url) }?.let(::url) ?: before.url,
             secret = if (body.secret == null) before.secret else secret(body.secret),
             events = body.events?.let(::events) ?: before.events,
             enabled = body.enabled ?: before.enabled,
@@ -87,8 +90,16 @@ class NotificationTargetsService(
 }
 
 private fun StoredNotificationTarget.toWire(last: NotificationDelivery?) = NotificationTarget(
-    id, name, kind, url, secret != null, events, enabled, createdAt, updatedAt, last,
+    id, name, kind, maskedUrl(url), secret != null, events, enabled, createdAt, updatedAt, last,
 )
+
+/** The scheme and host of [url] with `/…` for the rest: a webhook's or ntfy topic's path is the credential. */
+internal fun maskedUrl(url: String): String {
+    val uri = runCatching { URI(url) }.getOrNull()
+    val host = uri?.host ?: return "…"
+    val port = if (uri.port >= 0) ":${uri.port}" else ""
+    return "${uri.scheme.lowercase()}://$host$port/…"
+}
 
 private fun name(value: String): String {
     val name = value.trim().replace(Regex("\\s+"), " ")

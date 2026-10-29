@@ -349,7 +349,7 @@ cosign verify ghcr.io/jamesarich/sofa-king:main \
 gh attestation verify oci://ghcr.io/jamesarich/sofa-king:main --repo jamesarich/sofa-king
 ```
 
-An image that this repository's workflow did not build fails both.
+An image that this repository's workflow did not build fails both. The updater does not check either, so run them by hand when you want the signature verified before it installs an image.
 
 ## Update automatically
 
@@ -358,7 +358,7 @@ An image that this repository's workflow did not build fails both.
 1. Backs up the database with the running container's `sqlite3` to `backups/` in the config folder. The container writes the copy as its own user, readable by that user alone. When that fails, as with an image that has no `sqlite3`, the host's Python 3 writes the copy to `backups/` in the Compose directory instead, readable by root alone. Each folder keeps the newest five. It finds the database through the container's `SOFA_DATA_DIR` and the mount that holds it. The backups hold provider session tokens.
 2. Tags the running image `sofa-king-backend:previous` and points the image `compose.yaml` runs at the new one.
 3. Recreates the container and waits up to three minutes for it to report healthy.
-4. If it does not, stops it, restores the backup and the previous image, and records the image in `backups/failed-image` in the Compose directory so later runs skip it until a newer one is published. A skipped image never stays behind the tag Compose runs, so a later `docker compose up -d` starts the image that was running.
+4. If it does not, stops it, restores the backup and the previous image (so whatever the new image wrote to the database during its health window, such as recordings started or finished and watch state, is discarded), and records the image in `backups/failed-image` in the Compose directory so later runs skip it until a newer one is published. A skipped image never stays behind the tag Compose runs, so a later `docker compose up -d` starts the image that was running.
 
 Every run, including one that finds nothing new, writes `update-status.json` to the config folder: when it checked, the image, the running and candidate revisions, the outcome (`up-to-date`, `updated`, `rolled-back`, `skipped` or `failed`) and one line saying why. The admin portal's [About page](admin.md#update) shows it, so the portal says when the host last checked and what it did. The file is owned by the config folder's owner and holds no secret.
 

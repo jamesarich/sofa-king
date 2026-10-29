@@ -5,9 +5,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.android.tools.screenshot.PreviewTest
 import dev.jamesrich.sofaking.previews.GuidePreview
 import dev.jamesrich.sofaking.previews.LibraryHomePreview
-import dev.jamesrich.sofaking.previews.LibraryLoadingPreview
 import dev.jamesrich.sofaking.previews.LiveBarPreview
 import dev.jamesrich.sofaking.previews.NowPlayingPreview
+import dev.jamesrich.sofaking.previews.PlayerIconsPreview
 import dev.jamesrich.sofaking.previews.PlayerInfoPreview
 import dev.jamesrich.sofaking.previews.ProgramDetailsPreview
 import dev.jamesrich.sofaking.previews.SettingsPreview
@@ -72,6 +72,11 @@ private fun VodBarTv() = VodBarPreview(tv = true)
 private fun VodBarPhone() = VodBarPreview(tv = false)
 
 @PreviewTest
+@Preview(device = PHONE)
+@Composable
+private fun PlayerIcons() = PlayerIconsPreview()
+
+@PreviewTest
 @Preview(device = TV)
 @Composable
 private fun LibraryHomeTv() = LibraryHomePreview(tv = true)
@@ -84,12 +89,22 @@ private fun LibraryHomePhone() = LibraryHomePreview(tv = false)
 @PreviewTest
 @Preview(device = TV)
 @Composable
-private fun LibraryLoadingTv() = LibraryLoadingPreview(tv = true)
+private fun LibraryLoadingTv() = LibraryHomePreview(tv = true, loading = true)
 
 @PreviewTest
 @Preview(device = PHONE)
 @Composable
-private fun LibraryLoadingPhone() = LibraryLoadingPreview(tv = false)
+private fun LibraryLoadingPhone() = LibraryHomePreview(tv = false, loading = true)
+
+@PreviewTest
+@Preview(device = PHONE)
+@Composable
+private fun LibraryHomePhoneLight() = LibraryHomePreview(tv = false, light = true)
+
+@PreviewTest
+@Preview(device = PHONE)
+@Composable
+private fun SettingsPhoneLight() = SettingsPreview(tv = false, light = true)
 
 @PreviewTest
 @Preview(device = TV)

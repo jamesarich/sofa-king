@@ -354,7 +354,7 @@ private class LiveBarButtons(
     private fun record(): PlayerButtonItem {
         val recording = record?.recording == true
         return PlayerButtonItem(
-            if (recording) SofaIcons.Recordings else SofaIcons.Record,
+            if (recording) SofaIcons.Cancel else SofaIcons.Record,
             stringResource(
                 if (recording) Res.string.guide_details_cancel_recording else Res.string.guide_details_record,
             ),
@@ -385,31 +385,25 @@ private fun PointerControls(
     paused: Boolean,
     buttons: @Composable () -> Unit,
 ) {
-    FlowRow(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING, Alignment.CenterHorizontally),
-        verticalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING),
-        itemVerticalAlignment = Alignment.CenterVertically,
-    ) {
-        ControlIcon(
+    PointerControlRow(
+        start = PlayerButtonItem(
             Icons.Filled.KeyboardArrowDown,
             stringResource(Res.string.player_control_channel_down),
             bar.control { PlayerAction.CHANNEL_DOWN.zapStep()?.let(state::zapStep) },
-        )
-        PlayPauseControl(
+        ),
+        primary = playPauseButtonItem(
             paused,
             state.failure != null,
             bar.control { controls.playPause() },
             bar.control { controls.retry() },
-            primary = true,
-        )
-        ControlIcon(
+        ),
+        end = PlayerButtonItem(
             Icons.Filled.KeyboardArrowUp,
             stringResource(Res.string.player_control_channel_up),
             bar.control { PlayerAction.CHANNEL_UP.zapStep()?.let(state::zapStep) },
-        )
-        buttons()
-        VolumeControl(onAdjust = state::keepInfo, onDone = bar.control {})
-        FullScreenControl()
-    }
+        ),
+        onVolumeAdjust = state::keepInfo,
+        onVolumeFinish = bar.control {},
+        buttons = buttons,
+    )
 }

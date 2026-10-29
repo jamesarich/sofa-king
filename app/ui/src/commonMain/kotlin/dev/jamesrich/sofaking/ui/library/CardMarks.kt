@@ -21,6 +21,7 @@ import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_watched
 import dev.jamesrich.sofaking.ui.ProgressBar
+import dev.jamesrich.sofaking.ui.theme.SofaAmber
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import org.jetbrains.compose.resources.stringResource
 
@@ -46,7 +47,7 @@ internal fun BoxScope.ItemMarks(item: MediaItem) {
         )
     }
     if (progress != null && progress.inProgress) {
-        progress.fraction?.let { ProgressBar(it, Modifier.align(Alignment.BottomCenter)) }
+        progress.fraction?.let { ProgressBar(it, Modifier.align(Alignment.BottomCenter), SofaAmber) }
     }
 }
 
@@ -56,7 +57,7 @@ internal fun WatchedTick(modifier: Modifier = Modifier) {
         Icon(
             Icons.Filled.Check,
             contentDescription = stringResource(Res.string.library_watched),
-            tint = MaterialTheme.colorScheme.primary,
+            tint = SofaAmber,
             modifier = Modifier.size(20.dp),
         )
     }

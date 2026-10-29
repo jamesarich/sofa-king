@@ -22,7 +22,7 @@ Use a JVM screen test in `ui`'s `jvmTest` instead when the behavior is a focus o
 Only when a flow cannot express it (Apple TV, iPhone, a screen recording). Brief the session with these rules:
 
 - Work in a separate worktree of the branch (`git worktree add ~/sofa-king-checks origin/<branch>`) and remove it afterward; never touch the owner's checkout.
-- Headless and muted: `emulator -avd <throwaway> -no-window -no-audio -no-boot-anim`; mute every simulator; `--mute-audio` for browsers. No foreground windows. Shut each one down when its check ends.
+- Headless and muted: `emulator -avd <throwaway> -no-window -no-audio -no-boot-anim`; mute every simulator; `--mute-audio` for browsers. No foreground windows. Shut each one down when its check ends. Run a UI test once or twice at most on the owner's machine; chasing a flake with repeated rounds belongs in CI, where re-runs cost the owner nothing.
 - Never the real TV unless the owner asks. Address the emulator with `adb -s emulator-5554`, since a TV can be on adb too.
 - Serve `python3 app/scripts/fixture_server.py --shows --movies --music --quiet --out build/fixture`: 8 channels, a show with intros and credits, 84 movies, three albums of short songs. Its token is a fixed test value. Intro detection needs an FFmpeg with the `chromaprint` muxer (nixpkgs `ffmpeg-full`; Homebrew's lacks it).
 - Pair the Android emulator with `sofaking://pair?server=http://10.0.2.2:<port>&code=<code>`; get a code with `POST /api/v1/admin/pairing-codes` and the token in `build/fixture/server.env`. Read focus from `uiautomator dump` (`focused="true"`) and the screen from `screencap`.

@@ -41,7 +41,7 @@ The screenshot tests are Google's [Compose Preview Screenshot Testing](https://d
 ./gradlew :androidApp:updateDebugScreenshotTestDefaultTestSuite
 ```
 
-A red comparison in CI uploads the report and the render results in the `reports-linux` artifact, which show what Linux drew.
+Run it on Linux: a Mac renders some screens differently, and CI compares on Linux. Without a Linux machine, push the change, let the comparison fail, and take the new references from the run's `reports-linux` artifact, which holds the report and what Linux drew under `androidApp/build/intermediates/debug/testDebugScreenshotTestDefaultTestSuite/results/rendered/`. Look at each image before committing it.
 
 To look at the TV layout without a TV, run the desktop app with `./gradlew :ui:run -Psofaking.tv=true`; the keyboard's arrows, Enter and Escape are the remote's.
 

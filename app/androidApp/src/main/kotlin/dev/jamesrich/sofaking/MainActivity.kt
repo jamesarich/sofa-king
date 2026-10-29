@@ -114,11 +114,6 @@ class MainActivity : ComponentActivity() {
         }
         super.onCreate(savedInstanceState)
         WindowCompat.enableEdgeToEdge(window)
-        // The app is always dark, so the bars keep light icons whatever the system theme.
-        WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
-        }
         // A restored activity keeps its intent, but the link it carried was followed the first time.
         if (savedInstanceState == null) takeLink(intent)
         // Android 17 blocks the local network, where the server is, until the viewer allows it.
@@ -136,6 +131,13 @@ class MainActivity : ComponentActivity() {
                 link = link.value,
                 onLinkHandle = { link.value = null },
                 onLaunchReady = { launchDecided = true },
+                // The bars' icons are light on a dark app and dark on a light one.
+                onDarkThemeChange = { dark ->
+                    WindowCompat.getInsetsController(window, window.decorView).apply {
+                        isAppearanceLightStatusBars = !dark
+                        isAppearanceLightNavigationBars = !dark
+                    }
+                },
             )
         }
     }

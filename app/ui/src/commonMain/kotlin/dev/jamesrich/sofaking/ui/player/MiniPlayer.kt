@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -57,7 +58,10 @@ internal fun MiniPlayer(music: MusicPlayback, onOpen: () -> Unit, modifier: Modi
                 }
             },
             trailingContent = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     PlayPauseControl(
                         paused = !status.playWhenReady || music.held,
                         failed = music.failure != null,

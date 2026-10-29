@@ -91,7 +91,7 @@ internal fun BoxScope.StreamCard(
         Modifier
             .align(Alignment.TopEnd)
             .screenPadding()
-            .width(400.dp)
+            .width(420.dp)
             .background(SofaOverlayScrim, MaterialTheme.shapes.small)
             .padding(24.dp)
             .then(if (tracks.isEmpty()) Modifier.focusRequester(focusRequester) else Modifier)

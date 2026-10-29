@@ -84,6 +84,7 @@ import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.theme.OverVideo
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.TvFocusControl
 import dev.jamesrich.sofaking.ui.visualizer.MusicVisualizer
@@ -115,17 +116,20 @@ internal fun NowPlayingScreen(
     val tap = music.audioTap
     var skips by rememberSaveable { mutableIntStateOf(0) }
     val visuals = tap?.let { VisualsChoice(showVisuals, { showVisuals = !showVisuals }, { skips++ }) }
-    Box(Modifier.fillMaxSize()) {
-        if (tap != null && showVisuals) {
-            MusicVisualizer(tap, song.id, skips, Modifier.fillMaxSize())
-            // The controls stay legible over a bright picture.
-            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = VISUALS_SCRIM)))
-        }
-        RestWhenIdle(LocalLayoutProfile.current.tv) { rest ->
-            NowPlayingLayout(music, song, choice, visuals, rest)
-        }
-        if (LocalLastInput.current.kind == InputKind.POINTER) {
-            Box(Modifier.align(Alignment.TopStart).screenPadding()) { PlayerBackControl(onClose) }
+    // Over the visualizer's dark scrim the controls draw in the dark scheme, whatever the app's.
+    OverVideo(dark = tap != null && showVisuals) {
+        Box(Modifier.fillMaxSize()) {
+            if (tap != null && showVisuals) {
+                MusicVisualizer(tap, song.id, skips, Modifier.fillMaxSize())
+                // The controls stay legible over a bright picture.
+                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = VISUALS_SCRIM)))
+            }
+            RestWhenIdle(LocalLayoutProfile.current.tv) { rest ->
+                NowPlayingLayout(music, song, choice, visuals, rest)
+            }
+            if (LocalLastInput.current.kind == InputKind.POINTER) {
+                Box(Modifier.align(Alignment.TopStart).screenPadding()) { PlayerBackControl(onClose) }
+            }
         }
     }
 }
@@ -318,7 +322,7 @@ private fun MoreToggles(music: MusicPlayback, lyrics: LyricsChoice?, visuals: Vi
     }
     lyrics?.let {
         Toggle(
-            SofaIcons.Subtitles,
+            SofaIcons.Lyrics,
             stringResource(Res.string.music_lyrics),
             stringResource(if (it.shown) Res.string.music_on else Res.string.music_off),
             it.shown,

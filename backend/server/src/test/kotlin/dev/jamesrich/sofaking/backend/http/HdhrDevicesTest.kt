@@ -117,7 +117,9 @@ class HdhrDevicesTest {
             Files.writeString(sources, Json.encodeToString(configs))
             val policyFile = policy?.let { Files.writeString(dir.resolve("policy.json"), it) }
             val store = openStore(dir)
-            val ports = List(2) { ServerSocket(0).use { it.localPort } }
+            // The config names the ports up front, so they are held until the instant before Netty binds them.
+            val reserved = List(2) { ServerSocket(0) }
+            val ports = reserved.map { it.localPort }
             val devices = hdhr(ports[1])
             val config = ServerConfig(
                 "127.0.0.1",
@@ -144,9 +146,11 @@ class HdhrDevicesTest {
             try {
                 configs.forEach { runtime.feeds.refresh(it) }
                 if (policy == null) runtime.adoptAll()
+                reserved.forEach { it.close() }
                 server.start(wait = false)
                 TwoDevices(runtime, ports).block()
             } finally {
+                reserved.forEach { it.close() }
                 server.stop(100, 2000)
                 runtime.close()
                 store.close()

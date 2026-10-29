@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.MediaFixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
+import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.pollUntil
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.openStore
@@ -52,6 +53,7 @@ class OutputStreamTest {
         val store: BackendStore,
         val server: RealServer,
         val channels: List<Channel>,
+        val clock: MutableClock,
     ) : AutoCloseable {
         override fun close() {
             server.close()
@@ -64,6 +66,7 @@ class OutputStreamTest {
         val sources = dir.resolve("sources.json")
         Files.writeString(sources, Json.encodeToString(feeds))
         val store = openStore(dir)
+        val clock = MutableClock()
         val runtime = LiveRuntime.create(
             store,
             ServerConfig(
@@ -76,7 +79,7 @@ class OutputStreamTest {
                 allowLoopbackUpstreams = true,
                 outputs = outputs,
             ),
-            MutableClock(),
+            clock,
         )
         feeds.forEach { runtime.feeds.refresh(it) }
         runtime.adoptAll()
@@ -88,7 +91,7 @@ class OutputStreamTest {
                 }.bodyAsText(),
             ).channels
         }
-        return Stack(runtime, store, server, channels)
+        return Stack(runtime, store, server, channels, clock)
     }
 
     @Test fun `a TS stream URL fans out until the player hangs up and then releases the session`() = runBlocking<Unit> {
@@ -105,8 +108,9 @@ class OutputStreamTest {
                             assertEquals("video/mp2t", response.headers[HttpHeaders.ContentType])
                             val body = response.bodyAsChannel()
                             val early = body.readHead(188 * 3)
-                            // Longer than the fan-out's linger: the request itself is what
-                            // holds the session and the upstream.
+                            // Past the idle lease and a few of the one-second expiry sweeps: the
+                            // request itself is what holds the session and the upstream.
+                            stack.clock.now = stack.clock.now.plus(SessionManager.EXTERNAL_IDLE).plusSeconds(1)
                             delay(2500)
                             val later = body.readHead(188 * 3)
                             assertEquals(1, stack.runtime.sessions.count())

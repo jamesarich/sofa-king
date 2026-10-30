@@ -125,7 +125,7 @@ VERSION = hashlib.sha256(json.dumps([2, MOVIES, EPISODES, SHOW, CHANNELS, CLIP_S
 def ffmpeg(*args, timeout=600):
     """Runs FFmpeg; one reading from the web tries again, three times with longer waits, as the movies' hosts turn away a
     burst of requests for a while."""
-    command = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', *map(str, args)]
+    command = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', *reconnecting(map(str, args))]
     for wait in (30, 90, 240, None):
         try:
             return subprocess.run(command, check=True, timeout=timeout)
@@ -133,6 +133,28 @@ def ffmpeg(*args, timeout=600):
             if wait is None or not any(arg.startswith('https://') for arg in command):
                 raise
             time.sleep(wait)
+
+
+def reconnecting(args):
+    """[args] with FFmpeg's reconnect options before each web input, so a host that drops the connection mid-read is
+    read again from where it stopped instead of ending the output early."""
+    args = list(args)
+    out = []
+    for index, arg in enumerate(args):
+        if arg == '-i' and index + 1 < len(args) and args[index + 1].startswith('https://'):
+            out += ['-reconnect', '1', '-reconnect_on_network_error', '1', '-reconnect_delay_max', '30']
+        out.append(arg)
+    return out
+
+
+def seconds_of(path_or_url):
+    """How long [path_or_url] plays, by ffprobe; 0 when it can't be read."""
+    probe = subprocess.run(['ffprobe', '-v', 'error', *reconnecting(['-i', str(path_or_url)]), '-show_entries',
+                            'format=duration', '-of', 'csv=p=0'], capture_output=True, text=True, timeout=120)
+    try:
+        return float(probe.stdout.strip())
+    except ValueError:
+        return 0.0
 
 
 @functools.cache
@@ -161,10 +183,20 @@ def source(movie):
 
 
 def encode(url, start, seconds, target, height=720):
-    """[seconds] of [url] from [start] as H.264 and AAC, [height] lines high, in [target]'s container."""
-    ffmpeg('-ss', start, '-i', url, '-t', seconds, '-map', '0:v:0', '-map', '0:a:0?', '-vf', f'scale=-2:{height},fps=25',
-           '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '25', '-maxrate', '3M', '-bufsize', '6M', '-g', '50',
-           '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-ac', '2', '-ar', '48000', target)
+    """[seconds] of [url] from [start] as H.264 and AAC, [height] lines high, in [target]'s container. A host can end a
+    read early with FFmpeg still exiting cleanly, so a result shorter than the source allows is read again."""
+    expected = min(seconds, seconds_of(url) - start) - 2
+    for wait in (30, 90, 240, None):
+        ffmpeg('-ss', start, '-i', url, '-t', seconds, '-map', '0:v:0', '-map', '0:a:0?', '-vf',
+               f'scale=-2:{height},fps=25', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '25', '-maxrate', '3M',
+               '-bufsize', '6M', '-g', '50', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-ac', '2',
+               '-ar', '48000', target)
+        got = seconds_of(target)
+        if got >= expected:
+            return
+        if wait is None:
+            raise RuntimeError(f'{url} gave {got:.0f} s of the {expected + 2:.0f} s wanted in {target}')
+        time.sleep(wait)
 
 
 def segment(clip, folder):

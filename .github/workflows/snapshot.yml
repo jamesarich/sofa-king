@@ -46,7 +46,7 @@ env:
 
 jobs:
   version:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     outputs:
       code: ${{ steps.v.outputs.code }}
@@ -79,7 +79,7 @@ jobs:
   linux:
     name: Android and Linux desktop
     needs: version
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # The build takes a few minutes; the limit bounds a hang.
     timeout-minutes: 30
     defaults:
@@ -161,7 +161,7 @@ jobs:
             asset: sofa-king-snapshot-web-wasm.zip
           - target: js
             asset: sofa-king-snapshot-web-js.zip
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     defaults:
       run:

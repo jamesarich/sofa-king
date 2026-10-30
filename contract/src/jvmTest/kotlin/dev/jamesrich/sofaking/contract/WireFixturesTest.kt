@@ -287,4 +287,16 @@ class WireFixturesTest {
         val body = Json.encodeToString(OpenPlayback.serializer(), OpenPlayback("c", Wire.Intent.WATCH, "k"))
         assertEquals("""{"channelId":"c","intent":"watch","idempotencyKey":"k"}""", body)
     }
+
+    @Test
+    fun `a recording reads its updatedAt, and one from an older server has none`() {
+        val kept = client.decodeFromString<RecordingList>(fixture("v1/recording-list.json")).recordings.single()
+        assertNull(kept.updatedAt)
+        val newer = client.decodeFromString<Recording>(
+            """{"id":"r","channelId":"c","title":"T","startsAt":"2026-10-19T02:19:10Z",""" +
+                """"endsAt":"2026-10-19T02:49:10Z","state":"completed","updatedAt":"2026-10-19T03:00:00Z"}""",
+        )
+        assertEquals("2026-10-19T03:00:00Z", newer.updatedAt)
+        assertEquals(newer, client.decodeFromString<Recording>(Json.encodeToString(Recording.serializer(), newer)))
+    }
 }

@@ -69,6 +69,7 @@ data class StoredRecording(
         startsAt.toString(), endsAt.toString(), startPadding.seconds.toInt(), endPadding.seconds.toInt(), state, reason,
         ruleId,
         path, bytes, protected, conflict, positionMs, watched, commercials, breaks,
+        updatedAt.toString(),
     )
 }
 

@@ -11,6 +11,8 @@ import dev.jamesrich.sofaking.backend.dvr.StoredRecording
 import dev.jamesrich.sofaking.backend.pollFor
 import dev.jamesrich.sofaking.backend.store.addRecording
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.store.recording
+import dev.jamesrich.sofaking.backend.store.saveRecording
 import dev.jamesrich.sofaking.contract.ApiError
 import dev.jamesrich.sofaking.contract.Recording
 import dev.jamesrich.sofaking.contract.RecordingBreak
@@ -275,6 +277,21 @@ class RecordingApiTest {
                 "RECORDING_NOT_FOUND",
                 send(HttpMethod.Patch, "$RECORDINGS/nope", """{"protected":true}"""),
             )
+        }
+    }
+
+    @Test fun `a recording carries updatedAt, which moves when a PATCH changes it`() = testApplication {
+        dvrApi {
+            val movie = scheduleMovie(this)
+            val old = Instant.parse("2026-01-01T00:00:00Z")
+            runtime.store.saveRecording(checkNotNull(runtime.store.recording(movie.id)).copy(updatedAt = old))
+            val before = json.decodeFromString<Recording>(send(HttpMethod.Get, "$RECORDINGS/${movie.id}").bodyAsText())
+            assertEquals(old.toString(), before.updatedAt)
+            val patched = send(HttpMethod.Patch, "$RECORDINGS/${movie.id}", """{"watched":true}""")
+            val after = json.decodeFromString<Recording>(patched.bodyAsText())
+            assertTrue(Instant.parse(checkNotNull(after.updatedAt)).isAfter(old), patched.bodyAsText())
+            val listed = json.decodeFromString<RecordingList>(send(HttpMethod.Get, RECORDINGS).bodyAsText())
+            assertEquals(after.updatedAt, listed.recordings.single().updatedAt)
         }
     }
 

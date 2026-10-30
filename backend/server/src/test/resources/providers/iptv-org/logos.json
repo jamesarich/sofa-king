@@ -1,0 +1,6 @@
+[
+  { "channel": "CNN.us", "feed": null, "in_use": false, "tags": [], "width": 2000, "height": 2000, "format": "PNG", "url": "https://logos.example/cnn-old.png" },
+  { "channel": "CNN.us", "feed": null, "in_use": true, "tags": [], "width": 512, "height": 512, "format": "PNG", "url": "https://logos.example/cnn.png" },
+  { "channel": "BBCOne.uk", "feed": null, "in_use": true, "tags": [], "width": 300, "height": 300, "format": "SVG", "url": "https://logos.example/bbcone.svg" },
+  { "channel": "Blocked.us", "feed": null, "in_use": true, "tags": [], "width": 100, "height": 100, "format": "PNG", "url": "https://logos.example/blocked.png" }
+]

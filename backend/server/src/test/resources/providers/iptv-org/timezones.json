@@ -1,0 +1,4 @@
+[
+  { "id": "Europe/London", "utc_offset": "+00:00", "countries": ["GB", "GG", "IM", "JE"] },
+  { "id": "America/New_York", "utc_offset": "-05:00", "countries": ["US"] }
+]

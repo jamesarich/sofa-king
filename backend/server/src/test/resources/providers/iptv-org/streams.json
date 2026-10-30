@@ -1,0 +1,11 @@
+[
+  { "channel": "CNN.us", "feed": null, "title": "CNN", "url": "https://streams.example/cnn/index.m3u8", "referrer": "https://www.cnn.com/", "user_agent": "Mozilla/5.0 Fixture", "quality": "720p", "labels": [] },
+  { "channel": "CNN.us", "feed": "HD", "title": "CNN HD", "url": "https://streams.example/cnn-hd/index.m3u8", "referrer": null, "user_agent": null, "quality": "1080p", "labels": [] },
+  { "channel": "BBCOne.uk", "feed": null, "title": "BBC One", "url": "https://streams.example/bbcone/index.m3u8", "referrer": null, "user_agent": null, "quality": null, "labels": [] },
+  { "channel": "News24.us", "feed": null, "title": "News 24", "url": "https://streams.example/news24/index.m3u8", "referrer": null, "user_agent": null, "quality": "480p", "labels": [] },
+  { "channel": "Blocked.us", "feed": null, "title": "Blocked", "url": "https://streams.example/blocked/index.m3u8", "referrer": null, "user_agent": null, "quality": null, "labels": [] },
+  { "channel": "ClosedTV.us", "feed": null, "title": "Closed", "url": "https://streams.example/closed/index.m3u8", "referrer": null, "user_agent": null, "quality": null, "labels": [] },
+  { "channel": "Spicy.us", "feed": null, "title": "Spicy", "url": "https://streams.example/spicy/index.m3u8", "referrer": null, "user_agent": null, "quality": null, "labels": [] },
+  { "channel": null, "feed": null, "title": "Orphan", "url": "https://streams.example/orphan/index.m3u8", "referrer": null, "user_agent": null, "quality": null, "labels": [] },
+  { "channel": "Unknown.us", "feed": null, "title": "Unknown", "url": "https://streams.example/unknown/index.m3u8", "referrer": null, "user_agent": null, "quality": null, "labels": [] }
+]

@@ -101,7 +101,7 @@ internal val NAV: List<Section> = listOf(
             "/admin/virtual",
         ),
     ),
-    Section("/admin/providers", "Sources", "sources", listOf("/admin/providers", "/admin/ads")),
+    Section("/admin/providers", "Sources", "sources", listOf("/admin/providers", "/admin/ads", "/admin/iptv-org")),
     Section(
         "/admin/recordings",
         "DVR",
@@ -143,7 +143,8 @@ internal val CHANNEL_TABS =
 internal fun channelTabs(policy: Boolean): List<Tab> =
     if (policy) CHANNEL_TABS else CHANNEL_TABS.filter { it.href == "/admin/lineup" || it.href == "/admin/virtual" }
 
-internal val SOURCE_TABS = listOf(Tab("/admin/providers", "Sources", "sources"), Tab("/admin/ads", "Ads"))
+internal val SOURCE_TABS =
+    listOf(Tab("/admin/providers", "Sources", "sources"), Tab("/admin/ads", "Ads"), Tab("/admin/iptv-org", "iptv-org"))
 internal val PLAYER_TABS =
     listOf(Tab("/admin/viewers", "Devices"), Tab("/admin/history", "History"), Tab("/admin/plex", "Plex", "plex"))
 internal val RECORDING_TABS =

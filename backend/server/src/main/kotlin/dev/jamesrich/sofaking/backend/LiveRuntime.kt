@@ -12,6 +12,7 @@ import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.HdhrAccess
 import dev.jamesrich.sofaking.backend.http.NamedOutputs
+import dev.jamesrich.sofaking.backend.iptvorg.IptvOrgMatcher
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.library.ProgramFactsLookup
@@ -155,6 +156,8 @@ class LiveRuntime(
     val backups: DatabaseBackups? = null,
     /** The portal's spell of DEBUG logging; null for a runtime built without a config. */
     val debugWindow: DebugWindow? = null,
+    /** The iptv-org matching and its downloads; null for a runtime built without a config. */
+    val iptvOrg: IptvOrgMatcher? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()

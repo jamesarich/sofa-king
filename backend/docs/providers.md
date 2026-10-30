@@ -213,6 +213,18 @@ One request to the Kanku playlist API lists Mansa's channels; only `FAST` entrie
 
 Fragility: an unofficial API that can change shape. Some channels' schedules stop updating, so a few channels have no guide at a time.
 
+### iptv-org (community streams)
+
+The [iptv-org](https://github.com/iptv-org/iptv) community lists thousands of public streams, with the channel database ([lineup policy](lineup-policy.md#iptv-org-metadata)) describing each channel. The server offers them as a provider with the ID `iptv-org`. It is off by default: `SOFA_IPTV_ORG_STREAMS=on` (the Settings page, or the MCP tool `set_runtime_setting`) turns it on, and it needs no entry in the source file. Switching it on downloads `channels.json`, `logos.json`, `blocklist.json`, `timezones.json` and `streams.json` from `iptv-org.github.io/api`, weekly after that, with the conditional requests, size cap, last good copy and halving guard the metadata uses.
+
+The streams are community submissions. Many are dead, geo-blocked or move without notice, and availability and legality vary by country: you choose what to enable. Every stream starts `UNVERIFIED` and is probed like any source, so the health policy drops the dead ones; the first-pass probing in [probing](lineup-policy.md#probing) applies.
+
+`SOFA_IPTV_ORG_REGION` picks the countries. Unset, the server uses the country of its time zone from iptv-org's `timezones.json` (the zone's first country), else `US`; the iptv-org tab on the Sources page shows the region in force and whether it came from the setting or the time zone. Channels are chosen by `channels.json`'s `country`; a channel with no country, or in another country, is not imported. A channel on `blocklist.json`, with a `closed` date or marked `is_nsfw` is never imported, and no setting changes that.
+
+Each stream is one source named by its channel's name, with the logo, the first category as its group, and its country and quality as tags. Several streams of one channel, and the same channel from another provider, merge into one station by name through the lineup policy's normal station keys. Each stream's `referrer` and `user_agent` are sent as `Referer` and `User-Agent` on its requests, and the upstream address policy applies to every stream URL. Switching streams off lists no channels at the next import, so the stations lose those sources.
+
+Fragility: the community's streams change daily. Guide data is out of scope: map the channels onto an XMLTV guide as for [direct](#direct-broadcasters-own-feeds).
+
 ### hdhomerun (HDHomeRun tuner)
 
 An HDHomeRun on the LAN, read the way Plex and the HDHomeRun app read it. `options.url` is the device's address, such as `http://192.168.1.50`. The scanned channels use the `GuideNumber` as ID and number and the `GuideName` as name, in the group `Local`, tagged `ota`; channels the device marks DRM or without a stream URL are left out. A resolve answers the channel's own MPEG-TS stream on the device, which the relay's fan-out shares between players. `options.transcode` appends a `transcode=` profile (`heavy`, `mobile`, `internet720` and the rest), which only EXTEND models honor.

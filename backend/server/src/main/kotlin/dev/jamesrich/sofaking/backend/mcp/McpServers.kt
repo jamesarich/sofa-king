@@ -59,6 +59,7 @@ internal class McpServers(val reads: Server, val admin: Server) {
                 setupTools(context)
                 privateReadTools(context)
                 actionTools(context)
+                settingsTools(context)
                 sourceActionTools(context)
                 policyActionTools(context)
                 dvrTools(context)

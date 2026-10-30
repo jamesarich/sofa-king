@@ -114,6 +114,7 @@ class AdminPortal(
             PolicyPages(portal, editor).install(this)
             VirtualPages(portal).install(this)
             SourcePages(portal, editor).install(this)
+            IptvOrgPages(portal).install(this)
             RecordingPages(portal).install(this)
             WantedPages(portal).install(this)
             LibraryPages(portal).install(this)

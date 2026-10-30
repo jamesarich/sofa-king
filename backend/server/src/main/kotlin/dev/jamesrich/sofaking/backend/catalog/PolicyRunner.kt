@@ -16,19 +16,22 @@ internal class PolicyRunner(
     private val store: BackendStore,
     private val clock: Clock,
     private val hdhr: HdhrSizing?,
+    private val iptvOrg: IptvOrgPolicy? = null,
 ) {
     /**
      * One run over the current snapshot. Stations whose names match loosely are compared by schedule first, and the
      * aliases that evidence learns are built with.
      */
     suspend fun run(loaded: LoadedPolicy): BuildResult {
-        val candidates = feeds.published.channels().map { channel ->
+        val listed = feeds.published.channels().map { channel ->
             FeedCandidate(
                 channel,
                 feeds.published.providerOf(channel.id).orEmpty(),
                 feeds.published.offeringsOf(channel.id),
             )
         }
+        val enriched = iptvOrg?.enrich(listed, stationKeys(loaded.policy.names))
+        val candidates = enriched?.candidates ?: listed
         val providerIds = feeds.configs.mapTo(HashSet()) { it.id }
         val health = store.allHealth()
         val previous = store.stationAvailability()
@@ -49,10 +52,23 @@ internal class PolicyRunner(
         )
         val first = build(loaded.policy)
         val learning = learnAliases(first, loaded.policy, schedules(first, loaded.policy, now))
-        return if (learning.learned.isEmpty()) {
+        val built = if (learning.learned.isEmpty()) {
             first.with(learning)
         } else {
             build(withLearned(loaded.policy, learning.learned)).with(learning)
+        }
+        val holds = enriched?.holds.orEmpty()
+        // A station the policy turns on by hand stays on whatever the blocklist says.
+        return if (holds.isEmpty()) {
+            built
+        } else {
+            built.held(
+                holds,
+                loaded.policy.stations.filterValues {
+                    it.enabled ==
+                        true
+                }.keys,
+            )
         }
     }
 

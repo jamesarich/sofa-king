@@ -187,6 +187,22 @@ A station takes its guide from the guides that list one of its sources' `tvg-id`
 
 Accepting a proposal writes it as the station's `guide` override, the same field `PATCH /lineup/{id}` writes, and applies. Accept all does so in one write for every station whose best proposal reaches `acceptAbove`, except a station whose best two proposals tie on different channels. Dismissing a proposal adds it to `guideMatches.dismissed`. The portal lists proposals on the Guide matches tab; the API is [below](#api).
 
+### iptv-org metadata
+
+The [iptv-org](https://github.com/iptv-org/database) community database lists channels with their names, countries, categories and logos, and a blocklist of channels it asks clients not to list. With `SOFA_IPTV_ORG=on` (off by default, switched on the Settings page or with the MCP tool `set_runtime_setting`), the server downloads `channels.json`, `logos.json`, `blocklist.json` and `timezones.json` from `iptv-org.github.io/api` when it is switched on and then weekly, and uses them under a lineup policy. It downloads metadata only, never `streams.json`; the community streams are a separate, also optional, [provider](providers.md#iptv-org-community-streams). The files are kept in `iptv-org/` in the data directory and requested with `If-None-Match` and `If-Modified-Since`, each capped at 64 MiB, through the same address policy as every outbound request. A failed download, or a `channels.json` with fewer than half the channels the last good copy had, is refused and the job's note says so; the last good copy stays in use.
+
+A lineup channel matches an iptv-org channel in this order:
+
+1. Its `tvg-id` equals an iptv-org id such as `CNN.us`.
+2. Its name, normalized like station keys (version 2, no spaces), equals exactly one iptv-org channel's name in a country the channel is tagged with.
+3. Its name equals an iptv-org name with no country to check, or an alternative name (`alt_names`).
+
+Only the first two apply on their own. A match of the third kind, and a name that fits several iptv-org channels, is never guessed: it is listed on the portal's iptv-org tab and as a finding, `<key>: iptv-org candidates ...`, until you accept one channel or dismiss the station. The choice is kept in the database, and the policy runs again. `POST /api/v1/admin/iptv-org/matches` does the same.
+
+A match fills only what the source left empty: the logo (through the logo cache, like any logo), and, for a channel with no category at all, the first iptv-org category and the country as its tags, which then go through `groups.map` like a provider's own. An explicit logo, category or station override is never replaced.
+
+A station whose match is on the blocklist is turned off with the reason `blocklist`, and its finding names the blocklist's reason and reference. Nothing is deleted. Dismissing the station's match on the iptv-org tab lists it again, as does turning the station on with `enabled: true` in its override.
+
 ### Unmapped categories
 
 Each run lists the raw categories that no `groups.map` entry, `rawGroup` pattern or, with `groups.builtIn`, shipped mapping names and that neither `groups.weak` nor the shipped weak list holds, in `unmappedCategories`, in preview, apply and findings. Every source of a station counts, not only the leading one. There is one entry per provider and category, `{"provider", "category", "stations", "example"}`, with the most stations first, then provider and category. `category` is the lowercase key `groups.map` takes, and `example` is the first station name in sorted order. Stations with a group override, a matching name pattern or a leading provider entry with a `group` are not listed, and neither are sources with no raw category. When the list is not empty, the findings carry one `groups:` line with the category and station counts.

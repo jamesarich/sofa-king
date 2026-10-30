@@ -15,6 +15,7 @@ import kotlinx.html.option
 import kotlinx.html.p
 import kotlinx.html.select
 import kotlinx.html.span
+import kotlinx.html.textInput
 
 internal fun FlowContent.runtimePanel(chrome: Chrome, view: RuntimeSettingsView) =
     panel("Runtime settings", id = "runtime") {
@@ -66,6 +67,11 @@ private class RuntimeFields(private val view: RuntimeSettingsView) {
                                 +choice
                             }
                         }
+                    }
+
+                    SettingType.Text -> textInput(name = def.name) {
+                        id = def.name
+                        value = values.getValue(def.name)
                     }
 
                     else -> numberInput(name = def.name) {

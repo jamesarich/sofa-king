@@ -348,14 +348,14 @@ struct ContentView: View {
 
     private var tabs: some View {
         TabView(selection: $tab) {
-            live.tabItem { Label(strings.tabLive, systemImage: "tv") }.tag(AppTab.live)
+            live.buttonTint().tabItem { Label(strings.tabLive, systemImage: "tv") }.tag(AppTab.live)
             if libraryInBar {
-                LibraryHomeView().tabItem { Label(strings.tabLibrary, systemImage: "film.stack") }.tag(AppTab.library)
+                LibraryHomeView().buttonTint().tabItem { Label(strings.tabLibrary, systemImage: "film.stack") }.tag(AppTab.library)
             }
             if recordingsInBar {
-                RecordingsView().tabItem { Label(strings.tabDvr, systemImage: "record.circle") }.tag(AppTab.recordings)
+                RecordingsView().buttonTint().tabItem { Label(strings.tabDvr, systemImage: "record.circle") }.tag(AppTab.recordings)
             }
-            NavigationStack { SettingsGate() }.tabItem { Label(strings.tabSettings, systemImage: "gear") }.tag(AppTab.settings)
+            NavigationStack { SettingsGate() }.buttonTint().tabItem { Label(strings.tabSettings, systemImage: "gear") }.tag(AppTab.settings)
         }
         .onChange(of: model.requestedChannel) { _, requested in
             // A Top Shelf channel plays from the Live tab.

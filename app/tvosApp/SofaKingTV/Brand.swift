@@ -23,3 +23,10 @@ extension Color {
     /// Over live video: plum at 88% keeps dusk text above 11:1 and mauve above 7:1 even over a white picture.
     static let sofaOverlayScrim = Color.sofaPlum.opacity(0.88)
 }
+
+extension View {
+    /// The tint for a tab's own buttons. The app's amber marks the open tab and selections, but as a button's tint it
+    /// fills an unfocused tvOS button amber under its white label, too faint to read; deep lavender keeps the label above
+    /// 11:1 and a focused button still turns white.
+    func buttonTint() -> some View { tint(.sofaLavenderDeep) }
+}

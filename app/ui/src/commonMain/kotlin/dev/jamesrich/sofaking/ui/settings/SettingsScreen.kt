@@ -91,6 +91,7 @@ import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.rememberUpdateInstaller
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import dev.jamesrich.sofaking.ui.supportsCrashReports
 import dev.jamesrich.sofaking.ui.supportsNightListening
 import dev.jamesrich.sofaking.ui.supportsPlaybackPreferences
 import dev.jamesrich.sofaking.ui.theme.SofaButton
@@ -239,8 +240,9 @@ fun SettingsScreen(
                     // A TV is always dark, so it has nothing to choose.
                     if (!tv) appearanceRow(settings, actions)
                     if (!unconfigured) serverSection()
-                    // Offered once there is a server, since that is where a crash report goes.
-                    if (!unconfigured) diagnosticsRows(settings, actions)
+                    // Offered once there is a server, since that is where a crash report goes, and only where the
+                    // app keeps crashes.
+                    if (!unconfigured && supportsCrashReports) diagnosticsRows(settings, actions)
                     // About: the app, its version and what is loaded, then where the build stands against the
                     // published snapshot.
                     item { SectionHeader(stringResource(Res.string.settings_section_about)) }

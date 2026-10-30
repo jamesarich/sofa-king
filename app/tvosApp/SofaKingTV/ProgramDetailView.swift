@@ -102,7 +102,7 @@ struct ProgramDetailView: View {
 
 /// Record (Cancel recording once set) and Record series (Stop series once set) for a program that has not ended,
 /// on a server that records, and for a sports program Record each team it names (Stop recording once set); a line
-/// says when the server did not take the change.
+/// says when the recording will not happen for want of a slot, and one when the server did not take a change.
 private struct RecordButtons: View {
     @Environment(AppModel.self) private var model
     let program: Program
@@ -131,6 +131,9 @@ private struct RecordButtons: View {
                             }
                         }
                     }
+                }
+                if mark.conflict {
+                    Text(recordingStrings.conflict).font(.caption).foregroundStyle(Color.sofaError)
                 }
                 if failed {
                     Text(strings.changeFailed).font(.caption).foregroundStyle(.red)

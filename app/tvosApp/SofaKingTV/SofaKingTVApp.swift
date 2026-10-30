@@ -6,6 +6,7 @@ import SofaKingCore
 /// The words the Compose screens share with this app, kept in core so the two cannot drift apart.
 let strings = TvCopy.shared
 let recordingStrings = TvRecordingCopy.shared
+let searchStrings = TvSearchCopy.shared
 let spokenStrings = TvSpokenCopy.shared
 
 @main

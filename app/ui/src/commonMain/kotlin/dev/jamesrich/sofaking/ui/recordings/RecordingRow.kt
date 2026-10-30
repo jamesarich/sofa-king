@@ -166,12 +166,6 @@ private fun ProtectButton(protected: Boolean, title: String, onClick: () -> Unit
     }
 }
 
-/** A scheduled recording the server flags as losing its slot: it won't record unless one frees up. */
-internal val DvrRecording.wontRecord: Boolean get() = state == RecordingState.SCHEDULED && conflict
-
-/** Only a finished recording has a file for cleanup to delete, so only it offers Protect. */
-internal val DvrRecording.canProtect: Boolean get() = state == RecordingState.COMPLETED
-
 /**
  * The episode, when the guide gave one, then the channel and when it aired, such as "S2 E5 ·
  * News 4 · Sun Oct 18, 6:00 PM".

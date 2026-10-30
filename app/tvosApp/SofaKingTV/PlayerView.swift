@@ -51,7 +51,13 @@ struct PlayerView: View {
 
     var body: some View {
         ZStack {
-            PlayerController(player: player, menuItems: menuItems, actions: breakActions, breakScreen: breakScreen).ignoresSafeArea()
+            PlayerController(
+                player: player,
+                menuItems: menuItems,
+                actions: breakActions,
+                itemsContext: itemsContext,
+                breakScreen: breakScreen
+            ).ignoresSafeArea()
             if let failure {
                 Text(failure).padding().background(.thinMaterial, in: .rect(cornerRadius: 16))
             }
@@ -305,6 +311,12 @@ struct PlayerView: View {
         return items.compactMap { $0 }
     }
 
+    /// The channel and the start of the program on now, which the transport bar's handlers act on.
+    private var itemsContext: String {
+        let now = model.lineup.flatMap { model.core.nowAndNext(lineup: $0, channel: channel).now }
+        return "\(channel.guideId)|\(now.map { model.core.epochMs(program: $0) } ?? 0)"
+    }
+
     /// Record, or Cancel recording, for the program on now, on a server that records; as in the program's details.
     private var recordAction: UIAction? {
         guard model.recordingsShown, let marks = model.recordingMarks, let lineup = model.lineup,
@@ -441,32 +453,37 @@ private struct PlayerController: UIViewControllerRepresentable {
     let player: AVPlayer
     let menuItems: [UIMenuElement]
     let actions: [UIAction]
+    /// The channel and program the items' handlers act on.
+    let itemsContext: String
     let breakScreen: BreakScreen?
 
-    func makeCoordinator() -> UIHostingController<BreakScreen?> {
+    final class Coordinator {
         let hosting = UIHostingController<BreakScreen?>(rootView: nil)
-        hosting.view.backgroundColor = .clear
-        hosting.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        return hosting
+        let items = TransportBarItems()
+    }
+
+    func makeCoordinator() -> Coordinator {
+        let coordinator = Coordinator()
+        coordinator.hosting.view.backgroundColor = .clear
+        coordinator.hosting.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        return coordinator
     }
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
-        controller.transportBarCustomMenuItems = menuItems
-        controller.contextualActions = actions
+        context.coordinator.items.apply(menus: menuItems, actions: actions, context: itemsContext, to: controller)
         if let overlay = controller.contentOverlayView {
-            context.coordinator.view.frame = overlay.bounds
-            overlay.addSubview(context.coordinator.view)
+            context.coordinator.hosting.view.frame = overlay.bounds
+            overlay.addSubview(context.coordinator.hosting.view)
         }
-        context.coordinator.rootView = breakScreen
+        context.coordinator.hosting.rootView = breakScreen
         return controller
     }
 
     func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
-        controller.transportBarCustomMenuItems = menuItems
-        controller.contextualActions = actions
-        context.coordinator.rootView = breakScreen
+        context.coordinator.items.apply(menus: menuItems, actions: actions, context: itemsContext, to: controller)
+        context.coordinator.hosting.rootView = breakScreen
     }
 }
 

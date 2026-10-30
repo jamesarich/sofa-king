@@ -106,7 +106,12 @@ struct VodPlayerView: View {
 
     var body: some View {
         ZStack {
-            VodController(player: player, menus: trackMenus + [model.sleepMenu(endTitle: strings.sleepEndItem, endsAt: nil)], actions: contextualActions).ignoresSafeArea()
+            VodController(
+                player: player,
+                menus: trackMenus + [model.sleepMenu(endTitle: strings.sleepEndItem, endsAt: nil)],
+                actions: contextualActions,
+                itemsContext: "\(request.id)|\(stream.map { "\(ObjectIdentifier($0))" } ?? "")"
+            ).ignoresSafeArea()
             if let subtitleText {
                 Text(subtitleText)
                     .multilineTextAlignment(.center)
@@ -666,18 +671,20 @@ private struct VodController: UIViewControllerRepresentable {
     let player: AVPlayer
     let menus: [UIMenuElement]
     let actions: [UIAction]
+    /// The item and stream the items' handlers act on.
+    let itemsContext: String
+
+    func makeCoordinator() -> TransportBarItems { TransportBarItems() }
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
         controller.speeds = [1, 1.25, 1.5, 2].map { AVPlaybackSpeed(rate: $0, localizedName: "\($0.formatted())×") }
-        controller.transportBarCustomMenuItems = menus
-        controller.contextualActions = actions
+        context.coordinator.apply(menus: menus, actions: actions, context: itemsContext, to: controller)
         return controller
     }
 
     func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
-        controller.transportBarCustomMenuItems = menus
-        controller.contextualActions = actions
+        context.coordinator.apply(menus: menus, actions: actions, context: itemsContext, to: controller)
     }
 }

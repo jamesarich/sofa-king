@@ -660,6 +660,8 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | POST | `/admin/sessions/{id}/switch` | Move a playback session to its channel's next source |
 | GET | `/admin/merges` | Suggested and learned aliases |
 | POST | `/admin/merges/accept`, `/admin/merges/dismiss`, `/admin/merges/never` | Accept a suggestion, dismiss it, or keep a learned pair apart |
+| GET | `/admin/guide-matches` | Guide channels proposed by name for the stations no guide lists |
+| POST | `/admin/guide-matches/accept`, `/admin/guide-matches/dismiss`, `/admin/guide-matches/accept-all` | Accept a proposal as a station's guide, dismiss it, or accept every station's best proposal |
 | GET | `/admin/required` | Required stations |
 | GET, POST | `/admin/providers`, `/admin/providers/edit` | Provider entries and their edits |
 | GET, POST | `/admin/groups`, `/admin/groups/edit` | Groups and their edits |
@@ -672,6 +674,9 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | POST | `/admin/viewers/{clientId}/forget` | Forget a device and its preferences, and revoke its token |
 | POST | `/admin/settings/tokens/create`, `/admin/settings/tokens/{id}/revoke` | Make a `read` or `hook` token (`label`, `scope`), shown once; revoke a token |
 | GET | `/admin/library` | The media libraries and the form that adds one |
+| GET | `/admin/library/unmatched` | The movies and shows TMDB's search found nothing for |
+| GET | `/admin/library/items/{id}/match?q=&year=` | Search TMDB for an item, by its title and year unless `q` and `year` say otherwise |
+| POST | `/admin/library/items/{id}/match`, `/admin/library/items/{id}/automatic` | Match an item to a TMDB entry (`tmdb`, the entry's id); give it back to the scan |
 | POST | `/admin/library` | Add a library (`name`, `kind`, `path`) |
 | POST | `/admin/library/{id}/scan`, `/admin/library/{id}/rename`, `/admin/library/{id}/remove` | Queue a scan; rename (`name`); remove, after `confirm=yes` |
 | POST | `/admin/library/tmdb` | Check and save the TMDB token, then restart |
@@ -684,12 +689,29 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | POST | `/admin/policy/apply` | Apply the lineup policy now |
 | POST | `/admin/sources/services` | Save the services form (`svc` for each service on, `opt.SERVICE.KEY` for its options), after `confirm=yes`; writes the source file and restarts |
 | POST | `/admin/sources/playlist`, `/admin/sources/remove` | Add an M3U playlist (`id`, `url`, `guide`) or remove a provider (`id`), after `confirm=yes`; each writes the source file and restarts |
+| GET | `/admin/ads` | What live sessions do with learned ad breaks, and the channels they were learned on |
 | POST | `/admin/policy/starter` | Write the starter policy, after `confirm=yes`, and restart |
 | POST | `/admin/attention/ignore`, `/admin/attention/show` | Ignore an overview item (`key`, `fingerprint`) until its text changes; show it again (`key`) |
 | POST | `/admin/theme` | Pin the color scheme: `theme` of `light`, `dark` or `auto`, then back to the portal path in `back` |
+| GET | `/admin/recordings` | The recordings folder, the upcoming recordings, the series rules and the recorded and failed ones (redirects to `/admin` while recordings are off) |
+| GET | `/admin/recordings/calendar?start=&view=` | The recordings by day: the week from the date `start` (today by default), or `view=agenda` for the 30-day agenda |
+| GET | `/admin/recordings/wanted` | The scheduled recordings that lose their slot to others, and the ones that failed in the last 14 days |
+| POST | `/admin/recordings/rules`, `/admin/recordings/rules/{id}`, `/admin/recordings/rules/{id}/delete` | Add a series rule (`title`, `channelId`, `newOnly`, `keep`, `startPadding` and `endPadding` in minutes, `priority`, `match`, `terms`, `categories`); change one; delete it and its scheduled recordings |
+| POST | `/admin/recordings/manual` | Schedule one recording (`channelId`, `start` as a local date and time, `minutes`, `title`) |
+| POST | `/admin/recordings/{id}/protect`, `/admin/recordings/{id}/delete` | Protect a recording from cleanup (`protected` of `true` or `false`); cancel, stop or delete it |
+| POST | `/admin/recordings/wanted/rules/{id}/first`, `/admin/recordings/wanted/{id}/delete` | Give a rule a priority above every other; cancel a scheduled recording that lost its slot, after `confirm=yes` |
 | GET | `/admin/system/jobs` | Background jobs with their last run and next due time |
 | POST | `/admin/system/jobs/{id}/run` | Run a job now |
 | GET | `/admin/system/events?level=&q=` | The newest 500 log lines at INFO and above; `level` of `warn` or `error` narrows them, `q` matches the logger or message |
+| GET | `/admin/system/events/server.log` | The log file as a download |
+| POST | `/admin/system/events/debug` | Log at DEBUG for 30 minutes; `op=stop` ends it sooner |
+| GET | `/admin/system/activity` | What the server is doing now: the sessions watching, the recordings running and the jobs running |
+| GET | `/admin/system/changes?limit=` | The lineup policy's change log, newest first; `limit` (1 to 1000) sets how many it lists, 50 by default |
+| GET | `/admin/system/crashes` | The crashes the apps reported |
+| GET | `/admin/system/backup` | The database backups, newest first |
+| GET | `/admin/system/backup/files/{name}` | A backup as a download |
+| POST | `/admin/system/backup/take`, `/admin/system/backup/restore` | Back up the database now; restore the backup `name`, after `confirm=yes`, which restarts the server |
+| POST | `/admin/system/backup/upload` | Restore an uploaded database file, a multipart form with `csrf`, `confirm=yes` and then the file, which restarts the server |
 | GET | `/admin/system/about` | Whether an update is available, the server, the status and the support snapshot |
 | POST | `/admin/system/update/check`, `/admin/system/update/request` | Check the registry for a newer image now; ask the host's updater to update, after `confirm=yes`, by writing `update-requested` in the data directory |
 | GET | `/admin/system/snapshot.json` | The support snapshot as a JSON download |
@@ -711,7 +733,7 @@ A client builds the server address as `http://HOST:PORT` from the resolved addre
 
 ## Shared types
 
-The live TV, recording and library requests and responses above (`/api/v1/bootstrap`, `/api/v1/channels`, `/api/v1/guide/query`, `/api/v1/playback-sessions`, `/api/v1/recordings`, `/api/v1/recording-rules`, `/api/v1/libraries`, `/api/v1/library`, `/api/v1/vod-sessions`) and the error body are Kotlin types in the [contract](../../contract/README.md) build, which the server and the Sofa King app both compile against. `Wire` in the same package names the intents, guide statuses, error codes, guide limits, library item kinds and the discovery service type clients act on.
+The live TV, recording and library requests and responses above (`/api/v1/bootstrap`, `/api/v1/channels`, `/api/v1/guide/query`, `/api/v1/playback-sessions`, `/api/v1/recordings`, `/api/v1/recording-rules`, `/api/v1/libraries`, `/api/v1/library`, `/api/v1/vod-sessions`), the `POST /api/v1/diagnostics/crashes` body and the error body are Kotlin types in the [contract](../../contract/README.md) build, which the server and the Sofa King app both compile against. `Wire` in the same package names the intents, guide statuses, error codes, guide limits, library item kinds and the discovery service type clients act on.
 
 The server keeps clients older and newer than itself working: a response keeps every field of the frozen fixtures in `contract/src/jvmTest/resources/wire`, a field no client reads has a default, and the guide query and playback session requests ignore fields the server does not know. Admin requests reject unknown fields.
 

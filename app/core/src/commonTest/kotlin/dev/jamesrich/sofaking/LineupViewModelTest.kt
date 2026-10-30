@@ -150,7 +150,10 @@ class LineupViewModelTest {
         val server = FakeServer(this).apply { capabilities = """{"catalog":true,"recordings":true,"library":true}""" }
         val viewModel = start(server)
         runCurrent()
-        assertEquals(ServerCapabilities(recordings = true, library = true), viewModel.capabilities.value)
+        assertEquals(
+            ServerCapabilities(answered = true, recordings = true, library = true),
+            viewModel.capabilities.value,
+        )
 
         server.capabilities = null
         settings.setServer("http://sofa.test/other", "t")

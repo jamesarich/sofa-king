@@ -14,8 +14,10 @@ import java.net.URI
  * window whose segments were all sent before is a stale copy, and the last playlist goes out instead; a window of new
  * segments numbered lower is a restart, and it is numbered on from where the last window ended, behind a
  * `#EXT-X-DISCONTINUITY`, with `#EXT-X-DISCONTINUITY-SEQUENCE` kept counting.
+ *
+ * Without [holdLapses] a lapse passes through and ends the reader, for one that can open a fresh source.
  */
-class SteadyPlaylists(private val limit: Int = 16) {
+class SteadyPlaylists(private val limit: Int = 16, private val holdLapses: Boolean = true) {
     private val timelines = object : LinkedHashMap<String, Timeline>(8, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Timeline>) = size > limit
     }
@@ -26,7 +28,7 @@ class SteadyPlaylists(private val limit: Int = 16) {
         val key = source.toString()
         val timeline = timelines[key]
         val segments = text.contains("#EXTINF")
-        if (!segments && text.contains("#EXT-X-ENDLIST")) return timeline?.sent ?: text
+        if (!segments && text.contains("#EXT-X-ENDLIST")) return if (holdLapses) timeline?.sent ?: text else text
         if (!segments || text.contains("#EXT-X-ENDLIST")) return text
         val window = Window.parse(text)
         return (timeline ?: Timeline().also { timelines[key] = it }).next(window)

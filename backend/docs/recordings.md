@@ -93,6 +93,20 @@ While a recording runs, the DVR checks the free space every five seconds. Below 
 | `completed` | Kept. `path` is where it is in the recordings folder; `reason` says why one was cut short (`STOPPED`, `DISK_FULL`, or the source's last failure) |
 | `failed` | Nothing was recorded. `reason` is `MISSED`, `NO_MEDIA`, `DISK_FULL` or why the source could not be read, such as `SOURCE_UNAVAILABLE` or `CAPACITY_EXHAUSTED` |
 
+```mermaid
+stateDiagram-v2
+    [*] --> scheduled: set to record
+    scheduled --> recording: window opens
+    scheduled --> failed: missed
+    scheduled --> [*]: canceled
+    recording --> completed: ends with data
+    recording --> failed: no data
+    completed --> [*]: deleted
+    failed --> [*]: deleted
+```
+
+A program, a time window or a series rule's match schedules a recording. A window that passes without it starting fails it with the reason `MISSED`. While recording, a dropped source reopens the channel and appends to the same file. The recording completes when its window ends or it is stopped, with data in the file, and fails with an empty or missing file. A person or cleanup deletes it. A conflict is a flag on a scheduled recording, not a state.
+
 `DELETE /api/v1/recordings/{id}` cancels a scheduled recording, stops a running one and keeps what it recorded, or deletes a finished one with its file and any folders it leaves empty. `PATCH` sets `protected`, and the `positionMs` and `watched` a player saves.
 
 ## Subscribe in a calendar

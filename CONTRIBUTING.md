@@ -80,19 +80,43 @@ Versions are pinned exactly in the shared catalog, with no lockfiles or verifica
 
 ## CI
 
-| Workflow | Runs for | What it does |
+| Workflow | Triggers | What it does |
 | --- | --- | --- |
-| [`ci.yml`](.github/workflows/ci.yml) | Pull requests and pushes to `main` that change `app/` or `contract/` (not their Markdown, `app/docs/`, `app/maestro/` or the nightly and screenshot scripts), the shared `gradle/` directory, `.editorconfig` or `build-logic/`, `ci.yml`, `snapshot.yml`, `publish-snapshot.yml`, `.github/version.sh` or the `apt-install` action; also a manual run | Tests and builds the app, runs the [Apple TV remote tests](app/docs/development.md#apple-tv-remote-tests), the [iOS touch tests](app/docs/development.md#ios-touch-tests) and the [web key fuzz](app/docs/development.md#web-key-fuzz), and publishes the snapshot from `main` |
-| [`backend.yml`](.github/workflows/backend.yml) | Pull requests and pushes to `main` that change `backend/` or `contract/` (not their Markdown or `backend/docs/`), pushes to `main` that change the app's `core` or `ui` module or its build, the shared `gradle/` directory, `.editorconfig` or `build-logic/`, `backend.yml`, `.github/version.sh` or the `apt-install` action; every `v*` tag; also a manual run | Tests and builds the server, and publishes its image from `main` and from each tag |
-| [`docs.yml`](.github/workflows/docs.yml) | Pull requests and pushes to `main` that change any Markdown page, `docs/`, `mkdocs.yml`, the server's OpenAPI document or `docs.yml`; also a manual run | Checks that every image a page draws is a tracked file (`docs/site/check_images.py`), then builds the [documentation site](https://jamesarich.github.io/sofa-king/) strictly, so a link to a missing page or anchor fails, and publishes it to GitHub Pages from `main` |
-| [`release.yml`](.github/workflows/release.yml) | A pushed `v*` tag | Builds the snapshot's packages for that version through `snapshot.yml`, then `publish-release.yml` publishes them as the `vX.Y.Z` release, which GitHub marks the latest; `backend.yml` publishes the image for the same tag |
-| [`screenshots.yml`](.github/workflows/screenshots.yml) | Mondays on `main`, pull requests that change it, `app/scripts/screenshots.py`, `app/scripts/showcase.py`, `app/scripts/fixture_server.py`, `app/scripts/doc_images.py`, `app/scripts/doc-images.json` or the `apt-install` action, and a manual run | Takes the documentation's screenshots on the web, the Linux desktop, Android phone, tablet and TV emulators and iPhone, iPad and Apple TV simulators against the showcase lineup (dark, and light on the web, desktop, phone and tablet), and the admin portal in Chrome; converts them to the WebP files under `docs/images` and, off pull requests, opens a pull request from `bot/docs-screenshots` with the ones that changed, as [the app's development page](app/docs/development.md#screenshots) describes |
-| [`tv-monkey.yml`](.github/workflows/tv-monkey.yml) | Nightly, pull requests that change it, `app/scripts/tv-monkey.py`, `app/scripts/fixture_server.py` or `app/maestro/`, and a manual run with a key count and a seed | Runs the Maestro flows, then presses random remote keys, on the debug app in a headless Android TV emulator against fixture channels and a short fixture show, as [the app's development page](app/docs/development.md#tv-emulator-monkey) describes |
-| [`desktop-monkey.yml`](.github/workflows/desktop-monkey.yml) | Nightly, pull requests that change it, `app/scripts/desktop-monkey.py` or `app/scripts/fixture_server.py`, and a manual run with a key count and a seed | Presses random keys on the desktop app in a virtual X display, with libVLC playing fixture channels, as [the app's development page](app/docs/development.md#desktop-monkey) describes |
-| [`phone-tests.yml`](.github/workflows/phone-tests.yml) | Nightly, pull requests that change it, `app/androidApp/src/androidTest/`, `app/androidApp/build.gradle.kts` or `app/scripts/fixture_server.py`, and a manual run with a step count and a seed | Runs the debug app's touch tests in a headless Android phone emulator against fixture channels: picture-in-picture, the predictive back gesture, rotation and random touches, as [the app's development page](app/docs/development.md#phone-touch-tests) describes |
-| [`codeql.yml`](.github/workflows/codeql.yml) | Weekly, pull requests that change it; also a manual run | Scans the workflows with CodeQL; findings appear under the Security tab. The Kotlin waits for CodeQL to support the catalog's Kotlin version |
-| [`scorecard.yml`](.github/workflows/scorecard.yml) | Pushes to `main` and weekly; also a manual run | Rates the repository with the OpenSSF Scorecard and publishes the result for the README's badge |
-| [`dependency-submission.yml`](.github/workflows/dependency-submission.yml) | Pushes to `main` that change a `*.gradle.kts` or `gradle.properties` file, `gradle/`, `build-logic/` or the workflow itself; also a manual run | Sends each build's resolved dependencies to GitHub, so Dependabot alerts cover them |
+| [`ci.yml`](.github/workflows/ci.yml) | Pull request, push to `main`, manual | Tests and builds the app, runs the [Apple TV remote tests](app/docs/development.md#apple-tv-remote-tests), the [iOS touch tests](app/docs/development.md#ios-touch-tests) and the [web key fuzz](app/docs/development.md#web-key-fuzz), and publishes the snapshot from `main` |
+| [`backend.yml`](.github/workflows/backend.yml) | Pull request, push to `main`, `v*` tag, manual | Tests and builds the server, and publishes its image from `main` and from each tag |
+| [`docs.yml`](.github/workflows/docs.yml) | Pull request, push to `main`, manual | Checks that every image a page draws is a tracked file (`docs/site/check_images.py`), then builds the [documentation site](https://jamesarich.github.io/sofa-king/) strictly, so a link to a missing page or anchor fails, and publishes it to GitHub Pages from `main` |
+| [`release.yml`](.github/workflows/release.yml) | `v*` tag | Builds the snapshot's packages for that version through `snapshot.yml`, then `publish-release.yml` publishes them as the `vX.Y.Z` release, which GitHub marks the latest; `backend.yml` publishes the image for the same tag |
+| [`screenshots.yml`](.github/workflows/screenshots.yml) | Mondays, pull request, manual | Takes the documentation's screenshots on the web, the Linux desktop, Android phone, tablet and TV emulators and iPhone, iPad and Apple TV simulators against the showcase lineup (dark, and light on the web, desktop, phone and tablet), and the admin portal in Chrome; converts them to the WebP files under `docs/images` and, off pull requests, opens a pull request from `bot/docs-screenshots` with the ones that changed, as [the app's development page](app/docs/development.md#screenshots) describes |
+| [`tv-monkey.yml`](.github/workflows/tv-monkey.yml) | Nightly, pull request, manual (key count and seed) | Runs the Maestro flows, then presses random remote keys, on the debug app in a headless Android TV emulator against fixture channels and a short fixture show, as [the app's development page](app/docs/development.md#tv-emulator-monkey) describes |
+| [`desktop-monkey.yml`](.github/workflows/desktop-monkey.yml) | Nightly, pull request, manual (key count and seed) | Presses random keys on the desktop app in a virtual X display, with libVLC playing fixture channels, as [the app's development page](app/docs/development.md#desktop-monkey) describes |
+| [`phone-tests.yml`](.github/workflows/phone-tests.yml) | Nightly, pull request, manual (step count and seed) | Runs the debug app's touch tests in a headless Android phone emulator against fixture channels: picture-in-picture, the predictive back gesture, rotation and random touches, as [the app's development page](app/docs/development.md#phone-touch-tests) describes |
+| [`codeql.yml`](.github/workflows/codeql.yml) | Mondays, pull request, manual | Scans the workflows with CodeQL; findings appear under the Security tab. The Kotlin waits for CodeQL to support the catalog's Kotlin version |
+| [`scorecard.yml`](.github/workflows/scorecard.yml) | Push to `main`, Tuesdays, manual | Rates the repository with the OpenSSF Scorecard and publishes the result for the README's badge |
+| [`dependency-submission.yml`](.github/workflows/dependency-submission.yml) | Push to `main`, manual | Sends each build's resolved dependencies to GitHub, so Dependabot alerts cover them |
+
+What runs on a change (a pull request or a push to `main` unless noted; manual runs aside):
+
+| You change | Runs |
+| --- | --- |
+| `app/` code, not Markdown, `app/docs/`, `app/maestro/` or the `tv-monkey.py`, `desktop-monkey.py`, `screenshots.py` and `showcase.py` scripts | `ci.yml` |
+| `contract/`, not Markdown | `ci.yml`, `backend.yml` |
+| `backend/`, not Markdown or `backend/docs/` | `backend.yml` |
+| The app's `core` or `ui` module or its build files | `ci.yml`, and `backend.yml` on a push to `main` only |
+| `gradle/`, `build-logic/`, `.editorconfig` | `ci.yml`, `backend.yml` |
+| A `*.gradle.kts` or `gradle.properties` file, `gradle/`, `build-logic/` | `dependency-submission.yml`, on a push to `main` only |
+| Markdown, `docs/`, `mkdocs.yml`, the server's OpenAPI document | `docs.yml` |
+| `app/maestro/`, `app/scripts/tv-monkey.py` | `tv-monkey.yml` |
+| `app/scripts/desktop-monkey.py` | `desktop-monkey.yml` |
+| `app/androidApp/src/androidTest/`, `app/androidApp/build.gradle.kts` | `phone-tests.yml`, `ci.yml` |
+| `app/scripts/screenshots.py`, `showcase.py` | `screenshots.yml` |
+| `app/scripts/doc_images.py`, `doc-images.json` | `screenshots.yml`, `ci.yml` |
+| `app/scripts/fixture_server.py` | `ci.yml`, `tv-monkey.yml`, `desktop-monkey.yml`, `phone-tests.yml`, `screenshots.yml` |
+| `.github/actions/apt-install/` | `ci.yml`, `backend.yml`, `screenshots.yml` |
+| `.github/version.sh` | `ci.yml`, `backend.yml` |
+| A workflow file | That workflow; `ci.yml` also runs for `snapshot.yml` and `publish-snapshot.yml` |
+| A `v*` tag | `release.yml`, `backend.yml` |
+| Every push to `main` | `scorecard.yml` |
+| The clock | Nightly: `tv-monkey.yml`, `desktop-monkey.yml`, `phone-tests.yml`. Mondays: `screenshots.yml`, `codeql.yml`. Tuesdays: `scorecard.yml` |
 
 `ci.yml` runs up to five jobs:
 

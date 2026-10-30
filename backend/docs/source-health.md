@@ -4,7 +4,18 @@ A lineup entry can list multiple stream sources, from one provider or several. T
 
 ## Automatic checks
 
-Without a lineup policy, the sources of every provider with `probe` set (the default) are probed. Under a policy, the sources its stations use are probed, whatever `probe` says, in the tiers [probing](lineup-policy.md#probing) describes. `SOFA_PROBE_PARALLELISM` workers (default 6) claim due sources from one queue. First, a provider with no healthy source yet has its first five never-attempted sources claimed in feed order, one provider after another, so a few channels come up within minutes of a new lineup; under a policy only the first source of each unverified station counts. Then suspect, probation and quarantined sources first, then unverified sources, then healthy rechecks, each group oldest attempt first. A source is attempted at most once every five minutes; attempt times persist across restarts. Workers only pause while nothing is due, backing off from one second to 30 seconds.
+Without a lineup policy, the sources of every provider with `probe` set (the default) are probed. Under a policy, the sources its stations use are probed, whatever `probe` says. `SOFA_PROBE_PARALLELISM` workers (default 6) claim due sources from one queue. A source is attempted at most once every five minutes, and attempt times persist across restarts. Workers pause only while nothing is due, backing off from one second to 30 seconds.
+
+Due sources sort by these keys, each breaking the ties of the one above:
+
+| Order | Key | Effect |
+| --- | --- | --- |
+| 1 | First pass | A provider with no healthy source yet has its first five never-attempted sources in feed order go ahead of everything else, the first of every such provider before the second of any, so a few channels come up within minutes of a new lineup. Under a policy only the first source of each unverified station counts |
+| 2 | Policy tier | Under a policy: tier 0 is the first source of each unverified station, tier 1 those stations' other sources, tier 2 every other referenced source. A station the policy turns off is in none of the first two |
+| 3 | Status | Suspect, probation and quarantined, then unverified, then healthy rechecks |
+| 4 | Last attempt | Oldest first |
+
+The worker's Home estimate for the first two tiers is under [probing](lineup-policy.md#probing).
 
 Each probe has two tiers:
 
@@ -41,7 +52,28 @@ Healthy sources recheck after six hours. A recheck of a healthy source copies th
 
 A suspect source is rechecked ahead of unverified and healthy sources, no sooner than five minutes after its last attempt, so three strikes land inside the six-hour window whenever one round over the suspect queue takes under two hours. One transient failure leaves a source suspect until its next pass clears it.
 
-Initial quarantine lasts 15 minutes. Failed recovery backs off to one hour, six hours, then one day. Two qualifying recovery passes restore the source. A qualified pass clears all strikes.
+```mermaid
+stateDiagram-v2
+    [*] --> UNVERIFIED: imported
+    UNVERIFIED --> HEALTHY: pass
+    UNVERIFIED --> SUSPECT: strike
+    HEALTHY --> SUSPECT: strike
+    SUSPECT --> HEALTHY: pass
+    SUSPECT --> QUARANTINED: third strike
+    QUARANTINED --> PROBATION: pass
+    PROBATION --> HEALTHY: second pass
+    PROBATION --> QUARANTINED: failure
+```
+
+| Move | When |
+| --- | --- |
+| strike | an `OFFERING` failure; other failures and a disabled or archived source move nothing |
+| pass | a qualified pass; from `SUSPECT` it clears the strikes |
+| third strike | three strikes within 6 hours that span 10 minutes or more; fewer, or closer together, stay `SUSPECT` |
+| second pass | a qualified pass 10 minutes or more after probation began |
+| failure | a failure in probation, or at or after a quarantined source's next check, which keeps it quarantined |
+
+Only `OFFERING` failures and qualified passes move a state. A first quarantine is checked again after 15 minutes; each failed recovery backs off to one hour, six hours, then one day. Two qualifying recovery passes, at least ten minutes apart, restore the source.
 
 ## Source selection
 

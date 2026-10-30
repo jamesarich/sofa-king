@@ -10,7 +10,7 @@ The [Sofa King app](../app/README.md) plays all three on TVs, phones, desktops, 
 
 ## Why
 
-- **One container does the whole job.** Native clients for 21 free streaming (FAST) services, the free feeds of about twenty broadcasters and HDHomeRun tuners share one container with an HDHomeRun emulation for Plex, a DVR and a library server, so there is no separate playlist tool, tuner proxy or recorder to run.
+- **One container does the whole job.** Native clients for 21 free streaming (FAST) services, about twenty broadcasters' free feeds and HDHomeRun tuners, plus HDHomeRun emulation for Plex, a DVR and a library server, with no separate playlist tool, tuner proxy or recorder.
 - **The service clients run on your server.** Hosted FAST playlists have been taken down after DMCA notices. Here the server talks to the services itself; only Samsung TV Plus and The Roku Channel take their channel lists from a published mirror.
 - **One station per channel.** The same channel from several services becomes one station with the others as fallbacks. Channels whose names only roughly match are merged when their schedules agree, and kept apart otherwise.
 - **Numbers stay put.** Every number the server assigns is written back to the lineup policy file, so a channel keeps its number through rebuilds and on a new server.

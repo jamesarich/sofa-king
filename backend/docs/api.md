@@ -138,7 +138,50 @@ The server picks the entry's first selectable source, in the [selection order](s
 
 The descriptor's `protocol`, `mimeType` and URL suffix (`.m3u8` or `.ts`) come from the source's protocol, not from the upstream path. That protocol is the one a probe or media fetch detected in the stream body and stored in the database; a source without a detection yet uses the import's protocol. If a media fetch finds the other protocol (an M3U behind an extensionless URL, or MPEG-TS behind a `.m3u8` path), the server stores it, increments the epoch and answers `410 STREAM_CHANGED`; fetch the session and open the new URL. Every later session on that source, including after a restart, starts with the detected protocol.
 
-A watch session expires 90 seconds after its last renewal, a preview after 45 seconds. When `SOFA_MAX_SESSIONS` sessions are active, a new open evicts the oldest preview session. With no preview, it evicts the idle external session (an M3U player or HDHomeRun session with no media request in flight) that expires first. An evicted session's media requests end, and later calls on it answer `410 SESSION_EXPIRED`. With neither to evict, the open answers `429 CAPACITY_EXHAUSTED`. Renew and promote a preview without replacing its stream:
+A session lives on a lease that each renewal extends:
+
+| Intent | Lease past the last renewal | Renewal |
+| --- | --- | --- |
+| `watch` | 90 s | The app renews every 15 s with an empty `PATCH` |
+| `preview` | 45 s | Same |
+
+When `SOFA_MAX_SESSIONS` sessions are active, a new open makes room first. The server picks the source before it frees a slot, so a channel that cannot play never costs another viewer theirs. An evicted session's media requests end, and later calls on it answer `410 SESSION_EXPIRED`.
+
+```mermaid
+flowchart TD
+    A[Open request] --> B{Entry has a selectable source?}
+    B -- no --> X1[404 CHANNEL_NOT_FOUND or 503 SOURCE_UNAVAILABLE, no slot freed]
+    B -- yes --> C{Fewer than SOFA_MAX_SESSIONS sessions open?}
+    C -- yes --> OK[Open the session]
+    C -- no --> D{Any preview session open?}
+    D -- yes --> E[End the preview opened first, then open]
+    D -- no --> F{Any idle external session?}
+    F -- yes --> G[End the one that expires first, then open]
+    F -- no --> X2[429 CAPACITY_EXHAUSTED]
+```
+
+An external session is an M3U player or HDHomeRun session, and idle means no media request in flight. The app flow:
+
+```mermaid
+sequenceDiagram
+    participant App
+    participant Server
+    App->>Server: POST /playback-sessions, intent preview
+    Server-->>App: session and descriptor, 45 s lease
+    loop every 15 s
+        App->>Server: PATCH {} to renew
+        Server-->>App: session, same epoch
+    end
+    App->>Server: PATCH intent watch to promote
+    Server-->>App: session, 90 s lease
+    Note over App,Server: the source stops being selectable
+    App->>Server: PATCH {} to renew
+    Server-->>App: new descriptor epoch, so the stream is replaced
+    App->>Server: DELETE to release
+    Server-->>App: 204
+```
+
+Renew and promote a preview without replacing its stream:
 
 ```sh
 curl --fail -X PATCH \
@@ -150,7 +193,15 @@ curl --fail -X PATCH \
 
 Send `{}` to renew without changing intent. Fetch the session periodically; if its descriptor epoch changes, reopen the returned media URL. When the current source stops being selectable, the fetch moves the session to the entry's next selectable source with a new epoch.
 
-A session serves at most 12 media requests at once; one more answers `429 CAPACITY_EXHAUSTED`. A media request for a session whose source is no longer selectable answers `503 SOURCE_UNAVAILABLE` and ends the session's other media requests; fetch the session to move it to the next source. A media request whose provider source fails to resolve moves the session to the channel's next selectable source and answers `410 STREAM_CHANGED`, so the player re-reads the session; with no other source it answers `502 UPSTREAM_UNAVAILABLE`. A media URL from an older epoch answers `410 STREAM_CHANGED`, and one for a session that ended answers `410 SESSION_EXPIRED`.
+A session serves at most 12 media requests at once. The answers a client handles:
+
+| Status and code | Cause | Client does |
+| --- | --- | --- |
+| `410 STREAM_CHANGED` | The epoch changed: a media URL from an older epoch, a source that failed to resolve (the session moves to the next selectable source), or a stall failover | Fetch the session and open the new descriptor's URL |
+| `410 SESSION_EXPIRED` | The session ended: released, lease ran out, evicted for capacity, or lost in a restart | Open a new session with a new idempotency key |
+| `429 CAPACITY_EXHAUSTED` | No slot is free or can be freed, or the session already has 12 media requests in flight | Retry shortly |
+| `503 SOURCE_UNAVAILABLE` | A media request for a session whose source is no longer selectable; the session's other media requests end | Fetch the session, which moves it to the next source |
+| `502 UPSTREAM_UNAVAILABLE` | The source fails to resolve and the channel has no other selectable source | Report the failure and tune again later |
 
 Release the session when playback ends:
 
@@ -209,7 +260,15 @@ The server scrubs every field again on arrival: anything shaped like a URL, an e
 
 `library` in the bootstrap capabilities says the server has the routes below. `music` says the server has Music libraries to list and plays their tracks. The routes leave out [Music](libraries.md#music) libraries and their items unless the request names `music` in a `Sofa-Library-Kinds` header (comma separated kinds), since an app that does not know music would play a track as a video. Items are what a [library scan](libraries.md) found, with what TMDB knows filled in; a `.nfo` beside a file wins over TMDB's text, and the library's own images over TMDB's. `kind` is `movie`, `show`, `season`, `episode` or `video`. A show's `children` counts its seasons (or its episodes when it has no season folders) and `unwatched` its unwatched episodes; an episode names its show in `showId` and `showTitle`. `videoHeight` and `hdr` come from FFprobe, for a 4K, HD or HDR badge.
 
-A Music library lists its artists (`kind` `artist`), and with `kind=album` its albums, or with `kind=track` its songs, instead. An artist's page lists its albums, newest first; an album's page its tracks in disc and track order. An album and a track carry `artistId` and `artist`, their album artist; a track also `album`, its album's title (the album is its `parentId`), `track`, `disc`, and `trackArtist` when its own artist differs, as on a compilation. An album without a cover image shows the picture inside its first track that has one, a track its album's cover, and an artist without a picture of its own its newest album's. Search lists artists with the other top-level items and then albums and tracks after episodes. Tracks are never on Continue watching, and the watchlist holds no music. A library's items come sorted by `sort`: `title` (the default, ignoring a leading "The", "A" or "An"), `added`, `year`, `rating` or `watched`, the newest or highest first, and in a Music library `played` and `plays` (see [music taste](libraries.md#radio)); `favorite=true` keeps only the liked ones; `watched` puts the most recently played first (a show by its latest episode) and what was never played after it, by title. `unwatched=true` keeps only unwatched movies and videos and shows with an unwatched episode, and `genre` only those in that genre, in any case. Every page's `genres` lists all the library's genres, for a filter. The first page in `title` order also has `letters`: runs of `letter` (an upper-case letter, or `#` for a digit or symbol, after a leading article) and `count`, in the items' order, so the counts added up give where each letter starts, for a client's letter jump. `limit` is 1 to 500 (default 100), and `next` is the `cursor` for the page after. An item's page lists a show's seasons in order (Specials, season 0, first) or a season's episodes, and for a show `next`: the episode last played if it stopped part way, a rewatch included, else the first unwatched one after it, never a special. An episode's page lists in `segments` the spans a player offers to skip, with `startMs` and `endMs` in the file, once [intro detection](libraries.md#intros) has found them: `kind` `intro` for the intro and `credits` for the end credits. A client ignores a kind it does not know. A movie's or show's page lists its `extras`, items of kind `extra` with `extra` naming theirs (`trailer`, `featurette`, `behind_the_scenes`, `deleted_scene`, `interview`, `scene`, `short` or `other`; a client shows a kind it does not know as `other`), trailers first; an extra plays like any file and has a page of its own, but is in no grid, search or home row. A movie's, show's, video's or artist's page also lists in `related` up to 12 others in its library that share its genres, the most shared first and then the best rated; an artist's lists first the artists [ListenBrainz](libraries.md#listening-statistics-from-listenbrainz)'s listeners play alongside them. An artist's page lists in `popular` up to 10 of their songs that ListenBrainz's listeners play most, most played first. A movie's, episode's or video's page has `scrub` once [scrub thumbnails](libraries.md#scrub-thumbnails) are made from its file: `sheets`, the paths of JPEG sheets of `columns` by `rows` tiles, each `tileWidth` by `tileHeight` pixels, left to right and then down; tile `n` overall, on sheet `n / (columns * rows)`, shows the file at `n * intervalMs`, and there are `frames` in all. It is `null` before then, for a file under five minutes, and while a changed file waits for its new ones.
+A Music library lists its artists (`kind` `artist`), and with `kind=album` its albums, or with `kind=track` its songs, instead. An artist's page lists its albums, newest first; an album's page its tracks in disc and track order. An album and a track carry `artistId` and `artist`, their album artist; a track also `album`, its album's title (the album is its `parentId`), `track`, `disc`, and `trackArtist` when its own artist differs, as on a compilation. Covers fall back as [libraries](libraries.md#music) describes. Search lists artists with the other top-level items and then albums and tracks after episodes. Tracks are never on Continue watching, and the watchlist holds no music.
+
+- **Sort and filter.** A library's items come sorted by `sort`: `title` (the default, ignoring a leading "The", "A" or "An"), `added`, `year`, `rating` or `watched`, the newest or highest first, and in a Music library `played` and `plays` (see [music taste](libraries.md#radio)); `favorite=true` keeps only the liked ones; `watched` puts the most recently played first (a show by its latest episode) and what was never played after it, by title. `unwatched=true` keeps only unwatched movies and videos and shows with an unwatched episode, and `genre` only those in that genre, in any case. Every page's `genres` lists all the library's genres, for a filter. The first page in `title` order also has `letters`: runs of `letter` (an upper-case letter, or `#` for a digit or symbol, after a leading article) and `count`, in the items' order, so the counts added up give where each letter starts, for a client's letter jump. `limit` is 1 to 500 (default 100), and `next` is the `cursor` for the page after.
+- **Item pages.** An item's page lists a show's seasons in order (Specials, season 0, first) or a season's episodes, and for a show `next`: the episode last played if it stopped part way, a rewatch included, else the first unwatched one after it, never a special.
+- **Segments.** An episode's page lists in `segments` the spans a player offers to skip, with `startMs` and `endMs` in the file, once [intro detection](libraries.md#intros) has found them: `kind` `intro` for the intro and `credits` for the end credits. A client ignores a kind it does not know.
+- **Extras.** A movie's or show's page lists its `extras`, items of kind `extra` with `extra` naming theirs (`trailer`, `featurette`, `behind_the_scenes`, `deleted_scene`, `interview`, `scene`, `short` or `other`; a client shows a kind it does not know as `other`), trailers first; an extra plays like any file and has a page of its own, but is in no grid, search or home row.
+- **Related.** A movie's, show's, video's or artist's page also lists in `related` up to 12 others in its library that share its genres, the most shared first and then the best rated; an artist's lists first the artists [ListenBrainz](libraries.md#listening-statistics-from-listenbrainz)'s listeners play alongside them.
+- **Popular.** An artist's page lists in `popular` up to 10 of their songs that ListenBrainz's listeners play most, most played first.
+- **Scrub thumbnails.** A movie's, episode's or video's page has `scrub` once [scrub thumbnails](libraries.md#scrub-thumbnails) are made from its file: `sheets`, the paths of JPEG sheets of `columns` by `rows` tiles, each `tileWidth` by `tileHeight` pixels, left to right and then down; tile `n` overall, on sheet `n / (columns * rows)`, shows the file at `n * intervalMs`, and there are `frames` in all. It is `null` before then, for a file under five minutes, and while a changed file waits for its new ones.
 
 `PUT /api/v1/library/items/{id}/play-state` takes `positionMs`, `durationMs`, `watched` and `dismissed`, and answers the item. A stop in the first 5% leaves the item where it was, and one at 90% or later marks it watched and back at the start. `watched` set by hand wins over the position; it is the only field a show or season takes, and it marks every episode in it. Watch state belongs to the household, not one device. Continue watching lists, newest first, the movies, videos and episodes stopped part way, rewatches included (a rewatch keeps `watched` and carries the position), and the next episode of each show whose last-played episode was finished, one entry per show. `dismissed: true` alone takes a movie, video or episode off Continue watching and leaves its place and `watched` as they are (the item's `playState.dismissed` says so); `dismissed: false` puts it back, and the next play-state write with a position clears it too.
 
@@ -230,7 +289,21 @@ A music track plays `direct` when the player decodes its audio in its own file (
 
 An HLS session's playlist grows as FFmpeg writes it (an EVENT playlist) and ends when the file does. Its media time 0 is `startMs` into the item, and `durationMs` is the item's whole length. To seek past what the playlist holds, `PATCH` the session with the new `startMs`: FFmpeg restarts there, the epoch changes, and the player loads the new descriptor's URL. A player whose scrubber cannot do that, such as the Apple TV's, sends `wholePlaylist: true`: a `transcode` session then serves a VOD playlist of the whole item in four-second segments, with `startMs` 0, and the player seeks to where it wants to start. A segment FFmpeg is not about to write restarts it at that segment, and the segments already written are kept for the session, so seeking back plays at once; `PATCH` with `startMs` only renews it. Copy modes keep the growing playlist, since they cut at the file's own key frames. A copied stream starts at the key frame before `startMs`, so it can begin a few seconds early. At most `SOFA_MAX_TRANSCODES` sessions convert or remux at once (direct play is not counted); one more answers `503 CAPACITY_EXHAUSTED`. A session lasts five minutes past its last renewal or media request; the player renews it with `PATCH` while paused and releases it with `DELETE`. Its files are under `SOFA_DATA_DIR/transcode` and are deleted when it ends. A missing file answers `404 ITEM_MISSING`. Copied HEVC is written as fragmented MP4 tagged `hvc1` (`init.mp4` and `seg0.m4s` on), other streams as MPEG-TS; an HDR file converted for an SDR player is tone-mapped. Streams carry no subtitle tracks; `subtitleIndex` in the request names a picture subtitle track (PGS, DVD or DVB, inside the file or beside it) that FFmpeg draws into the picture, scaled to its size, which makes the session `transcode`. A text track there answers `400 INVALID_REQUEST`, since the player draws it, and so does one on a recording.
 
-`intent` is `watch` when absent. A client that plays an item's trailer behind its page sends `intent: "preview"`: the session lasts 45 seconds past its last renewal or media request, as a live preview does, and a `watch` open that finds every conversion slot taken ends the oldest preview that converts before it answers `503`. A preview never ends anything: at the limit it answers `503 CAPACITY_EXHAUSTED`. Only a library item plays as a preview; a recording with `intent: "preview"` answers `400 INVALID_REQUEST`. The answer's `intent` says what the server holds the session for, and a server that predates previews always says `watch`, so a client that asked for a preview and reads `watch` releases the session at once. An ended preview answers `410 SESSION_EXPIRED` to its next renewal.
+`intent` is `watch` when absent. A client that plays an item's trailer behind its page sends `intent: "preview"`: the session lasts 45 seconds past its last renewal or media request, as a live preview does. The conversion slots (`SOFA_MAX_TRANSCODES`) go like this, and a [virtual channel](virtual-channels.md) start counts as a watch:
+
+```mermaid
+flowchart TD
+    A[Library open or virtual channel start] --> B{Fewer than SOFA_MAX_TRANSCODES conversions?}
+    B -- yes --> OK[Start]
+    B -- no --> C{Is it a watch or a channel start?}
+    C -- no, a preview --> X[503 CAPACITY_EXHAUSTED]
+    C -- yes --> D{A converting trailer preview?}
+    D -- yes --> E[End the one started first and check again]
+    E --> B
+    D -- no --> X
+```
+
+Only a library item plays as a preview; a recording with `intent: "preview"` answers `400 INVALID_REQUEST`. The answer's `intent` says what the server holds the session for, and a server that predates previews always says `watch`, so a client that asked for a preview and reads `watch` releases the session at once. An ended preview answers `410 SESSION_EXPIRED` to its next renewal.
 
 An item's `subtitles` list the subtitle streams of its file by stream index, then the subtitle files beside it from index 1000. A subtitle file is one named for the video with an optional language, `forced`, `default` or `sdh` before the extension, as in `Movie (2020).en.forced.srt`: SubRip (`.srt`), WebVTT (`.vtt`), ASS or SSA (`.ass`, `.ssa`), PGS (`.sup`) or VobSub (`.idx` with its `.sub`). The files are read each time an item's page is, so one added after a scan shows at once.
 

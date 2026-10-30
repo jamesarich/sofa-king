@@ -7,7 +7,7 @@ Replace `SERVER_HOST` with the host's LAN address and `PLEX_SERVER_IP` with the 
 ## What you need
 
 - A Linux host, `amd64` or `arm64`, with Docker Engine and Docker Compose 2.24 or later.
-- `curl`, `jq` and `openssl` for the shell steps.
+- `curl` for the shell steps.
 
 ## 1. Start the server
 
@@ -30,15 +30,13 @@ It answers `ready`. If the container exits at once instead, `docker compose logs
 
 ## 2. Sign in
 
-The first start generated an API token, an admin token and an output token and stored them in `config/secrets.json`. Print them, and keep them in shell variables for the later steps:
+The first start generated an API token, an admin token and an output token and stored them in `config/secrets.json`. Print them (the server's first-start log line shows this command too):
 
 ```sh
 docker compose exec sofa-king-backend cat /config/secrets.json
-SOFA_API_TOKEN=$(jq -r .apiToken config/secrets.json)
-SOFA_ADMIN_TOKEN=$(jq -r .adminToken config/secrets.json)
 ```
 
-Open `http://SERVER_HOST:9193/admin`, or `http://sofa-king.local:9193/admin` on a computer that resolves `.local` names, and sign in with the `adminToken`. The home page starts with the setup steps and lists what needs attention.
+Copy `adminToken`, open `http://SERVER_HOST:9193/admin`, or `http://sofa-king.local:9193/admin` on a computer that resolves `.local` names, and sign in with it. The home page starts with the setup steps and lists what needs attention.
 
 ## 3. Choose services and build the lineup
 
@@ -60,7 +58,7 @@ Allow the Plex server's address under Tuner access on the portal's Plex page, th
 
 ### The Sofa King app
 
-Install the [Sofa King app](../../app/README.md) and give it the server address, `http://SERVER_HOST:9193`, and the API token. The portal's Settings page reveals the API token too, or pair the app with a code from the portal's [Devices page](admin.md#devices) instead of typing the token. The app reads the lineup and its programs, and plays through the server. To use the web app, serve it as [serve the web app](deploy.md#serve-the-web-app) describes.
+Install the [Sofa King app](../../app/README.md) and pair it with the server from the portal's [Devices page](admin.md#devices): a code to enter on a TV, a QR code to scan with a phone. To type the API token into the app's Settings instead, with the server address `http://SERVER_HOST:9193`, reveal it on the portal's Settings page. The app reads the lineup and its programs, and plays through the server. To use the web app, open `http://SERVER_HOST:9193/app/` in a browser, which the server serves; [serve the web app](deploy.md#serve-the-web-app) covers hosting it elsewhere.
 
 ### An M3U player
 

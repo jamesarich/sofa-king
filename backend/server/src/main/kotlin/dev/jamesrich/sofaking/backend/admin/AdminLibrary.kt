@@ -197,9 +197,14 @@ private fun FlowContent.tmdbPanel(chrome: Chrome, view: LibraryView) = panel("De
             +(
                 "Details come from file names, .nfo files and local artwork only. Add a TMDB API read access " +
                     "token " +
-                    "to fill in plots, ratings, cast, posters and backdrops: it is free from themoviedb.org, " +
-                    "under Settings, then API."
+                    "to fill in plots, ratings, cast, posters and backdrops: it is free from "
                 )
+            a("https://www.themoviedb.org/settings/api") {
+                attributes["rel"] = "noopener noreferrer"
+                attributes["target"] = "_blank"
+                +"themoviedb.org, under Settings, then API"
+            }
+            +"."
         }
     }
     if (SavedSecret.TMDB in view.settable) secretForm(chrome, view, SavedSecret.TMDB, view.tmdb)

@@ -421,7 +421,7 @@ def tour(base, start, out, channel=True):
         if app.logged:
             # An emulator without a GPU decodes the programs for some seconds after the server sends them, and draws
             # them some seconds after that.
-            wait_for('the listings', lambda: app.logged('SofaKing: guide: '), 60)
+            wait_for('the listings', lambda: app.logged('SofaKing: guide: '), 120)
         if app.preview:
             wait_for_session(base)
         time.sleep(PREVIEW_SECONDS if app.preview or app.logged else 3)

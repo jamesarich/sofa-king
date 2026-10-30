@@ -117,7 +117,7 @@ class MediaFixture : AutoCloseable {
     private fun generate() {
         fun run(codec: List<String>): Boolean {
             val command = listOf(
-                "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
+                System.getenv("SOFA_FFMPEG") ?: "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
                 "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=15", "-f", "lavfi", "-i",
                 "sine=frequency=440:sample_rate=48000",
                 "-t", "24", "-pix_fmt", "yuv420p", "-g", "30",

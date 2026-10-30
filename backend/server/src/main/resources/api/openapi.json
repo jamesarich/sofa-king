@@ -595,6 +595,24 @@
       "GuideMatchChoice": {
         "type": "object", "properties": { "station": { "type": "string", "description": "The station key" }, "guideId": { "type": "string" }, "channelId": { "type": "string" } }, "required": ["station", "guideId", "channelId"]
       },
+      "IptvOrgDecisionRequest": {
+        "type": "object", "properties": { "station": { "type": "string", "description": "The station key" }, "decision": { "type": "string", "enum": ["accept", "dismiss", "clear"] }, "channelId": { "type": "string", "description": "The iptv-org channel id, such as CNN.us; required to accept" } }, "required": ["station", "decision"]
+      },
+      "IptvOrgProposal": {
+        "type": "object", "properties": { "station": { "type": "string" }, "name": { "type": "string" }, "channelId": { "type": "string" }, "channelName": { "type": "string" }, "country": { "type": ["string", "null"] }, "basis": { "type": "string", "enum": ["name", "alt-name"] }, "ambiguous": { "type": "boolean" } }, "required": ["station", "name", "channelId", "channelName", "basis"]
+      },
+      "IptvOrgHold": {
+        "type": "object", "properties": { "station": { "type": "string" }, "channelId": { "type": "string" }, "reason": { "type": ["string", "null"] }, "ref": { "type": ["string", "null"] } }, "required": ["station", "channelId"]
+      },
+      "IptvOrgRegion": {
+        "type": "object", "properties": { "countries": { "type": "array", "items": { "type": "string" } }, "source": { "type": "string", "enum": ["setting", "time-zone", "default"] }, "detail": { "type": "string" } }, "required": ["countries", "source", "detail"]
+      },
+      "IptvOrgStatus": {
+        "type": "object", "properties": { "metadata": { "type": "boolean" }, "streams": { "type": "boolean" }, "region": { "$ref": "#/components/schemas/IptvOrgRegion" }, "attemptedAt": { "type": ["string", "null"] }, "checkedAt": { "type": ["string", "null"] }, "ok": { "type": ["boolean", "null"] }, "notes": { "type": "array", "items": { "type": "string" } }, "nextDueAt": { "type": ["string", "null"] }, "channels": { "type": "integer" }, "logos": { "type": "integer" }, "blocklisted": { "type": "integer" }, "streamCount": { "type": "integer" }, "matched": { "type": "integer" }, "proposals": { "type": "integer" }, "held": { "type": "integer" } }, "required": ["metadata", "streams", "region"]
+      },
+      "IptvOrgOverview": {
+        "type": "object", "properties": { "status": { "$ref": "#/components/schemas/IptvOrgStatus" }, "proposals": { "type": "array", "items": { "$ref": "#/components/schemas/IptvOrgProposal" } }, "holds": { "type": "array", "items": { "$ref": "#/components/schemas/IptvOrgHold" } } }, "required": ["status", "proposals", "holds"]
+      },
       "AcceptGuideMatches": { "type": "object", "properties": { "minConfidence": { "type": "number", "minimum": 0, "maximum": 1 } } },
       "GuideMatchResult": {
         "type": "object", "properties": { "accepted": { "type": "integer" }, "applied": { "oneOf": [{ "$ref": "#/components/schemas/PolicyApplyResult" }, { "type": "null" }] } }, "required": ["accepted"]
@@ -1143,7 +1161,7 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StatusSummary" } } } } } }
     },
     "/api/v1/mcp": {
-      "post": { "tags": ["Admin"], "summary": "The Model Context Protocol endpoint", "description": "MCP over stateless Streamable HTTP for AI assistants: one JSON-RPC message per POST, answered as JSON. Send Accept: application/json, text/event-stream. A read token is listed the tools that change nothing; the admin token the actions too (run_job, scan_library, check_for_update, update_now). GET and DELETE answer 405.", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "post": { "tags": ["Admin"], "summary": "The Model Context Protocol endpoint", "description": "MCP over stateless Streamable HTTP for AI assistants: one JSON-RPC message per POST, answered as JSON. Send Accept: application/json, text/event-stream. A read token is listed the tools that change nothing; the admin token the actions too (run_job, scan_library, check_for_update, update_now) and the runtime settings tools (runtime_settings, set_runtime_setting). GET and DELETE answer 405.", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcMessage" } } } },
         "responses": {
           "200": { "description": "The JSON-RPC response", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcMessage" } } } },
@@ -1298,6 +1316,19 @@
       "post": { "tags": ["Policy"], "summary": "Dismiss a proposed guide channel", "description": "Adds the proposal to the policy's guideMatches.dismissed, so it is never proposed again, then applies.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideMatchChoice" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyApplyResult" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/iptv-org": {
+      "get": { "tags": ["Policy"], "summary": "The iptv-org database and its matches", "description": "The status of the iptv-org downloads (metadata and streams switches, the region in force and where it came from, the last download and its notes, counts), the stations waiting for a decision and the stations the iptv-org blocklist holds out. Both parts are off by default.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IptvOrgOverview" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/iptv-org/matches": {
+      "post": { "tags": ["Policy"], "summary": "Decide a station's iptv-org match", "description": "accept stores channelId as the station's iptv-org channel (404 IPTV_ORG_CHANNEL_NOT_FOUND for an unknown one); dismiss stores that the station has none, which also lifts a blocklist hold; clear forgets the decision. The lineup policy runs again afterwards.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IptvOrgDecisionRequest" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IptvOrgOverview" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/iptv-org/refresh": {
+      "post": { "tags": ["Policy"], "summary": "Download the iptv-org files now", "description": "Downloads the wanted iptv-org files now and answers with the read once they are in; files the server already holds answer 304. Nothing is downloaded while both the metadata and the streams are off.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IptvOrgOverview" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/source-file": {
       "get": { "tags": ["Admin"], "summary": "The source file as written", "description": "Providers and guides as the file holds them, ${NAME} references unexpanded; an empty document when the server has no source file.", "security": [{ "adminToken": [] }],

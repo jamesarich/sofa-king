@@ -109,6 +109,7 @@ class AdminPortalSettingsTest : AdminPortalCase() {
                 assertTrue(
                     page.contains("action=\"/admin/library/tmdb\"") && page.contains("TMDB API read access token"),
                 )
+                assertTrue(page.contains("href=\"https://www.themoviedb.org/settings/api\""), page)
                 val refused = browser.post("/admin/library/tmdb", "csrf" to field(page, "csrf"), "token" to "short")
                 assertEquals(HttpStatusCode.BadRequest, refused.status)
                 assertTrue(
@@ -296,6 +297,7 @@ class AdminPortalSettingsTest : AdminPortalCase() {
             "SOFA_LOG_LEVEL" to "info", "SOFA_XMLTV_DAYS" to "3", "SOFA_PLEX_SYNC_MINUTES" to "60",
             "SOFA_HDHR_TUNERS" to "2", "SOFA_MAX_SESSIONS" to "4", "SOFA_RECORDINGS_FREE_GIB" to "10",
             "SOFA_RECORDINGS_KEEP_DAYS" to "0", "SOFA_LEARNED_BREAKS" to "shadow", "SOFA_AD_LISTENERS" to "6",
+            "SOFA_IPTV_ORG" to "off", "SOFA_IPTV_ORG_STREAMS" to "off", "SOFA_IPTV_ORG_REGION" to "",
         )
         return (values + changes).map { it.key to it.value }.toTypedArray()
     }

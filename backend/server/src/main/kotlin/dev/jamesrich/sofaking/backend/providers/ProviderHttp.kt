@@ -50,7 +50,12 @@ class Fetched(
     val url: String,
     val location: String? = null,
     val cookies: List<String> = emptyList(),
+    val etag: String? = null,
+    val lastModified: String? = null,
 ) {
+    /** The server says the copy the request named is still current. */
+    val notModified: Boolean get() = status == HttpStatusCode.NotModified.value
+
     val ok: Boolean get() = HttpStatusCode.fromValue(status).isSuccess()
 
     /** The service turned the credential down, as it answers an expired session token. */
@@ -188,6 +193,8 @@ class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPol
                 hop.toString(),
                 location,
                 cookies,
+                response.headers[HttpHeaders.ETag],
+                response.headers[HttpHeaders.LastModified],
             ),
         )
     }

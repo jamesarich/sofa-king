@@ -56,11 +56,13 @@ class PolicyService(
     private val extraFindings: () -> List<String> = { emptyList() },
     /** Where each run is recorded for the portal's Jobs page. */
     private val jobs: Jobs = Jobs(clock),
+    /** The iptv-org metadata the runs use; null leaves candidates as the providers listed them. */
+    iptvOrg: IptvOrgPolicy? = null,
 ) {
     private val log = LoggerFactory.getLogger(PolicyService::class.java)
     private val runMutex = Mutex()
     private val trigger = Trigger<String>(Trigger.CONFLATED)
-    private val runner = PolicyRunner(feeds, guides, lineup, store, clock, hdhr)
+    private val runner = PolicyRunner(feeds, guides, lineup, store, clock, hdhr, iptvOrg)
     private val applier = PolicyApplier(file, feeds, lineup, store, clock, runner, onLineupChanged)
 
     /** The changes to the policy file a person asks for, each followed by an apply. */

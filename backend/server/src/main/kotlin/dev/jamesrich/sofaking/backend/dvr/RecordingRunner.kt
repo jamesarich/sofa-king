@@ -1,10 +1,12 @@
 package dev.jamesrich.sofaking.backend.dvr
 
 import dev.jamesrich.sofaking.backend.events.ServerEvents
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.recording
 import dev.jamesrich.sofaking.backend.store.recordings
 import dev.jamesrich.sofaking.backend.store.saveRecording
+import dev.jamesrich.sofaking.contract.RecordingBreak
 import dev.jamesrich.sofaking.contract.Wire
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -110,7 +112,11 @@ internal class RecordingRunner(
                     current.channelId,
                     current.title,
                 )
-                take = recorder.record(current.channelId, files.resolve(current.path!!), current.recordUntil)
+                val file = files.resolve(current.path!!)
+                val resumed = withContext(Dispatchers.IO) { Files.exists(file) && Files.size(file) > 0 }
+                take = recorder.record(current.channelId, file, current.recordUntil)
+                // Offsets count from this run's first byte; a file a restart resumed has earlier media before it.
+                if (resumed) take = take.copy(breaks = emptyList())
             } finally {
                 // A shutdown cancels the whole scope: the row stays RECORDING in its in-progress file,
                 // and the next start resumes it.
@@ -136,7 +142,7 @@ internal class RecordingRunner(
         if (partial == null || bytes == 0L) {
             fail(latest, partial, reason ?: "NO_MEDIA", now)
         } else {
-            complete(latest, partial, bytes, reason, now)
+            complete(latest, partial, bytes, reason, now, take?.breaks.orEmpty())
         }
     }.also { finished() }
 
@@ -155,18 +161,34 @@ internal class RecordingRunner(
     }
 
     /** Keeps the [bytes] at [partial] at the recording's final path; [reason] is why it stopped, if it did. */
-    private suspend fun complete(latest: StoredRecording, partial: Path, bytes: Long, reason: String?, now: Instant) {
+    private suspend fun complete(
+        latest: StoredRecording,
+        partial: Path,
+        bytes: Long,
+        reason: String?,
+        now: Instant,
+        marked: List<RecordingBreak>,
+    ) {
         val final = RecordingLayout.path(latest.name, latest.startsAt, zone) { files.taken(it, except = latest.path) }
         files.place(partial, final)
         // A recording cut short by a stop or a source that never came back is still kept; the reason says why.
         val short = now < latest.recordUntil.minusSeconds(5)
-        val commercials = if (scan != null) Wire.CommercialScan.SCANNING else null
+        // Breaks the source's markers placed are kept as they are, with the EDL; the scan adds what else it finds.
+        runCatchingCancellable {
+            withContext(Dispatchers.IO) { Commercials.writeEdl(files.resolve(final.toString()), marked) }
+        }.onFailure { log.warn("EDL not written id={} class={}", latest.id, it.javaClass.simpleName) }
+        val commercials = when {
+            scan != null -> Wire.CommercialScan.SCANNING
+            marked.isNotEmpty() -> Wire.CommercialScan.DONE
+            else -> null
+        }
         val completed = latest.copy(
             state = Wire.RecordingState.COMPLETED,
             reason = if (short) reason ?: "STOPPED" else null,
             path = final.toString(),
             bytes = bytes,
             commercials = commercials,
+            breaks = marked,
             updatedAt = now,
         )
         store.saveRecording(completed)

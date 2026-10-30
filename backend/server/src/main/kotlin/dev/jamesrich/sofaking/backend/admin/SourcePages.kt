@@ -152,7 +152,7 @@ internal class SourcePages(private val portal: Portal, private val editor: Polic
             entries,
             document?.revision,
             led,
-            providerSummaries = runtime.feeds.configs.map(::providerSummary),
+            providerSummaries = runtime.feeds.visibleConfigs.map(::providerSummary),
             guideSummaries = runtime.guides.configs.map(::guideSummary),
             setup = runtime.setup?.let { SetupView.of(it.document(), it) },
         )

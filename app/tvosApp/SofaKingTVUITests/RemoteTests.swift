@@ -31,17 +31,22 @@ final class RemoteTests: XCTestCase {
         remote.press(.select)
         eventually("the server to schedule the recording") { server.recordings() > 0 }
 
+        // The bar's items change when the guide rolls over on the hour or half hour, and AVKit then closes an open
+        // menu, so a walk the rollover cuts short opens Channels again.
         let channels = control("Channels")
-        reachInTransportBar(channels)
-        remote.press(.select)
         let all = menuItem("All channels")
-        XCTAssertTrue(all.waitForExistence(timeout: 5), "Channels opened no All channels\n\(screen)")
-        focus(all, pressing: .down)
-        remote.press(.select)
         let movies = menuItem("4 Movies")
-        XCTAssertTrue(movies.waitForExistence(timeout: 5), "All channels listed no Movies\n\(screen)")
-        focus(movies, pressing: .down, presses: 16)
-        remote.press(.select)
+        var picked = false
+        for _ in 0..<3 where !picked {
+            reachInTransportBar(channels)
+            remote.press(.select)
+            guard all.waitForExistence(timeout: 5), focused(all, by: Array(repeating: .down, count: 12)) else { continue }
+            remote.press(.select)
+            guard movies.waitForExistence(timeout: 5), focused(movies, by: Array(repeating: .down, count: 16)) else { continue }
+            remote.press(.select)
+            picked = true
+        }
+        XCTAssertTrue(picked, "Channels never reached 4 Movies\n\(screen)")
         eventually("the player to switch to Movies", timeout: 30) {
             server.watching().contains { $0["channelId"] as? String != tuned }
         }
@@ -284,6 +289,17 @@ final class RemoteTests: XCTestCase {
             remote.press(move)
         }
         XCTAssertTrue(element.exists && element.hasFocus, "Remote presses never focused \(element.description)\n\(screen)")
+    }
+
+    /// Makes `moves` in turn until the menu item `element` has focus; false when it never does or its menu closes.
+    @MainActor
+    private func focused(_ element: XCUIElement, by moves: [XCUIRemote.Button]) -> Bool {
+        for move in moves {
+            if settled(element.exists && element.hasFocus) { return true }
+            if !element.exists { return false }
+            remote.press(move)
+        }
+        return element.exists && element.hasFocus
     }
 
     /// `check` once focus has had a moment to settle after a press.

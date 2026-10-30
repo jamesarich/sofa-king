@@ -163,9 +163,9 @@ import kotlinx.serialization.Serializable
 @Serializable data class PolicyDocument(val revision: String, val path: String, val policy: LineupPolicy)
 
 /**
- * One station a policy run produces. [disabledReason] is `policy`, `no-source`, `unverified`, `unavailable` or
- * `missing` when not [enabled]. [guideCandidates] are the guides that list one of its sources, in source order, when
- * no override sets the guide; [guide] is the first of them with programs ahead.
+ * One station a policy run produces. [disabledReason] is `policy`, `no-source`, `unverified`, `unavailable`,
+ * `blocklist` or `missing` when not [enabled]. [guideCandidates] are the guides that list one of its sources, in
+ * source order, when no override sets the guide; [guide] is the first of them with programs ahead.
  */
 @Serializable data class PolicyStation(
     val id: String,

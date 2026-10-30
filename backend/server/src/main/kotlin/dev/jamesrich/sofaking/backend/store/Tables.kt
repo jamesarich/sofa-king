@@ -300,6 +300,13 @@ internal object WatchlistEntries : Table("watchlist") {
     val addedAt = text("added_at")
     override val primaryKey = PrimaryKey(id)
 }
+internal object IptvOrgMatches : Table("iptv_org_match") {
+    val stationKey = text("station_key")
+    val channelId = text("channel_id").nullable()
+    val decision = text("decision")
+    val decidedAt = text("decided_at")
+    override val primaryKey = PrimaryKey(stationKey)
+}
 internal object RecordingRules : Table("recording_rule") {
     val id = text("id")
     val title = text("title")

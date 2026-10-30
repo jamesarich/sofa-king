@@ -132,7 +132,9 @@ internal fun runtimeSaveFragment(changed: Boolean): String =
 
 /** Whether [proposed], the form's values by name, differs from what the server uses. */
 internal fun runtimeChanged(current: RuntimeValues, proposed: Map<String, String>): Boolean =
-    current.byName().any { (name, value) -> proposed[name]?.trim()?.lowercase() != value }
+    current.byName().any { (name, value) ->
+        !(proposed[name]?.trim() ?: return@any true).equals(value, ignoreCase = true)
+    }
 
 /**
  * The source file's providers and guides, as a folded section: what each is and where it comes from, never a URL

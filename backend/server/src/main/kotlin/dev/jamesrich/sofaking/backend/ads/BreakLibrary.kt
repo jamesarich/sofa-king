@@ -170,11 +170,12 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
     }
 
     /**
-     * The longest match of [query] of [minPoints] or more, against any entry not learned by the clock tagged [exclude].
+     * The longest match of [query] of [minPoints] or more outside the points [skip] marks, against any entry not
+     * learned by the clock tagged [exclude].
      */
     @Synchronized
-    fun match(query: IntArray, minPoints: Int, exclude: String? = null): BreakMatch? =
-        index.best(query, minPoints, null, exclude)
+    fun match(query: IntArray, minPoints: Int, exclude: String? = null, skip: BooleanArray? = null): BreakMatch? =
+        index.best(query, minPoints, skip, exclude)
 
     /** The canary found [entry] in a marked break on [channelId]. */
     @Synchronized
@@ -222,6 +223,7 @@ class BreakLibrary(private val store: BackendStore?, private val clock: Clock) {
 
         /** About 4 minutes, which also bounds a position to [POSITION_BITS]. */
         const val MAX_ENTRY_POINTS = 1_940
+
         const val CANARY_PRECISION = 0.999
         val CANARY_WINDOW: Duration = Duration.ofDays(1)
         val EXPIRY: Duration = Duration.ofDays(30)

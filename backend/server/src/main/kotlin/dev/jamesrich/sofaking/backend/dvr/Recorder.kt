@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.io.startOwned
 import dev.jamesrich.sofaking.backend.io.terminate
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
+import dev.jamesrich.sofaking.backend.playback.PlaylistMarkers
 import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.TsFanout
 import dev.jamesrich.sofaking.backend.playback.UpstreamProtocolException
@@ -16,6 +17,7 @@ import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.backend.upstream.ffmpegProcess
+import dev.jamesrich.sofaking.contract.RecordingBreak
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -38,9 +40,10 @@ import java.time.Instant
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * What a recording run came to: the bytes now in the file, and the last reason the source could not be read, if any.
+ * What a recording run came to: the bytes now in the file, the last reason the source could not be read, if any, and
+ * the ad breaks the source's playlists marked, as offsets into what this run wrote.
  */
-data class RecordedTake(val bytes: Long, val lastFailure: String?)
+data class RecordedTake(val bytes: Long, val lastFailure: String?, val breaks: List<RecordingBreak> = emptyList())
 
 /**
  * Records one channel into one file until a deadline. Each attempt opens an external playback session, the way the
@@ -70,9 +73,10 @@ class Recorder internal constructor(
     suspend fun record(channelId: String, file: Path, until: Instant): RecordedTake {
         withContext(Dispatchers.IO) { Files.createDirectories(file.parent) }
         var failure: String? = null
+        val markers = PlaylistMarkers()
         while (clock.instant() < until) {
             failure =
-                runCatchingCancellable { attempt(channelId, file, until) }.getOrElse { e ->
+                runCatchingCancellable { attempt(channelId, file, until, markers) }.getOrElse { e ->
                     when (e) {
                         is ApiFailure -> e.code
 
@@ -92,7 +96,8 @@ class Recorder internal constructor(
             val left = Duration.between(clock.instant(), until)
             if (left > Duration.ZERO) delay(minOf(left, retryDelay).toMillis())
         }
-        return RecordedTake(withContext(Dispatchers.IO) { if (Files.exists(file)) Files.size(file) else 0L }, failure)
+        val bytes = withContext(Dispatchers.IO) { if (Files.exists(file)) Files.size(file) else 0L }
+        return RecordedTake(bytes, failure, markers.breaks())
     }
 
     /**
@@ -100,13 +105,13 @@ class Recorder internal constructor(
      * The session holds only this attempt's job, so ending the session (a release, or its source going bad) ends the
      * attempt and the next one reopens, never the whole recording.
      */
-    private suspend fun attempt(channelId: String, file: Path, until: Instant): String? {
+    private suspend fun attempt(channelId: String, file: Path, until: Instant, markers: PlaylistMarkers): String? {
         val session = sessions.external.open(channelId, CLIENT, shareable = false)
         try {
             return try {
                 coroutineScope {
                     sessions.media.attach(session.id, coroutineContext.job)
-                    read(session.id, file, until)
+                    read(session.id, file, until, markers)
                 }
             } catch (_: CancellationException) {
                 // Rethrown when the recording itself was canceled; otherwise the session ended under this attempt.
@@ -119,8 +124,10 @@ class Recorder internal constructor(
     }
 
     /** Reads the session's source into [file] until [until], through the shared connection or FFmpeg. */
-    private suspend fun read(sessionId: String, file: Path, until: Instant): String? {
+    private suspend fun read(sessionId: String, file: Path, until: Instant, markers: PlaylistMarkers): String? {
         val offering = sessions.media.offeringOf(sessionId)
+        // Only a playlist says how long the media is; a source without one leaves later offsets unknown.
+        if (offering.protocol == "hls") markers.begin() else markers.freeze()
         val stream = feeds.playable(offering)
         feeds.upstream.check(URI(stream.url))
         if (shared != null && offering.protocol == "mpegts") {
@@ -129,7 +136,9 @@ class Recorder internal constructor(
             }
         }
         val bytes = sessions.media.bytesOf(sessionId)
-        return relay.reading(stream, offering.protocol) { source -> remux(source, file, until, bytes) }
+        return relay.reading(stream, offering.protocol, markers = markers) { source ->
+            remux(source, file, until, bytes)
+        }
     }
 
     /** FFmpeg's stream copy of [source] appended to [file] until [until]; "NO_MEDIA" when it wrote nothing. */

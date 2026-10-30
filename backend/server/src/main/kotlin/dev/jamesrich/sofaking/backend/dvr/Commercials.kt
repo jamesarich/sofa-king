@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.util.Locale
 import java.util.UUID
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
@@ -60,6 +61,17 @@ class Commercials(
         /** The EDL beside [recording]: the same name with `.edl`. */
         fun sidecar(recording: Path): Path =
             recording.resolveSibling(recording.fileName.toString().substringBeforeLast('.') + ".edl")
+
+        /** Writes [breaks] to the EDL beside [recording], replacing one that is there; none leaves no file. */
+        fun writeEdl(recording: Path, breaks: List<RecordingBreak>) {
+            if (breaks.isEmpty()) return
+            val lines = breaks.joinToString("") {
+                val start = it.startMs.toDouble() / MS_PER_SECOND
+                val end = it.endMs.toDouble() / MS_PER_SECOND
+                String.format(Locale.ROOT, "%.2f\t%.2f\t3\n", start, end)
+            }
+            Files.writeString(sidecar(recording), lines)
+        }
 
         /** The commercial breaks in a Kodi EDL: `start end action` in seconds, action 3 for a commercial break. */
         fun parseEdl(text: String): List<RecordingBreak> = text.lineSequence().mapNotNull { line ->

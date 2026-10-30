@@ -72,8 +72,10 @@ class Dvr(
     private val retention: () -> Retention = { Retention() },
     /** The free space on the recordings folder's disk; a seam for tests. */
     private val freeSpace: (Path) -> Long? = { runCatching { Files.getFileStore(it).usableSpace }.getOrNull() },
-    /** Looks for commercial breaks in each finished recording; null when `SOFA_COMSKIP` is `none`. */
+    /** Runs Comskip on each finished recording; null when `SOFA_COMSKIP` is `none`. */
     private val commercials: Commercials? = null,
+    /** Looks for learned ads and slates in each finished recording; null without one. */
+    private val learned: RecordingAds? = null,
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val jobs: Jobs = Jobs(clock),
     /** Where recordings' state changes are published; none without an event stream. */
@@ -91,7 +93,14 @@ class Dvr(
 
     /** The series rules; a change reschedules. */
     val rules = DvrRules(store, lineup, clock) { requestSchedule("rule") }
-    private val scanner = commercials?.let { CommercialScanner(store, files, it, mutex, clock) }
+    private val scanner =
+        if (commercials != null ||
+            learned != null
+        ) {
+            CommercialScanner(store, files, commercials, learned, mutex, clock)
+        } else {
+            null
+        }
     private val runner = RecordingRunner(
         store,
         recorder,

@@ -137,15 +137,16 @@ internal fun ProgramSheet(
         // A recording being written plays from the program's start, while the program is still on.
         val fromStart = recording?.runningId?.takeIf { recordable != null }?.let { id -> { onWatchFromStart(id) } }
         SheetButtons(details.channel, isFavorite, watchFocus, onWatch, fromStart, onToggleFavorite, onDismiss)
-        val actions = RecordActions(onRecord, onRecordSeries, onRecordTeam, onRecordWindow)
-        RecordSection(details.channel, recordable, recording, actions)
-        val program = details.program
-        if (program != null && watchlisted != null) WatchlistButton(program, watchlisted, onToggleWatchlist)
+        // Before the record rows, which grow with the server's options and would push it off a TV panel.
         if (airings.isNotEmpty()) {
             SofaButton(onClick = { showAirings = true }, modifier = Modifier.focusRequester(airingsFocus)) {
                 Text(stringResource(Res.string.guide_details_more_airings, airings.size), maxLines = 1)
             }
         }
+        val actions = RecordActions(onRecord, onRecordSeries, onRecordTeam, onRecordWindow)
+        RecordSection(details.channel, recordable, recording, actions)
+        val program = details.program
+        if (program != null && watchlisted != null) WatchlistButton(program, watchlisted, onToggleWatchlist)
     }
     // OK on an airing on now watches it; on a later one, its details take the sheet's place.
     val airingsList: @Composable (Modifier) -> Unit = { listModifier ->
@@ -274,17 +275,29 @@ private fun PanelContent(
     guideLoading: Boolean,
     buttons: @Composable () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    // The 8dp the heading and description keep is the room a focused button's ring and scale need inside the
+    // scrolling buttons, so the margin is 24dp on every side.
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.padding(start = 8.dp, top = 8.dp, end = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
             details.program?.icon?.let { ProgramImage(it, Modifier.width(PANEL_IMAGE_WIDTH).aspectRatio(WIDESCREEN)) }
             Heading(details, now, guideLoading, Modifier.weight(1f))
         }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+        Box(Modifier.weight(1f).fillMaxWidth().padding(start = 8.dp, top = 8.dp, end = 8.dp)) {
             details.program?.description?.let {
                 WholeLinesText(it, MaterialTheme.typography.bodyMedium, Modifier.fillMaxSize())
             }
         }
-        buttons()
+        // Given what the heading leaves, the buttons scroll when a server's record options outgrow it, and the
+        // description above gives way first.
+        Column(
+            Modifier.verticalScroll(rememberScrollState()).padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            buttons()
+        }
     }
 }
 

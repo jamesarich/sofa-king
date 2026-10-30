@@ -79,9 +79,9 @@ private fun Server.recordingTools(context: McpContext) {
     tool(
         "recordings",
         "Use for what is scheduled, recording, done or failed on the DVR. Returns recordings (not canceled ones) " +
-            "with state and any conflict, scheduled and running soonest first, then the newest kept, and the " +
-            "recordings folder's free space. Filter with state; page with offset and limit; channelId is a " +
-            "lineup entry id.",
+            "with state, any conflict and the commercial scan's state and break count, scheduled and running " +
+            "soonest first, then the newest kept, and the recordings folder's free space. Filter with state; page " +
+            "with offset and limit; channelId is a lineup entry id.",
         schema(
             "state" to choice("Only recordings in this state", RECORDING_STATES),
             LIMIT to integer("How many recordings", 1..MAX_PAGE, DEFAULT_PAGE),
@@ -271,7 +271,7 @@ private fun Program.airing(channel: String? = null, channelId: String? = null) =
 
 internal fun Recording.row() = RecordingRow(
     id, channelId, channelName, title, episodeTitle, season, episode, movie, startsAt, endsAt, state, reason, ruleId,
-    bytes, protected, conflict, watched,
+    bytes, protected, conflict, watched, commercials, breaks.size,
 )
 
 private fun JobStatus.info() = JobInfo(

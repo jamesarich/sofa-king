@@ -4,7 +4,7 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. The examples
 
 ## Tokens
 
-Send `Authorization: Bearer $SOFA_API_TOKEN` on every `/api/v1` request. Routes under `/api/v1/admin` take `Authorization: Bearer $SOFA_ADMIN_TOKEN` instead when an admin token is configured. On a loopback server with no token, leave the header out; it then answers only requests from the same machine. A missing or wrong token answers `401 AUTH_REQUIRED`.
+Send `Authorization: Bearer $SOFA_API_TOKEN` on every `/api/v1` request. Routes under `/api/v1/admin`, `PATCH /api/v1/sources/{id}` and the MCP endpoint take `Authorization: Bearer $SOFA_ADMIN_TOKEN` instead when an admin token is configured. The admin token also opens every other route, as a device token does; it names no device, so [preferences](#viewer-preferences) of any client can be written with it and watch state is the household's. The hooks and `/output/*` take it too. On a loopback server with no token, leave the header out; it then answers only requests from the same machine. A missing or wrong token answers `401 AUTH_REQUIRED`.
 
 [Security](security.md#credentials-and-the-routes-they-open) is the one place that lists each credential (the API, admin, output, device `api`, `read` and `hook` tokens and the pairing code), what it opens, how it is generated and stored, and the routes that take no token, such as `/healthz`, `/readyz`, the [web app](deploy.md#serve-the-web-app) under `/app/`, `/logos/{key}`, `/artwork/...`, `POST /api/v1/pair` and the session media URLs.
 
@@ -370,7 +370,7 @@ The read tools answer as the matching route or portal page does:
 | `guide_now` | What is on now and next on the enabled channels; `channel`, a number or part of a name, `offset` and `limit` (1 to 200 channels, default 50). Answers `total`, `offset`, `limit`, `channels` and `nextOffset` |
 | `guide_channels` | `GET /api/v1/admin/guides/{id}/channels`, without icon links: `guideId` from `imports`, `q` and `limit` (1 to 200, default 50) |
 | `on_later` | `GET /api/v1/guide/on-later` with each program's channel and its `channelId`, a lineup entry id; `kind`, `days` (default 2) and `limit` (default 50) |
-| `recordings` | `GET /api/v1/recordings` without image links or file paths, on a server with the DVR; `state` (`scheduled`, `recording`, `completed` or `failed`), `offset` and `limit` (1 to 200, default 50). Answers `total`, `recordings`, `nextOffset`, `truncated` and `storage` |
+| `recordings` | `GET /api/v1/recordings` without image links or file paths, on a server with the DVR; `state` (`scheduled`, `recording`, `completed` or `failed`), `offset` and `limit` (1 to 200, default 50). Answers `total`, `recordings`, `nextOffset`, `truncated` and `storage`; each recording carries `commercials` (the scan's state, absent before one runs) and `breaks`, how many breaks it found |
 | `recording_rules` | `GET /api/v1/recording-rules`, on a server with the DVR; `limit` (1 to 200, default 50) |
 | `libraries` | `GET /api/v1/admin/libraries`, on a server with libraries |
 | `client_crashes` | `GET /api/v1/admin/diagnostics/crashes`, the [crashes](#crash-reports) the apps reported, scrubbed; `limit` (1 to 100, default 10) |

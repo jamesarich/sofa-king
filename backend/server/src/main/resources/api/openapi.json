@@ -3,7 +3,7 @@
   "info": {
     "title": "Sofa King server",
     "version": "1",
-    "description": "The Sofa King media center server's HTTP interface: the API the Sofa King app uses under /api/v1 for live TV, recordings and media libraries, the admin API under /api/v1/admin, the player outputs under /output, the logo cache and the HDHomeRun emulation Plex reads. The admin portal under /admin is HTML and is not described here. Timestamps are UTC instants."
+    "description": "The Sofa King media center server's HTTP interface: the API the Sofa King app uses under /api/v1 for live TV, recordings and media libraries, the admin API under /api/v1/admin, the player outputs under /output, the logo cache and the HDHomeRun emulation Plex reads. The admin portal under /admin is HTML and is not described here. Timestamps are UTC instants. The admin token is accepted on every route that takes the API token."
   },
   "servers": [{ "url": "/" }],
   "tags": [
@@ -11,7 +11,7 @@
     { "name": "Live TV", "description": "The catalog and guide the app reads. Bearer: the API token." },
     { "name": "Playback", "description": "Sessions that select a source and relay its media. Bearer: the API token; the media URLs take none." },
     { "name": "Sources", "description": "Provider and source health. Bearer: the API token." },
-    { "name": "Outputs", "description": "The M3U playlist, XMLTV guide and player streams. Token: the output token as ?token= or a bearer, or the API bearer." },
+    { "name": "Outputs", "description": "The M3U playlist, XMLTV guide and player streams. Token: the output token as ?token= or a bearer, or the API or admin bearer." },
     { "name": "Logos", "description": "Cached channel logos, public." },
     { "name": "HDHomeRun", "description": "What Plex reads from an HDHomeRun tuner. No token; clients are admitted by address (SOFA_HDHR_ALLOW and the addresses allowed at run time)." },
     { "name": "Admin", "description": "The server, its sessions, candidates, guides and the lineup. Bearer: the admin token, or the API token when none is set." },
@@ -23,13 +23,13 @@
       "name": "Recordings",
       "description": "The DVR: recordings and the series rules that schedule them. Bearer: the API token."
     },
-    { "name": "Hooks", "description": "Calls from Sonarr, Radarr and other tools when files change, each queuing a library scan. A hook token from POST /api/v1/admin/tokens, or the API token, as a bearer, a Basic password or the X-MediaBrowser-Token or X-Emby-Token header." },
+    { "name": "Hooks", "description": "Calls from Sonarr, Radarr and other tools when files change, each queuing a library scan. A hook token from POST /api/v1/admin/tokens, or the API or admin token, as a bearer, a Basic password or the X-MediaBrowser-Token or X-Emby-Token header." },
     { "name": "Watchlist", "description": "The household's watchlist of library items and guide titles. Bearer: the API token." }
   ],
   "components": {
     "securitySchemes": {
       "apiToken": { "type": "http", "scheme": "bearer", "description": "SOFA_API_TOKEN" },
-      "adminToken": { "type": "http", "scheme": "bearer", "description": "SOFA_ADMIN_TOKEN, or SOFA_API_TOKEN when no admin token is set" },
+      "adminToken": { "type": "http", "scheme": "bearer", "description": "SOFA_ADMIN_TOKEN, or SOFA_API_TOKEN when no admin token is set. When an admin token is set, it also opens every route that lists apiToken, the hooks and the outputs among them, as the shared API token does: it is no paired device, so a PUT of preferences/{clientId} may write any client" },
       "outputToken": { "type": "apiKey", "in": "query", "name": "token", "description": "SOFA_OUTPUT_TOKEN; also accepted as a bearer" },
       "deviceToken": { "type": "http", "scheme": "bearer", "description": "A paired device's own token from POST /api/v1/pair; it opens what SOFA_API_TOKEN opens outside /api/v1/admin and /api/v1/hooks" },
       "readToken": { "type": "http", "scheme": "bearer", "description": "A read token from POST /api/v1/admin/tokens; it opens the admin reads listed with it" },
@@ -907,7 +907,7 @@
     "/healthz": { "get": { "tags": ["Health"], "summary": "Liveness", "security": [], "responses": { "200": { "description": "ok, as text" } } } },
     "/readyz": { "get": { "tags": ["Health"], "summary": "Database readiness", "security": [], "responses": { "200": { "description": "ready, as text" }, "503": { "$ref": "#/components/responses/Error" } } } },
     "/api/v1/bootstrap": {
-      "get": { "tags": ["Live TV"], "summary": "Server id, time and capabilities", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Live TV"], "summary": "Server id, time and capabilities", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Bootstrap" } } } }, "503": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/pair": {
@@ -916,31 +916,31 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PairingResult" } } } }, "400": { "description": "INVALID_REQUEST: a malformed claim or client id", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "403": { "description": "PAIRING_INVALID", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "429": { "description": "Too many claims from this address" } } }
     },
     "/api/v1/preferences/{clientId}": {
-      "get": { "tags": ["Viewers"], "summary": "The preferences this client last saved", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
+      "get": { "tags": ["Viewers"], "summary": "The preferences this client last saved", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } }, "404": { "description": "VIEWER_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "put": { "tags": ["Viewers"], "summary": "Replace this client's preferences", "description": "Each list holds at most 1,000 distinct ids; an empty name or platform keeps the stored one. The answer is the stored document with the server's updatedAt. A token paired to a client writes only that client; the shared API token and issued tokens without a client write any.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
+      "put": { "tags": ["Viewers"], "summary": "Replace this client's preferences", "description": "Each list holds at most 1,000 distinct ids; an empty name or platform keeps the stored one. The answer is the stored document with the server's updatedAt. A token paired to a client writes only that client; the shared API token and issued tokens without a client write any.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } }, "400": { "$ref": "#/components/responses/Error" }, "403": { "description": "CLIENT_MISMATCH: a token paired to another client", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "409": { "description": "VIEWER_LIMIT: 200 viewers are kept already", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/household/preferences": {
-      "get": { "tags": ["Viewers"], "summary": "The household's shared favorites and hidden channels", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Viewers"], "summary": "The household's shared favorites and hidden channels", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HouseholdPreferences" } } } } } },
-      "put": { "tags": ["Viewers"], "summary": "Replace the household's shared favorites and hidden channels", "description": "Each list holds at most 1,000 distinct ids. The answer is the stored document with the server's updatedAt.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "put": { "tags": ["Viewers"], "summary": "Replace the household's shared favorites and hidden channels", "description": "Each list holds at most 1,000 distinct ids. The answer is the stored document with the server's updatedAt.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HouseholdPreferences" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HouseholdPreferences" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/channels": {
-      "get": { "tags": ["Live TV"], "summary": "The catalog: the enabled lineup entries as channels", "description": "Carries an ETag; If-None-Match answers 304.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Live TV"], "summary": "The catalog: the enabled lineup entries as channels", "description": "Carries an ETag; If-None-Match answers 304.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "If-None-Match", "in": "header", "schema": { "type": "string" } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Catalog" } } } }, "304": { "description": "Unchanged" } } }
     },
     "/api/v1/guide/query": {
-      "post": { "tags": ["Live TV"], "summary": "Programs overlapping a window for up to 200 channels", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "post": { "tags": ["Live TV"], "summary": "Programs overlapping a window for up to 200 channels", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideQuery" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideWindow" } } } }, "400": { "description": "INVALID_QUERY or INVALID_REQUEST", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "409": { "description": "RESYNC_REQUIRED: the revision changed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/guide/on-later": {
-      "get": { "tags": ["Live TV"], "summary": "Movies, sports, kids' programs or premieres coming up on the enabled channels", "description": "Programs that have not ended and start within days, soonest first. A movie needs a Movie or Film category beside a film genre and no News or Sports one; sports and kids match their categories; new is a Premiere category or a new airing of a season's first episode.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Live TV"], "summary": "Movies, sports, kids' programs or premieres coming up on the enabled channels", "description": "Programs that have not ended and start within days, soonest first. A movie needs a Movie or Film category beside a film genre and no News or Sports one; sports and kids match their categories; new is a Premiere category or a new airing of a season's first episode.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [
           { "name": "kind", "in": "query", "required": true, "schema": { "type": "string", "enum": ["movie", "sports", "kids", "new"] } },
           { "name": "days", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 7, "default": 2 } },
@@ -949,7 +949,7 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpcomingPrograms" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/program-facts": {
-      "get": { "tags": ["Live TV"], "summary": "What TMDB says about a live program", "description": "Found by its exact guide title, for the break screen to show a fact at a time. Every field is empty when TMDB lists no such title or the server has no TMDB token.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Live TV"], "summary": "What TMDB says about a live program", "description": "Found by its exact guide title, for the break screen to show a fact at a time. Every field is empty when TMDB lists no such title or the server has no TMDB token.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [
           { "name": "title", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 200 } },
           { "name": "movie", "in": "query", "description": "true searches movies first", "schema": { "type": "boolean", "default": false } }
@@ -957,11 +957,11 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProgramFacts" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/providers": {
-      "get": { "tags": ["Sources"], "summary": "Each provider's import status and counts", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Sources"], "summary": "Each provider's import status and counts", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ProviderStatus" } } } } } } }
     },
     "/api/v1/sources": {
-      "get": { "tags": ["Sources"], "summary": "Every source's health and manual-disable flag", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Sources"], "summary": "Every source's health and manual-disable flag", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SourceStatus" } } } } } } }
     },
     "/api/v1/sources/{id}": {
@@ -971,25 +971,25 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SourceStatus" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/playback-sessions": {
-      "post": { "tags": ["Playback"], "summary": "Open a preview or watch session", "description": "Picks the channel's first selectable source. Repeating a key returns the same session while it lives; a key reused with other parameters answers 409 IDEMPOTENCY_CONFLICT. At capacity the oldest preview, then an idle player session, yields; otherwise 429 CAPACITY_EXHAUSTED.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "post": { "tags": ["Playback"], "summary": "Open a preview or watch session", "description": "Picks the channel's first selectable source. Repeating a key returns the same session while it lives; a key reused with other parameters answers 409 IDEMPOTENCY_CONFLICT. At capacity the oldest preview, then an idle player session, yields; otherwise 429 CAPACITY_EXHAUSTED.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/playbackProtocols" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenPlayback" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlaybackSession" } } } }, "404": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/playback-sessions/{id}": {
-      "get": { "tags": ["Playback"], "summary": "The current descriptor", "description": "Moves the session to the next selectable source, with a new epoch, when the current one stopped being selectable.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Playback"], "summary": "The current descriptor", "description": "Moves the session to the next selectable source, with a new epoch, when the current one stopped being selectable.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlaybackSession" } } } }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "patch": { "tags": ["Playback"], "summary": "Renew the lease; optionally change the intent", "description": "A watch session expires 90 s after its last renewal, a preview 45 s. Send {} to renew alone.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "patch": { "tags": ["Playback"], "summary": "Renew the lease; optionally change the intent", "description": "A watch session expires 90 s after its last renewal, a preview 45 s. Send {} to renew alone.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePlayback" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlaybackSession" } } } }, "410": { "$ref": "#/components/responses/Error" } } },
-      "delete": { "tags": ["Playback"], "summary": "Release the session", "description": "Idempotent; cancels its upstream requests.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "delete": { "tags": ["Playback"], "summary": "Release the session", "description": "Idempotent; cancels its upstream requests.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "204": { "description": "Released" } } }
     },
     "/api/v1/playback-sessions/{id}/ad-break": {
-      "get": { "tags": ["Playback"], "summary": "Whether the session's player shows an ad", "description": "For a player that cannot read the playlist's ad marks: the server places the picture from the last segment the player fetched and aheadMs, how much it has loaded past the picture.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Playback"], "summary": "Whether the session's player shows an ad", "description": "For a player that cannot read the playlist's ad marks: the server places the picture from the last segment the player fetched and aheadMs, how much it has loaded past the picture.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "aheadMs", "in": "query", "schema": { "type": "integer", "format": "int64", "default": 0 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdBreakState" } } } }, "400": { "$ref": "#/components/responses/Error" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
@@ -999,7 +999,7 @@
         "responses": { "200": { "description": "application/vnd.apple.mpegurl, video/mp2t or the resource's own type" }, "206": { "description": "A range of the resource" }, "404": { "$ref": "#/components/responses/Error" }, "410": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "502": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
     },
     "/output/playlist.m3u": {
-      "get": { "tags": ["Outputs"], "summary": "The enabled lineup as an M3U playlist", "description": "audio/x-mpegurl; tvg-id is the channel id, URLs use the request's Host. The stream suffix follows the protocol of the source the channel would play now; format=ts lists every stream as MPEG-TS. A channel with a Gracenote id in the policy carries tvc-guide-stationid, any other with a logo tvc-guide-art.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+      "get": { "tags": ["Outputs"], "summary": "The enabled lineup as an M3U playlist", "description": "audio/x-mpegurl; tvg-id is the channel id, URLs use the request's Host. The stream suffix follows the protocol of the source the channel would play now; format=ts lists every stream as MPEG-TS. A channel with a Gracenote id in the policy carries tvc-guide-stationid, any other with a logo tvc-guide-art.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
         "responses": { "200": { "description": "" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" } } }
     },
@@ -1008,22 +1008,22 @@
         "responses": { "200": { "description": "text/calendar", "content": { "text/calendar": { "schema": { "type": "string" } } } }, "401": { "$ref": "#/components/responses/Error" }, "404": { "description": "RECORDINGS_NOT_AVAILABLE: the server does not record", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/output/guide.xml": {
-      "get": { "tags": ["Outputs"], "summary": "The lineup's programs as XMLTV", "description": "From three hours ago to days ahead; the server's runtime setting applies when days is absent.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+      "get": { "tags": ["Outputs"], "summary": "The lineup's programs as XMLTV", "description": "From three hours ago to days ahead; the server's runtime setting applies when days is absent.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "days", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 14 } }],
         "responses": { "200": { "description": "application/xml" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" } } }
     },
     "/output/{name}/playlist.m3u": {
-      "get": { "tags": ["Outputs"], "summary": "A named output's channels as an M3U playlist", "description": "As /output/playlist.m3u, holding only the output's groups and channels; url-tvg names the output's own guide. Stream URLs stay under /output/stream/.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+      "get": { "tags": ["Outputs"], "summary": "A named output's channels as an M3U playlist", "description": "As /output/playlist.m3u, holding only the output's groups and channels; url-tvg names the output's own guide. Stream URLs stay under /output/stream/.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/outputName" }, { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
         "responses": { "200": { "description": "" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" }, "404": { "description": "OUTPUT_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/output/{name}/guide.xml": {
-      "get": { "tags": ["Outputs"], "summary": "A named output's programs as XMLTV", "description": "As /output/guide.xml, holding only the output's groups and channels.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+      "get": { "tags": ["Outputs"], "summary": "A named output's programs as XMLTV", "description": "As /output/guide.xml, holding only the output's groups and channels.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/outputName" }, { "name": "days", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 14 } }],
         "responses": { "200": { "description": "application/xml" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" }, "404": { "description": "OUTPUT_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/output/stream/{channelId}.{suffix}": {
-      "get": { "tags": ["Outputs"], "summary": "Open a player session for the channel and stream it", "description": "An HLS source answers 302 to the session's playlist; an MPEG-TS source streams video/mp2t here, and with format=ts so does an HLS source, remuxed. The session is released 60 s after the last media request.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+      "get": { "tags": ["Outputs"], "summary": "Open a player session for the channel and stream it", "description": "An HLS source answers 302 to the session's playlist; an MPEG-TS source streams video/mp2t here, and with format=ts so does an HLS source, remuxed. The session is released 60 s after the last media request.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "channelId", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "suffix", "in": "path", "required": true, "schema": { "type": "string", "enum": ["m3u8", "ts"] } }, { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
         "responses": { "200": { "description": "video/mp2t" }, "302": { "description": "To the session's playlist under /media/sessions/" }, "404": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
     },
@@ -1033,20 +1033,20 @@
         "responses": { "200": { "description": "PNG, JPEG, WebP, GIF or SVG" }, "304": { "description": "Unchanged" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/libraries": {
-      "get": { "tags": ["Library"], "summary": "Every media library", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }],
+      "get": { "tags": ["Library"], "summary": "Every media library", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Library" } } } } } } }
     },
     "/api/v1/libraries/{id}/items": {
-      "get": { "tags": ["Library"], "summary": "One page of a library's movies, shows or videos", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Library"], "summary": "One page of a library's movies, shows or videos", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }, { "name": "kind", "in": "query", "description": "album lists a Music library's albums instead of its artists.", "schema": { "type": "string", "enum": ["album"] } }, { "name": "sort", "in": "query", "schema": { "type": "string", "enum": ["title", "added", "year", "rating", "watched"], "default": "title" } }, { "name": "unwatched", "in": "query", "schema": { "type": "boolean" } }, { "name": "genre", "in": "query", "schema": { "type": "string" } }, { "name": "cursor", "in": "query", "schema": { "type": "string" } }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "LIBRARY_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/home": {
-      "get": { "tags": ["Library"], "summary": "Continue watching, Recently added per library, and the libraries", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }],
+      "get": { "tags": ["Library"], "summary": "Continue watching, Recently added per library, and the libraries", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryHome" } } } } } }
     },
     "/api/v1/library/lookup": {
-      "get": { "tags": ["Library"], "summary": "The movies and shows an id names", "description": "Every movie and show whose TMDB, TheTVDB or IMDb id is one of those given, in title order. At least one id; 400 for none or a malformed one.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Library"], "summary": "The movies and shows an id names", "description": "Every movie and show whose TMDB, TheTVDB or IMDb id is one of those given, in title order. At least one id; 400 for none or a malformed one.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [
           { "name": "tmdb", "in": "query", "schema": { "type": "integer", "minimum": 1 } },
           { "name": "tvdb", "in": "query", "schema": { "type": "integer", "minimum": 1 } },
@@ -1055,60 +1055,60 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/library/search": {
-      "get": { "tags": ["Library"], "summary": "Titles holding q: movies, shows and videos, then episodes", "description": "Movies, shows and videos whose title holds q, then those with a cast member or director whose name holds it, then episodes by title. At most 50.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Library"], "summary": "Titles holding q: movies, shows and videos, then episodes", "description": "Movies, shows and videos whose title holds q, then those with a cast member or director whose name holds it, then episodes by title. At most 50.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 100 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/library/items/{id}": {
-      "get": { "tags": ["Library"], "summary": "An item with its seasons or episodes, a show's next episode and a file's tracks", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
+      "get": { "tags": ["Library"], "summary": "An item with its seasons or episodes, a show's next episode and a file's tracks", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItemDetail" } } } }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/play-state": {
-      "put": { "tags": ["Library"], "summary": "Record where playback stopped, or mark an item watched", "description": "A stop in the first 5% leaves the item where it was; one at 90% or later marks it watched. A show or season takes watched only, and marks every episode in it.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "put": { "tags": ["Library"], "summary": "Record where playback stopped, or mark an item watched", "description": "A stop in the first 5% leaves the item where it was; one at 90% or later marks it watched. A show or season takes watched only, and marks every episode in it.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePlayState" } } } },
         "responses": { "200": { "description": "The item", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItem" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/favorite": {
-      "put": { "tags": ["Library"], "summary": "Like or unlike a song, album or artist", "description": "Feeds the music radio. Only for a client that sends music in Sofa-Library-Kinds; any other finds no Music item.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
+      "put": { "tags": ["Library"], "summary": "Like or unlike a song, album or artist", "description": "Feeds the music radio. Only for a client that sends music in Sofa-Library-Kinds; any other finds no Music item.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateFavorite" } } } },
         "responses": { "200": { "description": "The item", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItem" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/played": {
-      "post": { "tags": ["Library"], "summary": "Count one play of a song", "description": "Feeds the music radio. Only for a client that sends music in Sofa-Library-Kinds; an album or artist answers 404.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
+      "post": { "tags": ["Library"], "summary": "Count one play of a song", "description": "Feeds the music radio. Only for a client that sends music in Sofa-Library-Kinds; an album or artist answers 404.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "The song", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItem" } } } }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/lyrics": {
-      "get": { "tags": ["Library"], "summary": "A song's lyrics as LRC text", "description": "An .lrc file beside the track wins; else, unless SOFA_MUSICBRAINZ=false, LRCLIB's synced lyrics, else its plain ones, asked the first time and kept. Synced lines start with [mm:ss.xx] tags; plain lyrics have none.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Library"], "summary": "A song's lyrics as LRC text", "description": "An .lrc file beside the track wins; else, unless SOFA_MUSICBRAINZ=false, LRCLIB's synced lyrics, else its plain ones, asked the first time and kept. Synced lines start with [mm:ss.xx] tags; plain lyrics have none.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "LRC", "content": { "text/plain": { "schema": { "type": "string" } } } }, "404": { "description": "RESOURCE_NOT_FOUND: not a song, or no lyrics for it", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/radio": {
-      "get": { "tags": ["Library"], "summary": "A radio from an artist, album or song", "description": "Songs to play on from the item: the artist's own, then those of artists listeners play alongside them, then of artists sharing their genres, the songs listeners play most likelier than the rest. A song starts it and an album opens with its first song. No more than two songs of one artist play in a row while another has any left. Only for a client that sends music in Sofa-Library-Kinds.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Library"], "summary": "A radio from an artist, album or song", "description": "Songs to play on from the item: the artist's own, then those of artists listeners play alongside them, then of artists sharing their genres, the songs listeners play most likelier than the rest. A song starts it and an album opens with its first song. No more than two songs of one artist play in a row while another has any left. Only for a client that sends music in Sofa-Library-Kinds.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 } }],
         "responses": { "200": { "description": "The songs, in the order to play", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/libraries/{id}/radio": {
-      "get": { "tags": ["Library"], "summary": "A radio from a whole Music library", "description": "Songs drawn from every artist of the Music library alike, the songs listeners play most likelier than the rest, with the same spread as an item's radio.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Library"], "summary": "A radio from a whole Music library", "description": "Songs drawn from every artist of the Music library alike, the songs listeners play most likelier than the rest, with the same spread as an item's radio.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 } }],
         "responses": { "200": { "description": "The songs, in the order to play", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "LIBRARY_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/subtitles/{index}": {
-      "get": { "tags": ["Library"], "summary": "A text subtitle track of the item as WebVTT", "description": "index is a subtitle track's index from the item: a stream of its file, or from 1000 a subtitle file beside it. Times are in the item's time. The first read extracts the stream, which reads the whole file; later reads serve the kept copy. A picture subtitle answers 415 SUBTITLE_NOT_TEXT.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Library"], "summary": "A text subtitle track of the item as WebVTT", "description": "index is a subtitle track's index from the item: a stream of its file, or from 1000 a subtitle file beside it. Times are in the item's time. The first read extracts the stream, which reads the whole file; later reads serve the kept copy. A picture subtitle answers 415 SUBTITLE_NOT_TEXT.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "index", "in": "path", "required": true, "schema": { "type": "integer" } }],
         "responses": { "200": { "description": "WebVTT", "content": { "text/vtt": { "schema": { "type": "string" } } } }, "404": { "description": "ITEM_NOT_FOUND, ITEM_MISSING or RESOURCE_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "415": { "description": "SUBTITLE_NOT_TEXT", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "502": { "description": "SUBTITLE_FAILED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/vod-sessions": {
-      "post": { "tags": ["Library"], "summary": "Play a library movie, episode or video", "description": "Direct play when the profile takes the file as is; otherwise HLS that FFmpeg remuxes or converts. At most SOFA_MAX_TRANSCODES convert at once.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "post": { "tags": ["Library"], "summary": "Play a library movie, episode or video", "description": "Direct play when the profile takes the file as is; otherwise HLS that FFmpeg remuxes or converts. At most SOFA_MAX_TRANSCODES convert at once.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenVodPlayback" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VodSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND or ITEM_MISSING", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "503": { "description": "CAPACITY_EXHAUSTED or TRANSCODER_UNAVAILABLE", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/vod-sessions/{id}": {
-      "get": { "tags": ["Library"], "summary": "A library playback session", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "get": { "tags": ["Library"], "summary": "A library playback session", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VodSession" } } } }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "patch": { "tags": ["Library"], "summary": "Renew the session, or restart its converted stream", "description": "A session lasts five minutes past its last renewal or media request.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "patch": { "tags": ["Library"], "summary": "Renew the session, or restart its converted stream", "description": "A session lasts five minutes past its last renewal or media request.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateVodPlayback" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VodSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "delete": { "tags": ["Library"], "summary": "Release the session", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }], "responses": { "204": { "description": "Released" } } }
+      "delete": { "tags": ["Library"], "summary": "Release the session", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }], "responses": { "204": { "description": "Released" } } }
     },
     "/media/vod/{id}/{epoch}/{secret}/{name}": {
       "get": { "tags": ["Library"], "summary": "A library playback session's media", "description": "The URL the session's descriptor names: the file itself with byte ranges, or the HLS playlist and its segments. No token; the secret is the session's.", "security": [],
@@ -1116,17 +1116,17 @@
         "responses": { "200": { "description": "The file, a playlist or a segment" }, "206": { "description": "A byte range of the file" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/multiview-sessions": {
-      "post": { "tags": ["Playback"], "summary": "Watch two to four channels at once", "description": "The server draws the channels into one HLS stream with the sound of one. Offered while the bootstrap's multiview capability is true: with SOFA_MULTIVIEW=auto, only when a GPU encoder works. Each tile holds a playback session, and the stream counts toward SOFA_MAX_TRANSCODES.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "post": { "tags": ["Playback"], "summary": "Watch two to four channels at once", "description": "The server draws the channels into one HLS stream with the sound of one. Offered while the bootstrap's multiview capability is true: with SOFA_MULTIVIEW=auto, only when a GPU encoder works. Each tile holds a playback session, and the stream counts toward SOFA_MAX_TRANSCODES.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenMultiview" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MultiviewSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "CHANNEL_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "503": { "description": "MULTIVIEW_UNAVAILABLE or CAPACITY_EXHAUSTED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/multiview-sessions/{id}": {
-      "get": { "tags": ["Playback"], "summary": "A multiview session", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "get": { "tags": ["Playback"], "summary": "A multiview session", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MultiviewSession" } } } }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "patch": { "tags": ["Playback"], "summary": "Renew the session, or move its sound to another tile", "description": "A session lasts 60 seconds past its last renewal or media request. Another audio tile restarts the stream under a new epoch.", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "patch": { "tags": ["Playback"], "summary": "Renew the session, or move its sound to another tile", "description": "A session lasts 60 seconds past its last renewal or media request. Another audio tile restarts the stream under a new epoch.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateMultiview" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MultiviewSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "delete": { "tags": ["Playback"], "summary": "Release the session", "security": [{ "apiToken": [] }, { "deviceToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }], "responses": { "204": { "description": "Released" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+      "delete": { "tags": ["Playback"], "summary": "Release the session", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }], "responses": { "204": { "description": "Released" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/media/multiview/{id}/{epoch}/{secret}/{name}": {
       "get": { "tags": ["Playback"], "summary": "A multiview session's stream", "description": "The URL the session's descriptor names: the HLS playlist and its segments. No token; the secret is the session's.", "security": [],
@@ -1193,7 +1193,7 @@
         "responses": { "202": { "description": "Queued", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProbeQueued" } } } }, "404": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/diagnostics/crashes": {
-      "post": { "tags": ["Viewers"], "summary": "Report a crash the app kept", "description": "An app sends the last crash it kept from the run before, if its viewer allows it. The server scrubs anything shaped like an address or a token again, stores the report with the device it came from, keeps the newest 100, and never forwards one. A report with an id the server holds is accepted and stored once. At most 64 KiB; 10 reports a minute per client address, then 429. A read token does not open it.", "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+      "post": { "tags": ["Viewers"], "summary": "Report a crash the app kept", "description": "An app sends the last crash it kept from the run before, if its viewer allows it. The server scrubs anything shaped like an address or a token again, stores the report with the device it came from, keeps the newest 100, and never forwards one. A report with an id the server holds is accepted and stored once. At most 64 KiB; 10 reports a minute per client address, then 429. A read token does not open it.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CrashReport" } } } },
         "responses": { "204": { "description": "Stored" }, "400": { "$ref": "#/components/responses/Error" }, "413": { "$ref": "#/components/responses/Error" }, "429": { "description": "Too many reports from this address" } } }
     },
@@ -1479,66 +1479,66 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryScanInfo" } } } }, "202": { "description": "Queued", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/hooks/servarr": {
-      "post": { "tags": ["Hooks"], "summary": "Sonarr's or Radarr's Webhook connection", "description": "Queues a scan of the library holding the event's series or movie folder.", "security": [{ "hookToken": [] }, { "apiToken": [] }],
+      "post": { "tags": ["Hooks"], "summary": "Sonarr's or Radarr's Webhook connection", "description": "Queues a scan of the library holding the event's series or movie folder.", "security": [{ "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServarrEvent" } } } },
         "responses": { "202": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/Library/Media/Updated": {
-      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh", "description": "What Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh", "description": "What Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MediaUpdates" } } } },
         "responses": { "202": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/System/Configuration": {
-      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration", "description": "The connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration", "description": "The connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object" } } } } } }
     },
     "/Items": {
-      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items", "description": "The connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items", "description": "The connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object", "required": ["Items", "TotalRecordCount"], "properties": { "Items": { "type": "array", "maxItems": 0, "items": { "type": "object" } }, "TotalRecordCount": { "type": "integer" } } } } } } } }
     },
     "/Notifications/Admin": {
-      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice", "description": "The connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice", "description": "The connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "204": { "description": "Taken" } } }
     },
     "/emby/Library/Media/Updated": {
-      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh, under /emby", "description": "What Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh, under /emby", "description": "What Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MediaUpdates" } } } },
         "responses": { "202": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/emby/System/Configuration": {
-      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration, under /emby", "description": "The connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration, under /emby", "description": "The connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object" } } } } } }
     },
     "/emby/Items": {
-      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items, under /emby", "description": "The connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items, under /emby", "description": "The connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object", "required": ["Items", "TotalRecordCount"], "properties": { "Items": { "type": "array", "maxItems": 0, "items": { "type": "object" } }, "TotalRecordCount": { "type": "integer" } } } } } } } }
     },
     "/emby/Notifications/Admin": {
-      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice, under /emby", "description": "The connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice, under /emby", "description": "The connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "204": { "description": "Taken" } } }
     },
     "/mediabrowser/Library/Media/Updated": {
-      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh, under /mediabrowser", "description": "What Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh, under /mediabrowser", "description": "What Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MediaUpdates" } } } },
         "responses": { "202": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/mediabrowser/System/Configuration": {
-      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration, under /mediabrowser", "description": "The connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration, under /mediabrowser", "description": "The connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object" } } } } } }
     },
     "/mediabrowser/Items": {
-      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items, under /mediabrowser", "description": "The connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items, under /mediabrowser", "description": "The connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object", "required": ["Items", "TotalRecordCount"], "properties": { "Items": { "type": "array", "maxItems": 0, "items": { "type": "object" } }, "TotalRecordCount": { "type": "integer" } } } } } } } }
     },
     "/mediabrowser/Notifications/Admin": {
-      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice, under /mediabrowser", "description": "The connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }],
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice, under /mediabrowser", "description": "The connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "204": { "description": "Taken" } } }
     },
     "/api/v1/recordings": {
       "get": {
         "tags": ["Recordings"],
         "summary": "Every recording, scheduled and running soonest first, then kept and failed newest first",
-        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "responses": {
           "200": {
             "description": "",
@@ -1550,7 +1550,7 @@
         "tags": ["Recordings"],
         "summary": "Record one program",
         "description": "Names the program by its channel and start, as the guide query gives them. Scheduling a program that already has a recording answers that recording. With endsAt, startsAt may be at most 14 days ahead (400 INVALID_REQUEST), and a window past 100 waiting one-off recordings answers 409 SCHEDULE_FULL.",
-        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": {
           "required": true,
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScheduleRecording" } } }
@@ -1576,7 +1576,7 @@
       "get": {
         "tags": ["Recordings"],
         "summary": "One recording",
-        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
           "200": {
@@ -1592,7 +1592,7 @@
       "patch": {
         "tags": ["Recordings"],
         "summary": "Protect a recording from culling, or save where the viewer stopped",
-        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
           "required": true,
@@ -1613,7 +1613,7 @@
         "tags": ["Recordings"],
         "summary": "Cancel, stop or delete a recording",
         "description": "Cancels a scheduled recording, stops a running one and keeps what it recorded, or deletes a finished one and its file. A canceled airing of a rule is not scheduled again.",
-        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
           "204": { "description": "" },
@@ -1628,7 +1628,7 @@
       "get": {
         "tags": ["Recordings"],
         "summary": "Every series rule, oldest first",
-        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "responses": {
           "200": {
             "description": "",
@@ -1639,7 +1639,7 @@
       "post": {
         "tags": ["Recordings"],
         "summary": "Add a series rule",
-        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": {
           "required": true,
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateRecordingRule" } } }
@@ -1661,7 +1661,7 @@
       "patch": {
         "tags": ["Recordings"],
         "summary": "Change a series rule",
-        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
           "required": true,
@@ -1682,7 +1682,7 @@
       "delete": {
         "tags": ["Recordings"],
         "summary": "Delete a series rule and its scheduled recordings; what it recorded stays",
-        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
           "204": { "description": "" },
@@ -1697,7 +1697,7 @@
       "get": {
         "tags": ["Watchlist"],
         "summary": "The household's watchlist, newest first, with each title's next airing in the coming week",
-        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "responses": {
           "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Watchlist" } } } }
         }
@@ -1705,7 +1705,7 @@
       "post": {
         "tags": ["Watchlist"],
         "summary": "Add a library item or a guide title; adding one the list holds returns that entry",
-        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": {
           "required": true,
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AddWatchlistEntry" } } }
@@ -1731,7 +1731,7 @@
       "delete": {
         "tags": ["Watchlist"],
         "summary": "Take an entry off the watchlist",
-        "security": [{ "apiToken": [] }, { "deviceToken": [] }],
+        "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
           "204": { "description": "" },

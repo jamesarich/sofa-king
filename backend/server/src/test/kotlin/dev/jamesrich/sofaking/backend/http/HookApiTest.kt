@@ -41,8 +41,8 @@ class HookApiTest {
         assertEquals(listOf(library.id), queued(servarr(sonarrDownload) { basicAuth("sonarr", hook) }))
         assertEquals(HttpStatusCode.Unauthorized, servarr(sonarrDownload).status)
         assertEquals(HttpStatusCode.Unauthorized, servarr(sonarrDownload) { bearerAuth(device) }.status)
-        assertEquals(HttpStatusCode.Unauthorized, servarr(sonarrDownload) { bearerAuth(admin) }.status)
         assertEquals(listOf(library.id), queued(servarr(sonarrDownload) { bearerAuth(token) }), "the API token too")
+        assertEquals(listOf(library.id), queued(servarr(sonarrDownload) { bearerAuth(admin) }), "the admin token too")
     }
 
     @Test fun `a test, a grab or a folder no library holds queues nothing`() = hooks {

@@ -30,11 +30,17 @@ import java.time.Instant
  * channel. Players send no headers, so the token travels in the query and the generated URLs carry it. Each named
  * output has its own playlist and guide under `/output/{name}`, holding its channels only.
  */
-fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig, apiToken: String?) {
+fun Route.outputRoutes(
+    runtime: LiveRuntime,
+    clock: Clock,
+    config: OutputConfig,
+    apiToken: String?,
+    adminToken: String? = null,
+) {
     route("/output") {
         /** The channels [call] asks for, once it is authorized: the named output's, else the whole lineup. */
         suspend fun selection(call: ApplicationCall): Selection {
-            authorizeOutput(call, config.token, apiToken)
+            authorizeOutput(call, config.token, apiToken, adminToken)
             val name = call.parameters["name"] ?: return Selection("/output", null)
             val output = runtime.namedOutputs.get(name)
                 ?: throw ApiFailure(HttpStatusCode.NotFound, "OUTPUT_NOT_FOUND", "Unknown output")
@@ -57,7 +63,7 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
             }
         }
         get("/stream/{id}") {
-            authorizeOutput(call, config.token, apiToken)
+            authorizeOutput(call, config.token, apiToken, adminToken)
             val id = call.parameters["id"]!!.substringBefore('.')
             val entry =
                 runtime.lineup.entry(id)?.takeIf { it.enabled }
@@ -192,10 +198,15 @@ private suspend fun guide(call: ApplicationCall, runtime: LiveRuntime, now: Inst
 }
 
 /**
- * The output token in the query or as a bearer, or the API token as a bearer. With neither configured the outputs are
- * open to this machine only, as the API is, so a reverse proxy cannot expose them.
+ * The output token in the query or as a bearer, or the API or admin token as a bearer. With neither output nor API
+ * token configured the outputs are open to this machine only, as the API is, so a reverse proxy cannot expose them.
  */
-internal fun authorizeOutput(call: ApplicationCall, outputToken: String?, apiToken: String?) {
+internal fun authorizeOutput(
+    call: ApplicationCall,
+    outputToken: String?,
+    apiToken: String?,
+    adminToken: String? = null,
+) {
     if (outputToken == null && apiToken == null) {
         if (call.request.fromThisMachine()) return
         throw ApiFailure(
@@ -210,7 +221,8 @@ internal fun authorizeOutput(call: ApplicationCall, outputToken: String?, apiTok
     val query = call.request.queryParameters["token"]
     val authorized =
         (outputToken != null && (sameSecret(query, outputToken) || sameSecret(bearer, outputToken))) ||
-            (apiToken != null && sameSecret(bearer, apiToken))
+            (apiToken != null && sameSecret(bearer, apiToken)) ||
+            (adminToken != null && sameSecret(bearer, adminToken))
     if (!authorized) {
         call.authFailed()
         throw ApiFailure(HttpStatusCode.Unauthorized, "AUTH_REQUIRED", "Output token required")

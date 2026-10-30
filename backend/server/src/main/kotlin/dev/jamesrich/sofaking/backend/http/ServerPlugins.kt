@@ -285,6 +285,9 @@ private suspend fun ApplicationCall.refusedApi(
     val refusal = when {
         issuedOpens(tokens, bearer, path, isAdmin, isHook) -> null
 
+        // The admin token opens every guarded route, the viewer routes and the hooks among them.
+        adminToken != null && sameSecret(bearer, adminToken) -> null
+
         // Without a token the API is open, so only this machine may use it: no other site's page, no rebound
         // name, no proxy.
         expected == null -> (

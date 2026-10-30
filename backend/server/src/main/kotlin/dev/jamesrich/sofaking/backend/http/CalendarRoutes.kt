@@ -20,9 +20,15 @@ private val CALENDAR = ContentType("text", "calendar").withCharset(Charsets.UTF_
  * `/output/recordings.ics`, the scheduled and running recordings for a calendar app to subscribe to. Calendar apps
  * send no headers, so the output token or a `read` token travels in the query, as the other outputs' tokens do.
  */
-internal fun Route.calendarRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig, apiToken: String?) {
+internal fun Route.calendarRoutes(
+    runtime: LiveRuntime,
+    clock: Clock,
+    config: OutputConfig,
+    apiToken: String?,
+    adminToken: String? = null,
+) {
     get("/output/recordings.ics") {
-        authorizeCalendar(call, runtime, config.token, apiToken)
+        authorizeCalendar(call, runtime, config.token, apiToken, adminToken)
         val dvr = runtime.dvr
             ?: throw ApiFailure(HttpStatusCode.NotFound, "RECORDINGS_NOT_AVAILABLE", "This server does not record")
         call.respondText(recordingsCalendar(dvr.recordings().recordings, clock.instant()), CALENDAR)
@@ -35,8 +41,9 @@ private suspend fun authorizeCalendar(
     runtime: LiveRuntime,
     outputToken: String?,
     apiToken: String?,
+    adminToken: String?,
 ) {
     val presented = call.request.queryParameters["token"] ?: call.bearer()
     if (runtime.tokens.resolve(presented)?.scope == TokenScope.READ) return
-    authorizeOutput(call, outputToken, apiToken)
+    authorizeOutput(call, outputToken, apiToken, adminToken)
 }

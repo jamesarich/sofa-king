@@ -45,7 +45,7 @@ import kotlin.test.assertTrue
 class AdminApiTest {
     private val json = Json { encodeDefaults = true }
 
-    @Test fun `the admin token opens only the admin routes and the API token only the app's`() = adminApi {
+    @Test fun `the admin token opens every route and the API token only the app's`() = adminApi {
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/admin/lineup").status)
         assertEquals(
             HttpStatusCode.Unauthorized,
@@ -53,9 +53,9 @@ class AdminApiTest {
             "the API token does not open admin routes",
         )
         assertEquals(
-            HttpStatusCode.Unauthorized,
+            HttpStatusCode.OK,
             client.get("/api/v1/channels") { bearerAuth(admin) }.status,
-            "the admin token does not open app routes",
+            "the admin token opens app routes too",
         )
         assertEquals("[]", client.get("/api/v1/admin/lineup") { bearerAuth(admin) }.bodyAsText())
         assertTrue(app<Catalog>("/api/v1/channels").channels.isEmpty())

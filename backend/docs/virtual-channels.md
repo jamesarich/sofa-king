@@ -52,7 +52,7 @@ The guide lists each item as a program: an episode under its show's title, with 
 
 A channel plays nothing until someone tunes in. The first request starts one FFmpeg per airing, which converts it to one format for every item, 1920×1080 at 30 frames a second with H.264 video and stereo AAC audio, so players never see the format change. It reads the file at the speed it plays, starting 12 seconds behind the schedule so a player has segments at once. Every viewer of a channel shares its one FFmpeg and sees the same picture. A stream nobody has read for a minute stops.
 
-The conversion uses the encoder `SOFA_HWACCEL` picks, as library playback does. Each playing channel counts toward `SOFA_MAX_TRANSCODES` with the library files being converted; past it, tuning in answers `503 CAPACITY_EXHAUSTED`, and the session moves to the channel's next source if it has one.
+The conversion uses the encoder `SOFA_HWACCEL` picks, as library playback does. Each playing channel counts toward `SOFA_MAX_TRANSCODES` with the library files being converted; past it, tuning in answers `503 CAPACITY_EXHAUSTED`, and the session moves to the channel's next source if it has one. Tuning in first takes the slot of the oldest converting trailer preview, as a library watch does.
 
 The relay fetches the stream from the server's own loopback route, `http://127.0.0.1:{port}/local/{key}/{channel}/live.m3u8`. The listener binds 127.0.0.1 only, and the random key changes at every start, so the route is reachable from nothing but the server. The address policy admits that route alone among loopback URLs.
 

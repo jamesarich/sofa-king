@@ -457,7 +457,7 @@ internal class RuntimeAssembly(
             scope,
             vod.encoder,
             slides = SlideFetcher(http, upstream),
-            mayStart = free,
+            mayStart = vod::makeRoom,
             gate = gate,
         )
         val tap = ChannelTap(sessions, feeds, loopback)

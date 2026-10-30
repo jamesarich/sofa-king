@@ -24,7 +24,7 @@ The Sofa King app watches a Sofa King server's live TV, recordings and media lib
 | [Development](development.md) | Build and test, Android Studio, running each platform, the TV checklist and probing a TV over `adb`, CI and snapshot builds |
 | [Dependencies](dependencies.md) | Pinned versions and how to change them |
 
-The app's [README](../README.md) introduces it. The repository's [CONTRIBUTING](../../CONTRIBUTING.md) covers the conventions the app shares with the server, and its [SECURITY](../../SECURITY.md) how to report a vulnerability. The [server's documentation](../../backend/docs/README.md) covers the lineup, sources and the API the app reads.
+The app's [README](../README.md) introduces it, [CONTRIBUTING](../../CONTRIBUTING.md) and [SECURITY](../../SECURITY.md) cover conventions and reporting, and the [server's documentation](../../backend/docs/README.md) covers the lineup, sources and the API the app reads.
 
 ## Glossary
 
@@ -33,7 +33,6 @@ The [repository glossary](../../docs/README.md#glossary) defines the terms the a
 | Term | Meaning |
 | --- | --- |
 | Category | A tag shown as a filter chip in the guide. A channel without a tag is under Other |
-| Guide source | The server's XMLTV source of programs for a channel, which the server's docs call a guide |
 | Preview | The muted picture of the focused channel in the guide |
 | Info bar | The overlay in the player with the channel and its current program |
 | Channel list | The list of channels the player opens over the picture, from the info bar, with Recent, Favorites, filter and All chips and the current channel's buttons |

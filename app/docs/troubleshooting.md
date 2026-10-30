@@ -7,13 +7,13 @@ Start with the message on screen, then the log. The app logs under the tag `Sofa
 | Symptom | Check |
 | --- | --- |
 | Connect to your Sofa King server | No server is set. Focus starts on the header's Settings button; press OK, choose or enter the Server address, enter the pairing code from the admin portal and select Pair. |
-| Servers on this network does not appear, or does not list the server | The app lists servers that [advertise themselves over mDNS](../../backend/docs/api.md#discovery), on Android, Android TV, desktops, iPhone, iPad and Apple TV; the web app does not look. On an iPhone or iPad, allow Local Network for Sofa King in the system's settings. The device must be on the server's subnet, and the server's log says `mdns: advertising` at the start. On Android 17, allow Nearby devices for Sofa King, which the app asks for at its first start, in the system's app settings. Otherwise enter the address. |
+| Servers on this network does not appear, or does not list the server | The app lists servers that [advertise themselves over mDNS](../../backend/docs/api.md#discovery), on Android, Android TV, desktops, iPhone, iPad and Apple TV; the web app does not look. The device must be on the server's subnet, and the server's log says `mdns: advertising` at the start. Allow the [local network permission](security.md#local-network) (Local Network on iPhone and iPad, Nearby devices on Android 17), or enter the address. |
 | The Server address field says to enter the server's address | Enter the host, with its port when it is not 9193, for example `192.168.1.10`, or the whole URL, for example `http://192.168.1.10:9193`. A path, credentials, queries and fragments are refused. |
 | On Apple TV, the keyboard closes by itself while you type | tvOS's keyboard sometimes loses track of which key it is on, and an arrow press then would stop the app; the app closes the keyboard instead. What you typed stays in the field; select the field to go on typing. |
-| Couldn't reach the Sofa King server | On Android 17, Sofa King needs the Nearby devices permission to reach the local network; allow it in the system's app settings. Check the address, the network and that the server is running: `curl --fail http://SERVER_HOST:9193/readyz` answers `ready`. Select Try again, which has focus, or Settings → Server → Reload to try again; the app also tries again after 5, 10, 20 and 40 seconds, then every minute. |
-| `AUTH_REQUIRED` | The API token does not match the server's. A token the server generated is `apiToken` in its `secrets.json`; a token set with `SOFA_API_TOKEN` is not stored there. The admin portal's [Settings page](../../backend/docs/admin.md#settings) reveals the API token under Advanced either way. |
-| Couldn't reach the Sofa King server, in a browser only | The server does not allow the page's origin. Serve the web app one of the ways [getting started](getting-started.md#web) describes. Behind a proxy, select Use this page's address under Server in Settings, then pair again. |
-| A web app on `https://` cannot reach the server | Browsers block requests from an HTTPS page to a plain-HTTP server. Put the server behind the same HTTPS proxy as the page, as [getting started](getting-started.md#web) describes. |
+| Couldn't reach the Sofa King server | On Android 17, allow Nearby devices ([local network](security.md#local-network)). Check the address, the network and that the server is running: `curl --fail http://SERVER_HOST:9193/readyz` answers `ready`. Select Try again, which has focus, or Settings → Server → Reload to try again; the app also tries again after 5, 10, 20 and 40 seconds, then every minute. |
+| `AUTH_REQUIRED` | The API token does not match the server's; [find it](getting-started.md#what-you-need). |
+| Couldn't reach the Sofa King server, in a browser only | The server does not allow the page's origin; see [serve the web app](../../backend/docs/deploy.md#serve-the-web-app). Behind a proxy, select Use this page's address under Server in Settings, then pair again. |
+| A web app on `https://` cannot reach the server | Browsers block requests from an HTTPS page to a plain-HTTP server; put both behind the same HTTPS proxy ([serve the web app](../../backend/docs/deploy.md#serve-the-web-app)). |
 
 ## Channels and guide
 
@@ -41,7 +41,7 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | Can't reach this stream. Check the server and try again. | The player could not connect to the stream or lost it. On a desktop with VLC installed, every failure the player reports shows this headline; on iOS, a connection that failed or timed out; in a browser, every one except an unsupported format. The player reconnects with backoff; press OK to retry now. |
 | The server refused this stream. Try again, or try another one. | On Android and iOS, the server's relay answered the stream request with an HTTP error, for example while it switches sources. The player reconnects with backoff; press OK to retry now. |
 | This stream's format isn't supported. Try another one. | On Android, the player could not read or decode the stream; on iOS, it did not recognize the format. In a browser, the channel streams a format the browser does not play; the server packages MPEG-TS as HLS for the web app, so this is another format, or a server from before that. |
-| `CAPACITY_EXHAUSTED` | Every playback slot on the server holds a watch session, from this app or another client, or one session has more than 12 media requests open at once. Stop a session, or raise the server's `SOFA_MAX_SESSIONS`. |
+| `CAPACITY_EXHAUSTED` | Every playback slot on the server holds a watch session, from this app or another client. Stop a session, or see the [server's troubleshooting](../../backend/docs/troubleshooting.md). |
 | `CHANNEL_NOT_FOUND` | The server's lineup changed. The app reloads it and follows the channel by number, then name. |
 | Preview unavailable | The server refused the preview session or the stream failed. The channel does not open full screen by itself. Focus another channel and come back. |
 | A stream stops and comes back | Failed and ended streams reconnect after 2, 4, 8 and 15 seconds, then every 30 seconds, while the player is open. On Android and iOS, a stream the server replaced, which its relay answers with 410, reconnects at once. OK retries immediately. |
@@ -57,7 +57,7 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | No Library tab | The server has no media library, or is too old to serve them. Add one on the admin portal's [Library page](../../backend/docs/admin.md#library); the tab appears within five minutes. |
 | No DVR tab or Record button | The server is too old to record; update it. Record shows only on programs that have not ended. |
 | A line under Record says the server did not take it | The program is not in the server's guide, or has ended. The server's [troubleshooting](../../backend/docs/troubleshooting.md#recordings) has the rest. |
-| `CAPACITY_EXHAUSTED` playing a library item or a recording | The server is already converting as many files as `SOFA_MAX_TRANSCODES` allows, and none came free in the 20 seconds the player waited. Stop playback elsewhere and try again. |
+| `CAPACITY_EXHAUSTED` playing a library item or a recording | The server is already converting as many files as it allows ([conversion](usage.md#conversion-progress-and-up-next)). Stop playback elsewhere and try again. |
 | A jump in a library item takes a moment | The server converts that file as it plays, and a jump past what it has converted restarts the conversion there. |
 | No commercial breaks on the seek bar | The server's Comskip scan found none, or has not finished; Skip commercials has nothing to skip. |
 
@@ -66,8 +66,8 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | Symptom | Check |
 | --- | --- |
 | No captions on this channel | The stream carries no CEA-608 or CEA-708 captions. |
-| Captions run behind the speech | Live captions are typed after the words are spoken. On Android, press CC, then Right within a few seconds to show them earlier on that channel. |
-| Captions run ahead of the speech | Some relays carry captions early. On Android, press CC, then Left within a few seconds to show them later on that channel, up to 8 seconds. |
+| Captions run behind the speech | Live captions are typed after the words are spoken. On Android, show them earlier with the [caption timing](usage.md#captions). |
+| Captions run ahead of the speech | Some relays carry captions early. On Android, show them later with the [caption timing](usage.md#captions). |
 | Captions appear letter by letter | On Android, turn on Settings → Captions → Smooth live captions. |
 | The caption style setting changes nothing | On a desktop and on iOS the player draws captions itself, and in a browser so does the browser's video element when the app falls back to it. [Captions](usage.md#captions) lists where the style applies. |
 
@@ -80,14 +80,10 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | The screen dims or locks while a channel plays, on a Linux desktop or in a browser | A Linux desktop follows its own idle settings, since the app keeps the display awake only on Windows and macOS. A browser keeps it awake only on a page served over HTTPS, and only in browsers with the Screen Wake Lock API. |
 | No sound when the web app opens a channel | The browser blocks sound until you interact with the page. Press any key or click, and the sound comes on. |
 | No captions, in Chrome | Chrome's built-in HLS player exposes no caption tracks. Safari exposes the stream's CEA-608 captions. |
-| No info bar or channel list over full-screen video, in a browser | The browser has no WebGL2, or the server sends no CORS headers on media for the page's origin. Serve the web app one of the ways [getting started](getting-started.md#web) describes. Escape still returns to the guide. |
+| No info bar or channel list over full-screen video, in a browser | The browser has no WebGL2, or the server sends no CORS headers on media for the page's origin. See [serve the web app](../../backend/docs/deploy.md#serve-the-web-app). Escape still returns to the guide. |
 | macOS or Windows will not open the app | Snapshot packages are unsigned. Allow the app in the system's security settings. |
 
 ## FAQ
-
-### Why does the app not find the server by itself?
-
-On Android, Android TV, desktops, iPhone, iPad and Apple TV, Settings lists the servers on the same network under Servers on this network; when yours is missing, see the first row of the table above. The web app does not look, so enter the server's address in Settings.
 
 ### Can I use it away from home?
 
@@ -95,7 +91,7 @@ Only through a connection the server allows, such as a VPN or an HTTPS reverse p
 
 ### Does it record or play in the background?
 
-It records: on a server that records, the program details offer Record and Record series, and recordings play from the DVR tab, as [DVR](usage.md#dvr) describes. On an Android phone or tablet, leaving the app while something plays shrinks it into a [picture-in-picture](usage.md#remote-controls) window that keeps playing. Music plays on behind the app, with its controls in the notification or Control Center ([music](usage.md#music)). Video does not play in the background elsewhere: it stops when the app leaves the screen, and returning opens the same channel at the live edge, or a library item or recording where it stopped.
+It records on a server that records ([DVR](usage.md#dvr)). Music plays on behind the app ([music](usage.md#music)). Video stops when the app leaves the screen, except in Android's [picture-in-picture](usage.md#remote-controls) window, and returning reopens the channel at the live edge, or a library item or recording where it stopped.
 
 ### Why will a snapshot APK not install over my build?
 

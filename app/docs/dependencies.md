@@ -25,23 +25,18 @@ Google TV's Continue watching row comes from the Engage SDK (`engage-tv`), Googl
 
 The visualizer's classic pack, `ui/src/commonMain/composeResources/files/presets.txt`, is 1,089 MilkDrop presets from the [projectM classic pack](https://github.com/projectM-visualizer/presets-projectm-classic) (`.milk` files by many authors, in folders such as bltc201, eyetune, tryptonaut and yin), stripped to the values and equations the engine uses and written in one text file. The pack carries no license text. Its maintainers' stance, which the sister Cream of the Crop pack states, is that the authors released their presets without a license and it is safe to assume they are public domain; Sofa King bundles them on that footing, and the presets stay their authors' work. An author who wants a preset out of the app opens an issue naming it, and the next release drops it. [Development](development.md#classic-visualizer-pack) says how the file is made.
 
-The catalog also pins the [formatting and static analysis](../../CONTRIBUTING.md#formatting-and-static-analysis) tools: Spotless and the ktlint version it runs (`ktlint`), and detekt with the Compose rules. detekt is on its 2.0 prerelease line (plugin id `dev.detekt`); Renovate proposes its updates like any other.
-
-Every version in the catalog is exact, and the wrapper has a pinned distribution checksum. Neither Gradle's resolved versions nor the Kotlin/JS and Kotlin/Wasm Yarn lockfiles are kept: Gradle resolves the pinned versions the same way on every machine, and Kotlin writes the Yarn lockfiles to the ignored `kotlin-js-store` on each build.
+The Kotlin/JS and Kotlin/Wasm Yarn lockfiles are not kept: Kotlin writes them to the ignored `kotlin-js-store` on each build.
 
 The app version is `sofaking` in the catalog's `[versions]`, shared with the contract and the server. Android's `versionName`, the desktop package, the Swift hosts' `MARKETING_VERSION` (through `tools/version-xcconfig.sh`, which XcodeGen runs) and the About row read it; snapshot builds add a suffix, as [CI and snapshots](development.md#ci-and-snapshots) describes.
 
 ## Changing versions
 
-[Renovate](../../renovate.json) proposes updates for the version catalog, the Gradle wrappers, the workflow actions and the server's base images, with Kotlin, the Android Gradle plugin and Compose Multiplatform in one pull request. It follows Kotlin, kotlinx.serialization and kotlinx.coroutines prereleases, and lists every pending update on its Dependency Dashboard issue. Renovate merges a minor, patch or digest update at least three days old once every check on the pull request's latest commit passes. Kotlin, the Android Gradle plugin, Compose Multiplatform and major updates wait for a person: check them as in steps 2 to 6 below before merging. The JDK and the Ubuntu runner image wait for approval on the dashboard.
+The pin policy and Renovate are in [CONTRIBUTING](../../CONTRIBUTING.md#dependencies); Kotlin, the Android Gradle plugin, Compose Multiplatform and major updates wait for a person, who checks them as follows. After the catalog edit:
 
-By hand:
-
-1. Update the exact versions in [the version catalog](../../gradle/libs.versions.toml).
-2. Run the [build and test](development.md#build-and-test) checks.
-3. For a change to playback, captions or the remote, run the [checks on a TV](development.md#test-on-a-tv).
-4. For a wrapper update, pin the official distribution checksum in `gradle-wrapper.properties`.
-5. For a Kotlin or kotlinx.serialization bump, which the one catalog moves for `contract/` and `backend/` too, follow the [contract's](../../contract/README.md) and the [server's](../../backend/docs/dependencies.md#changing-versions) update steps as well.
-6. For a wrapper, JDK or SDK change, update the table above.
+1. Run the [build and test](development.md#build-and-test) checks.
+2. For a change to playback, captions or the remote, run the [checks on a TV](development.md#test-on-a-tv).
+3. For a wrapper update, pin the official distribution checksum in `gradle-wrapper.properties`.
+4. For a Kotlin or kotlinx.serialization bump, which the one catalog moves for `contract/` and `backend/` too, follow the [contract's](../../contract/README.md) and the [server's](../../backend/docs/dependencies.md#changing-versions) update steps as well.
+5. For a wrapper, JDK or SDK change, update the table above.
 
 Published versions are listed on the [Kotlin](https://kotlinlang.org/docs/releases.html), [Android Gradle plugin](https://developer.android.com/build/releases/gradle-plugin), [Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform/releases) and [Gradle distribution](https://services.gradle.org/distributions/) pages.

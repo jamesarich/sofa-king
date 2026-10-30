@@ -10,7 +10,7 @@ Open Settings in the [admin portal](admin.md) and choose the Connect tab. Add a 
 | --- | --- |
 | Name | What the table calls it, such as Phone or Home Assistant |
 | Kind | ntfy, Apprise API or Webhook (JSON) |
-| URL | Where to send: the ntfy topic URL, the Apprise API notify URL, or the webhook URL. `http` or `https`, with no user name in it. Addresses on your network and on the server itself are allowed: unlike a source, a target is your own choice. A webhook or topic URL is a secret, so the table and the API show only its scheme and host; leave the field blank when you edit a target to keep the URL |
+| URL | The ntfy topic URL, the Apprise API notify URL, or the webhook URL: `http` or `https`, with no user name. Addresses on your network and on the server itself are allowed. The table and the API show only its scheme and host, since it is a secret; leave the field blank when you edit a target to keep it |
 | Secret | Optional. ntfy's access token, sent as `Authorization: Bearer`, or the key a webhook's body is signed with. The server never shows it again; leave it blank when you edit a target to keep it |
 | Events | What the target receives, below. A new target takes all but the attention items, which the home page already shows |
 
@@ -69,9 +69,9 @@ def genuine(body: bytes, header: str, secret: str) -> bool:
 
 ## Delivery
 
-Notifications go out in the background, four at a time, so a slow target holds up nothing else. A target that fails or does not answer is tried twice more, after 2 and 10 seconds; one that refuses with a 4xx other than 408 and 429 is not tried again. Up to 256 wait at once; past that a new one is dropped, with a warning in the log. The server keeps each target's newest 200 deliveries, which the API lists. The log names a target by its id, never by its URL, since a URL can carry a topic or a key.
+Notifications go out in the background, four at a time. A target that fails or does not answer is tried twice more, after 2 and 10 seconds; one that refuses with a 4xx other than 408 and 429 is not tried again. Up to 256 wait at once; past that a new one is dropped, with a warning in the log. The server keeps each target's newest 200 deliveries, which the API lists, and the log names a target by its id, never its URL.
 
-Nothing is replayed: a notification for an event while a target was off, or while the server was down, is not sent later.
+Nothing is replayed: an event while a target was off, or while the server was down, is not sent later.
 
 ## Recipes
 

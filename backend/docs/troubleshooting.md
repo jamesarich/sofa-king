@@ -43,7 +43,14 @@ The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_A
 | A channel vanished from the lineup | `GET /api/v1/admin/lineup/ENTRY_ID`: `autoDisabledAt` set means the lineup policy turned it off for want of an eligible source. `GET /api/v1/admin/policy/changes` has the change and `GET /api/v1/admin/stations/KEY` the station's candidates. |
 | `503 SOURCE_UNAVAILABLE` | No source of the channel is selectable now. `GET /api/v1/admin/lineup/ENTRY_ID` shows each source's state, and `/api/v1/sources` shows quarantine, probation or a manual disable. |
 | Extensionless HLS answers `410 STREAM_CHANGED` once | The source has not been probed yet. The first fetch detects HLS, stores it and starts a new epoch, so fetch the session again. Set `defaultProtocol` to `hls`, or `stream-type="hls"` on the entry, so unprobed sources start right. |
-| `429 CAPACITY_EXHAUSTED` | Every playback slot holds a watch session or a busy player stream. Release unused sessions or wait for their 90-second leases to expire. Previews and idle player sessions give way on their own. Raise `SOFA_MAX_SESSIONS` if the host can take it. A media request can also answer `429` when its session already has 12 requests in flight. |
+
+## Capacity exhausted
+
+| Answer | Cause and fix |
+| --- | --- |
+| `429 CAPACITY_EXHAUSTED` | Every `SOFA_MAX_SESSIONS` slot holds a watch session or a busy player stream. Release unused sessions or wait for their 90-second leases to expire; previews and idle player sessions give way on their own. Raise `SOFA_MAX_SESSIONS` if the host can take it. |
+| `429` on a media request | The request's session already has 12 requests in flight. |
+| `503 CAPACITY_EXHAUSTED` playing a library file | `SOFA_MAX_TRANSCODES` files, virtual channels or multiview streams are already being copied or converted. Stop one, or raise it if the CPU or GPU keeps up. |
 
 ## Guide
 
@@ -101,7 +108,6 @@ The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_A
 | A Music album or artist has no year, genres, cover, picture or biography | The [MusicBrainz lookup](libraries.md#details-from-musicbrainz) keeps only a match with the album's own title and artist; tag the files with MusicBrainz Picard to pin it. The scan's job note counts what MusicBrainz matched and says when it throttled the pass, which resumes on the next scan. `SOFA_MUSICBRAINZ=false` turns the lookups off. |
 | A movie or show has the wrong title or no details | Name it as [lay out the folders](libraries.md#lay-out-the-folders) shows, or pin the TMDB match with `{tmdb-ID}` in the folder name. Without a TMDB token, from `SOFA_TMDB_TOKEN` or the Library page, the details come only from the names and `.nfo` files; with it, the scan's job note says when TMDB refused the token or rate-limited the scan. |
 | The app offers no multiview | The server offers it only while a GPU encoder works; the log's `multiview:` line at start says why it is off. Set up [hardware transcoding](libraries.md#hardware-transcoding), or set `SOFA_MULTIVIEW=on` to draw it at 720p in software if the CPU has cores to spare. |
-| `503 CAPACITY_EXHAUSTED` when playing a library file | `SOFA_MAX_TRANSCODES` files, virtual channels or multiview streams are already being copied or converted. Stop one, or raise it if the CPU or GPU keeps up. |
 | Library playback stutters or is slow to start | The file is being converted on the CPU. Give the container a GPU, as [hardware transcoding](libraries.md#hardware-transcoding) describes; the log's `vod encoder` line at start names the encoder in use. |
 | `vod encoder unavailable` in the log at start | The GPU encoder failed its test frame, so files convert in software. Check the `/dev/dri` device and `group_add` for `vaapi` and `qsv`, or for `nvenc` the NVIDIA Container Toolkit and the `compute,video,utility` driver capabilities ([hardware transcoding](libraries.md#hardware-transcoding)). |
 

@@ -156,7 +156,7 @@ With a lineup policy, `PATCH` and `DELETE` on `/api/v1/admin/lineup/{id}` write 
 
 ### Logos
 
-Clients, players and Plex see every logo at `http://SERVER_HOST:9193/logos/KEY` on this server, not on the logo's source host. A channel's logo is the entry's own, else the first of its sources' `tvg-logo` values, else the mapped guide channel's `<icon>`. The server keeps each logo under `SOFA_DATA_DIR/logos/` and refreshes it weekly; a refresh that fails keeps the stored file, so retiring a logo host leaves the logos in place. [API logos](api.md#logos) describes what clients get, and [architecture](architecture.md#logos) how logos are fetched and stored.
+The server keeps each logo under `SOFA_DATA_DIR/logos/`, refreshes it weekly and keeps the stored file when a refresh fails, so retiring a logo host leaves the logos in place. Clients, players and Plex fetch them from this server; [API logos](api.md#logos) says how a channel's logo is chosen and served.
 
 ## Third-party players
 

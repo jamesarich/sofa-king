@@ -12,7 +12,7 @@ RUN mkdir -p /app/lib \
     && rm /app/bin/*.bat
 
 # Pinned by digest so a rebuild gets the same base; the tag names the JRE it holds.
-FROM eclipse-temurin:21.0.12.1_1-jre-noble@sha256:000fd431958bc81a24abe1e8e5f0f0fd3ae365a594bd50aadb20696805f9408c
+FROM eclipse-temurin:21.0.12.1_1-jre-noble@sha256:cd35bb33859641c5374415826a5951845104093eaa401cbe9d3d9023444f1c13
 
 # tini reaps the FFmpeg processes the server starts for probes and remuxing, under any container runtime.
 # sqlite3 takes online database backups from inside the container. comskip (GPL, run as its own program) finds commercial breaks in recordings.

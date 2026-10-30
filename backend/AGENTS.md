@@ -4,7 +4,7 @@ Kotlin/JVM media center server (live TV, recordings and media libraries) for the
 
 ## Build
 
-Use JDK 21 and FFmpeg on the path (the tests generate HLS fixtures with it through `MediaFixture`; CI uses Ubuntu 24.04's FFmpeg 6.1, the version the image ships, and its output differs from newer majors; on macOS the intro detector, segment audio and HDHomeRun stall tests fail whatever FFmpeg is on the path, so CI checks them). Comskip on the path runs one more test, which skips without it; CI and the image install Ubuntu's. The server's Gradle build is `backend/`; on the shared host, run from the repository root:
+Use JDK 21 and FFmpeg on the path (the tests generate HLS fixtures with it through `MediaFixture`; CI uses Ubuntu 24.04's FFmpeg 6.1, the version the image ships, and its output differs from newer majors; on macOS the intro detector, segment audio and HDHomeRun stall tests fail whatever FFmpeg is on the path, so CI checks them). Comskip on the path runs one more test, which skips without it; CI's `test` job and the image install Ubuntu's; the `comskip` job builds it with `scripts/build-comskip.sh` on 26.04. The server's Gradle build is `backend/`; on the shared host, run from the repository root:
 
 ```sh
 /home/james/.claude/bin/gradle-queue -C backend -- spotlessCheck detekt test :server:installDist

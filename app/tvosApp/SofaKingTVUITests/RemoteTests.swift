@@ -58,6 +58,9 @@ final class RemoteTests: XCTestCase {
         remote.press(.select)
         eventually("Sofa Sports to open a playback session", timeout: 30) { !server.watching().isEmpty }
         let tuned = server.watching().first?["channelId"] as? String
+        // Select turns the guide's preview into the watch session at once, before the player is on screen; Up and Down
+        // zap only once the player is up and its transport bar has hidden again.
+        RunLoop.current.run(until: Date().addingTimeInterval(8))
 
         remote.press(.down)
         eventually("Down to tune another channel", timeout: 30) {

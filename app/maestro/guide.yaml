@@ -26,8 +26,5 @@ name: Guide to full screen and back
     visible:
       id: "guide"
     timeout: 15000
-# The player leaves with an animation, so its node can outlast the guide's return by a moment.
-- extendedWaitUntil:
-    notVisible:
-      id: "player"
-    timeout: 5000
+- assertNotVisible:
+    id: "player"

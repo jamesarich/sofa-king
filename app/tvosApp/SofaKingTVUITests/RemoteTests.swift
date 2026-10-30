@@ -234,9 +234,13 @@ final class RemoteTests: XCTestCase {
         // The launch decision opens the last channel once the lineup is in, and a start reopens the last tab.
         RunLoop.current.run(until: Date().addingTimeInterval(3))
         if !server.watching().isEmpty { leavePlayer() }
-        // The tab bar shows before the server answers and the guide follows, so the guide gets its time first.
-        if !list.waitForExistence(timeout: 15) {
-            focus(app.tabBars.buttons["Live"], by: Array(repeating: XCUIRemote.Button.up, count: 6) + Array(repeating: XCUIRemote.Button.left, count: 3))
+        if !list.exists {
+            // A start reopens the tab the last test left, so Up reaches the bar and Left selects Live, whose button
+            // is then named by its icon, not "Live"; the guide, not that button, says Live is open.
+            for move in Array(repeating: XCUIRemote.Button.up, count: 6) + Array(repeating: XCUIRemote.Button.left, count: 3) {
+                if settled(list.exists) { break }
+                remote.press(move)
+            }
             remote.press(.down)
         }
         XCTAssertTrue(list.waitForExistence(timeout: 10), "No channel list\n\(screen)")

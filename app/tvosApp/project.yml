@@ -49,9 +49,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.jamesrich.sofaking.tv
-        # Assets.xcassets holds the layered app icon and Top Shelf images (AppIcon.brandassets), the amber accent and the launch color.
+        # Assets.xcassets holds the layered app icon and Top Shelf images (AppIcon.brandassets) and the launch color. No
+        # global accent: tvOS paints an unfocused button's fill and label with it, so amber hid the guide's buttons.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         # core has no tvosX64 target, so simulator builds are Apple silicon only.
         "EXCLUDED_ARCHS[sdk=appletvsimulator*]": x86_64

@@ -723,7 +723,8 @@
             "enum": ["scanning", "done", "failed", null],
             "description": "How far the commercial scan of a kept recording got; null when the server does not look."
           },
-          "breaks": { "type": "array", "items": { "$ref": "#/components/schemas/RecordingBreak" }, "description": "The commercial breaks found, in order." }
+          "breaks": { "type": "array", "items": { "$ref": "#/components/schemas/RecordingBreak" }, "description": "The commercial breaks found, in order." },
+          "updatedAt": { "type": ["string", "null"], "format": "date-time", "description": "When the server last changed the recording; null from an older server." }
         }
       },
       "RecordingBreak": {

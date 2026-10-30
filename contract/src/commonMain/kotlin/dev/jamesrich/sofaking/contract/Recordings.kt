@@ -11,7 +11,8 @@ import kotlinx.serialization.Serializable
  * [path] is relative to the recordings folder once the file exists. [conflict] marks a scheduled recording that
  * overlaps more recordings than the server has playback slots. [ruleId] names the series rule that scheduled it.
  * [commercials] is a [Wire.CommercialScan] value once the server looks for commercial breaks, and [breaks] are the
- * ones it found, in the order they play.
+ * ones it found, in the order they play. [updatedAt] is when the server last changed the recording: its state, file,
+ * scan or the viewer's position, null from an older server.
  */
 @Serializable data class Recording(
     val id: String,
@@ -40,6 +41,7 @@ import kotlinx.serialization.Serializable
     val watched: Boolean = false,
     val commercials: String? = null,
     val breaks: List<RecordingBreak> = emptyList(),
+    val updatedAt: String? = null,
 )
 
 /** A commercial break in a recording, from [startMs] to [endMs] after the start of the file. */

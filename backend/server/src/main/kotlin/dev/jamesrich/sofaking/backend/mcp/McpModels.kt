@@ -186,6 +186,8 @@ import kotlinx.serialization.Serializable
     /** The commercial scan's state (`null` before one runs) and how many breaks it found. */
     val commercials: String? = null,
     val breaks: Int = 0,
+    /** When the recording last changed. */
+    val updatedAt: String? = null,
 )
 
 /** A page of recordings with the recordings folder's disk. */

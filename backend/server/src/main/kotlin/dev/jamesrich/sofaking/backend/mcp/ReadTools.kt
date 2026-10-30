@@ -272,6 +272,7 @@ private fun Program.airing(channel: String? = null, channelId: String? = null) =
 internal fun Recording.row() = RecordingRow(
     id, channelId, channelName, title, episodeTitle, season, episode, movie, startsAt, endsAt, state, reason, ruleId,
     bytes, protected, conflict, watched, commercials, breaks.size,
+    updatedAt,
 )
 
 private fun JobStatus.info() = JobInfo(

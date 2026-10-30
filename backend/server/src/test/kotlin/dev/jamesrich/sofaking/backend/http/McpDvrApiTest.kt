@@ -132,7 +132,7 @@ class McpDvrApiTest {
         assertTrue(unknown && why.startsWith("CHANNEL_NOT_FOUND: "), why)
     }
 
-    @Test fun `recordings shows the commercial scan state and the break count`() = mcp {
+    @Test fun `recordings shows the commercial scan state, the break count and when it last changed`() = mcp {
         val start = Instant.parse("2026-10-09T13:00:00Z")
         runtime.store.addRecording(
             StoredRecording(
@@ -148,6 +148,7 @@ class McpDvrApiTest {
         val row = Json.parseToJsonElement(text).field("recordings")!!.jsonArray.single()
         assertEquals(Wire.CommercialScan.DONE, row.field("commercials")!!.jsonPrimitive.content, text)
         assertEquals(2, row.field("breaks")!!.jsonPrimitive.int, text)
+        assertEquals(start.toString(), row.field("updatedAt")!!.jsonPrimitive.content, text)
     }
 
     @Test fun `a window the route refuses is refused the same by schedule_recording`() = mcp {

@@ -94,10 +94,10 @@ class StatusApiTest {
                 assertEquals(StatusRecordings(0, 0, 0), summary.recordings)
                 assertEquals(StatusLibraries(0, 0, 0, 0, 0), summary.libraries)
                 assertNull(summary.updateAvailable, "no update check has run")
-                for (opens in listOf(token, device)) {
+                for (opens in listOf(token, device, admin)) {
                     assertEquals(HttpStatusCode.OK, client.get("/api/v1/status") { bearerAuth(opens) }.status)
                 }
-                for (refused in listOf(hook, admin, "")) {
+                for (refused in listOf(hook, "")) {
                     assertEquals(
                         HttpStatusCode.Unauthorized,
                         client.get("/api/v1/status") { bearerAuth(refused) }.status,

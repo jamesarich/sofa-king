@@ -87,8 +87,8 @@ fun Application.backendModule(
             runtime.dvr?.let { recordingRoutes(it, clock) }
             watchlistRoutes(runtime.watchlist)
             playbackRoutes(runtime)
-            outputRoutes(runtime, clock, outputs, apiToken)
-            calendarRoutes(runtime, clock, outputs, apiToken)
+            outputRoutes(runtime, clock, outputs, apiToken, adminToken)
+            calendarRoutes(runtime, clock, outputs, apiToken, adminToken)
             logoRoutes(runtime.logos)
             runtime.libraries?.let {
                 libraryRoutes(it)

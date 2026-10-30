@@ -5,8 +5,11 @@ import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.admin.isPortalPath
 import dev.jamesrich.sofaking.backend.api.TokenScope
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
+import dev.jamesrich.sofaking.backend.dvr.StoredRecording
+import dev.jamesrich.sofaking.backend.store.addRecording
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.ApiError
+import dev.jamesrich.sofaking.contract.RecordingBreak
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.cookies.HttpCookies
@@ -14,14 +17,19 @@ import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.request
+import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.request
+import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.append
+import io.ktor.http.contentType
 import io.ktor.http.parameters
 import io.ktor.http.path
 import io.ktor.http.set
@@ -48,6 +56,8 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
+import java.time.Duration
+import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -223,24 +233,95 @@ class RouteGuardTest {
         }
     }
 
-    @Test fun `every admin API route answers 401 with the API token, and every other API route with the admin token`() =
+    @Test fun `every admin API route answers 401 with the API token, and every API route opens to the admin token`() =
         testApplication {
             routes {
                 val admin = endpoints.filter { it.isAdminApi() }
                 assertTrue(admin.size > 20, "only ${admin.size} admin routes")
                 val violations = buildList {
                     for (endpoint in admin) {
-                        refused(call(endpoint, apiToken))?.let {
-                            add("$endpoint with the API token: $it")
-                        }
+                        refused(call(endpoint, apiToken))?.let { add("$endpoint with the API token: $it") }
                     }
+                    // The admin routes run for the admin token in their own tests; the sweep would run them all here.
                     for (endpoint in endpoints.filter { it.isApi() && !it.isAdminApi() && it.path != PAIR_PATH }) {
-                        refused(call(endpoint, adminToken))?.let { add("$endpoint with the admin token: $it") }
+                        if (refused(call(endpoint, adminToken)) == null) add("$endpoint refused the admin token")
                     }
                 }
                 assertTrue(violations.isEmpty(), violations.joinToString("\n"))
             }
         }
+
+    @Test fun `the admin token reads the viewer routes, a wrong token and none do not, a device token still does`() =
+        testApplication {
+            routes {
+                val device = runtime.tokens.pair("tv-1", "TV")
+                val start = Instant.parse("2026-10-09T13:00:00Z")
+                runtime.store.addRecording(
+                    StoredRecording(
+                        "done", null, "channel", "Channel", start, start.plusSeconds(1800),
+                        Duration.ofSeconds(60), Duration.ofSeconds(120), "Show",
+                        state = Wire.RecordingState.COMPLETED, path = "Show/Show.ts", bytes = 8, createdAt = start,
+                        updatedAt = start, commercials = Wire.CommercialScan.DONE,
+                        breaks = listOf(RecordingBreak(1_000, 2_500)),
+                    ),
+                )
+                val viewerReads = listOf(
+                    "/api/v1/channels",
+                    "/api/v1/recordings",
+                    "/api/v1/recordings/done",
+                    "/api/v1/guide/on-later?kind=movie",
+                    "/api/v1/household/preferences",
+                    "/api/v1/status",
+                )
+                for (path in viewerReads) {
+                    for ((name, token) in listOf("admin" to adminToken, "device" to device)) {
+                        val status = client.get(path) { bearerAuth(token) }.status
+                        assertEquals(HttpStatusCode.OK, status, "GET $path with the $name token")
+                    }
+                    for (token in listOf(null, apiToken.reversed(), adminToken.reversed())) {
+                        val status = client.get(path) { token?.let { bearerAuth(it) } }.status
+                        assertEquals(HttpStatusCode.Unauthorized, status, "GET $path with ${token ?: "no token"}")
+                    }
+                }
+                // A session route past the guard answers for the session, not for the token.
+                val session = client.get("/api/v1/playback-sessions/x") { bearerAuth(adminToken) }
+                assertEquals(HttpStatusCode.Gone, session.status)
+                val body = client.get("/api/v1/recordings/done") { bearerAuth(adminToken) }.bodyAsText()
+                assertTrue(body.contains(Wire.CommercialScan.DONE), body)
+            }
+        }
+
+    @Test fun `the admin token writes any viewer, a token paired to a device only its own`() = testApplication {
+        routes {
+            val device = runtime.tokens.pair("tv-1", "TV")
+            suspend fun put(clientId: String, token: String) = client.put("/api/v1/preferences/$clientId") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"favorites":["a"]}""")
+            }.status
+            assertEquals(HttpStatusCode.OK, put("tv-1", adminToken))
+            assertEquals(HttpStatusCode.OK, put("tv-2", adminToken))
+            assertEquals(HttpStatusCode.OK, put("tv-1", device))
+            assertEquals(HttpStatusCode.Forbidden, put("tv-2", device))
+            // Watch state belongs to the household, so the admin token saves it as any device does.
+            val start = Instant.parse("2026-10-09T13:00:00Z")
+            runtime.store.addRecording(
+                StoredRecording(
+                    "done", null, "channel", "Channel", start, start.plusSeconds(1800),
+                    Duration.ofSeconds(60), Duration.ofSeconds(120), "Show",
+                    state = Wire.RecordingState.COMPLETED, path = "Show/Show.ts", bytes = 8, createdAt = start,
+                    updatedAt = start,
+                ),
+            )
+            val patch = client.patch("/api/v1/recordings/done") {
+                bearerAuth(adminToken)
+                contentType(ContentType.Application.Json)
+                setBody("""{"watched":true}""")
+            }
+            assertEquals(HttpStatusCode.OK, patch.status)
+            assertTrue(patch.bodyAsText().contains("\"watched\":true"))
+        }
+    }
 
     @Test fun `issued tokens open no admin route but the reads a read token is for`() = testApplication {
         routes {
@@ -283,7 +364,7 @@ class RouteGuardTest {
             }
         }
 
-    @Test fun `every hook opens to a hook token or the API token and to no other`() = testApplication {
+    @Test fun `every hook opens to a hook, API or admin token and to no other`() = testApplication {
         routes {
             val device = runtime.tokens.pair("tv-1", "TV")
             val read = runtime.tokens.create("Homepage", TokenScope.READ).second
@@ -293,11 +374,12 @@ class RouteGuardTest {
             val violations = buildList {
                 for (endpoint in hooks) {
                     refused(call(endpoint))?.let { add("$endpoint without a token: $it") }
-                    for ((name, wrong) in listOf("device" to device, "read" to read, "admin" to adminToken)) {
+                    for ((name, wrong) in listOf("device" to device, "read" to read)) {
                         refused(call(endpoint, wrong))?.let { add("$endpoint with the $name token: $it") }
                     }
                     if (refused(call(endpoint, hook)) == null) add("$endpoint refused a hook token")
                     if (refused(call(endpoint, apiToken)) == null) add("$endpoint refused the API token")
+                    if (refused(call(endpoint, adminToken)) == null) add("$endpoint refused the admin token")
                 }
             }
             assertTrue(violations.isEmpty(), violations.joinToString("\n"))

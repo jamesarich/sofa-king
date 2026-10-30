@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.hash
 import dev.jamesrich.sofaking.backend.store.addRecording
 import dev.jamesrich.sofaking.backend.store.touchViewer
 import dev.jamesrich.sofaking.contract.ApiError
+import dev.jamesrich.sofaking.contract.RecordingBreak
 import dev.jamesrich.sofaking.contract.ScheduleRecording
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.request.bearerAuth
@@ -129,6 +130,24 @@ class McpDvrApiTest {
             ),
         )
         assertTrue(unknown && why.startsWith("CHANNEL_NOT_FOUND: "), why)
+    }
+
+    @Test fun `recordings shows the commercial scan state and the break count`() = mcp {
+        val start = Instant.parse("2026-10-09T13:00:00Z")
+        runtime.store.addRecording(
+            StoredRecording(
+                "scanned", null, "channel", "Channel", start, start.plusSeconds(1800),
+                Duration.ofSeconds(60), Duration.ofSeconds(120), "Show",
+                state = Wire.RecordingState.COMPLETED, path = "Show/Show.ts", bytes = 8, createdAt = start,
+                updatedAt = start, commercials = Wire.CommercialScan.DONE,
+                breaks = listOf(RecordingBreak(1_000, 2_500), RecordingBreak(9_000, 12_000)),
+            ),
+        )
+        val (failed, text) = call(admin, "recordings")
+        assertFalse(failed, text)
+        val row = Json.parseToJsonElement(text).field("recordings")!!.jsonArray.single()
+        assertEquals(Wire.CommercialScan.DONE, row.field("commercials")!!.jsonPrimitive.content, text)
+        assertEquals(2, row.field("breaks")!!.jsonPrimitive.int, text)
     }
 
     @Test fun `a window the route refuses is refused the same by schedule_recording`() = mcp {

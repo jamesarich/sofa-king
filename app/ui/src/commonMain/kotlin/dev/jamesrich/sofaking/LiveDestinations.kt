@@ -13,6 +13,7 @@ import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMarks
+import dev.jamesrich.sofaking.data.ZapScope
 import dev.jamesrich.sofaking.data.playerLineup
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.channel_gone
@@ -41,7 +42,6 @@ import dev.jamesrich.sofaking.ui.player.PlayerBreaks
 import dev.jamesrich.sofaking.ui.player.PlayerCaptions
 import dev.jamesrich.sofaking.ui.player.PlayerRecording
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
-import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant

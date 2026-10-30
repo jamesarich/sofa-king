@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.data.ZapScope
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.filter_all
 import dev.jamesrich.sofaking.resources.filter_favorites

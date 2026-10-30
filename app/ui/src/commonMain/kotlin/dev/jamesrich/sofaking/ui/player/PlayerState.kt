@@ -10,6 +10,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.ZapScope
 
 /**
  * Caption toggle feedback; compared by identity so a repeated press restarts its timer. While [timingMs] is set,

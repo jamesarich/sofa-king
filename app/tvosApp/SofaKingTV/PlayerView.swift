@@ -11,6 +11,8 @@ import SofaKingCore
 /// live player, and Menu from it comes back to the channel live. With Settings › During ads on a logo, the break screen covers the ads a streaming channel marks, as
 /// the server places them from the segments AVPlayer fetched; Show picture over it brings the picture back for that break.
 /// The menu's Sleep timer leaves the player when it runs out, a number of minutes on or at the end of the program on now.
+/// With the transport bar hidden, a click on the remote's Up or Down edge, and next or previous from a CEC or iPhone
+/// remote, step through the channels the guide's filter listed; a toast names the one the presses settle on.
 struct PlayerView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
@@ -44,9 +46,22 @@ struct PlayerView: View {
     /// The channel's logo bytes for the info panel, and the program the item's metadata was last set for.
     @State private var logo: Data?
     @State private var metadataKey = ""
+    /// The guide filter the channel was picked from, which Up and Down stay inside; nil for All.
+    @State private var scope: ZapScope?
+    /// A channel typed or listed outside the scope widens Up and Down to the whole lineup, as in the Compose app.
+    @State private var widened: Bool
+    /// The channel the presses so far have reached; it tunes once they rest for the settle time.
+    @State private var zapPending: Channel?
+    @State private var zapTask: Task<Void, Never>?
+    /// The channel the toast names, and the task that takes it down.
+    @State private var toast: Channel?
+    @State private var toastTask: Task<Void, Never>?
+    @State private var commands = ZapCommands()
 
-    init(channel: Channel) {
+    init(channel: Channel, scope: ZapScope? = nil) {
         _channel = State(initialValue: channel)
+        _scope = State(initialValue: scope)
+        _widened = State(initialValue: scope.map { !$0.guideIds.contains(channel.guideId) } ?? false)
     }
 
     var body: some View {
@@ -56,10 +71,22 @@ struct PlayerView: View {
                 menuItems: menuItems,
                 actions: breakActions,
                 itemsContext: itemsContext,
-                breakScreen: breakScreen
+                breakScreen: breakScreen,
+                onZap: zap
             ).ignoresSafeArea()
             if let failure {
                 Text(failure).padding().background(.thinMaterial, in: .rect(cornerRadius: 16))
+            }
+            if let toast {
+                Text(Self.label(toast))
+                    .font(.title2.bold())
+                    .padding(.horizontal, 28)
+                    .padding(.vertical, 16)
+                    .background(.thinMaterial, in: .capsule)
+                    .padding(60)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
             }
         }
         .fullScreenCover(item: $fromStart, onDismiss: { Task { await tune() } }) { request in
@@ -98,9 +125,13 @@ struct PlayerView: View {
             model.music.stop()
             player.isMuted = false
             replaced = model.core.watchReplaced { stream in play(stream) }
+            commands.install { step in zap(step) }
         }
         .onDisappear {
             shown = false
+            commands.remove()
+            zapTask?.cancel()
+            toastTask?.cancel()
             model.sleep = SleepTimer()
             stopCovering()
             replaced?.cancel()
@@ -385,8 +416,45 @@ struct PlayerView: View {
         return UIMenu(title: title, options: inline ? [.displayInline] : [], children: actions)
     }
 
+    /// `12 Channel name`, as the Channels menu lists a channel.
+    private static func label(_ channel: Channel) -> String { "\(channel.number.formatted()) \(channel.name)" }
+
+    /// Steps `step` channels through the ring (positive is down the guide) and tunes the one the presses rest on.
+    /// Up and Down on the picture, and next and previous from a CEC or iPhone remote, come here.
+    private func zap(_ step: Int) {
+        guard shown, fromStart == nil, multiview == nil else { return }
+        let ring = ZapScopeKt.zapRing(lineup: model.lineup?.channels ?? [], scope: scope, widened: widened)
+        guard let next = ZapScopeKt.zapNeighbor(ring: ring, from: (zapPending ?? channel).guideId, step: Int32(step)) else { return }
+        zapPending = next
+        showToast(next)
+        zapTask?.cancel()
+        zapTask = Task {
+            let settle = ZapScopeKt.zapSettleMs(tuned: channel, next: next)
+            try? await Task.sleep(for: .milliseconds(settle))
+            guard !Task.isCancelled else { return }
+            zapTask = nil
+            UIAccessibility.post(notification: .announcement, argument: Self.label(next))
+            switchTo(next)
+        }
+    }
+
+    /// Names the channel at the top left for a moment.
+    private func showToast(_ next: Channel) {
+        withAnimation(.easeOut(duration: 0.15)) { toast = next }
+        toastTask?.cancel()
+        toastTask = Task {
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeIn(duration: 0.3)) { toast = nil }
+        }
+    }
+
     /// Tunes another channel; the server releases the held session and opens the next, as the Compose app's zap does.
     private func switchTo(_ next: Channel) {
+        zapTask?.cancel()
+        zapTask = nil
+        zapPending = nil
+        if let scope, !scope.guideIds.contains(next.guideId) { widened = true }
         guard next.guideId != channel.guideId else { return }
         reconnect?.cancel()
         reconnect = nil
@@ -456,7 +524,10 @@ private struct PlayerController: UIViewControllerRepresentable {
     /// The channel and program the items' handlers act on.
     let itemsContext: String
     let breakScreen: BreakScreen?
+    /// Up (-1) and Down (+1) clicked on the picture while the transport bar is hidden.
+    let onZap: (Int) -> Void
 
+    @MainActor
     final class Coordinator {
         let hosting = UIHostingController<BreakScreen?>(rootView: nil)
         let items = TransportBarItems()
@@ -470,8 +541,9 @@ private struct PlayerController: UIViewControllerRepresentable {
     }
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
-        let controller = AVPlayerViewController()
+        let controller = ZapPlayerViewController()
         controller.player = player
+        controller.zap.onZap = onZap
         context.coordinator.items.apply(menus: menuItems, actions: actions, context: itemsContext, to: controller)
         if let overlay = controller.contentOverlayView {
             context.coordinator.hosting.view.frame = overlay.bounds
@@ -482,6 +554,7 @@ private struct PlayerController: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
+        (controller as? ZapPlayerViewController)?.zap.onZap = onZap
         context.coordinator.items.apply(menus: menuItems, actions: actions, context: itemsContext, to: controller)
         context.coordinator.hosting.rootView = breakScreen
     }

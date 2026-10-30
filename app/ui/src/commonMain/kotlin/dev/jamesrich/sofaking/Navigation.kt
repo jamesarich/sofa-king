@@ -1,9 +1,9 @@
 package dev.jamesrich.sofaking
 
 import androidx.navigation3.runtime.NavKey
+import dev.jamesrich.sofaking.data.ZapScope
 import dev.jamesrich.sofaking.ui.library.SEARCH_FOCUS_KEY
 import dev.jamesrich.sofaking.ui.library.libraryFocusKey
-import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.settings.CHANNELS_FOCUS_KEY
 import dev.jamesrich.sofaking.ui.settings.LICENSES_FOCUS_KEY
 import dev.jamesrich.sofaking.ui.settings.STARTUP_FOCUS_KEY

@@ -38,7 +38,9 @@ import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.ProgramFacts
+import dev.jamesrich.sofaking.data.ZapScope
 import dev.jamesrich.sofaking.data.breakFacts
+import dev.jamesrich.sofaking.data.zapRing
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.a11y_open_channel_list
 import dev.jamesrich.sofaking.resources.a11y_show_controls
@@ -71,17 +73,6 @@ private const val SWIPE_UP_DP = 80
 
 /** The server's answer when a session is asked for a channel id its lineup no longer has. */
 internal const val CHANNEL_NOT_FOUND = Wire.ErrorCode.CHANNEL_NOT_FOUND
-
-/**
- * How long a zap rests before the new channel is tuned, so pressing through channels does not open a session per press.
- */
-internal const val ZAP_SETTLE_MS = 400L
-
-/**
- * A zap from a tuned channel waits [ZAP_SETTLE_MS]; the first tune, which may take over the preview's stream, does not.
- */
-internal fun zapSettleMs(tuned: Channel?, next: Channel): Long =
-    if (tuned == null || tuned.guideId == next.guideId) 0L else ZAP_SETTLE_MS
 
 /** The full-screen player's test tag; Android exposes it as a resource id for the Baseline Profile generator. */
 const val PLAYER_TEST_TAG = "player"

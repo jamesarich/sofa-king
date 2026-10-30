@@ -8,8 +8,8 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingWindow
 import dev.jamesrich.sofaking.data.SeriesOptions
+import dev.jamesrich.sofaking.data.ZapScope
 import dev.jamesrich.sofaking.ui.player.LivePlayer
-import dev.jamesrich.sofaking.ui.player.ZapScope
 import kotlin.time.Instant
 
 /**

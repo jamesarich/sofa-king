@@ -49,6 +49,42 @@ final class RemoteTests: XCTestCase {
         leavePlayer()
     }
 
+    /// With the transport bar hidden, Down tunes the next channel and Up returns to the first.
+    @MainActor
+    func testPlayerZapsWithUpAndDown() throws {
+        try launchToList()
+        let sports = row("Sofa Sports")
+        focus(sports, by: Array(repeating: XCUIRemote.Button.down, count: 5) + Array(repeating: XCUIRemote.Button.up, count: 8))
+        remote.press(.select)
+        eventually("Sofa Sports to open a playback session", timeout: 30) { !server.watching().isEmpty }
+        let tuned = server.watching().first?["channelId"] as? String
+        // Select turns the guide's preview into the watch session at once, before the player is on screen; Up and Down
+        // zap only once the player is up and its transport bar has hidden again.
+        RunLoop.current.run(until: Date().addingTimeInterval(8))
+
+        zap(.down, "Down to tune another channel") { server.watching().contains { $0["channelId"] as? String != tuned } }
+        zap(.up, "Up to return to the first channel") {
+            server.watching().count == 1 && server.watching().first?["channelId"] as? String == tuned
+        }
+
+        leavePlayer()
+    }
+
+    /// Presses `button` until `tuned` holds. The player's transport bar stays up for as long as it likes after the
+    /// player opens, and a press that finds it up moves along the bar or hides it instead of zapping.
+    @MainActor
+    private func zap(_ button: XCUIRemote.Button, _ what: String, until tuned: () -> Bool) {
+        for _ in 0..<4 {
+            remote.press(button)
+            let deadline = Date().addingTimeInterval(6)
+            while Date() < deadline {
+                if tuned() { return }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            }
+        }
+        XCTFail("Timed out waiting for \(what)\n\(screen)")
+    }
+
     /// Moving along the tab bar opens each tab, Down moves focus into it, and Up brings focus back to the tab bar.
     @MainActor
     func testTabs() throws {

@@ -9,8 +9,8 @@ import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.ProgramKind
+import dev.jamesrich.sofaking.data.ZapScope
 import dev.jamesrich.sofaking.data.orderedFavorites
-import dev.jamesrich.sofaking.ui.player.ZapScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.milliseconds

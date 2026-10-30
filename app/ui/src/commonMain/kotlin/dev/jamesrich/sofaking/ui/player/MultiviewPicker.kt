@@ -35,6 +35,7 @@ import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.listRowColors
 import dev.jamesrich.sofaking.ui.listRowShapes
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import dev.jamesrich.sofaking.ui.sectionHeading
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrimDense
 import dev.jamesrich.sofaking.ui.theme.tvFocus
@@ -67,7 +68,11 @@ internal fun MultiviewPicker(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(stringResource(Res.string.multiview_title), style = MaterialTheme.typography.headlineSmall)
+            Text(
+                stringResource(Res.string.multiview_title),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.sectionHeading(),
+            )
             Text(stringResource(Res.string.multiview_pick_hint), style = MaterialTheme.typography.bodyMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SofaButton(

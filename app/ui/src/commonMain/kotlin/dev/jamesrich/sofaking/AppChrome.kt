@@ -63,6 +63,7 @@ import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.SofaLoaderLabel
+import dev.jamesrich.sofaking.ui.announcesChanges
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
@@ -376,6 +377,7 @@ private fun Header(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.announcesChanges(),
                 )
             }
         }

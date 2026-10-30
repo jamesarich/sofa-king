@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="a11y_show_controls">Show controls</string>
+    <string name="a11y_open_channel_list">Open channel list</string>
+    <string name="a11y_button_for">%1$s, %2$s</string>
+</resources>

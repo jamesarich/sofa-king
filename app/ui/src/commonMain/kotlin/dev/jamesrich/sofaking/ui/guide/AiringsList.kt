@@ -28,6 +28,7 @@ import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.listRowColors
 import dev.jamesrich.sofaking.ui.listRowShapes
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
+import dev.jamesrich.sofaking.ui.sectionHeading
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.stringResource
@@ -52,7 +53,11 @@ internal fun AiringsList(
     val today = stringResource(Res.string.guide_today)
     val tomorrow = stringResource(Res.string.guide_tomorrow)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(Res.string.guide_airings_title), style = MaterialTheme.typography.titleLarge)
+        Text(
+            stringResource(Res.string.guide_airings_title),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.sectionHeading(),
+        )
         Text(
             title,
             style = MaterialTheme.typography.bodyLarge,

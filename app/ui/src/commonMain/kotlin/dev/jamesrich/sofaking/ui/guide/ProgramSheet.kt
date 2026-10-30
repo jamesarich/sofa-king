@@ -41,6 +41,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -162,7 +164,7 @@ internal fun ProgramSheet(
     AiringsFocus(details, showAirings, firstAiring, airingsFocus)
     if (LocalLayoutProfile.current.tv) {
         BackHandler(onBack = back)
-        DetailsPanel(onBack = back, onDismiss = onDismiss) {
+        DetailsPanel(details.program?.title ?: details.channel.label(), onBack = back, onDismiss = onDismiss) {
             if (showAirings) {
                 airingsList(Modifier.fillMaxSize().padding(24.dp))
             } else {
@@ -211,7 +213,8 @@ private fun AiringsFocus(
  * stays inside it.
  */
 @Composable
-private fun DetailsPanel(onBack: () -> Unit, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+private fun DetailsPanel(title: String, onBack: () -> Unit, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    val closeLabel = stringResource(Res.string.guide_details_close)
     Box(
         Modifier
             .fillMaxSize()
@@ -231,6 +234,7 @@ private fun DetailsPanel(onBack: () -> Unit, onDismiss: () -> Unit, content: @Co
                     MutableInteractionSource()
                 },
                 indication = null,
+                onClickLabel = closeLabel,
                 onClick = onDismiss,
             ),
     ) {
@@ -245,6 +249,7 @@ private fun DetailsPanel(onBack: () -> Unit, onDismiss: () -> Unit, content: @Co
                 .width(PANEL_WIDTH)
                 // Focus stays in the panel: a D-pad move past its buttons must not land on the grid under it.
                 .focusProperties { onExit = { cancelFocusChange() } }
+                .semantics { paneTitle = title }
                 .clickable(
                     interactionSource = remember {
                         MutableInteractionSource()

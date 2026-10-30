@@ -18,6 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -26,7 +29,7 @@ import androidx.compose.ui.text.input.KeyboardType
  * Single-line Material 3 text entry whose outline thickens in the primary color when focused. [maskUnfocused]
  * rewrites what is shown while the field is not being edited (a secret's last characters); the text itself is
  * untouched. [keyboardType], [capitalization] and [autoCorrect] steer the on-screen keyboard; left unset they follow
- * the platform's default.
+ * the platform's default. [name] defaults to [hint].
  */
 @Composable
 internal fun TvTextField(
@@ -40,6 +43,8 @@ internal fun TvTextField(
     keyboardType: KeyboardType = KeyboardType.Unspecified,
     capitalization: KeyboardCapitalization = KeyboardCapitalization.Unspecified,
     autoCorrect: Boolean? = null,
+    name: String? = null,
+    error: String? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val mask = if (focused || maskUnfocused == null) {
@@ -49,7 +54,11 @@ internal fun TvTextField(
     }
     OutlinedTextField(
         state = state,
-        modifier = modifier.focusRequester(focusRequester).onFocusChanged { focused = it.hasFocus },
+        modifier = modifier
+            .focusRequester(focusRequester)
+            .onFocusChanged { focused = it.hasFocus }
+            .fieldSemantics(name ?: hint, error),
+        isError = error != null,
         textStyle = MaterialTheme.typography.bodyLarge,
         placeholder = hint?.let { { Text(it, style = MaterialTheme.typography.bodyLarge) } },
         lineLimits = TextFieldLineLimits.SingleLine,
@@ -62,6 +71,15 @@ internal fun TvTextField(
         ),
         onKeyboardAction = KeyboardActionHandler { onAction() },
     )
+}
+
+/**
+ * [name] is what a screen reader calls the field, since the visible label is a sibling the field does not know;
+ * [problem] is the reason it is rejected, which the field reports as its error state.
+ */
+internal fun Modifier.fieldSemantics(name: String?, problem: String?): Modifier = semantics {
+    if (name != null) contentDescription = name
+    if (problem != null) error(problem)
 }
 
 private class MaskTransformation(private val mask: (String) -> String) : OutputTransformation {

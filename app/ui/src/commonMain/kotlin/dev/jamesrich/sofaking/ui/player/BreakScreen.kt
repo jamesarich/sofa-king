@@ -70,6 +70,7 @@ import dev.jamesrich.sofaking.resources.break_screen_back_in
 import dev.jamesrich.sofaking.resources.break_screen_title
 import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.hoursAndMinutes
+import dev.jamesrich.sofaking.ui.motionEnabled
 import dev.jamesrich.sofaking.ui.theme.SofaLavender
 import dev.jamesrich.sofaking.ui.theme.SofaMauve
 import dev.jamesrich.sofaking.ui.theme.SofaPlum
@@ -386,7 +387,7 @@ private class BreakMotion(start: Bounce) {
 
     /** Moves the mark, [unit] in size, around [area] at [speedPxPerSecond], one step a frame, until canceled. */
     suspend fun drift(area: IntSize, unit: IntSize, speedPxPerSecond: Float, cornerSlop: Float): Unit = coroutineScope {
-        squashes = coroutineContext[MotionDurationScale]?.scaleFactor != 0f
+        squashes = motionEnabled(coroutineContext[MotionDurationScale]?.scaleFactor)
         val roomX = (area.width - unit.width).toFloat()
         val roomY = (area.height - unit.height).toFloat()
         bounce =
@@ -402,8 +403,12 @@ private class BreakMotion(start: Bounce) {
                 // A long gap (the app in the background) moves the mark no more than one frame's worth, and does
                 // not count as covered.
                 if (gap < MAX_COVERED_GAP_NANOS) coveredNanos += gap
-                val seconds = gap.nanoseconds.toDouble(DurationUnit.SECONDS).toFloat()
-                    .coerceAtMost(MAX_FRAME_SECONDS)
+                // With the system's animations off the mark holds still, and the break still counts as covered.
+                val seconds = if (squashes) {
+                    gap.nanoseconds.toDouble(DurationUnit.SECONDS).toFloat().coerceAtMost(MAX_FRAME_SECONDS)
+                } else {
+                    0f
+                }
                 val (next, hit) = bounce.step(speedPxPerSecond * seconds, roomX, roomY, cornerSlop)
                 if (next.right != bounce.right) xHitNanos = coveredNanos
                 if (next.down != bounce.down) yHitNanos = coveredNanos

@@ -5,12 +5,16 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -55,6 +59,7 @@ import androidx.compose.ui.unit.isSpecified
 import dev.jamesrich.sofaking.ui.LastInput
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.rememberIsTelevision
+import dev.jamesrich.sofaking.ui.rememberMotionEnabled
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -77,6 +82,7 @@ fun Modifier.tvFocus(shape: Shape, focusedScale: Float = TV_FOCUS_SCALE): Modifi
     ring = MaterialTheme.colorScheme.onSurface,
     spec = MaterialTheme.motionScheme.fastSpatialSpec(),
     cursor = if (rememberIsTelevision()) LocalLastInput.current else null,
+    animates = rememberMotionEnabled(),
 )
 
 private data class TvFocusElement(
@@ -85,10 +91,11 @@ private data class TvFocusElement(
     val ring: Color,
     val spec: FiniteAnimationSpec<Float>,
     val cursor: LastInput?,
+    val animates: Boolean,
 ) : ModifierNodeElement<TvFocusNode>() {
-    override fun create() = TvFocusNode(shape, focusedScale, ring, spec, cursor)
+    override fun create() = TvFocusNode(shape, focusedScale, ring, spec, cursor, animates)
 
-    override fun update(node: TvFocusNode) = node.update(shape, focusedScale, ring, spec, cursor)
+    override fun update(node: TvFocusNode) = node.update(shape, focusedScale, ring, spec, cursor, animates)
 
     override fun InspectorInfo.inspectableProperties() {
         name = "tvFocus"
@@ -104,6 +111,8 @@ private class TvFocusNode(
     private var spec: FiniteAnimationSpec<Float>,
     /** Where a TV's cursor last moved; null off a TV, where hovering focuses nothing. */
     private var cursor: LastInput?,
+    /** False where the system's animations are off: the scale then snaps. */
+    private var animates: Boolean,
 ) : Modifier.Node(),
     FocusEventModifierNode,
     FocusRequesterModifierNode,
@@ -117,8 +126,16 @@ private class TvFocusNode(
     private var shape by mutableStateOf(shape)
     private var ring by mutableStateOf(ring)
 
-    fun update(shape: Shape, focusedScale: Float, ring: Color, spec: FiniteAnimationSpec<Float>, cursor: LastInput?) {
+    fun update(
+        shape: Shape,
+        focusedScale: Float,
+        ring: Color,
+        spec: FiniteAnimationSpec<Float>,
+        cursor: LastInput?,
+        animates: Boolean,
+    ) {
         val rescale = focusedScale != this.focusedScale
+        this.animates = animates
         this.shape = shape
         this.focusedScale = focusedScale
         this.ring = ring
@@ -146,7 +163,8 @@ private class TvFocusNode(
     }
 
     private fun animate() {
-        coroutineScope.launch { scale.animateTo(if (focused) focusedScale else 1f, spec) }
+        val target = if (focused) focusedScale else 1f
+        coroutineScope.launch { if (animates) scale.animateTo(target, spec) else scale.snapTo(target) }
     }
 
     override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
@@ -266,6 +284,18 @@ internal fun SofaChip(selected: Boolean, onClick: () -> Unit, label: String, mod
             onClick = onClick,
             label = { Text(label, style = MaterialTheme.typography.labelLarge) },
             modifier = ringed,
+            // A check says selected without relying on the chip's color.
+            leadingIcon = if (selected) {
+                {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(FilterChipDefaults.IconSize),
+                    )
+                }
+            } else {
+                null
+            },
         )
     }
 }

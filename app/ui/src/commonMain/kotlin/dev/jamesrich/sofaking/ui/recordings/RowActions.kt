@@ -18,10 +18,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.a11y_button_for
 import dev.jamesrich.sofaking.resources.change_failed
 import dev.jamesrich.sofaking.resources.recordings_keep
+import dev.jamesrich.sofaking.ui.announcesChanges
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -87,23 +91,35 @@ internal fun RowButtons(actions: RowActions, content: @Composable RowScope.() ->
     )
 }
 
-/** Backs out of a pending confirmation and puts focus back on the button that asked, which [asker] names. */
+/**
+ * Backs out of a pending confirmation and puts focus back on the button that asked, which [asker] names. [title] is
+ * what the row is about, so a screen reader hears which row's change the button backs out of.
+ */
 @Composable
-internal fun KeepButton(actions: RowActions, asker: FocusRequester) {
+internal fun KeepButton(actions: RowActions, asker: FocusRequester, title: String? = null) {
     SofaButton(onClick = {
         actions.confirming = false
         asker.requestFocus()
     }) {
-        Text(stringResource(Res.string.recordings_keep))
+        val keep = stringResource(Res.string.recordings_keep)
+        if (title == null) Text(keep) else NamedLabel(keep, title)
     }
 }
 
-/** The line under a row whose last change did not take. */
+/** A button's [label] as written, and for a screen reader followed by the [title] it acts on. */
+@Composable
+internal fun NamedLabel(label: String, title: String) {
+    val name = stringResource(Res.string.a11y_button_for, label, title)
+    Text(label, modifier = Modifier.semantics { contentDescription = name })
+}
+
+/** The line under a row whose last change did not take; a screen reader hears it when it appears. */
 @Composable
 internal fun ChangeFailed() {
     Text(
         stringResource(Res.string.change_failed),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.error,
+        modifier = Modifier.announcesChanges(),
     )
 }

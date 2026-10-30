@@ -11,7 +11,13 @@ internal const val NOTICE_TOAST_MS = 3_000L
 
 /**
  * True while a player's bar must stay up instead of leaving after [BAR_IDLE_MS]: playback is [paused], a scrub is in
- * progress, the stream [failed] (the bar carries the way to retry), or an intro skip is counting down.
+ * progress, the stream [failed] (the bar carries the way to retry), an intro skip is counting down, or a
+ * [screenReader] is exploring, which needs time the bar's five seconds do not give.
  */
-internal fun barHeld(paused: Boolean, scrubbing: Boolean, failed: Boolean, autoSkip: Boolean): Boolean =
-    paused || scrubbing || failed || autoSkip
+internal fun barHeld(
+    paused: Boolean,
+    scrubbing: Boolean,
+    failed: Boolean,
+    autoSkip: Boolean,
+    screenReader: Boolean = false,
+): Boolean = paused || scrubbing || failed || autoSkip || screenReader

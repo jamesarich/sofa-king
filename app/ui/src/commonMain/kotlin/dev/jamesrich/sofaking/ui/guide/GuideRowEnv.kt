@@ -39,6 +39,7 @@ internal class GuideRowEnv(
     /** A held OK, or the Info key, opens the program's details. */
     val onOpenDetails: (Channel, GuideCell) -> Unit,
     val detailsLabel: String,
+    val watchLabel: String,
     val laterLabel: String,
     /** A Later line's program was chosen: the grid jumps to its cell. */
     val onJumpTo: (Channel, Program) -> Unit,

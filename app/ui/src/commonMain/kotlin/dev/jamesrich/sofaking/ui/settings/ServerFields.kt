@@ -63,6 +63,7 @@ import dev.jamesrich.sofaking.resources.settings_server_url
 import dev.jamesrich.sofaking.resources.settings_server_url_invalid
 import dev.jamesrich.sofaking.resources.settings_server_use_page
 import dev.jamesrich.sofaking.ui.TvTextField
+import dev.jamesrich.sofaking.ui.announcesChanges
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.pageServerUrl
 import dev.jamesrich.sofaking.ui.rememberIsTelevision
@@ -279,6 +280,7 @@ private fun PairingFields(server: ServerFields, pairing: PairingUi) {
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.announcesChanges(),
             )
         }
     }
@@ -364,13 +366,15 @@ private fun SettingField(
             keyboardType = keyboardType,
             capitalization = KeyboardCapitalization.None,
             autoCorrect = false,
+            name = label,
+            error = problem,
         )
         if (problem != null) {
             Text(
                 problem,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = 4.dp).announcesChanges(),
             )
         }
     }

@@ -27,6 +27,7 @@ import dev.jamesrich.sofaking.resources.retry
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalUptimeMs
 import dev.jamesrich.sofaking.ui.appLifecycleOwner
+import dev.jamesrich.sofaking.ui.rememberScreenReaderActive
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.delay
@@ -283,7 +284,9 @@ internal fun VodToastTimers(toasts: VodToasts) {
  */
 @Composable
 internal fun VodBarTimer(state: VodPlayerState, paused: Boolean) {
+    val screenReader = rememberScreenReaderActive()
     LaunchedEffect(
+        screenReader,
         state.overlayVisible,
         state.overlayRequest,
         paused,
@@ -296,6 +299,7 @@ internal fun VodBarTimer(state: VodPlayerState, paused: Boolean) {
             scrubbing = state.scrubTarget != null,
             failed = state.failure != null,
             autoSkip = state.autoSkipSeconds != null,
+            screenReader = screenReader,
         )
         if (!state.overlayVisible || held) return@LaunchedEffect
         delay(BAR_IDLE_MS)

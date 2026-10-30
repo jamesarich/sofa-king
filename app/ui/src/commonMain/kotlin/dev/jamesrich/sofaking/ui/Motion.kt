@@ -16,8 +16,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.MotionDurationScale
 import kotlinx.coroutines.delay
+
+/** False where the system has turned animations off, which reads as a motion scale of zero. */
+internal fun motionEnabled(scaleFactor: Float?): Boolean = scaleFactor != 0f
+
+/** Whether the system's animations are on; moving things hold still and focus cues snap when they are not. */
+@Composable
+internal fun rememberMotionEnabled(): Boolean =
+    motionEnabled(rememberCoroutineScope().coroutineContext[MotionDurationScale]?.scaleFactor)
 
 /** Small things (pills, badges, the header loader) pop in on the theme's fast spatial spring and fade out. */
 val PopIn: EnterTransition

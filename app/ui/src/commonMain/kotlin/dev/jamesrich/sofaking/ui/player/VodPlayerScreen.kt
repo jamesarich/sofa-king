@@ -42,6 +42,7 @@ import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.data.creditsRunToEnd
 import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.a11y_show_controls
 import dev.jamesrich.sofaking.resources.player_paused
 import dev.jamesrich.sofaking.resources.player_zoom_notice
 import dev.jamesrich.sofaking.resources.retry
@@ -62,6 +63,8 @@ import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.WindowFullScreen
+import dev.jamesrich.sofaking.ui.blocksLetterShortcut
+import dev.jamesrich.sofaking.ui.pictureButton
 import dev.jamesrich.sofaking.ui.rememberHaptics
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.repeatCountOrNull
@@ -249,8 +252,9 @@ private fun VodSurface(
             .focusRequester(parts.focus.picture)
             .focusable()
             .semantics { contentDescription = title.title }
+            .pictureButton(stringResource(Res.string.a11y_show_controls), onPress = state::tap)
             .onPreviewKeyEvent { event ->
-                state.onKeyEvent(
+                !event.blocksLetterShortcut() && state.onKeyEvent(
                     event.key,
                     event.type,
                     controls,

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.guide
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -38,7 +39,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
@@ -88,7 +91,8 @@ internal fun ChannelRow(
 
     val density = LocalGuideDensity.current
     val compact = density == GuideDensity.COMPACT
-    Row(Modifier.fillMaxWidth().height(rowHeight(density))) {
+    val height = rowHeight(density, LocalLayoutProfile.current, LocalDensity.current.fontScale)
+    Row(Modifier.fillMaxWidth().height(height)) {
         ChannelPin(channel, isFavorite, compact, env)
         TimelineStrip(scrollState = env.scrollState, nowMinute = nowMinute, modifier = Modifier.weight(1f)) {
             Row(Modifier.fillMaxHeight()) {
@@ -213,12 +217,16 @@ private fun GuideCellItem(
         val stickyShift = remember(env.scrollState, cellStartPx, cellWidthPx) {
             derivedStateOf { (env.scrollState.value - cellStartPx).coerceIn(0f, cellWidthPx).roundToInt() }
         }
-        CellText(
-            program?.title ?: env.noListingFor(channel),
-            program?.takeIf { focused }?.let { env.timeFormat.range(it.start, it.stop) },
-            compact,
-            Modifier.fillMaxSize().stickyStart(stickyShift, env.minStickyTextPx),
-        )
+        Box(Modifier.fillMaxSize()) {
+            CellText(
+                program?.title ?: env.noListingFor(channel),
+                program?.takeIf { focused }?.let { env.timeFormat.range(it.start, it.stop) },
+                compact,
+                Modifier.fillMaxSize().stickyStart(stickyShift, env.minStickyTextPx),
+            )
+            // Airing shows in more than the container's tint; a focused cell is solid primary already.
+            if (airing && !focused) Box(Modifier.width(3.dp).fillMaxHeight().background(colors.primary))
+        }
     }
 }
 
@@ -249,6 +257,8 @@ private fun Modifier.cellActions(
     .combinedClickable(
         interactionSource = interactions,
         indication = null,
+        role = Role.Button,
+        onClickLabel = env.watchLabel,
         onLongClickLabel = env.detailsLabel,
         onLongClick = {
             env.haptics.longPress()
@@ -316,8 +326,9 @@ internal fun isAiring(program: Program, now: Instant): Boolean = program.start <
 @Composable
 internal fun LaterRow(item: GuideListItem.Later, env: GuideRowEnv, firstFocus: FocusRequester, onFocus: () -> Unit) {
     val profile = LocalLayoutProfile.current
+    val height = scaledForText(LATER_ROW_HEIGHT, profile, LocalDensity.current.fontScale)
     Row(
-        Modifier.fillMaxWidth().height(LATER_ROW_HEIGHT).onFocusChanged { if (it.hasFocus) onFocus() },
+        Modifier.fillMaxWidth().height(height).onFocusChanged { if (it.hasFocus) onFocus() },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(pinWidth(profile)).padding(end = 12.dp), contentAlignment = Alignment.CenterEnd) {

@@ -15,7 +15,9 @@ struct SofaKingTVApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView().environment(model).tint(.sofaAmber).preferredColorScheme(.dark)
+            // No app-wide tint: tvOS fills an unfocused button with the tint and draws its label in it too, which left
+            // the guide's Search and On later as blank pills. Amber goes where a view sets it.
+            ContentView().environment(model).preferredColorScheme(.dark)
         }
     }
 }
@@ -348,14 +350,14 @@ struct ContentView: View {
 
     private var tabs: some View {
         TabView(selection: $tab) {
-            live.buttonTint().tabItem { Label(strings.tabLive, systemImage: "tv") }.tag(AppTab.live)
+            live.tabItem { Label(strings.tabLive, systemImage: "tv") }.tag(AppTab.live)
             if libraryInBar {
-                LibraryHomeView().buttonTint().tabItem { Label(strings.tabLibrary, systemImage: "film.stack") }.tag(AppTab.library)
+                LibraryHomeView().tabItem { Label(strings.tabLibrary, systemImage: "film.stack") }.tag(AppTab.library)
             }
             if recordingsInBar {
-                RecordingsView().buttonTint().tabItem { Label(strings.tabDvr, systemImage: "record.circle") }.tag(AppTab.recordings)
+                RecordingsView().tabItem { Label(strings.tabDvr, systemImage: "record.circle") }.tag(AppTab.recordings)
             }
-            NavigationStack { SettingsGate() }.buttonTint().tabItem { Label(strings.tabSettings, systemImage: "gear") }.tag(AppTab.settings)
+            NavigationStack { SettingsGate() }.tabItem { Label(strings.tabSettings, systemImage: "gear") }.tag(AppTab.settings)
         }
         .onChange(of: model.requestedChannel) { _, requested in
             // A Top Shelf channel plays from the Live tab.

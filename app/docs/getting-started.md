@@ -71,12 +71,15 @@ There is no published iOS or Apple TV build. On a Mac, build them from source as
 
 ## 3. Connect to the server
 
-The first start opens on Connect to your Sofa King server with the header's Settings button focused. Press OK, then under Server:
+The first start opens on Connect to your Sofa King server with the header's Settings button focused. Press OK to open Settings, then pair the app with the server. In the admin portal, open [Devices](../../backend/docs/admin.md#devices) and choose Show a pairing code.
 
-1. Enter the Server address: the server's address, for example `SERVER_HOST`, which the app completes as `http://SERVER_HOST:9193`, or the whole URL when the server uses another port or HTTPS. On the same network as the server, Servers on this network lists it above the field; selecting it fills the address in (Android, Android TV, iPhone and iPad, desktops and Apple TV). The web app fills in its page's own origin, which is right behind a proxy, as [web](#web) describes.
-2. Enter the API token, or leave it empty when the server runs without one.3. Select Save & reload.
+- On a TV, enter the Server address (for example `SERVER_HOST`, which the app completes as `http://SERVER_HOST:9193`, or the whole URL when the server uses another port or HTTPS) and the six digits under Pairing code, then select Pair. On the same network as the server, Servers on this network lists it above the field; selecting it fills the address in (Android, Android TV, iPhone and iPad, desktops and Apple TV).
+- On an Android phone, an iPhone or an iPad with the app installed, scan the QR code on that page with the camera.
+- The web app fills in its page's own origin, which is right behind a proxy, as [web](#web) describes.
 
-Or pair instead of typing the token: in the admin portal, open Devices and choose Show a pairing code, then on the TV enter the Server address and the six digits under Pairing code and select Pair. The app stores the token the server hands out. On an Android phone, an iPhone or an iPad with the app installed, scanning the QR code on that page with the camera pairs at once. If the app already uses another server, it asks before switching ([links](usage.md#links)).
+The app stores the token the server hands out. If the app already uses another server, it asks before switching ([links](usage.md#links)).
+
+To type the API token instead, enter the Server address as above and the API token (leave it empty when the server runs without one), then select Save & reload.
 
 The guide opens and fills in: channels first, then their programs.
 

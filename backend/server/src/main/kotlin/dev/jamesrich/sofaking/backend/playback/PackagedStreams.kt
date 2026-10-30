@@ -168,16 +168,18 @@ internal class PackagedStreams(
      * FFmpeg starts, which on a busy host outlasts the reader's own buffer.
      */
     private suspend fun copy(pack: Package, reader: TsFanout.Reader) = coroutineScope {
+        // Draining starts before the wait: the reader's own buffer is small, and the source's first burst can fill it
+        // in the time a drain launched after the wait needs to get a thread, which drops the reader.
+        val queue = Channel<ByteArray>(QUEUE_CHUNKS)
+        val drain = launch {
+            val outcome = runCatchingCancellable { for (chunk in reader.chunks) queue.send(chunk) }
+            queue.close(outcome.exceptionOrNull())
+        }
         val begun = runCatchingCancellable { reader.awaitStarted() }
         begun.exceptionOrNull()?.let { e ->
             // A body in the other protocol moves the session to it, and the player re-reads the descriptor.
             if (e is UpstreamProtocolException) sessions.protocolObserved(pack.id, pack.epoch, e.protocol, pack.job)
             throw unavailable()
-        }
-        val queue = Channel<ByteArray>(QUEUE_CHUNKS)
-        val drain = launch {
-            val outcome = runCatchingCancellable { for (chunk in reader.chunks) queue.send(chunk) }
-            queue.close(outcome.exceptionOrNull())
         }
         Files.createDirectories(pack.dir)
         val process = ffmpegProcess(command(pack.dir)).redirectErrorStream(true)

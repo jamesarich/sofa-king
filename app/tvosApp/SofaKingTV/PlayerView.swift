@@ -531,7 +531,6 @@ private struct PlayerController: UIViewControllerRepresentable {
     final class Coordinator {
         let hosting = UIHostingController<BreakScreen?>(rootView: nil)
         let items = TransportBarItems()
-        let zap = ZapGestures()
     }
 
     func makeCoordinator() -> Coordinator {
@@ -542,10 +541,9 @@ private struct PlayerController: UIViewControllerRepresentable {
     }
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
-        let controller = AVPlayerViewController()
+        let controller = ZapPlayerViewController()
         controller.player = player
-        context.coordinator.zap.onZap = onZap
-        context.coordinator.zap.attach(to: controller)
+        controller.zap.onZap = onZap
         context.coordinator.items.apply(menus: menuItems, actions: actions, context: itemsContext, to: controller)
         if let overlay = controller.contentOverlayView {
             context.coordinator.hosting.view.frame = overlay.bounds
@@ -556,7 +554,7 @@ private struct PlayerController: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
-        context.coordinator.zap.onZap = onZap
+        (controller as? ZapPlayerViewController)?.zap.onZap = onZap
         context.coordinator.items.apply(menus: menuItems, actions: actions, context: itemsContext, to: controller)
         context.coordinator.hosting.rootView = breakScreen
     }

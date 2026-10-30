@@ -2,35 +2,65 @@ import AVKit
 import MediaPlayer
 import UIKit
 
-/// Up and Down clicks on the live player's picture, as steps through the channel ring: Up is the channel above
-/// (-1), Down the one below (+1), as in the Compose app.
+/// The system player UI with Up and Down clicks on its picture as steps through the channel ring: Up is the channel
+/// above (-1), Down the one below (+1), as in the Compose app.
 ///
-/// The system player owns Up and Down while its transport bar is up (they move focus along it), so the recognizers
-/// decline to begin then and the click reaches the bar. The bar's visibility comes from the player's delegate;
-/// the clicks of a hidden bar would otherwise do nothing.
-@MainActor
-final class ZapGestures: NSObject, @preconcurrency AVPlayerViewControllerDelegate, UIGestureRecognizerDelegate {
-    var onZap: (Int) -> Void = { _ in }
-    private var barVisible = false
-    private var attached = false
+/// The system player shows its transport bar on those clicks, so the clicks are taken here, before it sees them,
+/// while the bar is hidden. While the bar is up they go to it, where they move focus along it. The bar's visibility
+/// comes from the player's delegate, which hears of a transition before the click that causes it is delivered.
+final class ZapPlayerViewController: AVPlayerViewController {
+    let zap = ZapPresses()
+    /// The clicks taken as zaps, which the system player never sees begin, change or end.
+    private var taken = Set<UIPress>()
 
-    func attach(to controller: AVPlayerViewController) {
-        guard !attached else { return }
-        attached = true
-        controller.delegate = self
-        for (press, action) in [(UIPress.PressType.upArrow, #selector(up)), (.downArrow, #selector(down))] {
-            let tap = UITapGestureRecognizer(target: self, action: action)
-            tap.allowedPressTypes = [NSNumber(value: press.rawValue)]
-            // Only a click of the remote's edge: a touch on the surface is the system's swipe.
-            tap.allowedTouchTypes = []
-            tap.delegate = self
-            controller.view.addGestureRecognizer(tap)
-        }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        delegate = zap
     }
 
-    @objc private func up() { onZap(-1) }
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        let zaps = presses.filter { zap.step(for: $0) != nil }
+        if !zaps.isEmpty, !zap.barVisible {
+            taken.formUnion(zaps)
+            for press in zaps.sorted(by: { $0.type.rawValue < $1.type.rawValue }) {
+                if let step = zap.step(for: press) { zap.onZap(step) }
+            }
+        }
+        let rest = presses.subtracting(taken)
+        if !rest.isEmpty { super.pressesBegan(rest, with: event) }
+    }
 
-    @objc private func down() { onZap(1) }
+    override func pressesChanged(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        let rest = presses.subtracting(taken)
+        if !rest.isEmpty { super.pressesChanged(rest, with: event) }
+    }
+
+    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        let rest = presses.subtracting(taken)
+        taken.subtract(presses)
+        if !rest.isEmpty { super.pressesEnded(rest, with: event) }
+    }
+
+    override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        let rest = presses.subtracting(taken)
+        taken.subtract(presses)
+        if !rest.isEmpty { super.pressesCancelled(rest, with: event) }
+    }
+}
+
+/// Which clicks are zaps, and whether the system player's transport bar is up.
+@MainActor
+final class ZapPresses: NSObject, @preconcurrency AVPlayerViewControllerDelegate {
+    var onZap: (Int) -> Void = { _ in }
+    private(set) var barVisible = false
+
+    func step(for press: UIPress) -> Int? {
+        switch press.type {
+        case .upArrow: return -1
+        case .downArrow: return 1
+        default: return nil
+        }
+    }
 
     func playerViewController(
         _ playerViewController: AVPlayerViewController,
@@ -43,8 +73,6 @@ final class ZapGestures: NSObject, @preconcurrency AVPlayerViewControllerDelegat
             if !finished { MainActor.assumeIsolated { self?.barVisible = !visible } }
         }
     }
-
-    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool { !barVisible }
 }
 
 /// The system's next and previous track as channel up and down, for a CEC television remote or the iPhone's remote,

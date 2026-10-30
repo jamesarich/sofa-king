@@ -40,7 +40,7 @@ A live channel slot makes a channel that is "the news at six, cartoons otherwise
 **Breaks** are the ads you choose: a bumper, a trailer or a "time to brush your teeth" clip, and slides such as a chore chart. A break airs after an item, after every one or once 15, 30 or 60 minutes have passed since the last, and holds:
 
 - one item of the break source, in a shuffled turn, such as a library of bumpers;
-- then each slide, an image URL shown for 3 to 60 seconds with silence. The server fetches it as the slide airs, with no credentials, so the image is current. For Home Assistant, have an automation save a snapshot (`camera.snapshot`) or a rendered card into its `www` folder, which it serves at `http://homeassistant.local:8123/local/...` without a token; its entities' own image URLs carry tokens that expire within minutes. PNG, JPEG, GIF and WebP images up to 10 MB work, at most five slides a break. One that cannot be fetched shows black.
+- then each slide, an image URL shown for 3 to 60 seconds with silence. The server fetches it as the slide airs, with no credentials, so the image is current. For Home Assistant, have an automation save a snapshot (`camera.snapshot`) or a rendered card into its `www` folder, which it serves at `http://homeassistant.local:8123/local/...` without a token, since an entity's own image URL carries a token that expires within minutes. PNG, JPEG, GIF and WebP images up to 10 MB work, at most five slides a break. One that cannot be fetched shows black.
 
 A break goes before the padding and its filler, and in a timed slot only when it fits before the next start: without room for the item, only the slides air, and without room for them, nothing does. The guide gives a break's time to the item before it, like filler.
 
@@ -54,7 +54,7 @@ A channel plays nothing until someone tunes in. The first request starts one FFm
 
 The conversion uses the encoder `SOFA_HWACCEL` picks, as library playback does. Each playing channel counts toward `SOFA_MAX_TRANSCODES` with the library files being converted; past it, tuning in answers `503 CAPACITY_EXHAUSTED`, and the session moves to the channel's next source if it has one. Tuning in first takes the slot of the oldest converting trailer preview, as a library watch does.
 
-The relay fetches the stream from the server's own loopback route, `http://127.0.0.1:{port}/local/{key}/{channel}/live.m3u8`. The listener binds 127.0.0.1 only, and the random key changes at every start, so the route is reachable from nothing but the server. The address policy admits that route alone among loopback URLs.
+The relay fetches the stream from a loopback route (`/local/{key}/...` on 127.0.0.1) under a random key that changes at every start, so nothing but the server can reach it.
 
 A live channel slot opens a playback session of its own, the way a recording does: it holds one of `SOFA_MAX_SESSIONS`, picks the channel's healthiest source, and opens the channel again when that source drops. A slot that cannot open, because every session is taken or no source plays, shows black and tries again every 30 seconds.
 

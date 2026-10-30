@@ -197,21 +197,7 @@ To map a category, add its `category` to `groups.map` with the group it belongs 
 
 All routes are under `/api/v1/admin` and take the admin token.
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/policy` | The policy with its `revision` (the file's SHA-256, also the `ETag`) and `path` |
-| PUT | `/policy` | Replace the policy; `If-Match: <revision>` is required. Validates, writes, applies, and returns the document and the apply result |
-| GET | `/policy/preview` | What a run would change against the served lineup, the aliases it would learn (`learned`), the `unmappedCategories`, and with range devices `devicesNeeded` and `devicesConfigured`; writes nothing |
-| POST | `/policy/apply` | Run now and write the result; reports `enabledStations`, the numbers it `assigned`, the aliases it `learned`, the `unmappedCategories`, and with range devices `devicesNeeded` and `devicesConfigured` |
-| GET | `/policy/findings` | Open findings, suggested aliases and `unmappedCategories` |
-| GET | `/policy/changes?limit=` | The change log, newest first: each field a run changed, with the station key and the cause |
-| GET | `/policy/guide-matches` | Each station's [guide matches](#guide-matches): `station` (its key), `stationId`, `stationName`, `number`, `guideId`, `channelId`, `channelName` and `confidence`, in lineup order, best first; empty before the first apply |
-| POST | `/policy/guide-matches/accept` | `{"station", "guideId", "channelId"}`: writes that channel as the station's `guide`, then applies and returns the apply result. 404 `GUIDE_CHANNEL_NOT_FOUND` for a channel the guide does not list |
-| POST | `/policy/guide-matches/accept-all` | `{"minConfidence"}`, optional, else `guideMatches.acceptAbove`: accepts each station's best proposal at that confidence or more in one write, then applies; returns `{"accepted", "applied"}`, with `applied` null when nothing was accepted |
-| POST | `/policy/guide-matches/dismiss` | `{"station", "guideId", "channelId"}`: adds the proposal to `guideMatches.dismissed`, then applies |
-| GET | `/stations/{key}` | One station: its pins and every channel that names the key or joins it, with why |
-| PATCH | `/lineup/{id}` | Writes `name`, `number`, `group`, `logo`, `guide`, `gracenoteId`, `enabled` and `offerings` (as pins by provider and `tvg-id`) into the station's override, then applies |
-| DELETE | `/lineup/{id}` | Writes `enabled: false` into the station's override, then applies |
+The routes under `/api/v1/admin/policy` (read, replace, preview, apply, findings, changes, guide matches), `/stations/{key}` and `/lineup/{id}` are in the [admin API](api.md#admin-api). `PATCH /lineup/{id}` writes `name`, `number`, `group`, `logo`, `guide`, `gracenoteId`, `enabled` and `offerings` (as pins by provider and `tvg-id`) into the station's override, then applies; `DELETE` writes `enabled: false`.
 
 Every write holds one lock, writes a temp file in the policy's directory, syncs it to disk and renames it over the policy. When the file changed on disk since the server read it, the server reloads it and the write fails with `409 POLICY_CHANGED`; read the policy again and retry. `PATCH` and `DELETE` accept `If-Match` too.
 

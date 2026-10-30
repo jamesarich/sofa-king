@@ -2,9 +2,9 @@
 
 A native provider is a client for one free streaming service built into the server. It is configured in the source file as `{"type": "native", "service": "NAME"}`, next to the M3U providers. It lists the service's channels as candidates, carries the service's guide, and resolves a channel to a playable stream URL when a session, a probe or the HDHomeRun remux needs one. Everything downstream (lineup, health, failover, logos, player outputs, Plex) works as it does for an M3U provider.
 
-The clients are unofficial. They call the same public endpoints each service's own web or TV client calls, with no account and no credentials, and they stop working whenever the service changes them. Using them may be against a service's terms of service. The clients send ad-insertion identifiers that are random per install, not a device's identifiers.
+The clients are unofficial. They call the same public endpoints each service's own web or TV client calls, with no account and no credentials, and they stop working whenever the service changes them. Using them may be against a service's terms of service. The ad-insertion identifiers they send are random per install, not a device's.
 
-The server supports 21 streaming services, the free feeds of about twenty broadcasters (`direct`) and HDHomeRun tuners. Each one is listed below with its endpoints and its known fragility.
+The server supports 21 streaming services, the free feeds of about twenty broadcasters (`direct`) and HDHomeRun tuners. Each is listed below with what it lists and its known fragility.
 
 ## Configuration
 
@@ -42,12 +42,12 @@ The portal's Sources page writes this file: every service is a switch, with its 
 | `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo`, `pluto`, `tubi`, `cw`, `zeam`, `ognetwork`, `mansa`, `direct`, `hdhomerun` |
 | `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` and `fallbackUrl` for `samsung`, `region` for `whale`, `region` and `forwardedFor` for `pluto` and `plex`, `dma` and `market` for `localnow`, `market` for `xumo`, `url` (required) and `transcode` for `hdhomerun` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
-| `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
+| `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` and `roku` default to the i.mjh.nz XMLTV |
 | `probe` | `true` | Probes resolve the channel and qualify the resolved URL like any source. A lineup policy ignores it ([probing](lineup-policy.md#probing)) |
 
 `headers`, `defaultProtocol`, `allowEmpty` and `renewableQuery` apply to playlists only. Every native source is HLS, except `hdhomerun`, whose sources are MPEG-TS. `direct` has no guide of its own; map its channels onto a configured XMLTV guide, as the [direct](#direct-broadcasters-own-feeds) section shows.
 
-A native provider with a guide of its own appears in `/api/v1/admin/guides` under the provider ID, refreshed hourly. Its channel IDs are the service's own, and a lineup entry created from a candidate maps onto that guide automatically. The guide holds every channel in its index, but programs only for channels the lineup maps. A service whose guide is fetched per channel (Whale, Hallmark, Adult Swim, PBS, Plex, STIRR, Pluto TV) is asked only about mapped channels.
+A native provider with a guide of its own appears in `/api/v1/admin/guides` under the provider ID, refreshed hourly. Its channel IDs are the service's own, and a lineup entry created from a candidate maps onto that guide automatically. The guide holds every channel in its index, but programs only for channels the lineup maps; Whale, Hallmark, Adult Swim, PBS, Plex, STIRR and Pluto TV fetch a guide per channel and ask only about mapped ones.
 
 Programs carry the metadata the guide responses already hold, with no extra requests:
 
@@ -65,178 +65,184 @@ From the other services' guides the server reads titles, descriptions and times 
 
 ### Other countries' lineups
 
-Samsung TV Plus publishes each country's lineup, and Whale TV+ answers the country its request names, so for them another country is only its `region` (see [samsung](#samsung-samsung-tv-plus)). Whale TV+ serves 130 to 195 channels per country, a third of them or more outside the US lineup in most of Europe, and most of them play from a US connection. Pluto TV and Plex pick the lineup by the caller's address instead. For them, `region` is the two-letter code the channels are tagged with, and `forwardedFor` is an IP address in that country, sent as `X-Forwarded-For` on every request the client makes and every request the relay makes for the provider's streams, so the service answers as it would in that country. Give each country its own provider beside the US one:
+Samsung TV Plus publishes each country's lineup, and Whale TV+ answers the country its request names, so for them another country is only its `region` (see [samsung](#samsung-samsung-tv-plus)). Whale TV+ serves 130 to 195 channels per country, most of which play from a US connection.
+
+Pluto TV and Plex pick the lineup by the caller's address. For them, `region` is the two-letter code the channels are tagged with, and `forwardedFor` is an IP address in that country, sent as `X-Forwarded-For` on every request the client and the relay make for the provider's streams. Give each country its own provider beside the US one:
 
 ```json
 { "id": "pluto-gb", "type": "native", "service": "pluto", "options": { "region": "gb", "forwardedFor": "ADDRESS_IN_GB" } }
 ```
 
-The i.mjh.nz Pluto TV and Plex channel lists carry one address per country they serve. Both services honor the header. Pluto TV's 14 addresses give 12 lineups, since Argentina and Mexico share one Latin American lineup and the Chile address answers with Canada's. Plex's 8 give 8, and the streams play from a US connection with the header on every request. LG Channels answers any country but the US with an error, so `lg` takes no region. The services decide whether they honor the header, and a lineup they serve that way can stop answering at any time. Presenting an address that is not the server's is a further departure from the services' terms than the clients already are. A `forwardedFor` that is not an IP address fails the provider's imports and resolves, never the server's start.
+The i.mjh.nz Pluto TV and Plex channel lists carry one address per country they serve. Pluto TV's 14 addresses give 12 lineups, since Argentina and Mexico share one Latin American lineup and the Chile address answers with Canada's; Plex's 8 give 8. LG Channels answers any country but the US with an error, so `lg` takes no region. The services decide whether they honor the header and can stop at any time, and presenting an address that is not the server's departs further from their terms. A `forwardedFor` that is not an IP address fails the provider's imports and resolves, never the server's start.
 
 ## How a native source plays
 
-A native source's URL is `svc://SERVICE/CHANNEL_ID`: stable, never fetched, and what the lineup refers to. When a session opens the channel, the relay asks the provider to resolve it. The provider fills the service's ad macros (device ID, session ID, cache buster, privacy defaults) or follows the service's redirect, and the relay fetches the master playlist with the headers the service's own client sends. The resolution is cached per source until a minute before it expires, and for at most six hours: an hour for macro-filled URLs, the token lifetime for tokens, and six hours for static URLs. Every session, probe and remux on that source shares it. Nothing a player sees names the service. Media playlists and segments are the relay's opaque session paths, as for any HLS source. An MPEG-TS service (`hdhomerun`) resolves to the stream the relay fans out between players, as for any MPEG-TS source.
+A native source's URL is `svc://SERVICE/CHANNEL_ID`: stable, never fetched, and what the lineup refers to. When a session opens the channel, the relay asks the provider to resolve it: the provider fills the service's ad macros (device ID, session ID, cache buster, privacy defaults) or follows the service's redirect, and the relay fetches the master playlist with the headers the service's own client sends. The resolution is cached per source until a minute before it expires, for at most six hours, and every session, probe and remux on that source shares it. Nothing a player sees names the service. Media playlists and segments are the relay's opaque session paths, and an MPEG-TS service (`hdhomerun`) resolves to the stream the relay fans out between players.
 
-A service that cannot answer (its API is down, or a token is refused twice) fails that one resolution. The session answers `502 UPSTREAM_UNAVAILABLE`, Plex sees a busy tuner, and a probe records provider evidence, which never strikes. A channel missing from the service's list is evidence against that source and strikes like a 404. One provider failing never affects another.
+A service that cannot answer (its API is down, or a token is refused twice) fails that one resolution: the session answers `502 UPSTREAM_UNAVAILABLE`, Plex sees a busy tuner, and a probe records provider evidence, which never strikes. A channel missing from the service's list is evidence against that source and strikes like a 404. One provider failing never affects another.
 
-For each provider, the server keeps one random device ID and any session token in the `provider_state` table, so a restart neither re-identifies the install nor re-authenticates. Logs carry provider IDs, channel counts, failure classes and reason text, never tokens or URLs.
+Each provider keeps one random device ID and any session token in the `provider_state` table, so a restart neither re-identifies the install nor re-authenticates. Logs carry provider IDs, channel counts, failure classes and reason text, never tokens or URLs.
 
 ## Services
 
+Services that list per-category rows (Plex, TCL, Tubi) group a channel under the first themed row that lists it.
+
 ### whale (Whale TV+)
 
-The web client at watch.whaletvplus.com, backed by the rlaxx API. An access token comes from `auth/access` with the web client's public key and lasts about 24 hours; the server stores it and reuses it for 23. The channel list is the category listing for the `region` (default `US`) in English, with each channel once, under the first themed category as its group, with numbers and the white channel icon. Streams are Ottera, Amagi, MediaTailor and SoFast ad-stitched HLS templates. Their `[did]`, `[session_id]`, `[cachebuster]` and other `[...]` macros are filled per resolve, with unknown ones blanked, and requests carry the web client's `Origin` and `Referer`. The guide is the 7-day EPG endpoint, ten channels per request, for mapped channels only.
+The web client at watch.whaletvplus.com. Lists each channel of the `region` (default `US`) once, in English, under its first themed category. The guide is 7 days, for mapped channels only. Streams are ad-stitched HLS templates whose macros are filled per resolve.
 
-Fragility: the public API key is the web client's and changes with it. A 401 or 403 drops the stored token and retries once. Channel IDs are the service's numeric IDs.
+Fragility: the public API key is the web client's and changes with it. A 401 or 403 drops the stored token and retries once.
 
 ### vizio (WatchFree+)
 
-The SmartCast guide API, which needs no authentication. Channels with a `tokenUrl` (the NFL channel) need a device entitlement and are skipped. Stream URLs are clear HLS on Amagi and others, with `{ADID}`-style macros present percent-encoded in the payload. The known macros are filled with the anonymous mobile client's values and the install's device ID, and unknown ones are blanked. The guide is one bulk `airings` request for the next 24 hours, matched to channels by `airingsKey`.
+The SmartCast guide API, which needs no authentication. Channels that need a device entitlement (the NFL channel) are skipped. Streams are clear HLS with macros filled with the anonymous mobile client's values. The guide is the next 24 hours.
 
 Fragility: `FEATURED` channel IDs are rotating promo slots (tagged `featured` in the candidate's tags), so the program in them changes while the ID stays. The service has hundreds of channels, and their `channelNumber` values can collide with other providers until renumbered.
 
 ### lg (LG Channels)
 
-One `schedulelist` document from the lgchannels.com web API, sent with the web client's device headers (`US`, `en`, `WEB`). It is served as base64 of a zlib stream under `text/plain`, and plain JSON is accepted too. It carries every category, channel, logo and number, the static HLS template with `[DEVICE_ID]`-style macros, and the next hours of programs, which is the whole guide.
+One `schedulelist` document from the lgchannels.com web API, sent with the web client's device headers (`US`, `en`, `WEB`). It carries every category, channel, logo, number and stream template, and the next hours of programs, which are the whole guide.
 
 Fragility: the guide horizon is short, hence the hourly refresh. The document encoding has changed before.
 
 ### freelivesports (FreeLiveSports.tv)
 
-One public catalog document from the Unreel/POWR platform, listing every channel with its HLS template (`[DEVICE_ID]`, `[CB]` and privacy macros) and its embedded schedule. The catalog path carries the site's public key segment plus `__site=freelivesports&__source=web`. The bare `public/` path answers 403.
+One public catalog document from the Unreel/POWR platform, listing every channel with its HLS template and embedded schedule. The `catalogUrl` option overrides the catalog path, which carries the site's public key.
 
-Fragility: the key segment is baked into the client and changes if the site re-keys. The `catalogUrl` option overrides it.
+Fragility: the key is baked into the client and changes if the site re-keys.
 
 ### hallmark (Hallmark+)
 
-Four fixed channels (Non-Stop Hallmark Hits, Rom-Coms, Christmas and Mysteries) with static clear HLS on `crwn-*.akamaized.net`, numbered 9001 to 9004. The hallmarkplus.com catalog supplies logos and each channel's current content ID, found by its stable `channelIdentifier`. The per-channel schedule API covers 48 hours. An unreachable catalog still lists the channels, without logos, and fails only the guide.
+Four fixed channels (Non-Stop Hallmark Hits, Rom-Coms, Christmas and Mysteries) with static clear HLS, numbered 9001 to 9004. The hallmarkplus.com catalog supplies logos and each channel's current content ID, and the guide covers 48 hours. An unreachable catalog still lists the channels, without logos, and fails only the guide.
 
-Fragility: the content IDs in the catalog change, so only the identifiers are trusted. The CDN hosts are hard-coded.
+Fragility: the content IDs change, so only the channel identifiers are trusted. The CDN hosts are hard-coded.
 
 ### ballysports (Bally Sports free channels)
 
-The Next.js channel page (`/channels/milb`, after its redirect) embeds React Server Components chunks with `channelData` (UUID, name, order, logo and public CDN URL) and the programs as `epgItems` (`epgData` before October 2026). Only channels on `*.channels.ballys.tv` are listed. Streams are static HLS.
+The channel page (`/channels/milb`, after its redirect) embeds the channel data and programs. Only channels on `*.channels.ballys.tv` are listed. Streams are static HLS.
 
 Fragility: this parses a framework payload out of HTML, so a site redesign ends it.
 
 ### adultswim (Adult Swim marathons)
 
-The streams page's `__NEXT_DATA__` state lists the marathon streams with a video ID and a marathon ID. The video API names each one's `/live/` HLS asset, looked up on first resolve and cached for six hours. The marathon schedule API carries the guide with episode names. Channels are numbered in page order.
+The streams page lists the marathon streams, numbered in page order. The guide carries episode names. The HLS asset is looked up on first resolve and cached for six hours.
 
-Fragility: the page state shape and the video API fields. Some marathons are region-restricted and may not play. Segments are AES-128, and the CDN sometimes gzip-encodes the key, which the relay inflates before the player sees it.
+Fragility: the page state shape and the video API fields. Some marathons are region-restricted and may not play. The segment key is AES-128, and the relay inflates it when the CDN gzip-encodes it.
 
 ### pbs (PBS member stations)
 
-`zip` selects the member stations for a ZIP code's area at pbs.org. `stations` lists station IDs directly, comma-separated. Each station's `livestream_feeds` are listed only when they expose a clear `non_drm_url`. Feeds that carry only `drm_hls_url` never appear. Names have the form `PBS Create (KDIN)`, and IDs have the form `STATION_ID:PROFILE`. The guide is the station's livestream schedule for today and tomorrow in the station's time zone, matched by feed CID. Streams are `urs.pbs.org` redirects that the relay follows.
+`zip` selects the member stations for a ZIP code's area at pbs.org; `stations` lists station IDs directly, comma-separated. A station's feeds are listed only when they expose a clear `non_drm_url`. Names have the form `PBS Create (KDIN)` and IDs the form `STATION_ID:PROFILE`. The guide is the station's schedule for today and tomorrow.
 
-Fragility: which livestream feeds are clear is the station's decision, and it changes. The schedule API is the station's.
+Fragility: which feeds are clear is the station's decision, and it changes.
 
 ### samsung (Samsung TV Plus)
 
-Matt Huisman's published mirrors (i.mjh.nz): the channel list `.channels.json.gz` by `region` (default `us`), with channels that have a `license_url` left out as DRM. When i.mjh.nz fails, the list comes from the mirror's GitHub repository (`fallbackUrl` overrides it), and when that fails too, the last list that loaded, kept in SQLite across restarts, stands in so that resolves still find their channels. Samsung publishes no channel API outside its own apps. The XMLTV `REGION.xml.gz` is the provider's implicit guide, through the ordinary guide pipeline and refreshed with the provider, hourly by default. Set `guideUrl` to override it. A resolve requests `jmp2.uk/stvp-ID` without following, takes its redirect target, fills `{PSID}`, `{TARGETOPT}` and `{US_PRIVACY}`, and blanks the other braces. The relay follows the remaining hop to the CDN.
+Matt Huisman's published mirrors (i.mjh.nz): the channel list by `region` (default `us`), without channels that carry a `license_url` (DRM). When i.mjh.nz fails, the list comes from the mirror's GitHub repository (`fallbackUrl` overrides it), and when that fails too, the last list that loaded, kept in SQLite across restarts, stands in. Samsung publishes no channel API outside its own apps. The region's XMLTV is the implicit guide; `guideUrl` overrides it.
 
-Fragility: a third party's mirror and redirector. Both can lag or go away, and the kept list only bridges an outage of the list, not of `jmp2.uk`. Some targets are CMAF with DRM despite having no `license_url`, and they do not decode.
+Fragility: a third party's mirror and redirector (`jmp2.uk`) can lag or go away, and the kept list bridges only an outage of the list. Some targets are CMAF with DRM despite having no `license_url`, and they do not decode.
 
 ### plex (Plex free live TV)
 
-The watch.plex.tv client's API. An anonymous token comes from plex.tv's `users/anonymous`, with the install's device ID as the client identifier. It is kept until Plex refuses it: a 401 or 403 replaces it and retries once. The channel list is the US `plex` lineup on epg.provider.plex.tv, keyed by `gridKey`. Channels whose media says `drm` are left out. The group is the first themed guide filter (genre) that lists the channel, with Bingeworthy and Global used only for channels nothing else lists. Plex has no channel numbers. The guide is the per-channel `grid` for today and tomorrow (UTC), for mapped channels only. A resolve fetches the channel's `library/parts` master, which Plex serves directly with the token in its query. The URL goes to the relay for an hour.
+The watch.plex.tv client's API, with an anonymous token the server keeps until Plex refuses it. Lists the US lineup without DRM channels, grouped by the first genre filter that lists the channel (Bingeworthy and Global only for channels nothing else lists). Plex has no channel numbers. The guide is today and tomorrow (UTC), for mapped channels only.
 
-Fragility: the compound part ID carries a server prefix that Plex rotates. Only `gridKey` is trusted as the channel ID, and the part key is re-read from the lineup. The anonymous token is rate-limited per token.
+Fragility: the part ID in a stream's path carries a server prefix that Plex rotates, so only the channel's `gridKey` is trusted and the part is re-read from the lineup. The anonymous token is rate-limited per token.
 
 ### stirr (STIRR)
 
-The stirr.com web API. The channel list is one `videos/list` document of every live channel (`content_type=4`), keyed by `videoid`, with the channel number, the first category as the group and the logo (the square thumb when there is none). Channels marked `drm_protected` are left out. The guide is the per-channel `epg` endpoint in UTC, for mapped channels only. A resolve POSTs to `v2/videos/ID/playable`, which answers with an Aniview, Wurl or other ad-stitched HLS URL. That URL carries a session and a `vx_token` that lasts about 12 hours. `[vx_nonce]` is blanked, and the URL goes to the relay for an hour with the web client's `Origin` and `Referer`.
+The stirr.com web API. Lists every live channel with its number, first category as the group and logo, without `drm_protected` ones. The guide is per channel, in UTC, for mapped channels only. Each channel resolves to an ad-stitched HLS URL whose token lasts about 12 hours.
 
-Fragility: the list document is over a megabyte, with rows nested by category, so rows are found by shape (`videoid` and `title`). Each channel's stream comes from a different ad stitcher, so one channel can fail while the rest play.
+Fragility: the list document is over a megabyte, with rows nested by category. Each channel's stream comes from a different ad stitcher, so one channel can fail while the rest play.
 
 ### tcl (TCL TV+)
 
-The tcltv.plus web API on gateway-prod.ideonow.com, sent with the install's device ID. The `livetab` lists the categories. One `programlist/by/category` request per category (the personal `recommend` row is skipped) carries every channel in it, keyed by `bundle_id`, with its logo, its ad-stitched HLS template and its programs from an hour ago to eleven hours ahead. The channel list and the guide come from the same requests, cached for 55 minutes. The group is the first themed category that lists the channel. The curated rows (TCL TOP 15, Featured, Bingeable, TV Favorites) group only what nothing else does. TCL has no channel numbers. Channels with `drm` are left out. A resolve posts the template to `format-stream-url`, as the TCL client does. That call fills its own macros and percent-encodes literal brackets. The brace macros it leaves (`{DEVICE_ID}` and the like) are filled with the device ID and privacy defaults or blanked, and the URL goes to the relay for an hour.
+The tcltv.plus web API, sent with the install's device ID. One request per category (about 35 per refresh, the personal `recommend` row skipped) carries the channels, their stream templates and programs from an hour ago to eleven hours ahead; the list and the guide share them, cached for 55 minutes. The curated rows (TCL TOP 15, Featured, Bingeable, TV Favorites) group only what nothing else does. TCL has no channel numbers.
 
-Fragility: about 35 category requests per refresh. Seasonal rows are themed as far as the client can tell, and they group the channels they list first. Upstream streams come from Xumo, Amagi, Wurl, Frequency and others, each with its own ad macros.
+Fragility: seasonal rows count as themed as far as the client can tell, and group the channels they list first. Upstream streams come from Xumo, Amagi, Wurl, Frequency and others, each with its own ad macros.
 
 ### roku (The Roku Channel)
 
-The channel list is Matt Huisman's mirror (i.mjh.nz `Roku/.channels.json.gz`), keyed by Roku's station ID with number, logo and first group. The mirror leaves out the channels that need DRM, so it lists only part of what the web client shows. When the mirror fails, the list is the web client's own station list (`api/v4/epg` in the anonymous session below): its live `rokuavod` stations, with the same IDs, names, numbers and logos, grouped by the first guide category that is a genre. That list does not say which stations need DRM, so after the mirror has loaded once it is narrowed to the channels the mirror last listed, under the mirror's groups. When it fails too, the last list that loaded stands in, kept in SQLite across restarts. The mirror's XMLTV (`Roku/all.xml.gz`, with the same IDs) is the provider's implicit guide, through the ordinary guide pipeline. Set `guideUrl` to override it. A resolve runs the therokuchannel.roku.com web client's steps: an anonymous session (the home page's cookies and the `csrf` token, kept 55 minutes), the content proxy for the channel's `playId` (kept six hours), and a POST to `playback`. The POST answers with an `osm.sr.roku.com` HLS URL that the relay uses for five hours. A playback answer that names DRM fails as the channel's fault. A 401 or 403 starts a new session and retries once.
+The channel list is Matt Huisman's mirror (i.mjh.nz), keyed by Roku's station ID with number, logo and first group. The mirror leaves out DRM channels, so it lists only part of what the web client shows. When it fails, the list is the web client's own live station list narrowed to the channels the mirror last listed, under the mirror's groups; when that fails too, the last list that loaded stands in, kept in SQLite across restarts. The mirror's XMLTV is the implicit guide; `guideUrl` overrides it. A resolve starts an anonymous web session, kept 55 minutes. A playback answer that names DRM fails as the channel's fault.
 
-Fragility: CloudFront in front of the web client sometimes answers 403 for a while. That fails resolves as provider evidence. Before the mirror has ever loaded, the station list includes the DRM channels, which fail on resolve as the channel's fault.
+Fragility: CloudFront in front of the web client sometimes answers 403 for a while, which fails resolves as provider evidence. Before the mirror has ever loaded, the station list includes DRM channels, which fail on resolve as the channel's fault.
 
 ### localnow (Local Now)
 
-The localnow.com web client. The page's `__NEXT_DATA__` runtime config carries the data-store host and a public app token (`DSP_TOKEN`, a JWT valid about a month, re-read every 12 hours or on a 401 or 403). One `live/epg/US/website` request lists the channels for the configured `dma` and `market`. A `dma` and `market` pair selects a market's local channels. Without them the national lineup comes back. Channels are keyed by `video_id`, with number, logo, first genre as group, and the next five programs, which are the whole guide. The snapshot is kept 15 minutes. Channels whose `subscription_access` is not `unlocked` are left out. A resolve asks `video/play/ID/1920/1080` and hands its MediaTailor `video_m3u8` to the relay for an hour. An answer with a `drm_config` fails as the channel's fault.
+The localnow.com web client. `dma` and `market` together select a market's local channels; without them the national lineup comes back. Each channel carries number, logo, first genre as group and the next five programs, which are the whole guide. Channels whose `subscription_access` is not `unlocked` are left out, and an answer with a `drm_config` fails as the channel's fault.
 
-Fragility: five programs per channel cover as little as an hour on some channels, so the guide is only as deep as the last refresh. The app token is the web client's and changes with it.
+Fragility: five programs cover as little as an hour on some channels, so the guide is only as deep as the last refresh. The app token is the web client's and changes with it.
 
 ### xumo (Xumo Play)
 
-The play.xumo.com web API on valencia-app-mds.xumo.com, sent with the install's device ID. The `market` option selects the Xumo market, `10006` by default. The channel list is the market's `proxy/channels/list`, keyed by the channel's GUID, with number, first genre as group and the color logo. Live channels whose call sign ends in `-DRM` or `DRM-CMS` are Widevine and are left out, as are channels not marked live. The guide is the EPG in six-hour blocks (`epg/MARKET/DATE/BLOCK.json`, 50 channels a page), from the current block for 18 hours. Programs are kept only for mapped channels. A block not yet published (HTTP 400) ends the guide. A resolve reads the channel's `broadcast` document for the current hour and takes its `ssaiStreamUrl`, or else the live asset's HLS source. It fills the `[IFA]`, `[PLATFORM]`, `[CCPA_Value]` and similar macros, blanking the rest, follows the one-hop JSON pointer a few channels use instead of a manifest, and hands the URL to the relay for an hour.
+The play.xumo.com web API, sent with the install's device ID. The `market` option selects the Xumo market, `10006` by default. Lists the market's live channels with number, first genre as group and the color logo, without Widevine channels (call sign ending `-DRM` or `DRM-CMS`). The guide covers 18 hours from the current six-hour block, for mapped channels only; a block not yet published ends the guide.
 
 Fragility: the DRM filter is a call-sign convention, not a flag, so a DRM channel named otherwise lists and fails to decode. The guide takes about ten requests per block.
 
 ### pluto (Pluto TV)
 
-The pluto.tv web client's own API. `boot.pluto.tv/v4/start`, with the install's device ID as `clientID`, answers a session JWT (valid a day, kept four hours, replaced on a 401 or 403), the channels and stitcher hosts, and the stitcher query parameters. The channel list is the channels service's `v2/guide/channels`, keyed by Pluto's channel ID, with number, color logo and the name of the channel's first category from `v2/guide/categories`. Channels with `entitlements` need a Pluto account and are left out. The guide is `v2/guide/timelines` for mapped channels, 25 per request, covering twelve hours from the current hour. A resolve is the stitcher host, `/v2` and the channel's stitched path, with the boot's parameters, the JWT and `masterJWTPassthrough`. The URL goes to the relay for an hour.
+The pluto.tv web client's own API, with a session token the server keeps and replaces on a 401 or 403. Lists the channels with number, color logo and first category, without channels that need a Pluto account. The guide covers twelve hours from the current hour, for mapped channels only. `region` and `forwardedFor` pick another country's lineup ([above](#other-countries-lineups)).
 
 Fragility: the boot's `appVersion` is the web client's and may be refused when Pluto retires it. The stitcher parameters carry the location Pluto derives from the server's address.
 
 ### tubi (Tubi)
 
-tubitv.com/live as a signed-out visitor sees it. The page's `window.__data` state carries the `tubitv_us_linear` containers and their channel IDs. The public `oz/epg/programming` endpoint, 50 IDs a request, answers each channel's title, thumbnail, HLS manifest (with a token valid about three days) and about two days of programs, which are the guide. The snapshot is kept 30 minutes. The group is the first themed container that lists the channel. Featured, Recommended, Recently Added and Favorites group only what nothing else does. Tubi has no channel numbers. Channels with `needs_login`, or a resource with a `license_server`, are left out. A resolve asks `programming` for that one channel and hands its manifest to the relay for an hour.
+tubitv.com/live as a signed-out visitor sees it. Lists the linear channels without those that need login or use a license server; Featured, Recommended, Recently Added and Favorites group only what nothing else does. Tubi has no channel numbers. The guide is about two days, kept 30 minutes.
 
 Fragility: the channel IDs come from the page's server-rendered state. A page served without them fails the import as provider evidence, and the last complete snapshot stays.
 
 ### zeam (Zeam)
 
-The zeam.com/live page embeds a `var json=` blob whose "All Channels" group lists about 400 stations, each with its station ID, logo and a v4 `schedule.json` URL. The guide fetches only the wanted channels' schedules, six at a time; a schedule that answers 403 or 404 means that channel has no guide. A resolve asks `api/services/StreamInfo?stationId=N` for a master playlist whose token lasts about 90 seconds. Its variant and key URLs answer only the User-Agent that fetched the master, so the client sends a fixed one and hands the relay the same. The `siteBase` option overrides the site.
+The zeam.com/live page lists about 400 stations. The guide fetches only the wanted channels' schedules, six at a time; a schedule that answers 403 or 404 means that channel has no guide. The stream token lasts about 90 seconds, and the variant and key URLs answer only the User-Agent that fetched the master, so the client sends a fixed one. The `siteBase` option overrides the site.
 
-Fragility: the lineup comes from a script blob in the page. Schedules are large, over a megabyte for some channels, and looped channels list multi-day blocks under one title. StreamInfo answers 500 for an unknown station, so a channel is gone only when the page drops it.
+Fragility: the lineup comes from a script blob in the page. Schedules are large, over a megabyte for some channels, and looped channels list multi-day blocks under one title. A channel is gone only when the page drops it.
 
 ### ognetwork (OG Network)
 
-The site's `catalog.json` lists about 84 small channels. Everything else goes through the Sotal cloud SDP: the web app's anonymous token, kept in provider state and replaced once when refused, then each channel asset's `hls-live` resource, and a `playback-sessions` call per tune that answers a `noisypeak` HLS URL behind a redirect, valid about 10 minutes. A resolve checks the master and first variant, and a channel whose playlist has no segments fails as a gone offering. The guide is one `epg-events` call of about 10 MB. The `catalogUrl` and `apiBase` options override both endpoints.
+The site's catalog lists about 84 small channels. Tuning one opens a playback session on the Sotal cloud, valid about 10 minutes, and checks the master and first variant; a channel whose playlist has no segments fails as a gone offering. The guide is one call of about 10 MB. The `catalogUrl` and `apiBase` options override both endpoints.
 
 Fragility: an unofficial API. Some channels serve empty playlists, the operator allows three playback sessions at once, and the catalog carries no channel numbers.
 
 ### cw (The CW)
 
-One feed from the CW web player, `data.cwtv.com/feed/app-2/landing/epg/page_1/pagesize_75/...`, lists The CW's free channels (ION, Court TV, FilmRise and others) with each one's clear Amagi HLS URL and its programs, from a few hours back to about 16 hours ahead. The trailing `cacheversion_N` changes every 15 minutes so the CDN copy stays fresh. Channel IDs are the feed's slugs. Channels marked `has_drm` or not HLS are left out, and "To Be Announced" filler is dropped from the guide. The `feedBase` option overrides the feed path.
+One feed from the CW web player lists The CW's free channels (ION, Court TV, FilmRise and others) with clear HLS and programs from a few hours back to about 16 hours ahead. Channels marked `has_drm` or not HLS are left out, and "To Be Announced" filler is dropped from the guide. The `feedBase` option overrides the feed path.
 
-Fragility: `app-2` and `apiversion_24` are fixed in the path, so a version change on the CW's side ends it. The feed is one 1.4 MB document, and its guide is shorter than a day.
+Fragility: the API version is fixed in the path, so a version change on the CW's side ends it. The feed is one 1.4 MB document, and its guide is shorter than a day.
 
 ### mansa (Mansa)
 
-One `POST` to the Kanku playlist API with `{"size":200}` lists Mansa's channels. Only `FAST` entries are kept; `VIRTUAL` ones are on-demand playlists without a stream. Streams are MediaTailor, Amagi or Ottera HLS; the Wurl MediaTailor URLs carry percent-encoded `{DEVICE_ID}`-style ad macros, which a resolve fills. The guide is one shared Kanku EPG feed of about a day, matched to channels by ID, then by normalized name. The `playlistUrl` and `guideUrl` options override both endpoints.
+One request to the Kanku playlist API lists Mansa's channels; only `FAST` entries are kept, since `VIRTUAL` ones are on-demand playlists. The guide is one shared feed of about a day, matched to channels by ID, then by normalized name. The `playlistUrl` and `guideUrl` options override both endpoints.
 
 Fragility: an unofficial API that can change shape. Some channels' schedules stop updating, so a few channels have no guide at a time.
 
 ### hdhomerun (HDHomeRun tuner)
 
-An HDHomeRun on the LAN, read the way Plex and the HDHomeRun app read it. `options.url` is the device's address, such as `http://192.168.1.50`. `lineup.json` lists the scanned channels: the channel ID and number are the `GuideNumber`, the name is the `GuideName`, the group is `Local` and each channel is tagged `ota`. Channels the device marks DRM (the `DRM` flag or a `drm` tag) are left out, as are channels without a stream URL. The list is kept 55 minutes. A resolve answers the channel's own MPEG-TS stream URL on the device (`/auto/vN.N`), which the relay's fan-out shares between players; `options.transcode` appends a `transcode=` profile (`heavy`, `mobile`, `internet720` and the rest), which only EXTEND models honor. The guide is SiliconDust's XMLTV for the device's lineup at `api.hdhomerun.com/api/xmltv`, fetched with the `DeviceAuth` from `discover.json`, three days deep without an account. It is refreshed about once a day, at an interval between 20 and 28 hours chosen per install, as the guide service asks, and its channel IDs are mapped onto the lineup numbers by suffix or display name. `options.guideApi` points the guide at another XMLTV endpoint that takes `DeviceAuth`.
+An HDHomeRun on the LAN, read the way Plex and the HDHomeRun app read it. `options.url` is the device's address, such as `http://192.168.1.50`. The scanned channels use the `GuideNumber` as ID and number and the `GuideName` as name, in the group `Local`, tagged `ota`; channels the device marks DRM or without a stream URL are left out. A resolve answers the channel's own MPEG-TS stream on the device, which the relay's fan-out shares between players. `options.transcode` appends a `transcode=` profile (`heavy`, `mobile`, `internet720` and the rest), which only EXTEND models honor.
 
-Fragility: the tuner has as many concurrent streams as it has tuners; past that, a play fails and Plex sees a busy tuner. An unscanned device has an empty lineup, which fails the import as provider evidence. The guide stops with `DeviceAuth`, which changes every few hours, so each fetch reads `discover.json` first.
+The guide is SiliconDust's XMLTV for the device's lineup (`api.hdhomerun.com`), three days deep without an account. It is refreshed about once a day, at an interval of 20 to 28 hours chosen per install, as the guide service asks, and its channels are mapped onto the lineup numbers by suffix or display name. `options.guideApi` points it at another XMLTV endpoint that takes `DeviceAuth`.
+
+Fragility: the tuner has as many concurrent streams as it has tuners; past that, a play fails and Plex sees a busy tuner. An unscanned device has an empty lineup, which fails the import as provider evidence. The guide depends on `DeviceAuth`, which changes every few hours, so each fetch reads `discover.json` first.
 
 ### direct (broadcasters' own feeds)
 
-A fixed table of free live feeds that broadcasters publish on their own sites and apps without an account: the HLS URL each site's player loads, on the broadcaster's own CDN. Nothing is fetched to list them. Each channel is numbered from 9101 in table order, grouped by what it carries (`News`, `Weather`, `Entertainment` or `Documentary`), and tagged with its country. Every feed answers from a US address; the country tag is the broadcaster's, not a geofence. A resolve is the table entry, sent with a browser `User-Agent`, and never expires. The feeds carry no logos: a channel's logo comes from the guide it is mapped onto.
+A fixed table of free live feeds that broadcasters publish on their own sites and apps without an account: the HLS URL each site's player loads, on the broadcaster's own CDN. Nothing is fetched to list them. Each channel is numbered from 9101 in table order, grouped by what it carries (`News`, `Weather`, `Entertainment` or `Documentary`), and tagged with its country, which is the broadcaster's, not a geofence. A resolve is the table entry, sent with a browser `User-Agent`, and never expires. The feeds carry no logos: a channel's logo comes from the guide it is mapped onto.
 
 | Channel | Country | Feed |
 | --- | --- | --- |
-| CBS News 24/7, and the CBS News local streams for Baltimore, the Bay Area, Boston, Chicago, Colorado, Detroit, Los Angeles, Miami, Minnesota, New York, Philadelphia, Pittsburgh, Sacramento and Texas | US | The ad-stitched `dai.google.com` event each station's live page on cbsnews.com plays. A resolve reads that page, once per feed per six hours, and takes the event URL it names; a page that names none, or does not answer, falls back to the table's URL (CBS's own CDN for the national stream, the last known event for a local one) |
+| CBS News 24/7, and the CBS News local streams for Baltimore, the Bay Area, Boston, Chicago, Colorado, Detroit, Los Angeles, Miami, Minnesota, New York, Philadelphia, Pittsburgh, Sacramento and Texas | US | The ad-stitched `dai.google.com` event each station's live page on cbsnews.com plays, read once per feed per six hours; a page that names none falls back to the table's URL |
 | Bloomberg TV, Bloomberg Originals | US | bloomberg.com/media-manifest |
 | Cheddar | US | hls.livecdn.io |
 | Newsmax | US | nmx1ota.akamaized.net |
 | Fox Weather | US | 247wlive.foxweather.com |
 | Al Jazeera English | Qatar | getaj.net |
 | DW English | Germany | dwamdstream103.akamaized.net |
-| France 24 English | France | live.france24.com (a media playlist, which the relay serves as any playlist) |
+| France 24 English | France | live.france24.com (a media playlist) |
 | NHK World-Japan | Japan | masterpl.hls.nhkworld.jp |
 | ABC News (Australia) | Australia | abc-news-dmd-streams-1.akamaized.net |
 | i24NEWS English | Israel | encoders.immergo.tv |
 | DW Deutsch | Germany | dwamdstream102.akamaized.net |
-| Das Erste, ARD alpha | Germany | ARD's own CDNs, daserste-live.ard-mcdn.de and mcdn.br.de |
+| Das Erste, ARD alpha | Germany | daserste-live.ard-mcdn.de and mcdn.br.de |
 | France 24 French | France | live.france24.com (a media playlist) |
 | La 1, Canal 24 Horas | Spain | rtvelivestream.rtve.es |
-| 3CatInfo | Spain | directes-tv-int.3catdirectes.cat, the Catalan broadcaster's international host |
+| 3CatInfo | Spain | directes-tv-int.3catdirectes.cat |
 | Euronews, Africanews | France | cdn-euronews.akamaized.net |
 | TRT World | Turkey | tv-trtworld.medya.trt.com.tr |
 | Al Jazeera Arabic, Al Jazeera Mubasher | Qatar | getaj.net |
@@ -246,8 +252,8 @@ A fixed table of free live feeds that broadcasters publish on their own sites an
 
 There is no service guide. The `epg_ripper_US2` guide on epgshare01.online lists most of the US channels, under `CBS.News.National.Stream.us2`, `Bloomberg.HD.us2`, `Cheddar.us2`, `Newsmax.TV.HD.us2`, `NHK.World.TV.us2` and `i24.News.English.us2`; a lineup policy maps a station onto whichever configured guide carries it, and `PATCH /api/v1/admin/lineup/{id}` with `{"guide": {"guideId", "channelId"}}` maps one by hand.
 
-Fragility: every URL is hard-coded, so a broadcaster that moves or retires a feed, or starts requiring a token, fails that one channel until the table is updated. A stale CDN can keep answering a master playlist whose variants are gone, which a resolve cannot see; the probe and the relay do, so a dead feed strikes like any 404 ([source health](source-health.md)). Feeds published for one country can be geo-blocked elsewhere. The CBS pages are HTML, so a redesign that drops the event URL leaves the fallbacks in place until the table is updated.
+Fragility: every URL is hard-coded, so a broadcaster that moves or retires a feed, or starts requiring a token, fails that one channel until the table is updated. A stale CDN can keep answering a master playlist whose variants are gone; the probe and the relay see that, so a dead feed strikes like any 404 ([source health](source-health.md)). Feeds published for one country can be geo-blocked elsewhere. A redesign of the CBS pages that drops the event URL leaves the fallbacks in place.
 
 ## Checking a provider
 
-`scripts/provider-smoke.py --service NAME [--option key=value]` starts a disposable server with that one provider, waits for the import and adopts every channel. It then opens sessions on three channels, expecting an HLS master from each, decodes five seconds of two of them with FFmpeg, and prints the counts. It releases each session once it is done with it, so a run of failing channels never fills the server's playback slots. It needs the built distribution and network access to the service. See [development](development.md#scripts) for the other scripts.
+`scripts/provider-smoke.py --service NAME [--option key=value]` starts a disposable server with that one provider, waits for the import and adopts every channel. It then opens sessions on three channels, expecting an HLS master from each, decodes five seconds of two of them with FFmpeg, prints the counts and releases each session. It needs the built distribution and network access to the service. See [development](development.md#scripts) for the other scripts.

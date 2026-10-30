@@ -24,7 +24,7 @@ Each probe has two tiers:
 
 At start the server deletes the stored data of what the providers do not carry. A provider missing from the configuration whose last import is over 30 days old loses its stored snapshot. A source no stored snapshot lists, whose health last changed over 30 days ago, loses its health, observations, probe attempt and detected protocol. A source disabled by hand keeps its row. With no provider configured nothing is deleted.
 
-Healthy sources recheck after six hours. A recheck of a healthy source copies the video packets instead of decoding them (`-c copy`). It needs only the 29 seconds of media timestamps, since FFmpeg 6 reports no frame count for a copy. It proves the source still delivers at a fraction of the CPU, and a source that fails it is fully decoded again on its next probe. Unverified and suspect sources retry no sooner than five minutes. FFmpeg reads the source through the server's loopback relay, which checks every hop against the [address policy](security.md#outbound-requests) and sends the provider headers; it may open only the `http`, `tcp` and `crypto` protocols. The relay passes the upstream's error status on, so the classes below read FFmpeg's `Server returned` lines the same way, and a hop to a refused address answers `422`, which counts against the source.
+Healthy sources recheck after six hours, copying the video packets instead of decoding them (`-c copy`), which needs only the 29 seconds of media timestamps and costs a fraction of the CPU; a source that fails it is fully decoded again on its next probe. Unverified and suspect sources retry no sooner than five minutes. FFmpeg reads the source through the server's loopback relay, which checks every hop against the [address policy](security.md#outbound-requests), sends the provider headers and passes the upstream's error status on; a hop to a refused address answers `422`, which counts against the source.
 
 ## Failure classes
 
@@ -37,7 +37,7 @@ Healthy sources recheck after six hours. A recheck of a healthy source copies th
 | HTTP 404, 410 or other 4xx; 2xx without a stream signature; FFmpeg `Server returned 404` or `4XX`; decode failures; premature stream end | `OFFERING` | Yes |
 | Missing decoder, permission, memory or disk errors | `LOCAL` | No |
 
-`OFFERING` evidence points at the source itself, so only it strikes. A refusal is the provider's while its credentials fail everywhere, but once another source of the same provider has qualified since a source was last refused, the refusal is that source's own, such as a channel geo-blocked from the server's country or behind a partner's dead token, and it is recorded as `OFFERING`. A credential outage stops every source of the provider qualifying, so it never quarantines them. The server keeps these times in memory, so after a restart a source's first refusal does not strike. Restream origins are LAN proxies whose 502 means their upstream is gone. List them as `host` or `host:port`; the scheme's default port applies when a URL has none. The same 502 from any other origin is provider evidence and never strikes.
+Only `OFFERING` evidence strikes, since it points at the source itself. A refusal is the provider's while its credentials fail everywhere; once another source of the same provider has qualified since a source was last refused, the refusal is that source's own (a channel geo-blocked from the server's country, or behind a partner's dead token) and is recorded as `OFFERING`. A credential outage therefore never quarantines a provider's sources. These times are kept in memory, so after a restart a source's first refusal does not strike. Restream origins are LAN proxies whose 502 means their upstream is gone; list them as `host` or `host:port` (the scheme's default port applies when a URL has none). The same 502 from any other origin is provider evidence and never strikes.
 
 ## States
 
@@ -50,7 +50,7 @@ Healthy sources recheck after six hours. A recheck of a healthy source copies th
 | `PROBATION` | No | Recovery passed once; another pass is required at least ten minutes later |
 | `ARCHIVED` | No | Archived source; automatic archival is not implemented |
 
-A suspect source is rechecked ahead of unverified and healthy sources, no sooner than five minutes after its last attempt, so three strikes land inside the six-hour window whenever one round over the suspect queue takes under two hours. One transient failure leaves a source suspect until its next pass clears it.
+A suspect source is rechecked ahead of unverified and healthy ones, no sooner than five minutes after its last attempt; one transient failure leaves it suspect until its next pass clears it.
 
 ```mermaid
 stateDiagram-v2
@@ -79,7 +79,7 @@ Only `OFFERING` failures and qualified passes move a state. A first quarantine i
 
 Every playback session, API, player or HDHomeRun, takes the lineup entry's first selectable source by health rank: healthy first, then unverified, then suspect, in the entry's failover order within each rank. Quarantined, probation, archived, manually disabled and withdrawn sources are never selected. When the playing source stops being selectable, an API session moves to the next one the next time the client fetches it, as [open and release playback](api.md#open-and-release-playback) describes.
 
-Switch on the portal's Watching now (or `POST /api/v1/admin/sessions/{id}/switch-source`) moves a session to the channel's next selectable source by hand, for a picture that plays but looks wrong. It passes over the source playing and those the session was switched away from, so pressing it again turns through every source; once none is left it starts over. The session keeps its id and moves to a new epoch: the app re-reads it and plays the new source within a second or two, while an M3U, Plex or HDHomeRun player sees its stream end once and opens it again. A channel with no other selectable source refuses with `409 NO_OTHER_SOURCE`. Watching now also shows each session's rate, its stalls (media requests the source refused or dropped) and its switches, the automatic ones included. The app's stream card shows the same three for its own session, from the `health` a read or renewal of the session answers with.
+Switch on the portal's Watching now (or `POST /api/v1/admin/sessions/{id}/switch-source`) moves a session to the channel's next selectable source by hand, for a picture that plays but looks wrong. It passes over the source playing and those the session was switched away from, so pressing it again turns through every source and then starts over. The session keeps its id and moves to a new epoch: the app plays the new source within a second or two, while an M3U, Plex or HDHomeRun player sees its stream end once and opens it again. A channel with no other selectable source refuses with `409 NO_OTHER_SOURCE`. Watching now also shows each session's rate, its stalls (media requests the source refused or dropped) and its switches, the automatic ones included; the app's stream card shows the same three from the session's `health`.
 
 ### Stall and quality failover
 
@@ -112,9 +112,7 @@ curl --fail -X PATCH -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" \
   --data '{"manuallyDisabled":true}'
 ```
 
-Send `false` to clear the manual override. This preserves existing quarantine/probation state. A manual disable takes precedence over automatic checks and cancels active media requests using that source.
-
-When a source becomes unavailable, GET the playback session to select an eligible alternative. A changed stream has a new descriptor epoch. The player must reopen it.
+Send `false` to clear the manual override, which keeps any quarantine or probation state. A manual disable takes precedence over automatic checks and cancels active media requests using that source.
 
 ## Logs
 

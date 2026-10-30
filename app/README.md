@@ -12,10 +12,9 @@ One remote, Sofa King simple: **Live** for the guide and the channels, **Library
 - **A full-screen player** with channel up and down, number entry, the previous channel, a channel list and a stream card with audio tracks and stream details.
 - **Back where you left off.** A cold start opens the last channel, or the Library or DVR tab if you left from there, and a saved lineup shows at once while the app refreshes.
 - **Recordings.** Record a program or a series from its details; the DVR tab plays recordings as they grow, resumes them and can skip the commercial breaks the server found ([DVR](docs/usage.md#dvr)).
-- **Your own library.** Search, Continue watching, poster grids, item pages, a seekable player with audio and subtitle choices, Skip intro and Up next ([library](docs/usage.md#library)), and music with radio, synced lyrics and a visualizer ([music](docs/usage.md#music)). Every file plays on every platform, since the server converts what a player cannot take.
-- **Live captions that keep up.** CEA-608 and CEA-708 captions, with timing you can set per channel on Android ([captions](docs/usage.md#captions)).
-- **Light on the server.** One playback session at a time, so a small server's few slots go further; a failed stream reconnects with backoff, and the channel is followed by number, then name, when the lineup drops its id.
-- **One codebase.** Kotlin Multiplatform and Compose Multiplatform on every platform, with each platform's own player underneath.
+- **Your own library.** Search, Continue watching, poster grids, item pages, a seekable player with audio and subtitle choices, Skip intro and Up next ([library](docs/usage.md#library)), and music with radio, synced lyrics and a visualizer ([music](docs/usage.md#music)).
+- **Live captions.** CEA-608 and CEA-708 captions, with timing you can set per channel on Android ([captions](docs/usage.md#captions)).
+- **Light on the server.** One playback session at a time; a failed stream reconnects with backoff.
 
 ## Platforms
 

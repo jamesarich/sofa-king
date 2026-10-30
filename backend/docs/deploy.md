@@ -263,7 +263,7 @@ Homepage's [Custom API widget](https://gethomepage.dev/widgets/services/customap
 
 ## Build
 
-To run your own build instead of the published image, build it from a checkout of this repository. The server is built on the host and copied into the image, so the image build needs only the base image and Ubuntu packages. The third-party jars get their own layer below the server's, so a rebuild after a code change reuses every layer but the top one. `deploy/compose.build.yaml` adds the build to `compose.yaml` and names the result `sofa-king-backend:local`. From `backend/`:
+To run your own build instead of the published image, build it from a checkout. The server is built on the host and copied into the image, so the image build needs only the base image and Ubuntu packages. `deploy/compose.build.yaml` adds the build to `compose.yaml` and names the result `sofa-king-backend:local`. From `backend/`:
 
 ```sh
 ./gradlew :server:installDist
@@ -275,15 +275,15 @@ A build made this way serves no web app, since `backend/web` is empty. To includ
 
 Later commands in `deploy` that recreate the container take both files, or set `SOFA_IMAGE=sofa-king-backend:local` in `.env`, which makes plain `docker compose up -d` run the local build.
 
-`REVISION` stamps the image's `org.opencontainers.image.revision` label and sets `SOFA_REVISION`, which [`/api/v1/admin/status`](api.md#server-status) and the admin portal footer report; `VERSION` stamps `org.opencontainers.image.version` and sets `SOFA_VERSION`; the workflow sets it from [`.github/version.sh`](../../.github/version.sh): the catalog's `sofaking` version and `-dev.BUILD+COMMIT`, the same version as the app snapshot built from that commit. The build works without either. The build targets the platform of the Docker host that runs it, `linux/amd64` or `linux/arm64`. To build for another platform, for example an amd64 host from an Apple Silicon machine, set `DOCKER_DEFAULT_PLATFORM=linux/amd64`. `docker compose up -d` does not rebuild an existing image, so pass `--build` after a new `installDist`.
+`REVISION` stamps the image's `org.opencontainers.image.revision` label and sets `SOFA_REVISION`, which [`/api/v1/admin/status`](api.md#server-status) and the admin portal footer report. `VERSION` stamps `org.opencontainers.image.version` and sets `SOFA_VERSION`; the workflow takes it from [`.github/version.sh`](../../.github/version.sh), the same version as the app snapshot built from that commit. The build works without either. It targets the Docker host's platform (`linux/amd64` or `linux/arm64`); set `DOCKER_DEFAULT_PLATFORM=linux/amd64` to build for an amd64 host from Apple Silicon. `docker compose up -d` does not rebuild an existing image, so pass `--build` after a new `installDist`.
 
 ### Container limits
 
-The Compose file runs the container with a read-only root filesystem; the server writes only `/config`, `/recordings` and temporary files in a 64 MiB `/tmp`. `/tmp` is mounted `exec` because the SQLite driver loads its native library from there; a `noexec` `/tmp` stops the server at startup. The container drops every capability and cannot gain privileges, runs at most 1,024 processes, and keeps three 10 MB log files. Stopping sends `SIGTERM` and waits up to 20 seconds for the ordered shutdown.
+The Compose file runs the container with a read-only root filesystem; the server writes only `/config`, `/recordings` and a 64 MiB `/tmp`, which must stay `exec` because the SQLite driver loads its native library from there. The container drops every capability and cannot gain privileges, runs at most 1,024 processes, and keeps three 10 MB log files. Stopping sends `SIGTERM` and waits up to 20 seconds for the ordered shutdown.
 
 `mem_limit` (4 GiB) covers the JVM and its FFmpeg processes, and the heap is 75% of it (`SERVER_OPTS`; `JAVA_OPTS` adds to those flags). Each FFmpeg process takes tens of megabytes, so raise the limit with `SOFA_MAX_SESSIONS` or `SOFA_PROBE_PARALLELISM`.
 
-`SERVER_OPTS` also sets `-Djava.net.preferIPv4Stack=true`. The server connects to the first address a host resolves to, and Docker's resolver answers with IPv6 addresses first for many CDN hosts while the default Compose network has no IPv6 route, which fails every request to those hosts with a socket error. `SERVER_OPTS` comes last on the JVM command line, so `JAVA_OPTS` cannot undo it; on a host whose Docker network routes IPv6, set the whole `SERVER_OPTS` in `.env` without that flag.
+`SERVER_OPTS` also sets `-Djava.net.preferIPv4Stack=true`, since the default Compose network has no IPv6 route and Docker's resolver answers many CDN hosts with IPv6 addresses first, which fails every request to them. `JAVA_OPTS` cannot undo it; on a host whose Docker network routes IPv6, set the whole `SERVER_OPTS` in `.env` without that flag.
 
 ## Verify
 

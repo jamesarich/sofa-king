@@ -1,21 +1,6 @@
 # How Sofa King compares
 
-Sofa King is one server and one app for a home network: live TV merged from free services, broadcasters' own streams, tuners and playlists, a DVR, and your own movie and TV libraries, watched on Android TV, Google TV, phones, desktops, iOS, Apple TV and the web. Everything is free and open source under GPL-3.0, and nothing needs an account.
-
-This page says what it does next to the servers people usually come from, and what it does not do. Prices are the vendors' own, with the page and the date they were read; check the vendor before you decide.
-
-## What is included
-
-Every feature is in the one free build. There is no paid tier, so nothing below is locked:
-
-- **Live TV from many sources in one lineup.** Free streaming services, broadcasters' streams, HDHomeRun tuners and any M3U playlist with its XMLTV guide merge into one numbered lineup. A channel carried by several sources is matched by schedule, and when one source fails the next takes over, as [source health](../backend/docs/source-health.md) describes.
-- **A DVR** with series rules, commercial detection on every recording, and learned breaks on channels whose streams carry no markers ([recordings](../backend/docs/recordings.md)).
-- **Media libraries** read with the names Plex, Jellyfin and Kodi use, matched on TMDB, with intro and credits detection, scrub thumbnails and conversion on the fly, in software or on the GPU ([media libraries](../backend/docs/libraries.md)).
-- **First-party apps** on every platform above: one Compose codebase for Android, desktop, iOS and the web, and a native SwiftUI Apple TV app on the same data layer, with the same guide, player and library on each ([using the app](../app/docs/usage.md)).
-- **Household features**: shared favorites and hidden channels, Continue watching, a watchlist, On Later, and kids mode behind the Settings PIN.
-- **Channels of your own**: [virtual channels](../backend/docs/virtual-channels.md) that play a library on a schedule, with live slots and breaks you choose, and [multiview](../app/docs/usage.md#multiview) of two to four channels, drawn on the server.
-- **Homelab hooks**: Sonarr and Radarr tell the server what changed ([integrations](../backend/docs/integrations.md)), alerts go to a webhook, ntfy or Apprise ([notifications](../backend/docs/notifications.md)), and each device or tool gets its own token, scoped to what it needs.
-- **Outputs for other players**: an HDHomeRun tuner for Plex Live TV, and an M3U playlist with an XMLTV guide for Jellyfin, Channels DVR and IPTV players ([third-party players](../backend/docs/live-tv.md#third-party-players)).
+This page sets Sofa King next to the servers people usually come from and says what it does not do. The [README](../README.md) lists what it includes; every feature is in the one free build, with no paid tier. Prices are the vendors' own, with the page and the date they were read; check the vendor before you decide.
 
 ## Next to the usual servers
 
@@ -41,6 +26,6 @@ Say no early rather than after an install:
 
 ## Privacy
 
-The server and the app send nothing about you to anyone. There is no telemetry, no analytics and no crash reporting service. When the Android or desktop app crashes, it keeps the error, the app and system versions and the device model, and at its next start sends them to your own server, never to anyone else; the Send crash reports to your server setting turns it off. The app talks to your server and, for the update check, to GitHub's public releases API with no identifier ([app security](../app/docs/security.md)). The server's requests go to the sources, guides and logos you configure, to TMDB when you give it a token, and to the container registry for its update check ([outbound requests](../backend/docs/security.md#outbound-requests)).
+The server and the app send nothing about you to anyone: no telemetry, no analytics, no crash reporting service. When the Android or desktop app crashes, it keeps the error, the app and system versions and the device model, and at its next start sends them to your own server; the Send crash reports to your server setting turns it off. The app talks to your server and, for the update check, to GitHub's public releases API with no identifier ([app security](../app/docs/security.md)). The server's requests go to the sources, guides and logos you configure, to TMDB when you give it a token, and to the container registry for its update check ([outbound requests](../backend/docs/security.md#outbound-requests)).
 
 Moving from Plex or Jellyfin? [Coming from Plex or Jellyfin](migrating.md) keeps your folders and your other server running while the household switches.

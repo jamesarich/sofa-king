@@ -21,14 +21,17 @@
   <img src="docs/images/android-tv-guide.webp" alt="The guide on Android TV: category chips, the focused channel's program beside its muted preview, and a grid of channels over the evening" width="800">
 </p>
 
-A self-hosted media center for a home network. One server keeps live TV, a DVR and your own movies and shows; one app watches all of it on Android TV, Google TV, phones, desktops, iOS, Apple TV and the web. No subscription or cloud account needed, and no reason to leave the sofa: it is Sofa King convenient.
+A self-hosted media center for a home network. One server keeps live TV, a DVR and your own movies and shows; one app watches all of it on Android TV, Google TV, phones, desktops, iOS, Apple TV and the web. No subscription or cloud account needed, and no reason to leave the sofa: it is Sofa King convenient. Everything is free and open source under GPL-3.0, with no paid tier.
 
-- **Live TV in one lineup.** Free streaming services, broadcasters' free feeds, HDHomeRun tuners, M3U playlists and XMLTV guides in one numbered lineup, with fallbacks across services.
-- **A DVR that skips the boring bits.** The server records programs and series from the guide into folders Plex, Jellyfin, Emby and Kodi scan, finds the commercial breaks, and the app plays the recordings, even while they record, and can skip the breaks.
-- **Your own library.** Movies, shows, other videos and music from a folder, with details and artwork from their `.nfo` files, tags, TMDB or MusicBrainz, Continue watching, Up next and Skip intro, converted on the fly for a device that cannot play the file.
-- **Made for the couch.** The guide previews the focused channel muted and opens it full screen on the same stream, every screen works with a TV remote's D-pad, and the app reopens where you left it.
-- **Plays well with others.** The same lineup goes to Plex as an HDHomeRun tuner and to M3U and XMLTV players.
-- **No account, no telemetry.** Nothing signs in to a cloud, and nothing about you goes to anyone else: the one report is a crash, which the Android and desktop apps send to your own server unless you turn it off. [How Sofa King compares](docs/comparison.md) lists what is included and what is not, and [coming from Plex or Jellyfin](docs/migrating.md) keeps your folders.
+- **Live TV in one lineup.** Free streaming services, broadcasters' free feeds, HDHomeRun tuners, M3U playlists and XMLTV guides merge into one numbered lineup. A channel carried by several sources is matched by schedule, and when one fails the next takes over ([source health](backend/docs/source-health.md)).
+- **A DVR that skips the boring bits.** The server records programs and series from the guide into folders Plex, Jellyfin, Emby and Kodi scan, and finds the commercial breaks, learning them on streams that carry no markers. The app plays recordings, even while they record, and can skip the breaks ([recordings](backend/docs/recordings.md)).
+- **Your own library.** Movies, shows, other videos and music from a folder, read with the names Plex, Jellyfin and Kodi use, with details and artwork from `.nfo` files, tags, TMDB or MusicBrainz, Continue watching, Up next, Skip intro and scrub thumbnails, converted on the fly for a device that cannot play the file ([media libraries](backend/docs/libraries.md)).
+- **Made for the couch.** The guide previews the focused channel muted and opens it full screen on the same stream, every screen works with a TV remote's D-pad, and the app reopens where you left it. The household shares favorites, hidden channels, a watchlist and On Later, and kids mode sits behind the Settings PIN ([using the app](app/docs/usage.md)).
+- **Channels of your own.** [Virtual channels](backend/docs/virtual-channels.md) play a library on a schedule, and [multiview](app/docs/usage.md#multiview) shows two to four channels at once.
+- **Plays well with others.** The lineup goes to Plex as an HDHomeRun tuner and to M3U and XMLTV players ([third-party players](backend/docs/live-tv.md#third-party-players)); Sonarr and Radarr tell the server what changed ([integrations](backend/docs/integrations.md)); alerts go to a webhook, ntfy or Apprise ([notifications](backend/docs/notifications.md)).
+- **No account, no telemetry.** Nothing signs in to a cloud, and the one report is a crash, which the Android and desktop apps send to your own server unless you turn it off.
+
+[How Sofa King compares](docs/comparison.md) lists what it does not do, and [coming from Plex or Jellyfin](docs/migrating.md) keeps your folders.
 
 <p align="center">
   <img src="docs/images/desktop-player.webp" alt="The player in the desktop app: a channel full screen with the info bar showing its number, name, program, rating, time and what is next, over the bar's buttons" width="800">
@@ -117,14 +120,14 @@ Each part comes on two channels:
 | Stable, from the first release | `ghcr.io/jamesarich/sofa-king:latest` (or `:X.Y` to stay on one minor version) | The [latest release](https://github.com/jamesarich/sofa-king/releases/latest), one per `v*` tag |
 | Snapshot | `ghcr.io/jamesarich/sofa-king:main` | The [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), built from the latest `main` |
 
-The app is published for Android, Linux, macOS, Windows and the web, and the server serves its own copy of the web app at `/app/`. [Getting started](backend/docs/getting-started.md) takes a Docker host to a playing channel, and the [app's getting started](app/docs/getting-started.md) installs it and connects it to the server. The server image is public on GitHub Container Registry; anyone can pull it or build it from this repository. Each README lists what is missing: [server](backend/README.md#limitations), [app](app/README.md#limitations).
+[Platforms](app/README.md#platforms) lists what the app is published for. [Getting started](backend/docs/getting-started.md) takes a Docker host to a playing channel, and the [app's getting started](app/docs/getting-started.md) installs the app and connects it to the server. Each README lists what is missing: [server](backend/README.md#limitations), [app](app/README.md#limitations).
 
 | Part | What it is |
 | --- | --- |
-| [`backend/`](backend/README.md) | The server. Its [documentation](backend/docs/README.md) covers deploying, the lineup and the API |
-| [`app/`](app/README.md) | The Kotlin Multiplatform client and its [documentation](app/docs/README.md) |
+| [`backend/`](backend/README.md) | The server, with its [documentation](backend/docs/README.md) |
+| [`app/`](app/README.md) | The Kotlin Multiplatform client, with its [documentation](app/docs/README.md) |
 | [`contract/`](contract/README.md) | The wire types the server and the app share |
 
-The [documentation index](docs/README.md) links every page and the shared glossary, and the [documentation site](https://jamesarich.github.io/sofa-king/) has the same pages with search. [CONTRIBUTING](CONTRIBUTING.md) covers the repository's layout, the conventions both parts share and CI, [SECURITY](SECURITY.md) covers reporting a vulnerability, and [SUPPORT](SUPPORT.md) covers getting help. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
+The [documentation index](docs/README.md) links every page and the shared glossary; the [documentation site](https://jamesarich.github.io/sofa-king/) has the same pages with search. [CONTRIBUTING](CONTRIBUTING.md) covers the layout, conventions and CI, [SECURITY](SECURITY.md) reporting a vulnerability, [SUPPORT](SUPPORT.md) getting help, and the [code of conduct](CODE_OF_CONDUCT.md) how everyone taking part behaves.
 
 Licensed under the [GNU General Public License v3.0](LICENSE). Now put your feet up; it is Sofa King relaxing.

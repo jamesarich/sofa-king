@@ -119,11 +119,11 @@ internal class TsFanout(
     }
 
     /** Null once this stream has ended; the caller then creates a fresh one. */
-    suspend fun addReader(): Reader? = mutex.withLock {
+    suspend fun addReader(chunks: Int = config.readerChunks): Reader? = mutex.withLock {
         if (ended) return@withLock null
         linger?.cancel()
         linger = null
-        Reader(Channel(config.readerChunks)).also { readers += it }
+        Reader(Channel(chunks)).also { readers += it }
     }
 
     private suspend fun removeReader(reader: Reader) {
@@ -323,7 +323,10 @@ internal class SharedStreams(
     private val mutex = Mutex()
     private val streams = HashMap<String, TsFanout>()
 
-    suspend fun join(key: String, connect: UpstreamConnect): TsFanout.Reader {
+    suspend fun join(key: String, connect: UpstreamConnect): TsFanout.Reader = join(key, null, connect)
+
+    /** As above, with a reader that buffers [chunks] chunks, the config's default when null. */
+    suspend fun join(key: String, chunks: Int?, connect: UpstreamConnect): TsFanout.Reader {
         while (true) {
             val stream =
                 mutex.withLock {
@@ -336,7 +339,7 @@ internal class SharedStreams(
                                 it.start()
                             }
                 }
-            stream.addReader()?.let { return it }
+            (if (chunks == null) stream.addReader() else stream.addReader(chunks))?.let { return it }
             mutex.withLock { streams.remove(key, stream) }
         }
     }

@@ -168,10 +168,10 @@ class MediaRelay(
 
     /**
      * A reader of [offering]'s one upstream MPEG-TS connection, opening it from [stream] when nobody else reads it;
-     * players and recordings of the same source share it.
+     * players and recordings of the same source share it. The reader buffers [chunks] chunks, the default when null.
      */
-    internal suspend fun joinShared(offering: Offering, stream: ResolvedStream): TsFanout.Reader =
-        shared.join(offering.id) { consume ->
+    internal suspend fun joinShared(offering: Offering, stream: ResolvedStream, chunks: Int? = null): TsFanout.Reader =
+        shared.join(offering.id, chunks) { consume ->
             permits.withPermit {
                 http.withUpstreamResponse(
                     stream.url,

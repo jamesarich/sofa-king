@@ -23,6 +23,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /** What the catalog knows about one downloaded file. */
@@ -81,13 +82,14 @@ class IptvOrgCatalog(
 ) {
     private val log = LoggerFactory.getLogger(IptvOrgCatalog::class.java)
     private val lock = Mutex()
-    private val trigger = Channel<Boolean>(Channel.CONFLATED)
+    private val trigger = Channel<Unit>(Channel.CONFLATED)
+    private val forced = AtomicBoolean()
     private val current = AtomicReference(IptvOrgData.EMPTY)
 
     @Volatile private var state = IptvOrgState()
 
     init {
-        jobs.register(JOB, "iptv-org database", INTERVAL) { trigger.trySend(true) }
+        jobs.register(JOB, "iptv-org database", INTERVAL) { request(force = true) }
     }
 
     /** The parsed files; empty until a download or an earlier copy on disk. */
@@ -102,42 +104,66 @@ class IptvOrgCatalog(
     /** The region in force for streams: the setting, else the server's time zone, else US. */
     fun region(): IptvOrgRegion = effectiveRegion(settings().region, zone(), data.timezones)
 
-    /** Asks the loop to look now; [force] downloads even when a copy is current. */
+    /** Asks the loop to look now; [force] downloads even when a copy is current, and a later plain ask keeps it. */
     fun request(force: Boolean = false) {
-        trigger.trySend(force)
+        if (force) forced.set(true)
+        trigger.trySend(Unit)
     }
 
     /**
      * Runs the loop that downloads when due, and whenever [request] is called. When one of the iptv-org [runtime]
-     * settings changes the loop looks at once and [onChanged] runs.
+     * settings changes, see [settingsChanged].
      */
     fun start(scope: CoroutineScope, runtime: RuntimeSettings) {
         var seen = runtime.current.iptvOrg
         runtime.onChange { values ->
             if (values.iptvOrg != seen) {
                 seen = values.iptvOrg
-                request()
-                onChanged()
+                settingsChanged()
             }
         }
-        trigger.trySend(false)
+        trigger.trySend(Unit)
         scope.launch(CoroutineName("iptv-org")) {
             while (isActive) {
-                val forced = withTimeoutOrNull(CHECK_EVERY.toMillis()) { trigger.receive() } ?: false
-                runCatchingCancellable { if (settings().enabled && (forced || due())) refresh() }
-                    .onFailure { log.warn("iptv-org download failed class={}", it.javaClass.simpleName) }
+                runRequested(CHECK_EVERY)
             }
         }
+    }
+
+    /**
+     * Fetches at once when a switch now needs a file that is not on disk, such as `streams.json` after the metadata
+     * download; a change of region only reads the files already there. Either way [onChanged] runs.
+     */
+    internal fun settingsChanged() {
+        val now = settings()
+        if (now.enabled && wanted(now).any { !Files.exists(directory.resolve(it)) }) request(force = true)
+        onChanged()
+    }
+
+    /**
+     * Waits up to [timeout] for a request, then downloads when it was forced or a download is due. False when nothing
+     * was asked.
+     */
+    internal suspend fun runRequested(timeout: Duration = Duration.ZERO): Boolean {
+        val asked = if (timeout.isZero) {
+            trigger.tryReceive().isSuccess
+        } else {
+            withTimeoutOrNull(timeout.toMillis()) { trigger.receive() } != null
+        }
+        val force = asked && forced.getAndSet(false)
+        runCatchingCancellable { if (settings().enabled && (force || due())) refresh() }
+            .onFailure { log.warn("iptv-org download failed class={}", it.javaClass.simpleName) }
+        return asked
     }
 
     /** Whether a week has passed since the last attempt, a failed one is six hours old, or a needed file is missing. */
     fun due(): Boolean {
         val attempted = state.attemptedAt?.let(Instant::parse)
         val missing = wanted(settings()).any { !Files.exists(directory.resolve(it)) }
-        return attempted == null || clock.instant() >= attempted.plus(if (missing) RETRY else wait())
+        return attempted == null || clock.instant() >= attempted.plus(if (missing) RETRY else wait)
     }
 
-    private fun wait(): Duration = if (state.ok == false) RETRY else INTERVAL
+    private val wait: Duration get() = if (state.ok == false) RETRY else INTERVAL
 
     /**
      * Downloads each wanted file, then parses what is on disk. Nothing is fetched while both parts are off. Answers
@@ -148,25 +174,22 @@ class IptvOrgCatalog(
         var outcome = JobOutcome(true, "off")
         if (now.enabled) {
             jobs.record(JOB) {
-                outcome = download(now).also { current.set(readData(directory)) }
+                Files.createDirectories(directory)
+                val started = clock.instant()
+                val results = wanted(now).associateWith { name ->
+                    download(name, state.files[name] ?: IptvOrgFileState(), started)
+                }
+                val failed = results.values.any { it.failed }
+                val notes = results.values.map { it.note }
+                state = IptvOrgState(results.mapValues { it.value.state }, started.toString(), !failed, notes)
+                writeState(directory, state)
+                current.set(readData(directory))
+                if (results.values.any { it.changed }) onChanged()
+                outcome = JobOutcome(!failed, notes.joinToString("; "))
                 outcome
             }
         }
         outcome
-    }
-
-    private suspend fun download(now: IptvOrgSettings): JobOutcome {
-        Files.createDirectories(directory)
-        val started = clock.instant()
-        val results = wanted(now).associateWith { name ->
-            download(name, state.files[name] ?: IptvOrgFileState(), started)
-        }
-        val failed = results.values.any { it.failed }
-        val notes = results.values.map { it.note }
-        state = IptvOrgState(results.mapValues { it.value.state }, started.toString(), !failed, notes)
-        writeState(directory, state)
-        if (results.values.any { it.changed }) onChanged()
-        return JobOutcome(!failed, notes.joinToString("; "))
     }
 
     private class Downloaded(val state: IptvOrgFileState, val note: String, val changed: Boolean, val failed: Boolean)
@@ -225,7 +248,7 @@ class IptvOrgCatalog(
             checkedAt = state.files.values.mapNotNull { it.checkedAt }.maxOrNull(),
             ok = state.ok,
             notes = state.notes,
-            nextDueAt = attempted?.plus(wait())?.toString()?.takeIf { now.enabled },
+            nextDueAt = attempted?.plus(wait)?.toString()?.takeIf { now.enabled },
             channels = data.channels.size,
             logos = data.logos.size,
             blocklisted = data.blocklist.size,

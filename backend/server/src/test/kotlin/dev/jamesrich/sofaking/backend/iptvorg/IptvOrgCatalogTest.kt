@@ -143,4 +143,61 @@ class IptvOrgCatalogTest {
         clock.now = clock.now.plus(Duration.ofHours(6))
         assertTrue(catalog.due())
     }
+
+    @Test fun `fetches streams right after a metadata download when streams are switched on`() = providerTest(
+        "iptv-org-",
+    ) {
+        serveIptvOrg()
+        var now = IptvOrgSettings(metadata = true)
+        val changes = AtomicInteger()
+        val catalog = iptvOrgCatalog(Files.createTempDirectory("iptv-org-data"), { now }) { changes.incrementAndGet() }
+        catalog.refresh()
+        assertFalse(catalog.due(), "the metadata download is fresh")
+        assertEquals(1, changes.get())
+
+        now = IptvOrgSettings(metadata = true, streams = true)
+        catalog.settingsChanged()
+        assertEquals(2, changes.get(), "the change itself reports at once")
+        assertTrue(catalog.runRequested())
+        assertEquals(1, fixture.hits("/api/streams.json"))
+        assertEquals(8, catalog.data.streams.size)
+        assertEquals(3, changes.get(), "the new streams file reports a change so the provider imports it")
+        assertFalse(catalog.runRequested(), "one request, one look")
+    }
+
+    @Test fun `imports again on a region change without downloading`() = providerTest("iptv-org-") {
+        serveIptvOrg()
+        var now = IptvOrgSettings(metadata = true, streams = true)
+        val changes = AtomicInteger()
+        val catalog = iptvOrgCatalog(Files.createTempDirectory("iptv-org-data"), { now }) { changes.incrementAndGet() }
+        catalog.refresh()
+        val hits = FILES.sumOf { fixture.hits("/api/$it.json") }
+        val before = changes.get()
+
+        now = now.copy(region = "GB")
+        catalog.settingsChanged()
+        assertEquals(before + 1, changes.get())
+        assertFalse(catalog.runRequested(), "nothing is asked of the download loop")
+        assertEquals(hits, FILES.sumOf { fixture.hits("/api/$it.json") })
+        assertEquals(listOf("GB"), catalog.region().countries)
+    }
+
+    @Test fun `downloads again on request right after a recent download`() = providerTest("iptv-org-") {
+        serveIptvOrg()
+        val catalog = iptvOrgCatalog(Files.createTempDirectory("iptv-org-data"), { IptvOrgSettings(metadata = true) })
+        catalog.refresh()
+        assertFalse(catalog.due())
+        catalog.request(force = true)
+        catalog.request()
+        assertTrue(catalog.runRequested())
+        assertEquals(2, fixture.hits("/api/channels.json"), "a plain ask after a forced one keeps the force")
+    }
+
+    @Test fun `makes no request for a settings change while both parts are off`() = providerTest("iptv-org-") {
+        serveIptvOrg()
+        val catalog = iptvOrgCatalog(Files.createTempDirectory("iptv-org-data"), { IptvOrgSettings() })
+        catalog.settingsChanged()
+        catalog.runRequested()
+        for (name in FILES) assertEquals(0, fixture.hits("/api/$name.json"), name)
+    }
 }

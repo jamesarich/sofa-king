@@ -42,13 +42,15 @@ internal class IptvOrgPages(private val portal: Portal) {
             }
         }
         route.action("/iptv-org/refresh") { session, _ ->
-            runtime.jobs.runNow(IPTV_ORG_JOB)
-            session.flash.set(Flash("Download requested; the Jobs page shows how it went."))
+            val outcome = runtime.iptvOrg?.download()
+            session.flash.set(
+                when {
+                    outcome == null -> Flash("Nothing to download.")
+                    outcome.ok -> Flash("Downloaded: ${outcome.note}.")
+                    else -> Flash("Download failed: ${outcome.note}", Tone.BAD)
+                },
+            )
             seeOther(call, "/admin/iptv-org")
         }
-    }
-
-    private companion object {
-        const val IPTV_ORG_JOB = "iptv-org"
     }
 }

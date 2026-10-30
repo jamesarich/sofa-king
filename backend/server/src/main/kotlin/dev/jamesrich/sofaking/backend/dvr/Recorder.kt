@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.io.terminate
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.PlaylistMarkers
 import dev.jamesrich.sofaking.backend.playback.SessionManager
+import dev.jamesrich.sofaking.backend.playback.SteadyPlaylists
 import dev.jamesrich.sofaking.backend.playback.TsFanout
 import dev.jamesrich.sofaking.backend.playback.UpstreamProtocolException
 import dev.jamesrich.sofaking.backend.playback.remuxCommand
@@ -148,12 +149,12 @@ class Recorder internal constructor(
             }
         }
         val bytes = sessions.media.bytesOf(sessionId)
-        // FFmpeg is given playlists as a player is, so a source that starts its numbering over does not stop it.
+        // A lapse ends FFmpeg and the next session starts clean; only a numbering that starts over is carried on.
         return relay.reading(
             stream,
             offering.protocol,
             markers = markers,
-            steady = offering.protocol == "hls",
+            steady = if (offering.protocol == "hls") SteadyPlaylists(holdLapses = false) else null,
         ) { source ->
             remux(source, file, until, bytes)
         }

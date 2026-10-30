@@ -17,6 +17,20 @@ class SteadyPlaylistsTest {
         assertEquals(live, playlists.steady(ended, source))
     }
 
+    @Test fun `without holding lapses an empty ended answer goes out as it is and a restart is still numbered on`() {
+        val playlists = SteadyPlaylists(holdLapses = false)
+        playlists.steady(window(60, "a60", "a61", "a62"), source)
+        assertEquals(ended, playlists.steady(ended, source))
+
+        val restarted = playlists.steady(window(0, "b0", "b1", "b2"), source)
+
+        assertEquals(
+            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:63\n#EXTINF:5," +
+                "\n#EXT-X-DISCONTINUITY\nb0.ts\n#EXTINF:5,\nb1.ts\n#EXTINF:5,\nb2.ts\n",
+            restarted,
+        )
+    }
+
     @Test fun `an empty ended answer with nothing before it from that URL goes out as it is`() {
         val playlists = SteadyPlaylists()
         playlists.steady(live, source)

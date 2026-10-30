@@ -123,20 +123,19 @@ class LoopbackRelay(
     /**
      * Runs [block] with a lease on [stream], whose [protocol] names the root's suffix; the lease ends with the block,
      * and any request FFmpeg makes after that answers 401. Given [stalls], each playlist FFmpeg fetches is shown to it;
-     * given [markers], each playlist and each segment it finishes fetching is too. With [steady], playlists reach
-     * FFmpeg as a player's do ([SteadyPlaylists]): FFmpeg ends at a lapse's `#EXT-X-ENDLIST` and waits for good on a
-     * numbering that starts over.
+     * given [markers], each playlist and each segment it finishes fetching is too. Given [steady], each playlist
+     * goes through it before FFmpeg sees it.
      */
     suspend fun <T> reading(
         stream: ResolvedStream,
         protocol: String,
         stalls: StallWatch? = null,
         markers: PlaylistMarkers? = null,
-        steady: Boolean = false,
+        steady: SteadyPlaylists? = null,
         block: suspend (FfmpegSource) -> T,
     ): T {
         val port = start()
-        val lease = Lease(stream, stalls, markers, if (steady) SteadyPlaylists() else null)
+        val lease = Lease(stream, stalls, markers, steady)
         leases[lease.id] = lease
         try {
             return block(

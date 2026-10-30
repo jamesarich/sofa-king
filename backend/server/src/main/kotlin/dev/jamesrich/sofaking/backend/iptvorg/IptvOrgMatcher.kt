@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.catalog.IptvOrgEnriched
 import dev.jamesrich.sofaking.backend.catalog.IptvOrgPolicy
 import dev.jamesrich.sofaking.backend.catalog.StationKeys
 import dev.jamesrich.sofaking.backend.catalog.normalizedName
+import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.IptvOrgDecision
 import dev.jamesrich.sofaking.backend.store.clearIptvOrgDecision
@@ -168,6 +169,9 @@ class IptvOrgMatcher(
         val more = if (list.size > FINDING_CANDIDATES) ", and more" else ""
         "$station: iptv-org candidates $shown$more; accept or dismiss"
     }.sorted()
+
+    /** Downloads the wanted files now, as the Jobs page's Run now does; unchanged files answer 304. */
+    suspend fun download(): JobOutcome = catalog.refresh()
 
     /** The status of the downloads with the matching counts, the open proposals and the holds. */
     fun overview(): IptvOrgOverview {

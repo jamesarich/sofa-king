@@ -2,7 +2,6 @@ package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
-import dev.jamesrich.sofaking.backend.iptvorg.IptvOrgCatalog
 import dev.jamesrich.sofaking.backend.iptvorg.IptvOrgDecisionRequest
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.response.respond
@@ -20,8 +19,8 @@ fun Route.iptvOrgRoutes(runtime: LiveRuntime) {
         call.respond(matcher().overview())
     }
     post("/iptv-org/refresh") {
-        matcher()
-        runtime.jobs.runNow(IptvOrgCatalog.JOB)
-        call.respond(HttpStatusCode.Accepted, matcher().overview())
+        val matcher = matcher()
+        matcher.download()
+        call.respond(matcher.overview())
     }
 }

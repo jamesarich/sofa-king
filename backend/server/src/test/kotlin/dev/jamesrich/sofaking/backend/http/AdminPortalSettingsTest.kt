@@ -109,6 +109,7 @@ class AdminPortalSettingsTest : AdminPortalCase() {
                 assertTrue(
                     page.contains("action=\"/admin/library/tmdb\"") && page.contains("TMDB API read access token"),
                 )
+                assertTrue(page.contains("href=\"https://www.themoviedb.org/settings/api\""), page)
                 val refused = browser.post("/admin/library/tmdb", "csrf" to field(page, "csrf"), "token" to "short")
                 assertEquals(HttpStatusCode.BadRequest, refused.status)
                 assertTrue(

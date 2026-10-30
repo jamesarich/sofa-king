@@ -14,6 +14,15 @@ A session lasts 12 hours from sign-in, or until you sign out. Sessions are kept 
 
 The navigation has eight destinations: Home, Channels, Sources, DVR, Devices, Library, Settings and System. Channels, Sources, DVR, Devices, Library, Settings and System hold more than one page, shown as tabs under the heading: Channels, Required, Merges, Guide matches, Groups and Virtual; Sources and Ads; Recordings, Calendar and Wanted; Devices, History and Plex; Library and Unmatched; Settings and Connect; About, Activity, Changes, Jobs, Backup, Events, Crashes and API. A count beside a destination says how many things there need a look, and the tab that holds them carries the same count. On a phone the navigation folds into a Menu button that carries the total. The footer of every signed-in page shows the server's revision and how long it has been up, and the theme switch: Auto follows the device's light or dark setting, Light and Dark pin one in a cookie.
 
+<p>
+  <img src="../../docs/images/admin-home.webp" width="49%" alt="Home: what needs attention, channels on, guide coverage, Plex sync and who is watching">
+  <img src="../../docs/images/admin-channels.webp" width="49%" alt="Channels: the lineup with each channel's number, group, sources, guide and state">
+  <img src="../../docs/images/admin-dvr.webp" width="49%" alt="DVR: storage, upcoming recordings and series rules">
+  <img src="../../docs/images/admin-devices.webp" width="49%" alt="Devices: Show a pairing code and the devices paired so far">
+  <img src="../../docs/images/admin-library.webp" width="49%" alt="Library: each library's folder, what it holds and its last scan, and the TMDB token for details and artwork">
+  <img src="../../docs/images/admin-settings-light.webp" width="49%" alt="Settings in the light theme: the runtime settings, each with where its value comes from">
+</p>
+
 | Page | What it shows | What it changes |
 | --- | --- | --- |
 | Home | While the server has no source file, or no policy and no lineup, the setup steps: choose services, build the lineup. Then what needs attention, each with a link to where it is fixed and to the doc that explains it. Then the channels on and their guide coverage, the last Plex sync, required channels on, merges to settle, providers importing (with a policy that waits for verified sources, how many channels still wait and, once probes have run a few minutes, about how long until each has had its sources checked), who is watching (the channel, the program on now, the player and its address, how long it has watched, the bytes sent and the rate, the stalls and source switches, and when its lease ends), what is playing from the libraries and recordings (the title, whether it plays directly, remuxed or transcoded, how long and when its lease ends) and the last lineup run | Ignore an item until it changes, or show it again; switch a session to its channel's next source; stop a session |

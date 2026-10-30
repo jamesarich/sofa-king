@@ -453,7 +453,13 @@ def tour(base, start, out, channel=True):
         app.shoot('library')
         if not app.keys:
             return
-        if app.tap:
+        if app.tap and not app.touch:
+            # On a TV the spotlight leaves the TV Shows shelf below the screen, and the remote's Downs do not always
+            # bring it up in time; the TV Shows chip opens the library with the show in view.
+            app.tap('TV Shows')
+            time.sleep(4)
+            app.tap(showcase.SHOW['title'])
+        elif app.tap:
             app.tap(showcase.SHOW['title'])
         else:
             # A start on the Library tab focuses the tab in the rail; Right reaches the chips, Down the shelves.
@@ -462,6 +468,10 @@ def tour(base, start, out, channel=True):
         app.shoot('show')
         app.keys('Escape')
         time.sleep(2)
+        if app.tap and not app.touch:
+            # Back from the show is the TV Shows grid; once more is the Library tab with the Movies shelf.
+            app.keys('Escape')
+            time.sleep(2)
         if app.tap:
             # The first two movies fit across a phone; Big Buck Bunny, which the keys reach, does not.
             app.tap(showcase.MOVIES['sintel']['title'])

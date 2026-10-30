@@ -11,7 +11,7 @@
   "android-tv-movie.png": {"webp": "android-tv-movie.webp", "width": 960},
   "android-tv-player.png": {"webp": "android-tv-player.webp", "width": 960},
   "android-tv-show.png": {"webp": "android-tv-show.webp", "width": 960},
-  "apple-tv-guide.png": {"webp": "apple-tv-guide.webp", "width": 960},
+  "tvos-guide.png": {"webp": "apple-tv-guide.webp", "width": 960},
   "desktop-guide.png": {"webp": "desktop-guide.webp", "width": 960},
   "desktop-movie.png": {"webp": "desktop-movie.webp", "width": 960},
   "desktop-player.png": {"webp": "desktop-player.webp", "width": 1600},

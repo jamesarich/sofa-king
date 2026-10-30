@@ -4,7 +4,7 @@
 
 # Splits the distribution so the third-party jars, which change rarely, get a layer of their own.
 # It only moves platform-independent files, so it runs natively on the build host.
-FROM --platform=$BUILDPLATFORM busybox:1.38@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e AS split
+FROM --platform=$BUILDPLATFORM busybox:1.38@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4 AS split
 COPY server/build/install/server /dist
 RUN mkdir -p /app/lib \
     && mv /dist/lib/server-*.jar /dist/lib/contract-jvm-*.jar /app/lib/ \

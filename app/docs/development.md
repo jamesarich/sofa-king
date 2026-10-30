@@ -4,13 +4,7 @@ The [contributing guide](../../CONTRIBUTING.md) covers the commit and pull reque
 
 ## Build and test
 
-Use JDK 21, the Android SDK with API 37.1 and the checked-in Gradle wrapper. The app's build lives in `app/`; run every command on this page from there. Point the build at the SDK in the ignored `local.properties` file:
-
-```sh
-printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
-```
-
-Then build and test:
+Use JDK 21, the Android SDK with API 37.1 and the checked-in Gradle wrapper. The app's build lives in `app/`; run every command on this page from there. Point the build at the SDK by setting `ANDROID_HOME` (or `ANDROID_SDK_ROOT`), as CI does, or by writing `sdk.dir=/path/to/sdk` in the ignored `local.properties` file. Then build and test:
 
 ```sh
 ./gradlew :core:allTests :ui:jvmTest :ui:testAndroidHostTest :ui:jsNodeTest :androidApp:lintDebug :androidApp:assembleRelease :androidApp:testDebugScreenshotTestDefaultTestSuite
@@ -35,13 +29,13 @@ SOFAKING_FUZZ_SEED=7 SOFAKING_FUZZ_STEPS=2000 ./gradlew :ui:jvmTest --tests 'dev
 SOFAKING_FUZZ_KEYS=Down,Back,Down,Up ./gradlew :ui:jvmTest --tests 'dev.jamesrich.sofaking.AppKeyFuzzTest.random remote*' --rerun
 ```
 
-The screenshot tests are Google's [Compose Preview Screenshot Testing](https://developer.android.com/studio/preview/compose-screenshot-testing-with-testsuites), run as the `androidApp` module's `screenshotTest` test suite. `androidApp/src/screenshotTest` holds `@PreviewTest` previews of the guide, a program's details, the player's info bar, the live and library player bars and icons, Now playing, the Library tab, a show's page and Settings, on a 1080p TV and a phone; the screens and their sample data are in `ui`'s `androidMain` (`dev.jamesrich.sofaking.previews`), on a clock stopped at one evening in UTC. Android Studio shows them as previews. `:androidApp:testDebugScreenshotTestDefaultTestSuite` renders them with the Android layout library on the JVM and fails on a pixel that differs from the reference images in `androidApp/src/screenshotTestDefaultDebug/reference`; its report, with the differences, is in `androidApp/build/reports/tests/testDebugScreenshotTestDefaultTestSuite`. CI's Linux job compares against the references and never rewrites one. After an intended change to how a screen looks, write the references again and commit them with the change:
+The screenshot tests are Google's [Compose Preview Screenshot Testing](https://developer.android.com/studio/preview/compose-screenshot-testing-with-testsuites), run as the `androidApp` module's `screenshotTest` test suite. `androidApp/src/screenshotTest` holds `@PreviewTest` previews of the guide, a program's details, the player's info bar, the live and library player bars and icons, Now playing, the Library tab, a show's page and Settings, on a 1080p TV and a phone; the screens and their sample data are in `ui`'s `androidMain` (`dev.jamesrich.sofaking.previews`), on a clock stopped at one evening in UTC. Android Studio shows them as previews. `:androidApp:testDebugScreenshotTestDefaultTestSuite` renders them with the Android layout library on the JVM and fails on a pixel that differs from the reference images in `androidApp/src/screenshotTestDefaultDebug/reference`; its report, with the differences, is in `androidApp/build/reports/tests/testDebugScreenshotTestDefaultTestSuite`. CI's Linux job compares against the references and never rewrites one on its own. After an intended change to how a screen looks, the references need to be written again and committed with the change. A Mac renders some screens differently, and CI compares on Linux, so take the Linux renders:
 
-```sh
-./gradlew :androidApp:updateDebugScreenshotTestDefaultTestSuite
-```
+- Label the pull request `screenshots`, and CI commits fresh Linux renders to the branch (same-repository branches only).
+- Or, after a failed comparison on any branch, including a fork's, run `scripts/take-references.sh <run-id>` from `app/`, which copies the run's `reports-linux` renders into `androidApp/src/screenshotTestDefaultDebug/reference/`.
+- On a Linux machine, `./gradlew :androidApp:updateDebugScreenshotTestDefaultTestSuite` writes them directly.
 
-Run it on Linux: a Mac renders some screens differently, and CI compares on Linux. Without a Linux machine, push the change, let the comparison fail, and take the new references from the run's `reports-linux` artifact, which holds the report and what Linux drew under `androidApp/build/intermediates/debug/testDebugScreenshotTestDefaultTestSuite/results/rendered/`. Look at each image before committing it.
+Look at each image before committing it.
 
 To look at the TV layout without a TV, run the desktop app with `./gradlew :ui:run -Psofaking.tv=true`; the keyboard's arrows, Enter and Escape are the remote's.
 
@@ -111,7 +105,7 @@ SOFAKING_WEB_FUZZ_SEED=1234 python3 scripts/web-fuzz.py --channel chrome --dist 
 
 ## Android Studio
 
-Open the repository root, not `app/`. The root `settings.gradle.kts` imports the app, the server and the contract as one composite build named `sofa-king-monorepo`, and the root `gradle.properties` holds the Gradle settings the IDE's sync uses. Use an Android Studio release that supports the catalog's `agp` version, with its bundled Kotlin Multiplatform plugin enabled, and the SDK in `app/local.properties` as above. A preview `agp` (an alpha or beta) syncs only in the Android Studio Canary or Beta built with it; a stable Studio stops at the last stable plugin, and a nightly expects a plugin preview that Google Maven may not have published yet. Either refuses the sync with "The project is using an incompatible version" (or "incompatible preview version") of the Android Gradle plugin, under Gradle Sync issues in the Build window. To see which plugin a Studio build accepts, read `buildVersion` in `com/android/version.properties` inside the app's `plugins/android/lib/libagp-version.jar`.
+Open the repository root, not `app/`. The root `settings.gradle.kts` imports the app, the server and the contract as one composite build named `sofa-king-monorepo`, and the root `gradle.properties` holds the Gradle settings the IDE's sync uses. Use an Android Studio release that supports the catalog's `agp` version, with its bundled Kotlin Multiplatform plugin enabled, and the SDK set as above. A preview `agp` (an alpha or beta) syncs only in the Android Studio Canary or Beta built with it; a stable Studio stops at the last stable plugin, and a nightly expects a plugin preview that Google Maven may not have published yet. Either refuses the sync with "The project is using an incompatible version" (or "incompatible preview version") of the Android Gradle plugin, under Gradle Sync issues in the Build window. To see which plugin a Studio build accepts, read `buildVersion` in `com/android/version.properties` inside the app's `plugins/android/lib/libagp-version.jar`.
 
 - **Gradle JDK.** The Gradle daemon runs on JDK 21, which `gradle/gradle-daemon-jvm.properties` asks for; Gradle downloads one if the machine has none. If Settings → Build, Execution, Deployment → Build Tools → Gradle offers a Gradle JDK, pick a JDK 21 (Studio's own `jbr-21` will do).
 - **Run.** After the first sync, Studio adds an `androidApp` configuration; run it on a TV, a phone or an emulator. The `.run/` folder adds **Desktop**, which runs `:ui:run`, and **Web**, which runs `:ui:wasmJsBrowserDevelopmentRun`. iOS and Apple TV run from Xcode, as the next section says.

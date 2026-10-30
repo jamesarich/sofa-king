@@ -208,6 +208,8 @@ object TvCopy {
     val libraryEmpty = twin("library_empty", "Nothing here yet")
     val libraryLoadFailed = twin("library_load_failed", "The library didn't load")
     val libraryWatched = twin("library_watched", "Watched")
+    val libraryDetails = twin("library_details", "Details")
+    val libraryRemoveFromContinue = twin("library_remove_from_continue", "Remove from Continue watching")
     val extraTrailer = twin("library_extra_trailer", "Trailer")
     val extraFeaturette = twin("library_extra_featurette", "Featurette")
     val extraBehindTheScenes = twin("library_extra_behind_the_scenes", "Behind the scenes")

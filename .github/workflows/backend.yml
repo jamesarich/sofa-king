@@ -107,7 +107,7 @@ jobs:
       # The deploy and smoke scripts have no Gradle task; the runner image ships shellcheck.
       - name: Check the shell and Python tooling
         run: |
-          shellcheck deploy/*.sh
+          shellcheck deploy/*.sh scripts/*.sh
           python3 -I -m unittest discover -s scripts -p 'test_*.py'
 
       # Both start the installed distribution in a temporary directory and talk to it only over loopback: smoke.py checks
@@ -153,6 +153,65 @@ jobs:
           path: backend/server-dist.tar
           retention-days: 1
           if-no-files-found: error
+
+  # Comskip built from source on Ubuntu 26.04, which ships FFmpeg 8 and no comskip package, then the one test class that
+  # runs it. The binary is cached on the build script (which holds the pinned commit) and the patch.
+  comskip:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      # The -dev packages bring the shared libraries the built binary links against.
+      - name: Install FFmpeg and the Comskip build dependencies
+        uses: ./.github/actions/apt-install
+        with:
+          packages: ffmpeg build-essential autoconf automake libtool pkg-config libargtable2-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev
+
+      - id: cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/comskip
+          key: comskip-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('backend/scripts/build-comskip.sh', 'backend/comskip/ffmpeg-8.patch') }}
+
+      - name: Build Comskip
+        if: steps.cache.outputs.cache-hit != 'true'
+        timeout-minutes: 10
+        run: scripts/build-comskip.sh "$HOME/comskip"
+
+      - name: Put Comskip on the path and run it
+        run: |
+          echo "$HOME/comskip/bin" >> "$GITHUB_PATH"
+          "$HOME/comskip/bin/comskip" --help 2>&1 | head -n 3 || true
+          ffmpeg -version | head -n 1
+
+      # The test skips when comskip does not start, so the report must show it ran.
+      - name: Run the Comskip test
+        run: |
+          ./gradlew --console=plain :server:test --tests 'dev.jamesrich.sofaking.backend.dvr.CommercialsTest'
+          grep -q 'name="Comskip finds the ad block in a generated recording()"' server/build/test-results/test/TEST-dev.jamesrich.sofaking.backend.dvr.CommercialsTest.xml
+          ! grep -q '<skipped' server/build/test-results/test/TEST-dev.jamesrich.sofaking.backend.dvr.CommercialsTest.xml
+
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: comskip-test-reports
+          path: "backend/**/build/reports/tests"
+          retention-days: 14
 
   # The web app the image serves at /app/, built with the version the image carries. It runs beside the tests, and the
   # remote build cache answers it when the app has not changed.

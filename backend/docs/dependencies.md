@@ -21,6 +21,12 @@ CI's API fuzz (`scripts/api-fuzz.py`) installs [Schemathesis](https://schemathes
 
 The server targets JVM 21. The [contract](../../contract/README.md) it shares with the app compiles to JVM 17 bytecode for the server and Android, and to every other target the app builds; it pins the same Kotlin and kotlinx.serialization versions as the server.
 
+## Comskip
+
+The image installs Comskip from noble's package. Ubuntu dropped that package after 24.10 because upstream does not build against FFmpeg 8, so a release without it builds Comskip from source with `scripts/build-comskip.sh [PREFIX]`: the script downloads upstream [erikkaashoek/Comskip](https://github.com/erikkaashoek/Comskip) at the commit it pins, checks the tarball's SHA-256, applies `comskip/ffmpeg-8.patch`, and runs `autoreconf`, `configure --disable-gui`, `make` and `make install`. It needs `build-essential autoconf automake libtool pkg-config libargtable2-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev`.
+
+The patch derives from upstream pull request [#187](https://github.com/erikkaashoek/Comskip/pull/187), which removes the uses of `AVCodecContext.ticks_per_frame` that FFmpeg 8 deletes. It computes 2 for field-coded codecs and 1 otherwise, the values the field held, and builds against FFmpeg 6.1 as well. To move the pin, set `commit` and `sha256` in the script (`curl -sL https://github.com/erikkaashoek/Comskip/archive/<commit>.tar.gz | sha256sum`), check that the patch still applies, and run the `comskip` job in `backend.yml`, which builds on Ubuntu 26.04 and runs the Comskip test. Comskip is GPL v2 or later and runs as its own program.
+
 ## Vendored htmx
 
 The [admin portal](admin.md) serves htmx from `server/src/main/resources/admin/htmx.min.js`, the `dist/htmx.min.js` of the npm package `htmx.org` 2.0.11, unchanged. Its SHA-256 is `d6fdc75f204e6bdefa99b69bf1e6d4ac69b8a364f77929f45c13476b4000f717`. To update it, take `dist/htmx.min.js` from the new release's npm tarball, check the tarball against the registry's `integrity` value, and record the new version and SHA-256 here.

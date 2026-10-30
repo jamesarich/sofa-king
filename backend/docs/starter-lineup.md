@@ -2,14 +2,12 @@
 
 A fresh server knows its sources but serves no channels until a [lineup policy](lineup-policy.md) builds them. The starter policy is one station per channel, with every other service that carries the same channel attached as a fallback, the stations sorted into a small set of groups with a block of numbers each.
 
-The portal writes it for you: the Sources page's services save writes the source file and, while there is no policy, this policy for the services it saves, with one restart; with sources and no policy, the home page's Build the lineup writes it on its own ([setup](admin.md#setup)). This guide is for doing the same by hand, with the aliases the script mines from a running lineup, and for understanding what the policy holds. It takes about ten minutes, most of it waiting for imports.
+The portal writes it for you ([setup](admin.md#setup)): the Sources page's services save writes the source file and, while there is no policy, this policy, with one restart. This guide is for doing the same by hand, with the aliases the script mines from a running lineup, and for understanding what the policy holds. It takes about ten minutes, most of it waiting for imports.
 
-You need a running server ([getting started](getting-started.md)) and its tokens. Generated tokens are in `secrets.json` in the data directory (`deploy/config` with Docker), as `apiToken` and `adminToken`. The examples run from `backend/` against the Docker port, and use these shell variables:
+You need a running server and the two tokens set as in [getting started](getting-started.md#2-sign-in). The examples run from `backend/` against the Docker port, and use these shell variables:
 
 ```sh
 SERVER=http://SERVER_HOST:9193
-SOFA_API_TOKEN=$(jq -r .apiToken deploy/config/secrets.json)
-SOFA_ADMIN_TOKEN=$(jq -r .adminToken deploy/config/secrets.json)
 api=(-H "Authorization: Bearer $SOFA_API_TOKEN")
 auth=(-H "Authorization: Bearer $SOFA_ADMIN_TOKEN")
 ```
@@ -49,20 +47,25 @@ Replace the `--local-pattern` regex with your own market's city and station call
 
 - Takes the services in priority order, the ones whose streams hold up best first: the first service that carries a channel leads its station, and the same channel from the others joins it as a fallback. `--providers` changes the order.
 - Takes Local Now's `My City` channels switched on and its `More Cities` channels switched off, and leaves out Vizio's `Local channels`.
-- Numbers each group in its own block: Local from 1, Local News (US) from 10, News from 100, Sports from 300 and so on ([every block](lineup-policy.md#generate-a-policy)). Stations the policy keeps off number from 3000.
+- Numbers each group in its own block, each running to the next block's start, at most 400 numbers (`numbering.followGroup`): Local from 1, Local News (US) from 10, News from 100, Sports from 300, En Español 600, Entertainment 700, Drama 900, Classic TV 1050, Movies 1200, Sci-Fi & Horror 1400, Comedy 1500, Crime 1600, Documentary 1700, Lifestyle 1850, Food & Travel 2100, Kids & Family 2200, Anime 2300, Music 2350, Game Shows 2500, Faith 2550, Shopping 2580 and Ambiance 2600. Stations the policy keeps off number from 3000.
 - Keeps each station off until one of its sources has played once (`health.requireVerified`).
+- Writes `names.version` 2 and an alias for every enabled lineup entry whose native sources carry other keys than its name, and prints every alias for review.
+
+`--station-ids FILE` takes a CSV with a `name,gracenoteId` header and writes each row's id as the `gracenoteId` of the station its name keys to, following the aliases; a row without a name or with an id that is not 1 to 10 digits is printed and skipped.
 
 Edit the policy's `groups.map` afterwards if you want different groups. A category the file does not name casts no vote, and a station that nothing groups goes in `Entertainment`. The portal's Build the lineup writes the same policy, with the services in the server's own order (`direct` first, an HDHomeRun tuner ahead of everything) and without the aliases, which the server learns as it runs.
 
 ## 3. Turn it on
 
-Move `policy.json` into the data directory (`deploy/config` with Docker) and restart; the server finds it there, and writes numbers back into it, as [lineup policy setup](lineup-policy.md#setup) describes. Then preview the lineup:
+Back up `SOFA_DATA_DIR`, move `policy.json` into the data directory (`deploy/config` with Docker) or set `SOFA_POLICY` to it, and restart; the server writes numbers back into the file, as [lineup policy setup](lineup-policy.md#setup) describes. Then preview the lineup:
 
 ```sh
 curl -s "${auth[@]}" "$SERVER/api/v1/admin/policy/preview" | jq '.stations, .enabledStations, .counts, (.findings | length)'
 ```
 
-Expect a few thousand stations. They come on as the probes verify one source of each, first sources first, so the lineup fills over the first hours. From then on the policy runs after every import, guide import and health change, and every 15 minutes. A channel a service adds joins its station or starts a new one. A station with no playable source for a day turns off until one recovers. The numbers the server assigns are written into the policy file.
+Expect a few thousand stations. They come on as the probes verify one source of each, first sources first, so the lineup fills over the first hours; a station none of whose sources has ever qualified healthy waits, disabled. From then on the policy runs after every import, guide import and health change, and every 15 minutes. A channel a service adds joins its station or starts a new one. A station with no playable source for a day turns off until one recovers. Compare `devicesNeeded` with `devicesConfigured` in the apply result, then rescan the Plex devices and remap their channels.
+
+To roll back, restore the backup and remove `policy.json` from the data directory, or unset `SOFA_POLICY`.
 
 ## Your local channels
 

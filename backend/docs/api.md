@@ -6,17 +6,7 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. The examples
 
 Send `Authorization: Bearer $SOFA_API_TOKEN` on every `/api/v1` request. Routes under `/api/v1/admin` take `Authorization: Bearer $SOFA_ADMIN_TOKEN` instead when an admin token is configured. On a loopback server with no token, leave the header out; it then answers only requests from the same machine. A missing or wrong token answers `401 AUTH_REQUIRED`.
 
-The server also issues tokens of its own, each starting `sk_`, stored only as a hash and revoked one at a time:
-
-| Kind | Where it comes from | What it opens |
-| --- | --- | --- |
-| `api` | A device [pairing](#pair-a-client), one per `clientId`; forgetting the device revokes it | What `SOFA_API_TOKEN` opens, except `/api/v1/admin` and `/api/v1/hooks` |
-| `read` | The portal's Settings page or `POST /api/v1/admin/tokens`, for a dashboard or a calendar | The [dashboard summary](#dashboard-summary) `GET /api/v1/status`, the [recordings calendar](#player-outputs) `/output/recordings.ics` (also as `?token=`), `GET` of `/api/v1/admin/status`, `/sessions`, `/guides`, `/lineup`, `/policy/preview`, `/policy/findings`, `/policy/changes`, `/libraries` and `/diagnostics/crashes`, with what lies under each, and the [MCP endpoint](#mcp)'s read tools |
-| `hook` | The same, for Sonarr and Radarr | The [hooks](#hooks) only: `/api/v1/hooks` and the Emby-style routes |
-
-`SOFA_API_TOKEN` stays valid beside them, for scripts and devices set up by hand, and opens the hooks too.
-
-These routes take no token: `/healthz`, `/readyz`, the [web app](deploy.md#serve-the-web-app) under `/app/` (and `/`, which redirects there), `/logos/{key}`, `/artwork/{id}/{role}`, `/artwork/{id}/scrub/{sheet}`, `POST /api/v1/pair` (a [pairing code](#pair-a-client) stands in for the token) and the session media URLs under `/media/sessions/` and `/media/vod/`, which work until the session ends or its epoch changes. The HDHomeRun routes take none either and admit clients by address. `/output/*` takes the output token, and the admin portal its own session after the sign-in page. A browser page on another origin can call the API when `SOFA_CORS_ORIGINS` lists its origin. The whole model is in [security](security.md#credentials-and-the-routes-they-open).
+[Security](security.md#credentials-and-the-routes-they-open) is the one place that lists each credential (the API, admin, output, device `api`, `read` and `hook` tokens and the pairing code), what it opens, how it is generated and stored, and the routes that take no token, such as `/healthz`, `/readyz`, the [web app](deploy.md#serve-the-web-app) under `/app/`, `/logos/{key}`, `/artwork/...`, `POST /api/v1/pair` and the session media URLs.
 
 ## Endpoints
 
@@ -215,7 +205,7 @@ Release is idempotent and cancels active upstream requests; a media request stil
 
 ## Pair a client
 
-A viewer need not type the API token into a TV: the admin portal's [Devices page](admin.md#devices) (or `POST /api/v1/admin/pairing-codes`) issues a six-digit code, live for ten minutes and good for one claim; a new code replaces the live one, and five wrong claims void it. The client posts the code with its own id and label, and receives an `api` [token](#tokens) of its own:
+A viewer need not type the API token into a TV: the admin portal's [Devices page](admin.md#devices) (or `POST /api/v1/admin/pairing-codes`) issues a six-digit code, whose [lifetime and limits](admin.md#devices) the Devices section gives. The client posts the code with its own id and label, and receives an `api` [token](#tokens) of its own:
 
 ```sh
 curl -X POST http://SERVER_HOST:9193/api/v1/pair -H 'Content-Type: application/json' \
@@ -458,7 +448,7 @@ Prompts are fixed instructions that put the tools in order. Both tokens list the
 
 ## Player outputs
 
-`/output/*` serves the lineup to players that only speak HTTP, such as M3U and XMLTV players. They send no headers, so these routes take `SOFA_OUTPUT_TOKEN` as `?token=` in the URL, or as a bearer. The API token is accepted as a bearer only, never in a query. A non-loopback server always has an output token, generated at the first start unless `SOFA_OUTPUT_TOKEN` sets one. On loopback without one, the routes answer `401 AUTH_REQUIRED` to anything but the API bearer, and with neither token configured (a loopback development server) they are open. [Security](security.md#credentials-and-the-routes-they-open) explains why the output token is separate, and [operations](operations.md#rotating-tokens) how to rotate it.
+`/output/*` serves the lineup to players that only speak HTTP, such as M3U and XMLTV players. They send no headers, so these routes take `SOFA_OUTPUT_TOKEN` as `?token=` in the URL, or as a bearer. The API token is accepted as a bearer only, never in a query. On loopback without an output token, the routes answer `401 AUTH_REQUIRED` to anything but the API bearer, and with neither token configured (a loopback development server) they are open. [Security](security.md#credentials-and-the-routes-they-open) explains why the output token is separate, and [operations](operations.md#rotating-tokens) how to rotate it.
 
 `GET /output/playlist.m3u` lists the enabled lineup in order, `audio/x-mpegurl`:
 
@@ -716,83 +706,11 @@ Validation: `number` 1-32 characters without spaces, `name` 1-256, `group` 1-128
 
 ## Admin portal routes
 
-The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in page, the sign-in form, the icon and the stylesheet needs the `sofa_admin` session cookie. A page request without one is redirected to `/admin`, and an action answers `401`. Every `POST` but the sign-in also needs the session's CSRF token, as the form field the pages include or the `X-CSRF-Token` header, and answers `403` without it.
-
-| Method | Path | Page or action |
-| --- | --- | --- |
-| GET | `/admin` | The sign-in page, or the home page once signed in |
-| POST | `/admin/login` | Sign in with the form field `token`. 10 attempts a minute per client address, then `429` |
-| POST | `/admin/logout` | Sign out |
-| GET | `/admin/static/icon.svg`, `/admin/static/admin.css`, `/admin/static/htmx.min.js` | The portal's icon and stylesheet (public) and htmx (signed in) |
-| GET | `/admin/lineup` | Channels, filtered and sorted by the query (`q`, `group`, `state`, `guide`, `required`, `override`, `changed`, `sort`, `dir`, `page`) |
-| GET | `/admin/lineup/{id}` | One channel |
-| POST | `/admin/lineup/{id}/visibility`, `/admin/lineup/{id}/edit` | Hide or show a channel; rename, renumber or regroup it |
-| POST | `/admin/lineup/{id}/sources/{offeringId}/disable`, `/admin/lineup/{id}/sources/{offeringId}/probe` | Disable (`disabled=true`, after `confirm=yes`) or enable a source; queue a probe of it now |
-| POST | `/admin/lineup/bulk` | Hide, show or regroup the selected channels (`op` of `hide`, `show` or `group`, `id` for each, `target` for the group), after `confirm=yes` |
-| POST | `/admin/sessions/{id}/stop` | End a playback session, after `confirm=yes` |
-| POST | `/admin/sessions/{id}/switch` | Move a playback session to its channel's next source |
-| GET | `/admin/merges` | Suggested and learned aliases |
-| POST | `/admin/merges/accept`, `/admin/merges/dismiss`, `/admin/merges/never` | Accept a suggestion, dismiss it, or keep a learned pair apart |
-| GET | `/admin/guide-matches` | Guide channels proposed by name for the stations no guide lists |
-| POST | `/admin/guide-matches/accept`, `/admin/guide-matches/dismiss`, `/admin/guide-matches/accept-all` | Accept a proposal as a station's guide, dismiss it, or accept every station's best proposal |
-| GET | `/admin/required` | Required stations |
-| GET, POST | `/admin/providers`, `/admin/providers/edit` | Provider entries and their edits |
-| GET, POST | `/admin/groups`, `/admin/groups/edit` | Groups and their edits |
-| GET | `/admin/virtual?edit=` | The virtual channels, and the form that adds one or changes the channel `edit` names, with its schedule ahead |
-| POST | `/admin/virtual`, `/admin/virtual/{id}`, `/admin/virtual/{id}/delete` | Add a channel or change one (`name`, `number`, `source.N`, `shuffle.N` and `start.N` for each slot N from 0, `filler`, `padMinutes`, and `breaks.every` (empty for none), `breaks.source`, `breaks.slides` (one URL a line) and `breaks.slideSeconds`; a source is `kind:value`); delete one |
-| GET, POST | `/admin/plex`, `/admin/plex/reveal` | Plex and the device addresses; reveal the output token |
-| POST | `/admin/plex/allow`, `/admin/plex/disallow` | Allow an address onto the tuners, or remove one the portal allowed |
-| GET | `/admin/viewers` | The devices that paired or saved preferences, and the live pairing code with its QR code |
-| POST | `/admin/viewers/pair`, `/admin/viewers/cancel` | Issue a pairing code (replacing the live one); cancel it |
-| POST | `/admin/viewers/{clientId}/forget` | Forget a device and its preferences, and revoke its token |
-| POST | `/admin/settings/tokens/create`, `/admin/settings/tokens/{id}/revoke` | Make a `read` or `hook` token (`label`, `scope`), shown once; revoke a token |
-| GET | `/admin/library` | The media libraries and the form that adds one |
-| GET | `/admin/library/unmatched` | The movies and shows TMDB's search found nothing for |
-| GET | `/admin/library/items/{id}/match?q=&year=` | Search TMDB for an item, by its title and year unless `q` and `year` say otherwise |
-| POST | `/admin/library/items/{id}/match`, `/admin/library/items/{id}/automatic` | Match an item to a TMDB entry (`tmdb`, the entry's id); give it back to the scan |
-| POST | `/admin/library` | Add a library (`name`, `kind`, `path`) |
-| POST | `/admin/library/{id}/scan`, `/admin/library/{id}/rename`, `/admin/library/{id}/remove` | Queue a scan; rename (`name`); remove, after `confirm=yes` |
-| POST | `/admin/library/tmdb` | Check and save the TMDB token, then restart |
-| GET | `/admin/settings?advanced=&changes=` | Settings; `advanced=1` opens Advanced, and `changes` sets how many of the newest policy changes it lists, 50 by default |
-| POST | `/admin/settings/reveal-api-token` | Reveal the API token |
-| GET | `/admin/connect` | The notification targets |
-| POST | `/admin/connect/targets`, `/admin/connect/targets/{id}` | Add a target, or change one (`name`, `kind`, `url`, `secret`, one `event` per event); a blank secret keeps the one set |
-| POST | `/admin/connect/targets/{id}/test`, `/admin/connect/targets/{id}/enabled`, `/admin/connect/targets/{id}/delete` | Send a test; turn a target on or off (`enabled` of `1` or `0`); remove it |
-| POST | `/admin/settings/runtime`, `/admin/settings/runtime/check` | Save the runtime settings (`op` of `save` or `reset`); say whether the form holds a change |
-| POST | `/admin/policy/apply` | Apply the lineup policy now |
-| POST | `/admin/sources/services` | Save the services form (`svc` for each service on, `opt.SERVICE.KEY` for its options), after `confirm=yes`; writes the source file and restarts |
-| POST | `/admin/sources/playlist`, `/admin/sources/remove` | Add an M3U playlist (`id`, `url`, `guide`) or remove a provider (`id`), after `confirm=yes`; each writes the source file and restarts |
-| GET | `/admin/ads` | What live sessions do with learned ad breaks, and the channels they were learned on |
-| POST | `/admin/policy/starter` | Write the starter policy, after `confirm=yes`, and restart |
-| POST | `/admin/attention/ignore`, `/admin/attention/show` | Ignore an overview item (`key`, `fingerprint`) until its text changes; show it again (`key`) |
-| POST | `/admin/theme` | Pin the color scheme: `theme` of `light`, `dark` or `auto`, then back to the portal path in `back` |
-| GET | `/admin/recordings` | The recordings folder, the upcoming recordings, the series rules and the recorded and failed ones (redirects to `/admin` while recordings are off) |
-| GET | `/admin/recordings/calendar?start=&view=` | The recordings by day: the week from the date `start` (today by default), or `view=agenda` for the 30-day agenda |
-| GET | `/admin/recordings/wanted` | The scheduled recordings that lose their slot to others, and the ones that failed in the last 14 days |
-| POST | `/admin/recordings/rules`, `/admin/recordings/rules/{id}`, `/admin/recordings/rules/{id}/delete` | Add a series rule (`title`, `channelId`, `newOnly`, `keep`, `startPadding` and `endPadding` in minutes, `priority`, `match`, `terms`, `categories`); change one; delete it and its scheduled recordings |
-| POST | `/admin/recordings/manual` | Schedule one recording (`channelId`, `start` as a local date and time, `minutes`, `title`) |
-| POST | `/admin/recordings/{id}/protect`, `/admin/recordings/{id}/delete` | Protect a recording from cleanup (`protected` of `true` or `false`); cancel, stop or delete it |
-| POST | `/admin/recordings/wanted/rules/{id}/first`, `/admin/recordings/wanted/{id}/delete` | Give a rule a priority above every other; cancel a scheduled recording that lost its slot, after `confirm=yes` |
-| GET | `/admin/system/jobs` | Background jobs with their last run and next due time |
-| POST | `/admin/system/jobs/{id}/run` | Run a job now |
-| GET | `/admin/system/events?level=&q=` | The newest 500 log lines at INFO and above; `level` of `warn` or `error` narrows them, `q` matches the logger or message |
-| GET | `/admin/system/events/server.log` | The log file as a download |
-| POST | `/admin/system/events/debug` | Log at DEBUG for 30 minutes; `op=stop` ends it sooner |
-| GET | `/admin/system/activity` | What the server is doing now: the sessions watching, the recordings running and the jobs running |
-| GET | `/admin/system/changes?limit=` | The lineup policy's change log, newest first; `limit` (1 to 1000) sets how many it lists, 50 by default |
-| GET | `/admin/system/crashes` | The crashes the apps reported |
-| GET | `/admin/system/backup` | The database backups, newest first |
-| GET | `/admin/system/backup/files/{name}` | A backup as a download |
-| POST | `/admin/system/backup/take`, `/admin/system/backup/restore` | Back up the database now; restore the backup `name`, after `confirm=yes`, which restarts the server |
-| POST | `/admin/system/backup/upload` | Restore an uploaded database file, a multipart form with `csrf`, `confirm=yes` and then the file, which restarts the server |
-| GET | `/admin/system/about` | Whether an update is available, the server, the status and the support snapshot |
-| POST | `/admin/system/update/check`, `/admin/system/update/request` | Check the registry for a newer image now; ask the host's updater to update, after `confirm=yes`, by writing `update-requested` in the data directory |
-| GET | `/admin/system/snapshot.json` | The support snapshot as a JSON download |
-| GET | `/admin/api`, `/admin/api/openapi.json` | The API reference, and the OpenAPI 3.1 document it is rendered from; the [documentation site](https://jamesarich.github.io/sofa-king/api/index.html) renders the same document |
+The [admin portal](admin.md) is HTML under `/admin`, not an API; [Pages](admin.md#pages) lists what each page shows and does. Every route but the sign-in page, the sign-in form, the icon and the stylesheet needs the `sofa_admin` session cookie. A page request without one is redirected to `/admin`, and an action answers `401`. Every `POST` but the sign-in also needs the session's CSRF token, as the form field the pages include or the `X-CSRF-Token` header, and answers `403` without it. Sign-in takes the form field `token` and answers `429` beyond 10 attempts a minute per client address. A destructive action also needs `confirm=yes`. The portal's own JSON is the [admin API](#admin-api).
 
 ## Discovery
 
-Off loopback, unless `SOFA_MDNS=false`, the server advertises itself over mDNS (DNS-SD) on the LAN, so clients find it without an address:
+Off loopback, unless `SOFA_MDNS=false`, the server advertises itself over mDNS (DNS-SD) on the LAN, so clients find it without an address. The advertisement goes out on every interface that is up and carries multicast, except loopback, container, VPN and virtual-machine networks:
 
 | Record | Value |
 | --- | --- |
@@ -833,7 +751,7 @@ Errors contain `code`, `message` and `retryable`:
 | 413 | `REQUEST_TOO_LARGE`, answered before the token is checked, for every `POST` and `PUT` |
 | 422 | `FORMAT_UNSUPPORTED` (an HLS playlist with variables, content steering or a non-HTTP resource) |
 | 428 | `PRECONDITION_REQUIRED` (a policy write without `If-Match`) |
-| 429 | `CAPACITY_EXHAUSTED` (no session slot is free or can be freed, or a session already has 12 media requests in flight) |
+| 429 | `CAPACITY_EXHAUSTED` (see [open and release playback](#open-and-release-playback)) |
 | 500 | `INTERNAL_ERROR`, `SECRETS_UNWRITABLE` (the data directory refused a token or key write) |
 | 502 | `UPSTREAM_UNAVAILABLE`, `UPSTREAM_REJECTED`, `INVALID_MANIFEST` |
 | 503 | `NOT_READY`, `SOURCE_UNAVAILABLE`, `SETUP_UNAVAILABLE`, `CAPACITY_EXHAUSTED` (every library playback slot, `SOFA_MAX_TRANSCODES`, is converting), `TRANSCODER_UNAVAILABLE` (FFmpeg could not start), `MULTIVIEW_UNAVAILABLE` (the server does not draw [multiview](#multiview)) |

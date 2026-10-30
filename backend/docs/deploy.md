@@ -13,7 +13,7 @@ curl -fsSLO https://raw.githubusercontent.com/jamesarich/sofa-king/main/backend/
 docker compose up -d
 ```
 
-[Getting started](getting-started.md) goes on from there to sign in and play a channel. To read the admin token alone, run `jq -r .adminToken config/secrets.json` in the Compose directory. The portal's Sources page writes the source file and the starter lineup; to write them by hand instead, copy [`sources.example.json`](../deploy/sources.example.json) to `config/sources.json` and edit it as [configure the sources](starter-lineup.md#1-configure-the-sources) describes, and put a [lineup policy](lineup-policy.md) in `config/policy.json`.
+[Getting started](getting-started.md) goes on from there to sign in and play a channel. The portal's Sources page writes the source file and the starter lineup; to write them by hand instead, copy [`sources.example.json`](../deploy/sources.example.json) to `config/sources.json` and edit it as [configure the sources](starter-lineup.md#1-configure-the-sources) describes, and put a [lineup policy](lineup-policy.md) in `config/policy.json`.
 
 The server runs without `.env`. Download [`.env.example`](../deploy/.env.example) as `.env` to change any [server setting](live-tv.md#server-settings); every variable in it reaches the server, so `${NAME}` references in `sources.json` resolve from it. Restart after a change with `docker compose up -d`.
 
@@ -72,19 +72,7 @@ printf 'SOFA_MDNS=false\n' >> .env
 
 ## The config folder
 
-`config` in the Compose directory is mounted at `/config`, the server's `SOFA_DATA_DIR`:
-
-| Path | Written by | Contents |
-| --- | --- | --- |
-| `backend.sqlite` (with `-wal` and `-shm` while running) | Server | The lineup, guides, source health, provider session tokens and the server identity |
-| `logs/` | Server | The log: `server.log` for today, gzipped `server.<date>.<n>.log.gz` for earlier days, kept `SOFA_LOG_DAYS` days; see [logs](operations.md#logs) |
-| `logos/` | Server | Cached lineup logos, at most 2 MiB each; a logo the lineup does not name is deleted |
-| `backups/` | The updater and you | Database backups, readable by their owner alone; see [backups](operations.md#backups) |
-| `secrets.json` | Server | The generated API, admin and output tokens and the TMDB token the portal saved, readable by the owner alone |
-| `sources.json` | You | The [source file](live-tv.md#source-settings), used when `SOFA_SOURCES` is unset |
-| `policy.json` | You and the server | The [lineup policy](lineup-policy.md), used when `SOFA_POLICY` is unset; the server writes numbers and edits back into it |
-
-The log names the sources and policy files the server picked, and why, at every start. `SOFA_SOURCES` and `SOFA_POLICY` override the files in the folder. Back up the whole folder, as [operations](operations.md#backups) describes, and keep it out of version control: the database and `secrets.json` hold credentials.
+`config` in the Compose directory is mounted at `/config`, the server's `SOFA_DATA_DIR`. [State](operations.md#state) lists what the server keeps there and what you write, and [backups](operations.md#backups) how to back it up. Keep it out of version control: the database and `secrets.json` hold credentials.
 
 ## The recordings folder
 
@@ -116,7 +104,7 @@ The image runs under any `user: "UID:GID"`. The process writes only `/config`, `
 
 ## Secrets
 
-Left unset, `SOFA_API_TOKEN`, `SOFA_ADMIN_TOKEN` and `SOFA_OUTPUT_TOKEN` are generated on the first start and kept in `config/secrets.json`. A token set in the environment always wins over the stored one. To choose a token yourself, set it in `.env`, or keep it in a file and name the file with the `_FILE` variant: `SOFA_API_TOKEN_FILE`, `SOFA_ADMIN_TOKEN_FILE`, `SOFA_OUTPUT_TOKEN_FILE` and `SOFA_PLEX_TOKEN_FILE`. The server reads the file at start and drops a trailing line break. Setting both a variable and its `_FILE` variant, or naming a file it cannot read, stops the start.
+Left unset, the tokens are generated on the first start, as [security](security.md#credentials-and-the-routes-they-open) describes. To choose a token yourself, set it in `.env`, or keep it in a file and name the file with the `_FILE` variant: `SOFA_API_TOKEN_FILE`, `SOFA_ADMIN_TOKEN_FILE`, `SOFA_OUTPUT_TOKEN_FILE` and `SOFA_PLEX_TOKEN_FILE`. The server reads the file at start and drops a trailing line break. Setting both a variable and its `_FILE` variant, or naming a file it cannot read, stops the start.
 
 With [Compose secrets](https://docs.docker.com/compose/how-tos/use-secrets/):
 
@@ -310,7 +298,7 @@ curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/a
 
 `/readyz` answers `ready`, and the health status becomes `healthy` after the 30-second start period. Each provider shows `lastSuccessAt` with its channel and source counts, and sources move from `UNVERIFIED` to `HEALTHY` as probes qualify them. A request without the token answers `401 AUTH_REQUIRED`. When `SOFA_API_TOKEN` is set in `.env`, use that value instead of the stored one.
 
-`/api/v1/channels` stays empty until a lineup policy, or the admin API, builds the lineup. With the output token, `outputToken` in `config/secrets.json` unless `SOFA_OUTPUT_TOKEN` sets it, `http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN` is the playlist [M3U and XMLTV players](live-tv.md#third-party-players) load; its stream URLs carry the address the request used. For Plex, `curl --fail http://SERVER_HOST:9193/discover.json` from the Plex host shows the tuner that [Plex](live-tv.md#plex-live-tv) is pointed at.
+`/api/v1/channels` stays empty until a lineup policy, or the admin API, builds the lineup. [Third-party players](live-tv.md#third-party-players) and [Plex](live-tv.md#plex-live-tv) have the playlist URL and the tuner check.
 
 Upgrades and rollbacks are covered in [operations](operations.md#upgrade-and-rollback).
 
@@ -374,7 +362,7 @@ sudo ./sofa-king-update.sh install
 
 Other settings come from the environment: `SOFA_UPDATE_IMAGE` (the image to pull, `ghcr.io/jamesarich/sofa-king:main`; `:latest` for [releases only](#the-published-image)), `SOFA_UPDATE_CONFIG_DIR` (the folder with the status and request files, `config` under the Compose directory; set it when running `install` too), `SOFA_UPDATE_CONTAINER` (`sofa-king-backend`), `SOFA_UPDATE_LOCAL_TAG` (the image `compose.yaml` runs, read with `docker compose config --images`) and `SOFA_UPDATE_PREVIOUS_TAG` (`sofa-king-backend:previous`), `SOFA_UPDATE_KEEP_BACKUPS` and `SOFA_UPDATE_HEALTH_SECONDS`. An image built by hand is replaced at the next check; stop the timer and the path unit to keep it. The updater installs new images, not new copies of itself, so download it again and run `install` again to take a newer script.
 
-The server checks the registry itself too, as [update](admin.md#update) describes: it reads the revision the `main` tag's index carries and compares it with its own, so the portal says whether an update is available before the updater runs. It checks every five minutes and, once the updater has reported, writes `config/update-requested` for a newer revision, so the path unit installs it within minutes; the 15-minute timer stays as the fallback. `SOFA_UPDATE_IMAGE` in `.env` names another image for that check, or set it empty to turn it off.
+The server also checks the registry and writes `config/update-requested` for a newer revision, so the path unit installs it within minutes and the 15-minute timer is the fallback; [update](admin.md#update) describes the check.
 
 ## Deploy your build to a host without a JDK
 

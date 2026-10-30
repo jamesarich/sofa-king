@@ -46,37 +46,9 @@ On the home page, choose Choose services. The Sources page lists every [native s
 
 The confirmation names the three services and the starter lineup. The server writes `config/sources.json` and the [starter policy](starter-lineup.md) in `config/policy.json`, which takes every channel of the three services in its priority order, groups them with the shipped category map and numbers each group in its own block. Then it restarts, and the page returns to the portal in twenty seconds, still signed in.
 
-The same by hand, if you prefer, with a smaller policy that takes every channel of the three services, Whale first, and puts whatever nothing else groups in Entertainment:
+After a minute, the portal's Sources page lists each service with its channel count. The server builds one station per channel. When two services carry the same channel, the first one listed leads and the other becomes its fallback. A station comes on once one of its sources has played in a probe. The server probes the first few stations of each service right after setup, so a handful of channels appear within minutes, and the Channels page fills with the rest as probing continues, over the next hour or more.
 
-```sh
-cat > config/sources.json <<'EOF'
-{
-  "providers": [
-    { "id": "whale", "type": "native", "service": "whale" },
-    { "id": "tubi", "type": "native", "service": "tubi" },
-    { "id": "pluto", "type": "native", "service": "pluto" }
-  ],
-  "guides": []
-}
-EOF
-cat > config/policy.json <<'EOF'
-{
-  "providers": [{ "id": "whale" }, { "id": "tubi" }, { "id": "pluto" }],
-  "groups": { "default": "Entertainment" }
-}
-EOF
-docker compose restart
-```
-
-Each native service brings its own guide, so `guides` stays empty. After a minute, the portal's Sources page lists each service with its channel count. The same counts come from the API:
-
-```sh
-curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/api/v1/providers
-```
-
-The server builds one station per channel. When two services carry the same channel, the first one listed leads and the other becomes its fallback. A station comes on once one of its sources has played in a probe. The server probes the first few stations of each service right after setup, so a handful of channels appear within minutes, and the Channels page fills with the rest as probing continues, over the next hour or more.
-
-[Build a starter lineup](starter-lineup.md) describes what the starter policy holds and how to tune it.
+[Build a starter lineup](starter-lineup.md) does the same by hand, describes what the starter policy holds and how to tune it.
 
 ## 4. Watch
 
@@ -84,9 +56,7 @@ Plex and M3U players reach the guide and the streams with the output token, `out
 
 ### Plex
 
-The server emulates an HDHomeRun tuner, which admits no address until you allow one. On the portal's Plex page, under Tuner access, allow the Plex server's address. If you do not know the address the server sees, add the tuner in Plex first: the Plex page then lists the address it refused, with Allow.
-
-Add the tuner at `SERVER_HOST:9193` and the guide at `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN` in Plex, with the output token, as steps 2 to 5 of [Plex Live TV](live-tv.md#plex-live-tv) describe. [Keep Plex in step](live-tv.md#keep-plex-in-step) lets the server update Plex's channel maps itself.
+Allow the Plex server's address under Tuner access on the portal's Plex page, then add the tuner at `SERVER_HOST:9193` and the guide `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN` as [Plex Live TV](live-tv.md#plex-live-tv) describes. [Keep Plex in step](live-tv.md#keep-plex-in-step) lets the server update Plex's channel maps itself.
 
 ### The Sofa King app
 
@@ -94,14 +64,7 @@ Install the [Sofa King app](../../app/README.md) and give it the server address,
 
 ### An M3U player
 
-Add the playlist to the player, and the guide as its EPG or XMLTV source:
-
-```text
-http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN
-http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN
-```
-
-Players that read the playlist header pick up the guide on their own. [Third-party players](live-tv.md#third-party-players) has the details.
+Add `http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN` to the player, and the guide as its EPG source if it does not read it from the playlist header. [Third-party players](live-tv.md#third-party-players) has the details.
 
 ## Next steps
 

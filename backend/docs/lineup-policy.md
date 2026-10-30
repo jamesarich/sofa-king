@@ -223,19 +223,4 @@ With a policy, the HDHomeRun devices split the lineup by range instead of by has
 
 ## Generate a policy
 
-1. **Generate** a policy from the running server:
-
-   ```sh
-   scripts/generate-policy.py --server http://SERVER_HOST:9193 \
-     --admin-token "$SOFA_ADMIN_TOKEN" --api-token "$SOFA_API_TOKEN" \
-     --starter-groups server/src/main/resources/policy/starter-groups.json --local-pattern '\b(des moines|kcci)\b' \
-     --out policy.json
-   ```
-
-   It writes `names.version` 2, `health.requireVerified`, and the native providers in priority order (`--providers` changes it). It writes the starter group map, weak list and name patterns behind a `Local` pattern for the household's own market (`--local-pattern`). It writes `numbering.followGroup`, a floor at 3000, where stations the policy keeps off are numbered, and group blocks that each run to the next block's start, at most 400 numbers:
-
-   `Local` from 1, `Local News (US)` 10, `News` 100, `Sports` 300, `En Español` 600, `Entertainment` 700, `Drama` 900, `Classic TV` 1050, `Movies` 1200, `Sci-Fi & Horror` 1400, `Comedy` 1500, `Crime` 1600, `Documentary` 1700, `Lifestyle` 1850, `Food & Travel` 2100, `Kids & Family` 2200, `Anime` 2300, `Music` 2350, `Game Shows` 2500, `Faith` 2550, `Shopping` 2580, `Ambiance` 2600.
-
-   It also writes an alias for every enabled lineup entry whose native sources carry other keys than its name, and prints every alias for review. `--station-ids FILE` takes a CSV with a `name,gracenoteId` header and writes each row's id as the `gracenoteId` of the station its name keys to, following the aliases; a row without a name or with an id that is not 1 to 10 digits is printed and skipped.
-2. **Turn it on** after a backup of `SOFA_DATA_DIR`: move `policy.json` into the data directory, or set `SOFA_POLICY` to it, and restart, then read `GET /api/v1/admin/policy/preview`. With `requireVerified`, stations come on as the probe worker verifies a source of each, first sources first; a station none of whose sources has ever qualified healthy waits, disabled. Compare `devicesNeeded` with `devicesConfigured` in the apply result, then rescan the Plex devices and remap their channels.
-3. **Roll back** by restoring the backup and removing `policy.json` from the data directory, or unsetting `SOFA_POLICY`.
+`scripts/generate-policy.py` writes a policy from the running server, with the starter group map, the number blocks and the aliases. [Build a starter lineup](starter-lineup.md#2-generate-the-policy) has the command, the blocks, turning it on and rolling back.

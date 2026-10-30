@@ -9,16 +9,17 @@ The config folder holds everything the server keeps across restarts:
 | Path | Contents |
 | --- | --- |
 | `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programs, source health and probe times, the lineup policy's station availability and change log, native provider device IDs and session tokens, the last Plex sync, the paired viewers and their preferences, the recordings, series rules and commercial breaks, the media libraries with their scanned items, TMDB matches, episodes' audio fingerprints and intros, and the household's watch progress, the portal's runtime settings and ignored home page items, and the server identity |
-| `logos/` | Cached lineup logos, one file per source URL |
+| `logs/` | The log: `server.log` for today, gzipped `server.<date>.<n>.log.gz` for earlier days, kept `SOFA_LOG_DAYS` days; see [logs](#logs) |
+| `logos/` | Cached lineup logos, one file per source URL, at most 2 MiB each; a logo the lineup does not name is deleted |
 | `artwork/` | TMDB images and the video frames taken as stills for the media libraries; deleting it fetches and takes them again as clients ask |
 | `transcode/` | The HLS output of library playback sessions, deleted when each session ends, and the subtitles extracted from library files |
 | `dvr/` | Comskip's working files while it scans a recording |
 | `intros/` | FFmpeg's fingerprint of the episode the intro pass is reading, deleted once it is read |
 | `scrub/` | The library player's [scrub thumbnails](libraries.md#scrub-thumbnails), one folder of JPEG sheets per file; deleting it makes them again on the pass after the next scan |
 | `recordings/` | The recordings, when `SOFA_RECORDINGS_DIR` is unset. Compose mounts its own `deploy/recordings` folder instead, as [the recordings folder](deploy.md#the-recordings-folder) describes |
-| `backups/` | Database backups taken by the [updater](deploy.md#update-automatically) and by hand. The updater's fallback backups and its `failed-image` record are in `backups/` in the Compose directory instead |
-| `secrets.json` | The generated API, admin and output tokens, and the TMDB token the Library page saved |
-| `sources.json`, `policy.json` | The source file and the lineup policy, when they are kept here |
+| `backups/` | Database backups taken by the [updater](deploy.md#update-automatically) and by hand, readable by their owner alone. The updater's fallback backups and its `failed-image` record are in `backups/` in the Compose directory instead |
+| `secrets.json` | The generated API, admin and output tokens, and the TMDB token the Library page saved, readable by the owner alone |
+| `sources.json`, `policy.json` | The [source file](live-tv.md#source-settings) and the [lineup policy](lineup-policy.md), when they are kept here; the server writes numbers and edits back into the policy. `SOFA_SOURCES` and `SOFA_POLICY` override them, and the log names the files it picked, and why, at every start |
 
 Playback sessions, library playback sessions, the live pairing code and resolved native stream URLs are held in memory. A restart ends active playback, and clients open new sessions. A recording running at the restart resumes into the same file.
 
@@ -75,7 +76,7 @@ Check the result with `/readyz` and `/api/v1/providers` (see [monitoring](#monit
 
 ## Upgrade and rollback
 
-A host that runs the updater upgrades itself from the published image, with the backup, the tag and the rollback below done for it; see [update automatically](deploy.md#update-automatically). To upgrade by hand, back up first, and tag the running image so it stays available to roll back to. Then pull and start the new version, from the Compose directory:
+A host that runs the [updater](deploy.md#update-automatically) does all of this itself. To upgrade by hand, back up first, and tag the running image so it stays available to roll back to. Then pull and start the new version, from the Compose directory:
 
 ```sh
 docker tag "$(docker inspect --format '{{.Image}}' sofa-king-backend)" sofa-king-backend:previous
@@ -165,15 +166,7 @@ The [native providers](providers.md) call each service's public endpoints. A ser
 
 ## Use with an AI assistant
 
-The server answers the [Model Context Protocol](api.md#mcp) at `/api/v1/mcp`, so an assistant such as Claude Code can check on it. Its read tools cover:
-
-- Triage: `server_status`, `needs_attention`, `update_status`, `jobs`, `imports` (a provider or guide fetch failed), `source_problems` and `source_health` (streams fail), and `recent_log`.
-- The lineup: `lineup`, `channel`, `guide_now`, `guide_channels` and `on_later`.
-- The lineup policy: `policy_findings`, `preview_policy`, `policy_changes`, `explain_station` and `guide_matches`.
-- Playback and recordings: `watching_now`, `recordings`, `recording_rules` and `client_crashes` (the crashes the apps reported).
-- Libraries: `libraries`, `search_library` and `library_home`.
-
-With the admin token it can also read `playback_history` and `plex_status`, run a job, scan a library, check for an update and ask the updater to install one (`update_now`, with `confirm`), sync Plex (`plex_sync`), turn a source off or on (`set_source_enabled`, disabling with `confirm`), probe a source (`probe_source`), move a playing session to another source (`switch_session_source`), and change the lineup: `edit_station` and `decide_merge` preview their impact first (`dryRun`, the default) and write only with `dryRun` false, `decide_guide_match` settles a proposed guide channel, and `apply_policy` runs the policy with `confirm`. It can also schedule a recording (`schedule_recording`), cancel or delete one (`cancel_recording`, with `confirm`, and `deleteFile` for a finished one), manage recording rules (`manage_recording_rule`, deleting with `confirm`), list, pair and forget devices (`devices`, forgetting with `confirm`) and list or test notification targets (`notifications`). It cannot make a token. Each policy write names the `revision` from `preview_policy`, and a stale one is refused. No tool shows a stream URL, a token or a request header.
+The server answers the [Model Context Protocol](api.md#mcp) at `/api/v1/mcp`, so an assistant such as Claude Code can check on it. [MCP](api.md#mcp) lists the read tools (triage, the lineup and policy, playback and recordings, libraries) and the admin tools, which also act on the server and never make a token, show a stream URL, a token or a request header.
 
 Pick the token for what the assistant may do. A read token, made on the portal's Settings page under Access tokens with Read as what it opens, lets it look and change nothing. It also sees the log, the recordings, the guide and the libraries, which the read routes of the admin API do not show, and not the playback history or the Plex status. The admin token lets it act too; give it only to an assistant you trust with the portal. Then add the server to the assistant, for Claude Code:
 
@@ -198,7 +191,7 @@ A key you give an assistant is in its transcript, and the server never repeats i
 
 ## Rotating tokens
 
-Tokens come from the environment (`deploy/.env` for Docker), from the file a `_FILE` variable names, or, for a token none of those sets, from `secrets.json` in the config folder. Each change takes effect after a restart, and any client holding the old value gets `401` until it is updated. The `sk_` tokens the server issues (devices', read and hook tokens) change without a restart, and rotating the API token leaves them working.
+A token change takes effect after a restart, and any client holding the old value gets `401` until it is updated. The `sk_` tokens the server issues (devices', read and hook tokens) change without a restart, and rotating the API token leaves them working.
 
 | Token | Rotate by | Update |
 | --- | --- | --- |

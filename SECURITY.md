@@ -19,10 +19,6 @@ Fixes land on `main` and reach the snapshot channel first, then the next release
 | `main` (the `snapshot` prerelease, the image's `:main`) | Yes |
 | Older releases | No; update to the latest |
 
-## The server
+## How each part is secured
 
-The server's [security page](backend/docs/security.md) covers its intended deployment, which token opens which routes, the request limits, the outbound address policy and a hardening checklist.
-
-## The app
-
-The app's [security page](app/docs/security.md) covers what it stores, where it sends the API token, and its cleartext HTTP.
+The [server's security page](backend/docs/security.md) and the [app's](app/docs/security.md) cover what each stores, sends and exposes.

@@ -324,6 +324,15 @@ class VodSessions(
 
     suspend fun get(id: String): VodSession = table.locked { table.live(id).wire() }
 
+    /**
+     * Whether a live converter such as a virtual channel may start now: like a watch open, it ends the previews'
+     * conversions, the oldest first, when none is free. The caller holds the [gate].
+     */
+    suspend fun makeRoom(): Boolean = table.locked {
+        table.reap()
+        table.makeRoom(maxConverting, others(), Wire.Intent.WATCH)
+    }
+
     /** The sessions playing now, oldest first. */
     suspend fun snapshot(): List<VodActivity> = table.locked {
         table.reap()
@@ -372,9 +381,9 @@ class VodSessions(
     suspend fun close() = table.locked {
         table.sessions.values.toList().forEach { table.retire(it, HistoryReason.STOPPED) }
     }
-
-    private fun secret(): String = randomHex(SECRET_BYTES)
 }
+
+private fun secret(): String = randomHex(SECRET_BYTES)
 
 /**
  * Whether a session in [mode] takes one of the conversions `SOFA_MAX_TRANSCODES` allows: converting sound alone costs

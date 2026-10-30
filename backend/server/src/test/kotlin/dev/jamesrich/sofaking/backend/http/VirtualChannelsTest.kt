@@ -18,6 +18,10 @@ import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
 import dev.jamesrich.sofaking.backend.virtual.SourceKind
 import dev.jamesrich.sofaking.backend.virtual.VirtualStreams
+import dev.jamesrich.sofaking.contract.ClientProfile
+import dev.jamesrich.sofaking.contract.OpenVodPlayback
+import dev.jamesrich.sofaking.contract.VodSession
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
@@ -46,6 +50,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /** Virtual channels end to end: a library clip scheduled, listed as a source, guided and streamed through FFmpeg. */
@@ -144,6 +149,39 @@ class VirtualChannelsTest {
         assertEquals(1, runtime.virtualStreams!!.running)
         runtime.virtual!!.delete(channel.id)
         assertEquals(404, fetch(stream.url).statusCode())
+    }
+
+    @Test fun `a channel start at the conversion limit ends the oldest converting preview`() = server(
+        maxTranscodes = 1,
+    ) {
+        val preview = openMovie(Wire.Intent.PREVIEW, remux = true)
+        assertEquals(Wire.VodMode.REMUX, preview.mode)
+        create(VirtualChannel(name = "Clips", slots = listOf(slot(library.id))))
+        assertEquals(200, fetch(streamUrl("Clips")).statusCode(), logs(dir))
+        assertEquals(1, runtime.virtualStreams!!.running)
+        val gone = app.client.get("/api/v1/vod-sessions/${preview.id}") { bearerAuth(token) }
+        assertEquals(HttpStatusCode.Gone, gone.status, "the preview's player sees its session end")
+        assertTrue(runtime.vod!!.snapshot().isEmpty())
+    }
+
+    @Test fun `a channel start at the conversion limit is refused while a watch converts`() = server(
+        maxTranscodes = 1,
+    ) {
+        val watch = openMovie(Wire.Intent.WATCH, remux = true)
+        create(VirtualChannel(name = "Clips", slots = listOf(slot(library.id))))
+        assertEquals(503, fetch(streamUrl("Clips")).statusCode())
+        assertEquals(0, runtime.virtualStreams!!.running)
+        val kept = app.client.get("/api/v1/vod-sessions/${watch.id}") { bearerAuth(token) }
+        assertEquals(HttpStatusCode.OK, kept.status)
+    }
+
+    @Test fun `a channel start leaves a preview that plays the file as it is`() = server(maxTranscodes = 1) {
+        val preview = openMovie(Wire.Intent.PREVIEW, remux = false)
+        assertEquals(Wire.VodMode.DIRECT, preview.mode)
+        create(VirtualChannel(name = "Clips", slots = listOf(slot(library.id))))
+        assertEquals(200, fetch(streamUrl("Clips")).statusCode(), logs(dir))
+        val kept = app.client.get("/api/v1/vod-sessions/${preview.id}") { bearerAuth(token) }
+        assertEquals(HttpStatusCode.OK, kept.status, "a direct preview holds no slot to give up")
     }
 
     @Test fun `a timed slot airs a live channel of the lineup in a session of its own`() = MediaFixture().use { media ->
@@ -285,6 +323,15 @@ class VirtualChannelsTest {
         assertTrue(text.trimEnd().endsWith("#EXTINF:2.500,\n3-0.ts"), text)
     }
 
+    /** Opens the library's movie as [intent], copied into HLS when [remux] and played as it is otherwise. */
+    private suspend fun Virtual.openMovie(intent: String, remux: Boolean): VodSession {
+        val catalog = runtime.libraries!!.catalog
+        val item = catalog.items(library.id, null, false, null, 10).items.single()
+        val codec = assertNotNull(catalog.item(item.id).videoCodec, "FFprobe read the clip")
+        val profile = ClientProfile(listOf(if (remux) "mp4" else "mkv"), listOf(codec), listOf("aac"))
+        return runtime.vod!!.open(OpenVodPlayback(item.id, profile, intent = intent))
+    }
+
     private fun slot(library: String) = VirtualSlot(VirtualSource(SourceKind.LIBRARY, library))
 
     private fun live(entry: String) = VirtualSlot(VirtualSource(SourceKind.CHANNEL, entry))
@@ -333,6 +380,7 @@ class VirtualChannelsTest {
     private fun server(
         media: MediaFixture? = null,
         loopback: Boolean = media != null,
+        maxTranscodes: Int = 2,
         block: suspend Virtual.() -> Unit,
     ) = testApplication {
         val dir = Files.createTempDirectory("sofa-virtual-")
@@ -352,6 +400,7 @@ class VirtualChannelsTest {
             hdhr = HdhrConfig(enabled = false),
             updateImage = null,
             allowLoopbackUpstreams = loopback,
+            maxTranscodes = maxTranscodes,
         )
         val store = openStore(dir)
         val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)

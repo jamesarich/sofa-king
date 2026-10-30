@@ -42,7 +42,7 @@ Every platform's app against the same server, playing a showcase lineup of the B
 
 <p>
   <img src="docs/images/android-tv-player.webp" width="49%" alt="The channel list over a playing channel on Android TV">
-  <img src="docs/images/android-tv-library.webp" width="49%" alt="The Library tab on Android TV: recently added movies and TV shows">
+  <img src="docs/images/android-tv-library.webp" width="49%" alt="The Library tab on Android TV: a spotlight of the focused title's backdrop and summary over the library chips and recently added movies">
   <img src="docs/images/android-tv-show.webp" width="49%" alt="A show's page on Android TV: its seasons, its next episode to play and the episode list">
   <img src="docs/images/android-tv-movie.webp" width="49%" alt="A movie's page on Android TV: details, Play, Mark watched and the cast">
 </p>
@@ -90,7 +90,22 @@ Every platform's app against the same server, playing a showcase lineup of the B
 **Apple TV**
 
 <p>
-  <img src="docs/images/apple-tv-guide.webp" width="49%" alt="The channel list on Apple TV, with search and what is on now and next">
+  <img src="docs/images/apple-tv-guide.webp" width="49%" alt="The guide on Apple TV: the focused program's preview and details over All and Favorites, Search, On later and a grid of channels">
+</p>
+
+**Light theme** (phones, tablets, desktop and web; a TV stays dark)
+
+<p>
+  <img src="docs/images/android-phone-library-light.webp" width="24%" alt="The Library tab on an Android phone in the light theme">
+  <img src="docs/images/android-phone-guide-light.webp" width="24%" alt="The guide on an Android phone in the light theme">
+  <img src="docs/images/desktop-guide-light.webp" width="49%" alt="The guide in the desktop app in the light theme">
+</p>
+
+**Admin portal**
+
+<p>
+  <img src="docs/images/admin-home.webp" width="49%" alt="The admin portal's Home: what needs attention, channels on, guide coverage, Plex sync and who is watching">
+  <img src="docs/images/admin-dvr.webp" width="49%" alt="The admin portal's DVR page: storage, upcoming recordings and series rules">
 </p>
 
 ## Get it

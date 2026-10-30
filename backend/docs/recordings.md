@@ -95,18 +95,17 @@ While a recording runs, the DVR checks the free space every five seconds. Below 
 
 ```mermaid
 stateDiagram-v2
-    [*] --> scheduled: a program, a window or a rule's match is recorded
+    [*] --> scheduled: set to record
     scheduled --> recording: window opens
-    scheduled --> failed: window passed unrecorded, reason MISSED
+    scheduled --> failed: missed
     scheduled --> [*]: canceled
-    recording --> recording: source drops, channel reopens and appends
-    recording --> completed: window ends or stopped, file has data
-    recording --> failed: file empty or missing
-    completed --> [*]: deleted by a person or cleanup
+    recording --> completed: ends with data
+    recording --> failed: no data
+    completed --> [*]: deleted
     failed --> [*]: deleted
 ```
 
-A conflict is a flag on a scheduled recording, not a state.
+A program, a time window or a series rule's match schedules a recording. A window that passes without it starting fails it with the reason `MISSED`. While recording, a dropped source reopens the channel and appends to the same file. The recording completes when its window ends or it is stopped, with data in the file, and fails with an empty or missing file. A person or cleanup deletes it. A conflict is a flag on a scheduled recording, not a state.
 
 `DELETE /api/v1/recordings/{id}` cancels a scheduled recording, stops a running one and keeps what it recorded, or deletes a finished one with its file and any folders it leaves empty. `PATCH` sets `protected`, and the `positionMs` and `watched` a player saves.
 

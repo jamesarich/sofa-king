@@ -54,18 +54,24 @@ A suspect source is rechecked ahead of unverified and healthy sources, no sooner
 
 ```mermaid
 stateDiagram-v2
-    [*] --> UNVERIFIED: source imported
-    UNVERIFIED --> HEALTHY: qualified pass
-    UNVERIFIED --> SUSPECT: OFFERING failure
-    HEALTHY --> SUSPECT: OFFERING failure
-    SUSPECT --> HEALTHY: qualified pass, strikes cleared
-    SUSPECT --> SUSPECT: failure, under 3 strikes or spanning under 10 min
-    SUSPECT --> QUARANTINED: 3 strikes within 6 h spanning 10 min or more
-    QUARANTINED --> PROBATION: qualified pass
-    PROBATION --> HEALTHY: qualified pass 10 min or more after probation began
+    [*] --> UNVERIFIED: imported
+    UNVERIFIED --> HEALTHY: pass
+    UNVERIFIED --> SUSPECT: strike
+    HEALTHY --> SUSPECT: strike
+    SUSPECT --> HEALTHY: pass
+    SUSPECT --> QUARANTINED: third strike
+    QUARANTINED --> PROBATION: pass
+    PROBATION --> HEALTHY: second pass
     PROBATION --> QUARANTINED: failure
-    QUARANTINED --> QUARANTINED: failure at or after the next check
 ```
+
+| Move | When |
+| --- | --- |
+| strike | an `OFFERING` failure; other failures and a disabled or archived source move nothing |
+| pass | a qualified pass; from `SUSPECT` it clears the strikes |
+| third strike | three strikes within 6 hours that span 10 minutes or more; fewer, or closer together, stay `SUSPECT` |
+| second pass | a qualified pass 10 minutes or more after probation began |
+| failure | a failure in probation, or at or after a quarantined source's next check, which keeps it quarantined |
 
 Only `OFFERING` failures and qualified passes move a state. A first quarantine is checked again after 15 minutes; each failed recovery backs off to one hour, six hours, then one day. Two qualifying recovery passes, at least ten minutes apart, restore the source.
 

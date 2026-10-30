@@ -4,6 +4,8 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.ZapScope
+import dev.jamesrich.sofaking.data.zapRing
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

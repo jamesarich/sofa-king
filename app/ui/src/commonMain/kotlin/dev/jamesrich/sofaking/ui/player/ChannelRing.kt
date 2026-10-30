@@ -5,6 +5,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.ZapScope
+import dev.jamesrich.sofaking.data.zapIndex
+import dev.jamesrich.sofaking.data.zapRing
 
 /** The ring of channels Up and Down cycle through, the row on it, and the failure of its stream. */
 internal interface ChannelZapping {
@@ -145,7 +148,7 @@ internal class ChannelRing(
 
     override fun zapStep(step: Int) {
         val size = channels.size
-        if (size > 0) zapTo((index + step).mod(size))
+        if (size > 0) zapTo(zapIndex(index, size, step))
     }
 
     override fun recallLastChannel() {

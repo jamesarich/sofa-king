@@ -39,6 +39,15 @@ struct ChannelListView: View {
         }
     }
 
+    /// The channels the player's Up and Down cycle: the filter the guide shows, or the whole lineup under All.
+    private var zapScope: ZapScope? {
+        switch filter {
+        case .all: return nil
+        case .favorites: return ZapScopeKt.zapScopeOf(label: strings.filterFavorites, channels: filtered)
+        case .recent: return ZapScopeKt.zapScopeOf(label: strings.filterRecent, channels: filtered)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             PreviewBand(lineup: lineup, preview: preview)
@@ -82,7 +91,7 @@ struct ChannelListView: View {
             ProgramDetailView(lineup: lineup, channel: choice.channel, airing: choice.program) { playing = choice.channel }
         }
         .fullScreenCover(item: $playing, onDismiss: returnFromPlayer) { channel in
-            PlayerView(channel: channel)
+            PlayerView(channel: channel, scope: zapScope)
         }
         .onAppear {
             visible = true

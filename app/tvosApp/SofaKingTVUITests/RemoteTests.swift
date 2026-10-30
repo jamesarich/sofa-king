@@ -49,6 +49,28 @@ final class RemoteTests: XCTestCase {
         leavePlayer()
     }
 
+    /// With the transport bar hidden, Down tunes the next channel and Up returns to the first.
+    @MainActor
+    func testPlayerZapsWithUpAndDown() throws {
+        try launchToList()
+        let sports = row("Sofa Sports")
+        focus(sports, by: Array(repeating: XCUIRemote.Button.down, count: 5) + Array(repeating: XCUIRemote.Button.up, count: 8))
+        remote.press(.select)
+        eventually("Sofa Sports to open a playback session", timeout: 30) { !server.watching().isEmpty }
+        let tuned = server.watching().first?["channelId"] as? String
+
+        remote.press(.down)
+        eventually("Down to tune another channel", timeout: 30) {
+            server.watching().contains { $0["channelId"] as? String != tuned }
+        }
+        remote.press(.up)
+        eventually("Up to return to the first channel", timeout: 30) {
+            server.watching().count == 1 && server.watching().first?["channelId"] as? String == tuned
+        }
+
+        leavePlayer()
+    }
+
     /// Moving along the tab bar opens each tab, Down moves focus into it, and Up brings focus back to the tab bar.
     @MainActor
     func testTabs() throws {

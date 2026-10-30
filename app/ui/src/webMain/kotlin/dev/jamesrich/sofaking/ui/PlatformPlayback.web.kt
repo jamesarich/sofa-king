@@ -14,6 +14,8 @@ internal actual val playsHlsOnly: Boolean = true
 
 internal actual val supportsCaptionSync: Boolean = false
 
+internal actual val supportsCrashReports: Boolean = false
+
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit
 

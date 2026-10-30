@@ -42,6 +42,8 @@ internal actual val playsHlsOnly: Boolean = false
 
 internal actual val supportsCaptionSync: Boolean = true
 
+internal actual val supportsCrashReports: Boolean = true
+
 @Composable
 internal actual fun rememberSurroundTestPlayer(): SurroundTestPlayer? {
     val context = LocalContext.current.applicationContext

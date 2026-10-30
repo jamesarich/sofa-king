@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
+import dev.jamesrich.sofaking.data.resumes
+import dev.jamesrich.sofaking.data.spotlightTagline
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_spotlight_play
 import dev.jamesrich.sofaking.resources.library_spotlight_resume

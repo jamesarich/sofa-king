@@ -1,16 +1,22 @@
 import SwiftUI
 import SofaKingCore
 
-/// The Library tab: Continue watching, each library's recent additions, then the libraries themselves. Selecting a
-/// card opens its page; the remote's play/pause button plays a movie or episode straight from its card, and holding the
-/// touch surface on a Continue watching card offers Remove from Continue watching. While music plays, Now playing
-/// heads the page and opens the song's page again. Search above the page opens `LibrarySearchView`.
+/// The Library tab: a spotlight on the focused Continue watching or Recently added card, then those shelves, each
+/// library's recent additions and the libraries themselves. Selecting a Continue watching card resumes it; any other
+/// card opens its page. The remote's play/pause button plays a movie or episode straight from its card, and holding the
+/// touch surface on a Continue watching card offers Details, which opens its page, and Remove from Continue watching.
+/// While music plays, Now playing heads the page and opens the song's page again. Search above the page opens
+/// `LibrarySearchView`.
 struct LibraryHomeView: View {
     @Environment(AppModel.self) private var model
+    @State private var path = NavigationPath()
+    @FocusState private var focusedId: String?
+    /// The last spotlight card focus rested on, so the spotlight keeps its item while focus is on another shelf.
+    @State private var spotlightId: String?
 
     var body: some View {
         @Bindable var model = model
-        NavigationStack {
+        NavigationStack(path: $path) {
             content
                 .navigationDestination(for: MediaItem.self) { ItemDetailView(itemId: $0.id) }
                 .navigationDestination(for: MediaLibrary.self) { LibraryGridView(library: $0) }
@@ -59,6 +65,10 @@ struct LibraryHomeView: View {
     private func shelves(_ home: MediaHome) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 48) {
+                // It only draws the focused card; focus stays on the cards, and where it starts is unchanged.
+                if let shown = SpotlightChoicesKt.spotlightItem(shelves: home.shelves, focusedId: spotlightId) {
+                    LibrarySpotlight(item: shown)
+                }
                 if let song = model.music.song {
                     Button { model.nowPlayingShown = true } label: {
                         Label("Now playing: \(song.title)", systemImage: "music.note").lineLimit(1)
@@ -69,12 +79,12 @@ struct LibraryHomeView: View {
                     Section {
                         CardRow {
                             ForEach(shelf.items) { item in
-                                NavigationLink(value: item) { LibraryCard(item: item, wide: wide) }
-                                    .buttonStyle(.card)
+                                card(item, in: shelf, wide: wide)
                                     .playsOnPlayPause(item)
                                     .contextMenu {
                                         if shelf.id == LibraryChoicesKt.CONTINUE_SHELF {
-                                            Button("Remove from Continue watching", systemImage: "minus.circle") {
+                                            Button(strings.libraryDetails, systemImage: "info.circle") { path.append(item) }
+                                            Button(strings.libraryRemoveFromContinue, systemImage: "minus.circle") {
                                                 model.core.removeFromContinue(item: item)
                                             }
                                         }
@@ -98,6 +108,96 @@ struct LibraryHomeView: View {
                     }
                 }
             }
+        }
+        .onChange(of: focusedId) { _, id in
+            if let id { spotlightId = id }
+        }
+    }
+
+    /// A card that resumes on select where the shared rule says so, else one that opens the item's page.
+    @ViewBuilder
+    private func card(_ item: MediaItem, in shelf: MediaShelf, wide: Bool) -> some View {
+        let feeds = SpotlightChoicesKt.feedsSpotlight(shelf: shelf)
+        let play = SpotlightChoicesKt.cardOkFor(shelf: shelf, item: item) == .play
+        switch (play, feeds) {
+        case (true, true):
+            playCard(item, wide: wide).focused($focusedId, equals: item.id)
+        case (true, false):
+            playCard(item, wide: wide)
+        case (false, true):
+            pageCard(item, wide: wide).focused($focusedId, equals: item.id)
+        case (false, false):
+            pageCard(item, wide: wide)
+        }
+    }
+
+    private func playCard(_ item: MediaItem, wide: Bool) -> some View {
+        Button { model.playFromCard(item) } label: { LibraryCard(item: item, wide: wide) }
+            .buttonStyle(.card)
+    }
+
+    private func pageCard(_ item: MediaItem, wide: Bool) -> some View {
+        NavigationLink(value: item) { LibraryCard(item: item, wide: wide) }
+            .buttonStyle(.card)
+    }
+}
+
+/// The backdrop, title, year or episode and a line of the overview of the focused card, above the shelves. It is not
+/// focusable and VoiceOver skips it, as the focused card already says all of it.
+private struct LibrarySpotlight: View {
+    let item: MediaItem
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            Color.sofaPlumRaised
+            SpotlightContent(item: item)
+                .id(item.id)
+                .transition(.opacity)
+        }
+        .containerRelativeFrame(.vertical) { height, _ in height * 0.4 }
+        .clipped()
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: item.id)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct SpotlightContent: View {
+    let item: MediaItem
+
+    var body: some View {
+        let art = item.backdrop ?? item.poster
+        ZStack(alignment: .bottomLeading) {
+            if let art {
+                Color.black.overlay {
+                    AsyncImage(url: URL(string: art)) { phase in
+                        if let image = phase.image {
+                            // A poster stands in for a missing backdrop, blurred so its grain does not read as a picture.
+                            if item.backdrop == nil {
+                                image.resizable().scaledToFill().scaleEffect(1.1).blur(radius: 24)
+                            } else {
+                                image.resizable().scaledToFill()
+                            }
+                        }
+                    }
+                }
+                .clipped()
+                LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .top, endPoint: .bottom)
+                LinearGradient(colors: [.black.opacity(0.6), .clear], startPoint: .leading, endPoint: .trailing)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                Text(item.cardTitle).font(.largeTitle).bold().lineLimit(2)
+                if let subtitle = item.cardSubtitle {
+                    Text(subtitle).font(.headline).lineLimit(1)
+                }
+                if let tagline = SpotlightChoicesKt.spotlightTagline(item: item, limit: SpotlightChoicesKt.SPOTLIGHT_TAGLINE_LIMIT) {
+                    Text(tagline).font(.body).lineLimit(2)
+                }
+            }
+            .foregroundStyle(art == nil ? Color.primary : Color.white)
+            .frame(maxWidth: 900, alignment: .leading)
+            .padding(.horizontal, 80)
+            .padding(.bottom, 32)
         }
     }
 }
@@ -296,12 +396,17 @@ private struct PlayOnPlayPause: ViewModifier {
     let item: MediaItem
 
     func body(content: Content) -> some View {
-        content.onPlayPauseCommand {
-            if item.kind == .track {
-                model.playMusic([item], from: item)
-            } else if item.kind.playable {
-                model.vod = VodRequest(item: item, fromStart: false)
-            }
+        content.onPlayPauseCommand { model.playFromCard(item) }
+    }
+}
+
+extension AppModel {
+    /// Plays [item] from where the household stopped; a song plays alone in Now playing.
+    func playFromCard(_ item: MediaItem) {
+        if item.kind == .track {
+            playMusic([item], from: item)
+        } else if item.kind.playable {
+            vod = VodRequest(item: item, fromStart: false)
         }
     }
 }

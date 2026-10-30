@@ -104,7 +104,10 @@ jobs:
           :core:allTests :ui:jvmTest :ui:testAndroidHostTest :ui:jsNodeTest
           :core:compileTestKotlinLinuxX64 :core:compileKotlinLinuxArm64 :ui:compileTestKotlinIosSimulatorArm64
           :androidApp:lintDebug :androidApp:assembleRelease :androidApp:testDebugScreenshotTestDefaultTestSuite
-          :ui:wasmJsBrowserDistribution :ui:jsBrowserDistribution
+      # The production web builds run on their own: beside the screenshot tests they ran the runner out of memory, and
+      # GitHub stopped it with "The runner has received a shutdown signal".
+      - name: Build the web distributions
+        run: ./gradlew :ui:wasmJsBrowserDistribution :ui:jsBrowserDistribution
       # Random keys on both production web builds in Google Chrome, which the runner has and which plays the fixture
       # channels' H.264 where Playwright's own Chromium does not, against the server's distribution, as on the TV. The
       # server serves the Wasm build at /app/ under its own policy, as the image does; the JS build is served from

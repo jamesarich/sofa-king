@@ -32,6 +32,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.net.URI
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -79,7 +80,7 @@ class LoopbackRelay(
     }
 
     /** One FFmpeg run's source and the resources its playlists named, by opaque token. */
-    internal class Lease(val stream: ResolvedStream, val stalls: StallWatch?) {
+    internal class Lease(val stream: ResolvedStream, val stalls: StallWatch?, val markers: PlaylistMarkers? = null) {
         val id: String = UUID.randomUUID().toString()
         val credential: String = randomUrlToken(KEY_BYTES)
         private val resources = ResourceMap()
@@ -100,6 +101,12 @@ class LoopbackRelay(
                 )
 
         @Synchronized fun url(token: String): String? = resources[token]
+
+        /** A playlist FFmpeg fetched from [source]: shown to the stall watch and the markers, and passed on. */
+        fun watch(text: String, source: URI): String = text.also {
+            stalls?.stalled(it, source)
+            markers?.playlist(it, source)
+        }
     }
 
     /** Leases open now, one per FFmpeg reading a source. */
@@ -107,16 +114,18 @@ class LoopbackRelay(
 
     /**
      * Runs [block] with a lease on [stream], whose [protocol] names the root's suffix; the lease ends with the block,
-     * and any request FFmpeg makes after that answers 401. Given [stalls], each playlist FFmpeg fetches is shown to it.
+     * and any request FFmpeg makes after that answers 401. Given [stalls], each playlist FFmpeg fetches is shown to it;
+     * given [markers], each playlist and each segment it finishes fetching is too.
      */
     suspend fun <T> reading(
         stream: ResolvedStream,
         protocol: String,
         stalls: StallWatch? = null,
+        markers: PlaylistMarkers? = null,
         block: suspend (FfmpegSource) -> T,
     ): T {
         val port = start()
-        val lease = Lease(stream, stalls)
+        val lease = Lease(stream, stalls, markers)
         leases[lease.id] = lease
         try {
             return block(
@@ -208,7 +217,8 @@ class LoopbackRelay(
                         url,
                         lease.stream,
                         path = lease::path,
-                        manifest = { text, source -> text.also { lease.stalls?.stalled(it, source) } },
+                        manifest = lease::watch,
+                        streamed = { lease.markers?.segment(url) },
                         refused = { status ->
                             val answer = if (status in UPSTREAM_ERRORS) {
                                 HttpStatusCode.fromValue(status)

@@ -260,7 +260,7 @@ internal object Settings {
         LearnedBreaks.entries.map { it.setting },
         "Learned ad breaks",
         "Breaks the server finds in a stream with no ad markers, such as a long silent slate: shadow only logs them " +
-            "(ADDETECT), on also shows the break screen over them.",
+            "(ADDETECT), on also shows the break screen over them and keeps them as a recording's breaks.",
         SettingArea.LIBRARY,
         runtime = true,
     ) { it.learnedBreaks.setting }
@@ -391,7 +391,7 @@ internal object Settings {
         "SOFA_COMSKIP",
         "comskip",
         "Comskip",
-        "Comskip executable; none turns the commercial scan off.",
+        "Comskip executable for recordings' commercial breaks; none turns it off.",
         custom = true,
     ) { it.comskip ?: "none" }
 

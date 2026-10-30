@@ -15,6 +15,8 @@ import dev.jamesrich.sofaking.backend.catalog.loadSources
 import dev.jamesrich.sofaking.backend.dvr.Commercials
 import dev.jamesrich.sofaking.backend.dvr.Dvr
 import dev.jamesrich.sofaking.backend.dvr.Recorder
+import dev.jamesrich.sofaking.backend.dvr.RecordingAds
+import dev.jamesrich.sofaking.backend.dvr.RecordingAudio
 import dev.jamesrich.sofaking.backend.dvr.Retention
 import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.health.ProbeConfig
@@ -428,6 +430,7 @@ internal class RuntimeAssembly(
         { Duration.ofDays(settings.current.guideDays.toLong()) },
         retention = { settings.current.let { Retention(it.recordingsFreeGib, it.recordingsKeepDays) } },
         commercials = config.comskip?.let { Commercials(it, config.dataDirectory.resolve("dvr")) },
+        learned = RecordingAds(RecordingAudio(config.ffmpeg), { library }, { sessions.learnedBreaks }),
         jobs = jobs,
         events = events,
     )

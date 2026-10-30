@@ -50,6 +50,8 @@ CLOCK = '1630'
 PREVIEW_SECONDS = 8
 # How many times a tap asks uiautomator for the screen before giving up.
 DUMP_TRIES = 10
+# Downs a TV takes to bring a Library shelf up from under the spotlight.
+SHELF_PRESSES = 4
 
 
 def showcase_server(out, images=None, **settings):
@@ -252,26 +254,35 @@ def android(args, out):
             earlier = set(app_log())
             logged = lambda text: any(text in line and line not in earlier for line in app_log())
 
-            def tap(text):
-                if text is None:
-                    size = re.search(rb'(\d+)x(\d+)', adb('shell', 'wm', 'size').splitlines()[-1])
-                    return adb('shell', 'input', 'tap', str(int(size[1]) // 2), str(int(size[2]) // 2))
-                # The first clickable item whose text or description starts with [text]. The dump waits for the screen
-                # to settle, so it fails while a loader spins or artwork animates in; it is tried again until it writes.
-                tree = None
+            def screen():
+                # The dump waits for the screen to settle, so it fails while a loader spins or artwork animates in; it
+                # is tried again until it writes.
                 for _ in range(DUMP_TRIES):
                     adb('shell', 'rm', '-f', '/data/local/tmp/screen.xml')
                     with contextlib.suppress(subprocess.CalledProcessError, ElementTree.ParseError):
                         adb('shell', 'uiautomator', 'dump', '/data/local/tmp/screen.xml')
-                        tree = ElementTree.fromstring(adb('exec-out', 'cat', '/data/local/tmp/screen.xml'))
-                        break
+                        return ElementTree.fromstring(adb('exec-out', 'cat', '/data/local/tmp/screen.xml'))
                     time.sleep(1)
-                if tree is None:
-                    raise SystemExit(f'uiautomator could not dump the screen to find {text!r}')
+                raise SystemExit('uiautomator could not dump the screen')
+
+            def tap(text):
+                if text is None:
+                    size = re.search(rb'(\d+)x(\d+)', adb('shell', 'wm', 'size').splitlines()[-1])
+                    return adb('shell', 'input', 'tap', str(int(size[1]) // 2), str(int(size[2]) // 2))
+                # The first clickable item whose text or description starts with [text]. On a TV the Library's
+                # spotlight can leave a shelf off the screen, so Down, then Up, brings the shelves past and the screen
+                # is read again after each.
                 named = lambda node: any((node.get(a) or '').startswith(text) for a in ('text', 'content-desc'))
-                nodes = [n for n in tree.iter('node') if named(n)]
-                if not nodes:
-                    raise SystemExit(f'Nothing on screen reads {text!r}')
+                moves = ['ArrowDown'] * SHELF_PRESSES + ['ArrowUp'] * (2 * SHELF_PRESSES) if tv else []
+                for move in [*moves, None]:
+                    tree = screen()
+                    nodes = [n for n in tree.iter('node') if named(n)]
+                    if nodes:
+                        break
+                    if move is None:
+                        raise SystemExit(f'Nothing on screen reads {text!r}')
+                    keys(move)
+                    time.sleep(1)
                 clickable = [n for n in tree.iter('node') if n.get('clickable') == 'true' and any(named(c) for c in n.iter('node'))]
                 left, top, right, bottom = map(int, re.findall(r'\d+', (clickable or nodes)[-1].get('bounds')))
                 adb('shell', 'input', 'tap', str((left + right) // 2), str((top + bottom) // 2))

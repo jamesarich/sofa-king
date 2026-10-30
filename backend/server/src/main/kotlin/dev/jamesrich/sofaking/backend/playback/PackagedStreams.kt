@@ -16,8 +16,6 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -41,7 +39,7 @@ internal class PackagedStreams(
     private val directory: Path,
     private val scope: CoroutineScope,
     private val sessions: SessionMedia,
-    private val join: suspend (Offering, ResolvedStream) -> TsFanout.Reader,
+    private val join: suspend (Offering, ResolvedStream, Int) -> TsFanout.Reader,
 ) {
     private val log = LoggerFactory.getLogger(PackagedStreams::class.java)
     private val packages = ConcurrentHashMap<String, Package>()
@@ -145,7 +143,7 @@ internal class PackagedStreams(
         try {
             // The session holds the package, so whatever ends the session's requests ends it too.
             sessions.attach(pack.id, pack.job)
-            val reader = join(offering, stream)
+            val reader = join(offering, stream, READER_CHUNKS)
             try {
                 copy(pack, reader)
             } finally {
@@ -164,17 +162,11 @@ internal class PackagedStreams(
     }
 
     /**
-     * Feeds [reader]'s packets to an FFmpeg that writes [pack]'s playlist, until either ends. The packets queue while
-     * FFmpeg starts, which on a busy host outlasts the reader's own buffer.
+     * Feeds [reader]'s packets to an FFmpeg that writes [pack]'s playlist, until either ends. The packets wait in the
+     * reader's buffer while FFmpeg starts, which on a busy host outlasts the default one; a source that opens with a
+     * burst fills it before any consumer is scheduled.
      */
-    private suspend fun copy(pack: Package, reader: TsFanout.Reader) = coroutineScope {
-        // Draining starts before the wait: the reader's own buffer is small, and the source's first burst can fill it
-        // in the time a drain launched after the wait needs to get a thread, which drops the reader.
-        val queue = Channel<ByteArray>(QUEUE_CHUNKS)
-        val drain = launch {
-            val outcome = runCatchingCancellable { for (chunk in reader.chunks) queue.send(chunk) }
-            queue.close(outcome.exceptionOrNull())
-        }
+    private suspend fun copy(pack: Package, reader: TsFanout.Reader) {
         val begun = runCatchingCancellable { reader.awaitStarted() }
         begun.exceptionOrNull()?.let { e ->
             // A body in the other protocol moves the session to it, and the player re-reads the descriptor.
@@ -187,10 +179,9 @@ internal class PackagedStreams(
         pack.started.complete(null)
         try {
             process.outputStream.use { input ->
-                for (chunk in queue) input.write(chunk)
+                for (chunk in reader.chunks) input.write(chunk)
             }
         } finally {
-            drain.cancel()
             process.terminate()
         }
     }
@@ -221,7 +212,7 @@ internal class PackagedStreams(
         private const val START_SEGMENTS = 3
         private val START_WAIT: Duration = Duration.ofSeconds(15)
         private const val POLL_MS = 200L
-        private const val QUEUE_CHUNKS = 1024
+        private const val READER_CHUNKS = 1024
         private const val SCAN_LIMIT = 16 * 1024 * 1024
         private val SEGMENT = Regex("seg[0-9]{1,9}\\.ts")
     }

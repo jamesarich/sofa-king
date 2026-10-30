@@ -125,6 +125,25 @@ class TsFanoutTest {
         fast.close()
     }
 
+    @Test fun `a reader that asks for a larger buffer keeps a burst the default buffer would drop`() = runTest {
+        val streams = SharedStreams(backgroundScope, FanoutConfig(readerChunks = 2)) { testScheduler.currentTime }
+        val body = ByteChannel()
+        val roomy = streams.join("source", chunks = 8) { consume -> consume(body) }
+        val plain = streams.join("source") { error("unused") }
+        val writes = listOf(p[0] + p[1] + p[2], p[3], p[4], p[5])
+        for (chunk in writes) {
+            body.writeFully(chunk)
+            body.flush()
+            yield()
+            yield()
+        }
+        for (chunk in writes) assertContentEquals(chunk, roomy.chunks.receive())
+        assertContentEquals(writes[0], plain.chunks.receive())
+        assertContentEquals(writes[1], plain.chunks.receive())
+        assertFailsWith<SlowReaderException> { plain.chunks.receive() }
+        roomy.close()
+    }
+
     @Test fun `dropping the last reader as slow stops the upstream after the linger`() = runTest {
         val streams =
             SharedStreams(backgroundScope, FanoutConfig(readerChunks = 2, lingerMillis = 2000)) {

@@ -296,9 +296,13 @@ struct PlayerView: View {
             image: UIImage(systemName: favorite ? "star.fill" : "star"),
             state: favorite ? .on : .off
         ) { [guideId = channel.guideId] _ in model.core.toggleFavorite(guideId: guideId) }
-        // Built when opened: each entry's subtitle is the program on now, and items that change close an open menu.
-        let groups = UIDeferredMenuElement.uncached { completion in completion(channelGroups) }
-        let channels = UIMenu(title: "Channels", image: UIImage(systemName: "list.bullet"), children: [groups])
+        let all = model.lineup?.channels ?? []
+        let groups: [UIMenu] = [
+            channelMenu(strings.filterRecent, model.recentChannels, inline: true),
+            channelMenu(strings.filterFavorites, all.filter { model.favorites.contains($0.guideId) }, inline: true),
+            channelMenu("All channels", all, inline: false),
+        ].compactMap { $0 }
+        let channels = UIMenu(title: "Channels", image: UIImage(systemName: "list.bullet"), children: groups)
         let programEnd = model.lineup.flatMap { model.core.nowAndNext(lineup: $0, channel: channel).now }.map {
             Date(timeIntervalSince1970: Double(model.core.endEpochMs(program: $0)) / 1000)
         }
@@ -364,16 +368,6 @@ struct PlayerView: View {
         attempts = 0
         failure = nil
         Task { await tune() }
-    }
-
-    /// The Channels menu's groups, as the guide's chips are: Recent, Favorites, then every channel.
-    private var channelGroups: [UIMenuElement] {
-        let all = model.lineup?.channels ?? []
-        return [
-            channelMenu(strings.filterRecent, model.recentChannels, inline: true),
-            channelMenu(strings.filterFavorites, all.filter { model.favorites.contains($0.guideId) }, inline: true),
-            channelMenu("All channels", all, inline: false),
-        ].compactMap { $0 }
     }
 
     private func channelMenu(_ title: String, _ channels: [Channel], inline: Bool) -> UIMenu? {

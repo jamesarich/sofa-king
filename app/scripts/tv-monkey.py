@@ -44,14 +44,19 @@ def open_link(link):
 
 def run_flows(flows, out, play):
     """Each Maestro flow in [flows], in name order; one named for a library flow first plays the first episode through
-    [play]. The names of those that failed."""
+    [play]. A flow whose run lost Maestro's own server on the device runs once more. The names of those that failed."""
     failed = []
     for flow in sorted(Path(flows).glob('*.yaml')):
-        if flow.stem.startswith('library_'):
-            play()
-        result = subprocess.run(['maestro', 'test', '--format', 'junit', '--output', str(out / f'maestro-{flow.stem}.xml'),
-                                 '--debug-output', str(out / 'maestro' / flow.stem), str(flow)],
-                                capture_output=True, text=True, timeout=600)
+        report = out / f'maestro-{flow.stem}.xml'
+        for _ in range(2):
+            if flow.stem.startswith('library_'):
+                play()
+            result = subprocess.run(['maestro', 'test', '--format', 'junit', '--output', str(report),
+                                     '--debug-output', str(out / 'maestro' / flow.stem), str(flow)],
+                                    capture_output=True, text=True, timeout=600)
+            if result.returncode == 0 or not report.exists() or 'DeviceServerDiedException' not in report.read_text():
+                break
+            print(f'Flow {flow.stem}: Maestro lost its device server; running it again', flush=True)
         (out / f'maestro-{flow.stem}.txt').write_text(result.stdout + result.stderr)
         print(f'Flow {flow.stem}: {"passed" if result.returncode == 0 else "failed"}', flush=True)
         if result.returncode != 0:

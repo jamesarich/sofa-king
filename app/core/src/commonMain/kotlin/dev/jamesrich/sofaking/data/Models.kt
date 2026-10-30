@@ -68,6 +68,8 @@ data class Lineup(
 
 /** What a server offers beyond live TV, as its bootstrap says. */
 data class ServerCapabilities(
+    /** The server has answered, or is too old to say; false is the empty value held until then. */
+    val answered: Boolean = false,
     /** It records from the guide. */
     val recordings: Boolean = false,
     /** It serves media libraries. */

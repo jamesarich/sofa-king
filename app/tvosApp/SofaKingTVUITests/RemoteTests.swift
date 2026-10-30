@@ -235,7 +235,12 @@ final class RemoteTests: XCTestCase {
         RunLoop.current.run(until: Date().addingTimeInterval(3))
         if !server.watching().isEmpty { leavePlayer() }
         if !list.exists {
-            focus(app.tabBars.buttons["Live"], by: Array(repeating: XCUIRemote.Button.up, count: 6) + Array(repeating: XCUIRemote.Button.left, count: 3))
+            // A start reopens the tab the last test left, so Up reaches the bar and Left selects Live, whose button
+            // is then named by its icon, not "Live"; the guide, not that button, says Live is open.
+            for move in Array(repeating: XCUIRemote.Button.up, count: 6) + Array(repeating: XCUIRemote.Button.left, count: 3) {
+                if settled(list.exists) { break }
+                remote.press(move)
+            }
             remote.press(.down)
         }
         XCTAssertTrue(list.waitForExistence(timeout: 10), "No channel list\n\(screen)")

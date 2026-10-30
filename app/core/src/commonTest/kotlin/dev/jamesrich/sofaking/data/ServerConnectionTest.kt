@@ -97,7 +97,7 @@ class ServerConnectionTest {
 
         servers.bootstrap = { """{"catalog":true,"recordings":true,"library":false}""" }
         advanceTimeBy(5.minutes)
-        assertEquals(ServerCapabilities(recordings = true), connection.capabilities.value)
+        assertEquals(ServerCapabilities(answered = true, recordings = true), connection.capabilities.value)
         val asked = servers.bootstrapTimes.size
         advanceTimeBy(30.minutes)
         assertEquals(asked, servers.bootstrapTimes.size, "an answer stops the asking")
@@ -111,7 +111,10 @@ class ServerConnectionTest {
         }
         val connection = connection(servers)
         runCurrent()
-        assertEquals(ServerCapabilities(recordings = true, library = true), connection.capabilities.value)
+        assertEquals(
+            ServerCapabilities(answered = true, recordings = true, library = true),
+            connection.capabilities.value,
+        )
         connection.sessions.tune("c1", PlaybackIntent.WATCH)
 
         settings.value = AppSettings(serverUrl = "http://b.test", apiToken = "t")
@@ -157,7 +160,7 @@ class ServerConnectionTest {
                 )
             runCurrent()
             assertTrue(scope.isActive)
-            assertEquals(ServerCapabilities(library = true), connection.capabilities.value)
+            assertEquals(ServerCapabilities(answered = true, library = true), connection.capabilities.value)
         } finally {
             scope.cancel()
         }

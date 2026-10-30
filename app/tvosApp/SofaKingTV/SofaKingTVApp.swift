@@ -178,9 +178,10 @@ final class AppModel {
         pinWaitEnds = nil
     }
 
-    /// Whether the server has said yet if [tab] belongs in the tab bar; Library also waits for the first list.
+    /// Whether the server has said yet if [tab] belongs in the tab bar; Library also waits for the first list. The
+    /// empty capabilities held until the bootstrap answers say nothing, or a start drops the tab it reopened.
     func offerKnown(_ tab: AppTab) -> Bool {
-        guard let capabilities else { return false }
+        guard let capabilities, capabilities.answered else { return false }
         return tab != .library || capabilities.library != true || !(libraryHome is LibraryHomeStateLoading)
     }
 

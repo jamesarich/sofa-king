@@ -122,6 +122,7 @@ class ServerConnection(
             runCatchingCancellable {
                 return api.bootstrap().capabilities.let {
                     ServerCapabilities(
+                        answered = true,
                         recordings = it.recordings,
                         library = it.library,
                         watchlist = it.watchlist,
@@ -132,7 +133,7 @@ class ServerConnection(
                 }
             }.onFailure { e ->
                 if (e is SofaKingException) {
-                    if (e.statusCode == HttpStatusCode.NotFound) return ServerCapabilities()
+                    if (e.statusCode == HttpStatusCode.NotFound) return ServerCapabilities(answered = true)
                     log.w { "bootstrap refused: ${e.code}" }
                 } else {
                     log.w { "bootstrap failed: ${e.message}" }

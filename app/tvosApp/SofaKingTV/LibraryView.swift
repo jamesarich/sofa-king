@@ -1,6 +1,11 @@
 import SwiftUI
 import SofaKingCore
 
+/// A library item's page, pushed by id from a `sofaking://item` link.
+struct ItemRoute: Hashable {
+    let id: String
+}
+
 /// The Library tab: a spotlight on the focused Continue watching or Recently added card, then those shelves, each
 /// library's recent additions and the libraries themselves. Selecting a Continue watching card resumes it; any other
 /// card opens its page. The remote's play/pause button plays a movie or episode straight from its card, and holding the
@@ -19,6 +24,7 @@ struct LibraryHomeView: View {
         NavigationStack(path: $path) {
             content
                 .navigationDestination(for: MediaItem.self) { ItemDetailView(itemId: $0.id) }
+                .navigationDestination(for: ItemRoute.self) { ItemDetailView(itemId: $0.id) }
                 .navigationDestination(for: MediaLibrary.self) { LibraryGridView(library: $0) }
                 .librarySearchButton(shown: model.libraryHome is LibraryHomeStateReady)
         }
@@ -27,9 +33,21 @@ struct LibraryHomeView: View {
             // leaves reports its stop as itself.
             VodPlayerView(request: request).id(request)
         }
-        .onAppear { model.openRequestedItem() }
+        .onAppear {
+            model.openRequestedItem()
+            openRequestedDetails()
+        }
+        .onChange(of: model.requestedDetails) { openRequestedDetails() }
         .onChange(of: model.requestedItem) { model.openRequestedItem() }
         .onChange(of: model.libraryHome is LibraryHomeStateReady) { model.openRequestedItem() }
+    }
+
+    /// Shows the page a `sofaking://item/<id>` link named, in place of any page already open over the Library.
+    private func openRequestedDetails() {
+        guard let id = model.requestedDetails else { return }
+        model.requestedDetails = nil
+        path = NavigationPath()
+        path.append(ItemRoute(id: id))
     }
 
     @ViewBuilder

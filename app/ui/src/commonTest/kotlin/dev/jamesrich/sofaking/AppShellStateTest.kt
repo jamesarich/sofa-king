@@ -113,6 +113,35 @@ class AppShellStateTest {
     }
 
     @Test
+    fun `an item page link from Live lands on the Library with the page on top`() {
+        shell.decideLaunch(LaunchTarget.OpenTab(Tab.LIVE))
+        shell.openItem("e1")
+        assertEquals(Tab.LIBRARY, shell.nav.tab)
+        assertEquals(Route.LibraryItem("e1"), shell.top)
+        assertEquals(listOf(Route.Library, Route.LibraryItem("e1")), shell.nav.stack(Tab.LIBRARY))
+    }
+
+    @Test
+    fun `an item page link replaces the item page already open and leaves other tabs alone`() {
+        shell.decideLaunch(LaunchTarget.OpenTab(Tab.LIBRARY))
+        shell.push(Route.LibraryItem("e1"))
+        shell.openTab(Tab.LIVE)
+        shell.push(Route.Player("a"))
+        val live = shell.nav.stack(Tab.LIVE)
+
+        shell.openItem("e2")
+        assertEquals(listOf(Route.Library, Route.LibraryItem("e2")), shell.nav.stack(Tab.LIBRARY))
+        assertEquals(live, shell.nav.stack(Tab.LIVE))
+
+        shell.openItem("e3")
+        assertEquals(
+            listOf(Route.Library, Route.LibraryItem("e3")),
+            shell.nav.stack(Tab.LIBRARY),
+            "no second page stacks",
+        )
+    }
+
+    @Test
     fun `an item link may start the item partway`() {
         shell.playItem("e1", startMs = 90_000)
         assertEquals(Route.Vod("e1", startMs = 90_000), shell.top)

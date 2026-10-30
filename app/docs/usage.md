@@ -237,7 +237,7 @@ The app opens `sofaking://` links on Android, Android TV, iOS and Apple TV, so a
 | `sofaking://vod/ID?t=SECONDS` | The same item, that many seconds in. |
 | `sofaking://pair?server=URL&code=CODE` | Pairs with that server, as the admin portal's QR code does. With no server saved, or with the one the link names, it pairs at once; with another server saved, a dialog asks "Switch to HOST?" and says that this device stops using the saved one. Cancel is focused first; Switch pairs, Cancel drops the link. The Apple TV app asks in a confirmation dialog with the same words. |
 
-On Android and Android TV only `pair` opens from a web page; `live` and `vod` open from another app, from the home screen's Watch Next row, or from `adb shell am start -a android.intent.action.VIEW -d sofaking://live/5.1`, the way Home Assistant's Android TV integration starts an app. A channel or item the server does not have leaves the app where it was. The Apple TV's Top Shelf uses the same `vod` links, and its older `sofaking://channel/ID` links still open the channel.
+On Android and Android TV only `pair` opens from a web page; `live`, `vod` and `item` (`sofaking://item/ID`, an item's page without playing it) open from another app, from the home screen's Watch Next row, or from `adb shell am start -a android.intent.action.VIEW -d sofaking://live/5.1`, the way Home Assistant's Android TV integration starts an app. A channel or item the server does not have leaves the app where it was. The Apple TV's Top Shelf uses the same `vod` links, and its older `sofaking://channel/ID` links still open the channel.
 
 ## Captions
 
@@ -275,7 +275,7 @@ On a server that records, a DVR tab follows Library: it lists what is recording 
 
 Settings › During ads covers the ads a streaming channel marks with the bouncing logo, as on the other apps, muted or not; Show picture over it brings the picture back until that break ends. The Settings tab takes the server address and the API token, or a pairing code with Pair; Servers on this network, above them, lists the servers it finds and fills the address in. On a server that shares them, Settings › Channels › Share favorites across devices keeps the favorites, their order and the hidden channels in step with the household's other devices, as on the other apps. Settings › Parental controls sets a PIN, entered twice, that Settings then asks for each time it opens, with Forgot the PIN and the server's API token as the way out; with a PIN set, Turn on kids mode keeps the channels to the lineup's kids' channels and the library to titles rated for children and hides the DVR tab, as on the other apps (see [settings lock and kids mode](#settings-lock-and-kids-mode)).
 
-The Home screen's Top Shelf, while the app is in the top row, shows the library's Continue watching, with how far in each item is, and then the last ten channels watched, newest first; selecting an item opens the app's player where you stopped, and selecting a channel opens the app on it.
+The Home screen's Top Shelf, while the app is in the top row, shows the library's Continue watching, with how far in each item is, and then the last ten channels watched, newest first; selecting an item opens its page and Play plays it where you stopped, and selecting a channel opens the app on it.
 
 ## Settings
 

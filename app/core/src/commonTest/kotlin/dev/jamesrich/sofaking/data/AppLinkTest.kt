@@ -33,6 +33,15 @@ class AppLinkTest {
     }
 
     @Test
+    fun `a details link round trips and one without an id names nothing`() {
+        assertEquals(AppLink.Details("abc123"), parseAppLink(detailsLink("abc123")))
+        assertEquals(AppLink.Details("a b"), parseAppLink(detailsLink("a b")))
+        assertNull(parseAppLink("sofaking://item/"))
+        assertNull(parseAppLink("sofaking://item"))
+        assertNull(parseAppLink("sofaking://item/a/b"))
+    }
+
+    @Test
     fun `a live link finds its channel by number and then by name`() {
         assertEquals("news", linkedChannel(lineup, "5.1")?.guideId)
         assertEquals("film", linkedChannel(lineup, "12")?.guideId)

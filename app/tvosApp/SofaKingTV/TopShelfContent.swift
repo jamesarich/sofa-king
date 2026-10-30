@@ -56,6 +56,11 @@ enum TopShelfContent {
         link(host: "vod", id: itemId)
     }
 
+    /// `sofaking://item/<id>`, which the app answers by opening that library item's page.
+    static func detailsUrl(for itemId: String) -> URL? {
+        link(host: "item", id: itemId)
+    }
+
     private static func link(host: String, id: String) -> URL? {
         var components = URLComponents()
         components.scheme = scheme

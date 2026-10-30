@@ -4,25 +4,25 @@ This page is the configuration reference for the server: every environment varia
 
 ## Server settings
 
-Set these environment variables before starting the server. Relative paths resolve from the server's working directory. Configuration changes require a restart. The [Docker image](deploy.md) sets `SOFA_HOST=0.0.0.0`, `SOFA_PORT=8080` and `SOFA_DATA_DIR=/config`. `deploy/compose.yaml` runs it on the [host's network](deploy.md#host-networking) and sets `SOFA_PORT=9193`.
+Set these environment variables before starting the server. Relative paths resolve from the server's working directory. Configuration changes require a restart, except the nine runtime settings (`SOFA_MAX_SESSIONS`, `SOFA_RECORDINGS_FREE_GIB`, `SOFA_RECORDINGS_KEEP_DAYS`, `SOFA_LEARNED_BREAKS`, `SOFA_AD_LISTENERS`, `SOFA_XMLTV_DAYS`, `SOFA_HDHR_TUNERS`, `SOFA_PLEX_SYNC_MINUTES` and `SOFA_LOG_LEVEL`): a value saved on the portal's [Settings page](admin.md#settings) applies at once and takes precedence over the environment. A token the environment leaves unset is generated on a non-loopback bind, as [security](security.md#credentials-and-the-routes-they-open) describes. The [Docker image](deploy.md) sets `SOFA_HOST=0.0.0.0`, `SOFA_PORT=8080` and `SOFA_DATA_DIR=/config`. `deploy/compose.yaml` runs it on the [host's network](deploy.md#host-networking) and sets `SOFA_PORT=9193`.
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `SOFA_HOST` | `127.0.0.1` | Listen address |
 | `SOFA_PORT` | `8080`; `9193` in `deploy/compose.yaml` | Listen port, 1-65535 |
-| `SOFA_MDNS` | `true` off loopback, `false` on loopback | Advertise the server on the LAN over mDNS, so the Sofa King app finds it without an address, as [discovery](api.md#discovery) describes. The advertisement goes out on every interface that is up and carries multicast, except loopback, container, VPN and virtual-machine networks |
+| `SOFA_MDNS` | `true` off loopback, `false` on loopback | Advertise the server on the LAN over mDNS, so the Sofa King app finds it without an address, as [discovery](api.md#discovery) describes |
 | `SOFA_DATA_DIR` | `data` | Directory for the database, the logo cache and `secrets.json`, and where `sources.json` and `policy.json` are looked for |
 | `SOFA_RECORDINGS_DIR` | `SOFA_DATA_DIR/recordings`; `/recordings` in `deploy/compose.yaml` | Folder the [recordings](recordings.md) are kept in, laid out as [the recordings folder](deploy.md#the-recordings-folder) describes. |
 | `SOFA_SOURCES` | `SOFA_DATA_DIR/sources.json` when it exists | Path to the source configuration JSON file; with neither, the server starts with no providers or guides |
 | `SOFA_POLICY` | `SOFA_DATA_DIR/policy.json` when it exists | Path to a [lineup policy](lineup-policy.md) JSON file in a writable directory, loaded and validated at start (any error stops the server). With a policy, the lineup is built from it |
-| `SOFA_API_TOKEN` | Generated on a non-loopback bind | API bearer token, at least 32 characters. On a non-loopback bind, an unset token is generated at the first start, stored in `SOFA_DATA_DIR/secrets.json` and reused; the admin portal's Settings page reveals it. On loopback, unset leaves the API open |
-| `SOFA_ADMIN_TOKEN` | Generated on a non-loopback bind | Bearer token for `/api/v1/admin/*` and the admin portal, at least 32 characters. On a non-loopback bind, an unset token is generated and stored like the API token; the log says where, never the token. On loopback, unset means the API token administers the lineup too |
+| `SOFA_API_TOKEN` | Generated on a non-loopback bind | API bearer token, at least 32 characters. On loopback, unset leaves the API open |
+| `SOFA_ADMIN_TOKEN` | Generated on a non-loopback bind | Bearer token for `/api/v1/admin/*` and the admin portal, at least 32 characters. On loopback, unset means the API token administers the lineup too |
 | `SOFA_API_TOKEN_FILE`, `SOFA_ADMIN_TOKEN_FILE`, `SOFA_OUTPUT_TOKEN_FILE`, `SOFA_PLEX_TOKEN_FILE`, `SOFA_TMDB_TOKEN_FILE`, `SOFA_FANART_KEY_FILE`, `SOFA_LISTENBRAINZ_TOKEN_FILE` | Unset | A file holding the token, for Docker secrets. The value is read at start without its trailing line break and validated like the variable. Setting a variable and its `_FILE` variant, or naming an unreadable file, stops the start |
-| `SOFA_MAX_SESSIONS` | `4` | Maximum active playback sessions, 1-16. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
-| `SOFA_RECORDINGS_FREE_GIB` | `10` | Free space, in GiB, the DVR keeps on the recordings folder's disk by deleting the oldest recordings, 0-100000; see [cleanup](recordings.md#cleanup). A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
-| `SOFA_RECORDINGS_KEEP_DAYS` | `0` | Days the DVR keeps a recording, 0-3650; `0` keeps it until space runs short. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
-| `SOFA_LEARNED_BREAKS` | `shadow` | What the app's live sessions do with ad breaks the server learns from a stream that marks none, such as a long silent slate: `off`, `shadow` (log each as `ADDETECT`, mark nothing) or `on` (mark it for the break screen). A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
-| `SOFA_AD_LISTENERS` | `6` | Channels the server plays in the background at once, 0-24 (at most 2 while anyone watches), to learn the ads of channels that mark none from the ones that do; see [learned ad breaks](architecture.md#learned-ad-breaks). `0` or `SOFA_LEARNED_BREAKS=off` turns them off. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
+| `SOFA_MAX_SESSIONS` | `4` | Maximum active playback sessions, 1-16 |
+| `SOFA_RECORDINGS_FREE_GIB` | `10` | Free space, in GiB, the DVR keeps on the recordings folder's disk by deleting the oldest recordings, 0-100000; see [cleanup](recordings.md#cleanup) |
+| `SOFA_RECORDINGS_KEEP_DAYS` | `0` | Days the DVR keeps a recording, 0-3650; `0` keeps it until space runs short |
+| `SOFA_LEARNED_BREAKS` | `shadow` | What the app's live sessions do with ad breaks the server learns from a stream that marks none, such as a long silent slate: `off`, `shadow` (log each as `ADDETECT`, mark nothing) or `on` (mark it for the break screen) |
+| `SOFA_AD_LISTENERS` | `6` | Channels the server plays in the background at once, 0-24 (at most 2 while anyone watches), to learn the ads of channels that mark none from the ones that do; see [learned ad breaks](architecture.md#learned-ad-breaks). `0` or `SOFA_LEARNED_BREAKS=off` turns them off |
 | `SOFA_COMSKIP` | `comskip` | Comskip executable that finds [commercial breaks](recordings.md#commercial-breaks) in finished recordings; `none` turns the scan off. The image installs it |
 | `SOFA_MUSICBRAINZ` | `true` | `false` stops the [MusicBrainz lookups](libraries.md#details-from-musicbrainz) for Music libraries' albums and artists after each scan, and the [ListenBrainz](libraries.md#listening-statistics-from-listenbrainz) and [LRCLIB lyrics](libraries.md#lyrics) ones with them |
 | `SOFA_FANART_KEY` | Unset | A [fanart.tv](https://fanart.tv/get-an-api-key/) API key. With it, Music libraries take [artists' pictures and backdrops](libraries.md#artwork-from-fanarttv) and more album covers from fanart.tv. Unset, the server uses the key the portal's Library page saved in `secrets.json`, if any |
@@ -42,10 +42,10 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_OBSERVATION_RETENTION_DAYS` | `7` | Days of health observation history to keep, 1-3650 |
 | `SOFA_HISTORY_DAYS` | `90` | Days of [playback history](api.md#playback-history) to keep, 1-3650: one row per live, library or recording session once it ends |
 | `SOFA_ALLOW_LOOPBACK_UPSTREAMS` | `false` | Allow playlist, guide and stream URLs on loopback (`127.0.0.1`, `::1`, `localhost`); for local fixtures only |
-| `SOFA_OUTPUT_TOKEN` | Generated on a non-loopback bind | Token for the [player outputs](#third-party-players) under `/output/*`, at least 32 letters, digits, hyphens or underscores. It goes in the URL, so it is separate from the API token. On a non-loopback bind, an unset token is generated at the first start, stored in `SOFA_DATA_DIR/secrets.json` and reused; the admin portal's Plex page reveals it. On loopback, unset leaves only the API token (as a bearer) to open them |
-| `SOFA_XMLTV_DAYS` | `3` | Days ahead the XMLTV output carries, 1-14. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
+| `SOFA_OUTPUT_TOKEN` | Generated on a non-loopback bind | Token for the [player outputs](#third-party-players) under `/output/*`, at least 32 letters, digits, hyphens or underscores. It goes in the URL, so it is separate from the API token. On loopback, unset leaves only the API token (as a bearer) to open them |
+| `SOFA_XMLTV_DAYS` | `3` | Days ahead the XMLTV output carries, 1-14 |
 | `SOFA_HDHR_ENABLED` | `true` | Serve the [HDHomeRun emulation](#plex-live-tv) (`/discover.json`, `/lineup.json`, `/auto/v*`) at the root. It admits no address off loopback until one is allowed |
-| `SOFA_HDHR_TUNERS` | `2` | Tuners each device exposes, which is the number of HDHomeRun streams open at once on that device, 1 to `SOFA_MAX_SESSIONS`. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
+| `SOFA_HDHR_TUNERS` | `2` | Tuners each device exposes, which is the number of HDHomeRun streams open at once on that device, 1 to `SOFA_MAX_SESSIONS` |
 | `SOFA_HDHR_DEVICE_ID` | Derived from the server identity | Eight hex digits Plex identifies the tuner by; keep it stable or Plex sees a new device |
 | `SOFA_HDHR_NAME` | `Sofa King` | Friendly name Plex shows, 1-64 characters without control characters |
 | `SOFA_HDHR_ALLOW` | Unset | Client IPs or CIDR blocks admitted to the HDHomeRun routes, comma separated (for example `PLEX_SERVER_IP` or `LAN_CIDR`). The portal's Plex page allows more at run time. With neither, a loopback bind admits this machine but not a reverse proxy, and any other bind admits none |
@@ -54,9 +54,9 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_HDHR_PUBLIC_PORTS` | `SOFA_PORT`, then `SOFA_HDHR_EXTRA_PORTS` | The host ports Plex reaches each device on, comma separated, one per device in device order. Set it when Docker publishes the ports under other numbers |
 | `SOFA_PLEX_URL` | Unset | The Plex server to [keep in step](#keep-plex-in-step) with the lineup, as `http(s)://HOST[:PORT]` with no path, query or credentials (for example `http://host.docker.internal:32400`). Set it with `SOFA_PLEX_TOKEN`; requires `SOFA_HDHR_ENABLED` |
 | `SOFA_PLEX_TOKEN` | Unset | The Plex server's `X-Plex-Token`, at least 8 characters without spaces, control characters or DEL. A secret: it is sent only as a request header and never logged |
-| `SOFA_PLEX_SYNC_MINUTES` | `60` | Minutes between Plex syncs when the lineup does not change, 5 to 1440. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
+| `SOFA_PLEX_SYNC_MINUTES` | `60` | Minutes between Plex syncs when the lineup does not change, 5 to 1440 |
 | `SOFA_PLEX_TUNER_BASE` | Unset | Scheme and host Plex reaches this server's tuners on, as `http(s)://HOST` with no port, path, query or credentials, for example `http://192.168.1.20`. When set, a sync adds devices Plex lacks |
-| `SOFA_LOG_LEVEL` | `info` | Log level on stderr: `trace`, `debug`, `info`, `warn`, `error` or `off`; the Events page keeps INFO and above whatever it is. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
+| `SOFA_LOG_LEVEL` | `info` | Log level on stderr: `trace`, `debug`, `info`, `warn`, `error` or `off`; the Events page keeps INFO and above whatever it is |
 | `SOFA_LOG_FORMAT` | `text` | `text` for one line per event, or `json` for one JSON object per line with the level, logger, message and request id. Logs go to stderr and the log file. See [logs](operations.md#logs) |
 | `SOFA_LOG_DAYS` | `14` | Days of log files kept in `logs/` in `SOFA_DATA_DIR`, 0-365, so the log outlives an updated container; `0` writes no file. See [logs](operations.md#logs) |
 | `SOFA_CORS_ORIGINS` | Unset | Comma-separated browser origins, such as `https://tv.example.com,http://192.168.1.20:8080`, that may call the API from a page on another origin, for example the Sofa King web app served elsewhere. Each is `scheme://host[:port]` with no path; `*` is not accepted. Unset sends no CORS headers, so only pages on the server's own origin can use the API from a browser. Tokens still authorize every call; cookies never cross origins |
@@ -68,7 +68,7 @@ Set these environment variables before starting the server. Relative paths resol
 
 ## Source settings
 
-The source file is a JSON object with `providers` and `guides`. A bare JSON array is read as `providers`. Inside any string, `${NAME}` is replaced with the environment variable `NAME`; an unset variable fails startup. Keep tokenized paths in the environment, not in the file. The file takes no comments, and unknown keys fail startup.
+The source file is a JSON object with `providers` and `guides`. A bare JSON array is read as `providers`. Inside any string, `${NAME}` is replaced with the environment variable `NAME`; an unset variable fails startup. Keep tokenized paths in the environment, not in the file. The file takes no comments, and unknown keys fail startup. Requests to the hosts it names follow the [outbound address and header rules](security.md#outbound-requests).
 
 ### Providers
 
@@ -167,7 +167,7 @@ http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN
 http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN
 ```
 
-The playlist names the guide URL (`url-tvg`), uses the lineup channel ID as `tvg-id` on both sides, and lists each channel's stream as `/output/stream/CHANNEL_ID.m3u8` (HLS source) or `.ts` (MPEG-TS source), with the token. Opening a stream URL opens a watch session. The session ends when the player disconnects (TS) or 60 seconds after its last request (HLS). Players count against `SOFA_MAX_SESSIONS`. An idle player session gives way to the next channel change, and a busy server answers `429`.
+Opening a stream URL opens a watch session that counts against `SOFA_MAX_SESSIONS`; the playlist format, the session's life and the `429` are in [player outputs](api.md#player-outputs).
 
 To set up a player:
 
@@ -258,18 +258,6 @@ SOFA_HDHR_EXTRA_PORTS=9194,9195
 ```
 
 The extra ports must differ from `SOFA_PORT`. They are opened only when `SOFA_HDHR_ENABLED` is `true`.
-
-## Provider headers
-
-Credentials are sent only to the configured request origin. Cross-origin CDN requests receive only `User-Agent`, `Accept`, `Accept-Language`, `Origin`, `Referer` and a provider's [region address](providers.md) (`X-Forwarded-For`). Authorization, cookies and custom headers are removed. Redirects are limited to five. HTTPS redirects cannot downgrade to HTTP, and sources configured with HTTPS also reject HTTP media resources.
-
-Providers that need secret headers on a different CDN origin are unsupported.
-
-## Upstream addresses
-
-Playlist, guide, probe and media requests go only to `http`/`https` URLs without user info. Loopback (`127.0.0.0/8`, `::1`, `localhost`), link-local (`169.254.0.0/16`, `fe80::/10`), unspecified (`0.0.0.0`, `::`) and multicast literals are refused, including as redirect targets. Private LAN addresses (RFC 1918) are allowed. Hostnames are not resolved before the request. A refused media address answers `502 UPSTREAM_REJECTED`, a refused playlist or guide address fails that import, and a refused probe target counts as evidence against the source. `SOFA_ALLOW_LOOPBACK_UPSTREAMS=true` permits loopback for local fixtures.
-
-FFmpeg reads sources for probes, recordings and the Plex remux through the server's own relay on `127.0.0.1`, which fetches every redirect, variant, segment and key under these rules, so a refused hop fails the read. It is started with `-protocol_whitelist http,tcp,crypto`, so a playlist that names `https:`, `file:`, `concat:` or another protocol fails instead of reaching another host or reading files on the server.
 
 ## Troubleshooting
 

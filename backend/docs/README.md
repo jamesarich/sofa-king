@@ -19,14 +19,14 @@ The Sofa King server keeps live TV, recordings and media libraries for the app a
 
 | Page | What it covers |
 | --- | --- |
-| [Server configuration and live TV](live-tv.md) | Every environment variable, source files, source identity, the lineup, logos, player outputs, Plex Live TV and upstream addresses |
+| [Server configuration and live TV](live-tv.md) | Every environment variable, source files, source identity, the lineup, logos, player outputs and Plex Live TV |
 | [Recordings](recordings.md) | Recording a program or a series, the schedule, what happens while a recording runs, playing recordings, commercial breaks, cleanup and the recording states |
 | [Media libraries](libraries.md) | The media folder, how to name movies, shows and other videos, `.nfo` files and artwork, details from TMDB, scans, intros, playback and hardware transcoding |
 | [Virtual channels](virtual-channels.md) | Channels the server plays from the libraries on a schedule: slots, shuffles, time slots, filler, the guide and how they stream |
 | [Native providers](providers.md) | The built-in clients for free streaming services, their options and their failure modes |
 | [Lineup policy](lineup-policy.md) | The policy file that rebuilds the whole lineup, its fields, runs, required stations, findings, API and the generator |
 | [Source health](source-health.md) | Probes, failure classes, quarantine and recovery, source selection, and manual disables |
-| [HTTP API](api.md) | Endpoints for clients, recordings, media libraries and library playback, the player outputs, the HDHomeRun routes, the admin API and portal routes, errors and the types the app shares |
+| [HTTP API](api.md) | Endpoints for clients, recordings, media libraries and library playback, the player outputs, the HDHomeRun routes, the admin API, errors and the types the app shares |
 | [Security](security.md) | The intended deployment, which credential opens which routes, request limits, outbound requests and a hardening checklist |
 | [Architecture](architecture.md) | Modules, data flow, storage, guide imports, playback, logos, the HDHomeRun remux and the logic behind each subsystem |
 
@@ -35,18 +35,18 @@ The Sofa King server keeps live TV, recordings and media libraries for the app a
 | Page | What it covers |
 | --- | --- |
 | [Development](development.md) | Running without Docker, build and test, code conventions, the smoke scripts and adding a native provider |
-| [Dependencies](dependencies.md) | Pinned versions, Renovate and how to change versions |
+| [Dependencies](dependencies.md) | Pinned versions and the server-only update notes |
 
 The server's [README](../README.md) introduces it. The repository's [CONTRIBUTING](../../CONTRIBUTING.md) covers the conventions the server shares with the app and CI, and its [SECURITY](../../SECURITY.md) how to report a vulnerability. The [app's documentation](../../app/docs/README.md) covers the client that reads the API.
 
 ## Glossary
 
-The terms the server shares with the app (lineup, channel or lineup entry, group, program, playback session) are in the [repository glossary](../../docs/README.md#glossary). These are the server's own:
+The terms the server shares with the app (lineup, channel or lineup entry, group, program, guide, playback session) are in the [repository glossary](../../docs/README.md#glossary). These are the server's own:
 
 | Term | Meaning |
 | --- | --- |
 | Provider | One entry in `sources.json`: an M3U playlist, or a native client for one free streaming service. Each has an ID, such as `pluto` |
-| Guide, guide source | An XMLTV source of programs that the server imports. A provider can bring its own guide, and `sources.json` can list more. It is not the app's guide grid. |
+| Guide source | An XMLTV source of programs that the server imports. A provider can bring its own, and `sources.json` can list more |
 | Candidate | A channel as one provider lists it, before it is in the lineup |
 | Source | One stream URL a provider lists for a channel. Health is tracked per source, and a channel can have several, from any providers, in failover order. The API calls sources `offerings` |
 | Station | One channel as the viewer sees it. The lineup policy builds one station from all the candidates that share a station key, a normalized form of the name, and serves it as one lineup entry |

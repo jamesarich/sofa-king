@@ -25,7 +25,7 @@ The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_A
 
 | Symptom | Check |
 | --- | --- |
-| The admin token is not in the log | No token is logged. Read it with `docker compose exec sofa-king-backend cat /config/secrets.json`, or sign in and reveal the API token under Advanced on the Settings page. |
+| The admin token is not in the log | No token is logged. [Read it from `secrets.json`](getting-started.md#2-sign-in), or sign in and reveal the API token under Advanced on the Settings page. |
 | `401 AUTH_REQUIRED` | Send the token in the `Authorization: Bearer` header. `/api/v1/admin/*` takes only the admin token whenever one is set, which a LAN bind always has. |
 | The sign-in page answers `429 Too Many Requests` | More than 10 sign-ins came from one address within a minute. Wait a minute. Behind a reverse proxy every sign-in shares the proxy's address and its budget. |
 | `413 REQUEST_TOO_LARGE` | The body is over 64 KiB, or over 4 MiB for a policy write. The server answers this before it checks the token. For a policy over 4 MiB, edit `config/policy.json` and restart instead. |
@@ -65,7 +65,7 @@ The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_A
 
 | Symptom | Check |
 | --- | --- |
-| The Sofa King app does not list the server | The app finds servers on its own network over mDNS. The log says `mdns: advertising` with the addresses it uses, at the start and again whenever they change, which it checks every minute; `no LAN address to advertise on` means none qualified yet. Discovery does not cross subnets or VLANs, does not leave a Docker bridge network, and stops at a firewall that drops UDP port 5353; `SOFA_MDNS=false` turns it off. Enter the address in the app instead, `SERVER_HOST:9193`. |
+| The Sofa King app does not list the server | The app finds servers on its own network over mDNS. The log says `mdns: advertising` with the addresses it uses, at the start and again whenever they change; `no LAN address to advertise on` means none qualified yet. Discovery does not cross subnets or VLANs, does not leave a Docker bridge network (see [host networking](deploy.md#host-networking)), and stops at a firewall that drops UDP port 5353; `SOFA_MDNS=false` turns it off. Enter the address in the app instead, `SERVER_HOST:9193`. |
 | `http://sofa-king.local:9193` does not open | The server answers that name over mDNS, with a number added when another device already holds it; the log's `mdns: advertising` line follows the start. Computers that do not resolve `.local` names, and networks that block mDNS, need the address. |
 
 ## Plex
@@ -128,4 +128,4 @@ Yes, on 64-bit ARM. The published image is built for `linux/amd64` and `linux/ar
 
 ### How many tuners can Plex use?
 
-`SOFA_HDHR_TUNERS` sets the tuners of each HDHomeRun device, 2 by default. It can be at most `SOFA_MAX_SESSIONS`, which is 4 by default and at most 16. Every stream from Plex, the app or a player takes one session, so the sessions cap all clients together. An HLS stream for Plex runs one FFmpeg process that copies the stream without transcoding. Raise `mem_limit` in `compose.yaml` with the session count.
+`SOFA_HDHR_TUNERS` sets the tuners of each HDHomeRun device (see [server settings](live-tv.md#server-settings)). Every stream from Plex, the app or a player takes one of the `SOFA_MAX_SESSIONS` sessions, so that cap covers all clients together. An HLS stream for Plex runs one FFmpeg process that copies the stream without transcoding. Raise `mem_limit` in `compose.yaml` with the session count.

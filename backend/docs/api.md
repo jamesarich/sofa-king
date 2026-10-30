@@ -376,23 +376,24 @@ The read tools answer as the matching route or portal page does:
 | `client_crashes` | `GET /api/v1/admin/diagnostics/crashes`, the [crashes](#crash-reports) the apps reported, scrubbed; `limit` (1 to 100, default 10) |
 | `search_library` | `GET /api/v1/library/search` for `query`, music included |
 | `library_home` | `GET /api/v1/library/home`, music included, with each shelf cut to its first 20 items and its `total` and `truncated` |
-| `policy_findings` | `GET /api/v1/admin/policy/findings`, each list cut to `limit` (1 to 200, default 50) with its `total`; `POLICY_NOT_CONFIGURED` without a policy |
+| `policy_findings` | `GET /api/v1/admin/policy/findings`, each list cut to `limit` (1 to 200, default 50) with its `total`, including the [iptv-org](lineup-policy.md#iptv-org-metadata) candidates waiting for a decision and the stations its blocklist holds; `POLICY_NOT_CONFIGURED` without a policy |
 | `preview_policy` | `GET /api/v1/admin/policy/preview`, each list cut to `limit` with its `total` |
 | `policy_changes` | `GET /api/v1/admin/policy/changes`, newest first, up to `limit` |
 | `explain_station` | `GET /api/v1/admin/stations/{key}` for the `key` a lineup row's `stationKey` shows, without the logo link |
 | `guide_matches` | `GET /api/v1/admin/policy/guide-matches`, best first, up to `limit` with the `total` |
-
-The admin token also lists two read tools that a read token cannot call, because the admin API does not open their routes to a read token either:
+The admin token also lists three read tools that a read token cannot call, because the admin API does not open their routes to a read token either:
 
 | Tool | What it answers |
 | --- | --- |
 | `playback_history` | `GET /api/v1/admin/history`: ended playback sessions, newest first, with the device or player address, so it shows what each one watched; `since`, `kind` (`live` or `vod`), `client` and `limit` (1 to 200, default 50) |
+| `runtime_settings` | The [runtime settings](live-tv.md#server-settings), as the Settings page lists them: each one's `name`, `label`, current `value`, its `source` (`saved` or `environment`), the `environmentValue`, its `choices` and `help`. No secret is among them |
 | `plex_status` | `GET /api/v1/admin/plex`, the last Plex sync, with each list cut to `limit`; `PLEX_NOT_CONFIGURED` without Plex sync |
 
 The admin token adds the actions. The ones that can take channels, streams, recordings or devices away refuse without `confirm` set to `true`. No tool creates an API token, so a secret never lands in the assistant's transcript; make tokens on the portal's Settings page:
 
 | Tool | What it does |
 | --- | --- |
+| `set_runtime_setting` | Saves one runtime setting and applies it at once, checked by the rules the Settings page uses (`INVALID_REQUEST` names the rule): `name` from `runtime_settings` and `value`, or `reset` true to follow the environment again. An empty value is refused; `reset` clears one. It turns the [iptv-org](lineup-policy.md#iptv-org-metadata) switches on and sets the region (`SOFA_IPTV_ORG`, `SOFA_IPTV_ORG_STREAMS`, `SOFA_IPTV_ORG_REGION`) |
 | `run_job` | Starts the job with that `job` id now, as the Jobs page's Run now does; `JOB_NOT_FOUND` for one that cannot be started, and `jobs` lists the ids with `canRunNow` |
 | `scan_library` | Queues a scan of the `library` with that id, or of every library without one; `LIBRARY_NOT_FOUND` names `libraries` |
 | `check_for_update` | Asks the registry now and answers as `update_status`, on a server that checks for updates |
@@ -556,6 +557,9 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | POST | `/api/v1/admin/policy/guide-matches/accept` | `{"station", "guideId", "channelId"}`: writes the channel as the station's guide and applies; returns the apply result. 404 `GUIDE_CHANNEL_NOT_FOUND` |
 | POST | `/api/v1/admin/policy/guide-matches/accept-all` | `{"minConfidence"}` (optional): accepts each station's best proposal at that confidence or more, else at `guideMatches.acceptAbove`, and applies once; returns `{"accepted", "applied"}`, with `applied` null when nothing was accepted |
 | POST | `/api/v1/admin/policy/guide-matches/dismiss` | `{"station", "guideId", "channelId"}`: never proposes the channel for the station again, and applies |
+| GET | `/api/v1/admin/iptv-org` | The [iptv-org](lineup-policy.md#iptv-org-metadata) database: `status` (the `metadata` and `streams` switches, the `region` in force with its `countries`, `source` (`setting`, `time-zone` or `default`) and `detail`, `attemptedAt`, `ok`, `notes`, `nextDueAt` and the file and match counts), the `proposals` waiting for a decision and the `holds` the blocklist applies, each with its reason and reference |
+| POST | `/api/v1/admin/iptv-org/matches` | `{"station", "decision", "channelId"}`: `accept` stores the iptv-org channel for the station (404 `IPTV_ORG_CHANNEL_NOT_FOUND`), `dismiss` stores that it has none and lifts a blocklist hold, `clear` forgets the choice; the policy runs again. Answers as the read |
+| POST | `/api/v1/admin/iptv-org/refresh` | Starts the `iptv-org` job now, answering `202` with the read; nothing is downloaded while both switches are off |
 | GET | `/api/v1/admin/stations/{key}` | One station key: the station the policy builds, its pins, and every candidate that names the key or joins it, each `taken`, `skipped` or `claimed` with a `reason` |
 | GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `interval`, `api` or `mcp`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`. It survives a restart; before any sync, `lastSyncAt` is null. 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
 | POST | `/api/v1/admin/plex/sync` | Sync Plex now; returns the same status. A failure is reported in `lastError`, not as an error response |

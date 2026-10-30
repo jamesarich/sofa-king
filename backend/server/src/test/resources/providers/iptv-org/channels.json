@@ -1,0 +1,9 @@
+[
+  { "id": "CNN.us", "name": "CNN", "alt_names": ["Cable News Network"], "network": null, "owners": [], "country": "US", "categories": ["news"], "is_nsfw": false, "launched": "1980-06-01", "closed": null, "replaced_by": null, "website": "https://www.cnn.com" },
+  { "id": "BBCOne.uk", "name": "BBC One", "alt_names": ["BBC 1"], "network": null, "owners": [], "country": "GB", "categories": ["general"], "is_nsfw": false, "launched": null, "closed": null, "replaced_by": null, "website": null },
+  { "id": "News24.us", "name": "News 24", "alt_names": [], "network": null, "owners": [], "country": "US", "categories": ["news"], "is_nsfw": false, "launched": null, "closed": null, "replaced_by": null, "website": null },
+  { "id": "News24.uk", "name": "News 24", "alt_names": [], "network": null, "owners": [], "country": "GB", "categories": ["news"], "is_nsfw": false, "launched": null, "closed": null, "replaced_by": null, "website": null },
+  { "id": "ClosedTV.us", "name": "Closed TV", "alt_names": [], "network": null, "owners": [], "country": "US", "categories": ["general"], "is_nsfw": false, "launched": null, "closed": "2020-01-01", "replaced_by": null, "website": null },
+  { "id": "Spicy.us", "name": "Spicy", "alt_names": [], "network": null, "owners": [], "country": "US", "categories": ["xxx"], "is_nsfw": true, "launched": null, "closed": null, "replaced_by": null, "website": null },
+  { "id": "Blocked.us", "name": "Blocked Channel", "alt_names": [], "network": null, "owners": [], "country": "US", "categories": ["general"], "is_nsfw": false, "launched": null, "closed": null, "replaced_by": null, "website": null }
+]

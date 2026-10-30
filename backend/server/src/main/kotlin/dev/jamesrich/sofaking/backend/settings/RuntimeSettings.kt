@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.settings
 
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.iptvorg.IptvOrgSettings
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.runtimeSettings
 import dev.jamesrich.sofaking.backend.store.saveRuntimeSettings
@@ -29,6 +30,12 @@ data class RuntimeValues(private val values: Map<String, String>) {
     val recordingsKeepDays: Int get() = int(Settings.RECORDINGS_KEEP_DAYS)
     val learnedBreaks: String get() = values.getValue(Settings.LEARNED_BREAKS.name)
     val adListeners: Int get() = int(Settings.AD_LISTENERS)
+    val iptvOrg: IptvOrgSettings
+        get() = IptvOrgSettings(
+            values.getValue(Settings.IPTV_ORG.name) == IptvOrgSettings.ON,
+            values.getValue(Settings.IPTV_ORG_STREAMS.name) == IptvOrgSettings.ON,
+            values.getValue(Settings.IPTV_ORG_REGION.name),
+        )
 
     /** The values by their variable name, as the settings page and the database name them. */
     fun byName(): Map<String, String> = values

@@ -72,6 +72,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
         guideAdminRoutes(runtime)
         lineupRoutes(LineupApi(runtime, clock))
         policyRoutes(runtime.policy)
+        iptvOrgRoutes(runtime)
         plexRoutes(runtime.plex)
         hdhrAccessRoutes(runtime.hdhrAccess, hdhrEnabled)
         namedOutputRoutes(runtime.namedOutputs)

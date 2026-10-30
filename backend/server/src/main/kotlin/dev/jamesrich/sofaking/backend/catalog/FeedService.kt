@@ -113,6 +113,8 @@ class FeedService(
     private val providers: ProviderRegistry? = null,
     /** Where each import is recorded for the portal's Jobs page. */
     private val jobs: Jobs = Jobs(clock),
+    /** Providers the server adds itself and shows nowhere while they list nothing, as iptv-org with streams off. */
+    private val hidden: () -> Set<String> = { emptySet() },
     /** Runs after each successful import, once the snapshot is published. */
     private val onImported: () -> Unit = {},
 ) {
@@ -124,7 +126,10 @@ class FeedService(
     val published: PublishedFeeds get() = current.get()
 
     /** Each configured provider's last import. */
-    val statuses: List<ProviderStatus> get() = _statuses.get()
+    val statuses: List<ProviderStatus> get() = _statuses.get().filter { it.id !in hidden() }
+
+    /** The configured providers that are not hidden. */
+    val visibleConfigs: List<FeedConfig> get() = configs.filter { it.id !in hidden() }
 
     /** Guards publishing a snapshot or a protocol; an import fetches and parses outside it. */
     private val mutex = Mutex()

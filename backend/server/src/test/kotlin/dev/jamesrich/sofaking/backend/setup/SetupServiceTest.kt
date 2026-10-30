@@ -35,7 +35,8 @@ class SetupServiceTest {
     ) = ServerConfig("127.0.0.1", 8080, dir, sources, token, policyFile = policy)
 
     @Test fun `the catalog names every native service once, in a known order`() {
-        assertEquals(NativeServices.names, ServiceCatalog.all.mapTo(HashSet()) { it.service })
+        // iptv-org is switched on the Settings page, not chosen in setup.
+        assertEquals(NativeServices.names - "iptv-org", ServiceCatalog.all.mapTo(HashSet()) { it.service })
         assertEquals(ServiceCatalog.all.size, ServiceCatalog.all.map { it.service }.distinct().size)
         assertEquals("direct", ServiceCatalog.order.first(), "the broadcasters' own feeds lead the starter order")
     }

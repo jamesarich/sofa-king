@@ -68,7 +68,7 @@ object NativeServices {
         "ballysports" to true, "adultswim" to true, "pbs" to true, "samsung" to false, "plex" to true, "stirr" to true,
         "tcl" to true, "roku" to false, "localnow" to true, "xumo" to true, "pluto" to true, "tubi" to true,
         "hdhomerun" to true, "zeam" to true, "ognetwork" to true, "cw" to true, "mansa" to true,
-        "direct" to false, "virtual" to true,
+        "direct" to false, "virtual" to true, "iptv-org" to false,
     )
 
     val names: Set<String> get() = guides.keys

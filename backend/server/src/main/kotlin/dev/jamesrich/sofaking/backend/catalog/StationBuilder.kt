@@ -76,6 +76,20 @@ class BuildResult(
     /** Server-numbered stations that followGroup moved into their group's block, key to new number. */
     val renumbered: Map<String, String> = emptyMap(),
 ) {
+    /** This result with the stations [holds] names (key to finding) turned off for `blocklist`, unless [spared]. */
+    fun held(holds: Map<String, String>, spared: Set<String>): BuildResult {
+        val turnedOff = stations.filter {
+            it.enabled && it.key in holds && it.key !in spared
+        }.mapTo(HashSet()) { it.key }
+        if (turnedOff.isEmpty()) return this
+        return BuildResult(
+            stations.map { if (it.key in turnedOff) it.copy(enabled = false, disabledReason = "blocklist") else it },
+            assigned,
+            (findings + turnedOff.map { "$it: ${holds.getValue(it)}" }).sorted(),
+            availability, candidates, keys, suggestedAliases, learned, unmappedCategories, reclaimed, renumbered,
+        )
+    }
+
     /** This result with [learning] applied: its aliases recorded, its suggestions and findings added. */
     fun with(learning: Learning): BuildResult = BuildResult(
         stations, assigned, (findings + learning.findings).sorted(), availability, candidates, keys,

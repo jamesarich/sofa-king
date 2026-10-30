@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend
 import dev.jamesrich.sofaking.backend.ads.AdListener
 import dev.jamesrich.sofaking.backend.ads.BreakLibrary
 import dev.jamesrich.sofaking.backend.catalog.CatalogService
+import dev.jamesrich.sofaking.backend.catalog.FeedConfig
 import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.GuideService
 import dev.jamesrich.sofaking.backend.catalog.HdhrSizing
@@ -20,6 +21,9 @@ import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.HdhrAccess
 import dev.jamesrich.sofaking.backend.http.hdhrDeviceId
+import dev.jamesrich.sofaking.backend.iptvorg.IptvOrgCatalog
+import dev.jamesrich.sofaking.backend.iptvorg.IptvOrgClient
+import dev.jamesrich.sofaking.backend.iptvorg.IptvOrgMatcher
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.FanartClient
 import dev.jamesrich.sofaking.backend.library.FfmpegFingerprinter
@@ -62,6 +66,7 @@ import dev.jamesrich.sofaking.backend.plex.HdhrDevice
 import dev.jamesrich.sofaking.backend.plex.PlexSync
 import dev.jamesrich.sofaking.backend.providers.ProviderClient
 import dev.jamesrich.sofaking.backend.providers.ProviderContext
+import dev.jamesrich.sofaking.backend.providers.ProviderHttp
 import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.settings.RuntimeSettings
@@ -99,6 +104,7 @@ private val assemblyLog = LoggerFactory.getLogger(LiveRuntime::class.java)
 
 /** How often the break library saves what it learned. */
 private const val LIBRARY_FLUSH_MS = 300_000L
+private const val IPTV_ORG_REFRESH_SECONDS = 3_600L
 
 /** How often lapsed playback sessions, and lapsed library playback sessions, are swept. */
 private const val SESSION_EXPIRE_MS = 1_000L
@@ -134,7 +140,27 @@ internal class RuntimeAssembly(
     private val options: RuntimeOptions,
 ) {
     private val sources = loadSources(config.sourcesFile)
-    private val providerIds = sources.providers.mapTo(HashSet()) { provider -> provider.id }
+    private val providerIds = sources.providers.mapTo(HashSet()) { provider -> provider.id }.apply {
+        add(IptvOrgClient.SERVICE)
+    }
+
+    /**
+     * The configured providers and, unless the source file declares one, the iptv-org streams provider, which lists
+     * nothing while `SOFA_IPTV_ORG_STREAMS` is off.
+     */
+    private val feedConfigs = sources.providers.let { configured ->
+        if (configured.any { it.id == IptvOrgClient.SERVICE }) {
+            configured
+        } else {
+            configured + FeedConfig(
+                IptvOrgClient.SERVICE,
+                type = "native",
+                service = IptvOrgClient.SERVICE,
+                allowEmpty = true,
+                refreshSeconds = IPTV_ORG_REFRESH_SECONDS,
+            )
+        }
+    }
     private val loadedPolicy = config.policyFile?.let { loadPolicy(it, providerIds) }
 
     /** Closed, with [scope] canceled, when the assembly fails before the runtime is whole. */
@@ -171,6 +197,8 @@ internal class RuntimeAssembly(
     private var policy: PolicyService? = null
     private var dvrService: Dvr? = null
     private lateinit var virtual: VirtualChannelService
+    private lateinit var iptvCatalog: IptvOrgCatalog
+    private lateinit var iptvMatcher: IptvOrgMatcher
 
     suspend fun assemble(started: Instant): LiveRuntime {
         for (problem in settings.load()) assemblyLog.warn("runtime settings: dropped a saved value: {}", problem)
@@ -224,7 +252,7 @@ internal class RuntimeAssembly(
             virtualStreams = streams,
             multiview = multiview,
             backups = databaseBackups(config, clock, jobs, options.restart, store, scope),
-            debugWindow = debugWindow,
+            debugWindow = debugWindow, iptvOrg = iptvMatcher,
         )
         dvr.start(scope)
         dvr.requestSchedule("startup")
@@ -248,12 +276,36 @@ internal class RuntimeAssembly(
             VirtualClient.SERVICE to
                 { VirtualClient(virtual) { id -> loopback.localUrl(id, VirtualStreams.LIVE_PLAYLIST) } },
         )
-        val providers = ProviderRegistry.create(sources.providers, http, store, clock, upstream, local)
-        feeds = FeedService(sources.providers, store, http, clock, upstream, providers, jobs) {
+        val iptvOrg = { settings.current.iptvOrg }
+        iptvCatalog = IptvOrgCatalog(
+            config.dataDirectory.resolve("iptv-org"),
+            ProviderHttp(http, upstream),
+            clock,
+            iptvOrg,
+            jobs,
+            onChanged = {
+                feeds.requestRefresh(IptvOrgClient.SERVICE)
+                policy?.requestRun("iptv-org")
+            },
+        ).also { it.load() }
+        iptvMatcher = IptvOrgMatcher(iptvCatalog, store, iptvOrg, clock) { policy?.requestRun("iptv-org") }
+        val clients = local + IptvOrgClient.local(iptvCatalog, iptvOrg)
+        val providers = ProviderRegistry.create(feedConfigs, http, store, clock, upstream, clients)
+        feeds = FeedService(
+            feedConfigs,
+            store,
+            http,
+            clock,
+            upstream,
+            providers,
+            jobs,
+            IptvOrgClient.hiddenWhileOff(iptvOrg),
+        ) {
             logos.requestSweep()
             policy?.requestRun("feeds")
         }
         feeds.initialize()
+        iptvCatalog.start(scope, settings)
         guides = GuideService(sources.allGuides, store, http, clock, upstream, providers, onImported = {
             policy?.requestRun("guides")
             dvrService?.requestSchedule("guides")
@@ -334,8 +386,9 @@ internal class RuntimeAssembly(
         service = PolicyService(
             file, feeds, guides, lineup, store, clock, sizing, options.policyDebounceMillis,
             onLineupChanged = { plex?.requestSync("policy") },
-            extraFindings = { plex?.findings().orEmpty() },
+            extraFindings = { plex?.findings().orEmpty() + iptvMatcher.findings() },
             jobs = jobs,
+            iptvOrg = iptvMatcher,
         )
         return service
     }

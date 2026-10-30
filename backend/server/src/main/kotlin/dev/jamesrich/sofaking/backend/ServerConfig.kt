@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.backend
 
+import dev.jamesrich.sofaking.backend.iptvorg.IptvOrgSettings
+import dev.jamesrich.sofaking.backend.iptvorg.iptvOrgSettings
 import dev.jamesrich.sofaking.backend.library.HardwareAccel
 import dev.jamesrich.sofaking.backend.library.PathMapping
 import dev.jamesrich.sofaking.backend.library.TmdbConfig
@@ -137,6 +139,8 @@ data class ServerConfig(
      * it off.
      */
     val adListeners: Int = DEFAULT_AD_LISTENERS,
+    /** `SOFA_IPTV_ORG`, `SOFA_IPTV_ORG_STREAMS` and `SOFA_IPTV_ORG_REGION`: the iptv-org database and streams. */
+    val iptvOrg: IptvOrgSettings = IptvOrgSettings(),
     /** `SOFA_COMSKIP`: the Comskip executable that finds commercial breaks in recordings; null when set to `none`. */
     val comskip: String? = "comskip",
     /** `SOFA_MDNS`: advertise the server on the LAN over mDNS, so apps find it; on by default off loopback. */
@@ -249,7 +253,6 @@ data class ServerConfig(
             }
             val capacity = env.number(Settings.MAX_SESSIONS)
             val hdhrEnabled = env.flag(Settings.HDHR_ENABLED)
-            val plexSyncMinutes = env.number(Settings.PLEX_SYNC_MINUTES)
             val data = Path.of(directory)
             return ServerConfig(
                 host,
@@ -267,7 +270,7 @@ data class ServerConfig(
                 outputConfig(env),
                 hdhrConfig(env, port, capacity, hdhrEnabled),
                 env.path(Settings.POLICY),
-                plexConfig(env, hdhrEnabled, plexSyncMinutes),
+                plexConfig(env, hdhrEnabled, env.number(Settings.PLEX_SYNC_MINUTES)),
                 logging = LogSettings.from(environment),
                 revision = env.text(Settings.REVISION) ?: Settings.REVISION.default.orEmpty(),
                 version = env.text(Settings.VERSION) ?: Settings.VERSION.default.orEmpty(),
@@ -287,13 +290,14 @@ data class ServerConfig(
                 recordingsKeepDays = env.number(Settings.RECORDINGS_KEEP_DAYS),
                 learnedBreaks = LearnedBreaks.of(env.choice(Settings.LEARNED_BREAKS)) ?: LearnedBreaks.SHADOW,
                 adListeners = env.number(Settings.AD_LISTENERS),
+                iptvOrg = iptvOrgSettings(env),
                 comskip = comskip(env),
                 mdns = env.flag(Settings.MDNS, !isLoopback(host)),
                 libraryPathMap = pathMappings(environment[Settings.LIBRARY_PATH_MAP.name]),
                 historyDays = env.number(Settings.HISTORY_DAYS),
                 qualityFloors = env.flag(Settings.QUALITY_FLOORS),
                 musicBrainz = env.flag(Settings.MUSICBRAINZ),
-                plexSyncMinutes = plexSyncMinutes,
+                plexSyncMinutes = env.number(Settings.PLEX_SYNC_MINUTES),
             )
         }
 

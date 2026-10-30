@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.settings
 
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.admin.plural
+import dev.jamesrich.sofaking.backend.iptvorg.IptvOrgSettings
 import dev.jamesrich.sofaking.backend.library.HardwareAccel
 import dev.jamesrich.sofaking.backend.library.VideoEncoder
 import dev.jamesrich.sofaking.backend.logging.DEFAULT_LOG_DAYS
@@ -59,6 +60,8 @@ internal class SettingDef(
     /** The default as [show] would give it, when it depends on other settings. */
     private val usualValue: ((ServerConfig) -> Any?)? = null,
     val note: ((ServerConfig) -> String?)? = null,
+    /** The form a [SettingType.Text] value is kept in, or null when it does not fit. */
+    private val clean: ((String) -> String?)? = null,
 ) {
     /** The range of a [SettingType.Number] setting. */
     val range: IntRange get() = (type as SettingType.Number).range
@@ -69,7 +72,7 @@ internal class SettingDef(
     fun normalize(raw: String): String? = when (type) {
         is SettingType.Number -> raw.trim().toIntOrNull()?.takeIf { it in type.range }?.toString()
         is SettingType.Choice -> raw.trim().lowercase().takeIf { it in type.values }
-        else -> raw
+        else -> clean?.invoke(raw) ?: raw.takeIf { clean == null }
     }
 
     /** What to tell the operator when a value does not fit. */
@@ -133,10 +136,13 @@ internal object Settings {
         custom: Boolean = false,
         usual: ((ServerConfig) -> Any?)? = null,
         note: ((ServerConfig) -> String?)? = null,
+        runtime: Boolean = false,
+        rule: String? = null,
+        clean: ((String) -> String?)? = null,
         show: (ServerConfig) -> Any?,
     ) = SettingDef(
         name, SettingType.Text, default, label, help, area,
-        custom = custom, usualValue = usual, note = note, show = show,
+        runtime = runtime, custom = custom, rule = rule, usualValue = usual, note = note, clean = clean, show = show,
     )
 
     private fun path(
@@ -269,6 +275,37 @@ internal object Settings {
         SettingArea.LIBRARY,
         runtime = true,
     ) { it.adListeners }
+
+    val IPTV_ORG = choice(
+        "SOFA_IPTV_ORG",
+        IptvOrgSettings.OFF,
+        listOf(IptvOrgSettings.OFF, IptvOrgSettings.ON),
+        "iptv-org metadata",
+        "on downloads the iptv-org channel database weekly (names, logos, categories, blocklist; never streams) to " +
+            "match channels, fill missing logos and categories and hold blocklisted channels out.",
+        runtime = true,
+    ) { if (it.iptvOrg.metadata) IptvOrgSettings.ON else IptvOrgSettings.OFF }
+
+    val IPTV_ORG_STREAMS = choice(
+        "SOFA_IPTV_ORG_STREAMS",
+        IptvOrgSettings.OFF,
+        listOf(IptvOrgSettings.OFF, IptvOrgSettings.ON),
+        "iptv-org streams",
+        "on adds the iptv-org community streams of the region below as a provider. They are often dead or " +
+            "geo-blocked; the source probes drop the dead ones.",
+        runtime = true,
+    ) { if (it.iptvOrg.streams) IptvOrgSettings.ON else IptvOrgSettings.OFF }
+
+    val IPTV_ORG_REGION = text(
+        "SOFA_IPTV_ORG_REGION",
+        "",
+        "iptv-org region",
+        "Two-letter country codes, comma separated, whose streams are imported. Empty uses the server's time " +
+            "zone, else US.",
+        runtime = true,
+        rule = "SOFA_IPTV_ORG_REGION must be up to 20 two-letter country codes separated by commas",
+        clean = IptvOrgSettings::cleanRegion,
+    ) { it.iptvOrg.region }
 
     val HOST = text("SOFA_HOST", "127.0.0.1", "Host", "Listen address.", custom = true) { it.host }
 
@@ -604,7 +641,8 @@ internal object Settings {
 
     val all: List<SettingDef> = listOf(
         LOG_LEVEL, XMLTV_DAYS, PLEX_SYNC_MINUTES, HDHR_TUNERS, MAX_SESSIONS, RECORDINGS_FREE_GIB,
-        RECORDINGS_KEEP_DAYS, LEARNED_BREAKS, AD_LISTENERS, HOST, PORT, MDNS, DATA_DIR, RECORDINGS_DIR, SOURCES,
+        RECORDINGS_KEEP_DAYS, LEARNED_BREAKS, AD_LISTENERS, IPTV_ORG, IPTV_ORG_STREAMS, IPTV_ORG_REGION, HOST, PORT,
+        MDNS, DATA_DIR, RECORDINGS_DIR, SOURCES,
         POLICY, API_TOKEN, ADMIN_TOKEN, OUTPUT_TOKEN, PLEX_TOKEN, TMDB_TOKEN, FANART_KEY, LISTENBRAINZ_TOKEN, FFMPEG,
         COMSKIP, QUALITY_FLOORS, MUSICBRAINZ, PROBE_PARALLELISM, RESTREAM_ORIGINS, OBSERVATION_RETENTION_DAYS,
         HISTORY_DAYS, ALLOW_LOOPBACK_UPSTREAMS, LOG_FORMAT, LOG_DAYS, CORS_ORIGINS, MEDIA_DIR, WEB_DIR,

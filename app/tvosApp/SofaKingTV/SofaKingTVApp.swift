@@ -57,6 +57,9 @@ final class AppModel {
     var requestedItem: String?
     /// Where that link starts the item, in milliseconds; negative to resume where the household stopped.
     var requestedItemStartMs: Int64 = -1
+    /// A library item a `sofaking://item/<id>` link (the Top Shelf's select) asked to show the page of; the Library
+    /// tab opens it and clears it.
+    var requestedDetails: String?
     /// A channel number or name a `sofaking://live/<number>` link asked for, until the lineup is in to find it.
     private(set) var requestedLive: String?
     /// Why the last `sofaking://pair` link failed to pair; an alert shows it once.
@@ -252,6 +255,8 @@ final class AppModel {
         case let item as AppLinkItem:
             requestedItemStartMs = item.startMs?.int64Value ?? -1
             requestedItem = item.itemId
+        case let details as AppLinkDetails:
+            requestedDetails = details.itemId
         case let live as AppLinkLive:
             requestedLive = live.channel
             openRequestedLive()
@@ -303,8 +308,8 @@ struct ContentView: View {
         .background(Color.sofaPlum.ignoresSafeArea())
         .onChange(of: model.settings == nil, initial: true) { _, missing in
             guard !missing, !tabRestored else { return }
-            if model.requestedItem != nil {
-                // A cold start from a Top Shelf item opens on the Library tab, which plays it.
+            if model.requestedItem != nil || model.requestedDetails != nil {
+                // A cold start from a Top Shelf item opens on the Library tab, which plays it or shows its page.
                 tab = .library
                 restored = .library
             } else if let start = model.startTab, model.requestedChannel == nil, model.requestedLive == nil {
@@ -370,6 +375,9 @@ struct ContentView: View {
         }
         .onChange(of: model.requestedItem) { _, requested in
             // A Top Shelf item plays from the Library tab, whose player cover it opens in.
+            if requested != nil { tab = .library }
+        }
+        .onChange(of: model.requestedDetails) { _, requested in
             if requested != nil { tab = .library }
         }
         .onChange(of: tab) { _, picked in

@@ -47,7 +47,7 @@ internal class AppShellState(
 
     /** The cold start has picked its page, once per process; the guide and preview wait for it. */
     var launchDecided by launchDecided
-        private set
+        internal set
 
     /**
      * The PIN, once entered, opens Settings and the pages behind it until the viewer
@@ -167,6 +167,18 @@ internal class AppShellState(
     fun relockUnlessInSettings() {
         if (!top.isSettings) settingsUnlocked = false
     }
+}
+
+/**
+ * A `sofaking://item` link opens [itemId]'s page over the Library tab, so Back leaves for the Library, in place of an
+ * item page already open there. On a cold start it is the start's page, in place of the channel last watched.
+ */
+internal fun AppShellState.openItem(itemId: String) {
+    val from = if (launchDecided) nav.closeSettings() else Navigation()
+    launchDecided = true
+    val library = if (from.tab == Tab.LIBRARY) from else from.open(Tab.LIBRARY)
+    val route = Route.LibraryItem(itemId)
+    nav = if (library.top is Route.LibraryItem) library.replaceTop(route) else library.push(route)
 }
 
 /** An [AppShellState] whose back stacks, history and flags survive a configuration change and process death. */

@@ -13,6 +13,9 @@ sealed interface AppLink {
 
     /** `sofaking://live/NUMBER`, or a channel's name in place of its number. */
     data class Live(val channel: String) : AppLink
+
+    /** `sofaking://item/ID`, which opens that library item's page without playing it. */
+    data class Details(val itemId: String) : AppLink
 }
 
 /** The [AppLink] [link] names; null for a pairing link, another scheme or a link missing its target. */
@@ -23,12 +26,16 @@ fun parseAppLink(link: String): AppLink? {
     return when (url.host) {
         "vod" -> AppLink.Item(target, url.parameters["t"]?.toLongOrNull()?.takeIf { it >= 0 }?.times(MS_PER_SECOND))
         "live" -> AppLink.Live(target)
+        "item" -> AppLink.Details(target)
         else -> null
     }
 }
 
 /** The link that opens the channel numbered [number] live, as Home Assistant or a shortcut would send it. */
 fun liveLink(number: String): String = "$LINK_SCHEME://live/" + number.encodeURLPathPart()
+
+/** The link that opens the page of library item [itemId], as the Apple TV's Top Shelf sends it. */
+fun detailsLink(itemId: String): String = "$LINK_SCHEME://item/" + itemId.encodeURLPathPart()
 
 /**
  * The channel of [lineup] a `sofaking://live` link's [target] names: by number first, then by name, ignoring case;

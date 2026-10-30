@@ -1,7 +1,8 @@
 import TVServices
 
-/// The Top Shelf: the library's Continue watching, each opening the app's player where the household stopped, then
-/// the channels watched most recently, newest first, each opening the app on that channel.
+/// The Top Shelf: the library's Continue watching, each opening the item's page on select and the app's player where
+/// the household stopped on play, then the channels watched most recently, newest first, each opening the app on
+/// that channel (the guide has no per-channel page to open, so select and play both tune it).
 final class ContentProvider: TVTopShelfContentProvider {
     override func loadTopShelfContent(completionHandler: @escaping (TVTopShelfContent?) -> Void) {
         let sections = [continueWatching(), recentChannels()].compactMap { $0 }
@@ -18,10 +19,11 @@ final class ContentProvider: TVTopShelfContentProvider {
                 item.setImageURL(url, for: .screenScale2x)
             }
             if let progress = entry.progress { item.playbackProgress = progress }
+            if let url = TopShelfContent.detailsUrl(for: entry.id) {
+                item.displayAction = TVTopShelfAction(url: url)
+            }
             if let url = TopShelfContent.vodUrl(for: entry.id) {
-                let open = TVTopShelfAction(url: url)
-                item.displayAction = open
-                item.playAction = open
+                item.playAction = TVTopShelfAction(url: url)
             }
             return item
         }

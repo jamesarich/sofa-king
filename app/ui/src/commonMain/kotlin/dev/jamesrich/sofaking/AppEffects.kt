@@ -100,6 +100,11 @@ internal fun LaunchEffects(
                 shell.playItem(link.itemId, link.startMs)
             }
 
+            is AppLink.Details -> {
+                currentOnLinkHandle()
+                shell.openItem(link.itemId)
+            }
+
             is AppLink.Live -> {
                 if (lineup == null) return@LaunchedEffect
                 currentOnLinkHandle()

@@ -37,7 +37,9 @@ import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * What a recording run came to: the bytes now in the file, the last reason the source could not be read, if any, and
@@ -66,6 +68,8 @@ class Recorder internal constructor(
      * records every source through FFmpeg.
      */
     private val shared: (suspend (Offering, ResolvedStream) -> TsFanout.Reader)? = null,
+    /** How long FFmpeg may write nothing before its source counts as stalled and is reopened. */
+    private val stallAfter: Duration = STALL_AFTER,
 ) {
     private val log = LoggerFactory.getLogger(Recorder::class.java)
 
@@ -112,6 +116,14 @@ class Recorder internal constructor(
                 coroutineScope {
                     sessions.media.attach(session.id, coroutineContext.job)
                     read(session.id, file, until, markers)
+                }.also {
+                    // The only trace of why a recording that came up short ended each of its reads.
+                    log.info(
+                        "recording read ended channel={} bytes={} reason={}",
+                        channelId,
+                        sessions.media.bytesOf(session.id).get(),
+                        it ?: "SOURCE_ENDED",
+                    )
                 }
             } catch (_: CancellationException) {
                 // Rethrown when the recording itself was canceled; otherwise the session ended under this attempt.
@@ -136,7 +148,13 @@ class Recorder internal constructor(
             }
         }
         val bytes = sessions.media.bytesOf(sessionId)
-        return relay.reading(stream, offering.protocol, markers = markers) { source ->
+        // FFmpeg is given playlists as a player is, so a source that starts its numbering over does not stop it.
+        return relay.reading(
+            stream,
+            offering.protocol,
+            markers = markers,
+            steady = offering.protocol == "hls",
+        ) { source ->
             remux(source, file, until, bytes)
         }
     }
@@ -147,6 +165,8 @@ class Recorder internal constructor(
             remuxCommand(ffmpeg, source),
         ).redirectError(ProcessBuilder.Redirect.DISCARD).startOwned()
         var written = 0L
+        val stalled = AtomicBoolean()
+        val lastWrite = AtomicReference(clock.instant())
         try {
             coroutineScope {
                 // A blocked pipe read ignores cancellation; killing FFmpeg at the deadline or on cancel unblocks it.
@@ -155,6 +175,16 @@ class Recorder internal constructor(
                         delay(Duration.between(clock.instant(), until).toMillis().coerceAtLeast(0))
                     } finally {
                         process.destroy()
+                    }
+                }
+                // FFmpeg that is alive and writes nothing is waiting on a source that will not answer it: reopen.
+                val watchdog = launch {
+                    while (!stalled.get()) {
+                        delay(STALL_CHECK.toMillis())
+                        if (Duration.between(lastWrite.get(), clock.instant()) > stallAfter) {
+                            stalled.set(true)
+                            process.destroy()
+                        }
                     }
                 }
                 withContext(Dispatchers.IO) {
@@ -166,16 +196,22 @@ class Recorder internal constructor(
                             if (read < 0) break
                             out.write(buffer, 0, read)
                             written += read
+                            lastWrite.set(clock.instant())
                             bytes.addAndGet(read.toLong())
                         }
                     }
                 }
                 deadline.cancel()
+                watchdog.cancel()
             }
         } finally {
             process.terminate()
         }
-        return if (written == 0L) "NO_MEDIA" else null
+        return when {
+            stalled.get() -> "SOURCE_STALLED"
+            written == 0L -> "NO_MEDIA"
+            else -> null
+        }
     }
 
     /**
@@ -219,5 +255,9 @@ class Recorder internal constructor(
         /** The client the portal's Watching now shows for a recording's session. */
         const val CLIENT = "DVR"
         private val RETRY_DELAY: Duration = Duration.ofSeconds(5)
+
+        /** Long enough for FFmpeg to open a slow source and fill a first segment, short of a minute of lost media. */
+        private val STALL_AFTER: Duration = Duration.ofSeconds(30)
+        private val STALL_CHECK: Duration = Duration.ofSeconds(1)
     }
 }

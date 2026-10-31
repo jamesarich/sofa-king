@@ -10,13 +10,18 @@ import java.time.Instant
  * of catch-up segments that is no measure of the stream.
  */
 internal class WriteRate(
+    /** The best window a recording of this channel showed before, so that a first read slow from its start is seen. */
+    initialPeak: Long = 0L,
     private val window: Duration = WINDOW,
     private val settle: Duration = SETTLE,
     private val floor: Int = FLOOR,
 ) {
     private val samples = ArrayDeque<Pair<Instant, Long>>()
     private var started: Instant? = null
-    private var peak = 0L
+
+    /** The most bytes any [window] wrote, which the next recording of the channel starts from. */
+    var peak = initialPeak
+        private set
 
     /**
      * A new read of the same recording starts, its count from zero: the best window carries over, since a read slow

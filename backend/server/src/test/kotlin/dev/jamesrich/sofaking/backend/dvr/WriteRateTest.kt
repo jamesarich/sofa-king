@@ -49,6 +49,15 @@ class WriteRateTest {
         assertTrue(slowed, "the best window of the first read shows the second up")
     }
 
+    @Test fun `a first read slow from its start is slowed against the channel's earlier best window`() {
+        val earlier = WriteRate()
+        run(earlier, 0, 120, 326_000, 0)
+        val rate = WriteRate(initialPeak = earlier.peak)
+        val (slowed, _) = run(rate, 0, 91, 80_000, 0)
+        assertTrue(slowed, "a read at 80 KB/s against a 326 KB/s window is slowed once it has settled")
+        assertFalse(run(WriteRate(), 0, 91, 80_000, 0).first, "with no earlier window it is not")
+    }
+
     @Test fun `a drop to a third is the line`() {
         val rate = WriteRate(window = Duration.ofSeconds(10), settle = Duration.ofSeconds(20))
         val (_, written) = run(rate, 0, 60, 300, 0)

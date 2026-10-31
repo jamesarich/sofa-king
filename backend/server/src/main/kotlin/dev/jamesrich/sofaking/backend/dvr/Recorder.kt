@@ -42,6 +42,7 @@ import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
@@ -76,6 +77,9 @@ class Recorder internal constructor(
     /** How long FFmpeg may write nothing before its source counts as stalled and is reopened. */
     private val stallAfter: Duration = STALL_AFTER,
 ) {
+    /** The best write window each channel's last recording showed, by channel id; gone with the process. */
+    private val bestRates = ConcurrentHashMap<String, Long>()
+
     private val log = LoggerFactory.getLogger(Recorder::class.java)
 
     /** Appends [channelId]'s stream to [file] until [until]; canceling stops it early with what was written. */
@@ -84,8 +88,9 @@ class Recorder internal constructor(
         var failure: String? = null
         val markers = PlaylistMarkers()
         val reopen = ReopenDelay(retryDelay)
-        // One for the recording: a read's best window is the measure for the reads after it.
-        val rate = WriteRate()
+        // One for the recording: a read's best window is the measure for the reads after it, and for the channel's
+        // next recording, whose first read has no window of its own to show it slow.
+        val rate = WriteRate(initialPeak = bestRates[channelId] ?: 0L)
         var outcome: String?
         while (clock.instant() < until) {
             outcome =
@@ -107,6 +112,7 @@ class Recorder internal constructor(
                     }
                 }
             failure = outcome ?: failure
+            if (rate.peak > 0L) bestRates[channelId] = rate.peak
             val left = Duration.between(clock.instant(), until)
             if (left > Duration.ZERO) delay(minOf(left, reopen.after(outcome)).toMillis())
         }

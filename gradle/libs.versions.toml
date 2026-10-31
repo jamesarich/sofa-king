@@ -62,7 +62,7 @@ exposed = "1.6.0"
 sqlite = "3.53.4.0"
 logback = "1.6.6"
 zxing = "3.5.4"
-jmdns = "3.6.4"
+jmdns = "3.6.5"
 # The official Model Context Protocol SDK the server answers /api/v1/mcp with.
 mcp = "0.16.0"
 # The server's tests: JUnit Jupiter and the launcher Gradle runs it with.

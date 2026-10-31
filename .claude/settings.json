@@ -32,7 +32,14 @@
       "Bash(xcrun simctl *)",
       "Bash(python3 app/scripts/fixture_server.py *)",
       "Bash(python3 docs/site/stage.py)",
-      "Bash(mkdocs build --strict)"
+      "Bash(mkdocs build --strict)",
+      "Bash(git fetch *)",
+      "Bash(gh run download *)",
+      "Bash(docker logs *)",
+      "Bash(docker inspect *)",
+      "mcp__claude-in-chrome__find",
+      "mcp__claude-in-chrome__read_page",
+      "mcp__github__search_code"
     ]
   },
   "hooks": {

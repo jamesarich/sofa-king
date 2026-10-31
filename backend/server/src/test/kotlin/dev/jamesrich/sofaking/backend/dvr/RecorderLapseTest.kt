@@ -251,10 +251,11 @@ class RecorderLapseTest {
     }
 
     @Test
-    fun `a picture that stops advancing while the sound plays on is reopened, not recorded without the picture`() {
+    fun `a picture that stops advancing while the sound plays on is reopened rather than recorded without it`() {
         val result = record(renumberAt = 8, lapse = 0, windowSeconds = 30, demuxed = true, stuck = true)
-        // FFmpeg pairs the picture with the sound, so the first read writes little before it stalls.
-        assertTrue(result.seconds >= 30 * 0.4, "the recording holds ${result.seconds} s of picture in a 30 s window")
+        // FFmpeg pairs the picture with the sound, so the first read writes little before it stalls. Without the
+        // stall check about 2 s of picture survive; with it 12 to 14 s, depending on the host.
+        assertTrue(result.seconds >= 30 * 0.25, "the recording holds ${result.seconds} s of picture in a 30 s window")
         assertEquals("SOURCE_STALLED", result.take.lastFailure, "the stalled playlist ends the read cleanly")
     }
 

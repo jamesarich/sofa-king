@@ -150,19 +150,23 @@ class Recorder internal constructor(
     /** Reads the session's source into [file] until [until], through the shared connection or FFmpeg. */
     private suspend fun read(sessionId: String, file: Path, until: Instant, markers: PlaylistMarkers): String? {
         val offering = sessions.media.offeringOf(sessionId)
+        var hls = offering.protocol == "hls"
         // Only a playlist says how long the media is; a source without one leaves later offsets unknown.
-        if (offering.protocol == "hls") markers.begin() else markers.freeze()
+        if (hls) markers.begin() else markers.freeze()
         val stream = feeds.playable(offering)
         feeds.upstream.check(URI(stream.url))
         if (shared != null && offering.protocol == "mpegts") {
             copyShared(shared, offering, stream, file, until, sessions.media.bytesOf(sessionId))?.let {
                 return it.ifEmpty { null }
             }
+            // The body was a playlist after all, so FFmpeg reads it as one: its markers count and its lapses show.
+            hls = true
+            markers.begin()
         }
         val bytes = sessions.media.bytesOf(sessionId)
         // A lapse ends FFmpeg and the next session starts clean; only a numbering that starts over is carried on.
-        val steady = if (offering.protocol == "hls") SteadyPlaylists(holdLapses = false) else null
-        val stalls = if (offering.protocol == "hls") StallWatch() else null
+        val steady = if (hls) SteadyPlaylists(holdLapses = false) else null
+        val stalls = if (hls) StallWatch() else null
         return relay.reading(stream, offering.protocol, stalls = stalls, markers = markers, steady = steady) { source ->
             remux(source, file, until, bytes, steady, stalls)
         }

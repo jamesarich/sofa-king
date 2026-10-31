@@ -119,6 +119,7 @@
       "enabled": false
     }
   ],
+  "rebaseWhen": "conflicted",
   "prHourlyLimit": 0,
   "automergeType": "pr",
   "automergeStrategy": "squash",

@@ -356,9 +356,11 @@ private fun MoreToggles(music: MusicPlayback, lyrics: LyricsChoice?, visuals: Vi
 private fun MusicButtons(music: MusicPlayback, lyrics: LyricsChoice?, visuals: VisualsChoice?) {
     val queue = music.queue ?: return
     val status by music.status.collectAsStateWithLifecycle()
-    // Focus starts on Play or Pause, for a remote.
+    // Focus starts on Play or Pause for a remote or keyboard; after a touch or click its ring and scale would only
+    // crowd a phone's row.
     val focus = remember { FocusRequester() }
-    LaunchedEffect(focus) { requestFocusWhenAttached(focus) }
+    val keyed = LocalLastInput.current.kind != InputKind.POINTER
+    LaunchedEffect(focus) { if (keyed) requestFocusWhenAttached(focus) }
     FlowRow(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly,

@@ -21,6 +21,7 @@ import java.time.Instant
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -46,9 +47,15 @@ class RecorderLapseTest {
          * picture answers one empty ended playlist at [renumberAt] and then carries on; the sound never lapses.
          */
         private val demuxed: Boolean = false,
+        /** With [demuxed], whether the picture freezes, without ending, from [renumberAt] in the first read. */
+        private val stuck: Boolean = false,
     ) {
         private var started = 0L
         private var lapsed = false
+        private var reads = 0
+
+        /** A reader fetched the master playlist. */
+        fun opened() = synchronized(this) { reads++ }
 
         private fun elapsed(): Double {
             if (started == 0L) started = System.nanoTime()
@@ -59,10 +66,19 @@ class RecorderLapseTest {
             val t = elapsed()
             when {
                 t < renumberAt -> HEAD + window(100, (t / 2).toInt(), 0)
+
                 frozen -> HEAD + window(100, renumberAt / 2, 0)
-                demuxed && !lapsed -> HEAD + "#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-ENDLIST\n".also { lapsed = true }
+
+                stuck && reads == 1 -> HEAD + window(100, renumberAt / 2, 0)
+
+                demuxed && !lapsed && !stuck ->
+                    HEAD +
+                        "#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-ENDLIST\n".also { lapsed = true }
+
                 demuxed -> HEAD + window(100, (t / 2).toInt(), 0)
+
                 t < renumberAt + lapse -> HEAD + "#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-ENDLIST\n"
+
                 else -> HEAD + window(5, ((t - renumberAt - lapse) / 2).toInt(), 1)
             }
         }
@@ -97,13 +113,14 @@ class RecorderLapseTest {
         frozen: Boolean = false,
         stallAfter: Duration? = null,
         demuxed: Boolean = false,
+        stuck: Boolean = false,
     ): Result = runBlocking {
         val dir = Files.createTempDirectory("sofa-lapse-")
         val upstream = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         val executor = Executors.newCachedThreadPool()
         try {
             MediaFixture().use { media ->
-                val pluto = Pluto(media, renumberAt, lapse, frozen, demuxed)
+                val pluto = Pluto(media, renumberAt, lapse, frozen, demuxed, stuck)
                 val parts = if (demuxed) separate(media, dir) else emptyMap()
                 upstream.executor = executor
                 upstream.createContext("/") { exchange -> serve(exchange, pluto, parts, upstream.address.port) }
@@ -171,7 +188,7 @@ class RecorderLapseTest {
                 "#EXTM3U\n#EXTINF:-1 tvg-id=\"pluto\" tvg-chno=\"1\",Pluto\nhttp://127.0.0.1:$port/live.m3u8\n"
                     .toByteArray()
 
-            path == "/live.m3u8" && parts.isNotEmpty() -> MASTER.toByteArray()
+            path == "/live.m3u8" && parts.isNotEmpty() -> MASTER.toByteArray().also { pluto.opened() }
 
             path == "/live.m3u8" || path == "/video.m3u8" -> pluto.playlist().toByteArray()
 
@@ -222,7 +239,7 @@ class RecorderLapseTest {
             record(renumberAt = 8, lapse = 0, windowSeconds = 30, frozen = true, stallAfter = Duration.ofSeconds(5))
         // Which reason comes last depends on the FFmpeg version and on whether a quick reopen found nothing new.
         val reason = result.take.lastFailure
-        assertTrue(reason in setOf("SOURCE_STALLED", "IOException", "NO_MEDIA"), "the recording's reason was $reason")
+        assertTrue(reason in setOf("SOURCE_STALLED", "NO_MEDIA"), "the recording's reason was $reason")
         assertTrue(result.seconds > 0, "the media before the stall is kept")
     }
 
@@ -230,6 +247,15 @@ class RecorderLapseTest {
     fun `a picture that lapses while the sound plays on is reopened, not recorded without the picture`() {
         val result = record(renumberAt = 8, lapse = 0, windowSeconds = 30, demuxed = true)
         assertTrue(result.seconds >= 30 * 0.6, "the recording holds ${result.seconds} s of picture in a 30 s window")
+        assertEquals("SOURCE_STALLED", result.take.lastFailure, "the lapse ends the read cleanly")
+    }
+
+    @Test
+    fun `a picture that stops advancing while the sound plays on is reopened, not recorded without the picture`() {
+        val result = record(renumberAt = 8, lapse = 0, windowSeconds = 30, demuxed = true, stuck = true)
+        // FFmpeg pairs the picture with the sound, so the first read writes little before it stalls.
+        assertTrue(result.seconds >= 30 * 0.4, "the recording holds ${result.seconds} s of picture in a 30 s window")
+        assertEquals("SOURCE_STALLED", result.take.lastFailure, "the stalled playlist ends the read cleanly")
     }
 
     private companion object {

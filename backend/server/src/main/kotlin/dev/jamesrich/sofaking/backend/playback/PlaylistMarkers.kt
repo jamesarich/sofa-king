@@ -49,18 +49,28 @@ class PlaylistMarkers {
     /**
      * The read ends having written [written] bytes to the file. FFmpeg reads ahead, so segments it had fetched may
      * never have been muxed, and counting them would put every later offset late; a segment whose middle lies beyond
-     * what was written is taken back, the clock with it, and breaks that began in it with them.
+     * what was written is taken back, the clock with it, and breaks that began in it with them. Says how many
+     * segments the read counted, how many of them were taken back and the bytes of them fetched, for the log.
      */
     @Synchronized
-    fun end(written: Long) {
-        if (frozen) return
-        val cut = counted.firstOrNull { it.bytesBefore + it.bytes / 2 > written } ?: return
-        elapsedMs = cut.startMs
-        found.removeAll { it.startMs >= elapsedMs }
-        found.replaceAll { if (it.endMs > elapsedMs) RecordingBreak(it.startMs, elapsedMs) else it }
-        if (openFrom?.let { it >= elapsedMs } == true) openFrom = null
+    fun end(written: Long): ReadEnd {
+        if (frozen) return ReadEnd(0, 0, 0L)
+        val fetched = readBytes
+        val total = counted.size
+        val cut = counted.firstOrNull { it.bytesBefore + it.bytes / 2 > written }
+        val takenBack = if (cut == null) 0 else counted.size - counted.indexOf(cut)
+        if (cut != null) {
+            elapsedMs = cut.startMs
+            found.removeAll { it.startMs >= elapsedMs }
+            found.replaceAll { if (it.endMs > elapsedMs) RecordingBreak(it.startMs, elapsedMs) else it }
+            if (openFrom?.let { it >= elapsedMs } == true) openFrom = null
+        }
         counted.clear()
+        return ReadEnd(total, takenBack, fetched)
     }
+
+    /** What a read's end did to the clock: segments [counted], of which [takenBack], and their [fetched] bytes. */
+    data class ReadEnd(val counted: Int, val takenBack: Int, val fetched: Long)
 
     /** Stops counting: media of a source without playlists is going into the file. */
     @Synchronized

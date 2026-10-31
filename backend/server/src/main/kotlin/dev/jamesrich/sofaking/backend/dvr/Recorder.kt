@@ -197,7 +197,17 @@ class Recorder internal constructor(
             }
         } finally {
             // Segments FFmpeg fetched and never muxed are not in the file, so the markers' clock takes them back.
-            markers.end(bytes.get())
+            val written = bytes.get()
+            val end = markers.end(written)
+            if (end.counted > 0) {
+                log.info(
+                    "recording markers counted={} taken_back={} fetched={} written={}",
+                    end.counted,
+                    end.takenBack,
+                    end.fetched,
+                    written,
+                )
+            }
         }
     }
 

@@ -119,17 +119,19 @@ class Recorder internal constructor(
      */
     private suspend fun attempt(channelId: String, file: Path, until: Instant, markers: PlaylistMarkers): String? {
         val session = sessions.external.open(channelId, CLIENT, shareable = false)
+        // Taken while the session is up: most reads end because it went, and the table then no longer answers for it.
+        val counter = sessions.media.bytesOf(session.id)
         try {
             return try {
                 coroutineScope {
                     sessions.media.attach(session.id, coroutineContext.job)
                     read(session.id, file, until, markers)
-                }.also { readEnded(channelId, session.id, it ?: "SOURCE_ENDED") }
+                }.also { readEnded(channelId, counter, it ?: "SOURCE_ENDED") }
             } catch (_: CancellationException) {
                 // Rethrown when the recording itself was canceled, as it is at its deadline, which ends the last read;
                 // otherwise the session ended under this attempt.
                 val canceled = !currentCoroutineContext().isActive
-                readEnded(channelId, session.id, if (canceled) "CANCELED" else "SESSION_ENDED")
+                readEnded(channelId, counter, if (canceled) "CANCELED" else "SESSION_ENDED")
                 currentCoroutineContext().ensureActive()
                 "SESSION_ENDED"
             }
@@ -139,12 +141,8 @@ class Recorder internal constructor(
     }
 
     /** The only trace of why a recording that came up short ended each of its reads, and of what the read appended. */
-    private suspend fun readEnded(channelId: String, sessionId: String, reason: String) {
-        // A session that ended under the read answers SESSION_EXPIRED here; the count is then unknown, not an error.
-        val bytes = withContext(NonCancellable) {
-            runCatchingCancellable { sessions.media.bytesOf(sessionId).get() }.getOrNull()
-        }
-        log.info("recording read ended channel={} bytes={} reason={}", channelId, bytes ?: "unknown", reason)
+    private fun readEnded(channelId: String, bytes: AtomicLong, reason: String) {
+        log.info("recording read ended channel={} bytes={} reason={}", channelId, bytes.get(), reason)
     }
 
     /** Reads the session's source into [file] until [until], through the shared connection or FFmpeg. */

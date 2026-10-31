@@ -205,13 +205,15 @@ class Recorder internal constructor(
                         process.destroy()
                     }
                 }
-                // FFmpeg that is alive and writes nothing is waiting on a source that will not answer it: reopen.
+                // FFmpeg that is alive and writes nothing, or a fraction of what it did, is on a source that will not
+                // answer it or has lost its picture: reopen.
                 val watchdog = launch {
+                    val rate = WriteRate()
                     while (!stalled.get()) {
                         delay(STALL_CHECK.toMillis())
-                        if (steady?.lapsed == true || stalls?.tripped == true ||
-                            Duration.between(lastWrite.get(), clock.instant()) > stallAfter
-                        ) {
+                        val now = clock.instant()
+                        val quiet = Duration.between(lastWrite.get(), now) > stallAfter || rate.slowed(bytes.get(), now)
+                        if (steady?.lapsed == true || stalls?.tripped == true || quiet) {
                             stalled.set(true)
                             destroyed.set(true)
                             process.destroy()

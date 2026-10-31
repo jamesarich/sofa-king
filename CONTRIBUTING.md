@@ -39,7 +39,7 @@ Kotlin follows IntelliJ IDEA's Kotlin style, which the root `.editorconfig` sets
 ./gradlew detekt          # static analysis
 ```
 
-CI runs `spotlessCheck` and `detekt` in every build. Fix a finding in the code rather than suppressing it; where a rule is wrong for one declaration, `@Suppress` that one rule there, with a comment saying why. There is no baseline, and no build turns a rule off.
+CI runs `spotlessCheck` and `detekt` in every build. Each build's `gradle.properties` sets `detekt.use.worker.api=true`, so each detekt task runs in a JVM of its own, not in the Gradle daemon. Fix a finding in the code rather than suppressing it; where a rule is wrong for one declaration, `@Suppress` that one rule there, with a comment saying why. There is no baseline, and no build turns a rule off.
 
 Catch the exceptions a call can throw, such as `IOException` or `SerializationException`, never a bare `catch (e: Exception)`. Where a failure of any kind is logged or shown and the work goes on, such as a background loop's next pass or a screen's load, use `runCatchingCancellable` (the server's `Results.kt`, the app's `data/Failures.kt`): it rethrows `CancellationException`, so canceling still cancels, and never catches an `Error`. To clean up after a failure and let it go on, use `runCatching { … }.onFailure { … }.getOrThrow()`, or `finally`.
 

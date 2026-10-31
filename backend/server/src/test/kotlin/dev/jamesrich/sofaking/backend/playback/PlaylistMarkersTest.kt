@@ -43,6 +43,35 @@ class PlaylistMarkersTest {
         assertEquals(emptyList(), markers.breaks())
     }
 
+    @Test fun `the clock follows the variant whose segments are read, not the probe segment of another`() {
+        val markers = PlaylistMarkers()
+        markers.begin()
+        val low = URI("http://origin.test/low/index.m3u8")
+        val high = URI("http://origin.test/high/index.m3u8")
+        fun media(dir: String, tags: Map<Int, String> = emptyMap()) = buildString {
+            append("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n")
+            for (n in 0..9) {
+                tags[n]?.let { append(it).append('\n') }
+                append("#EXTINF:2.000,\nhttp://origin.test/$dir/s$n.ts\n")
+            }
+        }
+        // FFmpeg opens both playlists and probes one segment of the low variant, then reads the high one.
+        val cues = mapOf(3 to "#EXT-X-CUE-OUT:4", 5 to "#EXT-X-CUE-IN")
+        markers.playlist(media("low", cues), low)
+        markers.playlist(media("high", cues), high)
+        markers.segment("http://origin.test/low/s0.ts", 281_000)
+        for (n in 0..9) markers.segment("http://origin.test/high/s$n.ts", 1_600_000)
+        assertEquals(listOf(RecordingBreak(6_000, 10_000)), markers.breaks())
+        // The bytes written are the high variant's, and the probe's share of what was fetched is small.
+        val end = markers.end(written = 16_000_000)
+        assertEquals(0, end.takenBack)
+        assertEquals(listOf(RecordingBreak(6_000, 10_000)), markers.breaks())
+        markers.begin()
+        markers.playlist(playlist(20, 21), source)
+        markers.fetch(20..21)
+        assertEquals(listOf(RecordingBreak(6_000, 10_000)), markers.breaks())
+    }
+
     @Test fun `a read written in full loses nothing, and one with unknown sizes is left as counted`() {
         val full = PlaylistMarkers()
         full.begin()

@@ -42,21 +42,47 @@ def open_link(link):
     adb('shell', 'am', 'start', '-W', '-a', 'android.intent.action.VIEW', '-d', f"'{link}'", PACKAGE, timeout=120)
 
 
+# Maestro's driver on the emulator is two apps (an instrumentation APK it installs, and a server it forwards a port to);
+# a run that lost the server leaves them half alive, which the next run's startup trips over.
+MAESTRO_DRIVER_APPS = ('dev.mobile.maestro', 'dev.mobile.maestro.test')
+FLOW_ATTEMPTS = 3
+
+
+def stop_install_scans():
+    """Turns off Play Protect's scan of adb installs: it scans Maestro's driver apps on every flow's install, and the
+    driver's server died within seconds of that scan in the failed runs' logcats."""
+    adb('shell', 'settings', 'put', 'global', 'verifier_verify_adb_installs', '0')
+    adb('shell', 'settings', 'put', 'global', 'package_verifier_enable', '0')
+
+
+def reset_maestro_driver():
+    """Removes Maestro's driver apps and port forwards from the emulator so the next `maestro test` installs them fresh."""
+    for package in MAESTRO_DRIVER_APPS:
+        subprocess.run(['adb', 'uninstall', package], capture_output=True, text=True, timeout=60)
+    subprocess.run(['adb', 'forward', '--remove-all'], capture_output=True, text=True, timeout=30)
+
+
 def run_flows(flows, out, play):
     """Each Maestro flow in [flows], in name order; one named for a library flow first plays the first episode through
-    [play]. A flow whose run lost Maestro's own server on the device runs once more. The names of those that failed."""
+    [play]. A flow whose run lost Maestro's own server on the device runs again from a clean driver, up to three runs
+    in all. The names of those that failed."""
     failed = []
+    stop_install_scans()
+    # Maestro waits 15 s by default for its driver to answer after installing it; a loaded runner needs longer.
+    env = {**os.environ, 'MAESTRO_DRIVER_STARTUP_TIMEOUT': '120000'}
     for flow in sorted(Path(flows).glob('*.yaml')):
         report = out / f'maestro-{flow.stem}.xml'
-        for _ in range(2):
+        for attempt in range(1, FLOW_ATTEMPTS + 1):
             if flow.stem.startswith('library_'):
                 play()
             result = subprocess.run(['maestro', 'test', '--format', 'junit', '--output', str(report),
                                      '--debug-output', str(out / 'maestro' / flow.stem), str(flow)],
-                                    capture_output=True, text=True, timeout=600)
-            if result.returncode == 0 or not report.exists() or 'DeviceServerDiedException' not in report.read_text():
+                                    capture_output=True, text=True, timeout=600, env=env)
+            died = 'DeviceServerDiedException' in (report.read_text() if report.exists() else '') + result.stdout + result.stderr
+            if result.returncode == 0 or not died or attempt == FLOW_ATTEMPTS:
                 break
-            print(f'Flow {flow.stem}: Maestro lost its device server; running it again', flush=True)
+            print(f'Flow {flow.stem}: Maestro lost its device server; running it again from a clean driver', flush=True)
+            reset_maestro_driver()
         (out / f'maestro-{flow.stem}.txt').write_text(result.stdout + result.stderr)
         print(f'Flow {flow.stem}: {"passed" if result.returncode == 0 else "failed"}', flush=True)
         if result.returncode != 0:

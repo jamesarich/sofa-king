@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.io.terminate
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.PlaylistMarkers
 import dev.jamesrich.sofaking.backend.playback.SessionManager
+import dev.jamesrich.sofaking.backend.playback.StallWatch
 import dev.jamesrich.sofaking.backend.playback.SteadyPlaylists
 import dev.jamesrich.sofaking.backend.playback.TsFanout
 import dev.jamesrich.sofaking.backend.playback.UpstreamProtocolException
@@ -33,6 +34,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
 import java.io.FileOutputStream
+import java.io.IOException
+import java.io.InputStream
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
@@ -156,15 +159,18 @@ class Recorder internal constructor(
         val bytes = sessions.media.bytesOf(sessionId)
         // A lapse ends FFmpeg and the next session starts clean; only a numbering that starts over is carried on.
         val steady = if (offering.protocol == "hls") SteadyPlaylists(holdLapses = false) else null
-        return relay.reading(stream, offering.protocol, markers = markers, steady = steady) { source ->
-            remux(source, file, until, bytes, steady)
+        val stalls = if (offering.protocol == "hls") StallWatch() else null
+        return relay.reading(stream, offering.protocol, stalls = stalls, markers = markers, steady = steady) { source ->
+            remux(source, file, until, bytes, steady, stalls)
         }
     }
 
     /**
      * FFmpeg's stream copy of [source] appended to [file] until [until]; "NO_MEDIA" when it wrote nothing. A lapse in
-     * any playlist [steady] saw ends it as a stall does: FFmpeg lives on the playlists still advancing, such as a
-     * separate audio rendition, and writes the stream without its picture at a rate the write watchdog never sees.
+     * any playlist [steady] saw, or a playlist [stalls] saw stop advancing, ends it as a stall does: FFmpeg lives on
+     * the playlists still advancing, such as a separate audio rendition, and writes the stream without its picture at
+     * a rate the write watchdog never sees. Destroying FFmpeg closes its output under the blocked read, which then
+     * throws "Stream closed"; that is the end of the read, not a failure of it.
      */
     private suspend fun remux(
         source: FfmpegSource,
@@ -172,12 +178,14 @@ class Recorder internal constructor(
         until: Instant,
         bytes: AtomicLong,
         steady: SteadyPlaylists?,
+        stalls: StallWatch?,
     ): String? {
         val process = ffmpegProcess(
             remuxCommand(ffmpeg, source),
         ).redirectError(ProcessBuilder.Redirect.DISCARD).startOwned()
         var written = 0L
         val stalled = AtomicBoolean()
+        val destroyed = AtomicBoolean()
         val lastWrite = AtomicReference(clock.instant())
         try {
             coroutineScope {
@@ -186,6 +194,7 @@ class Recorder internal constructor(
                     try {
                         delay(Duration.between(clock.instant(), until).toMillis().coerceAtLeast(0))
                     } finally {
+                        destroyed.set(true)
                         process.destroy()
                     }
                 }
@@ -193,8 +202,11 @@ class Recorder internal constructor(
                 val watchdog = launch {
                     while (!stalled.get()) {
                         delay(STALL_CHECK.toMillis())
-                        if (steady?.lapsed == true || Duration.between(lastWrite.get(), clock.instant()) > stallAfter) {
+                        if (steady?.lapsed == true || stalls?.tripped == true ||
+                            Duration.between(lastWrite.get(), clock.instant()) > stallAfter
+                        ) {
                             stalled.set(true)
+                            destroyed.set(true)
                             process.destroy()
                         }
                     }
@@ -204,7 +216,7 @@ class Recorder internal constructor(
                         val input = process.inputStream
                         val buffer = ByteArray(64 * 1024)
                         while (true) {
-                            val read = input.read(buffer)
+                            val read = input.readUnlessDestroyed(buffer, destroyed)
                             if (read < 0) break
                             out.write(buffer, 0, read)
                             written += read
@@ -272,4 +284,14 @@ class Recorder internal constructor(
         private val STALL_AFTER: Duration = Duration.ofSeconds(30)
         private val STALL_CHECK: Duration = Duration.ofSeconds(1)
     }
+}
+
+/**
+ * Reads FFmpeg's output; once the recorder destroyed the process, a read it cut short by closing the stream ends the
+ * output like the end of the stream does.
+ */
+internal fun InputStream.readUnlessDestroyed(buffer: ByteArray, destroyed: AtomicBoolean): Int = try {
+    read(buffer)
+} catch (e: IOException) {
+    if (destroyed.get()) -1 else throw e
 }

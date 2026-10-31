@@ -25,7 +25,10 @@ class PlaylistMarkers {
     private var openFrom: Long? = null
     private var frozen = false
 
-    /** A new read of the source starts: its playlists are new, and a break open at the end of the last one ends. */
+    /**
+     * A new read of the source starts: its playlists are new, and a break open at the end of the last one ends. A read
+     * frozen for a body without playlists that turned out to have them counts again from here.
+     */
     @Synchronized
     fun begin() {
         closeAt(elapsedMs)
@@ -33,6 +36,7 @@ class PlaylistMarkers {
         primary = null
         carrying = false
         carriedMs = 0L
+        frozen = false
     }
 
     /** Stops counting: media of a source without playlists is going into the file. */

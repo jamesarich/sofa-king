@@ -29,6 +29,15 @@ class PlaylistMarkersTest {
         assertEquals(listOf(RecordingBreak(6_000, 12_000)), markers.breaks())
     }
 
+    @Test fun `a read frozen before its body proved to be a playlist counts its markers once begun`() {
+        val markers = PlaylistMarkers()
+        markers.freeze()
+        markers.begin()
+        markers.playlist(playlist(0, 7, mapOf(3 to "#EXT-X-CUE-OUT:6", 6 to "#EXT-X-CUE-IN")), source)
+        markers.fetch(0..7)
+        assertEquals(listOf(RecordingBreak(6_000, 12_000)), markers.breaks())
+    }
+
     @Test fun `a cue that left the window carries on through the refreshes until its cue in`() {
         val markers = PlaylistMarkers()
         markers.begin()

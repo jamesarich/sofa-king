@@ -59,7 +59,7 @@ coil = "3.6.3"
 # The open-source licenses screen: its Gradle plugin lists the dependencies at build time, its Compose UI draws them.
 aboutlibraries = "15.3.0"
 exposed = "1.6.0"
-sqlite = "3.53.4.0"
+sqlite = "3.54.1.0"
 logback = "1.6.6"
 zxing = "3.5.4"
 jmdns = "3.6.5"

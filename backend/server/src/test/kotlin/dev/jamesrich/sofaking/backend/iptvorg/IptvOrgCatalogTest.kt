@@ -117,6 +117,24 @@ class IptvOrgCatalogTest {
         assertEquals(7, catalog.data.channels.size, "the copy on disk is the good one")
     }
 
+    @Test fun `refuses a blocklist that lost more than half of its entries`() = providerTest("iptv-org-") {
+        serveIptvOrg()
+        fixture.json(
+            "/api/blocklist.json",
+            """[{"channel":"Blocked.us","reason":"dmca","ref":"https://example/1"},""" +
+                """{"channel":"Two.us","reason":"dmca","ref":"https://example/2"},""" +
+                """{"channel":"Three.us","reason":"nsfw","ref":"https://example/3"}]""",
+        )
+        val catalog = iptvOrgCatalog(Files.createTempDirectory("iptv-org-data"), { IptvOrgSettings(metadata = true) })
+        catalog.refresh()
+        assertEquals(3, catalog.data.blocklist.size)
+        fixture.json("/api/blocklist.json", """[{"channel":"Blocked.us","reason":"dmca","ref":"https://example/1"}]""")
+        val outcome = catalog.refresh()
+        assertFalse(outcome.ok)
+        assertTrue("refused a download of 1 entries after 3" in outcome.note.orEmpty(), outcome.note)
+        assertEquals(3, catalog.data.blocklist.size, "the blocked channels stay blocked")
+    }
+
     @Test fun `makes no request while both parts are off`() = providerTest("iptv-org-") {
         serveIptvOrg()
         val catalog = iptvOrgCatalog(Files.createTempDirectory("iptv-org-data"), { IptvOrgSettings() })

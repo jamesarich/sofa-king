@@ -262,7 +262,8 @@ class IptvOrgCatalog(
         private val BASE_FILES = listOf("channels.json", "logos.json", "blocklist.json", "timezones.json")
 
         /** Files whose entry count must not fall by more than half between downloads. */
-        private val GUARDED = setOf("channels.json", "streams.json")
+        // A blocklist that shrank would let blocked channels match, so it is held to the same floor.
+        private val GUARDED = setOf("channels.json", "streams.json", "blocklist.json")
         private const val LIMIT = 64 * MIB
         val INTERVAL: Duration = Duration.ofDays(7)
         private val RETRY: Duration = Duration.ofHours(6)

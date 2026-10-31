@@ -22,13 +22,23 @@ class SteadyPlaylists(private val limit: Int = 16, private val holdLapses: Boole
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Timeline>) = size > limit
     }
 
+    /**
+     * Whether a playlist that held segments has come back empty with an end marker. A reader that lives on the other
+     * playlists of the source, such as a separate audio rendition, then writes only part of the stream.
+     */
+    @Volatile var lapsed = false
+        private set
+
     /** [text] as the player should get it from [source]: held over a lapse, and numbered on across a restart. */
     @Synchronized
     fun steady(text: String, source: URI): String {
         val key = source.toString()
         val timeline = timelines[key]
         val segments = text.contains("#EXTINF")
-        if (!segments && text.contains("#EXT-X-ENDLIST")) return if (holdLapses) timeline?.sent ?: text else text
+        if (!segments && text.contains("#EXT-X-ENDLIST")) {
+            if (timeline != null) lapsed = true
+            return if (holdLapses) timeline?.sent ?: text else text
+        }
         if (!segments || text.contains("#EXT-X-ENDLIST")) return text
         val window = Window.parse(text)
         return (timeline ?: Timeline().also { timelines[key] = it }).next(window)

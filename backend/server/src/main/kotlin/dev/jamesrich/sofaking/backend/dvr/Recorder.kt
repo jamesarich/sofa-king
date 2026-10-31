@@ -26,6 +26,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -62,7 +63,7 @@ class Recorder internal constructor(
     private val clock: Clock,
     /** The relay FFmpeg reads the source through. */
     private val relay: LoopbackRelay,
-    /** How long to wait before reopening a source that ended or could not be opened. */
+    /** The longest to wait before reopening a source that failed; one that ended or sent nothing is reopened sooner. */
     private val retryDelay: Duration = RETRY_DELAY,
     /**
      * Joins an MPEG-TS source's one shared upstream connection, the one players of it read; null
@@ -79,8 +80,10 @@ class Recorder internal constructor(
         withContext(Dispatchers.IO) { Files.createDirectories(file.parent) }
         var failure: String? = null
         val markers = PlaylistMarkers()
+        val reopen = ReopenDelay(retryDelay)
+        var outcome: String?
         while (clock.instant() < until) {
-            failure =
+            outcome =
                 runCatchingCancellable { attempt(channelId, file, until, markers) }.getOrElse { e ->
                     when (e) {
                         is ApiFailure -> e.code
@@ -97,9 +100,10 @@ class Recorder internal constructor(
                             e.javaClass.simpleName
                         }
                     }
-                } ?: failure
+                }
+            failure = outcome ?: failure
             val left = Duration.between(clock.instant(), until)
-            if (left > Duration.ZERO) delay(minOf(left, retryDelay).toMillis())
+            if (left > Duration.ZERO) delay(minOf(left, reopen.after(outcome)).toMillis())
         }
         val bytes = withContext(Dispatchers.IO) { if (Files.exists(file)) Files.size(file) else 0L }
         return RecordedTake(bytes, failure, markers.breaks())
@@ -117,23 +121,24 @@ class Recorder internal constructor(
                 coroutineScope {
                     sessions.media.attach(session.id, coroutineContext.job)
                     read(session.id, file, until, markers)
-                }.also {
-                    // The only trace of why a recording that came up short ended each of its reads.
-                    log.info(
-                        "recording read ended channel={} bytes={} reason={}",
-                        channelId,
-                        sessions.media.bytesOf(session.id).get(),
-                        it ?: "SOURCE_ENDED",
-                    )
-                }
+                }.also { readEnded(channelId, session.id, it ?: "SOURCE_ENDED") }
             } catch (_: CancellationException) {
-                // Rethrown when the recording itself was canceled; otherwise the session ended under this attempt.
+                // Rethrown when the recording itself was canceled, as it is at its deadline, which ends the last read;
+                // otherwise the session ended under this attempt.
+                val canceled = !currentCoroutineContext().isActive
+                readEnded(channelId, session.id, if (canceled) "CANCELED" else "SESSION_ENDED")
                 currentCoroutineContext().ensureActive()
                 "SESSION_ENDED"
             }
         } finally {
             withContext(NonCancellable) { sessions.release(session.id) }
         }
+    }
+
+    /** The only trace of why a recording that came up short ended each of its reads, and of what the read appended. */
+    private suspend fun readEnded(channelId: String, sessionId: String, reason: String) {
+        val bytes = withContext(NonCancellable) { sessions.media.bytesOf(sessionId).get() }
+        log.info("recording read ended channel={} bytes={} reason={}", channelId, bytes, reason)
     }
 
     /** Reads the session's source into [file] until [until], through the shared connection or FFmpeg. */
@@ -150,18 +155,24 @@ class Recorder internal constructor(
         }
         val bytes = sessions.media.bytesOf(sessionId)
         // A lapse ends FFmpeg and the next session starts clean; only a numbering that starts over is carried on.
-        return relay.reading(
-            stream,
-            offering.protocol,
-            markers = markers,
-            steady = if (offering.protocol == "hls") SteadyPlaylists(holdLapses = false) else null,
-        ) { source ->
-            remux(source, file, until, bytes)
+        val steady = if (offering.protocol == "hls") SteadyPlaylists(holdLapses = false) else null
+        return relay.reading(stream, offering.protocol, markers = markers, steady = steady) { source ->
+            remux(source, file, until, bytes, steady)
         }
     }
 
-    /** FFmpeg's stream copy of [source] appended to [file] until [until]; "NO_MEDIA" when it wrote nothing. */
-    private suspend fun remux(source: FfmpegSource, file: Path, until: Instant, bytes: AtomicLong): String? {
+    /**
+     * FFmpeg's stream copy of [source] appended to [file] until [until]; "NO_MEDIA" when it wrote nothing. A lapse in
+     * any playlist [steady] saw ends it as a stall does: FFmpeg lives on the playlists still advancing, such as a
+     * separate audio rendition, and writes the stream without its picture at a rate the write watchdog never sees.
+     */
+    private suspend fun remux(
+        source: FfmpegSource,
+        file: Path,
+        until: Instant,
+        bytes: AtomicLong,
+        steady: SteadyPlaylists?,
+    ): String? {
         val process = ffmpegProcess(
             remuxCommand(ffmpeg, source),
         ).redirectError(ProcessBuilder.Redirect.DISCARD).startOwned()
@@ -182,7 +193,7 @@ class Recorder internal constructor(
                 val watchdog = launch {
                     while (!stalled.get()) {
                         delay(STALL_CHECK.toMillis())
-                        if (Duration.between(lastWrite.get(), clock.instant()) > stallAfter) {
+                        if (steady?.lapsed == true || Duration.between(lastWrite.get(), clock.instant()) > stallAfter) {
                             stalled.set(true)
                             process.destroy()
                         }

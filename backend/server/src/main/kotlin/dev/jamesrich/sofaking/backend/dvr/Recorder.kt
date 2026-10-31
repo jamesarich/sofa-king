@@ -180,9 +180,11 @@ class Recorder internal constructor(
         steady: SteadyPlaylists?,
         stalls: StallWatch?,
     ): String? {
+        // FFmpeg's own account of the read, logged when it ends: the only view of what the source served it.
+        val errors = withContext(Dispatchers.IO) { Files.createTempFile("sofa-recording-", ".log") }
         val process = ffmpegProcess(
             remuxCommand(ffmpeg, source),
-        ).redirectError(ProcessBuilder.Redirect.DISCARD).startOwned()
+        ).redirectError(errors.toFile()).startOwned()
         var written = 0L
         val stalled = AtomicBoolean()
         val destroyed = AtomicBoolean()
@@ -230,11 +232,27 @@ class Recorder internal constructor(
             }
         } finally {
             process.terminate()
+            logFfmpeg(errors, file)
         }
         return when {
             stalled.get() -> "SOURCE_STALLED"
             written == 0L -> "NO_MEDIA"
             else -> null
+        }
+    }
+
+    /** Logs the last lines FFmpeg wrote to [errors] about its read of [file], then removes the file. */
+    private suspend fun logFfmpeg(errors: Path, file: Path) = withContext(NonCancellable + Dispatchers.IO) {
+        val tail = runCatching { Files.readAllLines(errors) }.getOrDefault(emptyList())
+            .takeLast(FFMPEG_LINES).joinToString(" | ")
+        Files.deleteIfExists(errors)
+        // Segment URLs can carry tokens, so the lines go through the same redaction as other FFmpeg output.
+        if (tail.isNotEmpty()) {
+            log.info(
+                "recording ffmpeg file=\"{}\" last=\"{}\"",
+                file.fileName,
+                redactedMessage(tail),
+            )
         }
     }
 
@@ -283,6 +301,9 @@ class Recorder internal constructor(
         /** Long enough for FFmpeg to open a slow source and fill a first segment, short of a minute of lost media. */
         private val STALL_AFTER: Duration = Duration.ofSeconds(30)
         private val STALL_CHECK: Duration = Duration.ofSeconds(1)
+
+        /** How many of FFmpeg's last lines a read's log line keeps. */
+        private const val FFMPEG_LINES = 4
     }
 }
 

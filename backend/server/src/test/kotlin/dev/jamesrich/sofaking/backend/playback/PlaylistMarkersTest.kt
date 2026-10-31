@@ -19,7 +19,45 @@ class PlaylistMarkersTest {
         }
     }
 
-    private fun PlaylistMarkers.fetch(range: IntRange) = range.forEach { segment(segment(it)) }
+    private fun PlaylistMarkers.fetch(range: IntRange, bytes: Long = 0L) = range.forEach { segment(segment(it), bytes) }
+
+    @Test fun `segments fetched but never written are taken back, and the next read's offsets follow the file`() {
+        val markers = PlaylistMarkers()
+        markers.begin()
+        markers.playlist(playlist(0, 5, mapOf(4 to "#EXT-X-CUE-OUT:4")), source)
+        markers.fetch(0..5, bytes = 1000)
+        // Six segments of a thousand bytes were fetched, and the file holds the first four and a half.
+        markers.end(written = 4500)
+        markers.begin()
+        markers.playlist(playlist(10, 11), source)
+        markers.fetch(10..11, bytes = 1000)
+        assertEquals(listOf(RecordingBreak(8_000, 10_000)), markers.breaks())
+    }
+
+    @Test fun `a break that began only in segments never written is not kept`() {
+        val markers = PlaylistMarkers()
+        markers.begin()
+        markers.playlist(playlist(0, 5, mapOf(4 to "#EXT-X-CUE-OUT:4")), source)
+        markers.fetch(0..5, bytes = 1000)
+        markers.end(written = 3500)
+        assertEquals(emptyList(), markers.breaks())
+    }
+
+    @Test fun `a read written in full loses nothing, and one with unknown sizes is left as counted`() {
+        val full = PlaylistMarkers()
+        full.begin()
+        full.playlist(playlist(0, 5, mapOf(4 to "#EXT-X-CUE-OUT:4")), source)
+        full.fetch(0..5, bytes = 1000)
+        full.end(written = 6000)
+        assertEquals(listOf(RecordingBreak(8_000, 12_000)), full.breaks())
+
+        val unknown = PlaylistMarkers()
+        unknown.begin()
+        unknown.playlist(playlist(0, 5, mapOf(4 to "#EXT-X-CUE-OUT:4")), source)
+        unknown.fetch(0..5)
+        unknown.end(written = 100)
+        assertEquals(listOf(RecordingBreak(8_000, 12_000)), unknown.breaks())
+    }
 
     @Test fun `a cue out and in place the break at the media's offsets`() {
         val markers = PlaylistMarkers()

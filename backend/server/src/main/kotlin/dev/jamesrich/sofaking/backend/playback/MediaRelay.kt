@@ -406,7 +406,7 @@ private const val ENCODED_LIMIT = 8 * 1024 * 1024
  * an upstream status other than 200 or 206. Given [tap], a transport stream segment is read for SCTE-35 cues as it
  * streams (see [SpliceReader]), and [tap] gets what it carried once all of it is answered, with its bytes when
  * [keepBytes]. [streamed] hears of each resource streamed as the upstream sent it, a segment rather than a
- * manifest.
+ * manifest, with the bytes it answered.
  */
 internal suspend fun relayResource(
     http: HttpClient,
@@ -428,7 +428,7 @@ internal suspend fun relayResource(
     manifest: suspend (String, URI) -> String = { text, _ -> text },
     tap: ((TappedSegment) -> Unit)? = null,
     keepBytes: Boolean = false,
-    streamed: () -> Unit = {},
+    streamed: (Long) -> Unit = {},
 ) {
     http.withUpstreamResponse(
         url,
@@ -444,7 +444,11 @@ internal suspend fun relayResource(
         // Some origins gzip a manifest whatever the request asked for; the signature is in the inflated bytes.
         val protocol = sniffProtocol(inflateHead(head))
         sniffed(protocol)
-        val relayed = RelayedBody(call, response, body, head, sent)
+        var answered = 0L
+        val relayed = RelayedBody(call, response, body, head) { count ->
+            answered += count
+            sent(count)
+        }
         call.response.header(HttpHeaders.CacheControl, "no-store")
         when {
             relayed.isManifest(protocol) -> relayed.manifest(manifest, path)
@@ -453,7 +457,7 @@ internal suspend fun relayResource(
 
             else -> {
                 relayed.streamed(tap?.takeIf { protocol == "mpegts" }, keepBytes)
-                streamed()
+                streamed(answered)
             }
         }
     }

@@ -185,8 +185,19 @@ class Recorder internal constructor(
         // A lapse ends FFmpeg and the next session starts clean; only a numbering that starts over is carried on.
         val steady = if (hls) SteadyPlaylists(holdLapses = false) else null
         val stalls = if (hls) StallWatch() else null
-        return relay.reading(stream, offering.protocol, stalls = stalls, markers = markers, steady = steady) { source ->
-            remux(source, file, until, bytes, steady, stalls, rate)
+        try {
+            return relay.reading(
+                stream,
+                offering.protocol,
+                stalls = stalls,
+                markers = markers,
+                steady = steady,
+            ) { source ->
+                remux(source, file, until, bytes, steady, stalls, rate)
+            }
+        } finally {
+            // Segments FFmpeg fetched and never muxed are not in the file, so the markers' clock takes them back.
+            markers.end(bytes.get())
         }
     }
 

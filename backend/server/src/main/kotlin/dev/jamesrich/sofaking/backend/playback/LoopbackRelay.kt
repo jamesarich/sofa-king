@@ -228,7 +228,7 @@ class LoopbackRelay(
                         lease.stream,
                         path = lease::path,
                         manifest = lease::watch,
-                        streamed = { lease.markers?.segment(url) },
+                        streamed = { bytes -> lease.markers?.segment(url, bytes) },
                         refused = { status ->
                             val answer = if (status in UPSTREAM_ERRORS) {
                                 HttpStatusCode.fromValue(status)

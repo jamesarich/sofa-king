@@ -14,6 +14,9 @@ import java.net.URI
 class PlaylistMarkers {
     private class Seen(val durationMs: Long, var ad: Boolean, var counted: Boolean = false)
 
+    /** A segment this read counted: where it starts on the file's clock, and the bytes of the read before and in it. */
+    private class Counted(val startMs: Long, val bytesBefore: Long, val bytes: Long)
+
     private val seen = object : LinkedHashMap<String, Seen>(64, 0.75f, false) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Seen>) = size > SEEN_LIMIT
     }
@@ -24,6 +27,8 @@ class PlaylistMarkers {
     private var elapsedMs = 0L
     private var openFrom: Long? = null
     private var frozen = false
+    private val counted = ArrayList<Counted>()
+    private var readBytes = 0L
 
     /**
      * A new read of the source starts: its playlists are new, and a break open at the end of the last one ends. A read
@@ -37,6 +42,24 @@ class PlaylistMarkers {
         carrying = false
         carriedMs = 0L
         frozen = false
+        counted.clear()
+        readBytes = 0L
+    }
+
+    /**
+     * The read ends having written [written] bytes to the file. FFmpeg reads ahead, so segments it had fetched may
+     * never have been muxed, and counting them would put every later offset late; a segment whose middle lies beyond
+     * what was written is taken back, the clock with it, and breaks that began in it with them.
+     */
+    @Synchronized
+    fun end(written: Long) {
+        if (frozen) return
+        val cut = counted.firstOrNull { it.bytesBefore + it.bytes / 2 > written } ?: return
+        elapsedMs = cut.startMs
+        found.removeAll { it.startMs >= elapsedMs }
+        found.replaceAll { if (it.endMs > elapsedMs) RecordingBreak(it.startMs, elapsedMs) else it }
+        if (openFrom?.let { it >= elapsedMs } == true) openFrom = null
+        counted.clear()
     }
 
     /** Stops counting: media of a source without playlists is going into the file. */
@@ -72,12 +95,17 @@ class PlaylistMarkers {
         seen[segment.url] = Seen(segment.durationMs, segment.ad || carried)
     }
 
-    /** FFmpeg finished fetching [url]; if it is a segment of the playlist being read, the file now holds it. */
+    /**
+     * FFmpeg finished fetching [url], [bytes] long; if it is a segment of the playlist being read, the file will hold
+     * it, which [end] checks against what was written.
+     */
     @Synchronized
-    fun segment(url: String) {
+    fun segment(url: String, bytes: Long = 0L) {
         if (frozen) return
         val seg = seen[url]?.takeUnless { it.counted } ?: return
         seg.counted = true
+        counted += Counted(elapsedMs, readBytes, bytes)
+        readBytes += bytes
         if (seg.ad) {
             if (openFrom == null) openFrom = elapsedMs
         } else {

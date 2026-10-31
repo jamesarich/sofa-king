@@ -140,8 +140,11 @@ class Recorder internal constructor(
 
     /** The only trace of why a recording that came up short ended each of its reads, and of what the read appended. */
     private suspend fun readEnded(channelId: String, sessionId: String, reason: String) {
-        val bytes = withContext(NonCancellable) { sessions.media.bytesOf(sessionId).get() }
-        log.info("recording read ended channel={} bytes={} reason={}", channelId, bytes, reason)
+        // A session that ended under the read answers SESSION_EXPIRED here; the count is then unknown, not an error.
+        val bytes = withContext(NonCancellable) {
+            runCatchingCancellable { sessions.media.bytesOf(sessionId).get() }.getOrNull()
+        }
+        log.info("recording read ended channel={} bytes={} reason={}", channelId, bytes ?: "unknown", reason)
     }
 
     /** Reads the session's source into [file] until [until], through the shared connection or FFmpeg. */

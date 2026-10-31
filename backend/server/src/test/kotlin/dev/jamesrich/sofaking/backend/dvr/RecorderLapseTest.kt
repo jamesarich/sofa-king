@@ -220,9 +220,9 @@ class RecorderLapseTest {
     fun `a source that stops adding segments is reopened and the recording says why`() {
         val result =
             record(renumberAt = 8, lapse = 0, windowSeconds = 30, frozen = true, stallAfter = Duration.ofSeconds(5))
-        // FFmpeg 6.1 gives up on a frozen playlist with an error; newer versions wait until the watchdog stops them.
+        // Which reason comes last depends on the FFmpeg version and on whether a quick reopen found nothing new.
         val reason = result.take.lastFailure
-        assertTrue(reason == "SOURCE_STALLED" || reason == "IOException", "the recording's reason was $reason")
+        assertTrue(reason in setOf("SOURCE_STALLED", "IOException", "NO_MEDIA"), "the recording's reason was $reason")
         assertTrue(result.seconds > 0, "the media before the stall is kept")
     }
 

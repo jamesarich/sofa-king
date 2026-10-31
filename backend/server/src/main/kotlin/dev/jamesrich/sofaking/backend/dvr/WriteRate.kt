@@ -18,6 +18,15 @@ internal class WriteRate(
     private var started: Instant? = null
     private var peak = 0L
 
+    /**
+     * A new read of the same recording starts, its count from zero: the best window carries over, since a read slow
+     * from its first byte has no window of its own to show it up.
+     */
+    fun begin() {
+        samples.clear()
+        started = null
+    }
+
     /** Records [written] bytes so far at [now]; true once a window wrote under a [floor]th of the best window. */
     fun slowed(written: Long, now: Instant): Boolean {
         val first = started ?: now.also { started = it }

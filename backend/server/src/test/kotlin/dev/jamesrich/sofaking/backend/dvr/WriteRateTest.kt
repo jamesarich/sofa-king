@@ -41,6 +41,14 @@ class WriteRateTest {
         assertFalse(slowed)
     }
 
+    @Test fun `a read slow from its first byte is slowed against the read before it`() {
+        val rate = WriteRate()
+        run(rate, 0, 120, 326_000, 0)
+        rate.begin()
+        val (slowed, _) = run(rate, 120, 91, 30_000, 0)
+        assertTrue(slowed, "the best window of the first read shows the second up")
+    }
+
     @Test fun `a drop to a third is the line`() {
         val rate = WriteRate(window = Duration.ofSeconds(10), settle = Duration.ofSeconds(20))
         val (_, written) = run(rate, 0, 60, 300, 0)

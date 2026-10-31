@@ -84,10 +84,12 @@ class Recorder internal constructor(
         var failure: String? = null
         val markers = PlaylistMarkers()
         val reopen = ReopenDelay(retryDelay)
+        // One for the recording: a read's best window is the measure for the reads after it.
+        val rate = WriteRate()
         var outcome: String?
         while (clock.instant() < until) {
             outcome =
-                runCatchingCancellable { attempt(channelId, file, until, markers) }.getOrElse { e ->
+                runCatchingCancellable { attempt(channelId, file, until, markers, rate) }.getOrElse { e ->
                     when (e) {
                         is ApiFailure -> e.code
 
@@ -117,7 +119,13 @@ class Recorder internal constructor(
      * The session holds only this attempt's job, so ending the session (a release, or its source going bad) ends the
      * attempt and the next one reopens, never the whole recording.
      */
-    private suspend fun attempt(channelId: String, file: Path, until: Instant, markers: PlaylistMarkers): String? {
+    private suspend fun attempt(
+        channelId: String,
+        file: Path,
+        until: Instant,
+        markers: PlaylistMarkers,
+        rate: WriteRate,
+    ): String? {
         val session = sessions.external.open(channelId, CLIENT, shareable = false)
         // Taken while the session is up: most reads end because it went, and the table then no longer answers for it.
         val counter = sessions.media.bytesOf(session.id)
@@ -125,7 +133,7 @@ class Recorder internal constructor(
             return try {
                 coroutineScope {
                     sessions.media.attach(session.id, coroutineContext.job)
-                    read(session.id, file, until, markers)
+                    read(session.id, file, until, markers, rate)
                 }.also { readEnded(channelId, counter, it ?: "SOURCE_ENDED") }
             } catch (_: CancellationException) {
                 // Rethrown when the recording itself was canceled, as it is at its deadline, which ends the last read;
@@ -146,7 +154,13 @@ class Recorder internal constructor(
     }
 
     /** Reads the session's source into [file] until [until], through the shared connection or FFmpeg. */
-    private suspend fun read(sessionId: String, file: Path, until: Instant, markers: PlaylistMarkers): String? {
+    private suspend fun read(
+        sessionId: String,
+        file: Path,
+        until: Instant,
+        markers: PlaylistMarkers,
+        rate: WriteRate,
+    ): String? {
         val offering = sessions.media.offeringOf(sessionId)
         var hls = offering.protocol == "hls"
         // Only a playlist says how long the media is; a source without one leaves later offsets unknown.
@@ -166,7 +180,7 @@ class Recorder internal constructor(
         val steady = if (hls) SteadyPlaylists(holdLapses = false) else null
         val stalls = if (hls) StallWatch() else null
         return relay.reading(stream, offering.protocol, stalls = stalls, markers = markers, steady = steady) { source ->
-            remux(source, file, until, bytes, steady, stalls)
+            remux(source, file, until, bytes, steady, stalls, rate)
         }
     }
 
@@ -184,6 +198,7 @@ class Recorder internal constructor(
         bytes: AtomicLong,
         steady: SteadyPlaylists?,
         stalls: StallWatch?,
+        rate: WriteRate,
     ): String? {
         // FFmpeg's own account of the read, logged when it ends: the only view of what the source served it.
         val errors = withContext(Dispatchers.IO) { Files.createTempFile("sofa-recording-", ".log") }
@@ -208,7 +223,7 @@ class Recorder internal constructor(
                 // FFmpeg that is alive and writes nothing, or a fraction of what it did, is on a source that will not
                 // answer it or has lost its picture: reopen.
                 val watchdog = launch {
-                    val rate = WriteRate()
+                    rate.begin()
                     while (!stalled.get()) {
                         delay(STALL_CHECK.toMillis())
                         val now = clock.instant()

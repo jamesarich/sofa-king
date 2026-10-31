@@ -179,6 +179,36 @@ class AuthPathTest {
             }
         }
 
+    @Test fun `the admin token opens the outputs off this machine when it is the only token`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-auth-output-admin-")
+        val store = openStore(dir)
+        try {
+            application {
+                backendModule(store, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), apiToken = null, adminToken = "root")
+                routing {
+                    get("/output/playlist.m3u") {
+                        authorizeOutput(call, outputToken = null, apiToken = null, adminToken = "root")
+                        call.respondText("playlist")
+                    }
+                }
+            }
+            val admin = client.get("/output/playlist.m3u") {
+                header(HttpHeaders.XForwardedFor, "203.0.113.9")
+                header(HttpHeaders.Authorization, "Bearer root")
+            }
+            assertEquals("playlist", admin.bodyAsText())
+            val wrong = client.get("/output/playlist.m3u") {
+                header(HttpHeaders.XForwardedFor, "203.0.113.9")
+                header(HttpHeaders.Authorization, "Bearer toor")
+            }
+            assertEquals(HttpStatusCode.Forbidden, wrong.status)
+            assertTrue("LOOPBACK_ONLY" in wrong.bodyAsText())
+        } finally {
+            store.close()
+            dir.toFile().deleteRecursively()
+        }
+    }
+
     @Test fun `without a token the outputs answer only this machine, not a proxy`() = testApplication {
         val dir = Files.createTempDirectory("sofa-auth-output-")
         val store = openStore(dir)

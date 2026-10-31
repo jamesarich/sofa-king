@@ -64,7 +64,10 @@ class Commercials(
 
         /** Writes [breaks] to the EDL beside [recording], replacing one that is there; none leaves no file. */
         fun writeEdl(recording: Path, breaks: List<RecordingBreak>) {
-            if (breaks.isEmpty()) return
+            if (breaks.isEmpty()) {
+                Files.deleteIfExists(sidecar(recording))
+                return
+            }
             val lines = breaks.joinToString("") {
                 val start = it.startMs.toDouble() / MS_PER_SECOND
                 val end = it.endMs.toDouble() / MS_PER_SECOND

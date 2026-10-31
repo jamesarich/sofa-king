@@ -46,6 +46,19 @@ class CommercialsTest {
         assertEquals(listOf(RecordingBreak(1000, 2000)), Commercials.parseEdl("1 2"))
     }
 
+    @Test fun `writing no breaks removes the EDL a rescan left behind`() {
+        val dir = Files.createTempDirectory("sofa-edl-")
+        try {
+            val recording = dir.resolve("Show - S01E01.ts")
+            Commercials.writeEdl(recording, listOf(RecordingBreak(1000, 2000)))
+            assertEquals("1.00\t2.00\t3\n", Files.readString(dir.resolve("Show - S01E01.edl")))
+            Commercials.writeEdl(recording, emptyList())
+            assertFalse(Files.exists(dir.resolve("Show - S01E01.edl")))
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
     @Test
     fun `breaks are kept beside the recording, none leave no EDL, and a failing run throws`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-comskip-")

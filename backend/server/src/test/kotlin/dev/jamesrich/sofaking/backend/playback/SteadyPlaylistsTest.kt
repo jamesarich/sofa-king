@@ -3,6 +3,8 @@ package dev.jamesrich.sofaking.backend.playback
 import java.net.URI
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class SteadyPlaylistsTest {
     private val source = URI("https://siloh-ns1.plutotv.net/v2/stitch/hls/channel/5f1ac1f1/1600/playlist.m3u8")
@@ -41,6 +43,17 @@ class SteadyPlaylistsTest {
                 URI("https://siloh-ns1.plutotv.net/v2/stitch/hls/channel/5f1ac1f1/300/playlist.m3u8"),
             ),
         )
+    }
+
+    @Test fun `a lapse is noted only after the playlist held segments`() {
+        val playlists = SteadyPlaylists(holdLapses = false)
+        playlists.steady(ended, source)
+        assertFalse(playlists.lapsed, "an empty first answer is a fresh session, not a lapse")
+
+        playlists.steady(live, source)
+        assertFalse(playlists.lapsed)
+        playlists.steady(ended, source)
+        assertTrue(playlists.lapsed)
     }
 
     @Test fun `a finished playlist with segments and a master playlist pass through untouched`() {

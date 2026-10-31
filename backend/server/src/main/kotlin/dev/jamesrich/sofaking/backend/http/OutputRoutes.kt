@@ -207,17 +207,18 @@ internal fun authorizeOutput(
     apiToken: String?,
     adminToken: String? = null,
 ) {
+    val bearer = call.request.headers[HttpHeaders.Authorization]?.takeIf {
+        it.startsWith("Bearer ")
+    }?.removePrefix("Bearer ")
     if (outputToken == null && apiToken == null) {
-        if (call.request.fromThisMachine()) return
+        // The admin token opens every route, the outputs among them, wherever the call comes from.
+        if (call.request.fromThisMachine() || (adminToken != null && sameSecret(bearer, adminToken))) return
         throw ApiFailure(
             HttpStatusCode.Forbidden,
             "LOOPBACK_ONLY",
             "Without a token the outputs answer only this machine",
         )
     }
-    val bearer = call.request.headers[HttpHeaders.Authorization]?.takeIf {
-        it.startsWith("Bearer ")
-    }?.removePrefix("Bearer ")
     val query = call.request.queryParameters["token"]
     val authorized =
         (outputToken != null && (sameSecret(query, outputToken) || sameSecret(bearer, outputToken))) ||

@@ -6,11 +6,13 @@ import dev.jamesrich.sofaking.backend.playback.AUDIO_RATE
 import dev.jamesrich.sofaking.backend.playback.LOUDNESS_WINDOW_MS
 import dev.jamesrich.sofaking.backend.playback.SILENT_DB
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Files
@@ -60,9 +62,13 @@ class RecordingAudio(private val ffmpeg: String, private val timeout: Duration =
         val process = ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).startOwned()
         try {
             return coroutineScope {
+                // A pipe read cannot be interrupted, so a cancel ends FFmpeg too, which ends the read.
                 val watchdog = launch {
-                    delay(timeout)
-                    process.terminate()
+                    try {
+                        delay(timeout)
+                    } finally {
+                        withContext(NonCancellable) { process.terminate() }
+                    }
                 }
                 val output = runInterruptible(Dispatchers.IO) { process.inputStream.use(read) }
                 val exit = process.onExit().await().exitValue()

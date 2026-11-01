@@ -6,7 +6,7 @@ This page sets Sofa King next to the servers people usually come from and says w
 
 | | Sofa King | Plex | Jellyfin | Emby | Channels DVR |
 | --- | --- | --- | --- | --- | --- |
-| Price | Free | Free tier; Plex Pass lifetime $749.99 since July 1, 2026 ([Plex, May 18, 2026](https://forums.plex.tv/t/new-lifetime-plex-pass-pricing/938910)) | Free | Free tier; Emby Premiere ([options](https://emby.media/support/articles/Premiere-Membership-Options.html)) | $8 a month or $80 a year ([Channels, read October 25, 2026](https://getchannels.com/docs/getting-started/quick-start-guide/subscription/)) |
+| Price | Free | Free tier; Plex Pass lifetime $749.99 since July 1, 2026 ([Plex, May 18, 2026](https://forums.plex.tv/t/new-lifetime-plex-pass-pricing/938910)) | Free | Emby Premiere unlocks the full feature set, monthly, yearly or for life ([options](https://emby.media/support/articles/Premiere-Membership-Options.html)) | $8 a month or $80 a year ([Channels, read October 25, 2026](https://getchannels.com/docs/getting-started/quick-start-guide/subscription/)) |
 | Account | None | A Plex account | None | Emby Connect optional | A Channels account |
 | Source code | Open, GPL-3.0 | Closed | Open, GPL-2.0 | Closed | Closed |
 | Merges sources into one lineup, with failover | Yes | No | No | No | No |

@@ -59,7 +59,7 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | A line under Record says the server did not take it | The program is not in the server's guide, or has ended. The server's [troubleshooting](../../backend/docs/troubleshooting.md#recordings) has the rest. |
 | `CAPACITY_EXHAUSTED` playing a library item or a recording | The server is already converting as many files as it allows ([conversion](usage.md#conversion-progress-and-up-next)). Stop playback elsewhere and try again. |
 | A jump in a library item takes a moment | The server converts that file as it plays, and a jump past what it has converted restarts the conversion there. |
-| No commercial breaks on the seek bar | The server's Comskip scan found none, or has not finished; Skip commercials has nothing to skip. |
+| No commercial breaks on the seek bar | The server's [commercial scan](../../backend/docs/recordings.md#commercial-breaks) found none, or has not finished; Skip commercials has nothing to skip. |
 
 ## Captions
 

@@ -5,7 +5,7 @@ Library versions are exact pins in [the version catalog](../../gradle/libs.versi
 | Component | Version |
 | --- | --- |
 | htmx | 2.0.11 |
-| Gradle | 9.9.0-milestone-2 |
+| Gradle | 9.9.0-rc-1 |
 | Foojay toolchain resolver | 1.0.0 |
 | JDK toolchain | 21 |
 

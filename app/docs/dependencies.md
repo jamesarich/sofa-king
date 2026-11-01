@@ -4,7 +4,7 @@ Every library and plugin version is an exact pin in [the version catalog](../../
 
 | Component | Version |
 | --- | --- |
-| Gradle | 9.9.0-milestone-2 |
+| Gradle | 9.9.0-rc-1 |
 | Foojay toolchain resolver | 1.0.0 |
 | JDK toolchain | 21 |
 | Android compile SDK | 37.1 |

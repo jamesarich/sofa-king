@@ -34,10 +34,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -101,6 +103,7 @@ internal fun ChannelRow(
                         channel = channel,
                         cell = cell,
                         airing = cell.program != null && cell.covers(nowMinute),
+                        nowMinute = nowMinute,
                         env = env,
                         compact = compact,
                         focusRequester = cellFocus[index],
@@ -183,6 +186,7 @@ private fun GuideCellItem(
     channel: Channel,
     cell: GuideCell,
     airing: Boolean,
+    nowMinute: Long?,
     env: GuideRowEnv,
     compact: Boolean,
     focusRequester: FocusRequester,
@@ -218,14 +222,24 @@ private fun GuideCellItem(
             derivedStateOf { (env.scrollState.value - cellStartPx).coerceIn(0f, cellWidthPx).roundToInt() }
         }
         Box(Modifier.fillMaxSize()) {
+            // Airing shows as a bar that runs from the cell's start to the now line; a focused cell is solid primary.
+            if (airing && !focused && nowMinute != null) {
+                val barWidthPx = ((nowMinute - cell.startMinute) * env.minutePx).coerceIn(0f, cellWidthPx)
+                val barColor = colors.primary
+                val minBarPx = with(LocalDensity.current) { 3.dp.toPx() }
+                Box(
+                    Modifier.fillMaxSize().drawBehind {
+                        drawRect(barColor.copy(alpha = 0.35f), size = Size(barWidthPx, size.height))
+                        drawRect(barColor, size = Size(minBarPx, size.height))
+                    },
+                )
+            }
             CellText(
                 program?.title ?: env.noListingFor(channel),
                 program?.takeIf { focused }?.let { env.timeFormat.range(it.start, it.stop) },
                 compact,
                 Modifier.fillMaxSize().stickyStart(stickyShift, env.minStickyTextPx),
             )
-            // Airing shows in more than the container's tint; a focused cell is solid primary already.
-            if (airing && !focused) Box(Modifier.width(3.dp).fillMaxHeight().background(colors.primary))
         }
     }
 }

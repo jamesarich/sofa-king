@@ -44,6 +44,8 @@ data class AppSettings(
     val startupChannel: String? = null,
     /** The top-level tab the app was last on, which [StartupTarget.RESUME] reopens; never synced. */
     val lastTab: TopLevelTab = TopLevelTab.LIVE,
+    /** The name of the visualizer look shown last, which the next song's visualizer opens on; never synced. */
+    val visualizerPreset: String? = null,
     val guideDensity: GuideDensity = GuideDensity.COMFORTABLE,
     /** The color scheme this device draws in; never synced, as each screen suits its own room. */
     val appearance: Appearance = Appearance.SYSTEM,
@@ -111,7 +113,8 @@ data class AppSettings(
             "captionStyle=$captionStyle, " +
             "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, volume=$volume, volumeMuted=$volumeMuted, " +
             "keyLegendShown=$keyLegendShown, startup=$startup, " +
-            "startupChannel=$startupChannel, lastTab=$lastTab, guideDensity=$guideDensity, " +
+            "startupChannel=$startupChannel, lastTab=$lastTab, visualizerPreset=$visualizerPreset, " +
+            "guideDensity=$guideDensity, " +
             "appearance=$appearance, hiddenChannels=$hiddenChannels, " +
             "zapSkipsHidden=$zapSkipsHidden, skips=$skips, seekSteps=$seekSteps, " +
             "hideSpoilers=$hideSpoilers, subtitleLook=$subtitleLook, liveBreaks=$liveBreaks, adsDodged=$adsDodged, " +
@@ -333,6 +336,9 @@ interface DisplaySettings {
     suspend fun setAppearance(appearance: Appearance)
 
     suspend fun setHideSpoilers(enabled: Boolean)
+
+    /** Remembers the visualizer look [name] as the last shown. */
+    suspend fun setVisualizerPreset(name: String)
 }
 
 /** This device's own: the server it pairs with, its client id, the preferences sync, the Settings PIN and kids mode. */

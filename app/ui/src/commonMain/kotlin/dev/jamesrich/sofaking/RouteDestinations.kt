@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.ui.library.trailers
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.MusicPlayback
@@ -57,7 +58,20 @@ internal fun RouteDestination(
             remember(vm.sessions) { vm.sessions.trailers() },
         )
 
-        Route.NowPlaying -> NowPlayingScreen(music, onClose = shell::back, loadLyrics = libraryVm::lyrics)
+        Route.NowPlaying -> {
+            // Only the first value matters: the visualizer opens on the look shown last and then leads.
+            val settings by vm.settings.collectAsStateWithLifecycle()
+            val start = remember(settings != null) { settings?.visualizerPreset }
+            if (settings != null) {
+                NowPlayingScreen(
+                    music,
+                    onClose = shell::back,
+                    loadLyrics = libraryVm::lyrics,
+                    visualizerPreset = start,
+                    onVisualizerPreset = vm::setVisualizerPreset,
+                )
+            }
+        }
 
         Route.Guide, Route.OnLater, Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, Route.Recordings ->
             TabDestination(route, arrival, shell, vm, libraryVm, recordingsVm, player, music, chrome, refreshing)

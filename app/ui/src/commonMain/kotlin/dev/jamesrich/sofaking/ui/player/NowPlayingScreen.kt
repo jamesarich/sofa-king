@@ -4,6 +4,8 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -79,6 +81,7 @@ import dev.jamesrich.sofaking.resources.music_shuffle
 import dev.jamesrich.sofaking.resources.music_visualizer
 import dev.jamesrich.sofaking.ui.AmbientBackdrop
 import dev.jamesrich.sofaking.ui.Artwork
+import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
@@ -104,6 +107,8 @@ internal fun NowPlayingScreen(
     music: MusicPlayback,
     onClose: () -> Unit,
     loadLyrics: suspend (String) -> Lyrics? = { null },
+    visualizerPreset: String? = null,
+    onVisualizerPreset: (String) -> Unit = {},
 ) {
     val song = music.song
     val currentOnClose by rememberUpdatedState(onClose)
@@ -116,31 +121,30 @@ internal fun NowPlayingScreen(
     var showVisuals by rememberSaveable { mutableStateOf(false) }
     val tap = music.audioTap
     var skips by rememberSaveable { mutableIntStateOf(0) }
-    val visuals = tap?.let { VisualsChoice(showVisuals, { showVisuals = !showVisuals }, { skips++ }) }
+    var fullscreen by rememberSaveable { mutableStateOf(false) }
+    val visuals = tap?.let {
+        VisualsChoice(showVisuals, { showVisuals = !showVisuals }, { skips++ }, { fullscreen = true })
+    }
+    val bare = fullscreen && tap != null && showVisuals
+    BackHandler(enabled = bare) { fullscreen = false }
     // Over the visualizer's dark scrim the controls draw in the dark scheme, whatever the app's.
     OverVideo(dark = tap != null && showVisuals) {
         Box(Modifier.fillMaxSize()) {
             AmbientBackdrop(song.poster)
             if (tap != null && showVisuals) {
-                MusicVisualizer(tap, song.id, skips, Modifier.fillMaxSize())
-                // The controls stay legible over a bright picture.
-                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = VISUALS_SCRIM)))
+                VisualsLayer(tap, song, skips, bare, visualizerPreset, onVisualizerPreset)
             }
-            RestWhenIdle(LocalLayoutProfile.current.tv) { rest ->
-                NowPlayingLayout(music, song, choice, visuals, rest)
+            ControlsOrFullscreen(bare, scrimmed = tap != null && showVisuals, exit = { fullscreen = false }) {
+                RestWhenIdle(LocalLayoutProfile.current.tv) { rest ->
+                    NowPlayingLayout(music, song, choice, visuals, rest)
+                }
             }
-            if (LocalLastInput.current.kind == InputKind.POINTER) {
+            if (!bare && LocalLastInput.current.kind == InputKind.POINTER) {
                 Box(Modifier.align(Alignment.TopStart).screenPadding()) { PlayerBackControl(onClose) }
             }
         }
     }
 }
-
-/**
- * Whether the visualizer shows behind the page, the button that [toggle]s it and the one that asks for the [next] look;
- * where the engine can be tapped.
- */
-private class VisualsChoice(val shown: Boolean, val toggle: () -> Unit, val next: () -> Unit)
 
 /** A song's [lyrics], [shown] in the cover's place or not, and the button that [toggle]s them. */
 private class LyricsChoice(val lyrics: Lyrics, val shown: Boolean, val toggle: () -> Unit)
@@ -331,21 +335,7 @@ private fun MoreToggles(music: MusicPlayback, lyrics: LyricsChoice?, visuals: Vi
             it.toggle,
         )
     }
-    visuals?.let {
-        Toggle(
-            SofaIcons.GraphicEq,
-            stringResource(Res.string.music_visualizer),
-            stringResource(if (it.shown) Res.string.music_on else Res.string.music_off),
-            it.shown,
-            it.toggle,
-        )
-        // Next look keeps its slot while the visualizer is off, so the row does not re-space when it appears.
-        if (it.shown) {
-            ControlIcon(SofaIcons.AutoAwesome, stringResource(Res.string.music_next_look), it.next)
-        } else {
-            Spacer(Modifier.size(CONTROL_SIZE))
-        }
-    }
+    visuals?.let { VisualToggles(it) }
 }
 
 /**
@@ -403,7 +393,7 @@ private fun MusicButtons(music: MusicPlayback, lyrics: LyricsChoice?, visuals: V
 
 /** A button that is on or off, tinted while on; [state] says which to a screen reader. */
 @Composable
-private fun Toggle(icon: ImageVector, label: String, state: String, on: Boolean, onClick: () -> Unit) {
+internal fun Toggle(icon: ImageVector, label: String, state: String, on: Boolean, onClick: () -> Unit) {
     TvFocusControl(IconButtonDefaults.standardShape) { ringed ->
         IconToggleButton(
             checked = on,
@@ -445,9 +435,6 @@ private const val FADE_MS = 2_000
 private const val COVER_SHARE = 0.7f
 
 private val CONTROLS_WIDTH = 480.dp
-
-/** How dark the scrim is over the visualizer. */
-private const val VISUALS_SCRIM = 0.35f
 
 /** How many sung lines stay above the one being sung. */
 private const val LINES_ABOVE = 2

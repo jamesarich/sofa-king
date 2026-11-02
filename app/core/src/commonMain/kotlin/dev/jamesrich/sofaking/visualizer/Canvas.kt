@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.visualizer
 
 import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.max
 
 /** How many picture widths off the picture a line may start or end and still be drawn. */
@@ -57,15 +58,28 @@ internal class Canvas(val width: Int, val height: Int) {
         val steps = max(abs(x1 - x0), abs(y1 - y0)).toInt().coerceAtLeast(1)
         for (s in 0..steps) {
             val t = s.toFloat() / steps
-            val x = (x0 + (x1 - x0) * t).toInt()
-            val y = (y0 + (y1 - y0) * t).toInt()
-            plot(x, y, color.first, color.second, color.third, alpha, additive)
+            val x = x0 + (x1 - x0) * t
+            val y = y0 + (y1 - y0) * t
+            splat(x, y, color, alpha, additive)
             if (thick) {
-                plot(x + 1, y, color.first, color.second, color.third, alpha, additive)
-                plot(x, y + 1, color.first, color.second, color.third, alpha, additive)
-                plot(x + 1, y + 1, color.first, color.second, color.third, alpha, additive)
+                splat(x + 1, y, color, alpha, additive)
+                splat(x, y + 1, color, alpha, additive)
+                splat(x + 1, y + 1, color, alpha, additive)
             }
         }
+    }
+
+    /** A point at a fractional position, shared between the four pixels around it so a line has no stairs. */
+    private fun splat(x: Float, y: Float, color: Triple<Float, Float, Float>, alpha: Float, additive: Boolean) {
+        val xi = floor(x).toInt()
+        val yi = floor(y).toInt()
+        val fx = x - xi
+        val fy = y - yi
+        val (r, g, b) = color
+        plot(xi, yi, r, g, b, alpha * (1 - fx) * (1 - fy), additive)
+        plot(xi + 1, yi, r, g, b, alpha * fx * (1 - fy), additive)
+        plot(xi, yi + 1, r, g, b, alpha * (1 - fx) * fy, additive)
+        plot(xi + 1, yi + 1, r, g, b, alpha * fx * fy, additive)
     }
 
     /** A frame [size] (a fraction of the picture) wide around the edge, or around an inner box when [inset]. */

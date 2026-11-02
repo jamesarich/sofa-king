@@ -33,6 +33,7 @@ import io.ktor.client.statement.readRawBytes
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assumptions.assumeTrue
@@ -111,6 +112,8 @@ class LoopbackRelayTest {
                             fetch(media.base, "/seg$it.ts")
                         }.reduce(ByteArray::plus),
                     )
+
+                    path == "/big.ts" -> exchange.reply("video/mp2t", BIG_SEGMENT)
 
                     shape != null -> {
                         val target = targets.getValue(shape.groupValues[2])
@@ -478,6 +481,48 @@ class LoopbackRelayTest {
             assertEquals(0, stack.runtime.loopback.active())
         }
 
+    @Test fun `a reader that stops draining a segment is dropped without a warning and its permit comes back`() =
+        loopbackTest("sofa-loopback-stall-") {
+            val context = LoggerFactory.getILoggerFactory() as LoggerContext
+            val root = context.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME)
+            val ours = context.getLogger("dev.jamesrich.sofaking")
+            val events = ListAppender<ILoggingEvent>().apply { start() }
+            val level = ours.level
+            root.addAppender(events)
+            ours.level = Level.DEBUG
+            val permits = Semaphore(UPSTREAM_REQUESTS)
+            val relay = LoopbackRelay(http, stack.runtime.feeds.upstream, permits, writeTimeoutSeconds = 1)
+            try {
+                relay.reading(ResolvedStream("${upstream.base}/big.ts", upstream.feed.headers), "mpegts") { source ->
+                    val url = URI(source.url)
+                    Socket("127.0.0.1", url.port).use { socket ->
+                        socket.getOutputStream().apply {
+                            write(
+                                (
+                                    "GET ${url.path} HTTP/1.1\r\nHost: 127.0.0.1\r\n" +
+                                        "$RELAY_CREDENTIAL_HEADER: ${source.credential}\r\nConnection: close\r\n\r\n"
+                                    ).toByteArray(),
+                            )
+                            flush()
+                        }
+                        // The request holds a permit while the unread response backs up, then gives it back.
+                        withTimeout(20_000) {
+                            while (permits.availablePermits == UPSTREAM_REQUESTS) delay(20)
+                            while (permits.availablePermits < UPSTREAM_REQUESTS) delay(20)
+                        }
+                    }
+                }
+            } finally {
+                relay.close()
+                root.detachAppender(events)
+                ours.level = level
+            }
+            val logged = events.list.filter { it.loggerName.endsWith("LoopbackRelay") }
+            assertTrue(logged.any { "stopped draining" in it.formattedMessage }, "the stalled write was seen")
+            val loud = events.list.filter { it.level.isGreaterOrEqual(Level.WARN) }
+            assertTrue(loud.isEmpty(), "logged: " + loud.map { "${it.level} ${it.formattedMessage}" })
+        }
+
     /** The status of a GET of [url] that sends [credential], or no credential. */
     private suspend fun LoopbackScope.status(url: String, credential: String?): HttpStatusCode =
         http.get(url) { credential?.let { header(RELAY_CREDENTIAL_HEADER, it) } }.status
@@ -529,6 +574,11 @@ class LoopbackRelayTest {
         val SEGMENT_LINE = Regex("(?m)^seg\\d+\\.ts$")
         val SEGMENT_PATH = Regex("/seg\\d+\\.ts")
         val CREDENTIAL = Regex("$RELAY_CREDENTIAL_HEADER: ([A-Za-z0-9_-]+)")
+
+        /** Transport stream packets, far more than the sockets between the upstream and a reader can hold. */
+        val BIG_SEGMENT: ByteArray by lazy {
+            ByteArray(188 * 180_000).also { for (offset in it.indices step 188) it[offset] = 0x47 }
+        }
 
         /** Each shape of a refused hop, at each target. */
         fun shapes(targets: Collection<String>): List<String> =

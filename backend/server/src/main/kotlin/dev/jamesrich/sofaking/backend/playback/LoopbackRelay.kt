@@ -24,6 +24,7 @@ import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
+import io.netty.handler.timeout.WriteTimeoutException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -53,6 +54,7 @@ class LoopbackRelay(
     private val policy: UpstreamPolicy,
     /** Shared with [MediaRelay], so FFmpeg's upstream requests count toward the same cap as players'. */
     private val permits: Semaphore = Semaphore(UPSTREAM_REQUESTS),
+    private val writeTimeoutSeconds: Int = WRITE_TIMEOUT_SECONDS,
 ) {
     private val log = LoggerFactory.getLogger(LoopbackRelay::class.java)
     private val leases = ConcurrentHashMap<String, Lease>()
@@ -160,6 +162,7 @@ class LoopbackRelay(
                             host = "127.0.0.1"
                             port = 0
                         }
+                        responseWriteTimeoutSeconds = writeTimeoutSeconds
                     },
                 ) { module() }
                 // Ktor's own shutdown hook may stop the listener before the runtime closes; no lease starts it again.
@@ -206,40 +209,49 @@ class LoopbackRelay(
                 }
                 serve(call, call.parameters["stream"]!!, call.parameters["file"]!!)
             }
-            get("/relay/{lease}/{token}") {
-                val lease = leases[call.parameters["lease"]]
-                if (lease == null || !sameSecret(call.request.headers[RELAY_CREDENTIAL_HEADER], lease.credential)) {
-                    call.respond(HttpStatusCode.Unauthorized)
-                    return@get
-                }
-                val url =
-                    lease.url(call.parameters["token"]!!) ?: run {
-                        call.respond(HttpStatusCode.NotFound)
-                        return@get
-                    }
-                permits.withPermit {
-                    // FFmpeg's own messages name the status, which the probe's failure classes
-                    // read; so it gets the upstream's.
-                    relayResource(
-                        http,
-                        policy,
-                        call,
-                        url,
-                        lease.stream,
-                        path = lease::path,
-                        manifest = lease::watch,
-                        streamed = { bytes -> lease.markers?.segment(url, bytes) },
-                        refused = { status ->
-                            val answer = if (status in UPSTREAM_ERRORS) {
-                                HttpStatusCode.fromValue(status)
-                            } else {
-                                HttpStatusCode.BadGateway
-                            }
-                            throw ApiFailure(answer, "UPSTREAM_STATUS", "Upstream answered $status")
-                        },
-                    )
-                }
+            get("/relay/{lease}/{token}") { serveLease(call) }
+        }
+    }
+
+    /** Answers one request of a lease with its upstream resource, under a permit. */
+    private suspend fun serveLease(call: ApplicationCall) {
+        val lease = leases[call.parameters["lease"]]
+        if (lease == null || !sameSecret(call.request.headers[RELAY_CREDENTIAL_HEADER], lease.credential)) {
+            call.respond(HttpStatusCode.Unauthorized)
+            return
+        }
+        val url =
+            lease.url(call.parameters["token"]!!) ?: run {
+                call.respond(HttpStatusCode.NotFound)
+                return
             }
+        try {
+            permits.withPermit {
+                // FFmpeg's own messages name the status, which the probe's failure classes
+                // read; so it gets the upstream's.
+                relayResource(
+                    http,
+                    policy,
+                    call,
+                    url,
+                    lease.stream,
+                    path = lease::path,
+                    manifest = lease::watch,
+                    streamed = { bytes -> lease.markers?.segment(url, bytes) },
+                    refused = { status ->
+                        val answer = if (status in UPSTREAM_ERRORS) {
+                            HttpStatusCode.fromValue(status)
+                        } else {
+                            HttpStatusCode.BadGateway
+                        }
+                        throw ApiFailure(answer, "UPSTREAM_STATUS", "Upstream answered $status")
+                    },
+                )
+            }
+        } catch (_: WriteTimeoutException) {
+            // The response is committed and FFmpeg holds its socket open without reading, so nobody is left to
+            // answer; the permit is back once the write ends.
+            log.debug("relay reader stopped draining a response")
         }
     }
 
@@ -257,6 +269,9 @@ class LoopbackRelay(
         leases.clear()
     }
 }
+
+/** How long a response may go unread before the relay drops it; Ktor's own default, kept explicit. */
+internal const val WRITE_TIMEOUT_SECONDS = 10
 
 /** Random bytes in a lease credential and in the key of the `/local/` route. */
 private const val KEY_BYTES = 32

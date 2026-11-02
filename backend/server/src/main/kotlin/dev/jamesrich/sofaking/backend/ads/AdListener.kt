@@ -166,13 +166,15 @@ class AdListener(
                 if (census.playedMs == 0L) resting[channel] = clock.instant().plus(COOLDOWN)
                 if (census.playedMs > 0) {
                     log.info(
-                        "ADCENSUS channel={} provider={} playedMs={} marked={} breaks={} learned={} listener=true",
+                        "ADCENSUS channel={} provider={} playedMs={} marked={} breaks={} learned={} " +
+                            "joinedInBreak={} listener=true",
                         channel,
                         offering.providerId,
                         census.playedMs,
                         census.marked,
                         census.breaks,
                         census.learned,
+                        census.joinedInBreak,
                     )
                     store.recordAdChannel(channel, offering.providerId, census, clock.instant(), listened = true)
                 }

@@ -85,6 +85,7 @@ class AdClock(
         val runs = AdBreaks.runs(parsed)
         for (run in runs) timeline.remember(run)
         val last = parsed.segments.lastOrNull()
+        if (timeline.joinedInBreak == null) timeline.joinedInBreak = last?.ad == true
         timeline.openCue = when {
             read.cueOpenAtEnd -> last?.takeIf { it.ad }?.let { timeline.runs.floorEntry(it.sequence)?.key }
             last?.ad == true && parsed.segments.none { it.cueIn } -> timeline.openCue
@@ -144,6 +145,7 @@ class AdClock(
         timelines.values.any { it.exact },
         timelines.values.maxOfOrNull { it.breaks } ?: 0,
         timelines.values.maxOfOrNull { it.learned } ?: 0,
+        timelines.values.any { it.joinedInBreak == true },
     )
 
     /** The break playing now for a player with [aheadMs] of media loaded past the picture; not in one when unknown. */
@@ -176,9 +178,15 @@ internal data class Placement(val playlist: String, val sequence: Long, val star
 
 /**
  * What a session found on its channel: how much media it played, whether a marker was seen, how many breaks markers
- * placed and how many it learned (slates and library matches).
+ * placed and how many it learned (slates and library matches), and whether it joined in the middle of a marked break.
  */
-data class AdCensus(val playedMs: Long, val marked: Boolean, val breaks: Int, val learned: Int)
+data class AdCensus(
+    val playedMs: Long,
+    val marked: Boolean,
+    val breaks: Int,
+    val learned: Int,
+    val joinedInBreak: Boolean = false,
+)
 
 /** The playlists a session keeps a timeline for: its variants and renditions, and a few it switched away from. */
 private const val TIMELINE_LIMIT = 16

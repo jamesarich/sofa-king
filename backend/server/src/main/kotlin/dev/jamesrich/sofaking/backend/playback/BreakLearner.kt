@@ -36,6 +36,10 @@ private const val CANARY_EDGE_MS = 5_000L
 private const val CONTINUE_MS = 5_000L
 internal const val CONTINUE_POINTS = 25
 
+/** A session may join in a break: its first [TUNE_WINDOW_MS] of audio match on [TUNE_POINTS], about 5 s. */
+private const val TUNE_WINDOW_MS = 30_000L
+internal const val TUNE_POINTS = 41
+
 /** The longest a learned break may run. */
 private const val MAX_LEARNED_MS = 240_000L
 
@@ -55,6 +59,7 @@ internal class BreakLearner(
     fun heard(timeline: AdTimeline, start: Long, end: Long, audio: HeardAudio, mode: LearnedBreaks) {
         if (!timeline.exact) slates(timeline, start, end, audio.levels, mode)
         timeline.heardTo = maxOf(timeline.heardTo, end)
+        if (timeline.heardFrom == null) timeline.heardFrom = start
         val points = audio.points
         if (library != null && points != null && points.isNotEmpty()) {
             timeline.points.add(points, audio.firstPointMs)
@@ -238,14 +243,20 @@ internal class BreakLearner(
     /**
      * The library's match of the newest audio on [timeline], with the number of the first point it was matched from;
      * only a match reaching the newest audio is a break now, since an older one was missed while it played. A match
-     * soon after a learned break ends needs only [CONTINUE_POINTS].
+     * soon after a learned break ends needs only [CONTINUE_POINTS], and one in a session's first seconds [TUNE_POINTS].
      */
     private fun newestMatch(library: BreakLibrary, timeline: AdTimeline): Pair<BreakMatch, Long>? {
         val log = timeline.points
         val newest = log.lastTime ?: return null
         val continuing = timeline.lastLearnedEndMs?.let { newest - it < CONTINUE_MS } == true
+        val tuning = timeline.heardFrom?.let { newest - it < TUNE_WINDOW_MS } == true
         val (words, base) = log.recent(MATCH_POINTS)
-        val match = library.match(words, if (continuing) CONTINUE_POINTS else BreakLibrary.MIN_LEARN_POINTS)
+        val minPoints = when {
+            continuing -> CONTINUE_POINTS
+            tuning -> TUNE_POINTS
+            else -> BreakLibrary.MIN_LEARN_POINTS
+        }
+        val match = library.match(words, minPoints)
         return match?.takeIf { words.size - 1 - it.queryTo <= BreakLibrary.MAX_GAP_POINTS && !it.entry.blocked }
             ?.let { it to base }
     }

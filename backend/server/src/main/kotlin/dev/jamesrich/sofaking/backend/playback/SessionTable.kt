@@ -72,13 +72,14 @@ internal class SessionTable(private val clock: Clock, capacity: Int) {
         history?.ended(session.start(), reason, session.mode(), session.bytes.get())
         val census = session.ads?.census()?.takeIf { it.playedMs > 0 } ?: return
         learnedLog.info(
-            "ADCENSUS channel={} provider={} playedMs={} marked={} breaks={} learned={} session={}",
+            "ADCENSUS channel={} provider={} playedMs={} marked={} breaks={} learned={} joinedInBreak={} session={}",
             session.request.channelId,
             session.offering.providerId,
             census.playedMs,
             census.marked,
             census.breaks,
             census.learned,
+            census.joinedInBreak,
             session.id,
         )
         onCensus(session.request.channelId, session.offering.providerId, census)

@@ -58,13 +58,17 @@ internal class AdTimeline(val key: String, private val segmentLimit: Int) {
     var canaryEntry: String? = null
     var canaryUntilMs = 0L
 
-    /** The end of the latest segment heard. */
+    /** The end of the latest segment heard, and the start of the first. */
     var heardTo = 0L
+    var heardFrom: Long? = null
 
     /** For the census: the media fetched, the marked breaks and the breaks learned. */
     var playedMs = 0L
     var breaks = 0
     var learned = 0
+
+    /** Whether the first playlist read already had its newest segment in a marked break; null before one is read. */
+    var joinedInBreak: Boolean? = null
 
     class Run(val first: Long, var last: Long, var plannedEndMs: Long?)
 
@@ -104,6 +108,7 @@ internal class AdTimeline(val key: String, private val segmentLimit: Int) {
         following = null
         lastLearnedEndMs = null
         heardTo = 0L
+        heardFrom = null
         lastServed = null
     }
 

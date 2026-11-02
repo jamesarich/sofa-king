@@ -67,6 +67,18 @@ master_5_5535913.ts
     }
 
     @Test
+    fun `a session whose first playlist already ends in a marked break joined in the break`() {
+        val joined = AdClock()
+        joined.annotate(tubi, base)
+        assertTrue(joined.census().joinedInBreak)
+
+        val before = AdClock()
+        before.annotate("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:5535769\n#EXTINF:6.006,\nmaster_5_5535910.ts\n", base)
+        before.annotate(tubi, base)
+        assertFalse(before.census().joinedInBreak)
+    }
+
+    @Test
     fun `a window that skips ahead starts the timeline again`() {
         val clock = AdClock()
         clock.annotate(tubi, base)
@@ -292,6 +304,25 @@ master_5_5535913.ts
         // From 3 s into the ad, where the entry starts, to 3 s before its end.
         assertEquals(24_000.0, ended.lengthMs.toDouble(), 300.0)
         assertEquals(AdCensus(playedMs = 0, marked = false, breaks = 0, learned = 1), shadow.census())
+    }
+
+    @Test
+    fun `a session that joins in a break matches on its first segment, one that has listened a while needs more`() {
+        val library = BreakLibrary(null, java.time.Clock.systemUTC())
+        learnBreak(library, "c1")
+
+        // The first segment holds the entry's start (3 s into the ad), and 48 points are enough in the first seconds.
+        val (joined, found) = learning(LearnedBreaks.SHADOW, library, "c2")
+        joined.annotate(whale(200), whaleBase)
+        joined.listen(200, 200..200, adFromMs = -3_000, adUntilMs = 36_000)
+        assertEquals(listOf(LIBRARY), found.map { it.rule })
+
+        val (settled, missed) = learning(LearnedBreaks.SHADOW, library, "c3")
+        settled.annotate(whale(300), whaleBase)
+        settled.annotate(whale(310), whaleBase)
+        settled.listen(300, 300..305, adFromMs = 100_000, adUntilMs = 100_001)
+        settled.listen(300, 306..306, adFromMs = 36_000 - 3_000, adUntilMs = 72_000)
+        assertTrue(missed.isEmpty(), missed.toString())
     }
 
     @Test

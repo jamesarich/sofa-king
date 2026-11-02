@@ -81,6 +81,15 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `setVisualizerPreset is persisted`() = runTest {
+        val store = newStore()
+        assertEquals(null, store.settings.first().visualizerPreset)
+
+        store.setVisualizerPreset("Slow Tunnel")
+        assertEquals("Slow Tunnel", store.settings.first().visualizerPreset)
+    }
+
+    @Test
     fun `setLastChannel keeps the ten most recent channels newest first without repeats`() = runTest {
         val store = newStore()
         assertEquals(emptyList(), store.settings.first().recentChannels)

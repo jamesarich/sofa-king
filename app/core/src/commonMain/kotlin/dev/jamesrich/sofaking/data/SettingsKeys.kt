@@ -55,6 +55,7 @@ import dev.jamesrich.sofaking.data.SettingsKeys.SUBTITLE_BOX
 import dev.jamesrich.sofaking.data.SettingsKeys.SUBTITLE_RAISE
 import dev.jamesrich.sofaking.data.SettingsKeys.SUBTITLE_SIZE
 import dev.jamesrich.sofaking.data.SettingsKeys.TRACK_CHOICES
+import dev.jamesrich.sofaking.data.SettingsKeys.VISUALIZER_PRESET
 import dev.jamesrich.sofaking.data.SettingsKeys.VOLUME
 import dev.jamesrich.sofaking.data.SettingsKeys.VOLUME_MUTED
 import dev.jamesrich.sofaking.data.SettingsKeys.ZAP_SKIPS_HIDDEN
@@ -82,6 +83,7 @@ internal object SettingsKeys {
     val STARTUP = stringPreferencesKey("startup")
     val STARTUP_CHANNEL = stringPreferencesKey("startup_channel")
     val LAST_TAB = stringPreferencesKey("last_tab")
+    val VISUALIZER_PRESET = stringPreferencesKey("visualizer_preset")
     val GUIDE_DENSITY = stringPreferencesKey("guide_density")
     val APPEARANCE = stringPreferencesKey("appearance")
     val HIDDEN_CHANNELS = stringSetPreferencesKey("hidden_channels")
@@ -143,6 +145,7 @@ internal fun readSettings(prefs: Preferences): AppSettings = AppSettings(
     startup = prefs[STARTUP].toEnum(StartupTarget.RESUME),
     startupChannel = prefs[STARTUP_CHANNEL],
     lastTab = prefs[LAST_TAB].toEnum(TopLevelTab.LIVE),
+    visualizerPreset = prefs[VISUALIZER_PRESET],
     guideDensity = prefs[GUIDE_DENSITY].toEnum(GuideDensity.COMFORTABLE),
     appearance = prefs[APPEARANCE].toEnum(Appearance.SYSTEM),
     hiddenChannels = prefs[HIDDEN_CHANNELS] ?: emptySet(),

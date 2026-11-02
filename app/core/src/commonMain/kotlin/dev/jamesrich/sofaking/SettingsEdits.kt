@@ -103,6 +103,8 @@ interface DisplayEdits {
     fun setAppearance(appearance: Appearance)
 
     fun setHideSpoilers(enabled: Boolean)
+
+    fun setVisualizerPreset(name: String)
 }
 
 /** Writes a setting in [this] scope; a write the store refuses is logged rather than crashing the app. */
@@ -190,4 +192,6 @@ internal class StoreDisplayEdits(private val store: DisplaySettings, private val
     override fun setAppearance(appearance: Appearance) = scope.save { store.setAppearance(appearance) }
 
     override fun setHideSpoilers(enabled: Boolean) = scope.save { store.setHideSpoilers(enabled) }
+
+    override fun setVisualizerPreset(name: String) = scope.save { store.setVisualizerPreset(name) }
 }

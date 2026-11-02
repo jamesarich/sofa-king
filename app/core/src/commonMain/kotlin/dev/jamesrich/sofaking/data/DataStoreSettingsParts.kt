@@ -52,6 +52,7 @@ import dev.jamesrich.sofaking.data.SettingsKeys.SUBTITLE_BOX
 import dev.jamesrich.sofaking.data.SettingsKeys.SUBTITLE_RAISE
 import dev.jamesrich.sofaking.data.SettingsKeys.SUBTITLE_SIZE
 import dev.jamesrich.sofaking.data.SettingsKeys.TRACK_CHOICES
+import dev.jamesrich.sofaking.data.SettingsKeys.VISUALIZER_PRESET
 import dev.jamesrich.sofaking.data.SettingsKeys.VOLUME
 import dev.jamesrich.sofaking.data.SettingsKeys.VOLUME_MUTED
 import dev.jamesrich.sofaking.data.SettingsKeys.ZAP_SKIPS_HIDDEN
@@ -267,6 +268,10 @@ internal class DataStoreDisplaySettings(private val dataStore: DataStore<Prefere
 
     override suspend fun setHideSpoilers(enabled: Boolean) {
         dataStore.edit { prefs -> prefs[HIDE_SPOILERS] = enabled }
+    }
+
+    override suspend fun setVisualizerPreset(name: String) {
+        dataStore.edit { prefs -> prefs[VISUALIZER_PRESET] = name }
     }
 }
 

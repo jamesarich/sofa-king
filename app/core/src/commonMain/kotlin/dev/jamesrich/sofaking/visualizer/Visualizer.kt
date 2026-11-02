@@ -132,7 +132,7 @@ class Visualizer(val width: Int, val height: Int, preset: MilkPreset, private va
                     g = 1 - g
                     b = 1 - b
                 }
-                pixels[i] = pack(r, g, b)
+                pixels[i] = pack(r, g, b, DITHER[(y and 3) * 4 + (x and 3)])
             }
         }
     }
@@ -148,10 +148,11 @@ class Visualizer(val width: Int, val height: Int, preset: MilkPreset, private va
         return ey * width + ex
     }
 
-    private fun pack(r: Float, g: Float, b: Float): Int {
-        val ri = (r.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
-        val gi = (g.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
-        val bi = (b.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+    /** The color as ARGB, rounded to 8 bits against the [threshold] (0 to 1) so slow fades do not band. */
+    private fun pack(r: Float, g: Float, b: Float, threshold: Float): Int {
+        val ri = (r.coerceIn(0f, 1f) * 255f + threshold).toInt()
+        val gi = (g.coerceIn(0f, 1f) * 255f + threshold).toInt()
+        val bi = (b.coerceIn(0f, 1f) * 255f + threshold).toInt()
         return (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
     }
 
@@ -159,5 +160,11 @@ class Visualizer(val width: Int, val height: Int, preset: MilkPreset, private va
         const val MIN_DT = 1.0 / 240
         const val MAX_DT = 0.25
         const val MIN_ECHO_ZOOM = 0.1f
+
+        /** A 4 by 4 ordered-dither pattern, as rounding thresholds between 0 and 1. */
+        val DITHER = FloatArray(16) {
+            val bayer = intArrayOf(0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5)
+            (bayer[it] + 0.5f) / 16f
+        }
     }
 }

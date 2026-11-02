@@ -63,7 +63,7 @@ object Presets {
             per_frame_4=wave_b = 0.9 - 0.3 * sin(time * 0.3);
         """,
         "Mirror Ocean" to """
-            fDecay=0.97
+            fDecay=0.94
             nWaveMode=4
             bWaveThick=1
             fWaveScale=1.5
@@ -94,9 +94,9 @@ object Presets {
             per_frame_6=wave_b = 0.5 + 0.5 * sin(q1 * 2 + 4.2);
         """,
         "Ember Lines" to """
-            fDecay=0.9
+            fDecay=0.88
             nWaveMode=7
-            fWaveAlpha=0.35
+            fWaveAlpha=0.12
             fWaveScale=1.3
             bAdditiveWaves=1
             ob_size=0.015

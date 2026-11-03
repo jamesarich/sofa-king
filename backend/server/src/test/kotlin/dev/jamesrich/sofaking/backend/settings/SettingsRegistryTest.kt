@@ -22,6 +22,7 @@ class SettingsRegistryTest {
         "maxSessions" to listOf("SOFA_MAX_SESSIONS"),
         "ffmpeg" to listOf("SOFA_FFMPEG"),
         "probeParallelism" to listOf("SOFA_PROBE_PARALLELISM"),
+        "probeRequests" to listOf("SOFA_PROBE_REQUESTS"),
         "restreamOrigins" to listOf("SOFA_RESTREAM_ORIGINS"),
         "observationRetentionDays" to listOf("SOFA_OBSERVATION_RETENTION_DAYS"),
         "allowLoopbackUpstreams" to listOf("SOFA_ALLOW_LOOPBACK_UPSTREAMS"),

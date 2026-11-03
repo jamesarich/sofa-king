@@ -41,6 +41,7 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_MULTIVIEW` | `auto` | Whether the server draws [multiview](api.md#multiview): `auto` only when the `SOFA_HWACCEL` encoder works, at 1080p; `on` in software too, at 720p; `off` never |
 | `SOFA_TMDB_LANGUAGE` | `en-US` | The language TMDB answers in, such as `de` or `pt-BR`; its region picks the content rating |
 | `SOFA_PROBE_PARALLELISM` | `6` | Concurrent source probes, 1-32 |
+| `SOFA_PROBE_REQUESTS` | `12` | Upstream requests the probes' FFmpegs make at once, 1-64, a pool apart from the players' 32 |
 | `SOFA_RESTREAM_ORIGINS` | Unset | Comma-separated `host[:port]` list of LAN restream proxies whose 502 counts as source evidence, for example `RESTREAM_HOST:3000` |
 | `SOFA_OBSERVATION_RETENTION_DAYS` | `7` | Days of health observation history to keep, 1-3650 |
 | `SOFA_HISTORY_DAYS` | `90` | Days of [playback history](api.md#playback-history) to keep, 1-3650: one row per live, library or recording session once it ends |

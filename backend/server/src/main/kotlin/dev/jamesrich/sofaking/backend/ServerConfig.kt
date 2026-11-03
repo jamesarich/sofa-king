@@ -80,6 +80,7 @@ data class ServerConfig(
     val maxSessions: Int = DEFAULT_MAX_SESSIONS,
     val ffmpeg: String = "ffmpeg",
     val probeParallelism: Int = DEFAULT_PROBE_PARALLELISM,
+    val probeRequests: Int = DEFAULT_PROBE_REQUESTS,
     val restreamOrigins: Set<String> = emptySet(),
     val observationRetentionDays: Int = DEFAULT_RETENTION_DAYS,
     val allowLoopbackUpstreams: Boolean = false,
@@ -172,6 +173,7 @@ data class ServerConfig(
         const val DEFAULT_PORT = 8080
         const val DEFAULT_MAX_SESSIONS = 4
         const val DEFAULT_PROBE_PARALLELISM = 6
+        const val DEFAULT_PROBE_REQUESTS = 12
         const val DEFAULT_RETENTION_DAYS = 7
         const val DEFAULT_GUIDE_DAYS = 3
         const val DEFAULT_RECORDINGS_FREE_GIB = 10
@@ -245,15 +247,14 @@ data class ServerConfig(
             val host = environment[Settings.HOST.name] ?: Settings.HOST.default.orEmpty()
             require(host.isNotBlank()) { "SOFA_HOST must not be blank" }
             val port = env.number(Settings.PORT)
-            val directory = environment[Settings.DATA_DIR.name] ?: Settings.DATA_DIR.default.orEmpty()
-            require(directory.isNotBlank()) { "SOFA_DATA_DIR must not be blank" }
+            val data = Path.of(environment[Settings.DATA_DIR.name] ?: Settings.DATA_DIR.default.orEmpty())
+            require(data.toString().isNotBlank()) { "SOFA_DATA_DIR must not be blank" }
             val token = env.token(Settings.API_TOKEN)
             require(isLoopback(host) || token != null || !requireToken) {
                 "Non-loopback binding requires SOFA_API_TOKEN"
             }
             val capacity = env.number(Settings.MAX_SESSIONS)
             val hdhrEnabled = env.flag(Settings.HDHR_ENABLED)
-            val data = Path.of(directory)
             return ServerConfig(
                 host,
                 port,
@@ -263,6 +264,7 @@ data class ServerConfig(
                 capacity,
                 environment[Settings.FFMPEG.name] ?: Settings.FFMPEG.default.orEmpty(),
                 env.number(Settings.PROBE_PARALLELISM),
+                env.number(Settings.PROBE_REQUESTS),
                 restreamOrigins(env),
                 env.number(Settings.OBSERVATION_RETENTION_DAYS),
                 env.flag(Settings.ALLOW_LOOPBACK_UPSTREAMS),

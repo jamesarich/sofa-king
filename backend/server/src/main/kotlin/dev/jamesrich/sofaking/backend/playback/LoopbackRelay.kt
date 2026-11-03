@@ -87,6 +87,7 @@ class LoopbackRelay(
         val stalls: StallWatch?,
         val markers: PlaylistMarkers? = null,
         val playlists: SteadyPlaylists? = null,
+        val permits: Semaphore,
     ) {
         val id: String = UUID.randomUUID().toString()
         val credential: String = randomUrlToken(KEY_BYTES)
@@ -126,7 +127,8 @@ class LoopbackRelay(
      * Runs [block] with a lease on [stream], whose [protocol] names the root's suffix; the lease ends with the block,
      * and any request FFmpeg makes after that answers 401. Given [stalls], each playlist FFmpeg fetches is shown to it;
      * given [markers], each playlist and each segment it finishes fetching is too. Given [steady], each playlist
-     * goes through it before FFmpeg sees it.
+     * goes through it before FFmpeg sees it. Its requests take [permits], the players' pool unless the caller has one
+     * of its own.
      */
     suspend fun <T> reading(
         stream: ResolvedStream,
@@ -134,10 +136,11 @@ class LoopbackRelay(
         stalls: StallWatch? = null,
         markers: PlaylistMarkers? = null,
         steady: SteadyPlaylists? = null,
+        permits: Semaphore = this.permits,
         block: suspend (FfmpegSource) -> T,
     ): T {
         val port = start()
-        val lease = Lease(stream, stalls, markers, steady)
+        val lease = Lease(stream, stalls, markers, steady, permits)
         leases[lease.id] = lease
         try {
             return block(
@@ -226,7 +229,7 @@ class LoopbackRelay(
                 return
             }
         try {
-            permits.withPermit {
+            lease.permits.withPermit {
                 // FFmpeg's own messages name the status, which the probe's failure classes
                 // read; so it gets the upstream's.
                 relayResource(

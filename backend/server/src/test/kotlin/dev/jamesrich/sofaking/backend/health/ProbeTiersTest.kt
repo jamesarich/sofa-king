@@ -21,6 +21,8 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.withTimeout
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -258,6 +260,38 @@ class ProbeTiersTest {
                                 FailureClass.OFFERING,
                                 worker.decode(vod.copy(url = "${media.base}/missing.m3u8"), emptyMap(), recheck = true),
                             )
+                        } finally {
+                            relay.close()
+                        }
+                    }
+                }
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test fun `the decode tier reads under the probes' pool while the players' permits are held`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-probe-pool-")
+        try {
+            MediaFixture().use { media ->
+                HttpClient(CIO).use { http ->
+                    openStore(dir).use { store ->
+                        val feeds = FeedService(emptyList(), store, http, MutableClock())
+                        val players = Semaphore(1).also { it.acquire() }
+                        val relay = LoopbackRelay(http, UpstreamPolicy(allowLoopback = true), players)
+                        try {
+                            val worker = ProbeWorker(
+                                feeds,
+                                store,
+                                MutableClock(),
+                                "ffmpeg",
+                                config = ProbeConfig(decodeSeconds = 4, deadlineSeconds = 30, requests = 2),
+                                relay = relay,
+                            )
+                            val vod = Offering("vod", "c", "media", "${media.base}/vod.m3u8", "hls")
+                            assertNull(withTimeout(60_000) { worker.decode(vod, emptyMap()) })
+                            assertEquals(0, players.availablePermits, "the players' permit stayed held")
                         } finally {
                             relay.close()
                         }

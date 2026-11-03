@@ -27,6 +27,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
@@ -42,6 +43,8 @@ import kotlin.time.Duration.Companion.seconds
 
 data class ProbeConfig(
     val parallelism: Int = 6,
+    /** Upstream requests the probes' FFmpegs make at once, a pool apart from the players'. */
+    val requests: Int = 12,
     val restreamOrigins: Set<String> = emptySet(),
     val httpTimeoutMillis: Long = 8000,
     val decodeSeconds: Int = 30,
@@ -99,6 +102,9 @@ class ProbeWorker(
     /** When a source of each provider last qualified, and when each source was last refused, for [evidence]. */
     private val providerQualified = HashMap<String, Instant>()
     private val refused = HashMap<String, Instant>()
+
+    /** The probes' own upstream requests, apart from the players' pool the relay shares with sessions. */
+    private val requests = Semaphore(config.requests)
 
     suspend fun run() = coroutineScope {
         repeat(config.parallelism) { launch { worker() } }
@@ -300,7 +306,11 @@ class ProbeWorker(
         recheck: Boolean = false,
     ): FailureClass? {
         val relay = relay ?: return FailureClass.LOCAL
-        return relay.reading(ResolvedStream(offering.url, headers), offering.protocol) { source ->
+        return relay.reading(
+            ResolvedStream(offering.url, headers),
+            offering.protocol,
+            permits = requests,
+        ) { source ->
             decode(source, offering.protocol, recheck)
         }
     }

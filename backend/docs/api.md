@@ -81,6 +81,7 @@ Send `Authorization: Bearer $SOFA_API_TOKEN` on every `/api/v1` request. Routes 
 | GET | `/auto/v{number}` | MPEG-TS stream of the channel with that lineup number |
 | POST | `/api/v1/mcp` | The [MCP endpoint](#mcp) for AI assistants; takes the admin token or a `read` token |
 | GET, POST | `/admin`, `/admin/*` | The [admin portal](#admin-portal-routes), HTML |
+| GET | `/admin/api/openapi.json` | The OpenAPI document, behind the portal's session |
 
 Request bodies are limited as [security](security.md#request-limits) lists; a larger one answers `413 REQUEST_TOO_LARGE` before the token is checked. Every response carries an `X-Request-Id` header with the id the server's log lines for that request carry. Responses under `/api/` and `/admin`, the M3U playlist, the XMLTV guide and `/lineup.json` are gzip- or deflate-compressed when the request's `Accept-Encoding` allows it; media, streams, logos and artwork never are. The live TV fields are defined in the [contract](../../contract/src/commonMain/kotlin/dev/jamesrich/sofaking/contract/), which the app compiles against too, and the admin fields in the [server's models](../server/src/main/kotlin/dev/jamesrich/sofaking/backend/api/); see [shared types](#shared-types).
 

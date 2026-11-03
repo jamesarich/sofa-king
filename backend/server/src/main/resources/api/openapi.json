@@ -3,7 +3,7 @@
   "info": {
     "title": "Sofa King server",
     "version": "1",
-    "description": "The Sofa King media center server's HTTP interface: the API the Sofa King app uses under /api/v1 for live TV, recordings and media libraries, the admin API under /api/v1/admin, the player outputs under /output, the logo cache and the HDHomeRun emulation Plex reads. The admin portal under /admin is HTML and is not described here. Timestamps are UTC instants. The admin token is accepted on every route that takes the API token."
+    "description": "The Sofa King media center server's HTTP interface: the API the Sofa King app uses under /api/v1 for live TV, recordings and media libraries, the admin API under /api/v1/admin, the player outputs under /output, the logo cache and the HDHomeRun emulation Plex reads. The admin portal's pages under /admin are HTML and are not described here, only this document's own route. Timestamps are UTC instants. The admin token is accepted on every route that takes the API token."
   },
   "servers": [{ "url": "/" }],
   "tags": [
@@ -905,6 +905,7 @@
     }
   },
   "paths": {
+    "/admin/api/openapi.json": { "get": { "tags": ["Admin"], "summary": "This document", "description": "Served behind the portal's session, not a token.", "security": [], "responses": { "200": { "description": "application/json" }, "303": { "description": "To the portal's sign-in without a session" } } } },
     "/healthz": { "get": { "tags": ["Health"], "summary": "Liveness", "security": [], "responses": { "200": { "description": "ok, as text" } } } },
     "/readyz": { "get": { "tags": ["Health"], "summary": "Database readiness", "security": [], "responses": { "200": { "description": "ready, as text" }, "503": { "$ref": "#/components/responses/Error" } } } },
     "/api/v1/bootstrap": {
@@ -1023,9 +1024,9 @@
         "parameters": [{ "$ref": "#/components/parameters/outputName" }, { "name": "days", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 14 } }],
         "responses": { "200": { "description": "application/xml" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" }, "404": { "description": "OUTPUT_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
-    "/output/stream/{channelId}.{suffix}": {
+    "/output/stream/{channelId}": {
       "get": { "tags": ["Outputs"], "summary": "Open a player session for the channel and stream it", "description": "An HLS source answers 302 to the session's playlist; an MPEG-TS source streams video/mp2t here, and with format=ts so does an HLS source, remuxed. The session is released 60 s after the last media request.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
-        "parameters": [{ "name": "channelId", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "suffix", "in": "path", "required": true, "schema": { "type": "string", "enum": ["m3u8", "ts"] } }, { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
+        "parameters": [{ "name": "channelId", "in": "path", "required": true, "description": "The channel id, which the playlist's URLs follow with .m3u8 or .ts; the suffix is ignored.", "schema": { "type": "string" } }, { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
         "responses": { "200": { "description": "video/mp2t" }, "302": { "description": "To the session's playlist under /media/sessions/" }, "404": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
     },
     "/logos/{key}": {
@@ -1173,7 +1174,11 @@
           "401": { "$ref": "#/components/responses/Error" },
           "413": { "$ref": "#/components/responses/Error" },
           "415": { "description": "The body is not application/json", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcMessage" } } } }
-        } }
+        } },
+      "get": { "tags": ["Admin"], "summary": "No event stream to open", "security": [{ "adminToken": [] }, { "readToken": [] }],
+        "responses": { "405": { "description": "METHOD_NOT_ALLOWED, with Allow: POST", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "401": { "$ref": "#/components/responses/Error" } } },
+      "delete": { "tags": ["Admin"], "summary": "No session to end", "security": [{ "adminToken": [] }, { "readToken": [] }],
+        "responses": { "405": { "description": "METHOD_NOT_ALLOWED, with Allow: POST", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "401": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/status": {
       "get": { "tags": ["Admin"], "summary": "One summary of the server", "security": [{ "adminToken": [] }, { "readToken": [] }],

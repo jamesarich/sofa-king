@@ -29,7 +29,9 @@ import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.core.max
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
 import org.jetbrains.exposed.v1.jdbc.batchInsert
+import org.jetbrains.exposed.v1.jdbc.batchUpsert
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.except
@@ -103,6 +105,65 @@ suspend fun BackendStore.saveLineup(entries: List<LineupEntryRecord>, at: Instan
             }
         }
     Unit
+}
+
+/**
+ * Writes what differs between [before], the stored lineup, and [after], and returns the rows it touched. A position
+ * change is an entry change, so a reorder rewrites each moved entry's row and no offering rows.
+ */
+suspend fun BackendStore.saveLineupChanges(
+    before: List<LineupEntryRecord>,
+    after: List<LineupEntryRecord>,
+    at: Instant,
+): Int = query { applyLineupChanges(before, after, at) }
+
+internal fun JdbcTransaction.applyLineupChanges(
+    before: List<LineupEntryRecord>,
+    after: List<LineupEntryRecord>,
+    at: Instant,
+): Int {
+    val stored = before.withIndex().associate { (index, entry) -> entry.id to (index to entry) }
+    val kept = after.mapTo(HashSet()) { it.id }
+    val removed = before.filter { it.id !in kept }.map { it.id }
+    val changed = after.withIndex().filter { (index, entry) -> stored[entry.id] != (index to entry) }
+    val reoffered = after.filter { entry -> stored[entry.id]?.second?.offeringIds != entry.offeringIds }
+    var touched = 0
+    // Deleted by hand rather than by cascade, so the row count covers every row removed.
+    (removed + reoffered.map { it.id }.filter { it in stored }).chunked(INSERT_CHUNK).forEach { ids ->
+        touched += LineupOfferings.deleteWhere { LineupOfferings.entryId inList ids }
+    }
+    removed.chunked(INSERT_CHUNK).forEach { ids ->
+        touched += LineupEntries.deleteWhere { LineupEntries.id inList ids }
+    }
+    changed.chunked(INSERT_CHUNK).forEach { chunk ->
+        LineupEntries.batchUpsert(chunk, shouldReturnGeneratedValues = false) { (position, entry) ->
+            this[LineupEntries.id] = entry.id
+            this[LineupEntries.position] = position
+            this[LineupEntries.number] = entry.number
+            this[LineupEntries.name] = entry.name
+            this[LineupEntries.groupName] = entry.group
+            this[LineupEntries.logo] = entry.logo
+            this[LineupEntries.enabled] = entry.enabled
+            this[LineupEntries.guideId] = entry.guide?.guideId
+            this[LineupEntries.guideChannel] = entry.guide?.channelId
+            this[LineupEntries.updatedAt] = at.toString()
+            this[LineupEntries.createdBy] = entry.createdBy
+            this[LineupEntries.autoDisabledAt] = entry.autoDisabledAt?.toString()
+            this[LineupEntries.autoDisabledReason] = entry.autoDisabledReason
+        }
+        touched += chunk.size
+    }
+    reoffered.flatMap { entry ->
+        entry.offeringIds.withIndex().map { (position, offeringId) -> Triple(entry.id, position, offeringId) }
+    }.chunked(INSERT_CHUNK).forEach { chunk ->
+        LineupOfferings.batchInsert(chunk, shouldReturnGeneratedValues = false) { (entryId, position, offeringId) ->
+            this[LineupOfferings.entryId] = entryId
+            this[LineupOfferings.position] = position
+            this[LineupOfferings.offeringId] = offeringId
+        }
+        touched += chunk.size
+    }
+    return touched
 }
 
 class StoredGuide(

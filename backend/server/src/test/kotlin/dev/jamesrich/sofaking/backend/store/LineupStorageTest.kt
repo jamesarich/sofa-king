@@ -14,6 +14,64 @@ import kotlin.test.assertTrue
 class LineupStorageTest {
     private val t = Instant.parse("2026-10-10T00:00:00Z")
 
+    private fun entry(n: Int, offerings: List<String> = listOf("o$n-a", "o$n-b")) = LineupEntryRecord(
+        "b0f6d2f4-0000-4000-8000-%012d".format(n),
+        "$n",
+        "Station $n",
+        if (n % 2 == 0) "News" else null,
+        null,
+        true,
+        if (n % 3 == 0) GuideMapping("g", "c$n") else null,
+        offerings,
+    )
+
+    private val base = (1..6).map { entry(it) }
+
+    private fun deltaShapes(): Map<String, List<LineupEntryRecord>> = mapOf(
+        "one field changed" to base.mapIndexed { i, e -> if (i == 2) e.copy(name = "Renamed") else e },
+        "one entry's offerings changed" to base.mapIndexed { i, e ->
+            if (i == 3) e.copy(offeringIds = listOf("x1", "x2", "x3")) else e
+        },
+        "one removed" to base.filterIndexed { i, _ -> i != 1 },
+        "one inserted at the front" to listOf(entry(7)) + base,
+        "a reorder" to base.reversed(),
+        "replace all" to (10..13).map { entry(it) },
+    )
+
+    @Test fun `a delta save leaves what a full save of the same list leaves`() = runBlocking<Unit> {
+        for ((shape, after) in deltaShapes()) {
+            val delta = Files.createTempDirectory("sofa-lineup-delta-")
+            val full = Files.createTempDirectory("sofa-lineup-full-")
+            try {
+                openStore(delta).use { byDelta ->
+                    openStore(full).use { byFull ->
+                        byDelta.saveLineup(base, t)
+                        byDelta.saveLineupChanges(base, after, t)
+                        byFull.saveLineup(after, t)
+                        assertEquals(byFull.lineup(), byDelta.lineup(), shape)
+                        assertEquals(after, byDelta.lineup(), shape)
+                    }
+                }
+            } finally {
+                delta.toFile().deleteRecursively()
+                full.toFile().deleteRecursively()
+            }
+        }
+    }
+
+    @Test fun `saving an unchanged lineup touches no rows`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-lineup-noop-")
+        try {
+            openStore(dir).use { store ->
+                store.saveLineup(base, t)
+                assertEquals(0, store.saveLineupChanges(base, base, t))
+                assertEquals(base, store.lineup())
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
     @Test fun `lineup order offerings and mapping survive a reopen`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-lineup-store-")
         try {

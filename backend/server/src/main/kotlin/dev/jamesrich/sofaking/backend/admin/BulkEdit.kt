@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.catalog.Impact
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.Moved
 import dev.jamesrich.sofaking.backend.catalog.PolicyService
+import dev.jamesrich.sofaking.backend.catalog.updateAll
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Parameters
 import io.ktor.http.set
@@ -94,7 +95,7 @@ internal class BulkEdit(
         }
         val entries = ids.mapNotNull { runtime.lineup.entry(it) }
         if (form["confirm"] == "yes") {
-            for (entry in entries) runtime.lineup.update(entry.id, update)
+            runtime.lineup.updateAll(entries.map { it.id }, update)
             session.flash.set(Flash("Changed ${plural(entries.size, "channel")}."))
             seeOther(call, page)
         } else {

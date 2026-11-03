@@ -7,7 +7,7 @@ import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.backend.hash
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.lineup
-import dev.jamesrich.sofaking.backend.store.saveLineup
+import dev.jamesrich.sofaking.backend.store.saveLineupChanges
 import dev.jamesrich.sofaking.contract.Channel
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.sync.Mutex
@@ -116,12 +116,17 @@ class LineupService(
         AdoptResult(added, skipped)
     }
 
-    /** Writes and publishes the entries [block] leaves, and refreshes any guide that gains a mapped channel. */
+    /**
+     * Writes the difference from the published entries, publishes the entries [block] leaves, and refreshes any
+     * guide that gains a mapped channel. The published entries equal the database: a failed save throws before
+     * `published.set`, so the next change diffs against what is stored.
+     */
     internal suspend fun <R> mutate(block: (MutableList<LineupEntryRecord>) -> R): R = mutex.withLock {
-        val entries = published.get().entries.toMutableList()
+        val stored = published.get().entries
+        val entries = stored.toMutableList()
         val result = block(entries)
         require(entries.map { it.id }.distinct().size == entries.size) { "Duplicate lineup entry IDs" }
-        store.saveLineup(entries, clock.instant())
+        store.saveLineupChanges(stored, entries, clock.instant())
         val before = published.get().wanted
         val next = Published(entries)
         published.set(next)
@@ -139,3 +144,16 @@ class LineupService(
             compareBy<Channel>({ it.displayNumber.toDoubleOrNull() ?: Double.MAX_VALUE }, { it.name }, { it.id })
     }
 }
+
+/**
+ * [LineupService.update] for every entry in [ids] in one write; an unknown id fails the call and changes nothing.
+ * The request's position is ignored.
+ */
+suspend fun LineupService.updateAll(ids: List<String>, request: UpdateLineupEntry): List<LineupEntryRecord> =
+    mutate { entries ->
+        ids.map { id ->
+            val index = entries.indexOfFirst { it.id == id }
+            if (index < 0) throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+            drafts.updated(entries[index], request).also { entries[index] = it }
+        }
+    }

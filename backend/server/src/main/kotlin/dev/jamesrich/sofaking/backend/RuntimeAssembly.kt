@@ -58,6 +58,7 @@ import dev.jamesrich.sofaking.backend.notify.NotifyIdentity
 import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.ChannelTap
+import dev.jamesrich.sofaking.backend.playback.LOW_PRIORITY
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.MediaRelay
 import dev.jamesrich.sofaking.backend.playback.SegmentAudio
@@ -73,6 +74,7 @@ import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.settings.RuntimeSettings
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
+import dev.jamesrich.sofaking.backend.settings.Settings
 import dev.jamesrich.sofaking.backend.setup.SetupService
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.DatabaseBackups
@@ -97,6 +99,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.time.Duration
@@ -225,7 +228,7 @@ internal class RuntimeAssembly(
         val audio = SegmentAudio(config.ffmpeg)
         relay =
             MediaRelay(http, feeds, sessions, scope, audio, config.ffmpeg to config.dataDirectory.resolve("packages"))
-        val listener = adListener(audio)
+        val listener = adListener()
         loopback = LoopbackRelay(http, upstream, relay.permits)
         val worker = probeWorker()
         val dvr = dvr().also { dvrService = it }
@@ -395,8 +398,10 @@ internal class RuntimeAssembly(
         return service
     }
 
-    private fun adListener(audio: SegmentAudio): AdListener = AdListener(
-        http, feeds, sessions, store, library, audio, relay.permits, clock,
+    /** The ad listener, on a pool and a nice'd [SegmentAudio] of its own, apart from the viewers'. */
+    private fun adListener(): AdListener = AdListener(
+        http, feeds, sessions, store, library, SegmentAudio(config.ffmpeg, prefix = LOW_PRIORITY),
+        Semaphore(Settings.AD_LISTENERS.range.last), clock,
         channels = { lineup.entries().filter { it.enabled }.map { it.id } },
         slots = { settings.current.adListeners },
         mode = { sessions.learnedBreaks },
@@ -410,6 +415,7 @@ internal class RuntimeAssembly(
         if (!options.probes || (service == null && sources.providers.none { it.probe })) return null
         val probeConfig = ProbeConfig(
             parallelism = config.probeParallelism,
+            requests = config.probeRequests,
             restreamOrigins = config.restreamOrigins,
             observationRetention = Duration.ofDays(config.observationRetentionDays.toLong()),
         )

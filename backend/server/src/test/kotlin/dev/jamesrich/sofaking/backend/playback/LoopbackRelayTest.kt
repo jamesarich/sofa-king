@@ -31,7 +31,10 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.readRawBytes
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withTimeout
@@ -522,6 +525,42 @@ class LoopbackRelayTest {
             val loud = events.list.filter { it.level.isGreaterOrEqual(Level.WARN) }
             assertTrue(loud.isEmpty(), "logged: " + loud.map { "${it.level} ${it.formattedMessage}" })
         }
+
+    @Test fun `a lease with a pool of its own is served while the players' pool is exhausted`() =
+        loopbackTest("sofa-loopback-own-pool-") {
+            val players = Semaphore(1).also { it.acquire() }
+            val relay = LoopbackRelay(http, stack.runtime.feeds.upstream, players)
+            try {
+                relay.reading(
+                    ResolvedStream("${upstream.base}/vod.m3u8", upstream.feed.headers),
+                    "hls",
+                    permits = Semaphore(1),
+                ) { source ->
+                    withTimeout(10_000) { assertLeaseServesMedia(source.url, source.credential) }
+                }
+                assertEquals(0, players.availablePermits, "the players' permit was never taken or given back")
+            } finally {
+                relay.close()
+            }
+        }
+
+    @Test fun `a lease on the default pool waits for the permit`() = loopbackTest("sofa-loopback-default-pool-") {
+        val players = Semaphore(1).also { it.acquire() }
+        val relay = LoopbackRelay(http, stack.runtime.feeds.upstream, players)
+        try {
+            relay.reading(ResolvedStream("${upstream.base}/vod.m3u8", upstream.feed.headers), "hls") { source ->
+                coroutineScope {
+                    val request = async { status(source.url, source.credential) }
+                    delay(1_000)
+                    assertTrue(request.isActive, "the request waits while the pool is exhausted")
+                    players.release()
+                    assertEquals(HttpStatusCode.OK, withTimeout(10_000) { request.await() })
+                }
+            }
+        } finally {
+            relay.close()
+        }
+    }
 
     /** The status of a GET of [url] that sends [credential], or no credential. */
     private suspend fun LoopbackScope.status(url: String, credential: String?): HttpStatusCode =

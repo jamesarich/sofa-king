@@ -67,7 +67,9 @@ class AdListener(
     private val sessions: SessionManager,
     private val store: BackendStore,
     private val library: BreakLibrary,
+    /** Reads the listener's segments' audio, apart from the viewers' sessions. */
     private val audio: SegmentAudio,
+    /** The listener's own upstream requests, apart from the players' pool. */
     private val permits: Semaphore,
     private val clock: Clock,
     /** The enabled channels of the lineup. */
@@ -257,7 +259,7 @@ class AdListener(
         return mediaOf(text, base)
     }
 
-    private suspend fun fetchText(stream: ResolvedStream, url: String): Pair<String, URI>? =
+    internal suspend fun fetchText(stream: ResolvedStream, url: String): Pair<String, URI>? =
         fetch(stream, url, MAX_PLAYLIST) {
                 bytes,
                 finalUrl,

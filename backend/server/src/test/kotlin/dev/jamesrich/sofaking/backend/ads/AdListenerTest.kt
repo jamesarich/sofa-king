@@ -1,11 +1,31 @@
 package dev.jamesrich.sofaking.backend.ads
 
+import dev.jamesrich.sofaking.backend.catalog.FeedService
+import dev.jamesrich.sofaking.backend.catalog.MediaFixture
+import dev.jamesrich.sofaking.backend.catalog.MutableClock
+import dev.jamesrich.sofaking.backend.catalog.lineupStack
+import dev.jamesrich.sofaking.backend.playback.SegmentAudio
+import dev.jamesrich.sofaking.backend.playback.SessionManager
+import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.store.AdChannelRecord
+import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.withTimeout
 import java.net.URI
+import java.nio.file.Files
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class AdListenerTest {
     private val now = Instant.parse("2026-10-23T18:00:00Z")
@@ -53,6 +73,44 @@ class AdListenerTest {
         assertEquals(AdListener.WHILE_WATCHING, AdListener.wanted(LearnedBreaks.ON, setOf("news"), 6))
         assertEquals(1, AdListener.wanted(LearnedBreaks.SHADOW, setOf("news"), 1))
         assertEquals(0, AdListener.wanted(LearnedBreaks.OFF, emptySet(), 6))
+    }
+
+    @Test
+    fun `a fetch runs under the listener's own pool`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-ad-listener-pool-")
+        try {
+            MediaFixture().use { media ->
+                HttpClient(CIO).use { http ->
+                    openStore(dir).use { store ->
+                        val clock = MutableClock()
+                        val feeds = FeedService(
+                            emptyList(),
+                            store,
+                            http,
+                            clock,
+                            UpstreamPolicy(allowLoopback = true),
+                        )
+                        val catalog = lineupStack(feeds, store, clock, http, adopt = false).catalog
+                        val pool = Semaphore(1)
+                        val listener = AdListener(
+                            http, feeds, SessionManager(catalog, store, clock), store, BreakLibrary(store, clock),
+                            SegmentAudio("ffmpeg"), pool, clock, { emptyList() }, { 0 }, { LearnedBreaks.OFF },
+                        )
+                        val stream = ResolvedStream("${media.base}/vod.m3u8", emptyMap())
+                        assertNotNull(listener.fetchText(stream, stream.url), "a free pool serves the fetch")
+                        assertEquals(1, pool.availablePermits, "the permit is given back")
+                        pool.acquire()
+                        val waiting = async { listener.fetchText(stream, stream.url) }
+                        delay(500)
+                        assertTrue(waiting.isActive, "the fetch waits for the listener's pool")
+                        pool.release()
+                        assertNotNull(withTimeout(10_000) { waiting.await() })
+                    }
+                }
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
     }
 
     @Test

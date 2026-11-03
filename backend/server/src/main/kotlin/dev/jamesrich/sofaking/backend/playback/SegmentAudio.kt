@@ -21,9 +21,14 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * Reads segments' audio with FFmpeg for the learned breaks (see [AudioFollower]): [pcm] decodes a segment's first audio
  * track to [AUDIO_RATE] Hz mono, and [points] fingerprints decoded audio with FFmpeg's `chromaprint` muxer. At most
- * [parallelism] FFmpeg runs at once, server-wide.
+ * [parallelism] FFmpeg runs at once, server-wide, each behind [prefix] (see [LOW_PRIORITY]).
  */
-class SegmentAudio(private val ffmpeg: String, parallelism: Int = 2, private val timeout: Duration = 10.seconds) {
+class SegmentAudio(
+    private val ffmpeg: String,
+    parallelism: Int = 2,
+    private val timeout: Duration = 10.seconds,
+    private val prefix: List<String> = emptyList(),
+) {
     private val permits = Semaphore(parallelism)
 
     /** [segment]'s audio as signed 16-bit little-endian samples, or null when it has none or FFmpeg cannot read it. */
@@ -46,7 +51,7 @@ class SegmentAudio(private val ffmpeg: String, parallelism: Int = 2, private val
     }
 
     private suspend fun run(input: ByteArray, vararg args: String): ByteArray? = permits.withPermit {
-        val process = ProcessBuilder(listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error") + args)
+        val process = ProcessBuilder(prefix + listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error") + args)
             .redirectError(ProcessBuilder.Redirect.DISCARD).startOwned()
         try {
             coroutineScope {
@@ -76,6 +81,12 @@ internal const val AUDIO_RATE = 11_025
 
 /** Chromaprint's step between points, in samples at [AUDIO_RATE]. */
 internal const val CHROMAPRINT_HOP = 1_365
+
+/** The command prefix that runs FFmpeg at a low priority where `nice` exists, and none where it does not. */
+internal val LOW_PRIORITY: List<String> =
+    "/usr/bin/nice".let { nice ->
+        if (java.nio.file.Files.isExecutable(java.nio.file.Path.of(nice))) listOf(nice, "-n", "10") else emptyList()
+    }
 
 /** The audio a point needs from its start: its 4096-sample frame and the 19 frames after it its filters read. */
 internal const val CHROMAPRINT_CONTEXT = 4_096 + 19 * CHROMAPRINT_HOP

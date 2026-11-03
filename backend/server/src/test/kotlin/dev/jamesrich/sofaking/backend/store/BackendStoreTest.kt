@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.api.PlexDeviceStatus
 import dev.jamesrich.sofaking.backend.api.PlexStatus
+import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.health.FailureClass
 import dev.jamesrich.sofaking.backend.health.HealthState
 import dev.jamesrich.sofaking.backend.health.HealthStatus
@@ -366,6 +367,36 @@ class BackendStoreTest {
             withTimeout(5_000) { assertEquals(emptyList(), store.lineup()) }
             readDone.countDown()
             assertTrue(write.await(), "the write was still open when the read answered")
+        }
+    }
+
+    @Test fun `a one-entry lineup change in a large lineup writes few rows`() = runBlocking<Unit> {
+        openStore(directory()).use { store ->
+            val before = (0 until 3_000).map {
+                LineupEntryRecord("id-$it", "$it", "Station $it", null, null, true, null, listOf("a$it", "b$it"))
+            }
+            store.saveLineup(before, t)
+
+            fun totalChanges(tx: org.jetbrains.exposed.v1.jdbc.JdbcTransaction) = tx.exec("SELECT total_changes()") {
+                it.next()
+                it.getLong(1)
+            }!!
+
+            val renamed = before.mapIndexed { i, e -> if (i == 1_500) e.copy(name = "Renamed") else e }
+            val (touchedName, deltaName) = store.query {
+                val start = totalChanges(this)
+                val touched = applyLineupChanges(before, renamed, t)
+                touched to totalChanges(this) - start
+            }
+            println("lineup name change: touched=$touchedName total_changes delta=$deltaName")
+            assertTrue(touchedName in 1..4, "touched $touchedName")
+            assertEquals(touchedName.toLong(), deltaName)
+
+            val reoffered = renamed.mapIndexed { i, e -> if (i == 10) e.copy(offeringIds = listOf("n1", "n2")) else e }
+            val touchedOfferings = store.query { applyLineupChanges(renamed, reoffered, t) }
+            println("lineup offerings change: touched=$touchedOfferings")
+            assertTrue(touchedOfferings in 1..5, "touched $touchedOfferings")
+            assertEquals(reoffered, store.lineup().also { assertEquals(3_000, it.size) })
         }
     }
 

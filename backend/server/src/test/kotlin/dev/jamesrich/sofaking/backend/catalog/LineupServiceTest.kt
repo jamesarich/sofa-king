@@ -45,6 +45,37 @@ class LineupServiceTest {
         assertEquals("INVALID_REQUEST", codeOf { stack.lineup.reorder(listOf(created.id)) })
     }
 
+    @Test fun `a bulk update changes every named entry in one write`() = lineupTest {
+        val created = tsEntry()
+        val manual = manualEntry()
+        var changes = 0
+        val service = LineupService(store, clock, feeds, stack.guides) { changes++ }
+        service.initialize()
+        val revision = service.revision()
+        val updated = service.updateAll(listOf(created.id, manual.id), UpdateLineupEntry(enabled = false, position = 0))
+        assertEquals(listOf(false, false), updated.map { it.enabled })
+        assertEquals(1, changes)
+        assertTrue(service.revision() != revision)
+        assertEquals(listOf(manual.id, created.id), service.entries().map { it.id })
+        assertEquals(
+            "LINEUP_ENTRY_NOT_FOUND",
+            codeOf {
+                service.updateAll(listOf(created.id, "nope"), UpdateLineupEntry(enabled = true))
+            },
+        )
+        assertEquals(1, changes)
+        assertTrue(service.entries().none { it.enabled })
+    }
+
+    @Test fun `a reorder survives a reopen`() = lineupTest {
+        val created = tsEntry()
+        val manual = manualEntry()
+        stack.lineup.reorder(listOf(created.id, manual.id))
+        val reopened = LineupService(store, clock, feeds, stack.guides)
+        reopened.initialize()
+        assertEquals(listOf(created.id, manual.id), reopened.entries().map { it.id })
+    }
+
     @Test fun `a disabled entry leaves the catalog and returns where an update puts it`() = lineupTest {
         tsEntry()
         val manual = manualEntry()

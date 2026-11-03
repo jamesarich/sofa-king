@@ -52,6 +52,9 @@ class TouchTest {
         // otherwise shows the system's hint, which takes input focus until it is tapped away.
         device.executeShellCommand("settings put secure immersive_mode_confirmations confirmed")
         device.setOrientationNatural()
+        // The walk's random swipes can leave the notification shade pulled down, which takes input focus from whatever
+        // opens under it; the next test starts with it closed.
+        device.executeShellCommand("cmd statusbar collapse")
         val link = Uri.parse("sofaking://pair").buildUpon()
             .appendQueryParameter("server", address).appendQueryParameter("code", server.pairingCode()).build()
         val context = InstrumentationRegistry.getInstrumentation().targetContext

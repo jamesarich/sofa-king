@@ -1,18 +1,14 @@
 package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.LiveRuntime
-import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.admin.isPortalPath
 import dev.jamesrich.sofaking.backend.api.TokenScope
-import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.dvr.StoredRecording
 import dev.jamesrich.sofaking.backend.store.addRecording
-import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.ApiError
 import dev.jamesrich.sofaking.contract.RecordingBreak
 import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.HttpClient
-import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
@@ -34,19 +30,8 @@ import io.ktor.http.parameters
 import io.ktor.http.path
 import io.ktor.http.set
 import io.ktor.server.application.Application
-import io.ktor.server.application.plugin
-import io.ktor.server.routing.HttpMethodRouteSelector
-import io.ktor.server.routing.PathSegmentConstantRouteSelector
-import io.ktor.server.routing.PathSegmentOptionalParameterRouteSelector
-import io.ktor.server.routing.PathSegmentParameterRouteSelector
-import io.ktor.server.routing.PathSegmentRegexRouteSelector
-import io.ktor.server.routing.PathSegmentTailcardRouteSelector
-import io.ktor.server.routing.PathSegmentWildcardRouteSelector
-import io.ktor.server.routing.RoutingNode
-import io.ktor.server.routing.RoutingRoot
 import io.ktor.server.routing.application
 import io.ktor.server.routing.get
-import io.ktor.server.routing.getAllRoutes
 import io.ktor.server.routing.method
 import io.ktor.server.routing.path
 import io.ktor.server.routing.post
@@ -55,13 +40,11 @@ import io.ktor.server.routing.routing
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
-import java.nio.file.Files
 import java.time.Duration
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlin.test.fail
 
 /**
  * Sweeps every route the application installs, read from its routing tree so a new route is swept too, against the
@@ -73,103 +56,11 @@ class RouteGuardTest {
     private val apiToken = "api".repeat(12)
     private val adminToken = "admin".repeat(8)
 
-    private data class Endpoint(val method: HttpMethod, val path: String) {
-        override fun toString() = "${method.value} $path"
-    }
-
-    private class Routes(val endpoints: List<Endpoint>, val browser: HttpClient, val runtime: LiveRuntime)
-
-    /** A runtime with every optional part on, both tokens set, and the routes its application installed. */
-    private suspend fun ApplicationTestBuilder.routes(block: suspend Routes.() -> Unit) {
-        val dir = Files.createTempDirectory("sofa-route-guard-")
-        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
-        val config =
-            ServerConfig(
-                "127.0.0.1",
-                8080,
-                dir,
-                dir.resolve("sources.json"),
-                apiToken,
-                adminToken = adminToken,
-                updateImage = null,
-                comskip = null,
-            )
-        val store = openStore(dir)
-        val clock = MutableClock()
-        val runtime = LiveRuntime.create(store, config, clock, probes = false, restart = {})
-        try {
-            lateinit var app: Application
-            application {
-                backendModule(store, clock, runtime, apiToken, adminToken, config.outputs, config.hdhr, config = config)
-                app =
-                    this
-            }
-            startApplication()
-            val endpoints = endpoints(app.plugin(RoutingRoot))
-            // The sweep reads the tree it means to: these are routes of several route files.
-            for (known in listOf(
-                Endpoint(HttpMethod.Post, PAIR_PATH),
-                Endpoint(HttpMethod.Get, "/api/v1/channels"),
-                Endpoint(HttpMethod.Post, "/api/v1/recordings"),
-                Endpoint(HttpMethod.Delete, "/api/v1/recording-rules/x"),
-                Endpoint(HttpMethod.Put, "/api/v1/admin/policy"),
-                Endpoint(HttpMethod.Post, "/api/v1/admin/libraries/x/scan"),
-                Endpoint(HttpMethod.Post, "/api/v1/hooks/servarr"),
-                Endpoint(HttpMethod.Post, "/Library/Media/Updated"),
-                Endpoint(HttpMethod.Post, "/admin/login"),
-                Endpoint(HttpMethod.Post, "/admin/logout"),
-            )) {
-                assertTrue(known in endpoints, "the sweep found no $known in $endpoints")
-            }
-            Routes(
-                endpoints,
-                createClient {
-                    install(HttpCookies)
-                    followRedirects = false
-                },
-                runtime,
-            ).block()
-        } finally {
-            runtime.close()
-            store.close()
-            dir.toFile().deleteRecursively()
+    /** The sweep's runtime and routes, each `{x}` segment filled with `x` for the requests below. */
+    private suspend fun ApplicationTestBuilder.routes(block: suspend Routes.() -> Unit) =
+        sweepRoutes(apiToken, adminToken) {
+            Routes(endpoints.map { it.copy(path = it.path.replace("{x}", "x")) }, browser, runtime).block()
         }
-    }
-
-    /** Every route with a handler as a method and a concrete path, each parameter segment filled with `x`. */
-    private fun endpoints(root: RoutingNode): List<Endpoint> =
-        root.getAllRoutes().filter { it.hasHandler() }.map { node ->
-            val chain = generateSequence(node) { it.parent }.toList().asReversed()
-            var method: HttpMethod? = null
-            val segments = ArrayList<String>()
-            for (selector in chain.map { it.selector }) {
-                when (selector) {
-                    is PathSegmentConstantRouteSelector -> segments += selector.value
-
-                    is PathSegmentParameterRouteSelector ->
-                        segments +=
-                            selector.prefix.orEmpty() + "x" + selector.suffix.orEmpty()
-
-                    is PathSegmentOptionalParameterRouteSelector ->
-                        segments +=
-                            selector.prefix.orEmpty() + "x" + selector.suffix.orEmpty()
-
-                    is PathSegmentTailcardRouteSelector -> segments += selector.prefix + "x"
-
-                    is PathSegmentWildcardRouteSelector -> segments += "x"
-
-                    is PathSegmentRegexRouteSelector -> fail(
-                        "the sweep cannot fill the regex route under ${node.parent}",
-                    )
-
-                    is HttpMethodRouteSelector -> method = selector.method
-
-                    // The root, rate limits and the like add no path segment.
-                    else -> {}
-                }
-            }
-            Endpoint(method ?: fail("the route $node has no method"), segments.joinToString("/", prefix = "/"))
-        }.distinct()
 
     private fun Endpoint.isApi() = path == "/api" || path.startsWith("/api/")
     private fun Endpoint.isAdminApi() =

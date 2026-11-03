@@ -18,6 +18,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.regex.Pattern
@@ -57,10 +58,10 @@ class TouchTest {
         scenario = ActivityScenario.launch(Intent(Intent.ACTION_VIEW, link).setClass(context, MainActivity::class.java))
         // A start reopens the last channel full screen; Back leaves it for the guide.
         check(device.wait(Until.hasObject(By.res(FIRST_PAGE)), TIMEOUT_MS)) {
-            "Neither the guide nor the player opened"
+            "Neither the guide nor the player opened: ${onScreen()}"
         }
         if (device.hasObject(By.res(PLAYER))) device.pressBack()
-        check(device.wait(Until.hasObject(By.res(GUIDE)), TIMEOUT_MS)) { "The guide did not open" }
+        check(device.wait(Until.hasObject(By.res(GUIDE)), TIMEOUT_MS)) { "The guide did not open: ${onScreen()}" }
     }
 
     @After
@@ -205,6 +206,21 @@ class TouchTest {
         "mCurrentFocus" in it
     }?.trim().orEmpty()
 
+    /**
+     * What is on screen when a launch finds neither the guide nor the player: a screenshot the workflow pulls from
+     * [SCREENSHOTS] and the window hierarchy in the log, with the focused window and top activity as the message.
+     */
+    private fun onScreen(): String {
+        val shot = "$SCREENSHOTS/launch-${System.currentTimeMillis()}.png"
+        device.executeShellCommand("mkdir -p $SCREENSHOTS")
+        device.executeShellCommand("screencap -p $shot")
+        val hierarchy = ByteArrayOutputStream().also { device.dumpWindowHierarchy(it) }
+        println("Window hierarchy at $shot:\n$hierarchy")
+        val top = device.executeShellCommand("dumpsys activity activities").lineSequence()
+            .firstOrNull { "topResumedActivity" in it }?.trim().orEmpty()
+        return "${focusedWindow()}; $top; screenshot $shot"
+    }
+
     private fun appFocused(): Boolean = "$PACKAGE/" in focusedWindow()
 
     private fun eventually(what: String, condition: () -> Boolean) {
@@ -231,6 +247,7 @@ class TouchTest {
         const val GUIDE = "guide"
         val FIRST_PAGE: Pattern = Pattern.compile("$PLAYER|$GUIDE")
 
+        const val SCREENSHOTS = "/sdcard/Download/phone-tests"
         const val TIMEOUT_MS = 30_000L
         const val POLL_MS = 500L
         const val PLAYBACK_MS = 5_000L

@@ -99,14 +99,16 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           working-directory: app
-          # Each script line runs on its own, so the test run is one line; the walk's seed is in logcat.txt.
+          # Each script line runs on its own, so the test run is one line; the walk's seed is in logcat.txt. A launch that
+          # finds neither the guide nor the player leaves a screenshot on the emulator, pulled whatever the result.
           script: >-
             adb logcat -c && (adb logcat -v threadtime > build/phone-tests/logcat.txt &) &&
             ./gradlew --console=plain :androidApp:connectedDebugAndroidTest
             -Pandroid.testInstrumentationRunnerArguments.sofakingServer="$PHONE_SERVER"
             -Pandroid.testInstrumentationRunnerArguments.sofakingToken="$PHONE_TOKEN"
             -Pandroid.testInstrumentationRunnerArguments.sofakingWalkSteps="$PHONE_WALK_STEPS"
-            ${PHONE_WALK_SEED:+-Pandroid.testInstrumentationRunnerArguments.sofakingWalkSeed=$PHONE_WALK_SEED}
+            ${PHONE_WALK_SEED:+-Pandroid.testInstrumentationRunnerArguments.sofakingWalkSeed=$PHONE_WALK_SEED};
+            status=$?; adb pull /sdcard/Download/phone-tests build/phone-tests/screenshots || true; exit $status
       # An emulator that disappears mid-run leaves no log of its own; the kernel says whether it ran out of memory.
       - name: Show the kernel's memory kills
         if: failure()

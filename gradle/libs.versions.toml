@@ -46,7 +46,7 @@ androidx-fragment = "1.9.1"
 androidx-work = "2.12.0"
 # Macrobenchmark and the Baseline Profile plugin release together.
 benchmark = "1.5.0"
-uiautomator = "2.4.0"
+uiautomator = "2.4.1"
 androidx-test-junit = "1.3.0"
 androidx-test-runner = "1.7.0"
 androidx-test-orchestrator = "1.6.1"

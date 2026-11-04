@@ -8,6 +8,8 @@
   "servers": [{ "url": "/" }],
   "tags": [
     { "name": "Health", "description": "Public checks that take no token." },
+    { "name": "Server", "description": "The dashboard summary and this document. Bearer: the API token, or a read token for the summary; the document sits behind the portal's session." },
+    { "name": "MCP", "description": "The Model Context Protocol endpoint for AI assistants. Bearer: the admin token or a read token." },
     { "name": "Live TV", "description": "The catalog and guide the app reads. Bearer: the API token." },
     { "name": "Playback", "description": "Sessions that select a source and relay its media. Bearer: the API token; the media URLs take none." },
     { "name": "Sources", "description": "Provider and source health. Bearer: the API token." },
@@ -52,7 +54,7 @@
     "schemas": {
       "ApiError": {
         "type": "object",
-        "required": ["code", "message", "retryable"],
+        "required": ["code", "message"],
         "properties": { "code": { "type": "string", "example": "AUTH_REQUIRED" }, "message": { "type": "string" }, "retryable": { "type": "boolean" } }
       },
       "JsonRpcMessage": {
@@ -70,17 +72,20 @@
       },
       "Bootstrap": {
         "type": "object",
+        "required": ["serverId", "serverTime"],
         "properties": {
           "serverId": { "type": "string" }, "serverTime": { "type": "string", "format": "date-time" }, "apiVersion": { "type": "integer" },
-          "capabilities": { "type": "object", "properties": { "catalog": { "type": "boolean" }, "guide": { "type": "boolean" }, "playback": { "type": "boolean" }, "viewers": { "type": "boolean", "description": "The server pairs clients (/api/v1/pair) and keeps their preferences." }, "library": { "type": "boolean", "description": "The server serves media libraries (/api/v1/libraries, /api/v1/library)." }, "recordings": { "type": "boolean", "description": "The server records (/api/v1/recordings, /api/v1/recording-rules)." }, "watchlist": { "type": "boolean", "description": "The server keeps the household's watchlist (/api/v1/watchlist)." }, "onLater": { "type": "boolean", "description": "The server lists upcoming movies, sports, kids' programs and premieres (/api/v1/guide/on-later)." }, "household": { "type": "boolean", "description": "The server keeps the household's shared favorites and hidden channels (/api/v1/household/preferences)." }, "multiview": { "type": "boolean", "description": "The server composites multiview now (/api/v1/multiview-sessions)." }, "music": { "type": "boolean", "description": "The server lists Music libraries to a client that sends Sofa-Library-Kinds: music, and plays their tracks." } } }
+          "capabilities": { "type": "object", "properties": { "catalog": { "type": "boolean" }, "guide": { "type": "boolean" }, "playback": { "type": "boolean" }, "events": { "type": "boolean" }, "viewers": { "type": "boolean", "description": "The server pairs clients (/api/v1/pair) and keeps their preferences." }, "library": { "type": "boolean", "description": "The server serves media libraries (/api/v1/libraries, /api/v1/library)." }, "recordings": { "type": "boolean", "description": "The server records (/api/v1/recordings, /api/v1/recording-rules)." }, "watchlist": { "type": "boolean", "description": "The server keeps the household's watchlist (/api/v1/watchlist)." }, "onLater": { "type": "boolean", "description": "The server lists upcoming movies, sports, kids' programs and premieres (/api/v1/guide/on-later)." }, "household": { "type": "boolean", "description": "The server keeps the household's shared favorites and hidden channels (/api/v1/household/preferences)." }, "multiview": { "type": "boolean", "description": "The server composites multiview now (/api/v1/multiview-sessions)." }, "music": { "type": "boolean", "description": "The server lists Music libraries to a client that sends Sofa-Library-Kinds: music, and plays their tracks." } } }
         }
       },
       "Catalog": {
         "type": "object",
+        "required": ["channels"],
         "properties": { "revision": { "type": "string" }, "channels": { "type": "array", "items": { "$ref": "#/components/schemas/Channel" } } }
       },
       "Channel": {
         "type": "object",
+        "required": ["id", "displayNumber", "name"],
         "description": "A lineup entry as the app sees it. The id is the lineup entry id; logo is a server-relative /logos/KEY path.",
         "properties": {
           "id": { "type": "string" }, "displayNumber": { "type": "string" }, "name": { "type": "string" }, "logo": { "type": ["string", "null"] },
@@ -99,6 +104,7 @@
       },
       "GuideWindow": {
         "type": "object",
+        "required": ["revision", "channels"],
         "properties": {
           "revision": { "type": "string" }, "from": { "type": "string" }, "to": { "type": "string" },
           "channels": { "type": "array", "items": { "$ref": "#/components/schemas/ChannelGuide" } }
@@ -106,13 +112,14 @@
       },
       "ChannelGuide": {
         "type": "object",
+        "required": ["channelId", "programs"],
         "properties": {
           "channelId": { "type": "string" }, "status": { "type": "string", "description": "ok, or removed for an entry the lineup no longer has" },
           "programs": { "type": "array", "items": { "$ref": "#/components/schemas/Program" } }
         }
       },
       "UpcomingPrograms": {
-        "type": "object", "required": ["programs"],
+        "type": "object",
         "properties": { "programs": { "type": "array", "items": { "$ref": "#/components/schemas/Program" } } }
       },
       "ProgramFacts": {
@@ -132,6 +139,7 @@
       },
       "Program": {
         "type": "object",
+        "required": ["startsAt", "endsAt", "title"],
         "properties": {
           "id": { "type": "string" }, "channelId": { "type": "string" }, "startsAt": { "type": "string", "format": "date-time" }, "endsAt": { "type": "string", "format": "date-time" },
           "title": { "type": "string" }, "description": { "type": ["string", "null"] }, "subTitle": { "type": ["string", "null"] }, "episode": { "type": ["string", "null"] },
@@ -150,10 +158,12 @@
       "UpdatePlayback": { "type": "object", "properties": { "intent": { "type": ["string", "null"], "enum": ["preview", "watch", null] } } },
       "PlaybackSession": {
         "type": "object",
+        "required": ["id", "channelId", "intent", "descriptor"],
         "properties": {
           "id": { "type": "string" }, "channelId": { "type": "string" }, "intent": { "type": "string" }, "expiresAt": { "type": "string", "format": "date-time" },
           "descriptor": {
             "type": "object",
+            "required": ["protocol", "mimeType", "url", "epoch"],
             "properties": {
               "protocol": { "type": "string", "enum": ["hls", "mpegts"] }, "mimeType": { "type": "string" },
               "url": { "type": "string", "description": "Relative; resolve against the server address" }, "epoch": { "type": "integer" }
@@ -215,6 +225,9 @@
           "poster": { "type": ["string", "null"], "description": "A server-relative /artwork path." }, "backdrop": { "type": ["string", "null"], "description": "A server-relative /artwork path." },
           "addedAt": { "type": "string", "format": "date-time" }, "genres": { "type": "array", "items": { "type": "string" } }, "contentRating": { "type": ["string", "null"] }, "rating": { "type": ["number", "null"] },
           "videoHeight": { "type": ["integer", "null"] }, "hdr": { "type": "boolean" },
+          "favorite": { "type": "boolean", "description": "For a song, album or artist: whether the household likes it." },
+          "plays": { "type": "integer", "description": "For a song: how often it was played." },
+          "lastPlayedAt": { "type": ["string", "null"], "description": "For a song: when it was last played." },
           "children": { "type": "integer", "description": "A show's seasons (or episodes when it has no season folders), or a season's episodes." },
           "unwatched": { "type": "integer", "description": "A show's or season's unwatched episodes." },
           "playState": { "oneOf": [{ "$ref": "#/components/schemas/PlayState" }, { "type": "null" }], "description": "A movie's, episode's or video's watch state; null before it is started." },
@@ -229,7 +242,7 @@
       },
       "LibraryPage": {
         "type": "object", "required": ["items"],
-        "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" } }, "total": { "type": "integer" }, "next": { "type": ["string", "null"], "description": "The cursor for the next page; null on the last." }, "genres": { "type": "array", "items": { "type": "string" }, "description": "Every genre in the library; empty on search results." }, "people": { "type": "array", "items": { "type": "string" }, "description": "On search results, the cast and directors whose names hold the query, the most credited first; at most 10." } }
+        "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" } }, "total": { "type": "integer" }, "next": { "type": ["string", "null"], "description": "The cursor for the next page; null on the last." }, "genres": { "type": "array", "items": { "type": "string" }, "description": "Every genre in the library; empty on search results." }, "people": { "type": "array", "items": { "type": "string" }, "description": "On search results, the cast and directors whose names hold the query, the most credited first; at most 10." }, "letters": { "type": ["array", "null"], "items": { "type": "object", "required": ["letter", "count"], "properties": { "letter": { "type": "string", "description": "An upper-case letter, or # for a digit or a symbol." }, "count": { "type": "integer" } } }, "description": "Runs of items in title order by first letter, so their counts added up give where each starts; null when the request did not ask." } }
       },
       "LibraryHome": {
         "type": "object", "required": ["shelves"],
@@ -277,7 +290,8 @@
           "containers": { "type": "array", "items": { "type": "string" }, "description": "mp4, mkv, webm, ts" },
           "videoCodecs": { "type": "array", "items": { "type": "string" }, "description": "h264, hevc, vp9, av1, mpeg2video" },
           "audioCodecs": { "type": "array", "items": { "type": "string" }, "description": "aac, ac3, eac3, mp3, opus, flac, dts, truehd" },
-          "maxHeight": { "type": ["integer", "null"] }, "hdr": { "type": "boolean" }
+          "maxHeight": { "type": ["integer", "null"] }, "hdr": { "type": "boolean" },
+          "deepColor": { "type": ["array", "null"], "items": { "type": "string" }, "description": "The video codecs it also decodes at more than 8 bits a sample, such as hevc; null for a player that does not say, which the server takes as every codec in videoCodecs but h264." }
         }
       },
       "OpenVodPlayback": {
@@ -292,7 +306,7 @@
         "type": "object", "required": ["id", "itemId", "mode", "descriptor"],
         "properties": {
           "id": { "type": "string" }, "itemId": { "type": "string" }, "mode": { "type": "string", "enum": ["direct", "remux", "audio", "transcode"] },
-          "descriptor": { "type": "object", "properties": { "protocol": { "type": "string", "enum": ["file", "hls"] }, "mimeType": { "type": "string" }, "url": { "type": "string" }, "epoch": { "type": "integer" } } },
+          "descriptor": { "type": "object", "required": ["protocol", "mimeType", "url", "epoch"], "properties": { "protocol": { "type": "string", "enum": ["file", "hls"] }, "mimeType": { "type": "string" }, "url": { "type": "string" }, "epoch": { "type": "integer" } } },
           "startMs": { "type": "integer", "description": "Where in the item the HLS stream's time 0 is; 0 for direct play." }, "durationMs": { "type": ["integer", "null"] },
           "expiresAt": { "type": "string", "format": "date-time" }, "recordingId": { "type": ["string", "null"], "description": "Set, with an empty itemId, when the session plays a recording." },
           "intent": { "type": "string", "enum": ["preview", "watch"], "default": "watch", "description": "What the session is held for; a server that does not know previews always says watch." }
@@ -313,7 +327,7 @@
         "type": "object", "required": ["id", "channelIds", "audio", "descriptor"],
         "properties": {
           "id": { "type": "string" }, "channelIds": { "type": "array", "items": { "type": "string" } }, "audio": { "type": "integer" },
-          "descriptor": { "type": "object", "properties": { "protocol": { "type": "string", "enum": ["hls"] }, "mimeType": { "type": "string" }, "url": { "type": "string" }, "epoch": { "type": "integer" } } },
+          "descriptor": { "type": "object", "required": ["protocol", "mimeType", "url", "epoch"], "properties": { "protocol": { "type": "string", "enum": ["hls"] }, "mimeType": { "type": "string" }, "url": { "type": "string" }, "epoch": { "type": "integer" } } },
           "expiresAt": { "type": "string", "format": "date-time" }
         }
       },
@@ -905,44 +919,44 @@
     }
   },
   "paths": {
-    "/admin/api/openapi.json": { "get": { "tags": ["Admin"], "summary": "This document", "description": "Served behind the portal's session, not a token.", "security": [], "responses": { "200": { "description": "application/json" }, "303": { "description": "To the portal's sign-in without a session" } } } },
-    "/healthz": { "get": { "tags": ["Health"], "summary": "Liveness", "security": [], "responses": { "200": { "description": "ok, as text" } } } },
-    "/readyz": { "get": { "tags": ["Health"], "summary": "Database readiness", "security": [], "responses": { "200": { "description": "ready, as text" }, "503": { "$ref": "#/components/responses/Error" } } } },
+    "/admin/api/openapi.json": { "get": { "tags": ["Server"], "summary": "This document", "description": "The OpenAPI document, behind the portal's session\n\nServed behind the portal's session, not a token.", "security": [], "responses": { "200": { "description": "application/json" }, "303": { "description": "To the portal's sign-in without a session" } } } },
+    "/healthz": { "get": { "tags": ["Health"], "summary": "Liveness", "description": "Public liveness check", "security": [], "responses": { "200": { "description": "ok, as text" } } } },
+    "/readyz": { "get": { "tags": ["Health"], "summary": "Database readiness", "description": "Public database readiness check", "security": [], "responses": { "200": { "description": "ready, as text" }, "503": { "$ref": "#/components/responses/Error" } } } },
     "/api/v1/bootstrap": {
-      "get": { "tags": ["Live TV"], "summary": "Server id, time and capabilities", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Live TV"], "summary": "Server id, time and capabilities", "description": "Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`, `recordings`, `watchlist`, `multiview`, `music`)", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Bootstrap" } } } }, "503": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/pair": {
-      "post": { "tags": ["Viewers"], "summary": "Claim a pairing code for a token of the device's own", "description": "The code comes from the admin portal's Devices page or POST /api/v1/admin/pairing-codes; it is live for ten minutes and works once, and five wrong claims void it. The answer is a new token for this clientId, which revokes the one it was paired with before; forgetting the device revokes it. No bearer token: 10 claims a minute per client address, then 429. A server without an API token answers an empty one.", "security": [],
+      "post": { "tags": ["Viewers"], "summary": "Claim a pairing code for a token of the device's own", "description": "Exchange a pairing code for a token of the device's own, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429`\n\nThe code comes from the admin portal's Devices page or POST /api/v1/admin/pairing-codes; it is live for ten minutes and works once, and five wrong claims void it. The answer is a new token for this clientId, which revokes the one it was paired with before; forgetting the device revokes it. No bearer token: 10 claims a minute per client address, then 429. A server without an API token answers an empty one.", "security": [],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PairingClaim" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PairingResult" } } } }, "400": { "description": "INVALID_REQUEST: a malformed claim or client id", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "403": { "description": "PAIRING_INVALID", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "429": { "description": "Too many claims from this address" } } }
     },
     "/api/v1/preferences/{clientId}": {
-      "get": { "tags": ["Viewers"], "summary": "The preferences this client last saved", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
+      "get": { "tags": ["Viewers"], "summary": "The preferences this client last saved", "description": "The preferences the client with that id last saved, see [viewer preferences](#viewer-preferences); `404 VIEWER_NOT_FOUND` before its first save", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } }, "404": { "description": "VIEWER_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "put": { "tags": ["Viewers"], "summary": "Replace this client's preferences", "description": "Each list holds at most 1,000 distinct ids; an empty name or platform keeps the stored one. The answer is the stored document with the server's updatedAt. A token paired to a client writes only that client; the shared API token and issued tokens without a client write any.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
+      "put": { "tags": ["Viewers"], "summary": "Replace this client's preferences", "description": "Replace that client's preferences; answers the stored document with the server's `updatedAt`. A token paired to a client writes only that client, `403 CLIENT_MISMATCH` otherwise; the shared API token and issued tokens without a client write any. A new client past 200 viewers answers `409 VIEWER_LIMIT`\n\nEach list holds at most 1,000 distinct ids; an empty name or platform keeps the stored one. The answer is the stored document with the server's updatedAt. A token paired to a client writes only that client; the shared API token and issued tokens without a client write any.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ViewerPreferences" } } } }, "400": { "$ref": "#/components/responses/Error" }, "403": { "description": "CLIENT_MISMATCH: a token paired to another client", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "409": { "description": "VIEWER_LIMIT: 200 viewers are kept already", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/household/preferences": {
-      "get": { "tags": ["Viewers"], "summary": "The household's shared favorites and hidden channels", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Viewers"], "summary": "The household's shared favorites and hidden channels", "description": "The household's shared favorites and hidden channels, see [viewer preferences](#viewer-preferences); an empty document with an empty `updatedAt` before the first save", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HouseholdPreferences" } } } } } },
-      "put": { "tags": ["Viewers"], "summary": "Replace the household's shared favorites and hidden channels", "description": "Each list holds at most 1,000 distinct ids. The answer is the stored document with the server's updatedAt.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "put": { "tags": ["Viewers"], "summary": "Replace the household's shared favorites and hidden channels", "description": "Replace the household's shared favorites and hidden channels; answers the stored document with the server's `updatedAt`\n\nEach list holds at most 1,000 distinct ids. The answer is the stored document with the server's updatedAt.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HouseholdPreferences" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HouseholdPreferences" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/channels": {
-      "get": { "tags": ["Live TV"], "summary": "The catalog: the enabled lineup entries as channels", "description": "Carries an ETag; If-None-Match answers 304.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Live TV"], "summary": "The catalog: the enabled lineup entries as channels", "description": "Catalog revision and the enabled lineup entries as channels; supports ETag/If-None-Match\n\nCarries an ETag; If-None-Match answers 304.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "If-None-Match", "in": "header", "schema": { "type": "string" } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Catalog" } } } }, "304": { "description": "Unchanged" } } }
     },
     "/api/v1/guide/query": {
-      "post": { "tags": ["Live TV"], "summary": "Programs overlapping a window for up to 200 channels", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "post": { "tags": ["Live TV"], "summary": "Programs overlapping a window for up to 200 channels", "description": "Programs overlapping a requested channel/time window", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideQuery" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideWindow" } } } }, "400": { "description": "INVALID_QUERY or INVALID_REQUEST", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "409": { "description": "RESYNC_REQUIRED: the revision changed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/guide/on-later": {
-      "get": { "tags": ["Live TV"], "summary": "Movies, sports, kids' programs or premieres coming up on the enabled channels", "description": "Programs that have not ended and start within days, soonest first. A movie needs a Movie or Film category beside a film genre and no News or Sports one; sports and kids match their categories; new is a Premiere category or a new airing of a season's first episode.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Live TV"], "summary": "Movies, sports, kids' programs or premieres coming up on the enabled channels", "description": "Movies, sports, kids' programs or premieres coming up on the enabled channels\n\nPrograms that have not ended and start within days, soonest first. A movie needs a Movie or Film category beside a film genre and no News or Sports one; sports and kids match their categories; new is a Premiere category or a new airing of a season's first episode.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [
           { "name": "kind", "in": "query", "required": true, "schema": { "type": "string", "enum": ["movie", "sports", "kids", "new"] } },
           { "name": "days", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 7, "default": 2 } },
@@ -951,7 +965,7 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpcomingPrograms" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/program-facts": {
-      "get": { "tags": ["Live TV"], "summary": "What TMDB says about a live program", "description": "Found by its exact guide title, for the break screen to show a fact at a time. Every field is empty when TMDB lists no such title or the server has no TMDB token.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Live TV"], "summary": "What TMDB says about a live program", "description": "What TMDB says about a live program, found by its exact guide title, for the break screen: `kind` (`show` or `movie`), `year`, `endYear`, `studio`, `seasons`, `episodes`, `cast`, `creators`, `tagline` and `rating`. `movie=true` searches movies first. Every field is empty when TMDB lists no such title or the server has no TMDB token; see [libraries](libraries.md#details-from-tmdb)\n\nFound by its exact guide title, for the break screen to show a fact at a time. Every field is empty when TMDB lists no such title or the server has no TMDB token.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [
           { "name": "title", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 200 } },
           { "name": "movie", "in": "query", "description": "true searches movies first", "schema": { "type": "boolean", "default": false } }
@@ -959,83 +973,83 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProgramFacts" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/providers": {
-      "get": { "tags": ["Sources"], "summary": "Each provider's import status and counts", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Sources"], "summary": "Each provider's import status and counts", "description": "Provider import status and channel counts", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ProviderStatus" } } } } } } }
     },
     "/api/v1/sources": {
-      "get": { "tags": ["Sources"], "summary": "Every source's health and manual-disable flag", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Sources"], "summary": "Every source's health and manual-disable flag", "description": "Health and manual-disable flag of every source", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SourceStatus" } } } } } } }
     },
     "/api/v1/sources/{id}": {
-      "patch": { "tags": ["Sources"], "summary": "Disable or enable a source by hand", "description": "A disabled source is never selected or probed; sessions playing it move on.", "security": [{ "adminToken": [] }],
+      "patch": { "tags": ["Sources"], "summary": "Disable or enable a source by hand", "description": "Set `manuallyDisabled`; takes the admin token, as the admin routes do\n\nA disabled source is never selected or probed; sessions playing it move on.", "security": [{ "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateSource" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SourceStatus" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/playback-sessions": {
-      "post": { "tags": ["Playback"], "summary": "Open a preview or watch session", "description": "Picks the channel's first selectable source. A client that names no protocol in Sofa-Playback-Protocols gets HLS, packaged from an MPEG-TS source; hls, mpegts asks for the source's own format. Repeating a key returns the same session while it lives; a key reused with other parameters answers 409 IDEMPOTENCY_CONFLICT. At capacity the oldest preview, then an idle player session, yields; otherwise 429 CAPACITY_EXHAUSTED.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "post": { "tags": ["Playback"], "summary": "Open a preview or watch session", "description": "Create a preview or watch session. A client that names no protocol in a `Sofa-Playback-Protocols` header (comma separated protocols), or names `hls`, gets HLS, packaged from an MPEG-TS channel; `hls, mpegts` asks for the source's own format (`SOFA_APP_STREAMS=source` makes the default the source's format); see [architecture](architecture.md#playback)\n\nPicks the channel's first selectable source. A client that names no protocol in Sofa-Playback-Protocols gets HLS, packaged from an MPEG-TS source; hls, mpegts asks for the source's own format. Repeating a key returns the same session while it lives; a key reused with other parameters answers 409 IDEMPOTENCY_CONFLICT. At capacity the oldest preview, then an idle player session, yields; otherwise 429 CAPACITY_EXHAUSTED.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/playbackProtocols" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenPlayback" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlaybackSession" } } } }, "404": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/playback-sessions/{id}": {
-      "get": { "tags": ["Playback"], "summary": "The current descriptor", "description": "Moves the session to the next selectable source, with a new epoch, when the current one stopped being selectable.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Playback"], "summary": "The current descriptor", "description": "Read the current playback descriptor, with the session's `health`: `bitrateKbps`, `stalls` and `sourceSwitches`, as on the portal's Watching now\n\nMoves the session to the next selectable source, with a new epoch, when the current one stopped being selectable.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlaybackSession" } } } }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "patch": { "tags": ["Playback"], "summary": "Renew the lease; optionally change the intent", "description": "A watch session expires 90 s after its last renewal, a preview 45 s. Send {} to renew alone.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "patch": { "tags": ["Playback"], "summary": "Renew the lease; optionally change the intent", "description": "Renew the lease and optionally change intent; the answer carries `health` too\n\nA watch session expires 90 s after its last renewal, a preview 45 s. Send {} to renew alone.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePlayback" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlaybackSession" } } } }, "410": { "$ref": "#/components/responses/Error" } } },
-      "delete": { "tags": ["Playback"], "summary": "Release the session", "description": "Idempotent; cancels its upstream requests.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "delete": { "tags": ["Playback"], "summary": "Release the session", "description": "Release the session; returns 204\n\nIdempotent; cancels its upstream requests.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "204": { "description": "Released" } } }
     },
     "/api/v1/playback-sessions/{id}/ad-break": {
-      "get": { "tags": ["Playback"], "summary": "Whether the session's player shows an ad", "description": "The fallback for engines without timed metadata, which cannot read the playlist's EXT-X-DATERANGE ad marks: the server places the picture from the last segment the player fetched and aheadMs, how much it has loaded past the picture.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Playback"], "summary": "Whether the session's player shows an ad", "description": "Whether the session's player shows an ad, for engines without timed metadata that cannot read the playlist's `#EXT-X-DATERANGE` ad marks: `inBreak` and, when the stream planned the break, `remainingMs`. `aheadMs` is how much the player has loaded past the picture; see [architecture](architecture.md#playback)\n\nThe fallback for engines without timed metadata, which cannot read the playlist's EXT-X-DATERANGE ad marks: the server places the picture from the last segment the player fetched and aheadMs, how much it has loaded past the picture.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "aheadMs", "in": "query", "schema": { "type": "integer", "format": "int64", "default": 0 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdBreakState" } } } }, "400": { "$ref": "#/components/responses/Error" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/media/sessions/{id}/{epoch}/{token}": {
-      "get": { "tags": ["Playback"], "summary": "A playlist, segment, key or live TS stream of the session", "description": "No token: the random resource token authorizes it until the session ends or its epoch changes. An older epoch answers 410 STREAM_CHANGED; a source no longer selectable answers 503 SOURCE_UNAVAILABLE; more than 12 requests at once answer 429.", "security": [],
+      "get": { "tags": ["Playback"], "summary": "A playlist, segment, key or live TS stream of the session", "description": "Session-authorized HLS or MPEG-TS media. `{epoch}` is the descriptor's epoch and `{token}` a random token for one playlist, segment or key\n\nNo token: the random resource token authorizes it until the session ends or its epoch changes. An older epoch answers 410 STREAM_CHANGED; a source no longer selectable answers 503 SOURCE_UNAVAILABLE; more than 12 requests at once answer 429.", "security": [],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "epoch", "in": "path", "required": true, "schema": { "type": "integer" } }, { "name": "token", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "Range", "in": "header", "schema": { "type": "string" } }],
         "responses": { "200": { "description": "application/vnd.apple.mpegurl, video/mp2t or the resource's own type" }, "206": { "description": "A range of the resource" }, "404": { "$ref": "#/components/responses/Error" }, "410": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "502": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
     },
     "/output/playlist.m3u": {
-      "get": { "tags": ["Outputs"], "summary": "The enabled lineup as an M3U playlist", "description": "audio/x-mpegurl; tvg-id is the channel id, URLs use the request's Host. The stream suffix follows the protocol of the source the channel would play now; format=ts lists every stream as MPEG-TS. A channel with a Gracenote id in the policy carries tvc-guide-stationid, any other with a logo tvc-guide-art.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Outputs"], "summary": "The enabled lineup as an M3U playlist", "description": "The enabled lineup as an M3U playlist for third-party players, see [player outputs](#player-outputs)\n\naudio/x-mpegurl; tvg-id is the channel id, URLs use the request's Host. The stream suffix follows the protocol of the source the channel would play now; format=ts lists every stream as MPEG-TS. A channel with a Gracenote id in the policy carries tvc-guide-stationid, any other with a logo tvc-guide-art.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
         "responses": { "200": { "description": "" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" } } }
     },
     "/output/recordings.ics": {
-      "get": { "tags": ["Outputs"], "summary": "The scheduled and running recordings as iCalendar", "description": "One event per recording over the window the DVR records, paddings included. A read token from POST /api/v1/admin/tokens works as ?token= too.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "readToken": [] }],
+      "get": { "tags": ["Outputs"], "summary": "The scheduled and running recordings as iCalendar", "description": "The scheduled and running recordings as iCalendar\n\nOne event per recording over the window the DVR records, paddings included. A read token from POST /api/v1/admin/tokens works as ?token= too.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "text/calendar", "content": { "text/calendar": { "schema": { "type": "string" } } } }, "401": { "$ref": "#/components/responses/Error" }, "404": { "description": "RECORDINGS_NOT_AVAILABLE: the server does not record", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/output/guide.xml": {
-      "get": { "tags": ["Outputs"], "summary": "The lineup's programs as XMLTV", "description": "From three hours ago to days ahead; the server's runtime setting applies when days is absent.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Outputs"], "summary": "The lineup's programs as XMLTV", "description": "The lineup's programs as XMLTV\n\nFrom three hours ago to days ahead; the server's runtime setting applies when days is absent.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "days", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 14 } }],
         "responses": { "200": { "description": "application/xml" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" } } }
     },
     "/output/{name}/playlist.m3u": {
-      "get": { "tags": ["Outputs"], "summary": "A named output's channels as an M3U playlist", "description": "As /output/playlist.m3u, holding only the output's groups and channels; url-tvg names the output's own guide. Stream URLs stay under /output/stream/.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Outputs"], "summary": "A named output's channels as an M3U playlist", "description": "A [named output](#named-outputs)'s channels only, as an M3U playlist\n\nAs /output/playlist.m3u, holding only the output's groups and channels; url-tvg names the output's own guide. Stream URLs stay under /output/stream/.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/outputName" }, { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
         "responses": { "200": { "description": "" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" }, "404": { "description": "OUTPUT_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/output/{name}/guide.xml": {
-      "get": { "tags": ["Outputs"], "summary": "A named output's programs as XMLTV", "description": "As /output/guide.xml, holding only the output's groups and channels.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Outputs"], "summary": "A named output's programs as XMLTV", "description": "A [named output](#named-outputs)'s channels only, as XMLTV\n\nAs /output/guide.xml, holding only the output's groups and channels.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/outputName" }, { "name": "days", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 14 } }],
         "responses": { "200": { "description": "application/xml" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" }, "404": { "description": "OUTPUT_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/output/stream/{channelId}": {
-      "get": { "tags": ["Outputs"], "summary": "Open a player session for the channel and stream it", "description": "An HLS source answers 302 to the session's playlist; an MPEG-TS source streams video/mp2t here, and with format=ts so does an HLS source, remuxed. The session is released 60 s after the last media request.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Outputs"], "summary": "Open a player session for the channel and stream it", "description": "Opens a player session for the channel and streams it\n\nAn HLS source answers 302 to the session's playlist; an MPEG-TS source streams video/mp2t here, and with format=ts so does an HLS source, remuxed. The session is released 60 s after the last media request.", "security": [{ "outputToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "channelId", "in": "path", "required": true, "description": "The channel id, which the playlist's URLs follow with .m3u8 or .ts; the suffix is ignored.", "schema": { "type": "string" } }, { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["ts"] } }],
         "responses": { "200": { "description": "video/mp2t" }, "302": { "description": "To the session's playlist under /media/sessions/" }, "404": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
     },
     "/logos/{key}": {
-      "get": { "tags": ["Logos"], "summary": "A cached channel logo", "description": "key is the lowercase hex SHA-256 of the logo's source URL. Carries an ETag and Cache-Control: public, max-age=86400.", "security": [],
+      "get": { "tags": ["Logos"], "summary": "A cached channel logo", "description": "A cached lineup logo, public, see [logos](#logos)\n\nkey is the lowercase hex SHA-256 of the logo's source URL. Carries an ETag and Cache-Control: public, max-age=86400.", "security": [],
         "parameters": [{ "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "If-None-Match", "in": "header", "schema": { "type": "string" } }],
         "responses": { "200": { "description": "PNG, JPEG, WebP, GIF or SVG" }, "304": { "description": "Unchanged" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/libraries": {
-      "get": { "tags": ["Library"], "summary": "Every media library", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }],
+      "get": { "tags": ["Library"], "summary": "Every media library", "description": "Every [media library](#media-libraries) with its count of movies, shows or videos", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Library" } } } } } } }
     },
     "/api/v1/libraries/{id}/items": {
@@ -1044,11 +1058,11 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "LIBRARY_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/home": {
-      "get": { "tags": ["Library"], "summary": "Continue watching, Recently added per library, and the libraries", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }],
+      "get": { "tags": ["Library"], "summary": "Continue watching, Recently added per library, and the libraries", "description": "Continue watching, the Watchlist, then Recently added for each library, and the libraries", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryHome" } } } } } }
     },
     "/api/v1/library/lookup": {
-      "get": { "tags": ["Library"], "summary": "The movies and shows an id names", "description": "Every movie and show whose TMDB, TheTVDB or IMDb id is one of those given, in title order. At least one id; 400 for none or a malformed one.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Library"], "summary": "The movies and shows an id names", "description": "The movies and shows whose TMDB, TheTVDB or IMDb (`tt…`) id is one of those given, as a `LibraryPage` in title order. 400 without an id or with a malformed one\n\nEvery movie and show whose TMDB, TheTVDB or IMDb id is one of those given, in title order. At least one id; 400 for none or a malformed one.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [
           { "name": "tmdb", "in": "query", "schema": { "type": "integer", "minimum": 1 } },
           { "name": "tvdb", "in": "query", "schema": { "type": "integer", "minimum": 1 } },
@@ -1057,113 +1071,113 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/library/search": {
-      "get": { "tags": ["Library"], "summary": "Titles holding q: movies, shows and videos, then episodes", "description": "Movies, shows and videos whose title holds q, then those with a cast member or director whose name holds it, then episodes by title. At most 50.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Library"], "summary": "Titles holding q: movies, shows and videos, then episodes", "description": "Movies, shows and videos whose title holds `q`, then those with a cast member or director whose name holds it, then episodes by title; at most 50. `people` names those cast members and directors, the most credited first, at most 10\n\nMovies, shows and videos whose title holds q, then those with a cast member or director whose name holds it, then episodes by title. At most 50.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 100 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/library/items/{id}": {
-      "get": { "tags": ["Library"], "summary": "An item with its seasons or episodes, a show's next episode and a file's tracks", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
+      "get": { "tags": ["Library"], "summary": "An item with its seasons or episodes, a show's next episode and a file's tracks", "description": "An item with its seasons or episodes, the next episode of a show, and a file's tracks", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItemDetail" } } } }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/play-state": {
-      "put": { "tags": ["Library"], "summary": "Record where playback stopped, or mark an item watched", "description": "A stop in the first 5% leaves the item where it was; one at 90% or later marks it watched. A show or season takes watched only, and marks every episode in it.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "put": { "tags": ["Library"], "summary": "Record where playback stopped, or mark an item watched", "description": "Record where playback stopped, or mark an item, season or show watched or unwatched\n\nA stop in the first 5% leaves the item where it was; one at 90% or later marks it watched. A show or season takes watched only, and marks every episode in it.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePlayState" } } } },
         "responses": { "200": { "description": "The item", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItem" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/favorite": {
-      "put": { "tags": ["Library"], "summary": "Like or unlike a song, album or artist", "description": "Feeds the music radio. Only for a client that sends music in Sofa-Library-Kinds; any other finds no Music item.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
+      "put": { "tags": ["Library"], "summary": "Like or unlike a song, album or artist", "description": "Like (`{\"favorite\": true}`) or unlike a song, album or artist; answers the item, see [music taste](libraries.md#radio)\n\nFeeds the music radio. Only for a client that sends music in Sofa-Library-Kinds; any other finds no Music item.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateFavorite" } } } },
         "responses": { "200": { "description": "The item", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItem" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/played": {
-      "post": { "tags": ["Library"], "summary": "Count one play of a song", "description": "Feeds the music radio. Only for a client that sends music in Sofa-Library-Kinds; an album or artist answers 404.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
+      "post": { "tags": ["Library"], "summary": "Count one play of a song", "description": "Count one play of a song; answers the song\n\nFeeds the music radio. Only for a client that sends music in Sofa-Library-Kinds; an album or artist answers 404.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "The song", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItem" } } } }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/lyrics": {
-      "get": { "tags": ["Library"], "summary": "A song's lyrics as LRC text", "description": "An .lrc file beside the track wins; else, unless SOFA_MUSICBRAINZ=false, LRCLIB's synced lyrics, else its plain ones, asked the first time and kept. Synced lines start with [mm:ss.xx] tags; plain lyrics have none.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Library"], "summary": "A song's lyrics as LRC text", "description": "A song's lyrics as LRC text, see [play library files](#play-library-files)\n\nAn .lrc file beside the track wins; else, unless SOFA_MUSICBRAINZ=false, LRCLIB's synced lyrics, else its plain ones, asked the first time and kept. Synced lines start with [mm:ss.xx] tags; plain lyrics have none.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "LRC", "content": { "text/plain": { "schema": { "type": "string" } } } }, "404": { "description": "RESOURCE_NOT_FOUND: not a song, or no lyrics for it", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/radio": {
-      "get": { "tags": ["Library"], "summary": "A radio from an artist, album or song", "description": "Songs to play on from the item: the artist's own, then those of artists listeners play alongside them, then of artists sharing their genres, the songs listeners play most likelier than the rest. A song starts it and an album opens with its first song. No more than two songs of one artist play in a row while another has any left. Only for a client that sends music in Sofa-Library-Kinds.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Library"], "summary": "A radio from an artist, album or song", "description": "A radio from an artist, album or song: up to `limit` songs (default 50, at most 200) as a `LibraryPage`, see [music radio](libraries.md#radio)\n\nSongs to play on from the item: the artist's own, then those of artists listeners play alongside them, then of artists sharing their genres, the songs listeners play most likelier than the rest. A song starts it and an album opens with its first song. No more than two songs of one artist play in a row while another has any left. Only for a client that sends music in Sofa-Library-Kinds.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 } }],
         "responses": { "200": { "description": "The songs, in the order to play", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/libraries/{id}/radio": {
-      "get": { "tags": ["Library"], "summary": "A radio from a whole Music library", "description": "Songs drawn from every artist of the Music library alike, the songs listeners play most likelier than the rest, with the same spread as an item's radio.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Library"], "summary": "A radio from a whole Music library", "description": "A radio from every artist of a Music library alike\n\nSongs drawn from every artist of the Music library alike, the songs listeners play most likelier than the rest, with the same spread as an item's radio.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/libraryKinds" }, { "$ref": "#/components/parameters/id" }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 } }],
         "responses": { "200": { "description": "The songs, in the order to play", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "LIBRARY_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/subtitles/{index}": {
-      "get": { "tags": ["Library"], "summary": "A text subtitle track of the item as WebVTT", "description": "index is a subtitle track's index from the item: a stream of its file, or from 1000 a subtitle file beside it. Times are in the item's time. The first read extracts the stream, which reads the whole file; later reads serve the kept copy. A picture subtitle answers 415 SUBTITLE_NOT_TEXT.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Library"], "summary": "A text subtitle track of the item as WebVTT", "description": "A text subtitle track as WebVTT, see [play library files](#play-library-files)\n\nindex is a subtitle track's index from the item: a stream of its file, or from 1000 a subtitle file beside it. Times are in the item's time. The first read extracts the stream, which reads the whole file; later reads serve the kept copy. A picture subtitle answers 415 SUBTITLE_NOT_TEXT.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "index", "in": "path", "required": true, "schema": { "type": "integer" } }],
         "responses": { "200": { "description": "WebVTT", "content": { "text/vtt": { "schema": { "type": "string" } } } }, "404": { "description": "ITEM_NOT_FOUND, ITEM_MISSING or RESOURCE_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "415": { "description": "SUBTITLE_NOT_TEXT", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "502": { "description": "SUBTITLE_FAILED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/vod-sessions": {
-      "post": { "tags": ["Library"], "summary": "Play a library movie, episode or video", "description": "Direct play when the profile takes the file as is; otherwise HLS that FFmpeg remuxes or converts. At most SOFA_MAX_TRANSCODES convert at once.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "post": { "tags": ["Library"], "summary": "Play a library movie, episode or video", "description": "Play a library movie, episode or video, see [play library files](#play-library-files)\n\nDirect play when the profile takes the file as is; otherwise HLS that FFmpeg remuxes or converts. At most SOFA_MAX_TRANSCODES convert at once.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenVodPlayback" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VodSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND or ITEM_MISSING", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "503": { "description": "CAPACITY_EXHAUSTED or TRANSCODER_UNAVAILABLE", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/vod-sessions/{id}": {
-      "get": { "tags": ["Library"], "summary": "A library playback session", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "get": { "tags": ["Library"], "summary": "A library playback session", "description": "Read a library playback session", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VodSession" } } } }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "patch": { "tags": ["Library"], "summary": "Renew the session, or restart its converted stream", "description": "A session lasts five minutes past its last renewal or media request.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "patch": { "tags": ["Library"], "summary": "Renew the session, or restart its converted stream", "description": "Renew it, and with `startMs` restart a converted stream there\n\nA session lasts five minutes past its last renewal or media request.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateVodPlayback" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VodSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "delete": { "tags": ["Library"], "summary": "Release the session", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }], "responses": { "204": { "description": "Released" } } }
+      "delete": { "tags": ["Library"], "summary": "Release the session", "description": "Release it; returns 204", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }], "responses": { "204": { "description": "Released" } } }
     },
     "/media/vod/{id}/{epoch}/{secret}/{name}": {
-      "get": { "tags": ["Library"], "summary": "A library playback session's media", "description": "The URL the session's descriptor names: the file itself with byte ranges, or the HLS playlist and its segments. No token; the secret is the session's.", "security": [],
+      "get": { "tags": ["Library"], "summary": "A library playback session's media", "description": "The session's file with byte ranges, or its HLS playlist and segments\n\nThe URL the session's descriptor names: the file itself with byte ranges, or the HLS playlist and its segments. No token; the secret is the session's.", "security": [],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "epoch", "in": "path", "required": true, "schema": { "type": "integer" } }, { "name": "secret", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "The file, a playlist or a segment" }, "206": { "description": "A byte range of the file" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/multiview-sessions": {
-      "post": { "tags": ["Playback"], "summary": "Watch two to four channels at once", "description": "The server draws the channels into one HLS stream with the sound of one. Offered while the bootstrap's multiview capability is true: with SOFA_MULTIVIEW=auto, only when a GPU encoder works. Each tile holds a playback session, and the stream counts toward SOFA_MAX_TRANSCODES.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "post": { "tags": ["Playback"], "summary": "Watch two to four channels at once", "description": "Watch two to four channels as one picture, see [multiview](#multiview)\n\nThe server draws the channels into one HLS stream with the sound of one. Offered while the bootstrap's multiview capability is true: with SOFA_MULTIVIEW=auto, only when a GPU encoder works. Each tile holds a playback session, and the stream counts toward SOFA_MAX_TRANSCODES.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenMultiview" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MultiviewSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "CHANNEL_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "503": { "description": "MULTIVIEW_UNAVAILABLE or CAPACITY_EXHAUSTED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/multiview-sessions/{id}": {
-      "get": { "tags": ["Playback"], "summary": "A multiview session", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "get": { "tags": ["Playback"], "summary": "A multiview session", "description": "Read a multiview session", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MultiviewSession" } } } }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "patch": { "tags": ["Playback"], "summary": "Renew the session, or move its sound to another tile", "description": "A session lasts 60 seconds past its last renewal or media request. Another audio tile restarts the stream under a new epoch.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "patch": { "tags": ["Playback"], "summary": "Renew the session, or move its sound to another tile", "description": "Renew it, and with `audio` move the sound to another tile\n\nA session lasts 60 seconds past its last renewal or media request. Another audio tile restarts the stream under a new epoch.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateMultiview" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MultiviewSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "delete": { "tags": ["Playback"], "summary": "Release the session", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }], "responses": { "204": { "description": "Released" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+      "delete": { "tags": ["Playback"], "summary": "Release the session", "description": "Release it; returns 204", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }], "responses": { "204": { "description": "Released" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/media/multiview/{id}/{epoch}/{secret}/{name}": {
-      "get": { "tags": ["Playback"], "summary": "A multiview session's stream", "description": "The URL the session's descriptor names: the HLS playlist and its segments. No token; the secret is the session's.", "security": [],
+      "get": { "tags": ["Playback"], "summary": "A multiview session's stream", "description": "The multiview stream's HLS playlist and segments\n\nThe URL the session's descriptor names: the HLS playlist and its segments. No token; the secret is the session's.", "security": [],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "epoch", "in": "path", "required": true, "schema": { "type": "integer" } }, { "name": "secret", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "The playlist or a segment" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/artwork/{id}/scrub/{sheet}": {
-      "get": { "tags": ["Library"], "summary": "A sheet of an item's scrub thumbnails", "description": "A path from the item's scrub.sheets, with its ?v= version. Carries Cache-Control: public, max-age=604800.", "security": [],
+      "get": { "tags": ["Library"], "summary": "A sheet of an item's scrub thumbnails", "description": "A sheet of an item's scrub thumbnails, public, see [media libraries](#media-libraries)\n\nA path from the item's scrub.sheets, with its ?v= version. Carries Cache-Control: public, max-age=604800.", "security": [],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "sheet", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 0 } }],
         "responses": { "200": { "description": "JPEG" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/artwork/{id}/{role}": {
-      "get": { "tags": ["Library"], "summary": "An item's poster or backdrop", "description": "The path an item names, with its ?v= version. Carries an ETag and Cache-Control: public, max-age=604800.", "security": [],
+      "get": { "tags": ["Library"], "summary": "An item's poster or backdrop", "description": "An item's `poster` or `backdrop`, public, see [media libraries](#media-libraries)\n\nThe path an item names, with its ?v= version. Carries an ETag and Cache-Control: public, max-age=604800.", "security": [],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "role", "in": "path", "required": true, "schema": { "type": "string", "enum": ["poster", "backdrop"] } }, { "name": "If-None-Match", "in": "header", "schema": { "type": "string" } }],
         "responses": { "200": { "description": "JPEG, PNG or WebP" }, "304": { "description": "Unchanged" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
-    "/discover.json": { "get": { "tags": ["HDHomeRun"], "summary": "The device Plex discovers", "security": [], "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Discover" } } } }, "403": { "description": "The client address is not allowed" } } } },
-    "/lineup.json": { "get": { "tags": ["HDHomeRun"], "summary": "The device's channels", "security": [], "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LineupItem" } } } } }, "403": { "description": "The client address is not allowed" } } } },
-    "/lineup_status.json": { "get": { "tags": ["HDHomeRun"], "summary": "Scan status: nothing to scan", "security": [], "responses": { "200": { "description": "" } } } },
+    "/discover.json": { "get": { "tags": ["HDHomeRun"], "summary": "The device Plex discovers", "description": "The device Plex discovers; HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation)", "security": [], "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Discover" } } } }, "403": { "description": "The client address is not allowed" } } } },
+    "/lineup.json": { "get": { "tags": ["HDHomeRun"], "summary": "The device's channels", "description": "The device's channels; HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation)", "security": [], "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LineupItem" } } } } }, "403": { "description": "The client address is not allowed" } } } },
+    "/lineup_status.json": { "get": { "tags": ["HDHomeRun"], "summary": "Scan status: nothing to scan", "description": "Scan status: nothing to scan; HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation)", "security": [], "responses": { "200": { "description": "" } } } },
     "/lineup.post": {
-      "get": { "tags": ["HDHomeRun"], "summary": "Accepts Plex's channel-scan request", "security": [], "responses": { "200": { "description": "No body" } } },
-      "post": { "tags": ["HDHomeRun"], "summary": "Accepts Plex's channel-scan request", "security": [], "responses": { "200": { "description": "No body" } } }
+      "get": { "tags": ["HDHomeRun"], "summary": "Accepts Plex's channel-scan request", "description": "Accepts Plex's channel-scan request; answers 200", "security": [], "responses": { "200": { "description": "No body" } } },
+      "post": { "tags": ["HDHomeRun"], "summary": "Accepts Plex's channel-scan request", "description": "Accepts Plex's channel-scan request; answers 200", "security": [], "responses": { "200": { "description": "No body" } } }
     },
-    "/device.xml": { "get": { "tags": ["HDHomeRun"], "summary": "The UPnP root description", "security": [], "responses": { "200": { "description": "application/xml" } } } },
+    "/device.xml": { "get": { "tags": ["HDHomeRun"], "summary": "The UPnP root description", "description": "The UPnP root description; HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation)", "security": [], "responses": { "200": { "description": "application/xml" } } } },
     "/auto/v{number}": {
-      "get": { "tags": ["HDHomeRun"], "summary": "An MPEG-TS stream of the channel with that lineup number", "description": "While the device's streams are all open, or the source refuses, 503 with X-HDHomeRun-Error: 805 All Tuners In Use.", "security": [],
+      "get": { "tags": ["HDHomeRun"], "summary": "An MPEG-TS stream of the channel with that lineup number", "description": "MPEG-TS stream of the channel with that lineup number\n\nWhile the device's streams are all open, or the source refuses, 503 with X-HDHomeRun-Error: 805 All Tuners In Use.", "security": [],
         "parameters": [{ "name": "number", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "video/mp2t" }, "404": { "$ref": "#/components/responses/Error" }, "503": { "description": "All tuners in use" } } }
     },
     "/api/v1/status": {
-      "get": { "tags": ["Admin"], "summary": "The dashboard summary", "description": "What a dashboard such as Homepage shows: channels, sessions, recordings, libraries and whether an update is published.", "security": [{ "readToken": [] }, { "apiToken": [] }, { "deviceToken": [] }],
+      "get": { "tags": ["Server"], "summary": "The dashboard summary", "description": "The dashboard summary\n\nWhat a dashboard such as Homepage shows: channels, sessions, recordings, libraries and whether an update is published.", "security": [{ "readToken": [] }, { "apiToken": [] }, { "deviceToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StatusSummary" } } } } } }
     },
     "/api/v1/mcp": {
-      "post": { "tags": ["Admin"], "summary": "The Model Context Protocol endpoint", "description": "MCP over stateless Streamable HTTP for AI assistants: one JSON-RPC message per POST, answered as JSON. Send Accept: application/json, text/event-stream. A read token is listed the tools that change nothing; the admin token the actions too (run_job, scan_library, check_for_update, update_now) and the runtime settings tools (runtime_settings, set_runtime_setting). GET and DELETE answer 405.", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "post": { "tags": ["MCP"], "summary": "The Model Context Protocol endpoint", "description": "The [MCP endpoint](#mcp) for AI assistants; takes the admin token or a `read` token\n\nMCP over stateless Streamable HTTP for AI assistants: one JSON-RPC message per POST, answered as JSON. Send Accept: application/json, text/event-stream. A read token is listed the tools that change nothing; the admin token the actions too (run_job, scan_library, check_for_update, update_now) and the runtime settings tools (runtime_settings, set_runtime_setting). GET and DELETE answer 405.", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcMessage" } } } },
         "responses": {
           "200": { "description": "The JSON-RPC response", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcMessage" } } } },
@@ -1175,41 +1189,41 @@
           "413": { "$ref": "#/components/responses/Error" },
           "415": { "description": "The body is not application/json", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcMessage" } } } }
         } },
-      "get": { "tags": ["Admin"], "summary": "No event stream to open", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "get": { "tags": ["MCP"], "summary": "No event stream to open", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "405": { "description": "METHOD_NOT_ALLOWED, with Allow: POST", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "401": { "$ref": "#/components/responses/Error" } } },
-      "delete": { "tags": ["Admin"], "summary": "No session to end", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "delete": { "tags": ["MCP"], "summary": "No session to end", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "405": { "description": "METHOD_NOT_ALLOWED, with Allow: POST", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "401": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/status": {
-      "get": { "tags": ["Admin"], "summary": "One summary of the server", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "One summary of the server", "description": "One summary of the server, described [below](#server-status)", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServerStatus" } } } } } }
     },
     "/api/v1/admin/sessions": {
-      "get": { "tags": ["Admin"], "summary": "Live playback sessions", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "Live playback sessions", "description": "Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`, `startedAt`, `client` (the player's address, once it made a request), `bytes` sent to the player so far, `offeringId` of the source playing, `bitrateKbps` (the rate over the last 10 seconds or so), `stalls` (media requests the upstream refused or dropped before anything was answered), `segmentsServed` (HLS segments relayed) and `sourceSwitches` (moves to another source, on a failure or by hand). An empty list means nothing is playing", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ActiveSession" } } } } } } }
     },
     "/api/v1/admin/sessions/{id}/switch-source": {
-      "post": { "tags": ["Admin"], "summary": "Move a live session to its channel's next source", "description": "Passes over the source playing and those the session was switched away from, all of them again once none is left. The session keeps its id and moves to a new epoch: the app re-reads it, and another player's next media request answers 410.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Admin"], "summary": "Move a live session to its channel's next source", "description": "Move a live session to its channel's next source, see [source selection](source-health.md#source-selection); answers the session, or `409 NO_OTHER_SOURCE`\n\nPasses over the source playing and those the session was switched away from, all of them again once none is left. The session keeps its id and moves to a new epoch: the app re-reads it, and another player's next media request answers 410.", "security": [{ "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "The session on its new source", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ActiveSession" } } } }, "409": { "$ref": "#/components/responses/Error" }, "410": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/sources/{id}/probe": {
-      "post": { "tags": ["Admin"], "summary": "Probe a source now", "description": "Puts the source at the front of the probe queue, so the next free worker probes it whether or not it is due; its health updates when the probe ends. 409 PROBES_OFF when probes do not run, 409 PROBE_RUNNING while a probe of it is in flight.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Admin"], "summary": "Probe a source now", "description": "Put the source at the front of the probe queue, as the channel page's Probe now does; `202` with `{\"sourceId\"}`, and its health updates when the probe ends. `404 SOURCE_NOT_FOUND`, `409 PROBES_OFF` when probes do not run, `409 PROBE_RUNNING` while a probe of it is in flight\n\nPuts the source at the front of the probe queue, so the next free worker probes it whether or not it is due; its health updates when the probe ends. 409 PROBES_OFF when probes do not run, 409 PROBE_RUNNING while a probe of it is in flight.", "security": [{ "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "202": { "description": "Queued", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProbeQueued" } } } }, "404": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/diagnostics/crashes": {
-      "post": { "tags": ["Viewers"], "summary": "Report a crash the app kept", "description": "An app sends the last crash it kept from the run before, if its viewer allows it. The server scrubs anything shaped like an address or a token again, stores the report with the device it came from, keeps the newest 100, and never forwards one. A report with an id the server holds is accepted and stored once. At most 64 KiB; 10 reports a minute per client address, then 429. A read token does not open it.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
+      "post": { "tags": ["Viewers"], "summary": "Report a crash the app kept", "description": "A device reports the last crash it kept, see [crash reports](#crash-reports); `204`. 10 reports a minute per client address, then `429`\n\nAn app sends the last crash it kept from the run before, if its viewer allows it. The server scrubs anything shaped like an address or a token again, stores the report with the device it came from, keeps the newest 100, and never forwards one. A report with an id the server holds is accepted and stored once. At most 64 KiB; 10 reports a minute per client address, then 429. A read token does not open it.", "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CrashReport" } } } },
         "responses": { "204": { "description": "Stored" }, "400": { "$ref": "#/components/responses/Error" }, "413": { "$ref": "#/components/responses/Error" }, "429": { "description": "Too many reports from this address" } } }
     },
     "/api/v1/admin/diagnostics/crashes": {
-      "get": { "tags": ["Admin"], "summary": "The crashes the apps reported, newest first", "description": "What apps posted to /api/v1/diagnostics/crashes, scrubbed, with the device that sent each. The newest 100 are kept.", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "The crashes the apps reported, newest first", "description": "The crashes the apps reported, newest first, described [below](#crash-reports)\n\nWhat apps posted to /api/v1/diagnostics/crashes, scrubbed, with the device that sent each. The newest 100 are kept.", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "parameters": [ { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } } ],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ClientCrash" } } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/history": {
-      "get": { "tags": ["Admin"], "summary": "Ended playback sessions, the newest end first", "description": "Live TV, library files and recordings, one row per session once it ends, kept for SOFA_HISTORY_DAYS days (90 by default).", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "Ended playback sessions, the newest end first", "description": "Ended playback sessions, the newest end first, described [below](#playback-history)\n\nLive TV, library files and recordings, one row per session once it ends, kept for SOFA_HISTORY_DAYS days (90 by default).", "security": [{ "adminToken": [] }],
         "parameters": [
           { "name": "since", "in": "query", "schema": { "type": "string", "format": "date-time" }, "description": "Only sessions that ended at or after this instant" },
           { "name": "kind", "in": "query", "schema": { "type": "string", "enum": ["live", "vod"] } },
@@ -1219,12 +1233,12 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/HistoryEntry" } } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "HISTORY_NOT_AVAILABLE: this server keeps no history", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/admin/events/stream": {
-      "get": { "tags": ["Admin"], "summary": "The server's events as they happen", "description": "Server-sent events, each named for its type with a JSON object of type, at and data: ready once the stream listens, session.started and session.ended (the data of a history entry), recording.state (a recording's id, title, channel, state and reason), recording.conflict (a recording that newly has no free slot), source.quarantined and source.recovered (an offering's provider and channel), disk.low (free and floor bytes on the recordings disk), update.available (the newer build), library.added (the files a scan added) and attention.changed (the home page's attention items raised and cleared). A comment line every 15 seconds keeps an idle stream open. Nothing is replayed: a client that reconnects reads the history for what it missed.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "The server's events as they happen", "description": "The server's events as server-sent events, described [below](#event-stream)\n\nServer-sent events, each named for its type with a JSON object of type, at and data: ready once the stream listens, session.started and session.ended (the data of a history entry), recording.state (a recording's id, title, channel, state and reason), recording.conflict (a recording that newly has no free slot), source.quarantined and source.recovered (an offering's provider and channel), disk.low (free and floor bytes on the recordings disk), update.available (the newer build), library.added (the files a scan added) and attention.changed (the home page's attention items raised and cleared). A comment line every 15 seconds keeps an idle stream open. Nothing is replayed: a client that reconnects reads the history for what it missed.", "security": [{ "adminToken": [] }],
         "parameters": [{ "name": "types", "in": "query", "schema": { "type": "string" }, "description": "Comma-separated event types to send; all of them without it" }],
         "responses": { "200": { "description": "", "content": { "text/event-stream": { "schema": { "description": "One event; data is a JSON object of type, at and data", "type": "object", "required": ["data"], "properties": { "event": { "type": "string" }, "data": { "type": "string", "contentMediaType": "application/json" }, "id": { "type": "string" }, "retry": { "type": "integer" } } } } } } } }
     },
     "/api/v1/admin/candidates": {
-      "get": { "tags": ["Admin"], "summary": "Provider channels with their sources and the entries using them", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "Provider channels with their sources and the entries using them", "description": "Candidates with their sources (`id`, `protocol`, `status`, `manuallyDisabled`) and the lineup entries using them; `q` matches name, exact number or `tvg-id`, case-insensitively; `limit` 1-1000 (default 100)", "security": [{ "adminToken": [] }],
         "parameters": [
           { "name": "q", "in": "query", "schema": { "type": "string" }, "description": "Matches the name, the exact number or the tvg-id" },
           { "name": "provider", "in": "query", "schema": { "type": "string" } },
@@ -1234,316 +1248,317 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CandidatePage" } } } } } }
     },
     "/api/v1/admin/guides": {
-      "get": { "tags": ["Admin"], "summary": "Each guide's import status", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "Each guide's import status", "description": "Guide import status: `lastSuccessAt`, `errorCode`, `channels`, retained `programs`", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/GuideStatus" } } } } } } }
     },
     "/api/v1/admin/guides/{id}/channels": {
-      "get": { "tags": ["Admin"], "summary": "The XMLTV channels of a guide", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "The XMLTV channels of a guide", "description": "XMLTV channels of a guide (`channelId`, `displayName`, `icon`)", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "q", "in": "query", "schema": { "type": "string" } }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/GuideChannelInfo" } } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/lineup": {
-      "get": { "tags": ["Admin"], "summary": "Every lineup entry in order", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "Every lineup entry in order", "description": "Every entry in lineup order", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LineupEntry" } } } } } } },
-      "post": { "tags": ["Admin"], "summary": "Create an entry", "description": "410 POLICY_MANAGED while a lineup policy builds the lineup.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Admin"], "summary": "Create an entry", "description": "Create an entry; returns 201\n\n410 POLICY_MANAGED while a lineup policy builds the lineup.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateLineupEntry" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LineupEntry" } } } }, "400": { "$ref": "#/components/responses/Error" }, "410": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/lineup/order": {
-      "put": { "tags": ["Admin"], "summary": "Reorder the lineup", "description": "410 POLICY_MANAGED while a lineup policy builds the lineup.", "security": [{ "adminToken": [] }],
+      "put": { "tags": ["Admin"], "summary": "Reorder the lineup", "description": "Reorder: `{\"ids\": [...]}` listing every entry once; returns the lineup\n\n410 POLICY_MANAGED while a lineup policy builds the lineup.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReorderLineup" } } } },
         "responses": { "200": { "description": "The lineup", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LineupEntry" } } } } }, "410": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/lineup/adopt": {
-      "post": { "tags": ["Admin"], "summary": "Add every channel of a provider that no entry uses", "description": "410 POLICY_MANAGED while a lineup policy builds the lineup.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Admin"], "summary": "Add every channel of a provider that no entry uses", "description": "`{\"providerId\": \"...\", \"enabled\": true}` adds every channel of the provider whose sources no entry uses; returns `added` and `skipped`\n\n410 POLICY_MANAGED while a lineup policy builds the lineup.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdoptProvider" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdoptResult" } } } }, "410": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/lineup/{id}": {
       "get": { "tags": ["Admin"], "summary": "One entry", "security": [{ "adminToken": [] }, { "readToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LineupEntry" } } } }, "404": { "$ref": "#/components/responses/Error" } } },
-      "patch": { "tags": ["Admin"], "summary": "Update an entry", "description": "With a policy, writes the station's override and applies it; If-Match may carry the policy revision.", "security": [{ "adminToken": [] }],
+      "patch": { "tags": ["Admin"], "summary": "Update an entry", "description": "Update an entry; with a policy, writes the station override instead and applies (`If-Match` optional)\n\nWith a policy, writes the station's override and applies it; If-Match may carry the policy revision.", "security": [{ "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "If-Match", "in": "header", "schema": { "type": "string" } }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateLineupEntry" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LineupEntry" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } },
-      "delete": { "tags": ["Admin"], "summary": "Remove an entry", "description": "With a policy, writes enabled: false into the station's override instead.", "security": [{ "adminToken": [] }],
+      "delete": { "tags": ["Admin"], "summary": "Remove an entry", "description": "Remove an entry; returns 204. With a policy, writes `enabled: false` into the station override instead\n\nWith a policy, writes enabled: false into the station's override instead.", "security": [{ "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "If-Match", "in": "header", "schema": { "type": "string" } }],
         "responses": { "204": { "description": "Removed" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/policy": {
-      "get": { "tags": ["Policy"], "summary": "The lineup policy the server runs with", "description": "404 POLICY_NOT_CONFIGURED without one. The revision is also the ETag.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Policy"], "summary": "The lineup policy the server runs with", "description": "The [lineup policy](lineup-policy.md) the server runs with (`SOFA_POLICY`, or `policy.json` in the data directory), as `policy` with `revision` (the file's SHA-256, also the `ETag`) and `path`; 404 `POLICY_NOT_CONFIGURED` without one\n\n404 POLICY_NOT_CONFIGURED without one. The revision is also the ETag.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyDocument" } } } }, "404": { "$ref": "#/components/responses/Error" } } },
-      "put": { "tags": ["Policy"], "summary": "Replace the policy and apply it", "description": "The body is the whole policy, up to 4 MiB. If-Match is required: 428 PRECONDITION_REQUIRED without it, 409 POLICY_CHANGED when stale, 400 INVALID_POLICY with every error.", "security": [{ "adminToken": [] }],
+      "put": { "tags": ["Policy"], "summary": "Replace the policy and apply it", "description": "Replace the policy with the body, up to 4 MiB; `If-Match: <revision>` required (428 `PRECONDITION_REQUIRED` without it, 409 `POLICY_CHANGED` when stale or the file changed on disk, 400 `INVALID_POLICY` with every error). Writes atomically, applies, and returns `document` and `apply`\n\nThe body is the whole policy, up to 4 MiB. If-Match is required: 428 PRECONDITION_REQUIRED without it, 409 POLICY_CHANGED when stale, 400 INVALID_POLICY with every error.", "security": [{ "adminToken": [] }],
         "parameters": [{ "name": "If-Match", "in": "header", "required": true, "schema": { "type": "string" } }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } },
         "responses": { "200": { "description": "document and apply", "content": { "application/json": { "schema": { "type": "object", "properties": { "document": { "$ref": "#/components/schemas/PolicyDocument" }, "apply": { "$ref": "#/components/schemas/PolicyApplyResult" } } } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "428": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/policy/preview": {
-      "get": { "tags": ["Policy"], "summary": "What a run would change; writes nothing", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "get": { "tags": ["Policy"], "summary": "What a run would change; writes nothing", "description": "What a run would change against the served lineup; writes nothing. Fields are [below](#policy-results)", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyPreview" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/policy/apply": {
-      "post": { "tags": ["Policy"], "summary": "Run the policy now", "description": "Writes the lineup when it differs, logs each change and writes assigned numbers and learned aliases back to the file.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Policy"], "summary": "Run the policy now", "description": "Run the policy now: writes the lineup when it differs, logs each change, and writes assigned numbers and learned aliases back to the file. Fields are [below](#policy-results)\n\nWrites the lineup when it differs, logs each change and writes assigned numbers and learned aliases back to the file.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyApplyResult" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/policy/starter": {
-      "post": { "tags": ["Policy"], "summary": "Write the starter policy and restart", "description": "The configured providers in the server's priority order (an HDHomeRun tuner first), the shipped group map and number blocks and health.requireVerified, written to SOFA_POLICY or policy.json in the data directory; the server then restarts to run it. 409 POLICY_EXISTS when a policy is configured or the file exists, 409 NO_SOURCES with no providers.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Policy"], "summary": "Write the starter policy and restart", "description": "Write the [starter policy](starter-lineup.md) for the configured providers and restart; 201 with `{\"path\", \"restarting\"}`. 409 `POLICY_EXISTS` when a policy is configured or the file exists, 409 `NO_SOURCES` with no providers\n\nThe configured providers in the server's priority order (an HDHomeRun tuner first), the shipped group map and number blocks and health.requireVerified, written to SOFA_POLICY or policy.json in the data directory; the server then restarts to run it. 409 POLICY_EXISTS when a policy is configured or the file exists, 409 NO_SOURCES with no providers.", "security": [{ "adminToken": [] }],
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupResult" } } } }, "409": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/policy/findings": {
-      "get": { "tags": ["Policy"], "summary": "Open findings of a run over the current candidates", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "get": { "tags": ["Policy"], "summary": "Open findings of a run over the current candidates", "description": "Open findings of a run over the current candidates. Fields are [below](#policy-results)", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyFindings" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/policy/changes": {
-      "get": { "tags": ["Policy"], "summary": "What runs changed, newest first", "description": "The server keeps the newest 10,000.", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "get": { "tags": ["Policy"], "summary": "What runs changed, newest first", "description": "What policy runs changed, newest first, as `{\"id\", \"appliedAt\", \"change\"}`: `change` has the station `key`, `entryId`, `entryName`, `field`, `before`, `after` and the run's cause in `reason`. `limit` 1-1000 (default 100); the server keeps the newest 10,000\n\nThe server keeps the newest 10,000.", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "parameters": [{ "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/PolicyChangeEntry" } } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/stations/{key}": {
-      "get": { "tags": ["Policy"], "summary": "Why a station key is what it is", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Policy"], "summary": "Why a station key is what it is", "description": "One station key: the station the policy builds, its pins, and every candidate that names the key or joins it, each `taken`, `skipped` or `claimed` with a `reason`", "security": [{ "adminToken": [] }],
         "parameters": [{ "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StationExplanation" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/policy/guide-matches": {
-      "get": { "tags": ["Policy"], "summary": "Guide channels proposed by name", "description": "For each station no guide lists by tvg-id, up to three guide channels whose names match its own, best first, in lineup order. Both names lose the policy's guideMatches prefixes and suffixes first. Empty before the first apply.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Policy"], "summary": "Guide channels proposed by name", "description": "Guide channels proposed by name for each station no guide lists ([guide matches](lineup-policy.md#guide-matches)): `station` (its key), `stationId`, `stationName`, `number`, `guideId`, `channelId`, `channelName` and a `confidence` from 0 to 1, in lineup order, best first; empty before the first apply\n\nFor each station no guide lists by tvg-id, up to three guide channels whose names match its own, best first, in lineup order. Both names lose the policy's guideMatches prefixes and suffixes first. Empty before the first apply.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/GuideMatch" } } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/policy/guide-matches/accept": {
-      "post": { "tags": ["Policy"], "summary": "Accept a proposed guide channel", "description": "Writes the channel as the station's guide override, then applies. 404 GUIDE_CHANNEL_NOT_FOUND when the guide does not list the channel.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Policy"], "summary": "Accept a proposed guide channel", "description": "`{\"station\", \"guideId\", \"channelId\"}`: writes the channel as the station's guide and applies; returns the apply result. 404 `GUIDE_CHANNEL_NOT_FOUND`\n\nWrites the channel as the station's guide override, then applies. 404 GUIDE_CHANNEL_NOT_FOUND when the guide does not list the channel.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideMatchChoice" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyApplyResult" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/policy/guide-matches/accept-all": {
-      "post": { "tags": ["Policy"], "summary": "Accept every station's best proposal", "description": "Accepts each station's best proposal at minConfidence or more, else at the policy's guideMatches.acceptAbove, in one write, then applies once. A station whose best two proposals tie on different channels is skipped.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Policy"], "summary": "Accept every station's best proposal", "description": "`{\"minConfidence\"}` (optional): accepts each station's best proposal at that confidence or more, else at `guideMatches.acceptAbove`, and applies once; returns `{\"accepted\", \"applied\"}`, with `applied` null when nothing was accepted\n\nAccepts each station's best proposal at minConfidence or more, else at the policy's guideMatches.acceptAbove, in one write, then applies once. A station whose best two proposals tie on different channels is skipped.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AcceptGuideMatches" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideMatchResult" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/policy/guide-matches/dismiss": {
-      "post": { "tags": ["Policy"], "summary": "Dismiss a proposed guide channel", "description": "Adds the proposal to the policy's guideMatches.dismissed, so it is never proposed again, then applies.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Policy"], "summary": "Dismiss a proposed guide channel", "description": "`{\"station\", \"guideId\", \"channelId\"}`: never proposes the channel for the station again, and applies\n\nAdds the proposal to the policy's guideMatches.dismissed, so it is never proposed again, then applies.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideMatchChoice" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyApplyResult" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/iptv-org": {
-      "get": { "tags": ["Policy"], "summary": "The iptv-org database and its matches", "description": "The status of the iptv-org downloads (metadata and streams switches, the region in force and where it came from, the last download and its notes, counts), the stations waiting for a decision and the stations the iptv-org blocklist holds out. Both parts are off by default.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Policy"], "summary": "The iptv-org database and its matches", "description": "The [iptv-org](lineup-policy.md#iptv-org-metadata) database: `status` (the `metadata` and `streams` switches, the `region` in force with its `countries`, `source` (`setting`, `time-zone` or `default`) and `detail`, `attemptedAt`, `ok`, `notes`, `nextDueAt` and the file and match counts), the `proposals` waiting for a decision and the `holds` the blocklist applies, each with its reason and reference\n\nThe status of the iptv-org downloads (metadata and streams switches, the region in force and where it came from, the last download and its notes, counts), the stations waiting for a decision and the stations the iptv-org blocklist holds out. Both parts are off by default.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IptvOrgOverview" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/iptv-org/matches": {
-      "post": { "tags": ["Policy"], "summary": "Decide a station's iptv-org match", "description": "accept stores channelId as the station's iptv-org channel (404 IPTV_ORG_CHANNEL_NOT_FOUND for an unknown one); dismiss stores that the station has none, which also lifts a blocklist hold; clear forgets the decision. The lineup policy runs again afterwards.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Policy"], "summary": "Decide a station's iptv-org match", "description": "`{\"station\", \"decision\", \"channelId\"}`: `accept` stores the iptv-org channel for the station (404 `IPTV_ORG_CHANNEL_NOT_FOUND`), `dismiss` stores that it has none and lifts a blocklist hold, `clear` forgets the choice; the policy runs again. Answers as the read\n\naccept stores channelId as the station's iptv-org channel (404 IPTV_ORG_CHANNEL_NOT_FOUND for an unknown one); dismiss stores that the station has none, which also lifts a blocklist hold; clear forgets the decision. The lineup policy runs again afterwards.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IptvOrgDecisionRequest" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IptvOrgOverview" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/iptv-org/refresh": {
-      "post": { "tags": ["Policy"], "summary": "Download the iptv-org files now", "description": "Downloads the wanted iptv-org files now and answers with the read once they are in; files the server already holds answer 304. Nothing is downloaded while both the metadata and the streams are off.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Policy"], "summary": "Download the iptv-org files now", "description": "Downloads the wanted files now and answers `200` with the read once they are in; unchanged files answer 304, and nothing is downloaded while both switches are off\n\nDownloads the wanted iptv-org files now and answers with the read once they are in; files the server already holds answer 304. Nothing is downloaded while both the metadata and the streams are off.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IptvOrgOverview" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/source-file": {
-      "get": { "tags": ["Admin"], "summary": "The source file as written", "description": "Providers and guides as the file holds them, ${NAME} references unexpanded; an empty document when the server has no source file.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "The source file as written", "description": "The source file as written: `providers` and `guides` as [the source file](live-tv.md#providers) holds them, `${NAME}` references unexpanded; an empty document without a file\n\nProviders and guides as the file holds them, ${NAME} references unexpanded; an empty document when the server has no source file.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SourceDocument" } } } } } },
-      "put": { "tags": ["Admin"], "summary": "Replace the source file and restart", "description": "Validates the document the way the start does (400 INVALID_SOURCES with the reason, nothing written), writes it atomically where the server reads it (SOFA_SOURCES, else sources.json in the data directory) and ends the process once the response is sent; the container's restart policy starts it again. With starterPolicy=true it also writes the starter lineup policy for the document's providers before that one restart (409 POLICY_EXISTS when a policy is configured, 409 NO_SOURCES without providers).", "security": [{ "adminToken": [] }],
+      "put": { "tags": ["Admin"], "summary": "Replace the source file and restart", "description": "Replace the source file with the body and restart. Validated the way the start validates it (400 `INVALID_SOURCES` with the reason, nothing written), written atomically to `SOFA_SOURCES` or `sources.json` in the data directory; answers `{\"path\", \"restarting\": true, \"policyPath\"}` and ends the process once the response is sent, so the container's restart policy starts it again. `?starterPolicy=true` also writes the [starter policy](starter-lineup.md) for the body's providers before that one restart, and `policyPath` names it; it answers `409 POLICY_EXISTS` when a policy is configured and `409 NO_SOURCES` without providers\n\nValidates the document the way the start does (400 INVALID_SOURCES with the reason, nothing written), writes it atomically where the server reads it (SOFA_SOURCES, else sources.json in the data directory) and ends the process once the response is sent; the container's restart policy starts it again. With starterPolicy=true it also writes the starter lineup policy for the document's providers before that one restart (409 POLICY_EXISTS when a policy is configured, 409 NO_SOURCES without providers).", "security": [{ "adminToken": [] }],
         "parameters": [{ "name": "starterPolicy", "in": "query", "required": false, "description": "true also writes the starter policy", "schema": { "type": "boolean" } }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SourceDocument" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupResult" } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/tmdb-token": {
-      "put": { "tags": ["Admin"], "summary": "Save the TMDB token and restart", "description": "Asks TMDB whether it takes the token, stores it as tmdbToken in secrets.json in the data directory and ends the process once the response is sent. 400 INVALID_REQUEST for a value that cannot be a token, 400 TMDB_REJECTED when TMDB refuses it, 502 TMDB_UNREACHABLE when TMDB cannot be asked, 409 TMDB_FROM_ENVIRONMENT when SOFA_TMDB_TOKEN sets it, 500 SECRETS_UNWRITABLE when secrets.json cannot be read or written; nothing is written then. SOFA_TMDB_TOKEN wins over the saved token.", "security": [{ "adminToken": [] }],
+      "put": { "tags": ["Admin"], "summary": "Save the TMDB token and restart", "description": "`{\"token\": \"...\"}` (`{\"key\": \"...\"}` for fanart.tv): asks the service whether it takes the value, stores it as `tmdbToken`, `fanartKey` or `listenBrainzToken` in `secrets.json` in the data directory and restarts, answering a `SetupResult` with that path. With `SVC` as `TMDB`, `FANART` or `LISTENBRAINZ`: 400 `INVALID_REQUEST` for a value under 32 characters or with spaces, 400 `SVC_REJECTED` when the service refuses it, 502 `SVC_UNREACHABLE` when it cannot be asked, 409 `SVC_FROM_ENVIRONMENT` when `SOFA_TMDB_TOKEN`, `SOFA_FANART_KEY` or `SOFA_LISTENBRAINZ_TOKEN` sets it, 500 `SECRETS_UNWRITABLE` when `secrets.json` cannot be read or written. Nothing is written on an error\n\nAsks TMDB whether it takes the token, stores it as tmdbToken in secrets.json in the data directory and ends the process once the response is sent. 400 INVALID_REQUEST for a value that cannot be a token, 400 TMDB_REJECTED when TMDB refuses it, 502 TMDB_UNREACHABLE when TMDB cannot be asked, 409 TMDB_FROM_ENVIRONMENT when SOFA_TMDB_TOKEN sets it, 500 SECRETS_UNWRITABLE when secrets.json cannot be read or written; nothing is written then. SOFA_TMDB_TOKEN wins over the saved token.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveTmdbToken" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupResult" } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "500": { "$ref": "#/components/responses/Error" }, "502": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/fanart-key": {
-      "put": { "tags": ["Admin"], "summary": "Save the fanart.tv key and restart", "description": "Asks fanart.tv whether it takes the key, stores it as fanartKey in secrets.json in the data directory and ends the process once the response is sent. 400 INVALID_REQUEST for a value that cannot be a key, 400 FANART_REJECTED when fanart.tv refuses it, 502 FANART_UNREACHABLE when fanart.tv cannot be asked, 409 FANART_FROM_ENVIRONMENT when SOFA_FANART_KEY sets it, 500 SECRETS_UNWRITABLE when secrets.json cannot be read or written; nothing is written then. SOFA_FANART_KEY wins over the saved key.", "security": [{ "adminToken": [] }],
+      "put": { "tags": ["Admin"], "summary": "Save the fanart.tv key and restart", "description": "`{\"token\": \"...\"}` (`{\"key\": \"...\"}` for fanart.tv): asks the service whether it takes the value, stores it as `tmdbToken`, `fanartKey` or `listenBrainzToken` in `secrets.json` in the data directory and restarts, answering a `SetupResult` with that path. With `SVC` as `TMDB`, `FANART` or `LISTENBRAINZ`: 400 `INVALID_REQUEST` for a value under 32 characters or with spaces, 400 `SVC_REJECTED` when the service refuses it, 502 `SVC_UNREACHABLE` when it cannot be asked, 409 `SVC_FROM_ENVIRONMENT` when `SOFA_TMDB_TOKEN`, `SOFA_FANART_KEY` or `SOFA_LISTENBRAINZ_TOKEN` sets it, 500 `SECRETS_UNWRITABLE` when `secrets.json` cannot be read or written. Nothing is written on an error\n\nAsks fanart.tv whether it takes the key, stores it as fanartKey in secrets.json in the data directory and ends the process once the response is sent. 400 INVALID_REQUEST for a value that cannot be a key, 400 FANART_REJECTED when fanart.tv refuses it, 502 FANART_UNREACHABLE when fanart.tv cannot be asked, 409 FANART_FROM_ENVIRONMENT when SOFA_FANART_KEY sets it, 500 SECRETS_UNWRITABLE when secrets.json cannot be read or written; nothing is written then. SOFA_FANART_KEY wins over the saved key.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveFanartKey" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupResult" } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "500": { "$ref": "#/components/responses/Error" }, "502": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/listenbrainz-token": {
-      "put": { "tags": ["Admin"], "summary": "Save the ListenBrainz token and restart", "description": "Asks ListenBrainz whether it takes the token, stores it as listenBrainzToken in secrets.json in the data directory and ends the process once the response is sent. 400 INVALID_REQUEST for a value that cannot be a token, 400 LISTENBRAINZ_REJECTED when ListenBrainz refuses it, 502 LISTENBRAINZ_UNREACHABLE when ListenBrainz cannot be asked, 409 LISTENBRAINZ_FROM_ENVIRONMENT when SOFA_LISTENBRAINZ_TOKEN sets it, 500 SECRETS_UNWRITABLE when secrets.json cannot be read or written; nothing is written then. SOFA_LISTENBRAINZ_TOKEN wins over the saved token.", "security": [{ "adminToken": [] }],
+      "put": { "tags": ["Admin"], "summary": "Save the ListenBrainz token and restart", "description": "`{\"token\": \"...\"}` (`{\"key\": \"...\"}` for fanart.tv): asks the service whether it takes the value, stores it as `tmdbToken`, `fanartKey` or `listenBrainzToken` in `secrets.json` in the data directory and restarts, answering a `SetupResult` with that path. With `SVC` as `TMDB`, `FANART` or `LISTENBRAINZ`: 400 `INVALID_REQUEST` for a value under 32 characters or with spaces, 400 `SVC_REJECTED` when the service refuses it, 502 `SVC_UNREACHABLE` when it cannot be asked, 409 `SVC_FROM_ENVIRONMENT` when `SOFA_TMDB_TOKEN`, `SOFA_FANART_KEY` or `SOFA_LISTENBRAINZ_TOKEN` sets it, 500 `SECRETS_UNWRITABLE` when `secrets.json` cannot be read or written. Nothing is written on an error\n\nAsks ListenBrainz whether it takes the token, stores it as listenBrainzToken in secrets.json in the data directory and ends the process once the response is sent. 400 INVALID_REQUEST for a value that cannot be a token, 400 LISTENBRAINZ_REJECTED when ListenBrainz refuses it, 502 LISTENBRAINZ_UNREACHABLE when ListenBrainz cannot be asked, 409 LISTENBRAINZ_FROM_ENVIRONMENT when SOFA_LISTENBRAINZ_TOKEN sets it, 500 SECRETS_UNWRITABLE when secrets.json cannot be read or written; nothing is written then. SOFA_LISTENBRAINZ_TOKEN wins over the saved token.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveListenBrainzToken" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupResult" } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "500": { "$ref": "#/components/responses/Error" }, "502": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/plex": {
-      "get": { "tags": ["Plex"], "summary": "The last Plex sync", "description": "404 PLEX_NOT_CONFIGURED when SOFA_PLEX_URL is unset.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Plex"], "summary": "The last Plex sync", "description": "The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `interval`, `api` or `mcp`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`. It survives a restart; before any sync, `lastSyncAt` is null. 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset\n\n404 PLEX_NOT_CONFIGURED when SOFA_PLEX_URL is unset.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlexStatus" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/plex/sync": {
-      "post": { "tags": ["Plex"], "summary": "Sync Plex now", "description": "A failure is reported in lastError, not as an error response.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Plex"], "summary": "Sync Plex now", "description": "Sync Plex now; returns the same status. A failure is reported in `lastError`, not as an error response\n\nA failure is reported in lastError, not as an error response.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlexStatus" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/hdhr/access": {
-      "get": { "tags": ["HDHomeRun"], "summary": "Who may use the tuners", "description": "The addresses from SOFA_HDHR_ALLOW, the ones allowed at run time, and the addresses refused lately.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["HDHomeRun"], "summary": "Who may use the tuners", "description": "Who may use the tuners: `enabled`, `open` (every address is admitted), `configured` (from `SOFA_HDHR_ALLOW`), `allowed` (from the portal or this API) and `refused`, up to ten addresses refused since the start that are still refused, newest first, each with `address`, `lastAt` and the `path` it asked for\n\nThe addresses from SOFA_HDHR_ALLOW, the ones allowed at run time, and the addresses refused lately.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HdhrAccessStatus" } } } } } },
-      "put": { "tags": ["HDHomeRun"], "summary": "Replace the addresses allowed at run time", "description": "Applies at once with no restart and is kept in the database. SOFA_HDHR_ALLOW still applies beside it. 400 INVALID_REQUEST names an entry that is not an IP literal or CIDR block; nothing changes then.", "security": [{ "adminToken": [] }],
+      "put": { "tags": ["HDHomeRun"], "summary": "Replace the addresses allowed at run time", "description": "`{\"allowed\": [\"PLEX_SERVER_IP\"]}` replaces the addresses allowed at run time, at most 64 IP literals or CIDR blocks, and returns the same status. It applies at once, without a restart, and is kept in the database; `SOFA_HDHR_ALLOW` still applies beside it. 400 `INVALID_REQUEST` names an entry that does not parse, and nothing changes\n\nApplies at once with no restart and is kept in the database. SOFA_HDHR_ALLOW still applies beside it. 400 INVALID_REQUEST names an entry that is not an IP literal or CIDR block; nothing changes then.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateHdhrAccess" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HdhrAccessStatus" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/outputs": {
-      "get": { "tags": ["Outputs"], "summary": "The named player outputs", "description": "In name order.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Outputs"], "summary": "The named player outputs", "description": "Every named output in name order: `name`, `groups` and `channels`\n\nIn name order.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/NamedOutput" } } } } } } }
     },
     "/api/v1/admin/outputs/{name}": {
-      "put": { "tags": ["Outputs"], "summary": "Save a named output", "description": "Creates the output or replaces the one of that name. The name is lowercased; 400 INVALID_REQUEST for a name that is not 1 to 32 letters, digits and hyphens, for stream, for an output holding no group or channel, or past 32 outputs. A name in the body is ignored.", "security": [{ "adminToken": [] }],
+      "put": { "tags": ["Outputs"], "summary": "Save a named output", "description": "`{\"groups\": [\"Kids\"], \"channels\": [\"702\"]}` saves the output, replacing one of that name, and returns it. The name is lowercased; `400 INVALID_REQUEST` for a name that is not 1 to 32 letters, digits and hyphens, for `stream`, for an output holding no group or channel, or past 32 outputs\n\nCreates the output or replaces the one of that name. The name is lowercased; 400 INVALID_REQUEST for a name that is not 1 to 32 letters, digits and hyphens, for stream, for an output holding no group or channel, or past 32 outputs. A name in the body is ignored.", "security": [{ "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/outputName" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NamedOutput" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NamedOutput" } } } }, "400": { "$ref": "#/components/responses/Error" } } },
-      "delete": { "tags": ["Outputs"], "summary": "Delete a named output", "security": [{ "adminToken": [] }],
+      "delete": { "tags": ["Outputs"], "summary": "Delete a named output", "description": "Deletes the output; 204, or `404 OUTPUT_NOT_FOUND`", "security": [{ "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/outputName" }],
         "responses": { "204": { "description": "Deleted" }, "404": { "description": "OUTPUT_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/admin/viewers": {
-      "get": { "tags": ["Admin"], "summary": "Every client that paired or saved preferences", "description": "Most recently seen first.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "Every client that paired or saved preferences", "description": "Every client that paired or saved preferences, most recently seen first: `clientId`, `name`, `platform`, `firstSeenAt`, `lastSeenAt`, `preferences` (null until the client saves some) and `ownToken` (false for a client on `SOFA_API_TOKEN`)\n\nMost recently seen first.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Viewer" } } } } } } }
     },
     "/api/v1/admin/viewers/{clientId}": {
-      "delete": { "tags": ["Admin"], "summary": "Forget a client, its preferences and its token", "description": "Revokes the token the client was paired with, so it must pair again; a client on SOFA_API_TOKEN keeps working and reappears on its next save.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
+      "delete": { "tags": ["Admin"], "summary": "Forget a client, its preferences and its token", "description": "Forget a client and its preferences and revoke its token; returns 204. A client on `SOFA_API_TOKEN` keeps working and reappears on its next save\n\nRevokes the token the client was paired with, so it must pair again; a client on SOFA_API_TOKEN keeps working and reappears on its next save.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/clientId" }],
         "responses": { "204": { "description": "Forgotten" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/tokens": {
-      "get": { "tags": ["Admin"], "summary": "The tokens the server issued", "description": "Paired devices' api tokens and the read and hook tokens, oldest first, without secrets.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "The tokens the server issued", "description": "The [tokens](#tokens) the server issued, oldest first and without secrets: `id`, `label`, `scope` (`api`, `read` or `hook`), `clientId` (for a device's token), `createdAt` and `lastUsedAt` (to the minute)\n\nPaired devices' api tokens and the read and hook tokens, oldest first, without secrets.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ApiTokenInfo" } } } } } } },
-      "post": { "tags": ["Admin"], "summary": "Make a read or hook token", "description": "The answer carries the secret this once. Device tokens come only from pairing (400).", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Admin"], "summary": "Make a read or hook token", "description": "Make a token from `{\"label\", \"scope\"}`, `scope` `read` or `hook`; 201 with `{\"token\", \"secret\"}`, the only time the secret is shown. 400 for an empty label or `api`, which only pairing issues\n\nThe answer carries the secret this once. Device tokens come only from pairing (400).", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateApiToken" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreatedApiToken" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/tokens/{id}": {
-      "delete": { "tags": ["Admin"], "summary": "Revoke a token", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "delete": { "tags": ["Admin"], "summary": "Revoke a token", "description": "Revoke a token; 204, or 404 `TOKEN_NOT_FOUND`", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "204": { "description": "Revoked" }, "404": { "description": "TOKEN_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/admin/notifications": {
-      "get": { "tags": ["Admin"], "summary": "Where the server sends notifications", "description": "Every notification target in the order it was added, with its newest delivery and without its secret.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "Where the server sends notifications", "description": "The notification targets, described [below](#notifications)\n\nEvery notification target in the order it was added, with its newest delivery and without its secret.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/NotificationTarget" } } } } }, "404": { "description": "NOTIFICATIONS_NOT_AVAILABLE: every notification route answers it on a server without them", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
-      "post": { "tags": ["Admin"], "summary": "Add a notification target", "description": "Needs name, kind and url; events defaults to all but the attention items, enabled to true. The URL may be a LAN or loopback address. 400 INVALID_REQUEST names what is wrong.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Admin"], "summary": "Add a notification target", "description": "Add a notification target, described [below](#notifications)\n\nNeeds name, kind and url; events defaults to all but the attention items, enabled to true. The URL may be a LAN or loopback address. 400 INVALID_REQUEST names what is wrong.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveNotificationTarget" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationTarget" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/notifications/{id}": {
-      "get": { "tags": ["Admin"], "summary": "One notification target", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "get": { "tags": ["Admin"], "summary": "One notification target", "description": "One target", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationTarget" } } } }, "404": { "$ref": "#/components/responses/Error" } } },
-      "patch": { "tags": ["Admin"], "summary": "Change a notification target", "description": "Changes the fields the body gives; an empty secret clears it.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "patch": { "tags": ["Admin"], "summary": "Change a notification target", "description": "Change a target\n\nChanges the fields the body gives; an empty secret clears it.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveNotificationTarget" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationTarget" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } },
-      "delete": { "tags": ["Admin"], "summary": "Remove a notification target and its deliveries", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "delete": { "tags": ["Admin"], "summary": "Remove a notification target and its deliveries", "description": "Remove a target", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "204": { "description": "Removed" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/notifications/{id}/test": {
-      "post": { "tags": ["Admin"], "summary": "Send a target a test notification", "description": "Sends the test event once, without retries, and answers how it went; a target that fails still answers 200 with ok false.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "post": { "tags": ["Admin"], "summary": "Send a target a test notification", "description": "Send the target a test notification and answer how it went\n\nSends the test event once, without retries, and answers how it went; a target that fails still answers 200 with ok false.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationDelivery" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/notifications/{id}/deliveries": {
-      "get": { "tags": ["Admin"], "summary": "A target's recent deliveries", "description": "The newest first; the server keeps 200 per target.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "get": { "tags": ["Admin"], "summary": "A target's recent deliveries", "description": "The target's newest deliveries, up to 200\n\nThe newest first; the server keeps 200 per target.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/NotificationDelivery" } } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/pairing-codes": {
-      "post": { "tags": ["Admin"], "summary": "Issue a pairing code", "description": "Replaces the live code. The code is six digits, live for ten minutes, and spent by the claim that matches it.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Admin"], "summary": "Issue a pairing code", "description": "Issue a [pairing code](#pair-a-client): `{\"code\", \"expiresAt\"}`, 201. It replaces the live code\n\nReplaces the live code. The code is six digits, live for ten minutes, and spent by the claim that matches it.", "security": [{ "adminToken": [] }],
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PairingCode" } } } } } }
     },
     "/api/v1/admin/virtual-channels": {
-      "get": { "tags": ["Admin"], "summary": "Every virtual channel", "description": "In the order they were made.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "Every virtual channel", "description": "Every virtual channel in the order they were made: `id`, `name`, `number`, `slots`, `filler`, `padMinutes` and `breaks`\n\nIn the order they were made.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/VirtualChannel" } } } } } } },
-      "post": { "tags": ["Admin"], "summary": "Add a virtual channel", "description": "The server gives it an id and builds its schedule 48 hours ahead. 400 INVALID_REQUEST names what is wrong, such as a source that does not exist or start times on some slots only.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Admin"], "summary": "Add a virtual channel", "description": "Create a channel; 201 with it and its new `id`. The body is `{\"name\", \"number\", \"slots\": [{\"source\": {\"kind\", \"value\"}, \"shuffle\", \"start\"}], \"filler\", \"padMinutes\", \"breaks\"}`: `kind` is `library` (a library ID), `show` (a show's item ID), `genre` (a genre name) or `channel` (a lineup entry ID, in timed slots only and never as filler), `start` is `HH:MM` on every slot or none, `filler` a source like a slot's, `padMinutes` 0, 15, 30 or 60, `breaks` either null or `{\"everyMinutes\", \"source\", \"slides\", \"slideSeconds\"}` (`everyMinutes` 0, 15, 30 or 60, 0 after every item; `source` a library source; `slides` up to five http or https image URLs; `slideSeconds` 3 to 60). 400 `INVALID_REQUEST` names what is wrong, such as a source that does not exist\n\nThe server gives it an id and builds its schedule 48 hours ahead. 400 INVALID_REQUEST names what is wrong, such as a source that does not exist or start times on some slots only.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VirtualChannel" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VirtualChannel" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/virtual-channels/{id}": {
-      "get": { "tags": ["Admin"], "summary": "One virtual channel", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "get": { "tags": ["Admin"], "summary": "One virtual channel", "description": "One channel; `404 NOT_FOUND`", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VirtualChannel" } } } }, "404": { "$ref": "#/components/responses/Error" } } },
-      "put": { "tags": ["Admin"], "summary": "Replace a virtual channel", "description": "Rebuilds its schedule from the end of what airs now, so the current item plays on.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "put": { "tags": ["Admin"], "summary": "Replace a virtual channel", "description": "Replace a channel with the same body, rebuilding its schedule from the end of what airs now; `404 NOT_FOUND`\n\nRebuilds its schedule from the end of what airs now, so the current item plays on.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VirtualChannel" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VirtualChannel" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } },
-      "delete": { "tags": ["Admin"], "summary": "Delete a virtual channel", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "delete": { "tags": ["Admin"], "summary": "Delete a virtual channel", "description": "Delete a channel (204); `404 NOT_FOUND`", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "204": { "description": "Deleted" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/virtual-channels/{id}/schedule": {
-      "get": { "tags": ["Admin"], "summary": "What a virtual channel airs ahead", "description": "The airings from now, extending the stored schedule when it runs short.", "security": [{ "adminToken": [] }],
+      "get": { "tags": ["Admin"], "summary": "What a virtual channel airs ahead", "description": "The airings from now for `hours` (1 to 48, 24 by default): `startsAt`, `endsAt`, `title`, `itemId` (null for black) and `filler`\n\nThe airings from now, extending the stored schedule when it runs short.", "security": [{ "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "hours", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 48, "default": 24 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/VirtualAiring" } } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/libraries": {
-      "get": { "tags": ["Library"], "summary": "Every media library", "description": "With each library's present items by kind and its last scan.", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "get": { "tags": ["Library"], "summary": "Every media library", "description": "Every [media library](libraries.md): `id`, `name`, `kind` (`movies`, `shows`, `videos` or `music`), `path`, `createdAt`, `items` (present items by kind: `movie`, `show`, `season`, `episode`, `video`, `artist`, `album`, `track`) and the last scan's `scannedAt`, `scanOk` and `scanNote`\n\nWith each library's present items by kind and its last scan.", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryInfo" } } } } } } },
-      "post": { "tags": ["Library"], "summary": "Add a library", "description": "The folder must be inside SOFA_MEDIA_DIR, lead nowhere outside it and be used by no other library (409 LIBRARY_EXISTS); its first scan starts at once.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Library"], "summary": "Add a library", "description": "Add a library from `{\"name\", \"kind\", \"path\"}`; 201 with the library, and its first scan starts. 400 when the folder is outside `SOFA_MEDIA_DIR`, links outside it or does not exist; 409 `LIBRARY_EXISTS` when another library uses it\n\nThe folder must be inside SOFA_MEDIA_DIR, lead nowhere outside it and be used by no other library (409 LIBRARY_EXISTS); its first scan starts at once.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateLibrary" } } } },
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryInfo" } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/libraries/folders": {
-      "get": { "tags": ["Library"], "summary": "The folders a new library can use", "description": "SOFA_MEDIA_DIR and its subfolders two levels down, without hidden folders and those a library already uses.", "security": [{ "adminToken": [] }, { "readToken": [] }],
+      "get": { "tags": ["Library"], "summary": "The folders a new library can use", "description": "`{\"roots\", \"folders\"}`: `SOFA_MEDIA_DIR` and the folders under it, two levels down, that no library uses\n\nSOFA_MEDIA_DIR and its subfolders two levels down, without hidden folders and those a library already uses.", "security": [{ "adminToken": [] }, { "readToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryFolders" } } } } } }
     },
     "/api/v1/admin/libraries/scan": {
-      "post": { "tags": ["Library"], "summary": "Scan the libraries holding a path", "description": "Queues a scan of the library whose folder holds the path, or of every library inside it when it names a folder above them, and answers at once; requests for one library coalesce until its scan starts. 404 LIBRARY_NOT_FOUND when no library holds it.", "security": [{ "adminToken": [] }],
+      "post": { "tags": ["Library"], "summary": "Scan the libraries holding a path", "description": "Queue a scan of the library whose folder holds `{\"path\"}`, a file or folder, or of every library inside it when it names a folder above them; 202 with `{\"libraries\"}`, their ids, at once. The path is mapped through `SOFA_LIBRARY_PATH_MAP` first. 404 `LIBRARY_NOT_FOUND` when no library holds it\n\nQueues a scan of the library whose folder holds the path, or of every library inside it when it names a folder above them, and answers at once; requests for one library coalesce until its scan starts. 404 LIBRARY_NOT_FOUND when no library holds it.", "security": [{ "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanPath" } } } },
         "responses": { "202": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/libraries/{id}": {
       "get": { "tags": ["Library"], "summary": "One library", "security": [{ "adminToken": [] }, { "readToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryInfo" } } } }, "404": { "$ref": "#/components/responses/Error" } } },
-      "patch": { "tags": ["Library"], "summary": "Rename a library", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "patch": { "tags": ["Library"], "summary": "Rename a library", "description": "Rename a library with `{\"name\"}`", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateLibrary" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryInfo" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } },
-      "delete": { "tags": ["Library"], "summary": "Remove a library", "description": "Forgets its items and their watch progress; the files are never touched.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+      "delete": { "tags": ["Library"], "summary": "Remove a library", "description": "Remove a library (204), forgetting its items and their watch progress but never touching its files\n\nForgets its items and their watch progress; the files are never touched.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "204": { "description": "Removed" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/libraries/{id}/scan": {
-      "post": { "tags": ["Library"], "summary": "Scan a library now", "description": "Answers when the scan ends. A folder that is missing, or empty while the library held files, reads as unmounted: unavailable is true and nothing changes. With refresh=true it queues the scan and answers 202 at once, and a music library asks MusicBrainz again for every album and artist.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "refresh", "in": "query", "schema": { "type": "boolean", "default": false } }],
+      "post": { "tags": ["Library"], "summary": "Scan a library now", "description": "Scan now and answer when done: `files`, `added`, `updated`, `missing`, `removed`, and `unavailable` when the folder was missing or empty, in which case nothing changed. With `?refresh=true` it queues the scan and answers `202` with `libraries`; a music library asks MusicBrainz again for every album and artist\n\nAnswers when the scan ends. A folder that is missing, or empty while the library held files, reads as unmounted: unavailable is true and nothing changes. With refresh=true it queues the scan and answers 202 at once, and a music library asks MusicBrainz again for every album and artist.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "refresh", "in": "query", "schema": { "type": "boolean", "default": false } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryScanInfo" } } } }, "202": { "description": "Queued", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/hooks/servarr": {
-      "post": { "tags": ["Hooks"], "summary": "Sonarr's or Radarr's Webhook connection", "description": "Queues a scan of the library holding the event's series or movie folder.", "security": [{ "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "post": { "tags": ["Hooks"], "summary": "Sonarr's or Radarr's Webhook connection", "description": "The Webhook connection's payload. `Download`, `Rename`, `EpisodeFileDelete`, `MovieFileDelete`, `SeriesDelete` and `MovieDelete` queue a scan of the library holding `series.path` or `movie.folderPath`; `Test` and the other events queue nothing. The token goes as a bearer or as the Basic password\n\nQueues a scan of the library holding the event's series or movie folder.", "security": [{ "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServarrEvent" } } } },
         "responses": { "202": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/Library/Media/Updated": {
-      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh", "description": "What Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh", "description": "The Emby / Jellyfin connection's refresh, `{\"Updates\": [{\"Path\", \"UpdateType\"}]}`: queues a scan of the libraries holding each `Path`. The token goes in `X-MediaBrowser-Token`, as that connection sends it, or `X-Emby-Token`\n\nWhat Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MediaUpdates" } } } },
         "responses": { "202": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/System/Configuration": {
-      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration", "description": "The connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration", "description": "What the Emby / Jellyfin connection reads first: its Test button checks the token here, and this answers `{}`\n\nThe connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object" } } } } } }
     },
     "/Items": {
-      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items", "description": "The connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items", "description": "Where a refresh looks the series or movie up; always empty, so the connection sends the folder it knows\n\nThe connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object", "required": ["Items", "TotalRecordCount"], "properties": { "Items": { "type": "array", "maxItems": 0, "items": { "type": "object" } }, "TotalRecordCount": { "type": "integer" } } } } } } } }
     },
     "/Notifications/Admin": {
-      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice", "description": "The connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice", "description": "The same connection's Send Notifications option; answers `204` and does nothing\n\nThe connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "204": { "description": "Taken" } } }
     },
     "/emby/Library/Media/Updated": {
-      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh, under /emby", "description": "What Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh, under /emby", "description": "The Emby / Jellyfin library refresh, under /emby\n\nWhat Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MediaUpdates" } } } },
         "responses": { "202": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/emby/System/Configuration": {
-      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration, under /emby", "description": "The connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration, under /emby", "description": "The Emby / Jellyfin configuration, under /emby\n\nThe connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object" } } } } } }
     },
     "/emby/Items": {
-      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items, under /emby", "description": "The connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items, under /emby", "description": "The Emby / Jellyfin items, under /emby\n\nThe connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object", "required": ["Items", "TotalRecordCount"], "properties": { "Items": { "type": "array", "maxItems": 0, "items": { "type": "object" } }, "TotalRecordCount": { "type": "integer" } } } } } } } }
     },
     "/emby/Notifications/Admin": {
-      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice, under /emby", "description": "The connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice, under /emby", "description": "The Emby / Jellyfin admin notice, under /emby\n\nThe connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "204": { "description": "Taken" } } }
     },
     "/mediabrowser/Library/Media/Updated": {
-      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh, under /mediabrowser", "description": "What Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin library refresh, under /mediabrowser", "description": "The Emby / Jellyfin library refresh, under /mediabrowser\n\nWhat Sonarr's and Radarr's Emby / Jellyfin connection sends: queues a scan of the libraries holding each path.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MediaUpdates" } } } },
         "responses": { "202": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanQueued" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/mediabrowser/System/Configuration": {
-      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration, under /mediabrowser", "description": "The connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin configuration, under /mediabrowser", "description": "The Emby / Jellyfin configuration, under /mediabrowser\n\nThe connection's Test button reads it to check the token; the answer is an empty object.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object" } } } } } }
     },
     "/mediabrowser/Items": {
-      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items, under /mediabrowser", "description": "The connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "get": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin items, under /mediabrowser", "description": "The Emby / Jellyfin items, under /mediabrowser\n\nThe connection looks the series or movie up here before a refresh; the list is always empty, so it sends the folder it knows.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "object", "required": ["Items", "TotalRecordCount"], "properties": { "Items": { "type": "array", "maxItems": 0, "items": { "type": "object" } }, "TotalRecordCount": { "type": "integer" } } } } } } } }
     },
     "/mediabrowser/Notifications/Admin": {
-      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice, under /mediabrowser", "description": "The connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
+      "post": { "tags": ["Hooks"], "summary": "The Emby / Jellyfin admin notice, under /mediabrowser", "description": "The Emby / Jellyfin admin notice, under /mediabrowser\n\nThe connection's Send Notifications option posts here; the server takes it and does nothing.", "security": [{ "mediaBrowserToken": [] }, { "hookToken": [] }, { "apiToken": [] }, { "adminToken": [] }],
         "responses": { "204": { "description": "Taken" } } }
     },
     "/api/v1/recordings": {
       "get": {
         "tags": ["Recordings"],
-        "summary": "Every recording, scheduled and running soonest first, then kept and failed newest first",
+        "summary": "Every recording, soonest scheduled first, then the rest newest first",
+        "description": "Every [recording](#recordings), scheduled and running soonest first, then the rest newest first, and the recordings folder's `storage`",
         "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "responses": {
           "200": {
@@ -1555,7 +1570,7 @@
       "post": {
         "tags": ["Recordings"],
         "summary": "Record one program",
-        "description": "Names the program by its channel and start, as the guide query gives them. Scheduling a program that already has a recording answers that recording. With endsAt, startsAt may be at most 14 days ahead (400 INVALID_REQUEST), and a window past 100 waiting one-off recordings answers 409 SCHEDULE_FULL.",
+        "description": "Record the program on `channelId` that starts at `startsAt`, or with `endsAt` (and an optional `title`) that [time window](recordings.md#record-a-time-window); `201`, or the existing recording. `404 CHANNEL_NOT_FOUND` or `PROGRAM_NOT_FOUND`, `409 PROGRAM_ENDED`. A time window may start at most 14 days ahead (`400 INVALID_REQUEST`), and a window past 100 waiting one-off recordings answers `409 SCHEDULE_FULL`\n\nNames the program by its channel and start, as the guide query gives them. Scheduling a program that already has a recording answers that recording. With endsAt, startsAt may be at most 14 days ahead (400 INVALID_REQUEST), and a window past 100 waiting one-off recordings answers 409 SCHEDULE_FULL.",
         "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": {
           "required": true,
@@ -1582,6 +1597,7 @@
       "get": {
         "tags": ["Recordings"],
         "summary": "One recording",
+        "description": "One recording; `404 RECORDING_NOT_FOUND`",
         "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
@@ -1598,6 +1614,7 @@
       "patch": {
         "tags": ["Recordings"],
         "summary": "Protect a recording from culling, or save where the viewer stopped",
+        "description": "Set `protected`, `positionMs` or `watched`",
         "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
@@ -1618,7 +1635,7 @@
       "delete": {
         "tags": ["Recordings"],
         "summary": "Cancel, stop or delete a recording",
-        "description": "Cancels a scheduled recording, stops a running one and keeps what it recorded, or deletes a finished one and its file. A canceled airing of a rule is not scheduled again.",
+        "description": "Cancel a scheduled recording, stop a running one, or delete a finished one and its file; returns 204\n\nCancels a scheduled recording, stops a running one and keeps what it recorded, or deletes a finished one and its file. A canceled airing of a rule is not scheduled again.",
         "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
@@ -1645,6 +1662,7 @@
       "post": {
         "tags": ["Recordings"],
         "summary": "Add a series rule",
+        "description": "Add a series rule, by title or with a `match` for a team or keywords ([recordings](recordings.md#record-a-series)); `201`",
         "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": {
           "required": true,
@@ -1667,6 +1685,7 @@
       "patch": {
         "tags": ["Recordings"],
         "summary": "Change a series rule",
+        "description": "Change `channelId` (`anyChannel: true` clears it), `newOnly`, `keep`, the paddings or `priority`; `404 RULE_NOT_FOUND`",
         "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
@@ -1688,6 +1707,7 @@
       "delete": {
         "tags": ["Recordings"],
         "summary": "Delete a series rule and its scheduled recordings; what it recorded stays",
+        "description": "Delete a rule and its scheduled recordings; what it recorded stays. Returns 204",
         "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
@@ -1702,7 +1722,8 @@
     "/api/v1/watchlist": {
       "get": {
         "tags": ["Watchlist"],
-        "summary": "The household's watchlist, newest first, with each title's next airing in the coming week",
+        "summary": "The household's watchlist, newest first",
+        "description": "The household's [watchlist](#watchlist), newest first",
         "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "responses": {
           "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Watchlist" } } } }
@@ -1710,7 +1731,8 @@
       },
       "post": {
         "tags": ["Watchlist"],
-        "summary": "Add a library item or a guide title; adding one the list holds returns that entry",
+        "summary": "Add a library item or a guide title to the watchlist",
+        "description": "Add a library item or a guide title; `201`, or the entry the list already holds. `404 ITEM_NOT_FOUND`, `409 WATCHLIST_FULL`",
         "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "requestBody": {
           "required": true,
@@ -1737,6 +1759,7 @@
       "delete": {
         "tags": ["Watchlist"],
         "summary": "Take an entry off the watchlist",
+        "description": "Take an entry off the list; returns 204, or `404 WATCHLIST_ENTRY_NOT_FOUND`",
         "security": [{ "apiToken": [] }, { "deviceToken": [] }, { "adminToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {

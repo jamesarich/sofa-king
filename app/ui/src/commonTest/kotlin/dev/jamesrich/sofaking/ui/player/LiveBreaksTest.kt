@@ -34,6 +34,17 @@ class LiveBreaksTest {
     }
 
     @Test
+    fun `a mark's break wins over the run's`() {
+        assertEquals(AdBreakNow(5_000), pickBreak(AdBreakNow(5_000), AdBreakNow(9_000)))
+    }
+
+    @Test
+    fun `the run's break is used when no mark covers the picture`() {
+        assertEquals(AdBreakNow(9_000), pickBreak(null, AdBreakNow(9_000)))
+        assertNull(pickBreak(null, null))
+    }
+
+    @Test
     fun `a run with no planned end and no show segment yet has no countdown`() {
         assertEquals(AdBreakNow(remainingMs = null), at(19_000, tags = listOf("#EXT-X-SOFA-AD:FIRST=10,LAST=11")))
     }

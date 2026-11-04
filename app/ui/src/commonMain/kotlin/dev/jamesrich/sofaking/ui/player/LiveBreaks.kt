@@ -92,3 +92,6 @@ internal class AdMarks(private val limit: Int = 256) {
 
 /** How far a segment's start may move between windows and still be the same clock. */
 private const val SLIP_MS = 1_000L
+
+/** The standard mark's break when it covers the picture, else the one the older `SOFA-AD` tag gives. */
+internal fun pickBreak(markBreak: AdBreakNow?, runBreak: AdBreakNow?): AdBreakNow? = markBreak ?: runBreak

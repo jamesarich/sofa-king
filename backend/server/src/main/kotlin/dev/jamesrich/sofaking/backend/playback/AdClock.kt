@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.contract.AdBreakState
 import dev.jamesrich.sofaking.contract.AdRun
 import java.net.URI
+import java.time.Clock
 import java.util.UUID
 
 /**
@@ -48,6 +49,7 @@ class AdClock(
     /** The channel and provider the session plays, for the library. */
     private val channelId: String = "",
     private val providerId: String = "",
+    private val clock: Clock = Clock.systemUTC(),
     private val learned: (LearnedBreak) -> Unit = {},
 ) {
     /** Learns this clock's breaks; its tag names them in the library, so its own are never its canary. */
@@ -76,7 +78,7 @@ class AdClock(
     @Synchronized
     fun annotate(text: String, base: URI): String {
         val read = AdBreaks.parse(text, base) ?: return text
-        val timeline = timelines.getOrPut(base.toString()) { AdTimeline(base.toString(), segmentLimit) }
+        val timeline = timelines.getOrPut(base.toString()) { AdTimeline(base.toString(), segmentLimit, clock) }
         timeline.place(read.segments)
         for (segment in read.segments) marks[segment.url] = Mark(timeline, segment.sequence)
         if (read.segments.any { it.ad }) timeline.markExact()
@@ -93,7 +95,43 @@ class AdClock(
         }
         val (held, holdBack) = withHoldBack(text, read.segments, timeline.holdBackMs)
         timeline.holdBackMs = holdBack
-        return AdBreaks.annotate(held, runs)
+        val dated = if (read.segments.none { it.dateMs != null }) {
+            timeline.anchorEpochMs?.let { withProgramDates(held, read.segments, timeline, it) } ?: held
+        } else {
+            held
+        }
+        return AdBreaks.annotate(dated, runs) { timeline.dateOf(it, read.segments) }
+    }
+
+    /**
+     * [text] with `#EXT-X-PROGRAM-DATE-TIME` before its first segment and after each `#EXT-X-DISCONTINUITY`, from the
+     * timeline's [anchor], so a player that places marks by date has the clock it reads them on.
+     */
+    private fun withProgramDates(
+        text: String,
+        segments: List<AdBreaks.Segment>,
+        timeline: AdTimeline,
+        anchor: Long,
+    ): String {
+        val lines = ArrayList<String>()
+        var index = 0
+        var needDate = true
+        for (line in text.lines()) {
+            val tag = line.trim()
+            when {
+                tag.startsWith("#EXT-X-DISCONTINUITY:") || tag == "#EXT-X-DISCONTINUITY" -> needDate = true
+
+                tag.startsWith("#EXTINF:") && needDate -> {
+                    needDate = false
+                    segments.getOrNull(index)?.let { timeline.starts[it.sequence] }
+                        ?.let { lines += "#EXT-X-PROGRAM-DATE-TIME:" + AdBreaks.isoMs(anchor + it) }
+                }
+
+                tag.isNotEmpty() && !tag.startsWith("#") -> index++
+            }
+            lines += line
+        }
+        return lines.joinToString("\n")
     }
 
     /**

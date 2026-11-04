@@ -228,6 +228,7 @@ internal class RuntimeAssembly(
         val audio = SegmentAudio(config.ffmpeg)
         relay =
             MediaRelay(http, feeds, sessions, scope, audio, config.ffmpeg to config.dataDirectory.resolve("packages"))
+        sessions.hlsByDefault = config.appStreams == AppStreams.HLS
         val listener = adListener()
         loopback = LoopbackRelay(http, upstream, relay.permits)
         val worker = probeWorker()

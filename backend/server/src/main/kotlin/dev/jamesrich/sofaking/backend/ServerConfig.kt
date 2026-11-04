@@ -136,6 +136,11 @@ data class ServerConfig(
     /** `SOFA_LEARNED_BREAKS`: what live sessions do with breaks the server learns from the stream itself. */
     val learnedBreaks: LearnedBreaks = LearnedBreaks.SHADOW,
     /**
+     * `SOFA_APP_STREAMS`: the format the app's live sessions get when the client names none: `hls` packages an
+     * MPEG-TS source as HLS, `source` plays it as it is.
+     */
+    val appStreams: AppStreams = AppStreams.HLS,
+    /**
      * `SOFA_AD_LISTENERS`: how many channels the ad listener plays at once, at most 2 while anyone watches; 0 turns
      * it off.
      */
@@ -291,6 +296,7 @@ data class ServerConfig(
                 recordingsFreeGib = env.number(Settings.RECORDINGS_FREE_GIB),
                 recordingsKeepDays = env.number(Settings.RECORDINGS_KEEP_DAYS),
                 learnedBreaks = LearnedBreaks.of(env.choice(Settings.LEARNED_BREAKS)) ?: LearnedBreaks.SHADOW,
+                appStreams = AppStreams.of(env.choice(Settings.APP_STREAMS)) ?: AppStreams.HLS,
                 adListeners = env.number(Settings.AD_LISTENERS),
                 iptvOrg = iptvOrgSettings(env),
                 comskip = comskip(env),
@@ -318,5 +324,16 @@ data class ServerConfig(
                 val host = uri.host.lowercase()
                 CorsOrigin(scheme, if (uri.port == -1) host else "$host:${uri.port}")
             }.distinct()
+    }
+}
+
+/** What `SOFA_APP_STREAMS` picks for the app's live sessions whose client names no protocol. */
+enum class AppStreams(val setting: String) {
+    HLS("hls"),
+    SOURCE("source"),
+    ;
+
+    companion object {
+        fun of(setting: String): AppStreams? = entries.firstOrNull { it.setting == setting.trim().lowercase() }
     }
 }

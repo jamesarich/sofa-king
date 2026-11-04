@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.Offering
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
 import dev.jamesrich.sofaking.backend.upstream.inflateHead
@@ -195,9 +196,17 @@ class MediaRelay(
         stream: ResolvedStream,
     ) {
         val packages = packages ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown media")
-        val text = packages.playlist(id, epoch, resource.offering, stream) { url ->
-            sessions.media.resourcePath(id, epoch, url)
-        }
+        // AVPlayer starts a live stream three segments from its end; every other player needs only the first.
+        val start = if (fromAppleCoreMedia(call)) PackagedStreams.START_SEGMENTS else 1
+        val ads = resource.ads
+        val text = packages.playlist(
+            id,
+            epoch,
+            resource.offering,
+            stream,
+            start,
+            edit = { playlist -> ads?.annotate(playlist, URI(PackagedStreams.SCHEME)) ?: playlist },
+        ) { url -> sessions.media.resourcePath(id, epoch, url) }
         // AVFoundation shows captions only when a multivariant playlist declares them: its root goes out as one naming
         // the media playlist, which carries the same token with the media marker (see CaptionPlaylists).
         val declared = declaresCaptions(call, resource) && packages.carriesCaptions(id, epoch)
@@ -220,6 +229,16 @@ class MediaRelay(
         resource.stats.segments.incrementAndGet()
         call.response.header(HttpHeaders.CacheControl, "private, max-age=60")
         call.respond(LocalPathContent(file, ContentType.parse("video/mp2t")))
+        val ads = resource.ads ?: return
+        ads.served(resource.url, packages.cues(id, epoch, file))
+        // Read after the segment is answered, so the player never waits on it.
+        if (audio != null && ads.listening) {
+            val bytes = withContext(Dispatchers.IO) { runCatchingCancellable { Files.readAllBytes(file) }.getOrNull() }
+            if (bytes != null) {
+                synchronized(ads) { ads.follower ?: AudioFollower(audio, ads, scope).also { ads.follower = it } }
+                    .offer(resource.url, bytes)
+            }
+        }
     }
 
     private suspend fun serveShared(
@@ -375,8 +394,11 @@ private fun stalled(call: ApplicationCall, job: Job): Boolean = job.isActive && 
  * own sessions, to AVFoundation, whose media requests say `AppleCoreMedia/1.0.0…` in their `User-Agent`.
  */
 private fun declaresCaptions(call: ApplicationCall, resource: MediaResource): Boolean =
-    resource.url == resource.offering.url && resource.ads != null &&
-        call.request.headers[HttpHeaders.UserAgent].orEmpty().contains("AppleCoreMedia")
+    resource.url == resource.offering.url && resource.ads != null && fromAppleCoreMedia(call)
+
+/** Whether [call] comes from AVFoundation's player, whose requests say `AppleCoreMedia/1.0.0…` in their `User-Agent`. */
+private fun fromAppleCoreMedia(call: ApplicationCall): Boolean =
+    call.request.headers[HttpHeaders.UserAgent].orEmpty().contains("AppleCoreMedia")
 
 /** How much of a segment read for cues passes through at a time. */
 private const val SEGMENT_READ = 64 * 1024

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.playback
 
+import dev.jamesrich.sofaking.contract.AdDateRange
 import dev.jamesrich.sofaking.contract.AdRun
 import java.io.ByteArrayOutputStream
 import java.net.URI
@@ -177,6 +178,38 @@ d.ts
         val multivariant = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nvariant.m3u8\n"
         assertNull(AdBreaks.parse(multivariant, plutoBase))
         assertEquals(multivariant, AdBreaks.annotate(multivariant, plutoBase))
+    }
+
+    @Test fun `each run gets a date range with a duration when its end is dated, else the planned length, else none`() {
+        val runs = listOf(AdRun(5, 6, 30_000), AdRun(20, 21), AdRun(40, 41, 12_500))
+        val dates = mapOf(5L to 1_000_000L, 7L to 1_012_000L, 20L to 2_000_000L, 40L to 3_000_000L)
+        val text = "#EXTM3U\n#EXTINF:6,\na.ts\n"
+        val annotated = AdBreaks.annotate(text, runs) { dates[it] }
+        val iso = AdBreaks::isoMs
+        val lines = annotated.lines()
+        assertEquals(
+            listOf(
+                AdRun(5, 6, 30_000).tag(),
+                AdDateRange.tag("sofa-ad-5", iso(1_000_000), durationMs = 12_000),
+                AdRun(20, 21).tag(),
+                AdDateRange.tag("sofa-ad-20", iso(2_000_000)),
+                AdRun(40, 41, 12_500).tag(),
+                AdDateRange.tag("sofa-ad-40", iso(3_000_000), plannedDurationMs = 12_500),
+            ),
+            lines.filter { it.startsWith("#EXT-X-SOFA-AD") || it.startsWith("#EXT-X-DATERANGE") },
+        )
+        val first = lines[lines.indexOf(AdRun(5, 6, 30_000).tag()) + 1]
+        assertEquals(AdDateRange("sofa-ad-5", iso(1_000_000), durationMs = 12_000), AdDateRange.parse(first))
+        val undated = AdBreaks.annotate(text, runs) { null }
+        assertTrue(undated.lines().none { it.startsWith("#EXT-X-DATERANGE") })
+        assertEquals(text, AdBreaks.annotate(text, emptyList()) { 0L })
+    }
+
+    @Test fun `a program date time with a compact offset reads as the instant it is`() {
+        val text = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-PROGRAM-DATE-TIME:2026-11-04T12:00:00.250+0000\n" +
+            "#EXTINF:2,\na.ts\n#EXTINF:2,\nb.ts\n"
+        val segments = AdBreaks.parse(text, URI("https://cdn.example.test/live.m3u8"))!!.segments
+        assertEquals(listOf(1_793_793_600_250L, 1_793_793_602_250L), segments.map { it.dateMs })
     }
 
     @Test fun `a discontinuity alone is not a break`() {

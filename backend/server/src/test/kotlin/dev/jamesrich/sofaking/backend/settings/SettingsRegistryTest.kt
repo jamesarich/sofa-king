@@ -59,6 +59,7 @@ class SettingsRegistryTest {
         "recordingsFreeGib" to listOf("SOFA_RECORDINGS_FREE_GIB"),
         "recordingsKeepDays" to listOf("SOFA_RECORDINGS_KEEP_DAYS"),
         "learnedBreaks" to listOf("SOFA_LEARNED_BREAKS"),
+        "appStreams" to listOf("SOFA_APP_STREAMS"),
         "adListeners" to listOf("SOFA_AD_LISTENERS"),
         "iptvOrg" to listOf("SOFA_IPTV_ORG", "SOFA_IPTV_ORG_STREAMS", "SOFA_IPTV_ORG_REGION"),
         "comskip" to listOf("SOFA_COMSKIP"),

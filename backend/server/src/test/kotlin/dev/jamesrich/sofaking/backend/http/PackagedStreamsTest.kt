@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.http
 
+import dev.jamesrich.sofaking.backend.AppStreams
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.ServerConfig
@@ -30,7 +31,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** An MPEG-TS channel for a player that plays HLS only: the server packages it, and others still get the TS. */
+/** An MPEG-TS channel for an app session: the server packages it as HLS unless the client asks for the TS. */
 class PackagedStreamsTest {
     private val token = "secret".repeat(8)
 
@@ -61,9 +62,9 @@ class PackagedStreamsTest {
                     val channel = runtime.lineup.entries().single { it.name == "TS" }.id
 
                     val plain = open(channel, "plain", null)
-                    assertEquals("mpegts", plain.descriptor.protocol, "a player that names no protocols gets the TS")
+                    assertEquals("hls", plain.descriptor.protocol, "a player that names no protocols gets HLS")
                     val both = open(channel, "both", "hls, mpegts")
-                    assertEquals("mpegts", both.descriptor.protocol, "one that plays both gets the TS too")
+                    assertEquals("mpegts", both.descriptor.protocol, "one that plays both asks for the source's own")
                     client.delete("/api/v1/playback-sessions/${plain.id}") { bearerAuth(token) }
                     client.delete("/api/v1/playback-sessions/${both.id}") { bearerAuth(token) }
 
@@ -76,7 +77,11 @@ class PackagedStreamsTest {
                     assertEquals("application/vnd.apple.mpegurl", response.headers[HttpHeaders.ContentType])
                     val playlist = response.bodyAsText()
                     val segments = playlist.lines().filter { it.isNotBlank() && !it.startsWith('#') }
-                    assertTrue(segments.size >= 3, "the first playlist lists three segments: $playlist")
+                    assertTrue(segments.isNotEmpty(), "a client other than AVPlayer is served from one segment")
+                    assertTrue(
+                        playlist.contains("#EXT-X-PROGRAM-DATE-TIME:"),
+                        "the packaged playlist is dated: $playlist",
+                    )
                     assertTrue(segments.all { it.startsWith("/media/sessions/${session.id}/") }, playlist)
                     val segment = client.get(segments.first())
                     assertEquals(HttpStatusCode.OK, segment.status)
@@ -84,15 +89,60 @@ class PackagedStreamsTest {
                     assertEquals(0x47.toByte(), segment.bodyAsBytes().first(), "a segment is MPEG-TS")
                     assertEquals(1, runtime.relay.packaged)
 
-                    // AVFoundation gets a bare media playlist when the stream carries no captions to declare.
+                    // AVFoundation gets a bare media playlist when the stream carries no captions to declare, and
+                    // starts three segments from the end, so its first playlist waits for them.
                     val apple = client.get(session.descriptor.url) {
                         header(HttpHeaders.UserAgent, "AppleCoreMedia/1.0.0")
                     }
                     assertTrue(apple.bodyAsText().lines().none { it.startsWith("#EXT-X-STREAM-INF") })
 
+                    // The window grows to hold a hold-back, and the same dates keep to it.
+                    var latest = ""
+                    pollUntil(30_000, 500) {
+                        latest = client.get(session.descriptor.url).bodyAsText()
+                        latest.contains("#EXT-X-SERVER-CONTROL:HOLD-BACK=")
+                    }
+                    assertTrue(latest.contains("#EXT-X-PROGRAM-DATE-TIME:"), latest)
+
                     client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }
                     pollUntil(10_000, 100) { runtime.relay.packaged == 0 }
                     assertEquals(0, runtime.relay.packaged, "releasing the session stops its FFmpeg")
+                } finally {
+                    runtime.close()
+                    store.close()
+                    dir.toFile().deleteRecursively()
+                }
+            }
+        }
+
+    @Test fun `SOFA_APP_STREAMS source gives a player that names no protocols the TS and one that asks for HLS, HLS`() =
+        testApplication {
+            val dir = Files.createTempDirectory("sofa-packaged-source-")
+            MediaFixture().use { media ->
+                Files.writeString(
+                    dir.resolve("sources.json"),
+                    """{"providers":[{"id":"media-ts","playlistUrl":"${media.tsFeed.playlistUrl}","probe":false}]}""",
+                )
+                val config = ServerConfig(
+                    "127.0.0.1",
+                    8080,
+                    dir,
+                    dir.resolve("sources.json"),
+                    token,
+                    hdhr = HdhrConfig(enabled = false),
+                    updateImage = null,
+                    allowLoopbackUpstreams = true,
+                    appStreams = AppStreams.SOURCE,
+                )
+                val store = openStore(dir)
+                val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
+                try {
+                    runtime.feeds.refresh(media.tsFeed)
+                    runtime.adoptAll()
+                    application { backendModule(store, MutableClock(), runtime, token, config = config) }
+                    val channel = runtime.lineup.entries().single { it.name == "TS" }.id
+                    assertEquals("mpegts", open(channel, "plain", null).descriptor.protocol)
+                    assertEquals("hls", open(channel, "hls", "hls").descriptor.protocol)
                 } finally {
                     runtime.close()
                     store.close()

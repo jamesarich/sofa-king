@@ -20,7 +20,7 @@ internal class SegmentCues(val firstPtsTicks: Long?, val splices: List<Splice>)
  * and program boundaries do not. No JVM library reads SCTE-35, so the few fields used are read here, by ANSI/SCTE 35.
  * An encrypted segment, or anything else that is not a transport stream, yields nothing.
  */
-internal class SpliceReader {
+internal class SpliceReader(private val resync: Boolean = false) {
     private val packet = ByteArray(PACKET)
     private var filled = 0
     private var off = false
@@ -31,7 +31,11 @@ internal class SpliceReader {
     private val sections = HashMap<Int, SectionBuffer>()
     private val splices = ArrayList<Splice>()
 
-    /** Reads [length] bytes of [bytes] from [offset]; a packet split across calls is joined. */
+    /**
+     * Reads [length] bytes of [bytes] from [offset]; a packet split across calls is joined. With [resync], bytes that
+     * are not on a packet boundary are skipped to the next one, as when reading a stream joined mid-packet.
+     */
+    @Synchronized
     fun feed(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size - offset) {
         var index = offset
         val end = offset + length
@@ -42,12 +46,28 @@ internal class SpliceReader {
             index += take
             if (filled == PACKET) {
                 filled = 0
-                if (packet[0] != SYNC) off = true else read(packet)
+                when {
+                    packet[0] == SYNC -> read(packet)
+                    resync -> realign()
+                    else -> off = true
+                }
             }
         }
     }
 
+    /** Keeps the packet buffer from its next sync byte on, the rest dropped. */
+    private fun realign() {
+        val at = (1 until PACKET).firstOrNull { packet[it] == SYNC } ?: PACKET
+        filled = PACKET - at
+        System.arraycopy(packet, at, packet, 0, filled)
+    }
+
+    /** The splices read since the last call, for a stream that is read as it goes rather than segment by segment. */
+    @Synchronized
+    fun drain(): List<Splice> = splices.toList().also { splices.clear() }
+
     /** What the segment carried, once it has all been fed. */
+    @Synchronized
     fun finish(): SegmentCues = SegmentCues(firstPts, splices.toList())
 
     private fun read(p: ByteArray) {

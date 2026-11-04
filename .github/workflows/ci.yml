@@ -199,7 +199,7 @@ jobs:
           ${{ github.event_name != 'pull_request' && ':core:watchosSimulatorArm64Test :ui:iosSimulatorArm64Test' || ':core:compileTestKotlinWatchosSimulatorArm64' }}
           :core:compileKotlinIosArm64 :core:compileKotlinTvosArm64 :core:compileKotlinWatchosArm64
           :ui:compileKotlinIosArm64
-          :ui:linkDebugFrameworkIosSimulatorArm64
+          :ui:linkDebugFrameworkIosSimulatorArm64 :core:linkDebugFrameworkIosSimulatorArm64
       # The SwiftUI host compiles against the framework linked above; its pre-build script reuses that Gradle work.
       - name: Install XcodeGen
         run: brew install xcodegen

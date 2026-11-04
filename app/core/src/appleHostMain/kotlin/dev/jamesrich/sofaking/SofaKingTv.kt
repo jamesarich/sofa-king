@@ -8,8 +8,7 @@ import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.ServerConnection
 import dev.jamesrich.sofaking.data.ViewerSync
-import dev.jamesrich.sofaking.data.onAppleTv
-import kotlinx.cinterop.ExperimentalForeignApi
+import dev.jamesrich.sofaking.data.onApple
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
@@ -18,9 +17,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import platform.Foundation.NSCachesDirectory
-import platform.Foundation.NSFileManager
-import platform.Foundation.NSUserDomainMask
 
 /** A running subscription from [SofaKingTv]; Swift cancels it when its view goes away. */
 class Watch internal constructor(private val job: Job) {
@@ -67,20 +63,9 @@ class SofaKingTv private constructor(private val parts: TvParts) :
  * What every area of [SofaKingTv] works on: the app's storage, its ViewModels and the main-thread scope that hands
  * their flows to Swift.
  */
-@OptIn(ExperimentalForeignApi::class)
 internal class TvParts {
-    // The settings live in NSUserDefaults, which tvOS keeps; the lineup cache in Caches, which it may purge.
-    private val storage = AppStorage.onAppleTv(
-        cachesDirectory = requireNotNull(
-            NSFileManager.defaultManager.URLForDirectory(
-                directory = NSCachesDirectory,
-                inDomain = NSUserDomainMask,
-                appropriateForURL = null,
-                create = true,
-                error = null,
-            )?.path,
-        ) { "no Caches directory" },
-    )
+    // On tvOS the settings live in NSUserDefaults, which it keeps, and the lineup cache in Caches, which it may purge.
+    private val storage = AppStorage.onApple()
     val scope: CoroutineScope = MainScope()
 
     private val store = DataStoreSettingsStore(storage.settings)

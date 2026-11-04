@@ -20,11 +20,9 @@ kotlin {
 
     // Every Apple, Linux and web target the dependency set publishes; Windows native is left out because
     // DataStore has no mingw build, and the JVM covers Windows desktops.
-    iosArm64()
-    iosSimulatorArm64()
     macosArm64()
-    // The SwiftUI Apple TV app (tvosApp) links core directly, since Compose Multiplatform has no tvOS renderer.
-    listOf(tvosArm64(), tvosSimulatorArm64()).forEach { target ->
+    // The SwiftUI Apple apps link core directly (tvosApp, since Compose Multiplatform has no tvOS renderer).
+    listOf(iosArm64(), iosSimulatorArm64(), tvosArm64(), tvosSimulatorArm64()).forEach { target ->
         target.binaries.framework {
             baseName = "SofaKingCore"
             isStatic = true
@@ -46,6 +44,13 @@ kotlin {
     @OptIn(ExperimentalKotlinGradlePluginApi::class)
     applyDefaultHierarchyTemplate {
         common {
+            // `appleHostMain` holds the Swift facade (SofaKingTv), which UIKit limits to iOS and tvOS.
+            group("apple") {
+                group("appleHost") {
+                    group("ios") { withIos() }
+                    group("tvos") { withTvos() }
+                }
+            }
             group("file") {
                 withJvm()
                 withCompilations { it.platformType == KotlinPlatformType.androidJvm }

@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.providers.ProviderContext
 import dev.jamesrich.sofaking.backend.providers.array
 import dev.jamesrich.sofaking.backend.providers.long
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import java.time.Duration
 
@@ -46,7 +47,7 @@ internal class ManifestFetcher(private val context: ProviderContext, private val
         var fetched = 0
         while (fetched < total && fetched < (paging?.maxPages ?: 1)) {
             val document = send(loaded, name, request, scope(loaded, channel, paging?.let { it.start + fetched }))
-            items += document.at(request.items).array
+            items += (if (document is JsonArray) document else document.at(request.items)).array
             fetched++
             if (fetched == 1 && paging?.count != null && paging.size != null) {
                 val size = document.at(paging.size).long ?: paging.defaultSize

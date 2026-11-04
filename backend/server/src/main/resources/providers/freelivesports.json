@@ -1,0 +1,73 @@
+{
+  "service": "freelivesports",
+  "version": 1,
+  "hasGuide": true,
+  "catalog": {
+    "label": "FreeLiveSports.tv",
+    "carries": "Free sports channels",
+    "priority": 130
+  },
+  "defaults": {
+    "catalogUrl": "https://epg.unreel.me/v2/sites/freelivesports/live-channels/public/081f73704b56aaceb6b459804761ec54?__site=freelivesports&__source=web"
+  },
+  "headers": {
+    "User-Agent": "${ua.browser}",
+    "Referer": "https://www.freelivesports.tv/",
+    "Origin": "https://www.freelivesports.tv"
+  },
+  "cacheSeconds": 600,
+  "requests": {
+    "catalog": {
+      "url": "${catalogUrl}",
+      "items": "channels"
+    }
+  },
+  "channels": {
+    "from": "catalog",
+    "filter": [
+      { "path": "url", "op": "nonEmpty" }
+    ],
+    "map": {
+      "id": { "firstOf": ["_id", "id"] },
+      "name": "name",
+      "number": "channelNumber",
+      "logo": { "path": "thumbnail", "http": true },
+      "group": { "value": "Sports" },
+      "tags": ["us"]
+    },
+    "vars": {
+      "template": "url"
+    },
+    "sortBy": "channelNumber",
+    "distinctBy": "id",
+    "requireNonEmpty": true
+  },
+  "guide": {
+    "mode": "inline",
+    "programs": "epg.entries",
+    "map": {
+      "title": "title",
+      "start": { "path": "start", "as": "iso" },
+      "end": { "path": "stop", "as": "iso" },
+      "description": "description"
+    }
+  },
+  "resolve": {
+    "url": "${channel.vars.template}",
+    "macros": {
+      "DEVICE_MODEL": "web",
+      "REF": "https://www.freelivesports.tv/",
+      "LAT": "0",
+      "GDPR": "0",
+      "DEVICE_ID": "${device.id}",
+      "CB": "${time.epoch}",
+      "UA": "${ua.browser}"
+    },
+    "headers": {
+      "User-Agent": "${ua.browser}",
+      "Referer": "https://www.freelivesports.tv/",
+      "Origin": "https://www.freelivesports.tv"
+    },
+    "expiresSeconds": 3600
+  }
+}

@@ -2,7 +2,7 @@
 
 A native provider is a client for one free streaming service built into the server. It is configured in the source file as `{"type": "native", "service": "NAME"}`, next to the M3U providers. It lists the service's channels as candidates, carries the service's guide, and resolves a channel to a playable stream URL when a session, a probe or the HDHomeRun remux needs one. Everything downstream (lineup, health, failover, logos, player outputs, Plex) works as it does for an M3U provider.
 
-A service that answers in JSON can be a [manifest](provider-manifests.md), a data file the server reloads without a release, instead of a Kotlin client; `cw` and `hallmark` are manifests.
+A service that answers in JSON can be a [manifest](provider-manifests.md), a data file the server reloads without a release, instead of a Kotlin client; every service with a file under `server/src/main/resources/providers/` is one.
 
 The clients are unofficial. They call the same public endpoints each service's own web or TV client calls, with no account and no credentials, and they stop working whenever the service changes them. Using them may be against a service's terms of service. The ad-insertion identifiers they send are random per install, not a device's.
 

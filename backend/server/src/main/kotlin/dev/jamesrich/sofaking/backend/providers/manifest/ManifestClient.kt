@@ -11,6 +11,7 @@ import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.providers.array
 import dev.jamesrich.sofaking.backend.providers.findListed
+import dev.jamesrich.sofaking.backend.providers.long
 import dev.jamesrich.sofaking.backend.providers.requireChannels
 import dev.jamesrich.sofaking.backend.providers.toGuideChannel
 import kotlinx.serialization.json.JsonElement
@@ -115,7 +116,8 @@ class ManifestClient(
 
     private suspend fun fetchListed(loaded: Loaded): List<Listed> {
         val c = loaded.manifest.channels
-        val raw = c.static ?: requireNotNull(fetcher.items(loaded, requireNotNull(c.from), null))
+        val items = c.static ?: requireNotNull(fetcher.items(loaded, requireNotNull(c.from), null))
+        val raw = c.sortBy?.let { path -> items.sortedBy { it.at(path).long ?: Long.MAX_VALUE } } ?: items
         val joined = c.join?.let { join ->
             fetcher.items(loaded, join.request, null)?.mapNotNull { item -> item.textAt(join.key)?.let { it to item } }
                 ?.toMap()

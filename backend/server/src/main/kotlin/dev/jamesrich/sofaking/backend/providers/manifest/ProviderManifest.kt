@@ -78,6 +78,7 @@ data class ManifestChannels(
     val vars: Map<String, Field> = emptyMap(),
     val join: ManifestJoin? = null,
     val distinctBy: String? = null,
+    val sortBy: String? = null,
     val requireNonEmpty: Boolean = false,
 )
 

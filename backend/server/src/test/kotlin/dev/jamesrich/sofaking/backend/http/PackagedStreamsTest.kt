@@ -24,6 +24,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
@@ -35,120 +36,95 @@ import kotlin.test.assertTrue
 class PackagedStreamsTest {
     private val token = "secret".repeat(8)
 
-    @Test fun `a player that plays HLS only gets an MPEG-TS channel as an HLS playlist of copied segments`() =
-        testApplication {
-            val dir = Files.createTempDirectory("sofa-packaged-")
-            MediaFixture().use { media ->
-                Files.writeString(
-                    dir.resolve("sources.json"),
-                    """{"providers":[{"id":"media-ts","playlistUrl":"${media.tsFeed.playlistUrl}","probe":false}]}""",
-                )
-                val config = ServerConfig(
-                    "127.0.0.1",
-                    8080,
-                    dir,
-                    dir.resolve("sources.json"),
-                    token,
-                    hdhr = HdhrConfig(enabled = false),
-                    updateImage = null,
-                    allowLoopbackUpstreams = true,
-                )
-                val store = openStore(dir)
-                val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
-                try {
-                    runtime.feeds.refresh(media.tsFeed)
-                    runtime.adoptAll()
-                    application { backendModule(store, MutableClock(), runtime, token, config = config) }
-                    val channel = runtime.lineup.entries().single { it.name == "TS" }.id
-
-                    val plain = open(channel, "plain", null)
-                    assertEquals("hls", plain.descriptor.protocol, "a player that names no protocols gets HLS")
-                    val both = open(channel, "both", "hls, mpegts")
-                    assertEquals("mpegts", both.descriptor.protocol, "one that plays both asks for the source's own")
-                    client.delete("/api/v1/playback-sessions/${plain.id}") { bearerAuth(token) }
-                    client.delete("/api/v1/playback-sessions/${both.id}") { bearerAuth(token) }
-
-                    val session = open(channel, "hls", "hls")
-                    assertEquals("hls", session.descriptor.protocol)
-                    assertEquals("application/vnd.apple.mpegurl", session.descriptor.mimeType)
-                    assertTrue(session.descriptor.url.endsWith(".m3u8"), session.descriptor.url)
-                    val response = client.get(session.descriptor.url)
-                    assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
-                    assertEquals("application/vnd.apple.mpegurl", response.headers[HttpHeaders.ContentType])
-                    val playlist = response.bodyAsText()
-                    val segments = playlist.lines().filter { it.isNotBlank() && !it.startsWith('#') }
-                    assertTrue(segments.isNotEmpty(), "a client other than AVPlayer is served from one segment")
-                    assertTrue(
-                        playlist.contains("#EXT-X-PROGRAM-DATE-TIME:"),
-                        "the packaged playlist is dated: $playlist",
-                    )
-                    assertTrue(segments.all { it.startsWith("/media/sessions/${session.id}/") }, playlist)
-                    val segment = client.get(segments.first())
-                    assertEquals(HttpStatusCode.OK, segment.status)
-                    assertEquals("video/mp2t", segment.headers[HttpHeaders.ContentType])
-                    assertEquals(0x47.toByte(), segment.bodyAsBytes().first(), "a segment is MPEG-TS")
-                    assertEquals(1, runtime.relay.packaged)
-
-                    // AVFoundation gets a bare media playlist when the stream carries no captions to declare, and
-                    // starts three segments from the end, so its first playlist waits for them.
-                    val apple = client.get(session.descriptor.url) {
-                        header(HttpHeaders.UserAgent, "AppleCoreMedia/1.0.0")
-                    }
-                    assertTrue(apple.bodyAsText().lines().none { it.startsWith("#EXT-X-STREAM-INF") })
-
-                    // The window grows to hold a hold-back, and the same dates keep to it.
-                    var latest = ""
-                    pollUntil(30_000, 500) {
-                        latest = client.get(session.descriptor.url).bodyAsText()
-                        latest.contains("#EXT-X-SERVER-CONTROL:HOLD-BACK=")
-                    }
-                    assertTrue(latest.contains("#EXT-X-PROGRAM-DATE-TIME:"), latest)
-
-                    client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }
-                    pollUntil(10_000, 100) { runtime.relay.packaged == 0 }
-                    assertEquals(0, runtime.relay.packaged, "releasing the session stops its FFmpeg")
-                } finally {
-                    runtime.close()
-                    store.close()
-                    dir.toFile().deleteRecursively()
-                }
+    /** Runs [block] on a server whose one channel, `TS`, is an MPEG-TS source, with [appStreams] set. */
+    private fun withTsChannel(
+        appStreams: AppStreams = AppStreams.HLS,
+        block: suspend ApplicationTestBuilder.(channel: String, runtime: LiveRuntime) -> Unit,
+    ) = testApplication {
+        val dir = Files.createTempDirectory("sofa-packaged-")
+        MediaFixture().use { media ->
+            Files.writeString(
+                dir.resolve("sources.json"),
+                """{"providers":[{"id":"media-ts","playlistUrl":"${media.tsFeed.playlistUrl}","probe":false}]}""",
+            )
+            val config = ServerConfig(
+                "127.0.0.1",
+                8080,
+                dir,
+                dir.resolve("sources.json"),
+                token,
+                hdhr = HdhrConfig(enabled = false),
+                updateImage = null,
+                allowLoopbackUpstreams = true,
+                appStreams = appStreams,
+            )
+            val store = openStore(dir)
+            val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
+            try {
+                runtime.feeds.refresh(media.tsFeed)
+                runtime.adoptAll()
+                application { backendModule(store, MutableClock(), runtime, token, config = config) }
+                block(runtime.lineup.entries().single { it.name == "TS" }.id, runtime)
+            } finally {
+                runtime.close()
+                store.close()
+                dir.toFile().deleteRecursively()
             }
         }
+    }
 
-    @Test fun `SOFA_APP_STREAMS source gives a player that names no protocols the TS and one that asks for HLS, HLS`() =
-        testApplication {
-            val dir = Files.createTempDirectory("sofa-packaged-source-")
-            MediaFixture().use { media ->
-                Files.writeString(
-                    dir.resolve("sources.json"),
-                    """{"providers":[{"id":"media-ts","playlistUrl":"${media.tsFeed.playlistUrl}","probe":false}]}""",
-                )
-                val config = ServerConfig(
-                    "127.0.0.1",
-                    8080,
-                    dir,
-                    dir.resolve("sources.json"),
-                    token,
-                    hdhr = HdhrConfig(enabled = false),
-                    updateImage = null,
-                    allowLoopbackUpstreams = true,
-                    appStreams = AppStreams.SOURCE,
-                )
-                val store = openStore(dir)
-                val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
-                try {
-                    runtime.feeds.refresh(media.tsFeed)
-                    runtime.adoptAll()
-                    application { backendModule(store, MutableClock(), runtime, token, config = config) }
-                    val channel = runtime.lineup.entries().single { it.name == "TS" }.id
-                    assertEquals("mpegts", open(channel, "plain", null).descriptor.protocol)
-                    assertEquals("hls", open(channel, "hls", "hls").descriptor.protocol)
-                } finally {
-                    runtime.close()
-                    store.close()
-                    dir.toFile().deleteRecursively()
-                }
+    @Test fun `a player that names no protocols gets an MPEG-TS channel as HLS, and one that plays both gets the TS`() =
+        withTsChannel { channel, _ ->
+            val plain = open(channel, "plain", null)
+            assertEquals("hls", plain.descriptor.protocol, "a player that names no protocols gets HLS")
+            val both = open(channel, "both", "hls, mpegts")
+            assertEquals("mpegts", both.descriptor.protocol, "one that plays both asks for the source's own")
+            client.delete("/api/v1/playback-sessions/${plain.id}") { bearerAuth(token) }
+            client.delete("/api/v1/playback-sessions/${both.id}") { bearerAuth(token) }
+        }
+
+    @Test fun `the packaged playlist is dated and held back, its segments are copied, and a release stops FFmpeg`() =
+        withTsChannel { channel, runtime ->
+            val session = open(channel, "hls", "hls")
+            assertEquals("hls", session.descriptor.protocol)
+            assertEquals("application/vnd.apple.mpegurl", session.descriptor.mimeType)
+            assertTrue(session.descriptor.url.endsWith(".m3u8"), session.descriptor.url)
+            val response = client.get(session.descriptor.url)
+            assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+            assertEquals("application/vnd.apple.mpegurl", response.headers[HttpHeaders.ContentType])
+            val playlist = response.bodyAsText()
+            val segments = playlist.lines().filter { it.isNotBlank() && !it.startsWith('#') }
+            assertTrue(segments.isNotEmpty(), "a client other than AVPlayer is served from one segment")
+            assertTrue(playlist.contains("#EXT-X-PROGRAM-DATE-TIME:"), "the packaged playlist is dated: $playlist")
+            assertTrue(segments.all { it.startsWith("/media/sessions/${session.id}/") }, playlist)
+            val segment = client.get(segments.first())
+            assertEquals(HttpStatusCode.OK, segment.status)
+            assertEquals("video/mp2t", segment.headers[HttpHeaders.ContentType])
+            assertEquals(0x47.toByte(), segment.bodyAsBytes().first(), "a segment is MPEG-TS")
+            assertEquals(1, runtime.relay.packaged)
+
+            // AVFoundation gets a bare media playlist when the stream carries no captions to declare, and starts
+            // three segments from the end, so its first playlist waits for them.
+            val apple = client.get(session.descriptor.url) { header(HttpHeaders.UserAgent, "AppleCoreMedia/1.0.0") }
+            assertTrue(apple.bodyAsText().lines().none { it.startsWith("#EXT-X-STREAM-INF") })
+
+            // The window grows until it holds a hold-back, and the dates stay with it.
+            var latest = ""
+            pollUntil(30_000, 500) {
+                latest = client.get(session.descriptor.url).bodyAsText()
+                latest.contains("#EXT-X-SERVER-CONTROL:HOLD-BACK=")
             }
+            assertTrue(latest.contains("#EXT-X-PROGRAM-DATE-TIME:"), latest)
+
+            client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }
+            pollUntil(10_000, 100) { runtime.relay.packaged == 0 }
+            assertEquals(0, runtime.relay.packaged, "releasing the session stops its FFmpeg")
+        }
+
+    @Test fun `SOFA_APP_STREAMS source gives a player that names no protocols the TS, and HLS on request`() =
+        withTsChannel(AppStreams.SOURCE) { channel, _ ->
+            assertEquals("mpegts", open(channel, "plain", null).descriptor.protocol)
+            assertEquals("hls", open(channel, "hls", "hls").descriptor.protocol)
         }
 
     private suspend fun io.ktor.server.testing.ApplicationTestBuilder.open(

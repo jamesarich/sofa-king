@@ -109,19 +109,6 @@ internal class AdTimeline(
         }
     }
 
-    /**
-     * The epoch ms at which [sequence]'s segment starts: by the playlist's own dates when [window], the segments now
-     * listed, carries them, else from the [anchorEpochMs]; null when either is unknown or the segment is not on the
-     * timeline.
-     */
-    fun dateOf(sequence: Long, window: List<AdBreaks.Segment>): Long? {
-        val start = starts[sequence] ?: return null
-        window.firstOrNull { it.sequence == sequence }?.dateMs?.let { return it }
-        val dated = window.firstOrNull { it.dateMs != null }
-        if (dated != null) return starts[dated.sequence]?.let { dated.dateMs!! - it + start }
-        return anchorEpochMs?.plus(start)
-    }
-
     private fun reset() {
         anchorEpochMs = null
         starts.clear()
@@ -369,5 +356,22 @@ internal class PointLog {
     fun clear() {
         first = 0
         end = 0
+    }
+}
+
+/**
+ * The epoch ms at which [sequence]'s segment starts: by the playlist's own dates when [window], the segments now
+ * listed, carries them, else from the [AdTimeline.anchorEpochMs]; null when either is unknown or the segment is not
+ * on the timeline.
+ */
+internal fun AdTimeline.dateOf(sequence: Long, window: List<AdBreaks.Segment>): Long? {
+    val start = starts[sequence] ?: return null
+    val own = window.firstOrNull { it.sequence == sequence }?.dateMs
+    val ref = window.firstOrNull { it.dateMs != null }
+    val refDate = ref?.dateMs
+    return when {
+        own != null -> own
+        ref != null && refDate != null -> starts[ref.sequence]?.let { refDate - it + start }
+        else -> anchorEpochMs?.plus(start)
     }
 }

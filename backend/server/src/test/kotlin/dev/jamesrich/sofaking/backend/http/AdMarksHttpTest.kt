@@ -23,6 +23,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import java.net.InetSocketAddress
@@ -37,7 +38,7 @@ class AdMarksHttpTest {
     private val token = "secret".repeat(8)
     private val output = "players-" + "x".repeat(32)
 
-    /** A live window of ten six second segments with a 30 second cue-out before the fourth and a cue-in before the ninth. */
+    /** A live window of ten 6 s segments, a 30 s cue-out before the fourth and a cue-in before the ninth. */
     private class Upstream(private val segments: String) : AutoCloseable {
         private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         private val executor = Executors.newCachedThreadPool()
@@ -79,72 +80,71 @@ class AdMarksHttpTest {
         }
     }
 
-    @Test fun `the app's playlist carries dates, a hold-back and the ad marks, and an output's carries none`() =
-        testApplication {
-            val dir = Files.createTempDirectory("sofa-ad-marks-")
-            MediaFixture().use { media ->
-                Upstream(media.base).use { upstream ->
-                    Files.writeString(dir.resolve("sources.json"), Json.encodeToString(listOf(upstream.feed)))
-                    val outputs = OutputConfig(output, 3)
-                    val config = ServerConfig(
-                        "127.0.0.1",
-                        8080,
-                        dir,
-                        dir.resolve("sources.json"),
-                        token,
-                        hdhr = HdhrConfig(enabled = false),
-                        updateImage = null,
-                        allowLoopbackUpstreams = true,
-                        outputs = outputs,
-                    )
-                    val store = openStore(dir)
-                    val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
-                    try {
-                        runtime.feeds.refresh(upstream.feed)
-                        runtime.adoptAll()
-                        application {
-                            backendModule(store, MutableClock(), runtime, token, outputs = outputs, config = config)
-                        }
-                        val channel = Json { ignoreUnknownKeys = true }.decodeFromString<Catalog>(
-                            client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText(),
-                        ).channels.single().id
-
-                        val session = Json { ignoreUnknownKeys = true }.decodeFromString<PlaybackSession>(
-                            client.post("/api/v1/playback-sessions") {
-                                bearerAuth(token)
-                                contentType(ContentType.Application.Json)
-                                setBody(Json.encodeToString(OpenPlayback(channel, "watch", "marks")))
-                            }.bodyAsText(),
-                        )
-                        val response = client.get(session.descriptor.url)
-                        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
-                        val lines = response.bodyAsText().lines()
-                        assertTrue(lines.any { it.startsWith("#EXT-X-PROGRAM-DATE-TIME:") }, "dated: $lines")
-                        assertTrue(lines.contains("#EXT-X-SERVER-CONTROL:HOLD-BACK=36"), "held back: $lines")
-                        assertEquals(listOf(AdRun(103, 107, 30_000)), lines.mapNotNull(AdRun::parse))
-                        val range = lines.mapNotNull(AdDateRange::parse).single()
-                        assertEquals("sofa-ad-103", range.id)
-                        assertEquals(30_000L, range.durationMs)
-                        assertTrue(
-                            lines.any {
-                                it.startsWith("#EXT-X-DATERANGE:") &&
-                                    "CLASS=\"${AdDateRange.CLASS}\"" in it
-                            },
-                        )
-
-                        val plain = client.get("/output/stream/$channel.m3u8?token=$output").bodyAsText()
-                        assertTrue(plain.contains("#EXTINF"), plain)
-                        for (tag in listOf("PROGRAM-DATE-TIME", "SERVER-CONTROL", "SOFA-AD", "DATERANGE")) {
-                            assertTrue("#EXT-X-$tag" !in plain, "an output's playlist has no $tag: $plain")
-                        }
-                    } finally {
-                        runtime.close()
-                        store.close()
-                        dir.toFile().deleteRecursively()
+    /** Runs [block] on a server whose one channel plays the upstream's live playlist. */
+    private fun withAdChannel(block: suspend ApplicationTestBuilder.(channel: String) -> Unit) = testApplication {
+        val dir = Files.createTempDirectory("sofa-ad-marks-")
+        MediaFixture().use { media ->
+            Upstream(media.base).use { upstream ->
+                Files.writeString(dir.resolve("sources.json"), Json.encodeToString(listOf(upstream.feed)))
+                val outputs = OutputConfig(output, 3)
+                val config = ServerConfig(
+                    "127.0.0.1",
+                    8080,
+                    dir,
+                    dir.resolve("sources.json"),
+                    token,
+                    hdhr = HdhrConfig(enabled = false),
+                    updateImage = null,
+                    allowLoopbackUpstreams = true,
+                    outputs = outputs,
+                )
+                val store = openStore(dir)
+                val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
+                try {
+                    runtime.feeds.refresh(upstream.feed)
+                    runtime.adoptAll()
+                    application {
+                        backendModule(store, MutableClock(), runtime, token, outputs = outputs, config = config)
                     }
+                    val json = Json { ignoreUnknownKeys = true }
+                    val catalog = client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText()
+                    block(json.decodeFromString<Catalog>(catalog).channels.single().id)
+                } finally {
+                    runtime.close()
+                    store.close()
+                    dir.toFile().deleteRecursively()
                 }
             }
         }
+    }
+
+    @Test fun `the app's playlist carries dates, a hold-back and the ad marks`() = withAdChannel { channel ->
+        val session = Json { ignoreUnknownKeys = true }.decodeFromString<PlaybackSession>(
+            client.post("/api/v1/playback-sessions") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody(Json.encodeToString(OpenPlayback(channel, "watch", "marks")))
+            }.bodyAsText(),
+        )
+        val response = client.get(session.descriptor.url)
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        val lines = response.bodyAsText().lines()
+        assertTrue(lines.any { it.startsWith("#EXT-X-PROGRAM-DATE-TIME:") }, "dated: $lines")
+        assertTrue(lines.contains("#EXT-X-SERVER-CONTROL:HOLD-BACK=36"), "held back: $lines")
+        assertEquals(listOf(AdRun(103, 107, 30_000)), lines.mapNotNull(AdRun::parse))
+        assertTrue(lines.any { it.startsWith("#EXT-X-DATERANGE:") && AdDateRange.CLASS in it }, "$lines")
+        val range = lines.mapNotNull(AdDateRange::parse).single()
+        assertEquals("sofa-ad-103", range.id)
+        assertEquals(30_000L, range.durationMs)
+    }
+
+    @Test fun `an output's playlist carries none of them`() = withAdChannel { channel ->
+        val plain = client.get("/output/stream/$channel.m3u8?token=$output").bodyAsText()
+        assertTrue(plain.contains("#EXTINF"), plain)
+        for (tag in listOf("PROGRAM-DATE-TIME", "SERVER-CONTROL", "SOFA-AD", "DATERANGE")) {
+            assertTrue("#EXT-X-$tag" !in plain, "an output's playlist has no $tag: $plain")
+        }
+    }
 
     private companion object {
         const val WINDOW = 10

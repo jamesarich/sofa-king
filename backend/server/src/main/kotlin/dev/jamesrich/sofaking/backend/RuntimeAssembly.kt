@@ -228,7 +228,6 @@ internal class RuntimeAssembly(
         val audio = SegmentAudio(config.ffmpeg)
         relay =
             MediaRelay(http, feeds, sessions, scope, audio, config.ffmpeg to config.dataDirectory.resolve("packages"))
-        sessions.hlsByDefault = config.appStreams == AppStreams.HLS
         val listener = adListener()
         loopback = LoopbackRelay(http, upstream, relay.permits)
         val worker = probeWorker()
@@ -361,6 +360,7 @@ internal class RuntimeAssembly(
     /** The playback sessions and the break library they learn into, both following the settings. */
     private suspend fun playback() {
         sessions = SessionManager(catalog, store, clock, settings.current.maxSessions)
+        sessions.hlsByDefault = config.appStreams == AppStreams.HLS
         sessions.history = history
         history.start(scope)
         notifier.start(scope, events.events)

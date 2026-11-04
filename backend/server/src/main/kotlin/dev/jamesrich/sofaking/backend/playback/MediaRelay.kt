@@ -396,7 +396,7 @@ private fun stalled(call: ApplicationCall, job: Job): Boolean = job.isActive && 
 private fun declaresCaptions(call: ApplicationCall, resource: MediaResource): Boolean =
     resource.url == resource.offering.url && resource.ads != null && fromAppleCoreMedia(call)
 
-/** Whether [call] comes from AVFoundation's player, whose requests say `AppleCoreMedia/1.0.0…` in their `User-Agent`. */
+/** Whether [call] is AVFoundation's, whose `User-Agent` says `AppleCoreMedia/1.0.0…`. */
 private fun fromAppleCoreMedia(call: ApplicationCall): Boolean =
     call.request.headers[HttpHeaders.UserAgent].orEmpty().contains("AppleCoreMedia")
 

@@ -80,6 +80,7 @@ class RelayTest {
                 val session = Json.decodeFromString<PlaybackSession>(
                     client.post("/api/v1/playback-sessions") {
                         bearerAuth(token)
+                        header(Wire.Header.PLAYBACK_PROTOCOLS, "hls, mpegts")
                         contentType(ContentType.Application.Json)
                         setBody(Json.encodeToString(OpenPlayback(channel.id, "watch", "gzip")))
                     }.bodyAsText(),
@@ -137,6 +138,7 @@ class RelayTest {
                 val opened = listOf("one", "two").map { key ->
                     val response = client.post("/api/v1/playback-sessions") {
                         bearerAuth(token)
+                        header(Wire.Header.PLAYBACK_PROTOCOLS, "hls, mpegts")
                         contentType(ContentType.Application.Json)
                         setBody(Json.encodeToString(OpenPlayback(channel.id, "watch", key)))
                     }
@@ -196,6 +198,7 @@ class RelayTest {
                 val session = Json.decodeFromString<PlaybackSession>(
                     client.post("/api/v1/playback-sessions") {
                         bearerAuth(token)
+                        header(Wire.Header.PLAYBACK_PROTOCOLS, "hls, mpegts")
                         contentType(ContentType.Application.Json)
                         setBody(Json.encodeToString(OpenPlayback(channel.id, "watch", "release")))
                     }.bodyAsText(),
@@ -284,6 +287,7 @@ class RelayTest {
                 val session = Json.decodeFromString<PlaybackSession>(
                     client.post("/api/v1/playback-sessions") {
                         bearerAuth(token)
+                        header(Wire.Header.PLAYBACK_PROTOCOLS, "hls, mpegts")
                         contentType(ContentType.Application.Json)
                         setBody(Json.encodeToString(OpenPlayback(channel.id, "watch", "viewer")))
                     }.bodyAsText(),
@@ -341,6 +345,7 @@ class RelayTest {
                 val session = Json.decodeFromString<PlaybackSession>(
                     client.post("/api/v1/playback-sessions") {
                         bearerAuth(token)
+                        header(Wire.Header.PLAYBACK_PROTOCOLS, "hls, mpegts")
                         contentType(ContentType.Application.Json)
                         setBody(Json.encodeToString(OpenPlayback(channel.id, "watch", "edges")))
                     }.bodyAsText(),
@@ -449,6 +454,7 @@ class RelayTest {
                 val session = Json.decodeFromString<PlaybackSession>(
                     client.post("/api/v1/playback-sessions") {
                         bearerAuth(token)
+                        header(Wire.Header.PLAYBACK_PROTOCOLS, "hls, mpegts")
                         contentType(ContentType.Application.Json)
                         setBody(Json.encodeToString(OpenPlayback(channel.id, "preview", "persisted")))
                     }.bodyAsText(),
@@ -586,6 +592,7 @@ class RelayTest {
             return Json.decodeFromString(
                 client.post("/api/v1/playback-sessions") {
                     bearerAuth(TOKEN)
+                    header(Wire.Header.PLAYBACK_PROTOCOLS, "hls, mpegts")
                     contentType(ContentType.Application.Json)
                     setBody(Json.encodeToString(OpenPlayback(channel.id, intent, key)))
                 }.bodyAsText(),

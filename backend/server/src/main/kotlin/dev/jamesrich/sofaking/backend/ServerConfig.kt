@@ -247,6 +247,11 @@ data class ServerConfig(
         internal fun isLoopback(host: String) = host in setOf("127.0.0.1", "localhost", "::1")
 
         /** [requireToken] false leaves a non-loopback bind without `SOFA_API_TOKEN` to [load], which generates one. */
+        private fun videoEncoder(env: EnvironmentReader, environment: Map<String, String>) = VideoEncoder(
+            HardwareAccel.parse(environment[Settings.HWACCEL.name]),
+            env.text(Settings.HWACCEL_DEVICE) ?: VideoEncoder.DEFAULT_DEVICE,
+        )
+
         fun fromEnvironment(environment: Map<String, String>, requireToken: Boolean = true): ServerConfig {
             val env = EnvironmentReader(environment)
             val host = environment[Settings.HOST.name] ?: Settings.HOST.default.orEmpty()
@@ -288,10 +293,7 @@ data class ServerConfig(
                 webDirectory = env.path(Settings.WEB_DIR),
                 tmdb = tmdbConfig(env),
                 maxTranscodes = env.number(Settings.MAX_TRANSCODES),
-                videoEncoder = VideoEncoder(
-                    HardwareAccel.parse(environment[Settings.HWACCEL.name]),
-                    env.text(Settings.HWACCEL_DEVICE) ?: VideoEncoder.DEFAULT_DEVICE,
-                ),
+                videoEncoder = videoEncoder(env, environment),
                 multiview = MultiviewMode.parse(environment[Settings.MULTIVIEW.name]),
                 recordingsFreeGib = env.number(Settings.RECORDINGS_FREE_GIB),
                 recordingsKeepDays = env.number(Settings.RECORDINGS_KEEP_DAYS),

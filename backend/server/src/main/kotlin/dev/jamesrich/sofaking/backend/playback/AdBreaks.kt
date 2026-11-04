@@ -69,7 +69,7 @@ internal object AdBreaks {
 
     private val ISO_MS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
 
-    /** [epochMs] as an ISO-8601 instant with milliseconds, as `#EXT-X-PROGRAM-DATE-TIME` and the date range write it. */
+    /** [epochMs] as an ISO-8601 instant with milliseconds, as the playlist's dates and date ranges write it. */
     fun isoMs(epochMs: Long): String = ISO_MS.format(Instant.ofEpochMilli(epochMs))
 
     /** The runs of ad segments in [text], in order; empty for a multivariant playlist. */

@@ -84,8 +84,8 @@ object Wire {
 
         /**
          * The live stream protocols the client's player plays, comma separated: `hls`, `mpegts` or both. A client that
-         * names `hls` alone gets an MPEG-TS channel as HLS, which the server packages from the stream as it is. A
-         * client that does not send it plays both.
+         * names no protocol gets HLS: an MPEG-TS channel is packaged from the stream as it is. `hls, mpegts` asks for
+         * the source's own format.
          */
         const val PLAYBACK_PROTOCOLS = "Sofa-Playback-Protocols"
     }

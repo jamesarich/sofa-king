@@ -8,7 +8,7 @@ Released apps and servers outlive any one commit, so the types change only in wa
 - Timestamps stay ISO-8601 strings. Intents, statuses and error codes stay strings; a client reads an unknown value as its fallback.
 - `src/jvmTest/resources/wire/v1` holds real server responses. The contract's tests decode them with a client's settings, and the server's `LiveTvTest` fails when a response drops or retypes one of their fields. Never edit or delete a fixture; a new API version gets a new directory.
 
-`AdRun` is not JSON: it is the `#EXT-X-SOFA-AD` tag the server adds to the live HLS playlists it relays to the app, marking the ad segments, and the app reads it back with `AdRun.parse`.
+`AdRun` is not JSON: it is the `#EXT-X-SOFA-AD` tag the server adds to the live HLS playlists it relays to the app, marking the ad segments, and the app reads it back with `AdRun.parse`. `AdDateRange` is the same break as the standard `#EXT-X-DATERANGE` tag (class `dev.jamesrich.sofaking.ad`) that the server adds beside each `AdRun`, for players that read timed metadata: `AdDateRange.tag` builds it and `AdDateRange.parse` reads it back.
 
 The server's admin, policy and status models stay in `backend/server`. Build and test from this directory with `./gradlew jvmTest assemble`, or as part of either consumer's build.
 

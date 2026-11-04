@@ -59,20 +59,26 @@ internal class PackagedStreams(
         /** Whether a playlist has gone out, after which none waits for segments. */
         @Volatile var served = false
 
+        /** Reads the SCTE-35 cues of the source's stream, which `-dn` keeps out of the segments. */
+        val cues = SpliceReader(resync = true)
+
         /** Set before the package is shared. */
         lateinit var job: Job
     }
 
     /**
      * The live playlist of session [id] at [epoch], packaged from [stream] of [offering], with each segment named
-     * through [segmentPath]. The first one waits until it lists [START_SEGMENTS] segments, as AVPlayer starts a live
-     * stream no nearer its end than that, but no longer than [START_WAIT], inside AVPlayer's own 20 second timeout.
+     * through [segmentPath], after [edit] has marked FFmpeg's playlist, which names each segment `segN.ts`. The first
+     * one waits until it lists [startSegments] segments, no longer than [START_WAIT], inside AVPlayer's own 20 second
+     * timeout: AVPlayer starts a live stream no nearer its end than [START_SEGMENTS], and other players need one.
      */
     suspend fun playlist(
         id: String,
         epoch: Int,
         offering: Offering,
         stream: ResolvedStream,
+        startSegments: Int = START_SEGMENTS,
+        edit: (String) -> String = { it },
         segmentPath: suspend (String) -> String,
     ): String {
         val pack = packageOf(id, epoch, offering, stream)
@@ -80,13 +86,13 @@ internal class PackagedStreams(
         val file = pack.dir.resolve(PLAYLIST)
         if (!pack.served) {
             withTimeoutOrNull(START_WAIT.toMillis()) {
-                while (segments(file) < START_SEGMENTS && pack.job.isActive) delay(POLL_MS)
+                while (segments(file) < startSegments && pack.job.isActive) delay(POLL_MS)
             }
             pack.served = true
         }
         val text = withContext(Dispatchers.IO) { if (Files.exists(file)) Files.readString(file) else null }
             ?: throw unavailable()
-        val lines = text.lines().toMutableList()
+        val lines = edit(text).lines().toMutableList()
         for (index in lines.indices) {
             if (SEGMENT.matches(lines[index])) lines[index] = segmentPath(SCHEME + lines[index])
         }
@@ -98,6 +104,20 @@ internal class PackagedStreams(
         val name = url.removePrefix(SCHEME).takeIf { url.startsWith(SCHEME) && SEGMENT.matches(it) } ?: return null
         val pack = packages[id]?.takeIf { it.epoch == epoch } ?: return null
         return pack.dir.resolve(name).takeIf { Files.isRegularFile(it) }
+    }
+
+    /**
+     * The cues the source announced since the last call, and the first PTS of [file], one of the package's segments,
+     * for [AdClock.served]. The cues are the stream's, which run ahead of the segment FFmpeg has finished, so a cue
+     * counts from the first segment served after it arrives.
+     */
+    suspend fun cues(id: String, epoch: Int, file: Path): SegmentCues {
+        val pack = packages[id]?.takeIf { it.epoch == epoch }
+        val head = withContext(Dispatchers.IO) {
+            runCatchingCancellable { Files.newInputStream(file).use { it.readNBytes(HEAD_BYTES) } }.getOrNull()
+        }
+        val first = head?.let { bytes -> SpliceReader().also { it.feed(bytes) }.finish().firstPtsTicks }
+        return SegmentCues(first, pack?.cues?.drain().orEmpty())
     }
 
     /** Whether the newest segment of session [id]'s package at [epoch] carries CEA-608 captions. */
@@ -179,7 +199,10 @@ internal class PackagedStreams(
         pack.started.complete(null)
         try {
             process.outputStream.use { input ->
-                for (chunk in reader.chunks) input.write(chunk)
+                for (chunk in reader.chunks) {
+                    pack.cues.feed(chunk)
+                    input.write(chunk)
+                }
             }
         } finally {
             process.terminate()
@@ -190,7 +213,7 @@ internal class PackagedStreams(
         ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-f", "mpegts", "-i", "pipe:0",
         "-map", "0:v:0?", "-map", "0:a?", "-c", "copy", "-sn", "-dn",
         "-f", "hls", "-hls_time", "$SEGMENT_SECONDS", "-hls_list_size", "$LIST_SIZE",
-        "-hls_flags", "delete_segments+temp_file+independent_segments",
+        "-hls_flags", "delete_segments+temp_file+independent_segments+program_date_time",
         "-hls_segment_type", "mpegts", "-hls_segment_filename", dir.resolve("seg%d.ts").toString(),
         dir.resolve(PLAYLIST).toString(),
     )
@@ -208,11 +231,14 @@ internal class PackagedStreams(
 
         private const val PLAYLIST = "index.m3u8"
         private const val SEGMENT_SECONDS = 2
-        private const val LIST_SIZE = 10
-        private const val START_SEGMENTS = 3
+        private const val LIST_SIZE = 30
+
+        /** How many segments AVPlayer needs listed before it starts a live stream. */
+        const val START_SEGMENTS = 3
         private val START_WAIT: Duration = Duration.ofSeconds(15)
         private const val POLL_MS = 200L
         private const val READER_CHUNKS = 1024
+        private const val HEAD_BYTES = 256 * 1024
         private const val SCAN_LIMIT = 16 * 1024 * 1024
         private val SEGMENT = Regex("seg[0-9]{1,9}\\.ts")
     }

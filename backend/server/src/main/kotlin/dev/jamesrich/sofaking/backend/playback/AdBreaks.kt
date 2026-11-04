@@ -1,9 +1,13 @@
 package dev.jamesrich.sofaking.backend.playback
 
 import dev.jamesrich.sofaking.backend.MS_PER_SECOND
+import dev.jamesrich.sofaking.contract.AdDateRange
 import dev.jamesrich.sofaking.contract.AdRun
 import java.net.URI
 import java.time.Instant
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import kotlin.math.roundToLong
 
@@ -28,6 +32,8 @@ internal object AdBreaks {
         val ad: Boolean,
         val url: String = "",
         val cueIn: Boolean = false,
+        /** Epoch ms of its start by the playlist's own `#EXT-X-PROGRAM-DATE-TIME`, when it has one. */
+        val dateMs: Long? = null,
     )
 
     private val ATTRIBUTE = Regex("""([A-Za-z0-9-]+)=("[^"]*"|[^,]*)""")
@@ -38,11 +44,33 @@ internal object AdBreaks {
      */
     fun annotate(text: String, base: URI): String = annotate(text, runs(text, base))
 
-    /** [text] with a [AdRun.TAG] line for each of [runs]. */
-    fun annotate(text: String, runs: List<AdRun>): String {
+    /**
+     * [text] with a [AdRun.TAG] line for each of [runs], each followed by the same break as an
+     * [AdDateRange] (see [AdDateRange.tag]). [dates] gives the epoch ms at which a media sequence number's segment
+     * starts, null when unknown; a run whose first segment has no date gets no date range. The range has a duration
+     * when the segment after the run is dated, else the planned length the run carries, else neither.
+     */
+    fun annotate(text: String, runs: List<AdRun>, dates: (Long) -> Long? = { null }): String {
         if (runs.isEmpty()) return text
-        return text.trimEnd('\n', '\r') + "\n" + runs.joinToString("") { it.tag() + "\n" }
+        return text.trimEnd('\n', '\r') + "\n" + runs.joinToString("") { run ->
+            val start = dates(run.first)
+            val range = start?.let {
+                val end = dates(run.last + 1)
+                val id = "sofa-ad-${run.first}"
+                if (end != null) {
+                    AdDateRange.tag(id, isoMs(it), durationMs = (end - it).coerceAtLeast(0))
+                } else {
+                    AdDateRange.tag(id, isoMs(it), plannedDurationMs = run.endsAfterMs)
+                }
+            }
+            run.tag() + "\n" + (range?.plus("\n") ?: "")
+        }
     }
+
+    private val ISO_MS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
+
+    /** [epochMs] as an ISO-8601 instant with milliseconds, as the playlist's dates and date ranges write it. */
+    fun isoMs(epochMs: Long): String = ISO_MS.format(Instant.ofEpochMilli(epochMs))
 
     /** The runs of ad segments in [text], in order; empty for a multivariant playlist. */
     fun runs(text: String, base: URI): List<AdRun> = parse(text, base)?.let(::runs).orEmpty()
@@ -142,7 +170,7 @@ internal object AdBreaks {
             val ad = stitchedAd || cueOpen || (uri != null && AdHosts.flagged(uri)) ||
                 (at != null && ranges.any { at in it })
             pendingEnd?.let { plannedEnd[segments.size] = it }
-            segments += Segment(sequence + segments.size, durationMs, ad, uri?.toString() ?: reference, cueIn)
+            segments += Segment(sequence + segments.size, durationMs, ad, uri?.toString() ?: reference, cueIn, at)
             stitched += stitchedAd
             pendingEnd = null
             cueIn = false
@@ -200,8 +228,11 @@ internal object AdBreaks {
         it >= 0
     }?.let { (it * MS_PER_SECOND).roundToLong() }
 
+    private val OFFSET_WITHOUT_COLON = Regex("""([+-]\d{2})(\d{2})$""")
+
+    /** An ISO-8601 instant; FFmpeg writes its offset as `+0000`, which is read too. */
     private fun instantMs(value: String): Long? = try {
-        Instant.parse(value.trim()).toEpochMilli()
+        OffsetDateTime.parse(value.trim().replace(OFFSET_WITHOUT_COLON, "$1:$2")).toInstant().toEpochMilli()
     } catch (_: DateTimeParseException) {
         null
     }

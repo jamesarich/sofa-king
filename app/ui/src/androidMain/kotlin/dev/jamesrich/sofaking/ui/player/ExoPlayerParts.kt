@@ -13,11 +13,13 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.hls.HlsManifest
+import androidx.media3.exoplayer.hls.playlist.HlsMediaPlaylist
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.session.MediaSession
 import dev.jamesrich.sofaking.data.AdBreakNow
+import dev.jamesrich.sofaking.data.BreakMarks
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.ui.uptimeMs
 import dev.jamesrich.sofaking.visualizer.AudioAnalyzer
@@ -125,17 +127,30 @@ internal class ExoTimeline(private val exo: ExoPlayer) : PlayerTimeline {
     override val readsAdMarks: Boolean get() = true
 
     private val adMarks = AdMarks()
+    private val breakMarks = BreakMarks()
     private val adPeriod = Timeline.Period()
+    private val adWindow = Timeline.Window()
 
     /**
-     * The window counts from its playlist's first segment, which slides on every refresh while the picture may still
-     * be in a segment the window has dropped; the period's clock stays put, so the marks are kept on it.
+     * The standard `EXT-X-DATERANGE` marks sit on the playlist's program date time clock, which Media3 gives as the
+     * window's start; a playlist without one, or a server from before the marks, leaves the `SOFA-AD` path.
      */
     override fun adBreak(): AdBreakNow? {
         if (seekableItem) return null
         val playlist = (exo.currentManifest as? HlsManifest)?.mediaPlaylist ?: return null
         val timeline = exo.currentTimeline
         if (timeline.isEmpty) return null
+        breakMarks.addLines(playlist.tags)
+        val dateMs = timeline.getWindow(exo.currentMediaItemIndex, adWindow).windowStartTimeMs
+        val markBreak = if (dateMs == C.TIME_UNSET) null else breakMarks.at(dateMs + exo.currentPosition)
+        return pickBreak(markBreak, runBreak(playlist, timeline))
+    }
+
+    /**
+     * The window counts from its playlist's first segment, which slides on every refresh while the picture may still
+     * be in a segment the window has dropped; the period's clock stays put, so the marks are kept on it.
+     */
+    private fun runBreak(playlist: HlsMediaPlaylist, timeline: Timeline): AdBreakNow? {
         val windowStartMs = -timeline.getPeriod(exo.currentPeriodIndex, adPeriod).positionInWindowMs
         val segments = playlist.segments
         adMarks.add(

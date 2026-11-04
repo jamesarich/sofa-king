@@ -360,6 +360,7 @@ internal class RuntimeAssembly(
     /** The playback sessions and the break library they learn into, both following the settings. */
     private suspend fun playback() {
         sessions = SessionManager(catalog, store, clock, settings.current.maxSessions)
+        sessions.hlsByDefault = config.appStreams == AppStreams.HLS
         sessions.history = history
         history.start(scope)
         notifier.start(scope, events.events)

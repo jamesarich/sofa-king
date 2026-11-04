@@ -263,8 +263,15 @@ class SessionManager(
     @Volatile var packaging: Boolean = false
 
     /**
+     * Whether a player that names no protocols gets HLS, packaged from an MPEG-TS source (`SOFA_APP_STREAMS=hls`);
+     * off, only a player that asks for HLS alone does, and the rest get the source's own format.
+     */
+    @Volatile var hlsByDefault: Boolean = true
+
+    /**
      * [from] is the player opening the session: its address, shown to the operator, and its paired device. [protocols]
-     * are the live protocols its player plays, from [Wire.Header.PLAYBACK_PROTOCOLS]; null plays both.
+     * are the live protocols its player plays, from [Wire.Header.PLAYBACK_PROTOCOLS]; null names none, which gets HLS
+     * unless `SOFA_APP_STREAMS` is `source`, and `hls, mpegts` asks for the source's own format.
      */
     suspend fun open(
         request: OpenPlayback,
@@ -318,7 +325,8 @@ class SessionManager(
                 client = from?.address,
                 clientId = from?.clientId,
                 ads = ads,
-                hlsOnly = packaging && protocols != null && "hls" in protocols && "mpegts" !in protocols,
+                hlsOnly = packaging &&
+                    (if (protocols == null) hlsByDefault else "hls" in protocols && "mpegts" !in protocols),
             )
         table.add(session)
         keys[request.idempotencyKey] = request to session.id

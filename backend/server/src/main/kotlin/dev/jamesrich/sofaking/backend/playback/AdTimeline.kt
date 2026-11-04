@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.ads.BreakEntry
 import dev.jamesrich.sofaking.backend.ads.BreakLibrary
 import dev.jamesrich.sofaking.contract.AdBreakState
 import dev.jamesrich.sofaking.contract.AdRun
+import java.time.Clock
 import java.util.TreeMap
 import kotlin.math.roundToLong
 
@@ -20,7 +21,18 @@ internal const val JOIN_MS = 500L
  * One media playlist's segments, by media sequence number, with start times counted from the first one seen, and
  * the ad runs and breaks an [AdClock] placed on it. It keeps at most [segmentLimit] segments.
  */
-internal class AdTimeline(val key: String, private val segmentLimit: Int) {
+internal class AdTimeline(
+    val key: String,
+    private val segmentLimit: Int,
+    private val clock: Clock = Clock.systemUTC(),
+) {
+    /**
+     * The wall clock time, in epoch ms, at which the timeline's 0 was: set when the first segments are placed, as now
+     * less the newest one's end, so a segment's date is the anchor plus its start. Null before then and after a reset.
+     */
+    var anchorEpochMs: Long? = null
+        private set
+
     val starts = TreeMap<Long, Long>()
     val durations = HashMap<Long, Long>()
 
@@ -85,6 +97,7 @@ internal class AdTimeline(val key: String, private val segmentLimit: Int) {
             durations[segment.sequence] = segment.durationMs
             start += segment.durationMs
         }
+        if (anchorEpochMs == null) anchorEpochMs = clock.millis() - start
         while (starts.size > segmentLimit) {
             val oldest = starts.pollFirstEntry().key
             durations.remove(oldest)
@@ -97,6 +110,7 @@ internal class AdTimeline(val key: String, private val segmentLimit: Int) {
     }
 
     private fun reset() {
+        anchorEpochMs = null
         starts.clear()
         durations.clear()
         runs.clear()
@@ -342,5 +356,22 @@ internal class PointLog {
     fun clear() {
         first = 0
         end = 0
+    }
+}
+
+/**
+ * The epoch ms at which [sequence]'s segment starts: by the playlist's own dates when [window], the segments now
+ * listed, carries them, else from the [AdTimeline.anchorEpochMs]; null when either is unknown or the segment is not
+ * on the timeline.
+ */
+internal fun AdTimeline.dateOf(sequence: Long, window: List<AdBreaks.Segment>): Long? {
+    val start = starts[sequence] ?: return null
+    val own = window.firstOrNull { it.sequence == sequence }?.dateMs
+    val ref = window.firstOrNull { it.dateMs != null }
+    val refDate = ref?.dateMs
+    return when {
+        own != null -> own
+        ref != null && refDate != null -> starts[ref.sequence]?.let { refDate - it + start }
+        else -> anchorEpochMs?.plus(start)
     }
 }

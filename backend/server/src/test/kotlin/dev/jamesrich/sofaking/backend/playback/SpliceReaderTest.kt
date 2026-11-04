@@ -61,6 +61,17 @@ class SpliceReaderTest {
     }
 
     @Test
+    fun `drain gives the splices read across chunk boundaries once, and a stream joined mid-packet realigns`() {
+        val stream = SpliceReader(resync = true)
+        val bytes = byteArrayOf(1, 2, 3) + listOf(pat, pmt, pes(1_936_130_318), out).reduce(ByteArray::plus)
+        for (from in bytes.indices step 50) stream.feed(bytes, from, minOf(50, bytes.size - from))
+        assertEquals(listOf(Splice(true, 1_936_310_318, 60_293)), stream.drain())
+        assertEquals(emptyList<Splice>(), stream.drain())
+        stream.feed(back + keepalive)
+        assertEquals(listOf(Splice(false, 1_941_736_739, null)), stream.drain())
+    }
+
+    @Test
     fun `an immediate splice has no time of its own`() {
         assertEquals(listOf(Splice(true, null, 120_000)), read(pat, pmt, immediate).splices)
     }

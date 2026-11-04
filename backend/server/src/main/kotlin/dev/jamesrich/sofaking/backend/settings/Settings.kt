@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.settings
 
+import dev.jamesrich.sofaking.backend.AppStreams
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.admin.plural
 import dev.jamesrich.sofaking.backend.iptvorg.IptvOrgSettings
@@ -264,6 +265,16 @@ internal object Settings {
         SettingArea.LIBRARY,
         runtime = true,
     ) { it.learnedBreaks.setting }
+
+    val APP_STREAMS = choice(
+        "SOFA_APP_STREAMS",
+        AppStreams.HLS.setting,
+        AppStreams.entries.map { it.setting },
+        "App live streams",
+        "The format the app's live sessions get when the client names none: hls packages an MPEG-TS channel as HLS, " +
+            "source plays it as it is. A client that asks for HLS alone gets HLS either way.",
+        SettingArea.SERVER,
+    ) { it.appStreams.setting }
 
     val AD_LISTENERS = number(
         "SOFA_AD_LISTENERS",
@@ -654,7 +665,7 @@ internal object Settings {
         POLICY, API_TOKEN, ADMIN_TOKEN, OUTPUT_TOKEN, PLEX_TOKEN, TMDB_TOKEN, FANART_KEY, LISTENBRAINZ_TOKEN, FFMPEG,
         COMSKIP, QUALITY_FLOORS, MUSICBRAINZ, PROBE_PARALLELISM, PROBE_REQUESTS, RESTREAM_ORIGINS,
         OBSERVATION_RETENTION_DAYS, HISTORY_DAYS, ALLOW_LOOPBACK_UPSTREAMS, LOG_FORMAT, LOG_DAYS, CORS_ORIGINS,
-        MEDIA_DIR, WEB_DIR,
+        MEDIA_DIR, WEB_DIR, APP_STREAMS,
         LIBRARY_PATH_MAP, TMDB_LANGUAGE, MAX_TRANSCODES, HWACCEL, HWACCEL_DEVICE, MULTIVIEW, HDHR_ENABLED,
         HDHR_DEVICE_ID, HDHR_NAME, HDHR_ALLOW, HDHR_EXTRA_PORTS, HDHR_DEVICE_SIZE, HDHR_PUBLIC_PORTS, PLEX_URL,
         PLEX_TUNER_BASE, REVISION, VERSION, UPDATE_IMAGE,

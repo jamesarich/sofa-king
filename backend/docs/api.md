@@ -10,78 +10,215 @@ Send `Authorization: Bearer $SOFA_API_TOKEN` on every `/api/v1` request. Routes 
 
 ## Endpoints
 
-| Method | Path | Response or action |
+The tables are generated from the [OpenAPI document](../server/src/main/resources/api/openapi.json) by `scripts/api-tables.py`; edit the document, not the tables. The admin routes are in the [Admin API](#admin-api) and the [hooks](#hooks) in theirs. The portal's HTML pages, `GET` and `POST` on `/admin` and `/admin/*`, are under [admin portal routes](#admin-portal-routes), and `GET /admin/api/openapi.json` is the document itself.
+
+### Health routes
+
+<!-- api-tables:start:Health -->
+
+| Method | Path | Summary |
 | --- | --- | --- |
 | GET | `/healthz` | Public liveness check |
 | GET | `/readyz` | Public database readiness check |
-| GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`, `recordings`, `watchlist`, `multiview`, `music`) |
-| POST | `/api/v1/pair` | Exchange a pairing code for a token of the device's own, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429` |
-| GET | `/api/v1/preferences/{clientId}` | The preferences the client with that id last saved, see [viewer preferences](#viewer-preferences); `404 VIEWER_NOT_FOUND` before its first save |
-| PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt`. A token paired to a client writes only that client, `403 CLIENT_MISMATCH` otherwise; the shared API token and issued tokens without a client write any. A new client past 200 viewers answers `409 VIEWER_LIMIT` |
+
+<!-- api-tables:end -->
+
+### Server routes
+
+<!-- api-tables:start:Server -->
+
+| Method | Path | Summary |
+| --- | --- | --- |
+| GET | `/admin/api/openapi.json` | The OpenAPI document, behind the portal's session |
+| GET | `/api/v1/status` | The dashboard summary |
+
+<!-- api-tables:end -->
+
+### MCP routes
+
+<!-- api-tables:start:MCP -->
+
+| Method | Path | Summary |
+| --- | --- | --- |
+| GET | `/api/v1/mcp` | No event stream to open |
+| POST | `/api/v1/mcp` | The [MCP endpoint](#mcp) for AI assistants; takes the admin token or a `read` token |
+| DELETE | `/api/v1/mcp` | No session to end |
+
+<!-- api-tables:end -->
+
+### Viewer routes
+
+<!-- api-tables:start:Viewers -->
+
+| Method | Path | Summary |
+| --- | --- | --- |
 | POST | `/api/v1/diagnostics/crashes` | A device reports the last crash it kept, see [crash reports](#crash-reports); `204`. 10 reports a minute per client address, then `429` |
 | GET | `/api/v1/household/preferences` | The household's shared favorites and hidden channels, see [viewer preferences](#viewer-preferences); an empty document with an empty `updatedAt` before the first save |
 | PUT | `/api/v1/household/preferences` | Replace the household's shared favorites and hidden channels; answers the stored document with the server's `updatedAt` |
+| POST | `/api/v1/pair` | Exchange a pairing code for a token of the device's own, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429` |
+| GET | `/api/v1/preferences/{clientId}` | The preferences the client with that id last saved, see [viewer preferences](#viewer-preferences); `404 VIEWER_NOT_FOUND` before its first save |
+| PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt`. A token paired to a client writes only that client, `403 CLIENT_MISMATCH` otherwise; the shared API token and issued tokens without a client write any. A new client past 200 viewers answers `409 VIEWER_LIMIT` |
+
+<!-- api-tables:end -->
+
+### Live TV routes
+
+<!-- api-tables:start:Live TV -->
+
+| Method | Path | Summary |
+| --- | --- | --- |
+| GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`, `recordings`, `watchlist`, `multiview`, `music`) |
 | GET | `/api/v1/channels` | Catalog revision and the enabled lineup entries as channels; supports ETag/If-None-Match |
+| GET | `/api/v1/guide/on-later?kind=&days=&limit=` | Movies, sports, kids' programs or premieres coming up on the enabled channels |
+| POST | `/api/v1/guide/query` | Programs overlapping a requested channel/time window |
+| GET | `/api/v1/program-facts?title=&movie=` | What TMDB says about a live program, found by its exact guide title, for the break screen: `kind` (`show` or `movie`), `year`, `endYear`, `studio`, `seasons`, `episodes`, `cast`, `creators`, `tagline` and `rating`. `movie=true` searches movies first. Every field is empty when TMDB lists no such title or the server has no TMDB token; see [libraries](libraries.md#details-from-tmdb) |
+
+<!-- api-tables:end -->
+
+### Source routes
+
+<!-- api-tables:start:Sources -->
+
+| Method | Path | Summary |
+| --- | --- | --- |
 | GET | `/api/v1/providers` | Provider import status and channel counts |
 | GET | `/api/v1/sources` | Health and manual-disable flag of every source |
 | PATCH | `/api/v1/sources/{id}` | Set `manuallyDisabled`; takes the admin token, as the admin routes do |
-| POST | `/api/v1/guide/query` | Programs overlapping a requested channel/time window |
-| GET | `/api/v1/guide/on-later?kind=movie` | Movies, sports, kids' programs or premieres coming up on the enabled channels |
+
+<!-- api-tables:end -->
+
+### Playback routes
+
+<!-- api-tables:start:Playback -->
+
+| Method | Path | Summary |
+| --- | --- | --- |
+| POST | `/api/v1/multiview-sessions` | Watch two to four channels as one picture, see [multiview](#multiview) |
+| GET | `/api/v1/multiview-sessions/{id}` | Read a multiview session |
+| PATCH | `/api/v1/multiview-sessions/{id}` | Renew it, and with `audio` move the sound to another tile |
+| DELETE | `/api/v1/multiview-sessions/{id}` | Release it; returns 204 |
 | POST | `/api/v1/playback-sessions` | Create a preview or watch session. A client that names no protocol in a `Sofa-Playback-Protocols` header (comma separated protocols), or names `hls`, gets HLS, packaged from an MPEG-TS channel; `hls, mpegts` asks for the source's own format (`SOFA_APP_STREAMS=source` makes the default the source's format); see [architecture](architecture.md#playback) |
 | GET | `/api/v1/playback-sessions/{id}` | Read the current playback descriptor, with the session's `health`: `bitrateKbps`, `stalls` and `sourceSwitches`, as on the portal's Watching now |
 | PATCH | `/api/v1/playback-sessions/{id}` | Renew the lease and optionally change intent; the answer carries `health` too |
-| GET | `/api/v1/program-facts?title=&movie=` | What TMDB says about a live program, found by its exact guide title, for the break screen: `kind` (`show` or `movie`), `year`, `endYear`, `studio`, `seasons`, `episodes`, `cast`, `creators`, `tagline` and `rating`. `movie=true` searches movies first. Every field is empty when TMDB lists no such title or the server has no TMDB token; see [libraries](libraries.md#details-from-tmdb) |
-| GET | `/api/v1/playback-sessions/{id}/ad-break?aheadMs=` | Whether the session's player shows an ad, for engines without timed metadata that cannot read the playlist's `#EXT-X-DATERANGE` ad marks: `inBreak` and, when the stream planned the break, `remainingMs`. `aheadMs` is how much the player has loaded past the picture; see [architecture](architecture.md#playback) |
 | DELETE | `/api/v1/playback-sessions/{id}` | Release the session; returns 204 |
+| GET | `/api/v1/playback-sessions/{id}/ad-break?aheadMs=` | Whether the session's player shows an ad, for engines without timed metadata that cannot read the playlist's `#EXT-X-DATERANGE` ad marks: `inBreak` and, when the stream planned the break, `remainingMs`. `aheadMs` is how much the player has loaded past the picture; see [architecture](architecture.md#playback) |
+| GET | `/media/multiview/{id}/{epoch}/{secret}/{name}` | The multiview stream's HLS playlist and segments |
+| GET | `/media/sessions/{id}/{epoch}/{token}` | Session-authorized HLS or MPEG-TS media. `{epoch}` is the descriptor's epoch and `{token}` a random token for one playlist, segment or key |
+
+<!-- api-tables:end -->
+
+### Output routes
+
+<!-- api-tables:start:Outputs -->
+
+| Method | Path | Summary |
+| --- | --- | --- |
+| GET | `/api/v1/admin/outputs` | Every named output in name order: `name`, `groups` and `channels` |
+| PUT | `/api/v1/admin/outputs/{name}` | `{"groups": ["Kids"], "channels": ["702"]}` saves the output, replacing one of that name, and returns it. The name is lowercased; `400 INVALID_REQUEST` for a name that is not 1 to 32 letters, digits and hyphens, for `stream`, for an output holding no group or channel, or past 32 outputs |
+| DELETE | `/api/v1/admin/outputs/{name}` | Deletes the output; 204, or `404 OUTPUT_NOT_FOUND` |
+| GET | `/output/guide.xml?days=` | The lineup's programs as XMLTV |
+| GET | `/output/playlist.m3u?format=` | The enabled lineup as an M3U playlist for third-party players, see [player outputs](#player-outputs) |
+| GET | `/output/recordings.ics` | The scheduled and running recordings as iCalendar |
+| GET | `/output/stream/{channelId}?format=` | Opens a player session for the channel and streams it |
+| GET | `/output/{name}/guide.xml?days=` | A [named output](#named-outputs)'s channels only, as XMLTV |
+| GET | `/output/{name}/playlist.m3u?format=` | A [named output](#named-outputs)'s channels only, as an M3U playlist |
+
+<!-- api-tables:end -->
+
+### Logo routes
+
+<!-- api-tables:start:Logos -->
+
+| Method | Path | Summary |
+| --- | --- | --- |
+| GET | `/logos/{key}` | A cached lineup logo, public, see [logos](#logos) |
+
+<!-- api-tables:end -->
+
+### Library routes
+
+<!-- api-tables:start:Library -->
+
+| Method | Path | Summary |
+| --- | --- | --- |
+| GET | `/api/v1/admin/libraries` | Every [media library](libraries.md): `id`, `name`, `kind` (`movies`, `shows`, `videos` or `music`), `path`, `createdAt`, `items` (present items by kind: `movie`, `show`, `season`, `episode`, `video`, `artist`, `album`, `track`) and the last scan's `scannedAt`, `scanOk` and `scanNote` |
+| POST | `/api/v1/admin/libraries` | Add a library from `{"name", "kind", "path"}`; 201 with the library, and its first scan starts. 400 when the folder is outside `SOFA_MEDIA_DIR`, links outside it or does not exist; 409 `LIBRARY_EXISTS` when another library uses it |
+| GET | `/api/v1/admin/libraries/folders` | `{"roots", "folders"}`: `SOFA_MEDIA_DIR` and the folders under it, two levels down, that no library uses |
+| POST | `/api/v1/admin/libraries/scan` | Queue a scan of the library whose folder holds `{"path"}`, a file or folder, or of every library inside it when it names a folder above them; 202 with `{"libraries"}`, their ids, at once. The path is mapped through `SOFA_LIBRARY_PATH_MAP` first. 404 `LIBRARY_NOT_FOUND` when no library holds it |
+| GET | `/api/v1/admin/libraries/{id}` | One library |
+| PATCH | `/api/v1/admin/libraries/{id}` | Rename a library with `{"name"}` |
+| DELETE | `/api/v1/admin/libraries/{id}` | Remove a library (204), forgetting its items and their watch progress but never touching its files |
+| POST | `/api/v1/admin/libraries/{id}/scan?refresh=` | Scan now and answer when done: `files`, `added`, `updated`, `missing`, `removed`, and `unavailable` when the folder was missing or empty, in which case nothing changed. With `?refresh=true` it queues the scan and answers `202` with `libraries`; a music library asks MusicBrainz again for every album and artist |
+| GET | `/api/v1/libraries` | Every [media library](#media-libraries) with its count of movies, shows or videos |
+| GET | `/api/v1/libraries/{id}/items?kind=&sort=&unwatched=&genre=&cursor=&limit=` | One page of a library's movies, shows or videos |
+| GET | `/api/v1/libraries/{id}/radio?limit=` | A radio from every artist of a Music library alike |
+| GET | `/api/v1/library/home` | Continue watching, the Watchlist, then Recently added for each library, and the libraries |
+| GET | `/api/v1/library/items/{id}` | An item with its seasons or episodes, the next episode of a show, and a file's tracks |
+| PUT | `/api/v1/library/items/{id}/favorite` | Like (`{"favorite": true}`) or unlike a song, album or artist; answers the item, see [music taste](libraries.md#radio) |
+| GET | `/api/v1/library/items/{id}/lyrics` | A song's lyrics as LRC text, see [play library files](#play-library-files) |
+| PUT | `/api/v1/library/items/{id}/play-state` | Record where playback stopped, or mark an item, season or show watched or unwatched |
+| POST | `/api/v1/library/items/{id}/played` | Count one play of a song; answers the song |
+| GET | `/api/v1/library/items/{id}/radio?limit=` | A radio from an artist, album or song: up to `limit` songs (default 50, at most 200) as a `LibraryPage`, see [music radio](libraries.md#radio) |
+| GET | `/api/v1/library/items/{id}/subtitles/{index}` | A text subtitle track as WebVTT, see [play library files](#play-library-files) |
+| GET | `/api/v1/library/lookup?tmdb=&tvdb=&imdb=` | The movies and shows whose TMDB, TheTVDB or IMDb (`tt…`) id is one of those given, as a `LibraryPage` in title order. 400 without an id or with a malformed one |
+| GET | `/api/v1/library/search?q=` | Movies, shows and videos whose title holds `q`, then those with a cast member or director whose name holds it, then episodes by title; at most 50. `people` names those cast members and directors, the most credited first, at most 10 |
+| POST | `/api/v1/vod-sessions` | Play a library movie, episode or video, see [play library files](#play-library-files) |
+| GET | `/api/v1/vod-sessions/{id}` | Read a library playback session |
+| PATCH | `/api/v1/vod-sessions/{id}` | Renew it, and with `startMs` restart a converted stream there |
+| DELETE | `/api/v1/vod-sessions/{id}` | Release it; returns 204 |
+| GET | `/artwork/{id}/scrub/{sheet}` | A sheet of an item's scrub thumbnails, public, see [media libraries](#media-libraries) |
+| GET | `/artwork/{id}/{role}` | An item's `poster` or `backdrop`, public, see [media libraries](#media-libraries) |
+| GET | `/media/vod/{id}/{epoch}/{secret}/{name}` | The session's file with byte ranges, or its HLS playlist and segments |
+
+<!-- api-tables:end -->
+
+### HDHomeRun routes
+
+<!-- api-tables:start:HDHomeRun -->
+
+| Method | Path | Summary |
+| --- | --- | --- |
+| GET | `/api/v1/admin/hdhr/access` | Who may use the tuners: `enabled`, `open` (every address is admitted), `configured` (from `SOFA_HDHR_ALLOW`), `allowed` (from the portal or this API) and `refused`, up to ten addresses refused since the start that are still refused, newest first, each with `address`, `lastAt` and the `path` it asked for |
+| PUT | `/api/v1/admin/hdhr/access` | `{"allowed": ["PLEX_SERVER_IP"]}` replaces the addresses allowed at run time, at most 64 IP literals or CIDR blocks, and returns the same status. It applies at once, without a restart, and is kept in the database; `SOFA_HDHR_ALLOW` still applies beside it. 400 `INVALID_REQUEST` names an entry that does not parse, and nothing changes |
+| GET | `/auto/v{number}` | MPEG-TS stream of the channel with that lineup number |
+| GET | `/device.xml` | The UPnP root description; HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation) |
+| GET | `/discover.json` | The device Plex discovers; HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation) |
+| GET | `/lineup.json` | The device's channels; HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation) |
+| GET | `/lineup.post` | Accepts Plex's channel-scan request; answers 200 |
+| POST | `/lineup.post` | Accepts Plex's channel-scan request; answers 200 |
+| GET | `/lineup_status.json` | Scan status: nothing to scan; HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation) |
+
+<!-- api-tables:end -->
+
+### Recording routes
+
+<!-- api-tables:start:Recordings -->
+
+| Method | Path | Summary |
+| --- | --- | --- |
+| GET | `/api/v1/recording-rules` | Every series rule, oldest first |
+| POST | `/api/v1/recording-rules` | Add a series rule, by title or with a `match` for a team or keywords ([recordings](recordings.md#record-a-series)); `201` |
+| PATCH | `/api/v1/recording-rules/{id}` | Change `channelId` (`anyChannel: true` clears it), `newOnly`, `keep`, the paddings or `priority`; `404 RULE_NOT_FOUND` |
+| DELETE | `/api/v1/recording-rules/{id}` | Delete a rule and its scheduled recordings; what it recorded stays. Returns 204 |
 | GET | `/api/v1/recordings` | Every [recording](#recordings), scheduled and running soonest first, then the rest newest first, and the recordings folder's `storage` |
 | POST | `/api/v1/recordings` | Record the program on `channelId` that starts at `startsAt`, or with `endsAt` (and an optional `title`) that [time window](recordings.md#record-a-time-window); `201`, or the existing recording. `404 CHANNEL_NOT_FOUND` or `PROGRAM_NOT_FOUND`, `409 PROGRAM_ENDED`. A time window may start at most 14 days ahead (`400 INVALID_REQUEST`), and a window past 100 waiting one-off recordings answers `409 SCHEDULE_FULL` |
 | GET | `/api/v1/recordings/{id}` | One recording; `404 RECORDING_NOT_FOUND` |
 | PATCH | `/api/v1/recordings/{id}` | Set `protected`, `positionMs` or `watched` |
 | DELETE | `/api/v1/recordings/{id}` | Cancel a scheduled recording, stop a running one, or delete a finished one and its file; returns 204 |
-| GET | `/api/v1/recording-rules` | Every series rule, oldest first |
-| POST | `/api/v1/recording-rules` | Add a series rule, by title or with a `match` for a team or keywords ([recordings](recordings.md#record-a-series)); `201` |
-| PATCH | `/api/v1/recording-rules/{id}` | Change `channelId` (`anyChannel: true` clears it), `newOnly`, `keep`, the paddings or `priority`; `404 RULE_NOT_FOUND` |
-| DELETE | `/api/v1/recording-rules/{id}` | Delete a rule and its scheduled recordings; what it recorded stays. Returns 204 |
+
+<!-- api-tables:end -->
+
+### Watchlist routes
+
+<!-- api-tables:start:Watchlist -->
+
+| Method | Path | Summary |
+| --- | --- | --- |
 | GET | `/api/v1/watchlist` | The household's [watchlist](#watchlist), newest first |
 | POST | `/api/v1/watchlist` | Add a library item or a guide title; `201`, or the entry the list already holds. `404 ITEM_NOT_FOUND`, `409 WATCHLIST_FULL` |
 | DELETE | `/api/v1/watchlist/{id}` | Take an entry off the list; returns 204, or `404 WATCHLIST_ENTRY_NOT_FOUND` |
-| GET | `/media/sessions/{id}/{epoch}/{token}` | Session-authorized HLS or MPEG-TS media. `{epoch}` is the descriptor's epoch and `{token}` a random token for one playlist, segment or key |
-| GET | `/output/playlist.m3u` | The enabled lineup as an M3U playlist for third-party players, see [player outputs](#player-outputs) |
-| GET | `/output/guide.xml?days=` | The lineup's programs as XMLTV |
-| GET | `/output/{name}/playlist.m3u`, `/output/{name}/guide.xml` | A [named output](#named-outputs)'s channels only |
-| GET | `/output/stream/{channelId}.m3u8` or `.ts` | Opens a player session for the channel and streams it |
-| GET | `/logos/{key}` | A cached lineup logo, public, see [logos](#logos) |
-| GET | `/api/v1/libraries` | Every [media library](#media-libraries) with its count of movies, shows or videos |
-| GET | `/api/v1/libraries/{id}/items?sort=&unwatched=&genre=&cursor=&limit=` | One page of a library's movies, shows or videos |
-| GET | `/api/v1/library/home` | Continue watching, the Watchlist, then Recently added for each library, and the libraries |
-| GET | `/api/v1/library/items/{id}` | An item with its seasons or episodes, the next episode of a show, and a file's tracks |
-| GET | `/api/v1/library/lookup?tmdb=&tvdb=&imdb=` | The movies and shows whose TMDB, TheTVDB or IMDb (`tt…`) id is one of those given, as a `LibraryPage` in title order. 400 without an id or with a malformed one |
-| GET | `/api/v1/library/search?q=` | Movies, shows and videos whose title holds `q`, then those with a cast member or director whose name holds it, then episodes by title; at most 50. `people` names those cast members and directors, the most credited first, at most 10 |
-| PUT | `/api/v1/library/items/{id}/favorite` | Like (`{"favorite": true}`) or unlike a song, album or artist; answers the item, see [music taste](libraries.md#radio) |
-| POST | `/api/v1/library/items/{id}/played` | Count one play of a song; answers the song |
-| PUT | `/api/v1/library/items/{id}/play-state` | Record where playback stopped, or mark an item, season or show watched or unwatched |
-| GET | `/api/v1/library/items/{id}/subtitles/{index}` | A text subtitle track as WebVTT, see [play library files](#play-library-files) |
-| GET | `/api/v1/library/items/{id}/lyrics` | A song's lyrics as LRC text, see [play library files](#play-library-files) |
-| GET | `/api/v1/library/items/{id}/radio?limit=` | A radio from an artist, album or song: up to `limit` songs (default 50, at most 200) as a `LibraryPage`, see [music radio](libraries.md#radio) |
-| GET | `/api/v1/libraries/{id}/radio?limit=` | A radio from every artist of a Music library alike |
-| POST | `/api/v1/vod-sessions` | Play a library movie, episode or video, see [play library files](#play-library-files) |
-| GET | `/api/v1/vod-sessions/{id}` | Read a library playback session |
-| PATCH | `/api/v1/vod-sessions/{id}` | Renew it, and with `startMs` restart a converted stream there |
-| DELETE | `/api/v1/vod-sessions/{id}` | Release it; returns 204 |
-| GET | `/media/vod/{id}/{epoch}/{secret}/{name}` | The session's file with byte ranges, or its HLS playlist and segments |
-| POST | `/api/v1/multiview-sessions` | Watch two to four channels as one picture, see [multiview](#multiview) |
-| GET | `/api/v1/multiview-sessions/{id}` | Read a multiview session |
-| PATCH | `/api/v1/multiview-sessions/{id}` | Renew it, and with `audio` move the sound to another tile |
-| DELETE | `/api/v1/multiview-sessions/{id}` | Release it; returns 204 |
-| GET | `/media/multiview/{id}/{epoch}/{secret}/{name}` | The multiview stream's HLS playlist and segments |
-| GET | `/artwork/{id}/{role}` | An item's `poster` or `backdrop`, public, see [media libraries](#media-libraries) |
-| GET | `/artwork/{id}/scrub/{sheet}` | A sheet of an item's scrub thumbnails, public, see [media libraries](#media-libraries) |
-| GET | `/discover.json`, `/lineup.json`, `/lineup_status.json`, `/device.xml` | HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation) |
-| GET, POST | `/lineup.post` | Accepts Plex's channel-scan request; answers 200 |
-| GET | `/auto/v{number}` | MPEG-TS stream of the channel with that lineup number |
-| POST | `/api/v1/mcp` | The [MCP endpoint](#mcp) for AI assistants; takes the admin token or a `read` token |
-| GET, POST | `/admin`, `/admin/*` | The [admin portal](#admin-portal-routes), HTML |
-| GET | `/admin/api/openapi.json` | The OpenAPI document, behind the portal's session |
+
+<!-- api-tables:end -->
 
 Request bodies are limited as [security](security.md#request-limits) lists; a larger one answers `413 REQUEST_TOO_LARGE` before the token is checked. Every response carries an `X-Request-Id` header with the id the server's log lines for that request carry. Responses under `/api/` and `/admin`, the M3U playlist, the XMLTV guide and `/lineup.json` are gzip- or deflate-compressed when the request's `Accept-Encoding` allows it; media, streams, logos and artwork never are. The live TV fields are defined in the [contract](../../contract/src/commonMain/kotlin/dev/jamesrich/sofaking/contract/), which the app compiles against too, and the admin fields in the [server's models](../server/src/main/kotlin/dev/jamesrich/sofaking/backend/api/); see [shared types](#shared-types).
 
@@ -314,12 +451,25 @@ Each tile reads its channel in a playback session of its own, which picks the ch
 
 Sonarr, Radarr and other tools call these when they add, rename or delete a file, so the library shows it without waiting for the six-hourly scan. Each takes a `hook` [token](#tokens), or `SOFA_API_TOKEN`, and answers `202` with `{"libraries"}`, the ids of the libraries whose scan it queued: none when no library holds the path or the event changes no file. [Use with Sonarr, Radarr and Bazarr](integrations.md) has the setup.
 
-| Method | Path | Notes |
+<!-- api-tables:start:Hooks -->
+
+| Method | Path | Summary |
 | --- | --- | --- |
-| POST | `/api/v1/hooks/servarr` | The Webhook connection's payload. `Download`, `Rename`, `EpisodeFileDelete`, `MovieFileDelete`, `SeriesDelete` and `MovieDelete` queue a scan of the library holding `series.path` or `movie.folderPath`; `Test` and the other events queue nothing. The token goes as a bearer or as the Basic password |
+| GET | `/Items` | Where a refresh looks the series or movie up; always empty, so the connection sends the folder it knows |
 | POST | `/Library/Media/Updated` | The Emby / Jellyfin connection's refresh, `{"Updates": [{"Path", "UpdateType"}]}`: queues a scan of the libraries holding each `Path`. The token goes in `X-MediaBrowser-Token`, as that connection sends it, or `X-Emby-Token` |
-| GET | `/System/Configuration`, `/Items` | What the same connection reads first: its Test button checks the token on `/System/Configuration`, which answers `{}`, and a refresh looks the series or movie up in `/Items`, which is always empty, so the connection sends the folder it knows |
 | POST | `/Notifications/Admin` | The same connection's Send Notifications option; answers `204` and does nothing |
+| GET | `/System/Configuration` | What the Emby / Jellyfin connection reads first: its Test button checks the token here, and this answers `{}` |
+| POST | `/api/v1/hooks/servarr` | The Webhook connection's payload. `Download`, `Rename`, `EpisodeFileDelete`, `MovieFileDelete`, `SeriesDelete` and `MovieDelete` queue a scan of the library holding `series.path` or `movie.folderPath`; `Test` and the other events queue nothing. The token goes as a bearer or as the Basic password |
+| GET | `/emby/Items` | The Emby / Jellyfin items, under /emby |
+| POST | `/emby/Library/Media/Updated` | The Emby / Jellyfin library refresh, under /emby |
+| POST | `/emby/Notifications/Admin` | The Emby / Jellyfin admin notice, under /emby |
+| GET | `/emby/System/Configuration` | The Emby / Jellyfin configuration, under /emby |
+| GET | `/mediabrowser/Items` | The Emby / Jellyfin items, under /mediabrowser |
+| POST | `/mediabrowser/Library/Media/Updated` | The Emby / Jellyfin library refresh, under /mediabrowser |
+| POST | `/mediabrowser/Notifications/Admin` | The Emby / Jellyfin admin notice, under /mediabrowser |
+| GET | `/mediabrowser/System/Configuration` | The Emby / Jellyfin configuration, under /mediabrowser |
+
+<!-- api-tables:end -->
 
 The Emby-style routes answer under `/emby` and `/mediabrowser` too. Paths are mapped through `SOFA_LIBRARY_PATH_MAP` when Sonarr or Radarr sees the media under another folder than the server.
 
@@ -486,11 +636,7 @@ When an unprobed source's descriptor says MPEG-TS and the body is HLS, the reque
 
 A named output serves part of the lineup at `/output/{name}/playlist.m3u` and `/output/{name}/guide.xml`, with the same token and query parameters as the full ones. A channel is held when its group is one of the output's `groups`, ignoring case, or its number or ID is one of its `channels`. The playlist's `url-tvg` names the output's own guide, and its stream URLs are the usual `/output/stream/{channelId}` ones. An unknown name answers `404 OUTPUT_NOT_FOUND` once the token is accepted. The outputs are kept in the database, at most 32.
 
-| Method | Path | Notes |
-| --- | --- | --- |
-| GET | `/api/v1/admin/outputs` | Every named output in name order: `name`, `groups` and `channels` |
-| PUT | `/api/v1/admin/outputs/{name}` | `{"groups": ["Kids"], "channels": ["702"]}` saves the output, replacing one of that name, and returns it. The name is lowercased; `400 INVALID_REQUEST` for a name that is not 1 to 32 letters, digits and hyphens, for `stream`, for an output holding no group or channel, or past 32 outputs |
-| DELETE | `/api/v1/admin/outputs/{name}` | Deletes the output; 204, or `404 OUTPUT_NOT_FOUND` |
+Its routes are in the [output routes](#output-routes) table, beside the admin routes that save and delete one.
 
 ## Logos
 
@@ -521,76 +667,96 @@ The first device, on `SOFA_PORT`, has `SOFA_HDHR_DEVICE_ID` as its `DeviceID`, o
 
 JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; otherwise the API token applies. No response carries a stream URL.
 
-| Method | Path | Response or action |
+<!-- api-tables:start:Admin -->
+
+| Method | Path | Summary |
 | --- | --- | --- |
-| GET | `/api/v1/admin/status` | One summary of the server, described [below](#server-status) |
 | GET | `/api/v1/admin/candidates?q=&provider=&limit=&offset=` | Candidates with their sources (`id`, `protocol`, `status`, `manuallyDisabled`) and the lineup entries using them; `q` matches name, exact number or `tvg-id`, case-insensitively; `limit` 1-1000 (default 100) |
-| GET | `/api/v1/admin/sessions` | Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`, `startedAt`, `client` (the player's address, once it made a request), `bytes` sent to the player so far, `offeringId` of the source playing, `bitrateKbps` (the rate over the last 10 seconds or so), `stalls` (media requests the upstream refused or dropped before anything was answered), `segmentsServed` (HLS segments relayed) and `sourceSwitches` (moves to another source, on a failure or by hand). An empty list means nothing is playing |
-| POST | `/api/v1/admin/sources/{id}/probe` | Put the source at the front of the probe queue, as the channel page's Probe now does; `202` with `{"sourceId"}`, and its health updates when the probe ends. `404 SOURCE_NOT_FOUND`, `409 PROBES_OFF` when probes do not run, `409 PROBE_RUNNING` while a probe of it is in flight |
-| POST | `/api/v1/admin/sessions/{id}/switch-source` | Move a live session to its channel's next source, see [source selection](source-health.md#source-selection); answers the session, or `409 NO_OTHER_SOURCE` |
-| GET | `/api/v1/admin/history?since=&kind=&client=&limit=` | Ended playback sessions, the newest end first, described [below](#playback-history) |
 | GET | `/api/v1/admin/diagnostics/crashes?limit=` | The crashes the apps reported, newest first, described [below](#crash-reports) |
 | GET | `/api/v1/admin/events/stream?types=` | The server's events as server-sent events, described [below](#event-stream) |
-| GET, POST | `/api/v1/admin/notifications` | The notification targets; add one, described [below](#notifications) |
-| GET, PATCH, DELETE | `/api/v1/admin/notifications/{id}` | One target; change or remove it |
-| POST | `/api/v1/admin/notifications/{id}/test` | Send the target a test notification and answer how it went |
-| GET | `/api/v1/admin/notifications/{id}/deliveries` | The target's newest deliveries, up to 200 |
+| PUT | `/api/v1/admin/fanart-key` | `{"token": "..."}` (`{"key": "..."}` for fanart.tv): asks the service whether it takes the value, stores it as `tmdbToken`, `fanartKey` or `listenBrainzToken` in `secrets.json` in the data directory and restarts, answering a `SetupResult` with that path. With `SVC` as `TMDB`, `FANART` or `LISTENBRAINZ`: 400 `INVALID_REQUEST` for a value under 32 characters or with spaces, 400 `SVC_REJECTED` when the service refuses it, 502 `SVC_UNREACHABLE` when it cannot be asked, 409 `SVC_FROM_ENVIRONMENT` when `SOFA_TMDB_TOKEN`, `SOFA_FANART_KEY` or `SOFA_LISTENBRAINZ_TOKEN` sets it, 500 `SECRETS_UNWRITABLE` when `secrets.json` cannot be read or written. Nothing is written on an error |
 | GET | `/api/v1/admin/guides` | Guide import status: `lastSuccessAt`, `errorCode`, `channels`, retained `programs` |
 | GET | `/api/v1/admin/guides/{id}/channels?q=&limit=` | XMLTV channels of a guide (`channelId`, `displayName`, `icon`) |
+| GET | `/api/v1/admin/history?since=&kind=&client=&limit=` | Ended playback sessions, the newest end first, described [below](#playback-history) |
 | GET | `/api/v1/admin/lineup` | Every entry in lineup order |
 | POST | `/api/v1/admin/lineup` | Create an entry; returns 201 |
+| POST | `/api/v1/admin/lineup/adopt` | `{"providerId": "...", "enabled": true}` adds every channel of the provider whose sources no entry uses; returns `added` and `skipped` |
+| PUT | `/api/v1/admin/lineup/order` | Reorder: `{"ids": [...]}` listing every entry once; returns the lineup |
 | GET | `/api/v1/admin/lineup/{id}` | One entry |
 | PATCH | `/api/v1/admin/lineup/{id}` | Update an entry; with a policy, writes the station override instead and applies (`If-Match` optional) |
 | DELETE | `/api/v1/admin/lineup/{id}` | Remove an entry; returns 204. With a policy, writes `enabled: false` into the station override instead |
-| PUT | `/api/v1/admin/lineup/order` | Reorder: `{"ids": [...]}` listing every entry once; returns the lineup |
-| POST | `/api/v1/admin/lineup/adopt` | `{"providerId": "...", "enabled": true}` adds every channel of the provider whose sources no entry uses; returns `added` and `skipped` |
+| PUT | `/api/v1/admin/listenbrainz-token` | `{"token": "..."}` (`{"key": "..."}` for fanart.tv): asks the service whether it takes the value, stores it as `tmdbToken`, `fanartKey` or `listenBrainzToken` in `secrets.json` in the data directory and restarts, answering a `SetupResult` with that path. With `SVC` as `TMDB`, `FANART` or `LISTENBRAINZ`: 400 `INVALID_REQUEST` for a value under 32 characters or with spaces, 400 `SVC_REJECTED` when the service refuses it, 502 `SVC_UNREACHABLE` when it cannot be asked, 409 `SVC_FROM_ENVIRONMENT` when `SOFA_TMDB_TOKEN`, `SOFA_FANART_KEY` or `SOFA_LISTENBRAINZ_TOKEN` sets it, 500 `SECRETS_UNWRITABLE` when `secrets.json` cannot be read or written. Nothing is written on an error |
+| GET | `/api/v1/admin/notifications` | The notification targets, described [below](#notifications) |
+| POST | `/api/v1/admin/notifications` | Add a notification target, described [below](#notifications) |
+| GET | `/api/v1/admin/notifications/{id}` | One target |
+| PATCH | `/api/v1/admin/notifications/{id}` | Change a target |
+| DELETE | `/api/v1/admin/notifications/{id}` | Remove a target |
+| GET | `/api/v1/admin/notifications/{id}/deliveries` | The target's newest deliveries, up to 200 |
+| POST | `/api/v1/admin/notifications/{id}/test` | Send the target a test notification and answer how it went |
+| POST | `/api/v1/admin/pairing-codes` | Issue a [pairing code](#pair-a-client): `{"code", "expiresAt"}`, 201. It replaces the live code |
+| GET | `/api/v1/admin/sessions` | Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`, `startedAt`, `client` (the player's address, once it made a request), `bytes` sent to the player so far, `offeringId` of the source playing, `bitrateKbps` (the rate over the last 10 seconds or so), `stalls` (media requests the upstream refused or dropped before anything was answered), `segmentsServed` (HLS segments relayed) and `sourceSwitches` (moves to another source, on a failure or by hand). An empty list means nothing is playing |
+| POST | `/api/v1/admin/sessions/{id}/switch-source` | Move a live session to its channel's next source, see [source selection](source-health.md#source-selection); answers the session, or `409 NO_OTHER_SOURCE` |
+| GET | `/api/v1/admin/source-file` | The source file as written: `providers` and `guides` as [the source file](live-tv.md#providers) holds them, `${NAME}` references unexpanded; an empty document without a file |
+| PUT | `/api/v1/admin/source-file?starterPolicy=` | Replace the source file with the body and restart. Validated the way the start validates it (400 `INVALID_SOURCES` with the reason, nothing written), written atomically to `SOFA_SOURCES` or `sources.json` in the data directory; answers `{"path", "restarting": true, "policyPath"}` and ends the process once the response is sent, so the container's restart policy starts it again. `?starterPolicy=true` also writes the [starter policy](starter-lineup.md) for the body's providers before that one restart, and `policyPath` names it; it answers `409 POLICY_EXISTS` when a policy is configured and `409 NO_SOURCES` without providers |
+| POST | `/api/v1/admin/sources/{id}/probe` | Put the source at the front of the probe queue, as the channel page's Probe now does; `202` with `{"sourceId"}`, and its health updates when the probe ends. `404 SOURCE_NOT_FOUND`, `409 PROBES_OFF` when probes do not run, `409 PROBE_RUNNING` while a probe of it is in flight |
+| GET | `/api/v1/admin/status` | One summary of the server, described [below](#server-status) |
+| PUT | `/api/v1/admin/tmdb-token` | `{"token": "..."}` (`{"key": "..."}` for fanart.tv): asks the service whether it takes the value, stores it as `tmdbToken`, `fanartKey` or `listenBrainzToken` in `secrets.json` in the data directory and restarts, answering a `SetupResult` with that path. With `SVC` as `TMDB`, `FANART` or `LISTENBRAINZ`: 400 `INVALID_REQUEST` for a value under 32 characters or with spaces, 400 `SVC_REJECTED` when the service refuses it, 502 `SVC_UNREACHABLE` when it cannot be asked, 409 `SVC_FROM_ENVIRONMENT` when `SOFA_TMDB_TOKEN`, `SOFA_FANART_KEY` or `SOFA_LISTENBRAINZ_TOKEN` sets it, 500 `SECRETS_UNWRITABLE` when `secrets.json` cannot be read or written. Nothing is written on an error |
+| GET | `/api/v1/admin/tokens` | The [tokens](#tokens) the server issued, oldest first and without secrets: `id`, `label`, `scope` (`api`, `read` or `hook`), `clientId` (for a device's token), `createdAt` and `lastUsedAt` (to the minute) |
+| POST | `/api/v1/admin/tokens` | Make a token from `{"label", "scope"}`, `scope` `read` or `hook`; 201 with `{"token", "secret"}`, the only time the secret is shown. 400 for an empty label or `api`, which only pairing issues |
+| DELETE | `/api/v1/admin/tokens/{id}` | Revoke a token; 204, or 404 `TOKEN_NOT_FOUND` |
+| GET | `/api/v1/admin/viewers` | Every client that paired or saved preferences, most recently seen first: `clientId`, `name`, `platform`, `firstSeenAt`, `lastSeenAt`, `preferences` (null until the client saves some) and `ownToken` (false for a client on `SOFA_API_TOKEN`) |
+| DELETE | `/api/v1/admin/viewers/{clientId}` | Forget a client and its preferences and revoke its token; returns 204. A client on `SOFA_API_TOKEN` keeps working and reappears on its next save |
+| GET | `/api/v1/admin/virtual-channels` | Every virtual channel in the order they were made: `id`, `name`, `number`, `slots`, `filler`, `padMinutes` and `breaks` |
+| POST | `/api/v1/admin/virtual-channels` | Create a channel; 201 with it and its new `id`. The body is `{"name", "number", "slots": [{"source": {"kind", "value"}, "shuffle", "start"}], "filler", "padMinutes", "breaks"}`: `kind` is `library` (a library ID), `show` (a show's item ID), `genre` (a genre name) or `channel` (a lineup entry ID, in timed slots only and never as filler), `start` is `HH:MM` on every slot or none, `filler` a source like a slot's, `padMinutes` 0, 15, 30 or 60, `breaks` either null or `{"everyMinutes", "source", "slides", "slideSeconds"}` (`everyMinutes` 0, 15, 30 or 60, 0 after every item; `source` a library source; `slides` up to five http or https image URLs; `slideSeconds` 3 to 60). 400 `INVALID_REQUEST` names what is wrong, such as a source that does not exist |
+| GET | `/api/v1/admin/virtual-channels/{id}` | One channel; `404 NOT_FOUND` |
+| PUT | `/api/v1/admin/virtual-channels/{id}` | Replace a channel with the same body, rebuilding its schedule from the end of what airs now; `404 NOT_FOUND` |
+| DELETE | `/api/v1/admin/virtual-channels/{id}` | Delete a channel (204); `404 NOT_FOUND` |
+| GET | `/api/v1/admin/virtual-channels/{id}/schedule?hours=` | The airings from now for `hours` (1 to 48, 24 by default): `startsAt`, `endsAt`, `title`, `itemId` (null for black) and `filler` |
+
+<!-- api-tables:end -->
+
+While a lineup policy is in use, `POST /lineup`, `PUT /lineup/order` and `POST /lineup/adopt` answer `410 Gone` with code `POLICY_MANAGED`; see [lineup policy](lineup-policy.md#api). Without it, the `/policy/*` routes answer `404 POLICY_NOT_CONFIGURED`.
+
+### Policy routes
+
+<!-- api-tables:start:Policy -->
+
+| Method | Path | Summary |
+| --- | --- | --- |
+| GET | `/api/v1/admin/iptv-org` | The [iptv-org](lineup-policy.md#iptv-org-metadata) database: `status` (the `metadata` and `streams` switches, the `region` in force with its `countries`, `source` (`setting`, `time-zone` or `default`) and `detail`, `attemptedAt`, `ok`, `notes`, `nextDueAt` and the file and match counts), the `proposals` waiting for a decision and the `holds` the blocklist applies, each with its reason and reference |
+| POST | `/api/v1/admin/iptv-org/matches` | `{"station", "decision", "channelId"}`: `accept` stores the iptv-org channel for the station (404 `IPTV_ORG_CHANNEL_NOT_FOUND`), `dismiss` stores that it has none and lifts a blocklist hold, `clear` forgets the choice; the policy runs again. Answers as the read |
+| POST | `/api/v1/admin/iptv-org/refresh` | Downloads the wanted files now and answers `200` with the read once they are in; unchanged files answer 304, and nothing is downloaded while both switches are off |
 | GET | `/api/v1/admin/policy` | The [lineup policy](lineup-policy.md) the server runs with (`SOFA_POLICY`, or `policy.json` in the data directory), as `policy` with `revision` (the file's SHA-256, also the `ETag`) and `path`; 404 `POLICY_NOT_CONFIGURED` without one |
 | PUT | `/api/v1/admin/policy` | Replace the policy with the body, up to 4 MiB; `If-Match: <revision>` required (428 `PRECONDITION_REQUIRED` without it, 409 `POLICY_CHANGED` when stale or the file changed on disk, 400 `INVALID_POLICY` with every error). Writes atomically, applies, and returns `document` and `apply` |
-| GET | `/api/v1/admin/policy/preview` | What a run would change against the served lineup; writes nothing. Fields are [below](#policy-results) |
-| GET | `/api/v1/admin/source-file` | The source file as written: `providers` and `guides` as [the source file](live-tv.md#providers) holds them, `${NAME}` references unexpanded; an empty document without a file |
-| PUT | `/api/v1/admin/source-file` | Replace the source file with the body and restart. Validated the way the start validates it (400 `INVALID_SOURCES` with the reason, nothing written), written atomically to `SOFA_SOURCES` or `sources.json` in the data directory; answers `{"path", "restarting": true, "policyPath"}` and ends the process once the response is sent, so the container's restart policy starts it again. `?starterPolicy=true` also writes the [starter policy](starter-lineup.md) for the body's providers before that one restart, and `policyPath` names it; it answers `409 POLICY_EXISTS` when a policy is configured and `409 NO_SOURCES` without providers |
-| POST | `/api/v1/admin/policy/starter` | Write the [starter policy](starter-lineup.md) for the configured providers and restart; 201 with `{"path", "restarting"}`. 409 `POLICY_EXISTS` when a policy is configured or the file exists, 409 `NO_SOURCES` with no providers |
-| PUT | `/api/v1/admin/tmdb-token`, `/fanart-key`, `/listenbrainz-token` | `{"token": "..."}` (`{"key": "..."}` for fanart.tv): asks the service whether it takes the value, stores it as `tmdbToken`, `fanartKey` or `listenBrainzToken` in `secrets.json` in the data directory and restarts, answering a `SetupResult` with that path. With `SVC` as `TMDB`, `FANART` or `LISTENBRAINZ`: 400 `INVALID_REQUEST` for a value under 32 characters or with spaces, 400 `SVC_REJECTED` when the service refuses it, 502 `SVC_UNREACHABLE` when it cannot be asked, 409 `SVC_FROM_ENVIRONMENT` when `SOFA_TMDB_TOKEN`, `SOFA_FANART_KEY` or `SOFA_LISTENBRAINZ_TOKEN` sets it, 500 `SECRETS_UNWRITABLE` when `secrets.json` cannot be read or written. Nothing is written on an error |
 | POST | `/api/v1/admin/policy/apply` | Run the policy now: writes the lineup when it differs, logs each change, and writes assigned numbers and learned aliases back to the file. Fields are [below](#policy-results) |
-| GET | `/api/v1/admin/policy/findings` | Open findings of a run over the current candidates. Fields are [below](#policy-results) |
 | GET | `/api/v1/admin/policy/changes?limit=` | What policy runs changed, newest first, as `{"id", "appliedAt", "change"}`: `change` has the station `key`, `entryId`, `entryName`, `field`, `before`, `after` and the run's cause in `reason`. `limit` 1-1000 (default 100); the server keeps the newest 10,000 |
+| GET | `/api/v1/admin/policy/findings` | Open findings of a run over the current candidates. Fields are [below](#policy-results) |
 | GET | `/api/v1/admin/policy/guide-matches` | Guide channels proposed by name for each station no guide lists ([guide matches](lineup-policy.md#guide-matches)): `station` (its key), `stationId`, `stationName`, `number`, `guideId`, `channelId`, `channelName` and a `confidence` from 0 to 1, in lineup order, best first; empty before the first apply |
 | POST | `/api/v1/admin/policy/guide-matches/accept` | `{"station", "guideId", "channelId"}`: writes the channel as the station's guide and applies; returns the apply result. 404 `GUIDE_CHANNEL_NOT_FOUND` |
 | POST | `/api/v1/admin/policy/guide-matches/accept-all` | `{"minConfidence"}` (optional): accepts each station's best proposal at that confidence or more, else at `guideMatches.acceptAbove`, and applies once; returns `{"accepted", "applied"}`, with `applied` null when nothing was accepted |
 | POST | `/api/v1/admin/policy/guide-matches/dismiss` | `{"station", "guideId", "channelId"}`: never proposes the channel for the station again, and applies |
-| GET | `/api/v1/admin/iptv-org` | The [iptv-org](lineup-policy.md#iptv-org-metadata) database: `status` (the `metadata` and `streams` switches, the `region` in force with its `countries`, `source` (`setting`, `time-zone` or `default`) and `detail`, `attemptedAt`, `ok`, `notes`, `nextDueAt` and the file and match counts), the `proposals` waiting for a decision and the `holds` the blocklist applies, each with its reason and reference |
-| POST | `/api/v1/admin/iptv-org/matches` | `{"station", "decision", "channelId"}`: `accept` stores the iptv-org channel for the station (404 `IPTV_ORG_CHANNEL_NOT_FOUND`), `dismiss` stores that it has none and lifts a blocklist hold, `clear` forgets the choice; the policy runs again. Answers as the read |
-| POST | `/api/v1/admin/iptv-org/refresh` | Downloads the wanted files now and answers `200` with the read once they are in; unchanged files answer 304, and nothing is downloaded while both switches are off |
+| GET | `/api/v1/admin/policy/preview` | What a run would change against the served lineup; writes nothing. Fields are [below](#policy-results) |
+| POST | `/api/v1/admin/policy/starter` | Write the [starter policy](starter-lineup.md) for the configured providers and restart; 201 with `{"path", "restarting"}`. 409 `POLICY_EXISTS` when a policy is configured or the file exists, 409 `NO_SOURCES` with no providers |
 | GET | `/api/v1/admin/stations/{key}` | One station key: the station the policy builds, its pins, and every candidate that names the key or joins it, each `taken`, `skipped` or `claimed` with a `reason` |
+
+<!-- api-tables:end -->
+
+### Plex routes
+
+<!-- api-tables:start:Plex -->
+
+| Method | Path | Summary |
+| --- | --- | --- |
 | GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `interval`, `api` or `mcp`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`. It survives a restart; before any sync, `lastSyncAt` is null. 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
 | POST | `/api/v1/admin/plex/sync` | Sync Plex now; returns the same status. A failure is reported in `lastError`, not as an error response |
-| GET | `/api/v1/admin/hdhr/access` | Who may use the tuners: `enabled`, `open` (every address is admitted), `configured` (from `SOFA_HDHR_ALLOW`), `allowed` (from the portal or this API) and `refused`, up to ten addresses refused since the start that are still refused, newest first, each with `address`, `lastAt` and the `path` it asked for |
-| PUT | `/api/v1/admin/hdhr/access` | `{"allowed": ["PLEX_SERVER_IP"]}` replaces the addresses allowed at run time, at most 64 IP literals or CIDR blocks, and returns the same status. It applies at once, without a restart, and is kept in the database; `SOFA_HDHR_ALLOW` still applies beside it. 400 `INVALID_REQUEST` names an entry that does not parse, and nothing changes |
-| GET | `/api/v1/admin/viewers` | Every client that paired or saved preferences, most recently seen first: `clientId`, `name`, `platform`, `firstSeenAt`, `lastSeenAt`, `preferences` (null until the client saves some) and `ownToken` (false for a client on `SOFA_API_TOKEN`) |
-| DELETE | `/api/v1/admin/viewers/{clientId}` | Forget a client and its preferences and revoke its token; returns 204. A client on `SOFA_API_TOKEN` keeps working and reappears on its next save |
-| GET | `/api/v1/admin/tokens` | The [tokens](#tokens) the server issued, oldest first and without secrets: `id`, `label`, `scope` (`api`, `read` or `hook`), `clientId` (for a device's token), `createdAt` and `lastUsedAt` (to the minute) |
-| POST | `/api/v1/admin/tokens` | Make a token from `{"label", "scope"}`, `scope` `read` or `hook`; 201 with `{"token", "secret"}`, the only time the secret is shown. 400 for an empty label or `api`, which only pairing issues |
-| DELETE | `/api/v1/admin/tokens/{id}` | Revoke a token; 204, or 404 `TOKEN_NOT_FOUND` |
-| POST | `/api/v1/admin/pairing-codes` | Issue a [pairing code](#pair-a-client): `{"code", "expiresAt"}`, 201. It replaces the live code |
-| GET | `/api/v1/admin/libraries` | Every [media library](libraries.md): `id`, `name`, `kind` (`movies`, `shows`, `videos` or `music`), `path`, `createdAt`, `items` (present items by kind: `movie`, `show`, `season`, `episode`, `video`, `artist`, `album`, `track`) and the last scan's `scannedAt`, `scanOk` and `scanNote` |
-| GET | `/api/v1/admin/libraries/folders` | `{"roots", "folders"}`: `SOFA_MEDIA_DIR` and the folders under it, two levels down, that no library uses |
-| POST | `/api/v1/admin/libraries` | Add a library from `{"name", "kind", "path"}`; 201 with the library, and its first scan starts. 400 when the folder is outside `SOFA_MEDIA_DIR`, links outside it or does not exist; 409 `LIBRARY_EXISTS` when another library uses it |
-| GET, PATCH, DELETE | `/api/v1/admin/libraries/{id}` | One library; rename it with `{"name"}`; remove it (204), forgetting its items and their watch progress but never touching its files |
-| POST | `/api/v1/admin/libraries/scan` | Queue a scan of the library whose folder holds `{"path"}`, a file or folder, or of every library inside it when it names a folder above them; 202 with `{"libraries"}`, their ids, at once. The path is mapped through `SOFA_LIBRARY_PATH_MAP` first. 404 `LIBRARY_NOT_FOUND` when no library holds it |
-| POST | `/api/v1/admin/libraries/{id}/scan` | Scan now and answer when done: `files`, `added`, `updated`, `missing`, `removed`, and `unavailable` when the folder was missing or empty, in which case nothing changed. With `?refresh=true` it queues the scan and answers `202` with `libraries`; a music library asks MusicBrainz again for every album and artist |
 
-While a lineup policy is in use, `POST /lineup`, `PUT /lineup/order` and `POST /lineup/adopt` answer `410 Gone` with code `POLICY_MANAGED`; see [lineup policy](lineup-policy.md#api). Without it, the `/policy/*` routes answer `404 POLICY_NOT_CONFIGURED`.
+<!-- api-tables:end -->
 
 ### Virtual channels
 
 [Virtual channels](virtual-channels.md) are kept in the database and reach the lineup through a `virtual` provider in the source file.
 
-| Method | Path | Response or action |
-| --- | --- | --- |
-| GET | `/api/v1/admin/virtual-channels` | Every virtual channel in the order they were made: `id`, `name`, `number`, `slots`, `filler`, `padMinutes` and `breaks` |
-| POST | `/api/v1/admin/virtual-channels` | Create a channel; 201 with it and its new `id`. The body is `{"name", "number", "slots": [{"source": {"kind", "value"}, "shuffle", "start"}], "filler", "padMinutes", "breaks"}`: `kind` is `library` (a library ID), `show` (a show's item ID), `genre` (a genre name) or `channel` (a lineup entry ID, in timed slots only and never as filler), `start` is `HH:MM` on every slot or none, `filler` a source like a slot's, `padMinutes` 0, 15, 30 or 60, `breaks` either null or `{"everyMinutes", "source", "slides", "slideSeconds"}` (`everyMinutes` 0, 15, 30 or 60, 0 after every item; `source` a library source; `slides` up to five http or https image URLs; `slideSeconds` 3 to 60). 400 `INVALID_REQUEST` names what is wrong, such as a source that does not exist |
-| GET, PUT, DELETE | `/api/v1/admin/virtual-channels/{id}` | One channel; replace it with the same body, rebuilding its schedule from the end of what airs now; delete it (204). 404 `NOT_FOUND` |
-| GET | `/api/v1/admin/virtual-channels/{id}/schedule?hours=` | The airings from now for `hours` (1 to 48, 24 by default): `startsAt`, `endsAt`, `title`, `itemId` (null for black) and `filler` |
+Their routes are in the Admin API table above.
 
 ### Server status
 

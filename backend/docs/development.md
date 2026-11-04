@@ -93,6 +93,7 @@ Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conven
 | `scripts/smoke.py` | Installed-application check over HTTP |
 | `scripts/live-smoke.py` | Fixture playlists through the relay, probes, lineup edits and restart |
 | `scripts/api-fuzz.py` | Schemathesis on every documented route of a fresh server |
+| `scripts/api-tables.py` | Renders the endpoint tables of [api.md](api.md) from the OpenAPI document by each operation's first tag, with the first paragraph of its `description` (else its `summary`) as the row's text; `--check` fails with a diff when they differ, as CI does. A route change edits `openapi.json`, runs this script and commits `api.md`: `OpenApiCoverageTest` and the CI check fail until the routes, the document and the tables agree |
 | `scripts/bridge-smoke.py` | Imports one playlist into a temporary server, adopts its channels and optionally decodes one |
 | `scripts/provider-smoke.py` | Checks one native provider against its live service |
 | `scripts/generate-policy.py` | Generates a [lineup policy](lineup-policy.md#generate-a-policy) from a running server; `python3 -I -m unittest discover -s scripts -p 'test_*.py'` tests it, including its normalization against the server's golden keys |

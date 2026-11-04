@@ -110,6 +110,7 @@ jobs:
         run: |
           shellcheck deploy/*.sh scripts/*.sh
           python3 -I -m unittest discover -s scripts -p 'test_*.py'
+          python3 -I scripts/api-tables.py --check
 
       # Both start the installed distribution in a temporary directory and talk to it only over loopback: smoke.py checks
       # the HTTP routes, the migrations and SIGTERM across a restart; live-smoke.py serves fixture feeds and guides it

@@ -26,7 +26,10 @@ import kotlinx.io.files.SystemFileSystem
 import kotlinx.io.readByteArray
 import okio.Buffer
 import platform.Foundation.NSData
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSSearchPathDirectory
 import platform.Foundation.NSUserDefaults
+import platform.Foundation.NSUserDomainMask
 import platform.Foundation.create
 import platform.UIKit.UIDevice
 import platform.posix.memcpy
@@ -49,6 +52,29 @@ fun AppStorage.Companion.onAppleTv(
     lineupCache = lineupCacheDataStore(Path(cachesDirectory, "lineup-cache.bin").toString()),
     client = ClientInfo("tvos", UIDevice.currentDevice.name),
 )
+
+/**
+ * The storage the SwiftUI app uses on this platform: files under [directory] on iOS, where [defaults] is unused, and
+ * `NSUserDefaults` plus a lineup cache under [directory] on tvOS ([onAppleTv]).
+ */
+expect fun AppStorage.Companion.onApple(
+    directory: String = appleStorageDirectory(),
+    defaults: NSUserDefaults = NSUserDefaults.standardUserDefaults,
+): AppStorage
+
+/** Application Support on iOS, which the system keeps; Caches on tvOS, the one place it lets an app write. */
+expect fun appleStorageDirectory(): String
+
+@OptIn(ExperimentalForeignApi::class)
+internal fun userDirectory(directory: NSSearchPathDirectory, name: String): String = requireNotNull(
+    NSFileManager.defaultManager.URLForDirectory(
+        directory = directory,
+        inDomain = NSUserDomainMask,
+        appropriateForURL = null,
+        create = true,
+        error = null,
+    )?.path,
+) { "no $name directory" }
 
 /** A DataStore [Storage] holding the serialized preferences as one `NSData` entry of [defaults] under [key]. */
 @OptIn(ExperimentalForeignApi::class)

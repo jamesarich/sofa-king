@@ -1,7 +1,7 @@
 
 # Sofa King app
 
-The media center's client: live TV (Live), media libraries (Library) and recordings (DVR) from a Sofa King server. Kotlin Multiplatform: `core` (data, no Compose, every target its dependencies publish), `ui` (Compose Multiplatform screens for Android, JVM desktop, iOS, js and wasmJs), `androidApp` (the Android TV app shell), `baselineprofile` (the Baseline Profile generator), `iosApp` (SwiftUI host) and `tvosApp` (the SwiftUI Apple TV app on `core`'s `SofaKingTv`, since Compose does not render on tvOS, plus its `TopShelf` extension, which reads the recent channels through the `group.dev.jamesrich.sofaking` app group). XcodeGen generates both Swift hosts from their `project.yml`; no `.xcodeproj` is committed. Read README, docs/README.md and docs/architecture.md for setup and behavior.
+The media center's client: live TV (Live), media libraries (Library) and recordings (DVR) from a Sofa King server. Kotlin Multiplatform: `core` (data, no Compose, every target its dependencies publish), `ui` (Compose Multiplatform screens for Android, JVM desktop, iOS, js and wasmJs), `androidApp` (the Android TV app shell), `baselineprofile` (the Baseline Profile generator), `iosApp` (SwiftUI host) and `tvosApp` (the SwiftUI Apple TV app on `core`'s `SofaKingTv` in `appleHostMain`, since Compose does not render on tvOS, plus its `TopShelf` extension, which reads the recent channels through the `group.dev.jamesrich.sofaking` app group). XcodeGen generates both Swift hosts from their `project.yml`; no `.xcodeproj` is committed. Read README, docs/README.md and docs/architecture.md for setup and behavior.
 
 ## Build
 

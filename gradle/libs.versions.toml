@@ -6,7 +6,7 @@
 sofaking = "0.1.0"
 agp = "9.5.0"
 kotlin = "2.5.0-Beta2"
-compose-multiplatform = "1.13.0-beta01"
+compose-multiplatform = "1.13.0-beta02"
 # Compose bundles an older Hot Reload plugin that still calls a Gradle API removed in Gradle 10; this one is clean.
 compose-hot-reload = "1.3.0-rc01"
 # The window size classes; its own track, released alongside Compose Multiplatform.

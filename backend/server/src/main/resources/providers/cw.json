@@ -1,0 +1,63 @@
+{
+  "service": "cw",
+  "version": 1,
+  "hasGuide": true,
+  "catalog": {
+    "label": "The CW",
+    "carries": "The CW app's free channels, such as ION, Court TV and FilmRise",
+    "priority": 135
+  },
+  "defaults": {
+    "feedBase": "https://data.cwtv.com/feed/app-2/landing/epg"
+  },
+  "headers": {
+    "User-Agent": "${ua.browser}",
+    "Accept": "application/json"
+  },
+  "cacheSeconds": 600,
+  "requests": {
+    "feed": {
+      "url": "${feedBase}/page_${page}/pagesize_75/device_web/apiversion_24/cacheversion_${time.bucket:900}",
+      "paging": { "start": 1, "maxPages": 4, "count": "channel_count", "size": "page_size", "defaultSize": 75 },
+      "items": "channels"
+    }
+  },
+  "channels": {
+    "from": "feed",
+    "filter": [
+      { "path": "slug", "op": "nonEmpty" },
+      { "path": "has_drm", "op": "falsy" },
+      { "path": "stream_type", "op": "eq", "value": "hls", "default": "hls" },
+      { "path": "stream_url", "op": "http" }
+    ],
+    "map": {
+      "id": "slug",
+      "name": { "path": "title", "fallback": "slug" },
+      "logo": { "firstHttp": ["thumbnail_url", "icon_unfocused_url"] },
+      "group": { "firstOf": ["content_category", "genre"], "before": ",", "trim": true },
+      "tags": ["us"]
+    },
+    "vars": {
+      "streamUrl": "stream_url"
+    },
+    "distinctBy": "id",
+    "requireNonEmpty": true
+  },
+  "guide": {
+    "mode": "inline",
+    "programs": "programs",
+    "map": {
+      "title": { "path": "title", "dropIf": "To Be Announced" },
+      "start": { "path": "program_start_ts", "as": "epochSeconds" },
+      "end": { "path": "program_end_ts", "as": "epochSeconds" },
+      "description": "description",
+      "subTitle": { "path": "subtitle", "unlessEquals": "title" },
+      "icon": { "path": "details_image_url", "http": true },
+      "category": "category",
+      "rating": { "path": "ratings", "usRating": true }
+    }
+  },
+  "resolve": {
+    "url": "${channel.vars.streamUrl}"
+  }
+}

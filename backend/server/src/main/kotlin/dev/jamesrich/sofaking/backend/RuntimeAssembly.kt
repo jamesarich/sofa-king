@@ -67,10 +67,12 @@ import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.TsRemux
 import dev.jamesrich.sofaking.backend.plex.HdhrDevice
 import dev.jamesrich.sofaking.backend.plex.PlexSync
+import dev.jamesrich.sofaking.backend.providers.NativeServices
 import dev.jamesrich.sofaking.backend.providers.ProviderClient
 import dev.jamesrich.sofaking.backend.providers.ProviderContext
 import dev.jamesrich.sofaking.backend.providers.ProviderHttp
 import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
+import dev.jamesrich.sofaking.backend.providers.manifest.ProviderManifests
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.settings.RuntimeSettings
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
@@ -144,6 +146,12 @@ internal class RuntimeAssembly(
     private val clock: Clock,
     private val options: RuntimeOptions,
 ) {
+    private val manifests = ProviderManifests(config.dataDirectory.resolve("providers")) { service ->
+        sources.providers.filter { it.native && it.service == service }.forEach {
+            feeds.requestRefresh(it.id)
+            guides.requestRefresh(it.id)
+        }
+    }.also { NativeServices.declare(it.guides()) }
     private val sources = loadSources(config.sourcesFile)
     private val providerIds = sources.providers.mapTo(HashSet()) { provider -> provider.id }.apply {
         add(IptvOrgClient.SERVICE)
@@ -295,7 +303,7 @@ internal class RuntimeAssembly(
         ).also { it.load() }
         iptvMatcher = IptvOrgMatcher(iptvCatalog, store, iptvOrg, clock) { policy?.requestRun("iptv-org") }
         val clients = local + IptvOrgClient.local(iptvCatalog, iptvOrg)
-        val providers = ProviderRegistry.create(feedConfigs, http, store, clock, upstream, clients)
+        val providers = ProviderRegistry.create(feedConfigs, http, store, clock, upstream, manifests, clients)
         feeds = FeedService(
             feedConfigs,
             store,
@@ -311,6 +319,7 @@ internal class RuntimeAssembly(
         }
         feeds.initialize()
         iptvCatalog.start(scope, settings)
+        manifests.start(scope, jobs)
         guides = GuideService(sources.allGuides, store, http, clock, upstream, providers, onImported = {
             policy?.requestRun("guides")
             dvrService?.requestSchedule("guides")

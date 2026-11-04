@@ -88,6 +88,7 @@ nav:
       - HTTP API: backend/docs/api.md
       - API reference: api/index.html
       - Native providers: backend/docs/providers.md
+      - Provider manifests: backend/docs/provider-manifests.md
       - Lineup policy: backend/docs/lineup-policy.md
       - Source health: backend/docs/source-health.md
       - Wire contract: contract/README.md

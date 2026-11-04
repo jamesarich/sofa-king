@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import dev.jamesrich.sofaking.backend.catalog.ProgramRating
+import dev.jamesrich.sofaking.backend.providers.manifest.ProviderManifests
 import kotlinx.serialization.Serializable
 import java.net.URLEncoder
 import java.time.Instant
@@ -63,17 +64,28 @@ interface ProviderClient {
 
 /** Which services exist and whether each carries a guide of its own, known before any client is built. */
 object NativeServices {
-    private val guides = mapOf(
-        "whale" to true, "vizio" to true, "lg" to true, "freelivesports" to true, "hallmark" to true,
+    private val coded = mapOf(
+        "whale" to true, "vizio" to true, "lg" to true, "freelivesports" to true,
         "ballysports" to true, "adultswim" to true, "pbs" to true, "samsung" to false, "plex" to true, "stirr" to true,
         "tcl" to true, "roku" to false, "localnow" to true, "xumo" to true, "pluto" to true, "tubi" to true,
-        "hdhomerun" to true, "zeam" to true, "ognetwork" to true, "cw" to true, "mansa" to true,
+        "hdhomerun" to true, "zeam" to true, "ognetwork" to true, "mansa" to true,
         "direct" to false, "virtual" to true, "iptv-org" to false,
     )
 
-    val names: Set<String> get() = guides.keys
+    private val guides: Map<String, Boolean> =
+        coded + ProviderManifests.shipped.mapValues { it.value.manifest.hasGuide }
 
-    fun hasGuide(service: String): Boolean = guides[service] == true
+    /** Services found only in the data directory's manifests, declared at start. */
+    @Volatile private var declared: Map<String, Boolean> = emptyMap()
+
+    val names: Set<String> get() = guides.keys + declared.keys
+
+    fun hasGuide(service: String): Boolean = (guides[service] ?: declared[service]) == true
+
+    /** Makes the services of the data directory's manifests known; the shipped ones already are. */
+    fun declare(manifests: Map<String, Boolean>) {
+        declared = manifests - guides.keys
+    }
 
     /** An XMLTV guide published for the service, used when the service has no guide API of its own. */
     fun defaultGuideUrl(service: String, options: Map<String, String>): String? = when (service) {

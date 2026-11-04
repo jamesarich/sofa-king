@@ -4,6 +4,8 @@ import dev.jamesrich.sofaking.backend.catalog.FeedConfig
 import dev.jamesrich.sofaking.backend.catalog.Offering
 import dev.jamesrich.sofaking.backend.catalog.ParsedPlaylist
 import dev.jamesrich.sofaking.backend.catalog.stableId
+import dev.jamesrich.sofaking.backend.providers.manifest.ManifestClient
+import dev.jamesrich.sofaking.backend.providers.manifest.ProviderManifests
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.deleteProviderState
 import dev.jamesrich.sofaking.backend.store.providerState
@@ -222,14 +224,19 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
             store: BackendStore,
             clock: Clock,
             policy: UpstreamPolicy,
+            manifests: ProviderManifests,
             /** Clients the server builds from its own parts, by service, such as `virtual`. */
             local: Map<String, (ProviderContext) -> ProviderClient> = emptyMap(),
         ): ProviderRegistry {
             val transport = ProviderHttp(http, policy)
+            val fromManifests = manifests.services.associateWith { service ->
+                { context: ProviderContext -> ManifestClient(context, manifests, service) }
+            }
+            val built = fromManifests + local
             val clients = configs.filter { it.native }.associate { config ->
                 val context = ProviderContext(config.id, config.options, transport, clock, store)
                 val service = requireNotNull(config.service)
-                config.id to (local[service]?.invoke(context) ?: client(service, context))
+                config.id to (built[service]?.invoke(context) ?: client(service, context))
             }
             return ProviderRegistry(clients, clock)
         }
@@ -239,7 +246,6 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
             "vizio" -> VizioClient(context)
             "lg" -> LgClient(context)
             "freelivesports" -> FreeLiveSportsClient(context)
-            "hallmark" -> HallmarkClient(context)
             "ballysports" -> BallySportsClient(context)
             "adultswim" -> AdultSwimClient(context)
             "pbs" -> PbsClient(context)
@@ -256,7 +262,6 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
             "direct" -> DirectClient(context)
             "zeam" -> ZeamClient(context)
             "ognetwork" -> OgNetworkClient(context)
-            "cw" -> CwClient(context)
             "mansa" -> MansaClient(context)
             else -> throw IllegalArgumentException("Unknown native service $service")
         }

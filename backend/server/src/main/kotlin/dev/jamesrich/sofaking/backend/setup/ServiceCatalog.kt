@@ -1,5 +1,8 @@
 package dev.jamesrich.sofaking.backend.setup
 
+import dev.jamesrich.sofaking.backend.providers.manifest.ManifestCatalog
+import dev.jamesrich.sofaking.backend.providers.manifest.ProviderManifests
+
 /** One option a service takes from the source file, as the portal asks for it. [pattern] is what a value must match. */
 class ServiceOption(
     val key: String,
@@ -66,7 +69,7 @@ object ServiceCatalog {
             pattern = Regex("https?://[^\\s/]+"),
         )
 
-    val all: List<ServiceInfo> = listOf(
+    private val coded: List<ServiceInfo> = listOf(
         ServiceInfo(
             "direct",
             "Broadcasters' own feeds",
@@ -84,7 +87,6 @@ object ServiceCatalog {
         ServiceInfo("tcl", "TCL TV+", "TCL's free channels"),
         ServiceInfo("stirr", "STIRR", "Sinclair's local and national channels"),
         ServiceInfo("freelivesports", "FreeLiveSports.tv", "Free sports channels"),
-        ServiceInfo("cw", "The CW", "The CW app's free channels, such as ION, Court TV and FilmRise"),
         ServiceInfo("zeam", "Zeam", "Local news and free channels from Zeam"),
         ServiceInfo("ognetwork", "OG Network", "OG Network's free channels"),
         ServiceInfo("mansa", "Mansa", "Mansa's free channels of Black culture"),
@@ -96,7 +98,6 @@ object ServiceCatalog {
             listOf(zip),
             startsOn = false,
         ),
-        ServiceInfo("hallmark", "Hallmark+", "Four Hallmark channels"),
         ServiceInfo("ballysports", "Bally Sports", "Bally Sports' free channels"),
         ServiceInfo("adultswim", "Adult Swim marathons", "Adult Swim's marathon streams"),
         ServiceInfo(
@@ -111,6 +112,27 @@ object ServiceCatalog {
             "Channels you schedule from your own libraries, on the Channels page's Virtual tab",
             startsOn = false,
         ),
+    )
+
+    /**
+     * The coded services at priorities 10, 20, 30... in list order, with each shipped manifest's catalog block among
+     * them by its `priority`; a tie goes to the coded service.
+     */
+    val all: List<ServiceInfo> = (
+        coded.mapIndexed { index, info -> (index + 1) * PRIORITY_STEP to info } +
+            ProviderManifests.shipped.values.mapNotNull { loaded ->
+                loaded.manifest.catalog?.let { it.priority to info(loaded.manifest.service, it) }
+            }
+        ).sortedBy { it.first }.map { it.second }
+
+    private const val PRIORITY_STEP = 10
+
+    private fun info(service: String, catalog: ManifestCatalog) = ServiceInfo(
+        service,
+        catalog.label,
+        catalog.carries,
+        catalog.options.map { ServiceOption(it.key, it.label, it.hint, it.required, it.pattern?.let(::Regex)) },
+        catalog.startsOn,
     )
 
     fun byService(service: String): ServiceInfo? = all.firstOrNull { it.service == service }

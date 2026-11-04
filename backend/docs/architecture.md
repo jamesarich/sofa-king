@@ -88,6 +88,8 @@ A `<!DOCTYPE tv SYSTEM "xmltv.dtd">` declaration is accepted. The DTD is never f
 
 The registry derives channel and source IDs the way `FeedParser` does, with `svc://service/id` as the source URL. Identities are deterministic, and the lineup, health and outputs see ordinary HLS sources. `FeedService.playable(offering)` is the one seam. A native source resolves through the registry: cached per source, single-flight, dropped a minute before expiry and kept at most six hours. Any other source returns its own URL and provider headers. `MediaRelay`, `ProbeWorker` and the HDHomeRun remux fetch what `playable` returns. The relay substitutes the resolved URL for the session's root resource only, since child playlists and segments are absolute by the time the player asks for them.
 
+A service whose answers are JSON can be a manifest instead of a class: `providers/manifest/` holds the schema and `ManifestClient`, a `ProviderClient` that reads its manifest, shipped in the jar or overridden from the data directory and reloaded by a job, on every call. [Provider manifests](provider-manifests.md) has the schema.
+
 A `ProviderFailure` is transient (provider evidence, `502` to a session) or not (the channel is gone, evidence against the source). `ProviderContext` gives each client its options and HTTP through the upstream address policy, with hand-followed redirects that keep `Authorization` and `Cookie` on the requested origin, gzip detection and the cookies a response sets. It also gives a short-lived shared cache for the service's payload and durable state in `provider_state`: one random device ID per provider per install, and session tokens with expiry.
 
 ## Identity

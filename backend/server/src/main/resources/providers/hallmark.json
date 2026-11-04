@@ -1,0 +1,75 @@
+{
+  "service": "hallmark",
+  "version": 1,
+  "hasGuide": true,
+  "catalog": {
+    "label": "Hallmark+",
+    "carries": "Four Hallmark channels",
+    "priority": 185
+  },
+  "defaults": {
+    "apiBase": "https://www.hallmarkplus.com/api/core/catalog",
+    "streamBase": "https://crwn-%s.akamaized.net/hls/playlist.m3u8"
+  },
+  "headers": {
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "application/json, text/plain, */*",
+    "Origin": "https://www.hallmarkplus.com",
+    "Referer": "https://www.hallmarkplus.com/"
+  },
+  "requests": {
+    "catalog": {
+      "url": "${apiBase}/channels",
+      "items": "data",
+      "optional": true,
+      "cacheSeconds": 3600
+    },
+    "schedule": {
+      "url": "${apiBase}/channels/${channel.vars.contentId}/schedule?from=${time.floorHour:-1h}&until=${time.floorHour:+47h}&locale=en",
+      "items": "data"
+    }
+  },
+  "channels": {
+    "static": [
+      { "id": "hallmark_hits", "name": "Non-Stop Hallmark Hits", "number": "9001", "identifier": "HLIVE_HMH", "host": "hits" },
+      { "id": "hallmark_romcoms", "name": "Non-Stop Rom-Coms", "number": "9002", "identifier": "HLIVE_ROMCOM", "host": "nsrc" },
+      { "id": "hallmark_christmas", "name": "Non-Stop Christmas", "number": "9003", "identifier": "HLIVE_NSC", "host": "christmas" },
+      { "id": "hallmark_mysteries", "name": "Non-Stop Mysteries", "number": "9004", "identifier": "HLIVE_MSM", "host": "mysteries" }
+    ],
+    "map": {
+      "id": "id",
+      "name": "name",
+      "number": "number",
+      "group": { "value": "Movies" },
+      "tags": ["us"]
+    },
+    "vars": {
+      "identifier": "identifier",
+      "host": "host"
+    },
+    "join": {
+      "request": "catalog",
+      "key": "extras.channelIdentifier",
+      "on": "${channel.vars.identifier}",
+      "vars": { "contentId": "id" },
+      "set": { "logo": { "path": "images.logo.landscape.0.url", "http": true } }
+    }
+  },
+  "guide": {
+    "mode": "perChannel",
+    "request": "schedule",
+    "requireVar": "contentId",
+    "map": {
+      "title": { "firstOf": ["display.epg.title", "title"] },
+      "start": { "path": "schedule.startsAt", "as": "iso" },
+      "end": { "path": "schedule.endsAt", "as": "iso" },
+      "description": { "firstOf": ["description", "display.epg.description"] }
+    }
+  },
+  "resolve": {
+    "url": "${streamBase}",
+    "format": ["${channel.vars.host}"],
+    "headers": { "User-Agent": "Mozilla/5.0" },
+    "missing": "Unknown Hallmark channel"
+  }
+}

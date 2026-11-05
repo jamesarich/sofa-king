@@ -19,6 +19,8 @@
   "ipad-library.png": {"webp": "ipad-library.webp", "width": 960},
   "iphone-guide.png": {"webp": "iphone-guide.webp", "width": 960},
   "iphone-player.png": {"webp": "iphone-player.webp", "width": 960},
+  "web-library.png": {"webp": "web-library.webp", "width": 960},
+  "web-show.png": {"webp": "web-show.webp", "width": 960},
   "android-phone-guide-light.png": {"webp": "android-phone-guide-light.webp", "width": 540},
   "android-phone-library-light.png": {"webp": "android-phone-library-light.webp", "width": 540},
   "desktop-guide-light.png": {"webp": "desktop-guide-light.webp", "width": 960},

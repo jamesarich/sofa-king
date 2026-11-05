@@ -1,17 +1,92 @@
-# XcodeGen spec for the Apple TV app; `xcodegen` in this directory writes SofaKingTV.xcodeproj.
-# The app is SwiftUI on top of core's SofaKingCore framework: Compose Multiplatform does not render on tvOS.
-name: SofaKingTV
+# XcodeGen spec for the SwiftUI Apple apps on core's SofaKingCore framework; `xcodegen` in this directory writes
+# SofaKing.xcodeproj with the SofaKing (iPhone and iPad) and SofaKingTV (Apple TV) schemes. Shared/ builds into both.
+name: SofaKing
 options:
   # Writes ../build/Version.xcconfig (MARKETING_VERSION from the catalog's `sofaking` version) before generating.
   preGenCommand: ../tools/version-xcconfig.sh
   bundleIdPrefix: dev.jamesrich
   deploymentTarget:
+    iOS: "17.0"
     tvOS: "17.0"
 targets:
+  SofaKing:
+    type: application
+    platform: iOS
+    supportedDestinations: [iOS]
+    sources: [Shared, iOS]
+    configFiles:
+      Debug: ../build/Version.xcconfig
+      Release: ../build/Version.xcconfig
+    info:
+      path: iOS/Info.plist
+      properties:
+        CFBundleDisplayName: Sofa King
+        # XcodeGen fills in the bundle name, identifier, version (from Version.xcconfig), executable and package type.
+        LSApplicationCategoryType: public.app-category.entertainment
+        NSHumanReadableCopyright: "© 2026 James Rich. GPL-3.0-only; source at https://github.com/jamesarich/sofa-king."
+        # Only HTTPS and the system's TLS, so export compliance needs no declaration on each upload.
+        ITSAppUsesNonExemptEncryption: false
+        CADisableMinimumFrameDurationOnPhone: true
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # The Sofa King server serves plain HTTP on the LAN, as Android's network_security_config allows.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSLocalNetworkUsageDescription: Sofa King connects to your Sofa King server on this network.
+        # Settings lists the servers that advertise this type; iOS browses only for types listed here.
+        NSBonjourServices: [_sofaking._tcp]
+        # Music plays on behind the app and on the lock screen, and a channel carries on in Picture in Picture.
+        UIBackgroundModes: [audio]
+        # The admin portal's QR code pairs the app with `sofaking://pair?server=…&code=…`; `sofaking://live` and `sofaking://vod` links play.
+        CFBundleURLTypes:
+          - CFBundleURLName: dev.jamesrich.sofaking
+            CFBundleURLSchemes: [sofaking]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jamesrich.sofaking
+        # Assets.xcassets holds the app icon, the amber accent and the launch color.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # core has no iosX64 target, so simulator builds are Apple silicon only.
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
+        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../core/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        OTHER_LDFLAGS: [-framework, SofaKingCore]
+    preBuildScripts:
+      - name: Build the Kotlin framework
+        basedOnDependencyAnalysis: false
+        script: |
+          cd "$SRCROOT/.."
+          ./gradlew :core:embedAndSignAppleFrameworkForXcode
+    # `xcodebuild test` runs the touch tests; they skip without the fixture server (docs/development.md).
+    scheme:
+      testTargets: [SofaKingUITests]
+  # The app driven by touch against app/scripts/fixture_server.py, and against a real server for the break check.
+  SofaKingUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [SofaKingUITests]
+    dependencies:
+      - target: SofaKing
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jamesrich.sofaking.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
   SofaKingTV:
     type: application
     platform: tvOS
-    sources: [SofaKingTV]
+    sources: [Shared, tvOS]
     dependencies:
       - target: TopShelf
         embed: true
@@ -19,7 +94,7 @@ targets:
       Debug: ../build/Version.xcconfig
       Release: ../build/Version.xcconfig
     info:
-      path: SofaKingTV/Info.plist
+      path: tvOS/Info.plist
       properties:
         CFBundleDisplayName: Sofa King
         # XcodeGen fills in the bundle name, identifier, version (from Version.xcconfig), executable and package type.
@@ -43,7 +118,7 @@ targets:
             CFBundleURLSchemes: [sofaking]
     # The app group carries the recent channels to the Top Shelf extension; both targets must be signed for it.
     entitlements:
-      path: SofaKingTV/SofaKingTV.entitlements
+      path: tvOS/SofaKingTV.entitlements
       properties:
         com.apple.security.application-groups: [group.dev.jamesrich.sofaking]
     settings:
@@ -82,7 +157,7 @@ targets:
   TopShelf:
     type: app-extension
     platform: tvOS
-    sources: [TopShelf, SofaKingTV/TopShelfContent.swift]
+    sources: [TopShelf, tvOS/TopShelfContent.swift]
     configFiles:
       Debug: ../build/Version.xcconfig
       Release: ../build/Version.xcconfig

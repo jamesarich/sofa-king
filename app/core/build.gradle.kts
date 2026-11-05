@@ -21,7 +21,7 @@ kotlin {
     // Every Apple, Linux and web target the dependency set publishes; Windows native is left out because
     // DataStore has no mingw build, and the JVM covers Windows desktops.
     macosArm64()
-    // The SwiftUI Apple apps link core directly (tvosApp, since Compose Multiplatform has no tvOS renderer).
+    // The SwiftUI Apple apps link core directly (appleApp, since Compose Multiplatform has no tvOS renderer).
     listOf(iosArm64(), iosSimulatorArm64(), tvosArm64(), tvosSimulatorArm64()).forEach { target ->
         target.binaries.framework {
             baseName = "SofaKingCore"

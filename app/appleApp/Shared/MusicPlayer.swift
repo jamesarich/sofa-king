@@ -20,7 +20,7 @@ final class MusicPlayer {
     private(set) var liked = false
 
     private let core: SofaKingTv
-    private let player = AVPlayer()
+    private let player: AVPlayer = AppPlayer()
     @ObservationIgnored private var observers: [AnyCancellable] = []
     @ObservationIgnored private var opening: Task<Void, Never>?
     /// Counts the songs opened, so a session that opens after the viewer moved on is let go of.

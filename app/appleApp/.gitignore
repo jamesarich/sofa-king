@@ -1,0 +1,7 @@
+SofaKing.xcodeproj/
+iOS/Info.plist
+tvOS/Info.plist
+tvOS/SofaKingTV.entitlements
+TopShelf/Info.plist
+TopShelf/TopShelf.entitlements
+build/

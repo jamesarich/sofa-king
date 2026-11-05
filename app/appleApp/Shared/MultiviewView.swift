@@ -18,7 +18,7 @@ struct MultiviewView: View {
     @State private var picked: [String]
     @State private var watching = false
     @State private var audio = 0
-    @State private var player = AVPlayer()
+    @State private var player: AVPlayer = AppPlayer()
     @State private var itemObservers: [AnyCancellable] = []
     @State private var failure: String?
     @State private var opening: Task<Void, Never>?
@@ -90,27 +90,59 @@ struct MultiviewView: View {
                 }
             }
             .navigationTitle("Multiview")
+            #if os(iOS)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+            }
+            #endif
         }
         .onExitCommand { dismiss() }
     }
 
-    private var picture: some View {
-        Button { watchTile() } label: {
-            ZStack {
-                LivePicture(player: player).background(.black)
-                if namesShown { names }
-                if let failure {
-                    Text(failure).padding().background(.thinMaterial, in: .rect(cornerRadius: 16))
-                }
+    private var pictureContent: some View {
+        ZStack {
+            LivePicture(player: player).background(.black)
+            if namesShown { names }
+            if let failure {
+                Text(failure).padding().background(.thinMaterial, in: .rect(cornerRadius: 16))
             }
-            .ignoresSafeArea()
         }
-        .buttonStyle(BareButtonStyle())
-        .accessibilityLabel(pictureLabel)
         .ignoresSafeArea()
-        .onMoveCommand { direction in move(direction) }
-        .onExitCommand { back() }
     }
+
+    #if os(tvOS)
+    private var picture: some View {
+        Button { watchTile() } label: { pictureContent }
+            .buttonStyle(BareButtonStyle())
+            .accessibilityLabel(pictureLabel)
+            .ignoresSafeArea()
+            .onMoveCommand { direction in move(direction) }
+            .onExitCommand { back() }
+    }
+    #else
+    /// A tap on the tile with the sound watches it full screen; a tap on another tile moves the sound there.
+    private var picture: some View {
+        GeometryReader { geometry in
+            pictureContent
+                .contentShape(.rect)
+                .onTapGesture { location in
+                    let tiles = picked.indices.filter { Self.tile($0, of: picked.count, in: geometry.size).contains(location) }
+                    guard let tile = tiles.first, tile != audio else { return watchTile() }
+                    moveAudio(to: tile)
+                }
+        }
+        .accessibilityLabel(pictureLabel)
+        .accessibilityIdentifier("multiview-picture")
+        .ignoresSafeArea()
+        .overlay(alignment: .topLeading) {
+            Button { back() } label: {
+                Image(systemName: "chevron.left").padding(12).background(.thinMaterial, in: .circle)
+            }
+            .accessibilityLabel("Back")
+            .padding(12)
+        }
+    }
+    #endif
 
     /// What VoiceOver reads for the picture: the channel whose sound plays, and that a press watches it full screen.
     private var pictureLabel: String {
@@ -153,7 +185,9 @@ struct MultiviewView: View {
         case .right: to = from % 2 == 0 ? from + 1 : from
         case .up: to = count > 2 && from >= 2 ? from - 2 : from
         case .down: to = count > 2 && from < 2 ? from + 2 : from
+        #if os(tvOS)
         @unknown default: to = from
+        #endif
         }
         return to < count ? to : from
     }
@@ -190,7 +224,10 @@ struct MultiviewView: View {
 
     private func move(_ direction: MoveCommandDirection) {
         flashNames()
-        let to = Self.moved(direction, from: audio, count: picked.count)
+        moveAudio(to: Self.moved(direction, from: audio, count: picked.count))
+    }
+
+    private func moveAudio(to: Int) {
         guard to != audio else { return }
         audio = to
         guard failure == nil, player.currentItem != nil else {

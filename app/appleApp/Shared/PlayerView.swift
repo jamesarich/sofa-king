@@ -50,7 +50,8 @@ struct PlayerView: View {
         _channel = State(initialValue: channel)
     }
 
-    var body: some View {
+    /// The picture with its failure card, and on iOS the close button and the menu over it.
+    private var picture: some View {
         ZStack {
             PlayerController(
                 player: player,
@@ -58,11 +59,44 @@ struct PlayerView: View {
                 actions: breakActions,
                 itemsContext: itemsContext,
                 breakScreen: breakScreen
-            ).ignoresSafeArea()
+            )
             if let failure {
                 Text(failure).padding().background(.thinMaterial, in: .rect(cornerRadius: 16))
             }
+            #if os(iOS)
+            PlayerChrome(
+                menus: menuItems,
+                actions: breakActions,
+                close: { dismiss() },
+                watching: "\(channel.number.formatted()) \(channel.name)"
+            )
+            #endif
         }
+    }
+
+    @ViewBuilder
+    private var screen: some View {
+        #if os(iOS)
+        // Portrait puts the picture on top and the channel list below it; landscape gives the picture the whole screen.
+        GeometryReader { geometry in
+            let portrait = geometry.size.height > geometry.size.width
+            VStack(spacing: 0) {
+                picture
+                    .background(.black)
+                    .aspectRatio(portrait ? 16.0 / 9 : nil, contentMode: .fit)
+                    .ignoresSafeArea(edges: portrait ? [] : .all)
+                if portrait { PlayerChannelList(current: channel) { switchTo($0) } }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(portrait ? Color.sofaPlum : .black)
+        }
+        #else
+        picture.ignoresSafeArea()
+        #endif
+    }
+
+    var body: some View {
+        screen
         .fullScreenCover(item: $fromStart, onDismiss: { Task { await tune() } }) { request in
             VodPlayerView(request: request)
         }
@@ -454,7 +488,9 @@ private struct PlayerController: UIViewControllerRepresentable {
 
     final class Coordinator {
         let hosting = UIHostingController<BreakScreen?>(rootView: nil)
+        #if os(tvOS)
         let items = TransportBarItems()
+        #endif
     }
 
     func makeCoordinator() -> Coordinator {
@@ -467,7 +503,11 @@ private struct PlayerController: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
+        #if os(tvOS)
         context.coordinator.items.apply(menus: menuItems, actions: actions, context: itemsContext, to: controller)
+        #else
+        controller.configureForPhone()
+        #endif
         if let overlay = controller.contentOverlayView {
             context.coordinator.hosting.view.frame = overlay.bounds
             overlay.addSubview(context.coordinator.hosting.view)
@@ -477,7 +517,9 @@ private struct PlayerController: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
+        #if os(tvOS)
         context.coordinator.items.apply(menus: menuItems, actions: actions, context: itemsContext, to: controller)
+        #endif
         context.coordinator.hosting.rootView = breakScreen
     }
 }

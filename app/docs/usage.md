@@ -264,6 +264,17 @@ Where captions are drawn depends on the platform:
 
 On Android, caption timing shifts captions against the picture so live captions align with speech. Press CC, then within three seconds use Right to show them earlier or Left to show them later, in half-second steps, up to 8 seconds either way; each press keeps the window open and the toast shows the timing. The info bar shows the channel's timing as "CC 2.0 s early" or "CC 1.5 s late". Timing is saved per channel; Settings sets the default timing. Showing captions earlier buffers the video by that much, so it also means a longer wait when a channel starts; showing them later does not.
 
+## iPhone and iPad
+
+The SwiftUI iPhone and iPad app shares its screens with the Apple TV app and works as the other apps do, apart from these differences. The Compose iOS app is still built beside it.
+
+- **Live.** The Live tab lists the channels with what is on now, under All, Favorites and Recent, with Search and, on a server that offers it, On later. Tap a channel to watch it full screen; hold it for Details and the favorite toggle. There is no guide grid, 24-hour window or preview.
+- **Live player.** It is the system player: its scrubber, captions, AirPlay and Picture in Picture, which also starts when you leave the app, and Control Center and the lock screen show the program on now. The chevron at the top left closes it. The button at the top right opens the menu the Apple TV keeps in its transport bar: Record, the favorite toggle, the channels, Multiview, Sleep timer and, while the program is being recorded, Watch from start. In portrait the channel list sits under the picture, and a tap tunes another channel. Show picture over the break screen is a button over the picture.
+- **Library player.** The same system player. The menu button holds Audio, Subtitles, Playback Speed, Subtitle timing and Sleep timer, which do what [their counterparts](#speed-audio-and-subtitles) do, in place of the stream card's audio picker. Skip break, Skip intro, Skip credits and Next episode are buttons over the picture. A recording's breaks do not show on the scrubber.
+- **Multiview.** Tick two to four channels and choose Watch. A tap on the tile with the sound watches it full screen, and a tap on another tile moves the sound there.
+- **Not in this app.** The audio visualizer, the guide grid and its 24-hour window, the mini guide in the player and the Open-source licenses page.
+- **Links.** `sofaking://` links open the app as on Apple TV, apart from the Top Shelf's.
+
 ## Apple TV
 
 The Apple TV app works as the other apps do, apart from these differences.

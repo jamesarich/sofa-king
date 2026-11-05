@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # Writes app/build/Version.xcconfig from the catalog's `sofaking` version, so the iOS and Apple TV hosts carry the same
-# version as every other build. XcodeGen runs it as the preGenCommand of app/iosApp and app/tvosApp.
+# version as every other build. XcodeGen runs it as the preGenCommand of app/iosApp and app/appleApp.
 set -eu
 app=$(cd "$(dirname "$0")/.." && pwd)
 version=$(sed -n 's/^sofaking = "\(.*\)"$/\1/p' "$app/../gradle/libs.versions.toml")

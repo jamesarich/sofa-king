@@ -12,7 +12,7 @@ Sofa King is a Kotlin Multiplatform project. One Compose Multiplatform UI on Mat
 | `androidApp` | The Android application: manifest, launcher and TV banner, `SofaKingApplication` and `MainActivity` | Android |
 | `baselineprofile` | The Baseline Profile generator for `androidApp`, which [development](development.md#baseline-profile) runs on a device | Android |
 | `iosApp` | The SwiftUI host for the `SofaKingUi` framework, as an XcodeGen spec | iOS |
-| `tvosApp` | The SwiftUI Apple TV app on the `SofaKingCore` framework (`SofaKingTv` in `core/appleHostMain`), as an XcodeGen spec | tvOS |
+| `appleApp` | The SwiftUI iPhone, iPad and Apple TV apps on the `SofaKingCore` framework (`SofaKingTv` in `core/appleHostMain`), as one XcodeGen spec with a `SofaKing` and a `SofaKingTV` target. `Shared/` builds into both, `iOS/` and `tvOS/` hold what differs, and `TopShelf/` is the Apple TV extension | iOS, tvOS |
 
 `core` targets everything its dependencies publish, so a native host such as a SwiftUI tvOS app can use the same data layer without Compose. Windows native is absent because DataStore has no mingw build; the JVM covers Windows desktops.
 
@@ -139,7 +139,7 @@ Music plays apart from any page. `MusicPlayback`, which the app holds beside the
 | Desktop | A second, silent libVLC player (`VlcAudioTap`) that follows the heard one's stream and position and hands its PCM to the analyzer through an audio callback, running only while a visualizer draws, since libVLC's own output cannot be tapped without taking it over |
 | iOS | An `MTAudioProcessingTap` on the item's audio track (`AvAudioTap`). AVFoundation does not run it on an HLS stream, so a song the server converts to HLS shows a quiet picture |
 
-The Apple TV app plays music on its own AVPlayer (`MusicPlayer` in `tvosApp`) over the same queue and session calls (`TvMusic`), with `MPNowPlayingInfoCenter` and `MPRemoteCommandCenter` for the system's Now Playing; it sends `Sofa-Library-Kinds: music` too.
+The Apple TV app plays music on its own AVPlayer (`MusicPlayer` in `appleApp/Shared`) over the same queue and session calls (`TvMusic`), with `MPNowPlayingInfoCenter` and `MPRemoteCommandCenter` for the system's Now Playing; it sends `Sofa-Library-Kinds: music` too.
 
 `VodPlayerScreen` plays the held item for library files and recordings. The [seek steps](usage.md#library-player) are `AppSettings.seekSteps`, and the presses build a target on the seek bar that applies once they rest for 0.7 seconds or on OK. The seek plan (`vodSeekPlan` in `VodPlayback.kt`) seeks in the player when the target is in the stream it holds and calls `restartAt` otherwise. Breaks passed in `VodTitle.markers` show on the bar, and with `skips.commercialBreaks` set to `AUTO` playback that runs into one jumps to its end (`BUTTON` offers Skip break, `OFF` nothing); a seek into a break stays there. While another app is in front the screen saves the position, and back in front it reopens the item there itself, so the app's ON_START resume and its replaced-stream handler leave library items to it. Leaving or reaching the end saves the position and releases the session for good.
 

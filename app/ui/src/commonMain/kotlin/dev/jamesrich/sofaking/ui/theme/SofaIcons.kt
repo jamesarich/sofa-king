@@ -9,10 +9,8 @@ import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
 
 /**
- * The player's icons that the core Material icon set lacks, copied from Material Icons 1.7.3 (Apache 2.0). The
- * extended set is a dependency the Kotlin/JS production build cannot shrink in a reasonable time: minifying it took
- * the web distribution from one minute to over twenty, so the icons the player and the
- * app's tabs need live here instead.
+ * The player's icons that the core Material icon set lacks, copied from Material Icons 1.7.3 (Apache 2.0), so the
+ * app does not depend on the extended set for the few it uses.
  */
 internal object SofaIcons {
     val Audiotrack: ImageVector by lazy {

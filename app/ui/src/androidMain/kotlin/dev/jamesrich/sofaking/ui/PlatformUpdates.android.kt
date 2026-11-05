@@ -17,7 +17,3 @@ internal actual fun rememberUpdateInstaller(): UpdateInstaller? {
     if (LocalInspectionMode.current) return null
     return remember(context) { appUpdateInstaller(context) }
 }
-
-internal actual val pageServerUrl: String? = null
-
-internal actual val updatesWithServer: Boolean = false

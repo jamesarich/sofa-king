@@ -76,7 +76,7 @@ private val HANDHELD_MARGIN_VERTICAL = 12.dp
 private val TvOverscan =
     WindowInsets(left = 48.dp, top = TV_OVERSCAN_VERTICAL, right = 48.dp, bottom = TV_OVERSCAN_VERTICAL)
 
-/** Breathing room beyond the system bars and cutouts on a phone, tablet, desktop or browser. */
+/** Breathing room beyond the system bars and cutouts on a phone, tablet or desktop. */
 private val HandheldMargin =
     WindowInsets(left = 16.dp, top = HANDHELD_MARGIN_VERTICAL, right = 16.dp, bottom = HANDHELD_MARGIN_VERTICAL)
 

@@ -80,7 +80,7 @@ import kotlin.math.abs
  * it once and calls [onPairingHandle], so a restored activity does not claim it again. [link] is a library item or a
  * live channel to play from a `sofaking://vod` or `sofaking://live` link, such as the Android TV home screen's Watch
  * Next row or a home automation's shortcut, handed back the same way through [onLinkHandle]. [windowFullScreen] is
- * the host window's full screen where the app can switch it (a desktop window, a browser page). [onLaunchReady]
+ * the host window's full screen where the app can switch it (a desktop window). [onLaunchReady]
  * runs once the cold start knows its first page, which a platform's launch screen waits for. [onDarkThemeChange] is
  * told whether the app draws dark, so the host can set its system bars' icons to match.
  */

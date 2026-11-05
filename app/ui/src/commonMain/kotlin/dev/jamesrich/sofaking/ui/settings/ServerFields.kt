@@ -61,11 +61,9 @@ import dev.jamesrich.sofaking.resources.settings_server_reloading
 import dev.jamesrich.sofaking.resources.settings_server_unreachable
 import dev.jamesrich.sofaking.resources.settings_server_url
 import dev.jamesrich.sofaking.resources.settings_server_url_invalid
-import dev.jamesrich.sofaking.resources.settings_server_use_page
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.announcesChanges
 import dev.jamesrich.sofaking.ui.label
-import dev.jamesrich.sofaking.ui.pageServerUrl
 import dev.jamesrich.sofaking.ui.rememberIsTelevision
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.SofaButton
@@ -127,7 +125,7 @@ internal class ServerFields(
  */
 @Composable
 internal fun rememberServerFields(settings: AppSettings, pairing: PairingUi): ServerFields {
-    val serverUrl = rememberStoredFieldState(settings.serverUrl.ifEmpty { pageServerUrl.orEmpty() })
+    val serverUrl = rememberStoredFieldState(settings.serverUrl)
     val apiToken = rememberStoredFieldState(settings.apiToken)
     val pairingCode = rememberTextFieldState()
     val fields = remember {
@@ -211,14 +209,6 @@ private fun ServerStatusRow(
     val status = if (unreachable) Res.string.settings_server_unreachable else Res.string.settings_server_connected
     SettingRow(label = stringResource(status, settings.serverUrl)) {
         SofaButton(onClick = { server.changing = true }) { Text(stringResource(Res.string.settings_server_change)) }
-        // A web page that cannot reach a server elsewhere most likely sits behind the proxy that serves it.
-        val page = pageServerUrl?.takeIf { unreachable && it != ServerAddress.normalizeUrl(settings.serverUrl) }
-        if (page != null) {
-            SofaButton(onClick = {
-                server.serverUrl.setTextAndPlaceCursorAtEnd(page)
-                server.changing = true
-            }) { Text(stringResource(Res.string.settings_server_use_page)) }
-        }
         // Stays enabled while it runs, so the D-pad focus never drops.
         SofaButton(onClick = { if (!reloading) onReload() }) {
             val reload = if (reloading) Res.string.settings_server_reloading else Res.string.settings_server_reload

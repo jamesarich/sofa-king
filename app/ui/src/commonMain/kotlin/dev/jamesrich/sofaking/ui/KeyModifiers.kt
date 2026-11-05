@@ -11,8 +11,8 @@ import androidx.compose.ui.input.key.key
 internal fun Key.isLetterShortcut(): Boolean = this == Key.C || this == Key.K || this == Key.M || this == Key.F
 
 /**
- * True when a letter shortcut is pressed with Ctrl, Meta or Alt held: Ctrl+C, Cmd+F and the like belong to the browser
- * or the system, so the player leaves them alone.
+ * True when a letter shortcut is pressed with Ctrl, Meta or Alt held: Ctrl+C, Cmd+F and the like belong to the
+ * system, so the player leaves them alone.
  */
 internal fun blocksLetterShortcut(key: Key, ctrl: Boolean, meta: Boolean, alt: Boolean): Boolean =
     (ctrl || meta || alt) && key.isLetterShortcut()

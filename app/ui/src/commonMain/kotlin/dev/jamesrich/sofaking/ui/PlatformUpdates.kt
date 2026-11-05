@@ -6,7 +6,7 @@ import dev.jamesrich.sofaking.data.UpdateInstaller
 
 /**
  * What Get the update opens for a published [latest] build: the Android package on Android, the release page on a
- * desktop or in a browser, or null where no package is published, so Settings says so instead.
+ * desktop, or null where no package is published, so Settings says so instead.
  */
 internal expect fun updateDownloadUrl(latest: PublishedBuild): String?
 
@@ -16,15 +16,3 @@ internal expect fun updateDownloadUrl(latest: PublishedBuild): String?
  */
 @Composable
 internal expect fun rememberUpdateInstaller(): UpdateInstaller?
-
-/**
- * The address Settings offers while none is saved: the web page's own origin, which serves the
- * API beside it; null elsewhere.
- */
-internal expect val pageServerUrl: String?
-
-/**
- * Whether this app came with the server and updates with it, so Settings checks GitHub for no newer build: the web app
- * the server serves at `/app/`; false elsewhere.
- */
-internal expect val updatesWithServer: Boolean

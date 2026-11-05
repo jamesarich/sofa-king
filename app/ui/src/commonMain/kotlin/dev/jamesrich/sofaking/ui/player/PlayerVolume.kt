@@ -44,7 +44,7 @@ import kotlin.math.roundToInt
 internal const val VOLUME_STEP = 5
 
 /**
- * The players' own volume where the app draws a control for it ([adjustable]: a desktop window or a browser page,
+ * The players' own volume where the app draws a control for it ([adjustable]: a desktop window,
  * see [LivePlayer.drawsVolumeControl]). On a TV, phone or Apple TV the system's volume rules and [gain] stays full.
  * The app restores [level] and [muted] from the settings and keeps them there; [nudges] counts the changes made by a
  * key or the wheel, which the players answer with a short pill, since nothing else on screen shows them.

@@ -267,7 +267,7 @@ internal fun PlayerBackControl(onBack: () -> Unit) {
 }
 
 /**
- * A mouse moving over the picture brings the bar up with its pointer controls, as desktop and web players do; the
+ * A mouse moving over the picture brings the bar up with its pointer controls, as desktop players do; the
  * app counts a mouse move as pointer input only here, so hovering elsewhere never changes a screen.
  */
 internal fun Modifier.showBarOnMouseMove(last: LastInput, onMove: () -> Unit): Modifier = pointerInput(last) {

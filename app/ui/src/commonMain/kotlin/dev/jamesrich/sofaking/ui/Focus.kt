@@ -41,7 +41,7 @@ internal suspend fun requestFocusWhenAttached(request: FocusRequester, frames: I
 
 /**
  * Moves focus on an arrow key that nothing under this node took, as Android does with a D-pad's. Compose on the
- * desktop and the web moves focus only on Tab, so without this a keyboard's arrows could not leave the guide's
+ * desktop moves focus only on Tab, so without this a keyboard's arrows could not leave the guide's
  * chips, reach the tabs or walk Settings. A popup, menu or dialog is a layer of its own that the app's root does not
  * reach, so each one's content takes this modifier too. Off where the platform already does it
  * ([platformMovesFocusOnArrows]).

@@ -8,7 +8,3 @@ internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = latest.
 
 @Composable
 internal actual fun rememberUpdateInstaller(): UpdateInstaller? = null
-
-internal actual val pageServerUrl: String? = null
-
-internal actual val updatesWithServer: Boolean = false

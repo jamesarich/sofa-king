@@ -61,7 +61,7 @@ internal expect fun MatchDisplayFrameRate(player: dev.jamesrich.sofaking.ui.play
 /**
  * Keeps the sound of [session] playing while the app is in the background, as the platform asks: a media playback
  * service with its notification on Android; nothing on a
- * desktop or in a browser. Null lets it stop.
+ * desktop. Null lets it stop.
  */
 @Composable
 internal expect fun KeepPlayingInBackground(session: MediaSessionHandle?)

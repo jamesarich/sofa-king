@@ -246,8 +246,8 @@ interface LivePlayer :
     var volume: Float
 
     /**
-     * True where nothing outside the app turns this player up or down for the viewer (a desktop window, a browser
-     * page), so the players draw their own volume control (see [PlayerVolume]); a TV, phone or Apple TV has the
+     * True where nothing outside the app turns this player up or down for the viewer (a desktop window),
+     * so the players draw their own volume control (see [PlayerVolume]); a TV, phone or Apple TV has the
      * system's volume keys instead.
      */
     val drawsVolumeControl: Boolean get() = false

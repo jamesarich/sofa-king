@@ -1,0 +1,83 @@
+{
+  "service": "lg",
+  "version": 1,
+  "hasGuide": true,
+  "catalog": {
+    "label": "LG Channels",
+    "carries": "LG's free channels",
+    "priority": 50
+  },
+  "defaults": {
+    "apiBase": "https://api.lgchannels.com/api/v1.0"
+  },
+  "headers": {
+    "User-Agent": "${ua.browser}",
+    "Origin": "https://lgchannels.com",
+    "Referer": "https://lgchannels.com/"
+  },
+  "cacheSeconds": 600,
+  "requests": {
+    "schedulelist": {
+      "url": "${apiBase}/schedulelist",
+      "headers": {
+        "Accept": "application/json, text/plain, */*",
+        "x-device-country": "US",
+        "x-device-language": "en",
+        "x-device-type": "WEB"
+      },
+      "decode": ["base64", "zlib"],
+      "items": "categories.*.channels.*"
+    }
+  },
+  "channels": {
+    "from": "schedulelist",
+    "map": {
+      "id": "channelId",
+      "name": "channelName",
+      "number": "channelNumber",
+      "logo": { "path": "channelLogoUrl", "http": true },
+      "group": { "firstOf": ["^.categoryName", "channelGenreName"] },
+      "tags": ["us"]
+    },
+    "filter": [
+      { "path": "mediaStaticUrl", "op": "nonEmpty" }
+    ],
+    "vars": {
+      "template": "mediaStaticUrl"
+    },
+    "distinctBy": "id",
+    "requireNonEmpty": true
+  },
+  "guide": {
+    "mode": "inline",
+    "programs": "programs",
+    "map": {
+      "title": "programTitle",
+      "start": { "path": "startDateTime", "as": "iso" },
+      "end": { "path": "endDateTime", "as": "iso" },
+      "description": "description"
+    }
+  },
+  "resolve": {
+    "url": "${channel.vars.template}",
+    "macros": {
+      "LMT": "0",
+      "DNS": "0",
+      "IP": "0.0.0.0",
+      "COUNTRY": "US",
+      "APP_NAME": "lgchannels_web",
+      "DEVICE_TYPE": "Personal Computer",
+      "COPPA": "0",
+      "VIEWSIZE": "1920x1080",
+      "DEVICE_ID": "${device.id}",
+      "NONCE": "${time.epoch}",
+      "UA": "${ua.browser}"
+    },
+    "headers": {
+      "User-Agent": "${ua.browser}",
+      "Origin": "https://lgchannels.com",
+      "Referer": "https://lgchannels.com/"
+    },
+    "expiresSeconds": 3600
+  }
+}

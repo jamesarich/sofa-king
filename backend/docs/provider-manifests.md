@@ -53,11 +53,11 @@ Each entry of `requests`:
 | `contentType` | `application/json` | Of the body |
 | `paging` | None | `start` (first `${page}`, default 1), `maxPages`, `count` and `size` (paths in the first answer; more pages follow while `count` exceeds `size`) and `defaultSize`; or `cursorPath` and `maxPages` for a [keyed guide](#guide-keyed) |
 | `decode` | `[]` | Steps from the response body to JSON, in order |
-| `items` | `""` | Path of the array of items in the answer; empty for the whole answer. An answer that is itself an array is the items whatever the path says |
+| `items` | `""` | Path of the array of items in the answer; empty for the whole answer. An answer that is itself an array is the items whatever the path says. A `*` segment steps into each element of an array (`categories.*.channels.*`), and an item read that way has the object that held its array at `^`, so `^.name` is the name of its category |
 | `optional` | `false` | A failure reads as no answer instead of failing the import |
 | `cacheSeconds` | `0` | How long the answer is shared; not for a request that uses `${channel...}` |
 
-Decode steps are `base64`, `zlib`, `gzip`, `jsonArrayAfter:<key>` (the first array after `"key":` in a page) and `nextData` (a Next.js page's state). With no steps the body is JSON.
+Decode steps are `base64`, `zlib`, `gzip`, `jsonArrayAfter:<key>` (the first array after `"key":` in a page) and `nextData` (a Next.js page's state). `base64` of a body that is already JSON ends the chain, so a service may send either form. With no steps the body is JSON.
 
 `channels`:
 

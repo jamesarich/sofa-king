@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * its input thread ends, hundreds of milliseconds on a stalled stream, and the app stops on every zap from the UI
  * thread, so each command runs on this thread, in order, while the player's status moves at once.
  */
-internal class VlcCommands {
+internal open class VlcCommands {
     /** Set by the first command, if libVLC loads; read on any thread, so the getters answer before it does. */
     @Volatile
     var factory: MediaPlayerFactory? = null
@@ -50,7 +50,7 @@ internal class VlcCommands {
     fun command(task: () -> Unit) = execute { if (player != null) task() }
 
     /** Queues [task] whether or not libVLC loaded; dropped once [shutdown] has run. */
-    fun execute(task: () -> Unit) {
+    open fun execute(task: () -> Unit) {
         try {
             thread.execute(task)
         } catch (_: RejectedExecutionException) {

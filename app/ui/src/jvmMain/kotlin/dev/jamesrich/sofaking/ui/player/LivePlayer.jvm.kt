@@ -117,6 +117,9 @@ internal class VlcLivePlayer(
     private val mutableVideoSize = MutableStateFlow<IntSize?>(null)
     override val videoSize: StateFlow<IntSize?> = mutableVideoSize.asStateFlow()
 
+    /** Above [init], whose command may run on the command thread before the constructor finishes. */
+    private val unavailable: (Throwable) -> Unit = { log.w(it) { "libVLC not found; playback is unavailable" } }
+
     init {
         commands.execute {
             // libVLC is a system install on desktops; without it every tune fails with a clear code. A missing library
@@ -137,8 +140,6 @@ internal class VlcLivePlayer(
         vlc.events().addMediaPlayerEventListener(Events())
         commands.player = vlc
     }
-
-    private val unavailable: (Throwable) -> Unit = { log.w(it) { "libVLC not found; playback is unavailable" } }
 
     override val bufferedMs: Long get() = 0L
 

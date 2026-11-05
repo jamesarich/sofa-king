@@ -255,7 +255,6 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
             "pluto" -> PlutoClient(context)
             "tubi" -> TubiClient(context)
             "hdhomerun" -> HdHomeRunClient(context)
-            "direct" -> DirectClient(context)
             "zeam" -> ZeamClient(context)
             "ognetwork" -> OgNetworkClient(context)
             else -> throw IllegalArgumentException("Unknown native service $service")

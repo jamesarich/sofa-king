@@ -1,5 +1,9 @@
-package dev.jamesrich.sofaking.backend.providers
+package dev.jamesrich.sofaking.backend.providers.manifest
 
+import dev.jamesrich.sofaking.backend.providers.Canned
+import dev.jamesrich.sofaking.backend.providers.NativeServices
+import dev.jamesrich.sofaking.backend.providers.ProviderFailure
+import dev.jamesrich.sofaking.backend.providers.providerTest
 import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -8,12 +12,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class DirectClientTest {
+class DirectManifestTest {
     @Test fun `a fixed table of broadcaster feeds with static streams and no guide`() = providerTest("sofa-direct-") {
-        val client =
-            DirectClient(
-                context("direct", mapOf("pageBase" to fixture.base)),
-            )
+        val client = manifestClient("direct", "direct", mapOf("pageBase" to fixture.base))
         val channels = client.channels()
         assertTrue(channels.size >= 20)
         assertEquals(channels.size, channels.map { it.id }.toSet().size, "ids are unique")
@@ -55,13 +56,7 @@ class DirectClientTest {
     @Test
     fun `a CBS News feed plays the event URL its live page names, read once per six hours, else the table's URL`() =
         providerTest("sofa-direct-") {
-            val client =
-                DirectClient(
-                    context(
-                        "direct",
-                        mapOf("pageBase" to fixture.base),
-                    ),
-                )
+            val client = manifestClient("direct", "direct", mapOf("pageBase" to fixture.base))
             val event = "https://dai.google.com/linear/hls/event/_xQBtL7ZSEClkNebaXzn8w/master.m3u8"
             fixture.text(
                 "/chicago/live/",
@@ -95,10 +90,7 @@ class DirectClientTest {
         }
 
     @Test fun `streamBase points every feed at another host`() = providerTest("sofa-direct-") {
-        val client =
-            DirectClient(
-                context("direct", mapOf("streamBase" to "${fixture.base}/direct/")),
-            )
+        val client = manifestClient("direct", "direct", mapOf("streamBase" to "${fixture.base}/direct/"))
         assertEquals("${fixture.base}/direct/newsmax.m3u8", client.resolve("newsmax").url)
         assertEquals(
             "${fixture.base}/direct/cbs-news-chicago.m3u8",

@@ -66,7 +66,7 @@ Decode steps are `base64`, `zlib`, `gzip`, `jsonArrayAfter:<key>` (the first arr
 | `from` | | The request that lists the channels |
 | `static` | | Channel items written in the manifest, instead of `from`; exactly one of the two |
 | `filter` | `[]` | Items that fail any filter are skipped |
-| `map` | Required | `id` and `name` (required), `logo`, `group`, `number`, `tags` (literal strings) and `tagsWhen` (`{"tag": "featured", "when": <a filter>}` adds the tag to a channel whose item passes the filter) |
+| `map` | Required | `id` and `name` (required), `logo`, `group`, `number`, `tags` (literal strings), `tagsFrom` (a field whose text is one more tag) and `tagsWhen` (`{"tag": "featured", "when": <a filter>}` adds the tag to a channel whose item passes the filter) |
 | `vars` | `{}` | Named values kept per channel, for `${channel.vars.NAME}` |
 | `join` | None | Looks up each channel in another request's items: `request`, `key` (path in the item), `on` (a template for the channel), `vars` and `set` (`logo`, `name`, `group` or `number`) to take from the match |
 | `sortBy` | None | A path to a number in the item; channels list in ascending order of it, items without one last |
@@ -117,6 +117,8 @@ The guide lists every channel and holds programs only for the channels the lineu
 | `macros` | `{}` | Values for the ad-insertion names of the URL (`[NAME]`, `{NAME}`), as templates; unnamed ones become empty |
 | `headers` | `{}` | The headers the relay sends with the stream |
 | `expiresSeconds` | None | How long the URL works |
+| `override` | None | `option` and `suffix` (a template): when the option is set, the stream is its value without a trailing `/`, a `/` and the suffix, whatever `url` says |
+| `page` | None | `url` (a template), `pattern` (a regular expression), `requireVar` (a channel variable the channel must set) and `cacheSeconds`: the first match of `pattern` in the page is the stream URL, kept for that long per channel. `url` stands in when the page cannot be read or has no match, so a feed whose address changes now and then needs no release. `override` wins over `page` |
 | `post` | None | The URL is POSTed to, and the stream URL is in the JSON answer: `urlPath` (required) or else `fallbackPath`, `body` (a template) and `contentType`. `format` and `macros` then apply to that URL, and a `macros` of `{}` still blanks the ad names left in it; an answer without a URL, or with one that is not HTTP, fails permanently |
 | `missing` | `Channel is no longer listed` | The message when the channel is gone from the service |
 

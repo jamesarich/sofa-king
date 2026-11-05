@@ -1,0 +1,389 @@
+{
+  "service": "direct",
+  "version": 1,
+  "hasGuide": false,
+  "catalog": {
+    "label": "Broadcasters' own feeds",
+    "carries": "Live news and public channels from CBS News, ARD, RTVE, Euronews and other broadcasters' own sites",
+    "priority": 10
+  },
+  "defaults": {
+    "pageBase": "https://www.cbsnews.com",
+    "streamBase": ""
+  },
+  "channels": {
+    "static": [
+      {
+        "id": "cbs-news-247",
+        "name": "CBS News 24/7",
+        "number": "9101",
+        "group": "News",
+        "region": "us",
+        "url": "https://cbsn-us.cbsnstream.cbsnews.com/out/v1/55a8648e8f134e82a470f83d562deeca/master.m3u8",
+        "page": "/live/"
+      },
+      {
+        "id": "cbs-news-baltimore",
+        "name": "CBS News Baltimore",
+        "number": "9102",
+        "group": "News",
+        "region": "us",
+        "url": "https://dai.google.com/linear/hls/event/TMUt418sQMeu1QtneYJ9ag/master.m3u8",
+        "page": "/baltimore/live/"
+      },
+      {
+        "id": "cbs-news-bay-area",
+        "name": "CBS News Bay Area",
+        "number": "9103",
+        "group": "News",
+        "region": "us",
+        "url": "https://dai.google.com/linear/hls/event/laLJwH1nS2KQAUQTF8z1Cg/master.m3u8",
+        "page": "/sanfrancisco/live/"
+      },
+      {
+        "id": "cbs-news-boston",
+        "name": "CBS News Boston",
+        "number": "9104",
+        "group": "News",
+        "region": "us",
+        "url": "https://dai.google.com/linear/hls/event/dHA193vxQ_WqZNVoC-W5MA/master.m3u8",
+        "page": "/boston/live/"
+      },
+      {
+        "id": "cbs-news-chicago",
+        "name": "CBS News Chicago",
+        "number": "9105",
+        "group": "News",
+        "region": "us",
+        "url": "https://dai.google.com/linear/hls/event/_xQBtL7ZSEClkNebaXzn8w/master.m3u8",
+        "page": "/chicago/live/"
+      },
+      {
+        "id": "cbs-news-colorado",
+        "name": "CBS News Colorado",
+        "number": "9106",
+        "group": "News",
+        "region": "us",
+        "url": "https://dai.google.com/linear/hls/event/E9CkyheTSKeGiOiICU_JBQ/master.m3u8",
+        "page": "/colorado/live/"
+      },
+      {
+        "id": "cbs-news-detroit",
+        "name": "CBS News Detroit",
+        "number": "9107",
+        "group": "News",
+        "region": "us",
+        "url": "https://dai.google.com/linear/hls/event/xnyAMOsfSV2J1b-A3nROFQ/master.m3u8",
+        "page": "/detroit/live/"
+      },
+      {
+        "id": "cbs-news-los-angeles",
+        "name": "CBS News Los Angeles",
+        "number": "9108",
+        "group": "News",
+        "region": "us",
+        "url": "https://dai.google.com/linear/hls/event/K_2aA7OVRTacJJli1oSi8w/master.m3u8",
+        "page": "/losangeles/live/"
+      },
+      {
+        "id": "cbs-news-miami",
+        "name": "CBS News Miami",
+        "number": "9109",
+        "group": "News",
+        "region": "us",
+        "url": "https://dai.google.com/linear/hls/event/_yODrBHESGSzPe3dqW4gGg/master.m3u8",
+        "page": "/miami/live/"
+      },
+      {
+        "id": "cbs-news-minnesota",
+        "name": "CBS News Minnesota",
+        "number": "9110",
+        "group": "News",
+        "region": "us",
+        "url": "https://dai.google.com/linear/hls/event/c0XucO32RNKG8oeQ351a4Q/master.m3u8",
+        "page": "/minnesota/live/"
+      },
+      {
+        "id": "cbs-news-new-york",
+        "name": "CBS News New York",
+        "number": "9111",
+        "group": "News",
+        "region": "us",
+        "url": "https://dai.google.com/linear/hls/event/jeTDC610T-OSPdiWhcl0Pg/master.m3u8",
+        "page": "/newyork/live/"
+      },
+      {
+        "id": "cbs-news-philadelphia",
+        "name": "CBS News Philadelphia",
+        "number": "9112",
+        "group": "News",
+        "region": "us",
+        "url": "https://dai.google.com/linear/hls/event/R2Kw0uvnQIW7fUmOseurzA/master.m3u8",
+        "page": "/philadelphia/live/"
+      },
+      {
+        "id": "cbs-news-pittsburgh",
+        "name": "CBS News Pittsburgh",
+        "number": "9113",
+        "group": "News",
+        "region": "us",
+        "url": "https://dai.google.com/linear/hls/event/mir-uZYjTu6-8JLMHBTKhQ/master.m3u8",
+        "page": "/pittsburgh/live/"
+      },
+      {
+        "id": "cbs-news-sacramento",
+        "name": "CBS News Sacramento",
+        "number": "9114",
+        "group": "News",
+        "region": "us",
+        "url": "https://dai.google.com/linear/hls/event/e7mp4YVGS7O_e7rqRNjKow/master.m3u8",
+        "page": "/sacramento/live/"
+      },
+      {
+        "id": "cbs-news-texas",
+        "name": "CBS News Texas",
+        "number": "9115",
+        "group": "News",
+        "region": "us",
+        "url": "https://dai.google.com/linear/hls/event/ogzLhRCkRbG3lFHHJwqaNw/master.m3u8",
+        "page": "/texas/live/"
+      },
+      {
+        "id": "bloomberg-tv",
+        "name": "Bloomberg TV",
+        "number": "9116",
+        "group": "News",
+        "region": "us",
+        "url": "https://www.bloomberg.com/media-manifest/streams/us.m3u8"
+      },
+      {
+        "id": "bloomberg-originals",
+        "name": "Bloomberg Originals",
+        "number": "9117",
+        "group": "News",
+        "region": "us",
+        "url": "https://www.bloomberg.com/media-manifest/streams/qt.m3u8"
+      },
+      {
+        "id": "cheddar",
+        "name": "Cheddar",
+        "number": "9118",
+        "group": "News",
+        "region": "us",
+        "url": "https://hls.livecdn.io/cheddar.com/cheddar/playlist.m3u8"
+      },
+      {
+        "id": "newsmax",
+        "name": "Newsmax",
+        "number": "9119",
+        "group": "News",
+        "region": "us",
+        "url": "https://nmx1ota.akamaized.net/hls/live/2107010/Live_1/index.m3u8"
+      },
+      {
+        "id": "fox-weather",
+        "name": "Fox Weather",
+        "number": "9120",
+        "group": "Weather",
+        "region": "us",
+        "url": "https://247wlive.foxweather.com/stream/index.m3u8"
+      },
+      {
+        "id": "al-jazeera-english",
+        "name": "Al Jazeera English",
+        "number": "9121",
+        "group": "News",
+        "region": "qa",
+        "url": "https://live-hls-apps-aje-fa.getaj.net/AJE/index.m3u8"
+      },
+      {
+        "id": "dw-english",
+        "name": "DW English",
+        "number": "9122",
+        "group": "News",
+        "region": "de",
+        "url": "https://dwamdstream103.akamaized.net/hls/live/2015526/dwstream103/master.m3u8"
+      },
+      {
+        "id": "france-24-english",
+        "name": "France 24 English",
+        "number": "9123",
+        "group": "News",
+        "region": "fr",
+        "url": "https://live.france24.com/hls/live/2037218-b/F24_EN_HI_HLS/master_5000.m3u8"
+      },
+      {
+        "id": "nhk-world-japan",
+        "name": "NHK World-Japan",
+        "number": "9124",
+        "group": "News",
+        "region": "jp",
+        "url": "https://masterpl.hls.nhkworld.jp/hls/w/live/smarttv.m3u8"
+      },
+      {
+        "id": "abc-news-australia",
+        "name": "ABC News (Australia)",
+        "number": "9125",
+        "group": "News",
+        "region": "au",
+        "url": "https://abc-news-dmd-streams-1.akamaized.net/out/v1/701126012d044971b3fa89406a440133/index.m3u8"
+      },
+      {
+        "id": "i24news-english",
+        "name": "i24NEWS English",
+        "number": "9126",
+        "group": "News",
+        "region": "il",
+        "url": "https://i24newsenglish-cdn.encoders.immergo.tv/master.m3u8"
+      },
+      {
+        "id": "dw-deutsch",
+        "name": "DW Deutsch",
+        "number": "9127",
+        "group": "News",
+        "region": "de",
+        "url": "https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8"
+      },
+      {
+        "id": "das-erste",
+        "name": "Das Erste",
+        "number": "9128",
+        "group": "Entertainment",
+        "region": "de",
+        "url": "https://daserste-live.ard-mcdn.de/daserste/live/hls/de/master.m3u8"
+      },
+      {
+        "id": "ard-alpha",
+        "name": "ARD alpha",
+        "number": "9129",
+        "group": "Documentary",
+        "region": "de",
+        "url": "https://mcdn.br.de/br/fs/ard_alpha/hls/de/master.m3u8"
+      },
+      {
+        "id": "france-24-french",
+        "name": "France 24 French",
+        "number": "9130",
+        "group": "News",
+        "region": "fr",
+        "url": "https://live.france24.com/hls/live/2037179-b/F24_FR_HI_HLS/master_5000.m3u8"
+      },
+      {
+        "id": "rtve-la-1",
+        "name": "La 1",
+        "number": "9131",
+        "group": "Entertainment",
+        "region": "es",
+        "url": "https://rtvelivestream.rtve.es/rtvesec/la1/la1_main.m3u8"
+      },
+      {
+        "id": "rtve-24h",
+        "name": "Canal 24 Horas",
+        "number": "9132",
+        "group": "News",
+        "region": "es",
+        "url": "https://rtvelivestream.rtve.es/rtvesec/24h/24h_main.m3u8"
+      },
+      {
+        "id": "3cat-info",
+        "name": "3CatInfo",
+        "number": "9133",
+        "group": "News",
+        "region": "es",
+        "url": "https://directes-tv-int.3catdirectes.cat/live-origin/canal324-hls/master.m3u8"
+      },
+      {
+        "id": "euronews",
+        "name": "Euronews",
+        "number": "9134",
+        "group": "News",
+        "region": "fr",
+        "url": "https://cdn-euronews.akamaized.net/live/eds/euronews-en/25002/index.m3u8"
+      },
+      {
+        "id": "africanews",
+        "name": "Africanews",
+        "number": "9135",
+        "group": "News",
+        "region": "fr",
+        "url": "https://cdn-euronews.akamaized.net/live/eds/africanews-en/25049/index.m3u8"
+      },
+      {
+        "id": "trt-world",
+        "name": "TRT World",
+        "number": "9136",
+        "group": "News",
+        "region": "tr",
+        "url": "https://tv-trtworld.medya.trt.com.tr/master.m3u8"
+      },
+      {
+        "id": "al-jazeera-arabic",
+        "name": "Al Jazeera Arabic",
+        "number": "9137",
+        "group": "News",
+        "region": "qa",
+        "url": "https://live-hls-web-aja.getaj.net/AJA/index.m3u8"
+      },
+      {
+        "id": "al-jazeera-mubasher",
+        "name": "Al Jazeera Mubasher",
+        "number": "9138",
+        "group": "News",
+        "region": "qa",
+        "url": "https://live-hls-web-ajm.getaj.net/AJM/index.m3u8"
+      },
+      {
+        "id": "cna",
+        "name": "CNA",
+        "number": "9139",
+        "group": "News",
+        "region": "sg",
+        "url": "https://d2e1asnsl7br7b.cloudfront.net/7782e205e72f43aeb4a48ec97f66ebbe/index.m3u8"
+      },
+      {
+        "id": "arirang",
+        "name": "Arirang TV",
+        "number": "9140",
+        "group": "Entertainment",
+        "region": "kr",
+        "url": "https://amdlive-ch01-ctnd-com.akamaized.net/arirang_1ch/smil:arirang_1ch.smil/playlist.m3u8"
+      },
+      {
+        "id": "cgtn",
+        "name": "CGTN",
+        "number": "9141",
+        "group": "News",
+        "region": "cn",
+        "url": "https://news.cgtn.com/resource/live/english/cgtn-news.m3u8"
+      }
+    ],
+    "map": {
+      "id": "id",
+      "name": "name",
+      "number": "number",
+      "group": "group",
+      "tagsFrom": "region"
+    },
+    "vars": {
+      "url": "url",
+      "page": "page"
+    }
+  },
+  "resolve": {
+    "url": "${channel.vars.url}",
+    "override": {
+      "option": "streamBase",
+      "suffix": "${channel.id}.m3u8"
+    },
+    "page": {
+      "url": "${pageBase}${channel.vars.page}",
+      "pattern": "https://dai\\.google\\.com/linear/hls/event/[A-Za-z0-9_-]+/master\\.m3u8",
+      "requireVar": "page",
+      "cacheSeconds": 21600
+    },
+    "headers": {
+      "User-Agent": "Mozilla/5.0"
+    },
+    "missing": "Unknown direct feed"
+  }
+}

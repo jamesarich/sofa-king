@@ -73,6 +73,7 @@ class ManifestClient(
         val scope = fetcher.scope(loaded, entry.scope)
         var url = ManifestTemplate.render(r.url, scope)
         r.post?.let { url = fetcher.postedUrl(loaded, url, it, scope) }
+        url = ResolveSources(context, fetcher).url(loaded, r, entry, scope, url)
         if (r.format.isNotEmpty()) {
             val args = r.format.map { ManifestTemplate.render(it, scope) }
             var next = 0
@@ -130,7 +131,8 @@ class ManifestClient(
             c.map.number.text(item),
             c.map.logo.text(item),
             c.map.group.text(item),
-            c.map.tags + c.map.tagsWhen.filter { it.condition.passes(item) }.map { it.tag },
+            c.map.tags + listOfNotNull(c.map.tagsFrom.text(item)) +
+                c.map.tagsWhen.filter { it.condition.passes(item) }.map { it.tag },
         )
         val join = c.join
         if (join != null) {

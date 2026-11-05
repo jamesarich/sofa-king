@@ -70,11 +70,6 @@ object ServiceCatalog {
         )
 
     private val coded: List<Pair<Int, ServiceInfo>> = listOf(
-        10 to ServiceInfo(
-            "direct",
-            "Broadcasters' own feeds",
-            "Live news and public channels from CBS News, ARD, RTVE, Euronews and other broadcasters' own sites",
-        ),
         20 to ServiceInfo("whale", "Whale TV+", "About 200 channels across every genre"),
         30 to ServiceInfo("samsung", "Samsung TV Plus", "Samsung's free channels, by country", listOf(region)),
         60 to ServiceInfo("pluto", "Pluto TV", "Hundreds of channels with a full guide"),

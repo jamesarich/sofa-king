@@ -85,20 +85,20 @@ def iso(seconds):
     return datetime.fromtimestamp(seconds, timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
 
 
-def marked_playlist(clip, now):
+def marked_playlist(clip, now, every=BREAK_EVERY):
     """The marked channel's live playlist at [now] (epoch seconds) over [clip], its (segment, seconds) pairs, which loop
     from the epoch with a discontinuity at each loop. The first segment of the window carries EXT-X-PROGRAM-DATE-TIME,
     and every window that overlaps a break carries the break's EXT-X-DATERANGE ad mark and, as upstreams that mark with
     cues do, EXT-X-CUE-OUT before its first segment (EXT-X-CUE-OUT-CONT when that has left the window) and
-    EXT-X-CUE-IN after its last."""
+    EXT-X-CUE-IN after its last. A break starts every [every] seconds."""
     seconds = clip[0][1]
     latest = int(now / seconds)
     first = latest - MARKED_WINDOW + 1
     start, end = first * seconds, (latest + 1) * seconds
-    begin = int(start / BREAK_EVERY) * BREAK_EVERY
+    begin = int(start / every) * every
     lines = ['#EXTM3U', '#EXT-X-VERSION:3', f'#EXT-X-TARGETDURATION:{round(seconds + 0.5)}',
              f'#EXT-X-MEDIA-SEQUENCE:{first}', f'#EXT-X-DISCONTINUITY-SEQUENCE:{first // len(clip)}']
-    breaks = [b for b in (begin, begin + BREAK_EVERY) if b < end and b + BREAK_SECONDS > start]
+    breaks = [b for b in (begin, begin + every) if b < end and b + BREAK_SECONDS > start]
     for number in range(first, latest + 1):
         name, length = clip[number % len(clip)]
         at = number * seconds
@@ -125,6 +125,9 @@ class Upstream(http.server.SimpleHTTPRequestHandler):
     at the clip's own pace as a broadcast arrives (a whole clip at once overflows the server's buffer for a new reader),
     and /live/<n>.m3u8 as a live HLS playlist of the segments in live-<n>/. Every file allows any origin, so a web page
     can load the guide's images."""
+
+    # Seconds between the marked channel's breaks; serve sets it for the run.
+    mark_every = BREAK_EVERY
 
     def do_GET(self):
         if self.path.startswith('/live/'):
@@ -182,7 +185,7 @@ class Upstream(http.server.SimpleHTTPRequestHandler):
         lines = (Path(self.directory) / 'live.m3u8').read_text().splitlines()
         clip = [(name, float(info[len('#EXTINF:'):].split(',')[0])) for info, name in zip(lines, lines[1:])
                 if info.startswith('#EXTINF:')]
-        body = marked_playlist(clip, time.time()).encode()
+        body = marked_playlist(clip, time.time(), self.mark_every).encode()
         self.send_response(200)
         self.send_header('Content-Type', 'application/vnd.apple.mpegurl')
         self.send_header('Content-Length', str(len(body)))
@@ -432,11 +435,11 @@ def show_episodes(base):
 
 @contextlib.contextmanager
 def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=False, movies_library=False, quiet=False,
-          music_library=False, virtual=False, **settings):
+          music_library=False, virtual=False, mark_every=BREAK_EVERY, **settings):
     """Starts the fixture channels and the server, with its log in <out>/server.log and any further `SOFA_` [settings],
     and yields the server's base URL once the lineup is adopted, with [shows] the fixture show's intros found, with
     [short] the short show scanned, with [movies_library] the fixture movies scanned, with [music_library] the fixture
-    music scanned, and with [virtual] a virtual channel in the lineup (see virtual_channel); stops both on the way out.
+    music scanned, with the first channel's breaks [mark_every] seconds apart, and with [virtual] a virtual channel in the lineup (see virtual_channel); stops both on the way out.
     [build] writes the channels' files, playlist and guide into the folder it is given and serves them from the address
     it is given, the [channels] the lineup then holds, and the server's media folder, which it fills for [libraries]; the
     fixture channels by default, silent when [quiet]. Each of [libraries], a (name, kind, folder) triple, is added from
@@ -444,6 +447,7 @@ def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=F
     intros."""
     if not SERVER.exists():
         raise SystemExit('Build :server:installDist in backend/ first')
+    Upstream.mark_every = mark_every
     with tempfile.TemporaryDirectory(prefix='sofa-fixture-') as temporary:
         directory = Path(temporary)
         media = directory / 'media'
@@ -537,6 +541,8 @@ def main():
     parser.add_argument('--movies', action='store_true', help='also serve a Movies library of 84 titles with genres and a trailer')
     parser.add_argument('--music', action='store_true', help='also serve a Music library of three albums of short songs')
     parser.add_argument('--quiet', action='store_true', help="silence the channels' tone")
+    parser.add_argument('--mark-every', type=int, default=BREAK_EVERY, metavar='SECONDS',
+                        help="seconds between the first channel's 30-second breaks, on the epoch (a multiple of 2, 60 or more)")
     parser.add_argument('--virtual', action='store_true', help='also put a virtual channel with a live slot in the lineup')
     args = parser.parse_args()
     out = Path(args.out)
@@ -545,7 +551,7 @@ def main():
     ready.unlink(missing_ok=True)
     signal.signal(signal.SIGTERM, stop)
     with serve(out, shows=args.shows, movies_library=args.movies, music_library=args.music, quiet=args.quiet,
-               virtual=args.virtual) as base:
+               virtual=args.virtual, mark_every=args.mark_every) as base:
         ready.write_text(f'SOFAKING_SERVER={base}\nSOFAKING_TOKEN={TOKEN}\n')
         print(f'Serving {base}', flush=True)
         try:

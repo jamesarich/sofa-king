@@ -42,6 +42,12 @@ class MarkedPlaylist(unittest.TestCase):
         self.assertIn('#EXT-X-CUE-OUT-CONT:', cont)
         self.assertIn('#EXT-X-CUE-IN', fs.marked_playlist(CLIP, begin + 30.5))
 
+    def test_breaks_come_every_given_seconds(self):
+        for begin in (60 * 7, 60 * 8):
+            text = fs.marked_playlist(CLIP, begin + 4.5, every=60)
+            self.assertIn(f'fixture-ad-{begin}', text)
+        self.assertNotIn('fixture-ad', fs.marked_playlist(CLIP, 60 * 7 + 30 + 20.5, every=60))
+
 
 if __name__ == '__main__':
     unittest.main()

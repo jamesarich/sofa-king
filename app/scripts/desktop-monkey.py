@@ -6,8 +6,13 @@ an unhandled failure, or shows a blank screen, or when closing its window leaves
 Needs Xvfb, xdotool, ImageMagick's import, python-xlib, libVLC (`vlc-plugin-base`), FFmpeg, the server's distribution
 (`./gradlew :server:installDist` in backend/) and the desktop app (`./gradlew :ui:createDistributable`). Writes the
 app's log, the server log, the keys and the last screen to --out.
+
+With --break-check the app first opens the first channel with During ads on Logo (muted), against a server whose
+breaks come every minute, and fails unless the break screen (the app's `break screen up` and `break screen down` log
+lines) comes up and clears when the break's mark says, and Back shows the picture during the next break.
 """
 import argparse
+import math
 import os
 from pathlib import Path
 import random
@@ -17,7 +22,7 @@ import sys
 import tempfile
 import time
 
-from fixture_server import ROOT, TOKEN, request, serve, wait_for
+from fixture_server import BREAK_EVERY, BREAK_SECONDS, ROOT, TOKEN, request, serve, wait_for
 
 APP = ROOT / 'app/ui/build/compose/binaries/main/app/Sofa King/bin/Sofa King'
 # The keyboard's remote keys, weighted as AppDriver.REMOTE weighs the remote's; a held Return opens a cell's details.
@@ -25,14 +30,21 @@ KEYS = [
     ('Up', 12), ('Down', 14), ('Left', 10), ('Right', 12), ('Return', 10), ('held Return', 1), ('Escape', 8),
     ('Menu', 1), ('Prior', 2), ('Next', 2), ('space', 1),
 ]
+# Seconds between the break check's breaks: the one the check waits for starts within this of the app opening the channel.
+MARK_EVERY = 60
+# The desktop places the picture this far behind the newest segment (VlcBreakMarks), so the screen comes and goes this
+# long after the mark's start and end. MARGIN is what a slow runner may add: the playlist read, the poll and the log.
+PLACEMENT = 15
+MARGIN = 10
 # A screenshot this small is one color: the app drew nothing.
 BLANK_BYTES = 6000
 # What the app's log shows for a failure: an exception nothing caught, a coroutine's (Failures.kt) or a JVM crash.
 FAILURES = ('Exception in thread', 'unhandled failure', 'A fatal error has been detected')
 
 
-def settings_file(data, base):
-    """The DataStore preferences file of an app paired with [base]: a PreferenceMap of two strings, in protobuf."""
+def settings_file(data, base, channel=None):
+    """The DataStore preferences file of an app paired with [base]: a PreferenceMap of strings, in protobuf. With a
+    [channel] id the app opens that channel full screen at start, with During ads on Logo (muted)."""
     def field(number, payload):
         return bytes([number << 3 | 2]) + varint(len(payload)) + payload
 
@@ -40,7 +52,9 @@ def settings_file(data, base):
         return field(1, field(1, key.encode()) + field(2, field(5, value.encode())))
     path = data / 'sofa-king/datastore/settings.preferences_pb'
     path.parent.mkdir(parents=True)
-    path.write_bytes(entry('backend_url', base) + entry('api_token', TOKEN))
+    chosen = b'' if channel is None else (
+        entry('startup', 'CHANNEL') + entry('startup_channel', channel) + entry('live_breaks', 'SCREEN_MUTED'))
+    path.write_bytes(entry('backend_url', base) + entry('api_token', TOKEN) + chosen)
 
 
 def varint(value):
@@ -67,9 +81,89 @@ def failures(log):
     return [line.strip() for line in log.read_text(errors='replace').splitlines() if any(f in line for f in FAILURES)]
 
 
+class Screen:
+    """The break screen's edges as the app logs them, each with the epoch second this script first read its line."""
+    UP, DOWN = 'break screen up', 'break screen down'
+
+    def __init__(self, log):
+        self.log, self.read, self.edges = log, 0, []
+
+    def poll(self):
+        with self.log.open('rb') as file:
+            file.seek(self.read)
+            chunk = file.read()
+        complete = chunk[:chunk.rfind(b'\n') + 1]
+        self.read += len(complete)
+        for line in complete.decode(errors='replace').splitlines():
+            for edge in (self.UP, self.DOWN):
+                if edge in line:
+                    self.edges.append((time.time(), edge))
+
+    def next(self, edge, after, until, since=0):
+        """The time of the first [edge] logged at or after the [after]th edge and the epoch second [since], or None by
+        the epoch second [until]."""
+        while True:
+            self.poll()
+            for at, kind in self.edges[after:]:
+                if kind == edge and at >= since:
+                    return at
+            if time.time() > until:
+                return None
+            time.sleep(0.25)
+
+
+def check_breaks(screen, press, picture):
+    """Waits for a break the app is tuned in for and checks when its screen comes and goes, then that Back during the next
+    one shows the picture; returns what to report and what failed. [press] sends a key, [picture] saves a screenshot."""
+    errors = []
+    now = time.time()
+    first = math.ceil((now + 10) / MARK_EVERY) * MARK_EVERY
+    seen = len(screen.edges)
+    up = screen.next(Screen.UP, seen, first + PLACEMENT + MARGIN, since=first)
+    if up is None:
+        errors.append(f'no break screen by {PLACEMENT + MARGIN} s after the mark at {first}')
+        return f'no break screen for the mark at {first}', errors
+    picture('break-up.png')
+    seen = len(screen.edges)
+    if up < first + PLACEMENT - MARGIN:
+        errors.append(f'the break screen came up {first - up + PLACEMENT:.0f} s before the picture reached the mark')
+    down = screen.next(Screen.DOWN, seen, first + BREAK_SECONDS + PLACEMENT + MARGIN)
+    if down is None:
+        errors.append(f'the break screen stayed up past {BREAK_SECONDS + PLACEMENT + MARGIN} s after the mark')
+        return f'up {up - first:+.1f} s from the mark, never cleared', errors
+    if down < first + BREAK_SECONDS + PLACEMENT - MARGIN:
+        errors.append('the break screen cleared before the break ended')
+    seen = len(screen.edges)
+    second = first + MARK_EVERY
+    again = screen.next(Screen.UP, seen, second + PLACEMENT + MARGIN)
+    if again is None:
+        errors.append('no break screen for the next mark')
+        return f'up {up - first:+.1f} s, down {down - first:+.1f} s, no screen for the next mark', errors
+    picture('break-before-ok.png')
+    seen = len(screen.edges)
+    # The break screen takes OK only with the player's bar down, but the bar stays up in this display (OK then opens
+    # the channel list), so Back, which the break screen takes over the bar, stands in for OK.
+    press('Escape')
+    shown = screen.next(Screen.DOWN, seen, time.time() + 4)
+    if shown is None:
+        picture('break-back-failed.png')
+        errors.append('Back did not show the picture during the break')
+        return f'up {up - first:+.1f} s, down {down - first:+.1f} s, Back did not clear the screen', errors
+    picture('break-picture.png')
+    if shown > second + BREAK_SECONDS + PLACEMENT - MARGIN:
+        errors.append('Back came too late to tell from the break ending')
+    seen = len(screen.edges)
+    if screen.next(Screen.UP, seen, second + BREAK_SECONDS + PLACEMENT + MARGIN) is not None:
+        errors.append('the break screen came back after Back during the same break')
+    return (f'up {up - first:+.1f} s and down {down - first:+.1f} s from the mark at {first}, '
+            f'Back cleared the next at {shown - second:+.1f} s'), errors
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--out', required=True)
+    parser.add_argument('--break-check', action='store_true',
+                        help='first check the break screen of the first channel against breaks a minute apart')
     parser.add_argument('--keys', type=int, default=int(os.environ.get('SOFAKING_DESKTOP_MONKEY_KEYS') or 600))
     parser.add_argument('--seed', type=int, default=int(os.environ.get('SOFAKING_DESKTOP_MONKEY_SEED') or time.time()))
     args = parser.parse_args()
@@ -79,10 +173,13 @@ def main():
         raise SystemExit('Build :ui:createDistributable in app/ first')
     print(f'Seed {args.seed}, {args.keys} keys', flush=True)
 
-    errors, pressed = [], []
+    errors, pressed, breaks, break_errors = [], [], None, []
     log = out / 'app.log'
-    with serve(out) as base, tempfile.TemporaryDirectory(prefix='sofa-desktop-') as data:
-        settings_file(Path(data), base)
+    with (serve(out, mark_every=MARK_EVERY if args.break_check else BREAK_EVERY) as base,
+          tempfile.TemporaryDirectory(prefix='sofa-desktop-') as data):
+        channel = next(c['id'] for c in request(base, '/api/v1/channels')['channels'] if c['name'] == 'News Now') \
+            if args.break_check else None
+        settings_file(Path(data), base, channel)
         # -displayfd writes the display's number once the server is up.
         xvfb = subprocess.Popen(['Xvfb', '-displayfd', '1', '-screen', '0', '1400x900x24', '-nolisten', 'tcp'],
                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
@@ -100,7 +197,18 @@ def main():
             window = wait_for('the window', lambda: x('search', '--name', '^Sofa King$').stdout.split(), 90)[0]
             x('windowfocus', '--sync', window)
             open_sessions = lambda: [s for s in request(base, '/api/v1/admin/sessions') if not s['external']]
-            wait_for('the guide to open a preview session', open_sessions, 90)
+            wait_for('the app to open a session', open_sessions, 90)
+            if args.break_check:
+                screen = Screen(log)
+
+                def save(name):
+                    (out / name).write_bytes(shot())
+                breaks, failed = check_breaks(screen, lambda key: x('key', key), save)
+                break_errors = failed
+                print(f'Break check: {breaks}', flush=True)
+                # Back leaves the player for the guide, where the random keys start.
+                x('key', 'Escape')
+                time.sleep(2)
 
             rng = random.Random(args.seed)
             names, weights = zip(*KEYS)
@@ -150,7 +258,12 @@ def main():
             xvfb.terminate()
 
     (out / 'keys.txt').write_text(' '.join(pressed) + '\n')
-    summary = [f'## Desktop monkey: seed {args.seed}, {len(pressed)} of {args.keys} keys', '',
+    summary = [f'## Desktop monkey: seed {args.seed}, {len(pressed)} of {args.keys} keys', '']
+    if args.break_check:
+        summary += [f'- Break check: {"failed, " if break_errors else ""}{breaks or "the app opened no session"}'
+                    + ''.join(f'; {e}' for e in break_errors)]
+        errors = break_errors + errors
+    summary += [
                f'- Result: {"; ".join(errors[:3]) if errors else "the app kept running, logged no failure and drew every screen"}',
                f'- Sessions open before the window closed: {sessions_open}; left open after the app quit: {left}',
                f'- Focus requests before their target was placed (Compose\'s FocusRelatedWarning): {log.read_text(errors="replace").count("FocusRequester is not initialized")}',

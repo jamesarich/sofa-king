@@ -31,6 +31,21 @@ private fun guideKeyErrors(g: ManifestGuide, requests: Map<String, ManifestReque
         g.keyVar?.let { if (it !in channelVars) add("guide.keyVar: no channel variable $it") }
     }
 
+private fun resolveSourceErrors(r: ManifestResolve, optionKeys: Set<String>, channelVars: Set<String>) = buildList {
+    r.override?.let {
+        if (it.option !in
+            optionKeys
+        ) {
+            add("resolve.override: ${it.option} is not an option or a default")
+        }
+    }
+    r.page?.let { page ->
+        if (runCatching { Regex(page.pattern) }.isFailure) add("resolve.page: bad pattern")
+        if (page.cacheSeconds < 0) add("resolve.page: cacheSeconds must not be negative")
+        page.requireVar?.let { if (it !in channelVars) add("resolve.page.requireVar: no channel variable $it") }
+    }
+}
+
 private class ManifestChecks(private val m: ProviderManifest) {
     private val errors = ArrayList<String>()
     private val optionKeys = m.defaults.keys + m.catalog?.options?.map { it.key }.orEmpty()
@@ -131,6 +146,7 @@ private class ManifestChecks(private val m: ProviderManifest) {
         c.map.tagsWhen.forEach { errors += filterErrors("channels.map.tagsWhen", it.condition) }
         field("channels.map.id", c.map.id)
         field("channels.map.name", c.map.name)
+        c.map.tagsFrom?.let { field("channels.map.tagsFrom", it) }
         listOf("logo" to c.map.logo, "group" to c.map.group, "number" to c.map.number).forEach { (key, value) ->
             value?.let { field("channels.map.$key", it) }
         }
@@ -187,6 +203,9 @@ private class ManifestChecks(private val m: ProviderManifest) {
         r.format.forEach { template("resolve.format", it, channelVars) }
         r.macros.forEach { (key, value) -> template("resolve.macros.$key", value, channelVars) }
         headers("resolve.headers", r.headers, channelVars)
+        errors += resolveSourceErrors(r, optionKeys, channelVars)
+        r.override?.let { template("resolve.override.suffix", it.suffix, channelVars) }
+        r.page?.let { template("resolve.page.url", it.url, channelVars) }
         r.post?.let { post ->
             template("resolve.post.body", post.body, channelVars)
             if (post.urlPath.isEmpty()) errors += "resolve.post: urlPath is required"

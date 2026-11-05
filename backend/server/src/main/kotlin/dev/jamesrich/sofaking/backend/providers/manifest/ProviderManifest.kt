@@ -103,6 +103,7 @@ data class ManifestChannelMap(
     val logo: Field? = null,
     val group: Field? = null,
     val tags: List<String> = emptyList(),
+    val tagsFrom: Field? = null,
     val tagsWhen: List<ManifestTagWhen> = emptyList(),
     val number: Field? = null,
 )
@@ -153,6 +154,22 @@ data class ManifestResolvePost(
     val fallbackPath: String? = null,
 )
 
+/** When the option [option] is set, the stream is that option's value (without a trailing `/`), `/` and [suffix]. */
+@Serializable
+data class ManifestResolveOverride(val option: String, val suffix: String)
+
+/**
+ * The first match of [pattern] in the page at [url] is the stream URL, kept for [cacheSeconds]; the resolve `url`
+ * stands in when the page cannot be read or has no match. Only for a channel that sets the variable [requireVar].
+ */
+@Serializable
+data class ManifestResolvePage(
+    val url: String,
+    val pattern: String,
+    val requireVar: String? = null,
+    val cacheSeconds: Long = 0,
+)
+
 @Serializable
 data class ManifestResolve(
     val url: String,
@@ -161,6 +178,8 @@ data class ManifestResolve(
     val headers: Map<String, String> = emptyMap(),
     val expiresSeconds: Long? = null,
     val post: ManifestResolvePost? = null,
+    val override: ManifestResolveOverride? = null,
+    val page: ManifestResolvePage? = null,
     val missing: String = "Channel is no longer listed",
 )
 

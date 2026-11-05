@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.data
 
-import dev.jamesrich.sofaking.contract.AdBreakState
 import dev.jamesrich.sofaking.contract.AddWatchlistEntry
 import dev.jamesrich.sofaking.contract.ApiError
 import dev.jamesrich.sofaking.contract.Bootstrap
@@ -69,7 +68,6 @@ internal typealias OpenPlaybackDto = OpenPlayback
 internal typealias UpdatePlaybackDto = UpdatePlayback
 internal typealias PlaybackDescriptorDto = PlaybackDescriptor
 internal typealias PlaybackSessionDto = PlaybackSession
-internal typealias AdBreakStateDto = AdBreakState
 internal typealias ApiErrorDto = ApiError
 internal typealias PairingClaimDto = PairingClaim
 internal typealias PairingResultDto = PairingResult

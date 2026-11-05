@@ -13,7 +13,7 @@ The wrapper's version is in [the Gradle wrapper settings](../gradle/wrapper/grad
 
 ### Node
 
-The new web client in `web/` builds with Node 24, which `actions/setup-node` pins in `backend.yml`, `ci.yml` and `snapshot.yml`; `hls.js`, `esbuild`, `typescript` and `@types/node` are exact pins in `web/package.json`, and `web/package-lock.json` is the repository's one npm lockfile. Renovate updates them in their own group.
+The web app in `web/` builds with Node 24, which `actions/setup-node` pins in `backend.yml`, `ci.yml` and `snapshot.yml`; `hls.js`, `esbuild`, `typescript` and `@types/node` are exact pins in `web/package.json`, and `web/package-lock.json` is the repository's one npm lockfile. Renovate updates them in their own group.
 
 The core Material icon set (`material-icons-core`) is published apart from the rest of Compose Multiplatform and stopped at 1.7.3, so its pin does not move with the Compose Multiplatform pin; Gradle raises its Compose dependencies to the catalog's versions. The extended set stays out, since minifying it slows the Kotlin/JS production build badly; the icons outside the core set live in `ui/.../theme/SofaIcons.kt`.
 

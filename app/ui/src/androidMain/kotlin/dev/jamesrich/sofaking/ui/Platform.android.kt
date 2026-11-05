@@ -23,7 +23,6 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.content.getSystemService
-import androidx.lifecycle.LifecycleOwner
 
 @Composable
 internal actual fun rememberIsTelevision(): Boolean {
@@ -121,6 +120,3 @@ internal actual val KeyEvent.isLongPress: Boolean get() = nativeKeyEvent.isLongP
 internal actual val platformMovesFocusOnArrows: Boolean = true
 
 internal actual val licenseTargets: Set<String> = setOf("android")
-
-@Composable
-internal actual fun rememberAppLifecycleOwner(host: LifecycleOwner): LifecycleOwner = host

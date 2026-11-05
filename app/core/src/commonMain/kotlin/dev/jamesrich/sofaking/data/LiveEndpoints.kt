@@ -40,14 +40,6 @@ internal suspend fun SofaKingApi.updateSession(id: String, intent: String?): Pla
     http.patch(sessionPath(id)) { json(UpdatePlaybackDto(intent)) }.decode()
 }
 
-/**
- * Whether the session's player shows an ad, for an engine that cannot read the playlist's marks; [aheadMs] is
- * what it loaded past the picture.
- */
-internal suspend fun SofaKingApi.adBreak(id: String, aheadMs: Long): AdBreakStateDto = call {
-    http.get(sessionPath(id) + "/ad-break") { parameter("aheadMs", aheadMs) }.decode()
-}
-
 /** What TMDB says about the program titled [title], through the server; [movie] when the guide files it as one. */
 internal suspend fun SofaKingApi.programFacts(title: String, movie: Boolean): ProgramFactsDto = call {
     http.get("program-facts") {

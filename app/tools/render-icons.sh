@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Renders the app icons for the desktop packages and the web page from the crown-on-a-sofa mark, the same SVG
 # the TV banner uses. Needs ImageMagick 7 (`magick`), or an ImageMagick 6 `convert` built with SVG and ICNS
-# support. Runs from any directory; output lands in app/ui/icons and app/ui/src/webMain/resources.
+# support. Runs from any directory; output lands in app/ui/icons and app/web/public.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 work=$(mktemp -d)
@@ -36,7 +36,7 @@ for size in 16 24 32 48 64 128 256; do render "$work/ico-$size.png" "$size"; don
 render "$work/icns.png" 1024 '#14111F'
 "$im" "$work/icns.png" ui/icons/sofa-king.icns
 # Web: the SVG itself as the favicon, the PWA icons and the Apple touch icon, which iOS shows unmasked.
-web=ui/src/webMain/resources
+web=web/public
 cp "$work/logo.svg" "$web/favicon.svg"
 render "$web/icon-192.png" 192
 render "$web/icon-512.png" 512

@@ -52,7 +52,6 @@ class SettingsRegistryTest {
         "recordingsDirectory" to listOf("SOFA_RECORDINGS_DIR"),
         "mediaDirectory" to listOf("SOFA_MEDIA_DIR"),
         "webDirectory" to listOf("SOFA_WEB_DIR"),
-        "web2Directory" to listOf("SOFA_WEB2_DIR"),
         "tmdb" to listOf("SOFA_TMDB_TOKEN", "SOFA_TMDB_LANGUAGE"),
         "maxTranscodes" to listOf("SOFA_MAX_TRANSCODES"),
         "videoEncoder" to listOf("SOFA_HWACCEL", "SOFA_HWACCEL_DEVICE"),

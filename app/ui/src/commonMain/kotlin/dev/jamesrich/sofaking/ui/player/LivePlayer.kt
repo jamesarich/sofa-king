@@ -6,7 +6,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.IntSize
 import dev.jamesrich.sofaking.data.AdBreakNow
-import dev.jamesrich.sofaking.data.LiveSessions
 import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackStream
@@ -199,9 +198,6 @@ interface PlayerTimeline {
      * playlist (`AdDateRange`); null outside one, and where the engine cannot read them.
      */
     fun adBreak(): AdBreakNow? = null
-
-    /** Hands the engine the live session, for the one engine that still asks the server for its breaks (the web's). */
-    fun useSessions(sessions: LiveSessions) = Unit
 
     /** True while a live picture has nothing left to play, its buffer dry; a stalled picture holds a break up. */
     val pictureStalled: Boolean get() = false

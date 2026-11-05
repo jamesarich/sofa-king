@@ -7,7 +7,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.KeyEvent
-import androidx.lifecycle.LifecycleOwner
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import platform.Foundation.NSDateFormatter
 import platform.Foundation.NSLocale
@@ -73,6 +72,3 @@ internal actual val licenseTargets: Set<String> = setOf("iosArm64", "iosSimulato
 /** The SwiftUI host owns the status bar, and the app offers no picture-in-picture on iOS. */
 @Composable
 internal actual fun rememberPlayerWindow(player: LivePlayer, active: Boolean): Boolean = false
-
-@Composable
-internal actual fun rememberAppLifecycleOwner(host: LifecycleOwner): LifecycleOwner = host

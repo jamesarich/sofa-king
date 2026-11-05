@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.KeyEvent
-import androidx.lifecycle.LifecycleOwner
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 
 /**
@@ -54,6 +53,3 @@ internal actual val licenseTargets: Set<String> = setOf("jvm")
 /** The window goes full screen through [WindowFullScreen], from the players; desktops have no picture-in-picture. */
 @Composable
 internal actual fun rememberPlayerWindow(player: LivePlayer, active: Boolean): Boolean = false
-
-@Composable
-internal actual fun rememberAppLifecycleOwner(host: LifecycleOwner): LifecycleOwner = host

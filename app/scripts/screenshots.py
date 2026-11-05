@@ -2,13 +2,11 @@
 """Take the documentation's screenshots of the app on one platform, against the server's installed distribution serving
 the showcase lineup (showcase.py): the guide with its preview, a channel full screen, the Library tab and an item's page,
 as the platform can reach them. Writes <platform>-<screen>.png to --out, with the server log beside them. The app's
-Appearance is pinned to Dark; `--appearance light` takes the tour again as <platform>-<screen>-light.png (web, desktop,
+Appearance is pinned to Dark; `--appearance light` takes the tour again as <platform>-<screen>-light.png (desktop,
 Android phone and tablet; the TV is always dark). Android's status bar is in demo mode with the clock at 16:30.
 
 Platforms and what each needs besides FFmpeg and the server's distribution (`./gradlew :server:installDist` in backend/):
 
-- web: Playwright for Python and a production web build (`--app ui/build/dist/wasmJs/productionExecutable`); Google
-  Chrome (`--channel chrome`) plays the H.264 that Playwright's own Chromium does not.
 - desktop: the desktop app (`--app` the launcher `:ui:createDistributable` writes) with VLC 3, Xvfb, Openbox, xdotool
   and ImageMagick; it runs on a display of its own, so nothing shows on yours. Java takes keys only from a window a
   window manager has focused, hence Openbox.
@@ -23,16 +21,12 @@ Platforms and what each needs besides FFmpeg and the server's distribution (`./g
 """
 import argparse
 import contextlib
-import functools
-import http.server
-import json
 import os
 from pathlib import Path
 import re
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 from datetime import datetime, timedelta, timezone
 import xml.etree.ElementTree as ElementTree
@@ -75,52 +69,6 @@ class App:
 
 def wait_for_session(base, seconds=60):
     wait_for('a playback session', lambda: [s for s in request(base, '/api/v1/admin/sessions') if not s['external']], seconds)
-
-
-# Web
-
-
-class Static(http.server.SimpleHTTPRequestHandler):
-    """The web build's files, with WebAssembly's type, which streaming compilation insists on."""
-    extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, '.wasm': 'application/wasm', '.mjs': 'text/javascript'}
-
-    def log_message(self, *args):
-        pass
-
-
-def web(args, out):
-    from playwright.sync_api import sync_playwright
-
-    static = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Static, directory=args.app))
-    threading.Thread(target=static.serve_forever, daemon=True).start()
-    page_url = f'http://127.0.0.1:{static.server_port}/'
-    width, height = args.size
-    with showcase_server(out, SOFA_CORS_ORIGINS=page_url.rstrip('/')) as base, sync_playwright() as playwright:
-        browser = playwright.chromium.launch(channel=args.channel, args=['--mute-audio', '--autoplay-policy=no-user-gesture-required'])
-
-        @contextlib.contextmanager
-        def start(**extra):
-            """A fresh page, paired and set up with [extra] settings, as keys to press and a camera."""
-            context = browser.new_context(viewport={'width': width, 'height': height}, device_scale_factor=args.scale)
-            page = context.new_page()
-            page.on('pageerror', lambda error: print(f'page error: {error}', file=sys.stderr))
-            settings = {'backend_url': base, 'api_token': TOKEN, **SETTINGS, 'appearance': args.appearance, **extra}
-            typed = {name: {'t': 'b' if isinstance(v, bool) else 'i' if isinstance(v, int) else 's', 'v': v} for name, v in settings.items()}
-            # Paired as a build before DataStore kept its settings: the app moves them over on its first read.
-            page.add_init_script(f'localStorage.getItem("sofaking.preferences") || localStorage.setItem("sofaking.settings", {json.dumps(json.dumps(typed))})')
-            page.goto(page_url)
-
-            def keys(*names):
-                for name in names:
-                    page.keyboard.press(name)
-                    page.wait_for_timeout(400)
-            try:
-                yield App(lambda name: page.screenshot(path=str(picture(out, args, name))), keys)
-            finally:
-                context.close()
-
-        tour(base, start, out)
-        browser.close()
 
 
 # Desktop
@@ -494,8 +442,8 @@ def tour(base, start, out, channel=True):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument('platform', choices=['web', 'desktop', 'android-tv', 'android-phone', 'android-tablet', 'ios', 'tvos', 'admin'])
-    parser.add_argument('--app', help='the build to run: a web build folder, the desktop launcher or the APK')
+    parser.add_argument('platform', choices=['desktop', 'android-tv', 'android-phone', 'android-tablet', 'ios', 'tvos', 'admin'])
+    parser.add_argument('--app', help='the build to run: the desktop launcher, the APK or the iOS .app folder')
     parser.add_argument('--out', required=True)
     parser.add_argument('--channel', help='the browser Playwright runs by channel, such as chrome')
     parser.add_argument('--size', default='1280x720', type=lambda s: tuple(map(int, s.split('x'))), help='window size in points')
@@ -506,12 +454,12 @@ def main():
     args = parser.parse_args()
     args.name = args.name or args.platform
     if args.appearance == 'light' and args.platform in ('android-tv', 'ios', 'tvos', 'admin'):
-        parser.error('only the web, desktop, Android phone and tablet apps have a light appearance here')
+        parser.error('only the desktop, Android phone and tablet apps have a light appearance here')
     args.suffix = '-light' if args.appearance == 'light' else ''
     args.appearance = args.appearance.upper()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    driver = {'web': web, 'admin': admin, 'desktop': desktop, 'ios': apple, 'tvos': apple}.get(args.platform, android)
+    driver = {'admin': admin, 'desktop': desktop, 'ios': apple, 'tvos': apple}.get(args.platform, android)
     driver(args, out)
 
 

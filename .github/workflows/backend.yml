@@ -2,7 +2,7 @@ name: Backend
 
 # Tests every pull request and push that changes the server's or the contract's code or build, the shared Gradle settings,
 # version catalog and build-logic, or this workflow; backend/docs and Markdown are left out. The image carries the web app
-# built from the same commit, so a push to main that changes the app's core, ui or web module or its build publishes it too;
+# built from the same commit, so a push to main that changes the app's core or web module or its build publishes it too;
 # app pull requests are checked by ci.yml. A push to main, or a manual run on main,
 # then publishes the server image for linux/amd64 and linux/arm64 to GitHub Container Registry as
 # ghcr.io/<owner>/sofa-king:main and :sha-<commit>, with a BuildKit SBOM and max-mode provenance stored beside it, a
@@ -18,7 +18,6 @@ on:
     tags: ["v*"]
     paths:
       - "app/core/**"
-      - "app/ui/**"
       - "app/web/**"
       - "app/build.gradle.kts"
       - "app/settings.gradle.kts"
@@ -216,8 +215,8 @@ jobs:
           path: "backend/**/build/reports/tests"
           retention-days: 14
 
-  # The web apps the image serves at /app/ and /app2/, built with the version the image carries. It runs beside the
-  # tests, and the remote build cache answers the Gradle tasks when the app has not changed.
+  # The web app the image serves at /app/: core's JS library, then esbuild over it and hls.js. It runs beside the
+  # tests, and the remote build cache answers the Gradle task when core has not changed.
   web:
     runs-on: ubuntu-26.04
     timeout-minutes: 30
@@ -243,12 +242,7 @@ jobs:
           cache-read-only: true
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
-      - name: Build the web app
-        run: |
-          eval "$(../.github/version.sh | grep -E '^(code|suffix)=')"
-          ./gradlew --console=plain "-Psofaking.versionCode=$code" "-Psofaking.versionSuffix=$suffix" :ui:wasmJsBrowserDistribution
-
-      # The new web client: core's JS library, then esbuild over it and hls.js (app/web/package-lock.json pins both).
+      # app/web/package-lock.json pins esbuild and hls.js.
       - name: Build core's JS library
         run: ./gradlew --console=plain :core:jsBrowserProductionLibraryDistribution
 
@@ -258,20 +252,19 @@ jobs:
           cache: npm
           cache-dependency-path: app/web/package-lock.json
 
-      - name: Build the web client
+      - name: Build the web app
         working-directory: app/web
         run: npm ci && npm run build
 
       # The server sends a .gz beside a file to a browser that takes gzip, so the NAS never compresses the bundle itself.
       # Source maps stay out of the image.
-      - name: Pack the web apps
+      - name: Pack the web app
         run: |
-          mkdir -p "$RUNNER_TEMP/web" "$RUNNER_TEMP/web2"
-          cp -R ui/build/dist/wasmJs/productionExecutable/. "$RUNNER_TEMP/web/"
-          cp -R web/dist/. "$RUNNER_TEMP/web2/"
-          rm -f "$RUNNER_TEMP"/web/*.map "$RUNNER_TEMP"/web2/*.map
-          find "$RUNNER_TEMP/web" "$RUNNER_TEMP/web2" -type f \( -name '*.wasm' -o -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.cvr' -o -name '*.json' -o -name '*.webmanifest' -o -name '*.svg' \) -exec gzip -9 -k -n {} +
-          tar -C "$RUNNER_TEMP" -cf "$GITHUB_WORKSPACE/web.tar" web web2
+          mkdir -p "$RUNNER_TEMP/web"
+          cp -R web/dist/. "$RUNNER_TEMP/web/"
+          rm -f "$RUNNER_TEMP"/web/*.map
+          find "$RUNNER_TEMP/web" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.webmanifest' -o -name '*.svg' \) -exec gzip -9 -k -n {} +
+          tar -C "$RUNNER_TEMP" -cf "$GITHUB_WORKSPACE/web.tar" web
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -378,14 +371,10 @@ jobs:
             sleep 1
           done
           test "$(curl -fsS http://127.0.0.1:8080/healthz)" = ok
-          # The new web client beside it: its page, and its bundle precompressed.
-          curl -fsS http://127.0.0.1:8080/app2/ | grep -q '<title>Sofa King</title>'
-          bundle="$(docker exec sofa-king sh -c 'cd /opt/sofa/web2 && ls app-*.js | head -1')"
-          curl -fsS -o /dev/null -D - -H 'Accept-Encoding: gzip' "http://127.0.0.1:8080/app2/$bundle" | tee /dev/stderr | grep -qi '^content-encoding: gzip'
-          # The web app: the page, and its WebAssembly as such, precompressed.
+          # The web app: its page, and its bundle precompressed.
           curl -fsS http://127.0.0.1:8080/app/ | grep -q '<title>Sofa King</title>'
-          wasm="$(docker exec sofa-king sh -c 'cd /opt/sofa/web && ls *.wasm | head -1')"
-          curl -fsS -o /dev/null -D - -H 'Accept-Encoding: gzip' "http://127.0.0.1:8080/app/$wasm" | tee /dev/stderr | grep -qi '^content-encoding: gzip'
+          bundle="$(docker exec sofa-king sh -c 'cd /opt/sofa/web && ls app-*.js | head -1')"
+          curl -fsS -o /dev/null -D - -H 'Accept-Encoding: gzip' "http://127.0.0.1:8080/app/$bundle" | tee /dev/stderr | grep -qi '^content-encoding: gzip'
           # The tuners are on and admit nobody until an address is allowed.
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/discover.json)" = 403
           # The image's own health check, run inside the container.

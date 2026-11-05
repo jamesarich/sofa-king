@@ -77,7 +77,6 @@ fun Application.backendModule(
     routing {
         healthRoutes(store, clock, runtime)
         config?.takeIf { it.servesWebApp() }?.webDirectory?.let { webAppRoutes(it) }
-        config?.takeIf { it.servesWeb2App() }?.web2Directory?.let { webAppRoutes(it, WEB2_APP_PATH) }
         if (runtime != null) {
             liveRoutes(runtime)
             adminRoutes(runtime, clock, revision, hdhr.enabled)

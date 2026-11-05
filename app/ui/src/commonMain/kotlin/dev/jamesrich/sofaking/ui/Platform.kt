@@ -2,7 +2,6 @@ package dev.jamesrich.sofaking.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.input.key.KeyEvent
-import androidx.lifecycle.LifecycleOwner
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
@@ -44,15 +43,6 @@ internal expect fun rememberScreenReaderActive(): Boolean
 /** Keeps the display awake while [on]; released when this leaves composition. */
 @Composable
 internal expect fun KeepScreenOn(on: Boolean)
-
-/**
- * The lifecycle the app plays by, from [host], the window's. In a browser a hidden tab is stopped whatever focus says,
- * and a tab counts as back only once it has stayed visible for a moment: a page shown for an instant (a window
- * flicked past, a host that redraws a covered page) would otherwise open a session only to drop it. [host] itself
- * elsewhere.
- */
-@Composable
-internal expect fun rememberAppLifecycleOwner(host: LifecycleOwner): LifecycleOwner
 
 /**
  * Speech input for the guide search. The returned function starts it and is false when the platform has no

@@ -24,7 +24,7 @@ One remote, Sofa King simple: **Live** for the guide and the channels, **Library
 | Desktop | Linux, macOS and Windows, with [VLC](https://www.videolan.org/vlc/) 3 installed | MPEG-TS and HLS |
 | iOS | iOS 16 or later, built from source | HLS |
 | Apple TV | tvOS 17 or later, as a SwiftUI app on the same data layer, built from source | HLS |
-| Web | Browsers with WebAssembly GC, or the JS build for others, served as [getting started](docs/getting-started.md#web) describes | HLS where the browser plays it |
+| Web | Chrome, Edge, Firefox and Safari, served as [getting started](docs/getting-started.md#web) describes | HLS, through hls.js (the browser's own HLS on Safari) |
 
 Every platform needs a Sofa King server it can reach over the network.
 

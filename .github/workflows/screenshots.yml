@@ -1,7 +1,7 @@
 name: Screenshots
 
-# The documentation's screenshots, from every platform a runner can show headlessly: the web app in Chrome and the Linux
-# desktop app on a virtual display, the Android phone, tablet and TV apps in emulators, and the iPhone, iPad and Apple TV
+# The documentation's screenshots, from every platform a runner can show headlessly: the Linux desktop app on a
+# virtual display, the Android phone, tablet and TV apps in emulators, and the iPhone, iPad and Apple TV
 # apps in simulators, each against the server's installed distribution serving the showcase lineup (Blender's open movies
 # as live channels and libraries, app/scripts/showcase.py), plus the server's admin portal in Chrome. Each platform's
 # pictures upload as one artifact; the images job converts the ones app/scripts/doc-images.json names to the WebP files
@@ -65,7 +65,7 @@ jobs:
         run: python3 -c 'import showcase; showcase.prepare()'
 
   linux:
-    name: Web and desktop
+    name: Desktop
     needs: showcase
     runs-on: ubuntu-26.04
     timeout-minutes: 60
@@ -98,20 +98,15 @@ jobs:
       - name: Build the server distribution
         working-directory: backend
         run: ./gradlew --console=plain :server:installDist
-      - name: Build the web and desktop apps
+      - name: Build the desktop app
         working-directory: app
-        run: ./gradlew --console=plain :ui:wasmJsBrowserDistribution :ui:createDistributable
-      - name: Take the web screenshots
-        working-directory: app
-        run: python3 scripts/screenshots.py web --app ui/build/dist/wasmJs/productionExecutable --channel chrome --out build/screenshots/web
+        run: ./gradlew --console=plain :ui:createDistributable
       - name: Take the desktop screenshots
         working-directory: app
         run: python3 scripts/screenshots.py desktop --app "ui/build/compose/binaries/main/app/Sofa King/bin/Sofa King" --out build/screenshots/desktop
-      - name: Take the light web and desktop screenshots
+      - name: Take the light desktop screenshots
         working-directory: app
-        run: |
-          python3 scripts/screenshots.py web --appearance light --app ui/build/dist/wasmJs/productionExecutable --channel chrome --out build/screenshots/web
-          python3 scripts/screenshots.py desktop --appearance light --app "ui/build/compose/binaries/main/app/Sofa King/bin/Sofa King" --out build/screenshots/desktop
+        run: python3 scripts/screenshots.py desktop --appearance light --app "ui/build/compose/binaries/main/app/Sofa King/bin/Sofa King" --out build/screenshots/desktop
       # The portal needs no app, only the server against the showcase, in both color schemes.
       - name: Take the admin portal screenshots
         working-directory: app

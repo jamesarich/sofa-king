@@ -1,7 +1,6 @@
 package dev.jamesrich.sofaking.ui
 
 import androidx.compose.runtime.Composable
-import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.ui.player.MediaSessionHandle
 
 /**
@@ -58,13 +57,6 @@ internal expect val supportsCrashReports: Boolean
  */
 @Composable
 internal expect fun MatchDisplayFrameRate(player: dev.jamesrich.sofaking.ui.player.LivePlayer, enabled: Boolean)
-
-/**
- * Frees the session [sessions] holds as a browser tab closes, which would otherwise keep its lease until it runs
- * out: the stop's own release never leaves a closing page. Nothing elsewhere.
- */
-@Composable
-internal expect fun ReleaseOnPageExit(sessions: PlaybackSessions)
 
 /**
  * Keeps the sound of [session] playing while the app is in the background, as the platform asks: a media playback

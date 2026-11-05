@@ -2,7 +2,6 @@ package dev.jamesrich.sofaking.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.MediaSessionHandle
 import platform.Foundation.NSURL
@@ -32,9 +31,6 @@ internal actual val supportsCrashReports: Boolean = false
 
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit
-
-@Composable
-internal actual fun ReleaseOnPageExit(sessions: PlaybackSessions) = Unit
 
 @Composable
 internal actual fun KeepPlayingInBackground(session: MediaSessionHandle?) = Unit

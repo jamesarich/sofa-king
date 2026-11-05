@@ -61,7 +61,6 @@ import dev.jamesrich.sofaking.ui.player.MusicPlayback
 import dev.jamesrich.sofaking.ui.player.PlayerVolume
 import dev.jamesrich.sofaking.ui.player.volumeKey
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
-import dev.jamesrich.sofaking.ui.rememberAppLifecycleOwner
 import dev.jamesrich.sofaking.ui.rememberLastInput
 import dev.jamesrich.sofaking.ui.rememberLayoutProfile
 import dev.jamesrich.sofaking.ui.rememberPlayerWindow
@@ -163,9 +162,7 @@ private fun SofaKingApp(
     val playback = rememberAppPlayback()
     VolumeSaveEffect(playback.volume, settingsRead = settings != null, { vm.settings.value }, vm::setVolume)
     val sessions = vm.sessions
-    // The window's; in a browser, held to the tab's visibility and slow to count a flash of
-    // it (rememberAppLifecycleOwner).
-    val lifecycleOwner = rememberAppLifecycleOwner(LocalLifecycleOwner.current)
+    val lifecycleOwner = LocalLifecycleOwner.current
     StreamReplacedEffect(playback, sessions, lifecycleOwner.lifecycle)
     PlayerPreferenceEffects(playback.player, settings, top)
     val inPictureInPicture = rememberPlayerWindow(playback.player, active = top.playsFullScreen)

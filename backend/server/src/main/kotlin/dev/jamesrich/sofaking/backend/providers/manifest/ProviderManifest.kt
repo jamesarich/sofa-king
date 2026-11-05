@@ -125,6 +125,8 @@ data class ManifestGuide(
     val requireVar: String? = null,
     val key: String? = null,
     val keyVar: String? = null,
+    val fallbackKey: String? = null,
+    val pastHours: Long? = null,
     val map: ManifestProgramMap,
 )
 
@@ -169,6 +171,7 @@ data class FieldSpec(
     val http: Boolean = false,
     val usRating: Boolean = false,
     val sentenceCase: Boolean = false,
+    val nonUrl: Boolean = false,
     val dropIf: String? = null,
     val unlessEquals: String? = null,
 )

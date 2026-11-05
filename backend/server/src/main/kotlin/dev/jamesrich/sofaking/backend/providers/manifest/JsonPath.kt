@@ -14,7 +14,7 @@ internal fun JsonElement?.at(path: String): JsonElement? {
     var node = this
     for (segment in path.split('.')) {
         val index = segment.toIntOrNull()
-        node = if (index != null && node is JsonArray) node[index] else node[segment]
+        node = if (index != null && node is JsonArray) node.getOrNull(index) else node[segment]
         if (node == null) return null
     }
     return node

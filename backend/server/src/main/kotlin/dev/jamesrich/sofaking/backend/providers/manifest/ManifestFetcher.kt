@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import java.time.Duration
+import java.time.Instant
 
 /** The channel a template renders for. */
 internal class ChannelScope(val id: String, val vars: Map<String, String>)
@@ -16,6 +17,8 @@ internal class PageCursor(val channel: String, val channels: Int)
 
 /** Runs a manifest's requests for one provider: templates, paging, decoding, and sharing an answer within its TTL. */
 internal class ManifestFetcher(private val context: ProviderContext, private val service: String) {
+    fun now(): Instant = context.clock.instant()
+
     fun scope(loaded: Loaded, channel: ChannelScope? = null, page: Int? = null, cursor: PageCursor? = null) =
         TemplateScope(
             context.options,

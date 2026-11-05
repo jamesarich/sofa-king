@@ -1,0 +1,86 @@
+{
+  "service": "mansa",
+  "version": 1,
+  "hasGuide": true,
+  "catalog": {
+    "label": "Mansa",
+    "carries": "Mansa's free channels of Black culture",
+    "priority": 160
+  },
+  "defaults": {
+    "playlistUrl": "https://prod.kankuapi.com/mansa/playlist/page",
+    "guideUrl": "https://prod.epgsyncservice.kankuapi.com/api/epgs"
+  },
+  "headers": {
+    "User-Agent": "${ua.browser}",
+    "Origin": "https://www.mansa.com",
+    "Referer": "https://www.mansa.com/"
+  },
+  "cacheSeconds": 600,
+  "requests": {
+    "playlist": {
+      "method": "POST",
+      "url": "${playlistUrl}",
+      "body": "{\"size\":200}",
+      "items": "channels"
+    },
+    "epgs": {
+      "url": "${guideUrl}",
+      "items": "items"
+    }
+  },
+  "channels": {
+    "from": "playlist",
+    "filter": [
+      { "path": "channelType", "op": "eq", "value": "FAST" },
+      { "path": "streamUrl", "op": "http" }
+    ],
+    "map": {
+      "id": "id",
+      "name": "title",
+      "logo": { "firstHttp": ["unSelectedStateImage", "selectedStateImage"] },
+      "group": { "path": "tags", "nonUrl": true },
+      "tags": ["us"]
+    },
+    "vars": {
+      "template": "streamUrl"
+    },
+    "distinctBy": "id",
+    "requireNonEmpty": true
+  },
+  "guide": {
+    "mode": "keyed",
+    "request": "epgs",
+    "key": "channelId",
+    "fallbackKey": "channelName",
+    "pastHours": 1,
+    "map": {
+      "title": "title",
+      "start": { "path": "startTimeMillis", "as": "epochMillis" },
+      "end": { "path": "endTimeMillis", "as": "epochMillis" },
+      "description": "description",
+      "icon": { "path": "images.0.path", "http": true }
+    }
+  },
+  "resolve": {
+    "url": "${channel.vars.template}",
+    "macros": {
+      "DNT": "0",
+      "US_PRIVACY": "1---",
+      "GDPR": "0",
+      "APP_NAME": "Mansa",
+      "APP_BUNDLE": "www.mansa.com",
+      "APP_STORE_URL": "https://www.mansa.com/",
+      "IFA_TYPE": "dpid",
+      "DEVICE_MAKE": "web",
+      "DEVICE_MODEL": "web",
+      "DEVICE_ID": "${device.id}"
+    },
+    "headers": {
+      "User-Agent": "${ua.browser}",
+      "Origin": "https://www.mansa.com",
+      "Referer": "https://www.mansa.com/"
+    },
+    "expiresSeconds": 3600
+  }
+}

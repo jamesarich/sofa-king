@@ -25,6 +25,7 @@ private fun keyedErrors(g: ManifestGuide, requests: Map<String, ManifestRequest>
             add("guide.request: cannot be optional")
         }
         if (g.key == null) add("guide: keyed needs key")
+        if (g.pastHours != null && g.pastHours <= 0) add("guide.pastHours must be positive")
         if (g.programs != null) add("guide: keyed takes no programs")
         g.keyVar?.let { if (it !in channelVars) add("guide.keyVar: no channel variable $it") }
     }

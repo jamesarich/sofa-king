@@ -248,7 +248,6 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
             "pbs" -> PbsClient(context)
             "samsung" -> SamsungClient(context)
             "plex" -> PlexClient(context)
-            "stirr" -> StirrClient(context)
             "tcl" -> TclClient(context)
             "roku" -> RokuClient(context)
             "localnow" -> LocalNowClient(context)

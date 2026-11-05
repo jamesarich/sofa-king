@@ -24,13 +24,7 @@ internal fun FieldSpec.read(item: JsonElement?): Any? {
         firstHttp != null -> firstHttp.firstNotNullOfOrNull { httpOrNull(item.textAt(it)) }
         else -> null
     }
-    if (text == null && fallback != null) text = item.textAt(fallback)
-    if (before != null) text = text?.substringBefore(before)
-    if (trim) text = text?.trim()?.takeIf { it.isNotEmpty() }
-    if (http) text = httpOrNull(text)
-    if (sentenceCase) text = text?.lowercase()?.replaceFirstChar(Char::uppercase)
-    if (dropIf != null && text.equals(dropIf, ignoreCase = true)) text = null
-    if (unlessEquals != null && text == item.textAt(unlessEquals)) text = null
+    text = shape(text, item)
     return when {
         text == null -> null
         asType == "epochSeconds" -> text.toLongOrNull()?.let(Instant::ofEpochSecond)
@@ -39,6 +33,20 @@ internal fun FieldSpec.read(item: JsonElement?): Any? {
         usRating -> ratingOf(text)
         else -> text
     }
+}
+
+/** [text] after the spec's fallback and text shaping: `before`, `trim`, `http`, case, spacing and the drop rules. */
+private fun FieldSpec.shape(read: String?, item: JsonElement?): String? {
+    var text = read
+    if (text == null && fallback != null) text = item.textAt(fallback)
+    if (before != null) text = text?.substringBefore(before)
+    if (trim) text = text?.trim()?.takeIf { it.isNotEmpty() }
+    if (http) text = httpOrNull(text)
+    if (collapseSpaces) text = text?.replace(Regex("\\s+"), " ")
+    if (sentenceCase) text = text?.lowercase()?.replaceFirstChar(Char::uppercase)
+    if (dropIf != null && text.equals(dropIf, ignoreCase = true)) text = null
+    if (unlessEquals != null && text == item.textAt(unlessEquals)) text = null
+    return text
 }
 
 internal fun Field?.text(item: JsonElement?): String? = this?.spec?.read(item) as? String

@@ -83,7 +83,6 @@ object ServiceCatalog {
         90 to ServiceInfo("xumo", "Xumo Play", "Xumo's free channels"),
         100 to ServiceInfo("tubi", "Tubi", "Tubi's live channels"),
         110 to ServiceInfo("tcl", "TCL TV+", "TCL's free channels"),
-        120 to ServiceInfo("stirr", "STIRR", "Sinclair's local and national channels"),
         140 to ServiceInfo("zeam", "Zeam", "Local news and free channels from Zeam"),
         150 to ServiceInfo("ognetwork", "OG Network", "OG Network's free channels"),
         170 to

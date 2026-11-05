@@ -144,6 +144,15 @@ data class ManifestProgramMap(
     val episode: Field? = null,
 )
 
+/** A resolve that POSTs and reads the stream URL from the answer: the text at [urlPath], else [fallbackPath]. */
+@Serializable
+data class ManifestResolvePost(
+    val body: String = "",
+    val contentType: String? = null,
+    val urlPath: String,
+    val fallbackPath: String? = null,
+)
+
 @Serializable
 data class ManifestResolve(
     val url: String,
@@ -151,6 +160,7 @@ data class ManifestResolve(
     val macros: Map<String, String> = emptyMap(),
     val headers: Map<String, String> = emptyMap(),
     val expiresSeconds: Long? = null,
+    val post: ManifestResolvePost? = null,
     val missing: String = "Channel is no longer listed",
 )
 
@@ -171,6 +181,7 @@ data class FieldSpec(
     val http: Boolean = false,
     val usRating: Boolean = false,
     val sentenceCase: Boolean = false,
+    val collapseSpaces: Boolean = false,
     val nonUrl: Boolean = false,
     val dropIf: String? = null,
     val unlessEquals: String? = null,

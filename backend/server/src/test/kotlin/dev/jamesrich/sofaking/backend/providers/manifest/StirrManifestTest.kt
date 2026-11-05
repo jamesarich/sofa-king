@@ -1,6 +1,11 @@
-package dev.jamesrich.sofaking.backend.providers
+package dev.jamesrich.sofaking.backend.providers.manifest
 
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
+import dev.jamesrich.sofaking.backend.providers.Canned
+import dev.jamesrich.sofaking.backend.providers.ProviderFailure
+import dev.jamesrich.sofaking.backend.providers.ProviderFixture
+import dev.jamesrich.sofaking.backend.providers.ProviderScope
+import dev.jamesrich.sofaking.backend.providers.providerTest
 import java.time.Duration
 import java.time.Instant
 import kotlin.test.Test
@@ -9,7 +14,9 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class StirrClientTest {
+class StirrManifestTest {
+    private fun ProviderScope.stirr() = manifestClient("stirr", "stirr", mapOf("apiBase" to "${fixture.base}/api"))
+
     private fun ProviderFixture.stirr() {
         json("/api/videos/list/", ProviderFixture.resource("stirr-channels.json"))
         json("/api/epg", ProviderFixture.resource("stirr-epg.json"))
@@ -25,10 +32,7 @@ class StirrClientTest {
 
     @Test fun `lists each live channel once by number without DRM channels`() = providerTest("sofa-stirr-") {
         fixture.stirr()
-        val client =
-            StirrClient(
-                context("stirr", mapOf("apiBase" to "${fixture.base}/api")),
-            )
+        val client = stirr()
         val channels = client.channels()
         assertEquals(
             listOf("5407", "5735"),
@@ -54,16 +58,7 @@ class StirrClientTest {
 
     @Test fun `resolve posts for the playable URL and blanks its nonce macro`() = providerTest("sofa-stirr-") {
         fixture.stirr()
-        val client =
-            StirrClient(
-                ProviderFixture.context(
-                    "stirr",
-                    mapOf("apiBase" to "${fixture.base}/api"),
-                    http,
-                    store,
-                    clock,
-                ),
-            )
+        val client = stirr()
         val resolved = client.resolve("5735")
         assertEquals(
             "${fixture.base}/ssai/stream.m3u8?cb=1&AV_APPNAME=STIRR&AV_CONTENT_ID=5735&AV_NONCE=&" +
@@ -80,27 +75,17 @@ class StirrClientTest {
     }
 
     @Test fun `guide lists listed channels that have programs and keeps mapped ones that have not ended`() =
-        providerTest("sofa-stirr-") {
+        providerTest("sofa-stirr-", MutableClock(Instant.parse("2026-10-11T00:30:00Z"))) {
             fixture.stirr()
-            val clock = MutableClock(Instant.parse("2026-10-11T00:30:00Z"))
-            val client =
-                StirrClient(
-                    ProviderFixture.context(
-                        "stirr",
-                        mapOf("apiBase" to "${fixture.base}/api"),
-                        http,
-                        store,
-                        clock,
-                    ),
-                )
-            val unmapped = client.guide(emptySet())
+            val client = stirr()
+            val unmapped = checkNotNull(client.guide(emptySet()))
             assertTrue(unmapped.programs.isEmpty())
             assertEquals(
                 listOf("5735"),
                 unmapped.channels.map { it.id },
                 "a channel without programs or outside the list is not offered",
             )
-            val guide = client.guide(setOf("5735", "5407"))
+            val guide = checkNotNull(client.guide(setOf("5735", "5407")))
             assertEquals(listOf("5735"), guide.channels.map { it.id })
             assertEquals("tz=UTC", fixture.lastQuery["/api/epg"])
             assertEquals(2, fixture.hits("/api/epg"), "one request per refresh")

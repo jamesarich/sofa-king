@@ -77,7 +77,6 @@ object ServiceCatalog {
         ),
         20 to ServiceInfo("whale", "Whale TV+", "About 200 channels across every genre"),
         30 to ServiceInfo("samsung", "Samsung TV Plus", "Samsung's free channels, by country", listOf(region)),
-        40 to ServiceInfo("vizio", "WatchFree+", "Vizio's free channels"),
         50 to ServiceInfo("lg", "LG Channels", "LG's free channels"),
         60 to ServiceInfo("pluto", "Pluto TV", "Hundreds of channels with a full guide"),
         70 to ServiceInfo("plex", "Plex free live TV", "Plex's free channels"),

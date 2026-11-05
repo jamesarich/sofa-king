@@ -14,10 +14,20 @@ internal class TemplateScope(
     val page: Int? = null,
     val channelId: String? = null,
     val channelVars: Map<String, String> = emptyMap(),
+    val cursor: String? = null,
+    val channelCount: Int? = null,
 )
 
-/** Which names a template may use where it sits; [channelVars] is null where no channel is in scope. */
-internal class TemplateNames(val options: Set<String>, val channelVars: Set<String>?, val page: Boolean)
+/**
+ * Which names a template may use where it sits; [channelVars] is null where no channel is in scope, and [cursor]
+ * is true in a request paged by `cursorPath`.
+ */
+internal class TemplateNames(
+    val options: Set<String>,
+    val channelVars: Set<String>?,
+    val page: Boolean,
+    val cursor: Boolean = false,
+)
 
 /** `${name}` substitution; ad macros in square or curly brackets are not touched. */
 internal object ManifestTemplate {
@@ -30,6 +40,9 @@ internal object ManifestTemplate {
     /** Why [name] is not usable here, or null. */
     fun problem(name: String, names: TemplateNames): String? = when {
         name == "page" -> "\${page} is only for a paged request".takeUnless { names.page }
+
+        name == "cursor" || name == "channels.count" ->
+            "\${$name} is only for a request paged by cursorPath".takeUnless { names.cursor }
 
         name == "channel.id" -> "\${channel.id} needs a channel in scope".takeIf { names.channelVars == null }
 
@@ -79,6 +92,10 @@ internal object ManifestTemplate {
         val now = scope.clock.instant()
         return when {
             name == "page" -> scope.page?.toString().orEmpty()
+
+            name == "cursor" -> scope.cursor.orEmpty()
+
+            name == "channels.count" -> scope.channelCount?.toString().orEmpty()
 
             name == "channel.id" -> scope.channelId.orEmpty()
 

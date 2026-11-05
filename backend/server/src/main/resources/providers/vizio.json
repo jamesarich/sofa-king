@@ -1,0 +1,98 @@
+{
+  "service": "vizio",
+  "version": 1,
+  "hasGuide": true,
+  "catalog": {
+    "label": "WatchFree+",
+    "carries": "Vizio's free channels",
+    "priority": 40
+  },
+  "defaults": {
+    "apiBase": "https://watchfreeplus-epg-prod.smartcasttv.com/api"
+  },
+  "headers": {
+    "User-Agent": "okhttp/4.12.0",
+    "Accept": "application/json"
+  },
+  "cacheSeconds": 600,
+  "requests": {
+    "channels": {
+      "url": "${apiBase}/channels",
+      "items": "channels"
+    },
+    "airings": {
+      "url": "${apiBase}/airings/?start=${time.isoMillis:+0h}&end=${time.isoMillis:+24h}&startChannel=${cursor}&channelCount=${channels.count}",
+      "items": "airings",
+      "paging": { "maxPages": 20, "cursorPath": "stationId" }
+    }
+  },
+  "channels": {
+    "from": "channels",
+    "filter": [
+      { "path": "tokenUrl", "op": "eq", "value": "", "default": "" },
+      { "anyOf": ["channelUrls.0", "channelUrl"], "op": "http" }
+    ],
+    "map": {
+      "id": "channelId",
+      "name": "channelName",
+      "number": "channelNumber",
+      "logo": { "firstHttp": ["channelIcon", "portraitIcon", "bwIcon"] },
+      "group": { "path": "category", "sentenceCase": true },
+      "tags": ["us"],
+      "tagsWhen": [
+        { "tag": "featured", "when": { "path": "channelId", "op": "startsWith", "value": "FEATURED" } }
+      ]
+    },
+    "vars": {
+      "template": { "firstOf": ["channelUrls.0", "channelUrl"] },
+      "airingsKey": "airingsKey"
+    },
+    "distinctBy": "id",
+    "requireNonEmpty": true
+  },
+  "guide": {
+    "mode": "keyed",
+    "request": "airings",
+    "key": "stationId",
+    "keyVar": "airingsKey",
+    "map": {
+      "title": "title",
+      "start": { "path": "timeStart", "as": "iso" },
+      "end": { "path": "timeEnd", "as": "iso" },
+      "description": "description",
+      "subTitle": { "path": "subTitle", "unlessEquals": "title" },
+      "season": "seasonNumber",
+      "episode": "episodeNumber"
+    }
+  },
+  "resolve": {
+    "url": "${channel.vars.template}",
+    "macros": {
+      "USPRIVACY": "1---",
+      "IFATYPE": "aaid",
+      "LMT": "0",
+      "TARGETOPT": "False",
+      "APP_NAME": "VIZIO",
+      "APP_BUNDLE": "com.vizio.vue.launcher",
+      "APP_STORE_URL": "https://play.google.com/store/apps/details?id=com.vizio.vue.launcher",
+      "DOMAIN": "https://www.vizio.com",
+      "DNT": "0",
+      "COPPA": "0",
+      "DEVICE_MAKE": "Google",
+      "WIDTH": "1080",
+      "HEIGHT": "1920",
+      "DEVICE_MODEL": "Pixel 7",
+      "APP_VERSION": "5.0.0",
+      "DEVICE_TYPE": "mobile",
+      "SKIPPABLE": "1",
+      "IS_LAT": "0",
+      "GDPR": "0",
+      "ADID": "${device.id}"
+    },
+    "headers": {
+      "User-Agent": "okhttp/4.12.0",
+      "Accept": "application/json"
+    },
+    "expiresSeconds": 3600
+  }
+}

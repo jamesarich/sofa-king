@@ -88,7 +88,7 @@ def web(args, out):
         page = context.new_page()
         page.on('pageerror', lambda error: print(f'page error: {error}', file=sys.stderr))
         settings = {'backend_url': {'t': 's', 'v': base}, 'api_token': {'t': 's', 'v': TOKEN}}
-        page.add_init_script(f'localStorage.getItem("sofaking.preferences") || localStorage.setItem("sofaking.settings", {json.dumps(json.dumps(settings))})')
+        page.add_init_script(f'try {{ localStorage.getItem("sofaking.preferences") || localStorage.setItem("sofaking.settings", {json.dumps(json.dumps(settings))}) }} catch (e) {{}}')
 
         def settled():
             # The posters load lazily, so the picture waits for every one that is on the page.

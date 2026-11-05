@@ -165,7 +165,7 @@ internal class PackagedStreams(
             sessions.attach(pack.id, pack.job)
             val reader = join(offering, stream, READER_CHUNKS)
             try {
-                copy(pack, reader)
+                copy(pack, reader, offering)
             } finally {
                 withContext(NonCancellable) { reader.close() }
             }
@@ -184,9 +184,10 @@ internal class PackagedStreams(
     /**
      * Feeds [reader]'s packets to an FFmpeg that writes [pack]'s playlist, until either ends. The packets wait in the
      * reader's buffer while FFmpeg starts, which on a busy host outlasts the default one; a source that opens with a
-     * burst fills it before any consumer is scheduled.
+     * burst fills it before any consumer is scheduled. An FFmpeg that exits before it wrote its first playlist, which a
+     * short probe does on a source whose codec parameters come late, is started once more with FFmpeg's default probe.
      */
-    private suspend fun copy(pack: Package, reader: TsFanout.Reader) {
+    private suspend fun copy(pack: Package, reader: TsFanout.Reader, offering: Offering) {
         val begun = runCatchingCancellable { reader.awaitStarted() }
         begun.exceptionOrNull()?.let { e ->
             // A body in the other protocol moves the session to it, and the player re-reads the descriptor.
@@ -194,7 +195,15 @@ internal class PackagedStreams(
             throw unavailable()
         }
         Files.createDirectories(pack.dir)
-        val process = ffmpegProcess(command(pack.dir)).redirectErrorStream(true)
+        if (feed(pack, reader, probe = true)) {
+            log.info("packager retried with the default probe session={} provider={}", pack.id, offering.providerId)
+            feed(pack, reader, probe = false)
+        }
+    }
+
+    /** Runs one FFmpeg on [reader] until either ends; true when a [probe] run died before its first playlist. */
+    private suspend fun feed(pack: Package, reader: TsFanout.Reader, probe: Boolean): Boolean {
+        val process = ffmpegProcess(command(pack.dir, probe)).redirectErrorStream(true)
             .redirectOutput(pack.dir.resolve("ffmpeg.log").toFile()).startOwned()
         pack.started.complete(null)
         try {
@@ -204,19 +213,31 @@ internal class PackagedStreams(
                     input.write(chunk)
                 }
             }
+        } catch (e: IOException) {
+            if (probe && !Files.exists(pack.dir.resolve(PLAYLIST))) return true
+            throw e
         } finally {
             process.terminate()
         }
+        return false
     }
 
-    private fun command(dir: Path): List<String> = listOf(
-        ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-f", "mpegts", "-i", "pipe:0",
-        "-map", "0:v:0?", "-map", "0:a?", "-c", "copy", "-sn", "-dn",
-        "-f", "hls", "-hls_time", "$SEGMENT_SECONDS", "-hls_list_size", "$LIST_SIZE",
-        "-hls_flags", "delete_segments+temp_file+independent_segments+program_date_time",
-        "-hls_segment_type", "mpegts", "-hls_segment_filename", dir.resolve("seg%d.ts").toString(),
-        dir.resolve(PLAYLIST).toString(),
-    )
+    private fun command(dir: Path, probe: Boolean): List<String> = listOf(
+        ffmpeg,
+        "-hide_banner",
+        "-nostdin",
+        "-loglevel",
+        "error",
+    ) + (if (probe) listOf("-probesize", "${probeBytes()}", "-analyzeduration", "${probeMicros()}") else emptyList()) +
+        listOf(
+            "-f", "mpegts", "-i", "pipe:0",
+            "-map", "0:v:0?", "-map", "0:a?", "-c", "copy", "-sn", "-dn",
+            "-f", "hls", "-hls_time", "$SEGMENT_SECONDS", "-hls_init_time", "$FIRST_SEGMENT_SECONDS",
+            "-hls_list_size", "$LIST_SIZE",
+            "-hls_flags", "delete_segments+temp_file+independent_segments+program_date_time",
+            "-hls_segment_type", "mpegts", "-hls_segment_filename", dir.resolve("seg%d.ts").toString(),
+            dir.resolve(PLAYLIST).toString(),
+        )
 
     private suspend fun segments(file: Path): Int = withContext(Dispatchers.IO) {
         if (Files.exists(file)) Files.readAllLines(file).count { SEGMENT.matches(it) } else 0
@@ -231,6 +252,23 @@ internal class PackagedStreams(
 
         private const val PLAYLIST = "index.m3u8"
         private const val SEGMENT_SECONDS = 2
+
+        /** The first segment is shorter, so a player has a playlist as early as FFmpeg can cut one. */
+        private const val FIRST_SEGMENT_SECONDS = 1
+
+        /**
+         * FFmpeg's input probe: its defaults read 5 MB or 5 seconds of a live source before the first packet goes out,
+         * which a live source takes in real time. One second holds the codec parameters of any stream that sends them.
+         */
+        private const val PROBE_BYTES = 1_000_000
+        private const val PROBE_MICROS = 1_000_000
+
+        /** Overrides the short probe's limits (bytes, microseconds); a test sets it to force the fallback. */
+        @Volatile internal var probeLimitsForTest: Pair<Int, Int>? = null
+
+        private fun probeBytes() = probeLimitsForTest?.first ?: PROBE_BYTES
+
+        private fun probeMicros() = probeLimitsForTest?.second ?: PROBE_MICROS
         private const val LIST_SIZE = 30
 
         /** How many segments AVPlayer needs listed before it starts a live stream. */

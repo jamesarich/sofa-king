@@ -1,5 +1,8 @@
 package dev.jamesrich.sofaking.backend.http
 
+import ch.qos.logback.classic.LoggerContext
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import dev.jamesrich.sofaking.backend.AppStreams
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
@@ -7,6 +10,7 @@ import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.catalog.MediaFixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
+import dev.jamesrich.sofaking.backend.playback.PackagedStreams
 import dev.jamesrich.sofaking.backend.pollUntil
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.OpenPlayback
@@ -27,6 +31,8 @@ import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -120,6 +126,40 @@ class PackagedStreamsTest {
             pollUntil(10_000, 100) { runtime.relay.packaged == 0 }
             assertEquals(0, runtime.relay.packaged, "releasing the session stops its FFmpeg")
         }
+
+    @Test fun `the first playlist for a player other than AVPlayer comes within three seconds`() =
+        withTsChannel { channel, _ ->
+            val session = open(channel, "fast", "hls")
+            val started = System.nanoTime()
+            val playlist = client.get(session.descriptor.url).bodyAsText()
+            val seconds = (System.nanoTime() - started) / 1e9
+            assertTrue(seconds < 3.0, "the first playlist took $seconds s: $playlist")
+            client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }
+        }
+
+    @Test fun `an FFmpeg that fails on the short probe is started again with the default probe`() {
+        val events = ListAppender<ILoggingEvent>().apply { start() }
+        val root = (LoggerFactory.getILoggerFactory() as LoggerContext).getLogger(Logger.ROOT_LOGGER_NAME)
+        root.addAppender(events)
+        // A probe too small to see the codec parameters makes FFmpeg exit before its first playlist.
+        PackagedStreams.probeLimitsForTest = 2_000 to 100_000
+        try {
+            withTsChannel { channel, _ ->
+                val session = open(channel, "retry", "hls")
+                val response = client.get(session.descriptor.url)
+                assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+                assertTrue(response.bodyAsText().contains("#EXTINF:"), "the retry serves a playlist")
+                client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }
+            }
+        } finally {
+            PackagedStreams.probeLimitsForTest = null
+            root.detachAppender(events)
+        }
+        assertTrue(
+            events.list.any { it.formattedMessage.contains("packager retried with the default probe") },
+            "the retry is logged",
+        )
+    }
 
     @Test fun `SOFA_APP_STREAMS source gives a player that names no protocols the TS, and HLS on request`() =
         withTsChannel(AppStreams.SOURCE) { channel, _ ->

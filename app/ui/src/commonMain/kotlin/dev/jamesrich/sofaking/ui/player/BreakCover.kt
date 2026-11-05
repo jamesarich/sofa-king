@@ -47,6 +47,7 @@ internal class BreakCover {
     suspend fun watch(player: PlayerTimeline): Nothing {
         val watch = BreakWatch()
         var lastFound: AdBreakNow? = null
+        var wasUp = false
         while (true) {
             val reading = readBreak(player)
             val shown = if (reading.stalled) watch.stalled() else watch.shown(reading.found)
@@ -60,6 +61,10 @@ internal class BreakCover {
             inBreak = shown != null
             leftMs = shown?.remainingMs
             if (watch.over) dismissed = false
+            if (up != wasUp) {
+                wasUp = up
+                log.i { if (up) "break screen up, ${leftMs ?: "?"} ms left" else "break screen down" }
+            }
             delay(AD_BREAK_POLL_MS)
         }
     }

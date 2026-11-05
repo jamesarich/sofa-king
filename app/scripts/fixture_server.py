@@ -49,8 +49,12 @@ DELIMITER = b'\x00\x00\x00\x01\x09'
 PIECE = 188 * 64
 # How many segments a live HLS playlist lists.
 LIVE_WINDOW = 5
-# The first channel's playlist carries a standard ad mark (EXT-X-DATERANGE of the app's ad class) for BREAK_SECONDS at the
-# start of every BREAK_EVERY seconds of wall clock, on the program date time clock it also carries.
+# How many 2-second segments the marked channel's playlist lists: 20 seconds, so a 30-second break is in the window for
+# 50 seconds in all.
+MARKED_WINDOW = 10
+# The first channel's live playlist carries a standard ad mark (EXT-X-DATERANGE of the app's ad class, with the cue tags of
+# the same break) for BREAK_SECONDS at the start of every BREAK_EVERY seconds of wall clock, on the program date time
+# clock it also carries.
 BREAK_EVERY = 240
 BREAK_SECONDS = 30
 AD_CLASS = 'dev.jamesrich.sofaking.ad'
@@ -79,6 +83,41 @@ EPISODE_SECONDS = 20
 def iso(seconds):
     """[seconds] since the epoch as the ISO 8601 UTC time HLS tags carry."""
     return datetime.fromtimestamp(seconds, timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+
+
+def marked_playlist(clip, now):
+    """The marked channel's live playlist at [now] (epoch seconds) over [clip], its (segment, seconds) pairs, which loop
+    from the epoch with a discontinuity at each loop. The first segment of the window carries EXT-X-PROGRAM-DATE-TIME,
+    and every window that overlaps a break carries the break's EXT-X-DATERANGE ad mark and, as upstreams that mark with
+    cues do, EXT-X-CUE-OUT before its first segment (EXT-X-CUE-OUT-CONT when that has left the window) and
+    EXT-X-CUE-IN after its last."""
+    seconds = clip[0][1]
+    latest = int(now / seconds)
+    first = latest - MARKED_WINDOW + 1
+    start, end = first * seconds, (latest + 1) * seconds
+    begin = int(start / BREAK_EVERY) * BREAK_EVERY
+    lines = ['#EXTM3U', '#EXT-X-VERSION:3', f'#EXT-X-TARGETDURATION:{round(seconds + 0.5)}',
+             f'#EXT-X-MEDIA-SEQUENCE:{first}', f'#EXT-X-DISCONTINUITY-SEQUENCE:{first // len(clip)}']
+    breaks = [b for b in (begin, begin + BREAK_EVERY) if b < end and b + BREAK_SECONDS > start]
+    for number in range(first, latest + 1):
+        name, length = clip[number % len(clip)]
+        at = number * seconds
+        if number % len(clip) == 0 and number != first:
+            lines.append('#EXT-X-DISCONTINUITY')
+        if number == first:
+            lines.append(f'#EXT-X-PROGRAM-DATE-TIME:{iso(at)}')
+            for b in breaks:
+                lines.append(f'#EXT-X-DATERANGE:ID="fixture-ad-{b}",CLASS="{AD_CLASS}",START-DATE="{iso(b)}",'
+                             f'DURATION={BREAK_SECONDS}')
+        for b in breaks:
+            if at == b:
+                lines.append(f'#EXT-X-CUE-OUT:{BREAK_SECONDS}')
+            elif at == b + BREAK_SECONDS:
+                lines.append('#EXT-X-CUE-IN')
+            elif number == first and b < at < b + BREAK_SECONDS:
+                lines.append(f'#EXT-X-CUE-OUT-CONT:{at - b:g}/{BREAK_SECONDS}')
+        lines += [f'#EXTINF:{length:.3f},', name]
+    return '\n'.join(lines) + '\n'
 
 
 class Upstream(http.server.SimpleHTTPRequestHandler):
@@ -138,18 +177,12 @@ class Upstream(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def marked(self):
-        """/live.m3u8 (the first channel) with an EXT-X-PROGRAM-DATE-TIME of now before its first segment and, while its
-        segments overlap a break, the break's EXT-X-DATERANGE ad mark with its DURATION."""
+        """/live.m3u8 (the first channel) as a live HLS playlist: a sliding window of the clip's segments looped as if
+        they had aired since the epoch, with no EXT-X-ENDLIST, so a player that stays tuned sees a break begin and end."""
         lines = (Path(self.directory) / 'live.m3u8').read_text().splitlines()
-        length = sum(float(line[len('#EXTINF:'):].split(',')[0]) for line in lines if line.startswith('#EXTINF:'))
-        now = time.time()
-        begin = int(now / BREAK_EVERY) * BREAK_EVERY
-        tags = [f'#EXT-X-PROGRAM-DATE-TIME:{iso(now)}']
-        if now < begin + BREAK_SECONDS and now + length > begin:
-            tags.append(f'#EXT-X-DATERANGE:ID="fixture-ad-{begin}",CLASS="{AD_CLASS}",START-DATE="{iso(begin)}",'
-                        f'DURATION={BREAK_SECONDS}')
-        first = next(i for i, line in enumerate(lines) if line.startswith('#EXTINF:'))
-        body = ('\n'.join(lines[:first] + tags + lines[first:]) + '\n').encode()
+        clip = [(name, float(info[len('#EXTINF:'):].split(',')[0])) for info, name in zip(lines, lines[1:])
+                if info.startswith('#EXTINF:')]
+        body = marked_playlist(clip, time.time()).encode()
         self.send_response(200)
         self.send_header('Content-Type', 'application/vnd.apple.mpegurl')
         self.send_header('Content-Length', str(len(body)))

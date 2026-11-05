@@ -12,6 +12,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.UIKitView
+import dev.jamesrich.sofaking.data.AdBreakNow
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.TimeSpan
 import dev.jamesrich.sofaking.data.durationFromRanges
@@ -119,6 +120,7 @@ internal class AvLivePlayer(
     private var starting: Job? = null
 
     private val tap = AvAudioTap()
+    private val breakMarks = AvBreakMarks()
     override val audioTap: AudioAnalyzer get() = tap.analyzer
 
     private val hasFrame = MutableStateFlow(false)
@@ -204,6 +206,7 @@ internal class AvLivePlayer(
             val item = AVPlayerItem(uRL = url)
             av.replaceCurrentItemWithPlayerItem(item)
             tap.follow(item)
+            breakMarks.follow(item)
             if (playWhenReady) av.start(speed)
             refresh()
             return
@@ -212,11 +215,13 @@ internal class AvLivePlayer(
         av.pause()
         av.replaceCurrentItemWithPlayerItem(null)
         tap.follow(null)
+        breakMarks.follow(null)
         starting = scope.launch {
             awaitLiveSegments(url)
             val item = AVPlayerItem(uRL = url)
             av.replaceCurrentItemWithPlayerItem(item)
             tap.follow(item)
+            breakMarks.follow(item)
             starting = null
             if (playWhenReady) av.start(speed)
             refresh()
@@ -230,6 +235,7 @@ internal class AvLivePlayer(
         av.pause()
         av.replaceCurrentItemWithPlayerItem(null)
         tap.follow(null)
+        breakMarks.follow(null)
         refresh()
     }
 
@@ -267,12 +273,14 @@ internal class AvLivePlayer(
             return durationFromRanges(CMTimeGetSeconds(item.duration), item.seekableTimeRanges.toTimeSpans())
         }
 
-    /** The end of the loaded range the picture is in, less the picture's time. */
-    override val loadedAheadMs: Long?
+    override fun adBreak(): AdBreakNow? = if (stream?.seekable == false) breakMarks.adBreak() else null
+
+    /** Nothing loaded past the picture of a live stream: the end of the loaded range the picture is in is its time. */
+    override val pictureStalled: Boolean
         get() {
-            if (stream?.seekable != false) return null
-            val item = av.currentItem ?: return null
-            return loadedAheadMs(CMTimeGetSeconds(av.currentTime()), item.loadedTimeRanges.toTimeSpans())
+            if (stream?.seekable != false) return false
+            val item = av.currentItem ?: return true
+            return loadedAheadMs(CMTimeGetSeconds(av.currentTime()), item.loadedTimeRanges.toTimeSpans()) == null
         }
 
     override fun seekTo(positionMs: Long) {
@@ -328,6 +336,7 @@ internal class AvLivePlayer(
         av.pause()
         av.replaceCurrentItemWithPlayerItem(null)
         tap.follow(null)
+        breakMarks.follow(null)
         scope.cancel()
     }
 

@@ -1,7 +1,8 @@
 package dev.jamesrich.sofaking
 
-import dev.jamesrich.sofaking.data.AdBreakNow
+import dev.jamesrich.sofaking.contract.AdDateRange
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.BreakMarks
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.ServerCapabilities
@@ -50,12 +51,11 @@ interface TvChannels {
      */
     fun stopWatching()
 
-    /**
-     * The ad break the player shows, as the server places it from the segments AVPlayer fetched and [aheadMs], what it
-     * has loaded past the picture; null outside one.
-     */
-    @Throws(Exception::class)
-    suspend fun adBreak(aheadMs: Long): AdBreakNow?
+    /** The `CLASS` of the `EXT-X-DATERANGE` marks that mean an ad break, for the player's metadata collector. */
+    val adBreakClass: String
+
+    /** A fresh set of ad marks for one live item: Swift adds what its collector reads and asks [BreakMarks.at]. */
+    fun breakMarks(): BreakMarks
 }
 
 internal class TvChannelCalls(private val parts: TvParts) : TvChannels {
@@ -99,6 +99,7 @@ internal class TvChannelCalls(private val parts: TvParts) : TvChannels {
         }
     }
 
-    @Throws(Exception::class)
-    override suspend fun adBreak(aheadMs: Long): AdBreakNow? = viewModel.sessions.adBreak(aheadMs)
+    override val adBreakClass: String = AdDateRange.CLASS
+
+    override fun breakMarks(): BreakMarks = BreakMarks()
 }

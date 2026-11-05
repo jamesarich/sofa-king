@@ -19,7 +19,9 @@ import androidx.compose.ui.platform.webgl.rememberWebGLRenderTarget
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.HtmlElementView
 import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.data.AdBreakNow
 import dev.jamesrich.sofaking.data.HLS_MIME_TYPE
+import dev.jamesrich.sofaking.data.LiveSessions
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.TimeSpan
 import dev.jamesrich.sofaking.data.durationFromRanges
@@ -190,11 +192,23 @@ internal class HtmlLivePlayer(
     override val positionMs: Long get() = if (isSeekable) (video.currentTime * 1000).toLong().coerceAtLeast(0L) else 0L
 
     /** The end of the buffered range the picture is in, less the picture's time. */
-    override val loadedAheadMs: Long?
-        get() {
-            if (stream?.seekable != false || !loaded) return null
-            return loadedAheadMs(video.currentTime, video.buffered.toTimeSpans())
+    private val loadedAhead: () -> Long? = {
+        if (stream?.seekable != false ||
+            !loaded
+        ) {
+            null
+        } else {
+            loadedAheadMs(video.currentTime, video.buffered.toTimeSpans())
         }
+    }
+
+    private val breakAsk = WebBreakAsk(loadedAhead)
+
+    override fun useSessions(sessions: LiveSessions) = breakAsk.use(sessions)
+
+    override fun adBreak(): AdBreakNow? = breakAsk.last
+
+    override val pictureStalled: Boolean get() = stream?.seekable == false && loaded && loadedAhead() == null
 
     /** A finished file reports its duration; a growing recording reports Infinity, so its seekable end stands in. */
     override val durationMs: Long?
@@ -286,6 +300,7 @@ internal class HtmlLivePlayer(
     }
 
     override fun release() {
+        breakAsk.release()
         stop()
         autoplay.release()
         tap.close()

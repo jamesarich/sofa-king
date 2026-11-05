@@ -148,7 +148,8 @@ internal fun rememberLiveParts(
     covers: Boolean,
 ): LiveParts {
     val tuner = rememberLiveTuner(player, sessions, state)
-    val cover = rememberBreakCover(player, sessions, covers, state.tuned?.guideId)
+    LaunchedEffect(player, sessions) { player.useSessions(sessions) }
+    val cover = rememberBreakCover(player, covers, state.tuned?.guideId)
     val focus = rememberPlayerFocus(state)
     val notice = rememberPlayerNotice()
     return remember(state, player, tuner, cover, focus, notice) {

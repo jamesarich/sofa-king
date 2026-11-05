@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers.manifest
 
 import dev.jamesrich.sofaking.backend.providers.ProviderContext
+import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.array
 import dev.jamesrich.sofaking.backend.providers.long
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
@@ -72,6 +73,25 @@ internal class ManifestFetcher(private val context: ProviderContext, private val
             }
         }
         return items
+    }
+
+    /** The stream URL a resolve POST to [url] answers with; the channel is gone when it answers 404 or 410. */
+    suspend fun postedUrl(loaded: Loaded, url: String, post: ManifestResolvePost, scope: TemplateScope): String {
+        val headers = (loaded.manifest.headers + loaded.manifest.resolve.headers).mapValues {
+            ManifestTemplate.render(it.value, scope)
+        }
+        val answer = context.http.post(
+            url,
+            headers,
+            ManifestTemplate.render(post.body, scope),
+            post.contentType ?: "application/json",
+        ).require("$service resolve").json()
+        val media = answer.textAt(post.urlPath) ?: post.fallbackPath?.let { answer.textAt(it) }
+            ?: throw ProviderFailure("$service answered no stream URL", transient = false)
+        if (!media.startsWith("https://") && !media.startsWith("http://")) {
+            throw ProviderFailure("$service stream is not a URL", transient = false)
+        }
+        return media
     }
 
     private suspend fun send(

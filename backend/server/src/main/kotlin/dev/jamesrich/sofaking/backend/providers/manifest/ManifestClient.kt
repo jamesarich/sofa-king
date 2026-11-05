@@ -41,6 +41,7 @@ class ManifestClient(
         val loaded = loaded()
         val guide = loaded.manifest.guide ?: return null
         val channels = listed(loaded)
+        if (guide.mode == "grouped") return GroupedGuide(fetcher, loaded).parse(guide, channels, wanted)
         val programs = if (guide.mode == "keyed") {
             KeyedGuide(fetcher, loaded).programs(guide, channels, wanted)
         } else {
@@ -71,12 +72,13 @@ class ManifestClient(
         }
         val scope = fetcher.scope(loaded, entry.scope)
         var url = ManifestTemplate.render(r.url, scope)
+        r.post?.let { url = fetcher.postedUrl(loaded, url, it, scope) }
         if (r.format.isNotEmpty()) {
             val args = r.format.map { ManifestTemplate.render(it, scope) }
             var next = 0
             url = Regex("%s").replace(url) { args.getOrElse(next++) { "" } }
         }
-        if (r.macros.isNotEmpty()) {
+        if (r.macros.isNotEmpty() || r.post != null) {
             url = Macros.fill(url, r.macros.mapValues { ManifestTemplate.render(it.value, scope) })
         }
         val headers = r.headers.mapValues { ManifestTemplate.render(it.value, scope) }

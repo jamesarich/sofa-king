@@ -16,17 +16,18 @@ private fun filterErrors(where: String, filter: ManifestFilter): List<String> = 
     }
 }
 
-private fun keyedErrors(g: ManifestGuide, requests: Map<String, ManifestRequest>, channelVars: Set<String>) =
+private fun guideKeyErrors(g: ManifestGuide, requests: Map<String, ManifestRequest>, channelVars: Set<String>) =
     buildList {
         val request = g.request?.let { requests[it] }
         if (request == null) {
-            add("guide: keyed needs a request that exists")
+            add("guide: ${g.mode} needs a request that exists")
         } else if (request.optional) {
             add("guide.request: cannot be optional")
         }
-        if (g.key == null) add("guide: keyed needs key")
-        if (g.pastHours != null && g.pastHours <= 0) add("guide.pastHours must be positive")
-        if (g.programs != null) add("guide: keyed takes no programs")
+        if (g.key == null) add("guide: ${g.mode} needs key")
+        if (g.pastHours != null && g.pastHours < 0) add("guide.pastHours must not be negative")
+        if (g.mode == "grouped" && g.programs == null) add("guide: grouped needs programs")
+        if (g.mode == "keyed" && g.programs != null) add("guide: keyed takes no programs")
         g.keyVar?.let { if (it !in channelVars) add("guide.keyVar: no channel variable $it") }
     }
 
@@ -166,9 +167,9 @@ private class ManifestChecks(private val m: ProviderManifest) {
                 }
             }
 
-            "keyed" -> errors += keyedErrors(g, m.requests, channelVars)
+            "keyed", "grouped" -> errors += guideKeyErrors(g, m.requests, channelVars)
 
-            else -> errors += "guide: mode ${g.mode} is not inline, perChannel or keyed"
+            else -> errors += "guide: mode ${g.mode} is not inline, perChannel, keyed or grouped"
         }
         g.requireVar?.let { if (it !in channelVars) errors += "guide.requireVar: no channel variable $it" }
         val p = g.map
@@ -186,6 +187,10 @@ private class ManifestChecks(private val m: ProviderManifest) {
         r.format.forEach { template("resolve.format", it, channelVars) }
         r.macros.forEach { (key, value) -> template("resolve.macros.$key", value, channelVars) }
         headers("resolve.headers", r.headers, channelVars)
+        r.post?.let { post ->
+            template("resolve.post.body", post.body, channelVars)
+            if (post.urlPath.isEmpty()) errors += "resolve.post: urlPath is required"
+        }
         if (r.expiresSeconds != null && r.expiresSeconds <= 0) errors += "resolve.expiresSeconds must be positive"
     }
 

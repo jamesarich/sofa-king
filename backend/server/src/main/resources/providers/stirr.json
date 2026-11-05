@@ -1,0 +1,74 @@
+{
+  "service": "stirr",
+  "version": 1,
+  "hasGuide": true,
+  "catalog": {
+    "label": "STIRR",
+    "carries": "Sinclair's local and national channels",
+    "priority": 120
+  },
+  "defaults": {
+    "apiBase": "https://stirr.com/api"
+  },
+  "headers": {
+    "User-Agent": "${ua.browser}",
+    "Origin": "https://stirr.com",
+    "Referer": "https://stirr.com/",
+    "Accept": "application/json, text/plain, */*"
+  },
+  "cacheSeconds": 1800,
+  "requests": {
+    "videos": {
+      "url": "${apiBase}/videos/list/?categories=all_categories&content_type=4&no_limit=true",
+      "items": "videos.category_videos.*.*"
+    },
+    "epg": {
+      "url": "${apiBase}/epg?tz=UTC",
+      "items": "data.channels"
+    }
+  },
+  "channels": {
+    "from": "videos",
+    "filter": [
+      { "path": "drm_protected", "op": "neq", "value": "yes", "default": "" },
+      { "path": "active", "op": "neq", "value": "no", "default": "" }
+    ],
+    "map": {
+      "id": "videoid",
+      "name": { "path": "title", "collapseSpaces": true },
+      "number": { "path": "channel_number", "dropIf": "0" },
+      "logo": { "firstHttp": ["logo", "square_thumbs.300x300"] },
+      "group": "categories.0.category_name",
+      "tags": ["us"]
+    },
+    "sortBy": "channel_number",
+    "distinctBy": "id",
+    "requireNonEmpty": true
+  },
+  "guide": {
+    "mode": "grouped",
+    "request": "epg",
+    "key": "channel_id",
+    "programs": "programs",
+    "pastHours": 0,
+    "map": {
+      "title": "title",
+      "start": { "path": "start_time", "as": "epochSeconds" },
+      "end": { "path": "end_time", "as": "epochSeconds" },
+      "description": "description"
+    }
+  },
+  "resolve": {
+    "url": "${apiBase}/v2/videos/${channel.id}/playable",
+    "post": {
+      "urlPath": "data.0.media.0",
+      "fallbackPath": "data.0.media"
+    },
+    "headers": {
+      "User-Agent": "${ua.browser}",
+      "Origin": "https://stirr.com",
+      "Referer": "https://stirr.com/"
+    },
+    "expiresSeconds": 3600
+  }
+}

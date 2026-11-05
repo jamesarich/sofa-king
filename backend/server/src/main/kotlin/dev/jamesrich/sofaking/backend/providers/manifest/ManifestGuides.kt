@@ -1,9 +1,12 @@
 package dev.jamesrich.sofaking.backend.providers.manifest
 
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
+import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import dev.jamesrich.sofaking.backend.catalog.ProgramRating
 import dev.jamesrich.sofaking.backend.providers.ProviderChannel
+import dev.jamesrich.sofaking.backend.providers.array
 import dev.jamesrich.sofaking.backend.providers.seasonEpisode
+import dev.jamesrich.sofaking.backend.providers.toGuideChannel
 import kotlinx.serialization.json.JsonElement
 import java.time.Duration
 import java.time.Instant
@@ -86,8 +89,31 @@ private class KeyedMatch(private val guide: ManifestGuide, channels: List<Listed
         val itemKey = item.textAt(key)
         val channelId = byKey[itemKey] ?: guide.fallbackKey?.takeIf { itemKey !in listed }
             ?.let { item.textAt(it) }?.let { byName[normalized(it)] }
-        channelId?.let { program(it, item, guide.map) }?.takeIf { earliest == null || it.endsAt > earliest }
+        channelId?.let { program(it, item, guide.map) }?.takeIf { earliest == null || it.endsAt >= earliest }
     }
 
     private fun normalized(name: String) = name.lowercase().filter(Char::isLetterOrDigit)
+}
+
+/**
+ * The guide of a service whose one request answers with a row per channel, each row naming its channel by
+ * `guide.key` (matched as in a keyed guide) and carrying its programs at `guide.programs`. The guide offers only the
+ * channels whose row has programs; `pastHours` drops programs that ended longer ago.
+ */
+internal class GroupedGuide(private val fetcher: ManifestFetcher, private val loaded: Loaded) {
+    suspend fun parse(guide: ManifestGuide, channels: List<Listed>, wanted: Set<String>): ParsedGuide {
+        val byKey = channels.associateBy { if (guide.keyVar == null) it.channel.id else it.vars[guide.keyVar] }
+        val earliest = guide.pastHours?.let { fetcher.now().minus(Duration.ofHours(it)) }
+        val rows = fetcher.items(loaded, requireNotNull(guide.request), null).orEmpty().mapNotNull { row ->
+            val items = row.at(requireNotNull(guide.programs)).array
+            byKey[row.textAt(requireNotNull(guide.key))]?.takeIf { items.isNotEmpty() }?.let { it to items }
+        }
+        val programs = rows.filter { (entry, _) -> entry.channel.id in wanted }.flatMap { (entry, items) ->
+            items.mapNotNull { item ->
+                program(entry.channel.id, item, guide.map)?.takeIf { earliest == null || it.endsAt >= earliest }
+            }
+        }
+        val index = rows.map { (entry, _) -> entry.channel.toGuideChannel() }
+        return ParsedGuide(index, programs)
+    }
 }

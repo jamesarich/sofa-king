@@ -89,17 +89,19 @@ A field reads a value from an item. A string is a `path`; an object combines the
 | `as` | `epochSeconds`, `epochMillis` or `iso`: reads a time |
 | `nonUrl` | `path` names an array: the first text in it that does not start with `http` |
 | `sentenceCase` | Lowercases, then capitalizes the first letter |
+| `collapseSpaces` | Replaces each run of white space with one space |
 | `usRating` | Reads a content rating and its system |
 
 `guide`:
 
 | Key | Meaning |
 | --- | --- |
-| `mode` | `inline`: each channel item carries its programs at `programs`. `perChannel`: `request` runs once per wanted channel. `keyed`: `request` runs once and each item names its channel |
+| `mode` | `inline`: each channel item carries its programs at `programs`. `perChannel`: `request` runs once per wanted channel. `keyed`: `request` runs once and each item names its channel. `grouped`: `request` runs once and each item is a row for one channel (`key`) with its programs at `programs`; the guide lists only the channels whose row has programs |
 | `requireVar` | A channel variable that must be set for a wanted channel, else the guide fails as a service fault |
 | `key`, `keyVar` | `keyed` only: the path in a program item that names its channel, matched to the channel variable `keyVar` (to the channel id when there is none) |
 | `fallbackKey` | `keyed` only: for an item whose `key` no channel has, the path of a name matched to the channel names with case and punctuation ignored |
-| `pastHours` | `keyed` only: a program that ended more than this many hours ago is dropped |
+| `programs` | `inline`: the path of the programs in a channel item. `grouped`: the path of the programs in a row |
+| `pastHours` | `keyed` and `grouped`: a program that ended more than this many hours ago is dropped |
 | `map` | `title`, `start`, `end` (required; `end` after `start`), `description`, `subTitle`, `icon`, `category`, `rating`, `season` and `episode` (positive numbers become episode numbers), as fields over a program item |
 
 The guide lists every channel and holds programs only for the channels the lineup wants.
@@ -115,6 +117,7 @@ The guide lists every channel and holds programs only for the channels the lineu
 | `macros` | `{}` | Values for the ad-insertion names of the URL (`[NAME]`, `{NAME}`), as templates; unnamed ones become empty |
 | `headers` | `{}` | The headers the relay sends with the stream |
 | `expiresSeconds` | None | How long the URL works |
+| `post` | None | The URL is POSTed to, and the stream URL is in the JSON answer: `urlPath` (required) or else `fallbackPath`, `body` (a template) and `contentType`. `format` and `macros` then apply to that URL, and a `macros` of `{}` still blanks the ad names left in it; an answer without a URL, or with one that is not HTTP, fails permanently |
 | `missing` | `Channel is no longer listed` | The message when the channel is gone from the service |
 
 A channel that is not in the listing fails permanently after the listing is read once more, as for the Kotlin clients.

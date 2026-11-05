@@ -74,13 +74,6 @@ Every platform's app against the same server, playing a showcase lineup of the B
   <img src="docs/images/desktop-movie.webp" width="49%" alt="A movie's page in the desktop app">
 </p>
 
-**Web**
-
-<p>
-  <img src="docs/images/web-library.webp" width="49%" alt="The Library tab in a browser">
-  <img src="docs/images/web-show.webp" width="49%" alt="A show's page in a browser">
-</p>
-
 **iPhone and iPad**
 
 <p>
@@ -96,7 +89,7 @@ Every platform's app against the same server, playing a showcase lineup of the B
   <img src="docs/images/apple-tv-guide.webp" width="49%" alt="The guide on Apple TV: the focused program's preview and details over All and Favorites, Search, On later and a grid of channels">
 </p>
 
-**Light theme** (phones, tablets, desktop and web; a TV stays dark)
+**Light theme** (phones, tablets and desktop; a TV stays dark)
 
 <p>
   <img src="docs/images/android-phone-library-light.webp" width="24%" alt="The Library tab on an Android phone in the light theme">

@@ -2,7 +2,6 @@ package dev.jamesrich.sofaking
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
-import dev.jamesrich.sofaking.contract.AdBreakState
 import dev.jamesrich.sofaking.contract.ApiError
 import dev.jamesrich.sofaking.contract.Bootstrap
 import dev.jamesrich.sofaking.contract.Capabilities
@@ -218,8 +217,6 @@ internal class FakeServer(private val recordings: Boolean = true, private val mu
                 sessionsOpened.incrementAndGet()
                 exchange.json(201, session(id, open.channelId, open.intent))
             }
-
-            path.endsWith("/ad-break") -> exchange.json(200, AdBreakState())
 
             path.startsWith("multiview-sessions") && multiview -> multiviewSession(exchange, path, request)
 

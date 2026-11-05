@@ -99,7 +99,7 @@ function row(ctx: Context, channel: WebChannel, favorite: boolean): HTMLElement 
             { class: 'what' },
             h('span', { class: 'name', text: channel.name }),
             h('span', { class: 'now', text: now ? now.title : 'Nothing listed' }),
-            now ? h('span', { class: 'meter' }, h('span', { class: 'fill', attrs: { style: `width:${Math.round(elapsed(now, at) * 100)}%` } })) : null,
+            now ? h('span', { class: 'meter' }, h('span', { class: 'fill', style: { width: `${Math.round(elapsed(now, at) * 100)}%` } })) : null,
             next ? h('span', { class: 'next', text: `${clock(next.startMs)} ${next.title}` }) : null,
         ),
     );

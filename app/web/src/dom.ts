@@ -6,6 +6,8 @@ export interface Props {
     class?: string;
     text?: string;
     attrs?: Record<string, string | number | boolean | undefined>;
+    /** Inline styles, set through the CSSOM: the page's CSP blocks a `style` attribute. */
+    style?: Record<string, string>;
     on?: { [K in keyof HTMLElementEventMap]?: (event: HTMLElementEventMap[K]) => void };
 }
 
@@ -21,6 +23,7 @@ export function h<K extends keyof HTMLElementTagNameMap>(
         if (value === undefined || value === false) continue;
         element.setAttribute(name, value === true ? '' : String(value));
     }
+    for (const [name, value] of Object.entries(props.style ?? {})) element.style.setProperty(name, value);
     for (const [name, handler] of Object.entries(props.on ?? {})) {
         element.addEventListener(name, handler as EventListener);
     }

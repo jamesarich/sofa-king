@@ -1,6 +1,5 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask
-import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import java.time.Duration
 
 plugins {
@@ -59,31 +58,6 @@ kotlin {
             isStatic = true
         }
     }
-    // The browser runs the app; Node runs the common tests on JS without a headless browser. Wasm tests are off:
-    // Compose's wasm test binary loads skiko.wasm, which Node is not served; core runs its tests on wasm.
-    js {
-        browser {
-            commonWebpackConfig { outputFileName = "sofaking.js" }
-            testTask { enabled = false }
-        }
-        // Coil's JS decoder loads skiko, whose glue writes to `window`; give Node one so the test binary loads. Mocha's
-        // 2-second default is too short on a busy CI runner, as in core.
-        nodejs {
-            testTask {
-                nodeJsArgs += listOf("--import", "data:text/javascript,globalThis.window ??= globalThis")
-                useMocha { timeout = "30s" }
-            }
-        }
-        binaries.executable()
-    }
-    @OptIn(ExperimentalWasmDsl::class)
-    wasmJs {
-        browser {
-            commonWebpackConfig { outputFileName = "sofaking.js" }
-            testTask { enabled = false }
-        }
-        binaries.executable()
-    }
 
     compilerOptions {
         optIn.add("androidx.compose.material3.ExperimentalMaterial3ExpressiveApi")
@@ -91,9 +65,6 @@ kotlin {
         optIn.add("androidx.compose.ui.ExperimentalComposeUiApi")
         optIn.add("androidx.compose.foundation.ExperimentalFoundationApi")
     }
-    // Every web source set, parents and children alike, as the compiler requires opt-ins to agree along dependsOn.
-    sourceSets.matching { it.name.startsWith("web") || it.name.startsWith("js") || it.name.startsWith("wasmJs") }
-        .configureEach { languageSettings.optIn("kotlin.js.ExperimentalWasmJsInterop") }
 
     sourceSets {
         commonMain {
@@ -147,9 +118,6 @@ kotlin {
             implementation(libs.compose.ui.test)
             implementation(libs.ktor.client.mock)
             implementation(libs.kotlinx.serialization.json)
-        }
-        webMain.dependencies {
-            implementation(libs.kotlinx.browser)
         }
     }
 }

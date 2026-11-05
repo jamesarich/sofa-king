@@ -92,13 +92,6 @@ interface LiveSessions {
     suspend fun tune(channelId: String, intent: PlaybackIntent): PlaybackStream
 
     /**
-     * The ad break the held live channel's player shows, as the server places it from the segments the player fetched
-     * and [aheadMs], what it has loaded past the picture; null outside one, between
-     * channels and before a server is set.
-     */
-    suspend fun adBreak(aheadMs: Long): AdBreakNow?
-
-    /**
      * Changes the held session's intent in place; nothing happens when the session is not [channelId]'s or already
      * [intent].
      */
@@ -287,13 +280,6 @@ internal class LiveTuning(private val hold: SessionHold) : LiveSessions {
             }
             open(api, LiveSessionKind(channelId, intent, newIdempotencyKey))
         }
-    }
-
-    override suspend fun adBreak(aheadMs: Long): AdBreakNow? {
-        val api = hold.api ?: return null
-        val held = hold.current.value?.takeIf { it.itemId == null && !it.seekable && !it.isMultiview } ?: return null
-        val state = api.adBreak(held.sessionId, aheadMs)
-        return if (state.inBreak) AdBreakNow(state.remainingMs) else null
     }
 
     override suspend fun health(): StreamHealth? {

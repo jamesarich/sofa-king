@@ -168,15 +168,13 @@ Traffic between tailnet devices is encrypted by WireGuard. For HTTPS as well, ru
 
 ## Serve the web app
 
-The server serves the Sofa King app's web build itself: open `http://SERVER_HOST:9193/app/`, or the server's address alone, which opens it. The published image carries the build made from the same commit as the server, so the web app always matches the server it talks to and updates with it. The page and the API share the server's origin, so nothing needs a proxy or `SOFA_CORS_ORIGINS`; enter a pairing code or the API token in its Settings like any client, or open it paired from the portal's [Devices page](admin.md#devices). The page takes no token, sends its own content security policy, and keeps its service worker to `/app/`. A browser downloads about 6 MB the first time and then revalidates; the WebAssembly files are cached for good, since a new build names them anew. `SOFA_WEB_DIR` names the folder the server serves (`/opt/sofa/web` in the image); unset, or a folder without `index.html`, serves no web app and leaves `/` unanswered.
+The server serves the Sofa King web app itself, which plays through hls.js and so in Firefox too: open `http://SERVER_HOST:9193/app/`, or the server's address alone, which opens it. The published image carries the build made from the same commit as the server, so the web app always matches the server it talks to and updates with it. The page and the API share the server's origin, so nothing needs a proxy or `SOFA_CORS_ORIGINS`; enter a pairing code or the API token in its Settings like any client, or open it paired from the portal's [Devices page](admin.md#devices). The page takes no token, sends its own content security policy, and keeps its service worker to `/app/`. A browser downloads about 0.6 MB, gzipped, the first time and then revalidates; the script and styles carry a content hash in their names, so they are cached for good, since a new build names them anew. `SOFA_WEB_DIR` names the folder the server serves (`/opt/sofa/web` in the image); unset, or a folder without `index.html`, serves no web app and leaves `/` unanswered.
 
-The image also carries the new web client, which plays through hls.js, at `/app2/`; `SOFA_WEB2_DIR` names its folder (`/opt/sofa/web2` in the image) and, unset or without `index.html`, serves none. It is the same kind of page: same origin, no token, the same content security policy, and a service worker kept to `/app2/`. Its script and styles carry a content hash in their names, so the server caches them for good, and the rest revalidate. To serve it from another host, unzip `sofa-king-snapshot-web.zip` from the snapshot release.
-
-To serve the web app from another host instead, as below, unzip `sofa-king-snapshot-web-wasm.zip` from the [snapshot release](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), or `sofa-king-snapshot-web-js.zip` for browsers without WebAssembly GC. It holds `index.html`, `sofaking.js`, two `.wasm` files, `composeResources/`, the web app manifest with its icons, and `sw.js`. The web app plays HLS channels only.
+To serve the web app from another host instead, as below, unzip `sofa-king-snapshot-web.zip` from the [snapshot release](https://github.com/jamesarich/sofa-king/releases/tag/snapshot). It holds `index.html`, the hashed script and stylesheet, the web app manifest with its icons, and `sw.js`. The web app plays HLS channels only.
 
 Served over HTTPS (or from `localhost`), the web app is installable: Chrome and Edge offer Install in the address bar, and Safari on iOS has Add to Home Screen. It then opens in its own window, in landscape. Its service worker, `sw.js`, keeps a copy of the app's own files, fetched from the network first so a new bundle shows on the next load, and never touches `/api/`, `/media/`, `/logos/` or `/admin`. Over plain HTTP the browser runs no service worker and offers no install; the app works the same in a tab.
 
-To serve it from the same origin as the API, the proxy forwards exactly `/api/`, `/media/` and `/logos/` at the origin root to the server and serves everything else from the bundle. It must serve `.wasm` files as `application/wasm`, which Caddy's `file_server` and nginx's stock `mime.types` do. The server cannot be served under a sub-path, so a proxy serves the web app at its root.
+To serve it from the same origin as the API, the proxy forwards exactly `/api/`, `/media/` and `/logos/` at the origin root to the server and serves everything else from the bundle. The server cannot be served under a sub-path, so a proxy serves the web app at its root.
 
 With [Caddy](https://caddyserver.com/docs/caddyfile/directives/handle):
 
@@ -273,7 +271,7 @@ cd deploy
 REVISION=$(git rev-parse --short HEAD) docker compose -f compose.yaml -f compose.build.yaml up -d --build
 ```
 
-A build made this way serves no web app, since `backend/web` is empty. To include it, build it from `app/` with `./gradlew :ui:wasmJsBrowserDistribution` and copy `ui/build/dist/wasmJs/productionExecutable/` into `backend/web/` before the image build.
+A build made this way serves no web app, since `backend/web` is empty. To include it, build it from `app/` with `./gradlew :core:jsBrowserProductionLibraryDistribution`, then `npm ci && npm run build` in `app/web`, and copy `app/web/dist/` into `backend/web/` before the image build.
 
 Later commands in `deploy` that recreate the container take both files, or set `SOFA_IMAGE=sofa-king-backend:local` in `.env`, which makes plain `docker compose up -d` run the local build.
 

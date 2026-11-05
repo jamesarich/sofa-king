@@ -23,13 +23,13 @@ class LicensesTest {
 
     @Test
     fun `a platform lists only the libraries its targets ship`() {
-        val common = library("common", "android", "jvm", "iosArm64", "js", "wasmJs")
+        val common = library("common", "android", "jvm", "iosArm64")
         val media3 = library("media3", "android")
         val vlcj = library("vlcj", "jvm")
         val all = listOf(common, media3, vlcj)
         assertEquals(listOf(common, media3), librariesFor(all, setOf("android")))
         assertEquals(listOf(common, vlcj), librariesFor(all, setOf("jvm")))
-        assertEquals(listOf(common), librariesFor(all, setOf("js", "wasmJs")))
+        assertEquals(listOf(common), librariesFor(all, setOf("iosArm64")))
     }
 
     @Test

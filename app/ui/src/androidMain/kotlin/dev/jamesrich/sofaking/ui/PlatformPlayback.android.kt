@@ -8,7 +8,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.media3.session.MediaSession
-import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.ui.player.ExoSurroundTest
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.MatchExoDisplayFrameRate
@@ -55,9 +54,6 @@ internal actual fun rememberSurroundTestPlayer(): SurroundTestPlayer? {
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) =
     MatchExoDisplayFrameRate(player, enabled)
-
-@Composable
-internal actual fun ReleaseOnPageExit(sessions: PlaybackSessions) = Unit
 
 /** The music's media session goes to [MusicService] while a song is loaded, which keeps it playing behind the app. */
 @Composable

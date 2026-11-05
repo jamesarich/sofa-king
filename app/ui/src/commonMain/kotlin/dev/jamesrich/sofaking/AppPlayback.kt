@@ -15,7 +15,6 @@ import androidx.lifecycle.withStateAtLeast
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.ui.MatchDisplayFrameRate
-import dev.jamesrich.sofaking.ui.ReleaseOnPageExit
 import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.MusicPlayback
@@ -189,7 +188,6 @@ internal fun ForegroundEffects(
         player.stop()
         sessions.releaseAsync()
     }
-    ReleaseOnPageExit(sessions)
     LifecycleEventEffect(Lifecycle.Event.ON_START, lifecycleOwner) {
         if (currentPlays && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
             captionSync.effectiveUs = captionSync.advanceUs

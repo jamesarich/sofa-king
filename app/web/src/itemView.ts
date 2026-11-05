@@ -51,7 +51,12 @@ function page(ctx: Context, detail: WebItemDetail): HTMLElement {
         .join(' · ');
     return h(
         'div',
-        { class: 'detail', attrs: item.backdrop ? { style: `background-image:linear-gradient(#14111Fcc,#14111F),url("${item.backdrop}")` } : {} },
+        {
+            class: 'detail',
+            style: item.backdrop
+                ? { 'background-image': `linear-gradient(#14111Fcc,#14111F),url("${item.backdrop}")` }
+                : {},
+        },
         h('h1', { text: item.showTitle ? `${item.showTitle}: ${item.title}` : item.title }),
         h('p', { class: 'facts', text: facts }),
         detail.tagline ? h('p', { class: 'tagline', text: detail.tagline }) : null,

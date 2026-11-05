@@ -17,7 +17,7 @@ export function card(item: WebItem, keyPrefix: string): HTMLElement {
         h('span', { class: 'card-title', text: item.showTitle ?? item.title }),
         h('span', { class: 'card-detail', text: item.showTitle ? item.title : detail }),
         item.progress != null
-            ? h('span', { class: 'meter' }, h('span', { class: 'fill', attrs: { style: `width:${Math.round(item.progress * 100)}%` } }))
+            ? h('span', { class: 'meter' }, h('span', { class: 'fill', style: { width: `${Math.round(item.progress * 100)}%` } }))
             : null,
     );
 }

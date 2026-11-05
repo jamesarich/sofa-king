@@ -1,7 +1,6 @@
 # Runs the installed distribution built on the host: ./gradlew :server:installDist
-# and serves the web app from web/, the app's :ui:wasmJsBrowserDistribution, and the new web client from web2/, the
-# app/web build (an empty folder serves none).
-# The build context only admits server/build/install/server, web and web2 (see .dockerignore).
+# and serves the web app from web/, the app/web build (an empty folder serves none).
+# The build context only admits server/build/install/server and web (see .dockerignore).
 
 # Splits the distribution so the third-party jars, which change rarely, get a layer of their own.
 # It only moves platform-independent files, so it runs natively on the build host.
@@ -31,7 +30,6 @@ COPY --from=split /dist/lib /opt/sofa/lib
 COPY --from=split /app/bin /opt/sofa/bin
 COPY --from=split /app/lib /opt/sofa/lib
 COPY web /opt/sofa/web
-COPY web2 /opt/sofa/web2
 
 # /config holds the database, the logo cache, the generated tokens, and sources.json and policy.json when present.
 # Any uid that owns a bind-mounted /config can run the image (user: "UID:GID"); it writes nothing else but /tmp and
@@ -44,7 +42,6 @@ ENV SOFA_HOST=0.0.0.0 \
     SOFA_PORT=8080 \
     SOFA_DATA_DIR=/config \
     SOFA_WEB_DIR=/opt/sofa/web \
-    SOFA_WEB2_DIR=/opt/sofa/web2 \
     SERVER_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -Djava.net.preferIPv4Stack=true"
 
 USER sofa

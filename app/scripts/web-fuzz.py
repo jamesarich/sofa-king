@@ -4,11 +4,9 @@ distribution serving fixture channels; fail when the app takes no keys, or on an
 console logged, a failed request, a crashed page or a blank screen.
 
 Needs Playwright for Python, FFmpeg and the server's distribution (`./gradlew :server:installDist` in backend/), and
-the web build: `./gradlew :ui:wasmJsBrowserDistribution` or `:ui:jsBrowserDistribution`, or the new client's, `npm ci &&
-npm run build` in app/web after `./gradlew :core:jsBrowserProductionLibraryDistribution`. Writes the console, the
-server log, the keys and the last screen to --out. With --served-at (or --served, which is /app/) the server serves the
-build there, as the image does, the new client at /app2/; otherwise a static server on another origin does, through
-SOFA_CORS_ORIGINS.
+the web build: `npm ci && npm run build` in app/web after `./gradlew :core:jsBrowserProductionLibraryDistribution`.
+Writes the console, the server log, the keys and the last screen to --out. With --served the server serves the build at
+/app/, as the image does; otherwise a static server on another origin does, through SOFA_CORS_ORIGINS.
 """
 import argparse
 import functools
@@ -30,9 +28,9 @@ KEYS = [
     ('ArrowUp', 12), ('ArrowDown', 14), ('ArrowLeft', 10), ('ArrowRight', 12), ('Enter', 10), ('Escape', 6),
     ('PageUp', 2), ('PageDown', 2), ('Space', 1),
 ]
-# What the DOM client takes beyond the remote's keys: Tab through its controls, Backspace back.
+# What the page takes beyond the remote's keys: Tab through its controls, Backspace back.
 DOM_KEYS = [('Tab', 4), ('Backspace', 3)]
-# True when the focus is on an element and not the body, or a video is playing; the Compose apps focus their canvas.
+# True when the focus is on an element and not the body, or a video is playing.
 FOCUS_TAKEN = """(() => {
     const active = document.activeElement;
     if (active && active !== document.body) return true;
@@ -46,21 +44,9 @@ BLANK_BYTES = 4000
 EXPECTED = (('/api/v1/preferences/', 404), ('/media/sessions/', 410))
 
 
-RELEASE = {'name': 'Snapshot 0.0.0-dev.1', 'tag_name': 'snapshot', 'html_url': 'https://github.com/jamesarich/sofa-king/releases/tag/snapshot', 'assets': []}
-
-
-def answer_github(route):
-    """RELEASE for the update check's request to api.github.com, which the page may read from its own origin."""
-    cors = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*'}
-    if route.request.method == 'OPTIONS':
-        route.fulfill(status=204, headers=cors)
-    else:
-        route.fulfill(status=200, headers=cors, content_type='application/json', body=json.dumps(RELEASE))
-
-
 class Static(http.server.SimpleHTTPRequestHandler):
-    """The web build's files, with WebAssembly's type, which streaming compilation insists on."""
-    extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, '.wasm': 'application/wasm', '.mjs': 'text/javascript'}
+    """The web build's files."""
+    extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, '.mjs': 'text/javascript'}
 
     def log_message(self, *args):
         pass
@@ -68,23 +54,19 @@ class Static(http.server.SimpleHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument('--dist', required=True, help='the web build, such as ui/build/dist/wasmJs/productionExecutable')
+    parser.add_argument('--dist', required=True, help='the web build, app/web/dist')
     parser.add_argument('--out', required=True)
     parser.add_argument('--keys', type=int, default=int(os.environ.get('SOFAKING_WEB_FUZZ_KEYS') or 400))
     parser.add_argument('--seed', type=int, default=int(os.environ.get('SOFAKING_WEB_FUZZ_SEED') or time.time()))
     parser.add_argument('--channel', help="a browser Playwright runs by channel, such as chrome, which plays H.264")
     parser.add_argument('--served', action='store_true', help='have the server serve the build at /app/ (SOFA_WEB_DIR)')
-    parser.add_argument('--served-at', choices=['/app/', '/app2/'],
-                        help='have the server serve the build at /app/ (SOFA_WEB_DIR) or the new client at /app2/ (SOFA_WEB2_DIR)')
     args = parser.parse_args()
-    served_at = args.served_at or ('/app/' if args.served else None)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     print(f'Seed {args.seed}, {args.keys} keys, {args.dist}', flush=True)
 
-    if served_at:
-        variable = 'SOFA_WEB2_DIR' if served_at == '/app2/' else 'SOFA_WEB_DIR'
-        page_url, env = None, {variable: str(Path(args.dist).resolve())}
+    if args.served:
+        page_url, env = None, {'SOFA_WEB_DIR': str(Path(args.dist).resolve())}
     else:
         static = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Static, directory=args.dist))
         threading.Thread(target=static.serve_forever, daemon=True).start()
@@ -94,7 +76,7 @@ def main():
     errors, console = [], []
     pressed = []
     with serve(out, **env) as base, sync_playwright() as playwright:
-        page_url = page_url or f'{base}{served_at}'
+        page_url = page_url or f'{base}/app/'
         browser = playwright.chromium.launch(channel=args.channel)
         page = browser.new_page(viewport={'width': 1280, 'height': 720})
         page.on('pageerror', lambda error: errors.append(f'page error: {error}'))
@@ -111,9 +93,6 @@ def main():
             if response.status >= 400 and not expected:
                 errors.append(f'{response.request.method} {response.url} answered {response.status}')
         page.on('response', answered)
-        # The update check asks GitHub for the snapshot release. The fuzz answers it with one no newer than any build,
-        # so the run neither reaches the live API nor fails when a shared runner hits its rate limit.
-        page.route('https://api.github.com/**', answer_github)
         # Paired as a build before DataStore kept its settings: the app moves them over on its first read.
         settings = {'backend_url': {'t': 's', 'v': base}, 'api_token': {'t': 's', 'v': TOKEN}}
         page.add_init_script(f'localStorage.getItem("sofaking.preferences") || localStorage.setItem("sofaking.settings", {json.dumps(json.dumps(settings))})')
@@ -130,7 +109,7 @@ def main():
             errors.append('the app took no keys: the page body kept the focus')
 
         rng = random.Random(args.seed)
-        names, weights = zip(*(KEYS + (DOM_KEYS if served_at == '/app2/' else [])))
+        names, weights = zip(*(KEYS + DOM_KEYS))
         blank = 0
         for index, key in enumerate(rng.choices(names, weights, k=args.keys)):
             if errors:

@@ -107,11 +107,20 @@ jobs:
       # The production web builds run on their own: beside the screenshot tests they ran the runner out of memory, and
       # GitHub stopped it with "The runner has received a shutdown signal".
       - name: Build the web distributions
-        run: ./gradlew :ui:wasmJsBrowserDistribution :ui:jsBrowserDistribution
-      # Random keys on both production web builds in Google Chrome, which the runner has and which plays the fixture
+        run: ./gradlew :ui:wasmJsBrowserDistribution :ui:jsBrowserDistribution :core:jsBrowserProductionLibraryDistribution
+      # The new web client: esbuild over core's JS library and hls.js, type-checked, then its unit tests on Node.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/web/package-lock.json
+      - name: Build and test the web client
+        working-directory: app/web
+        run: npm ci && npm run build && npm test
+      # Random keys on the production web builds in Google Chrome, which the runner has and which plays the fixture
       # channels' H.264 where Playwright's own Chromium does not, against the server's distribution, as on the TV. The
-      # server serves the Wasm build at /app/ under its own policy, as the image does; the JS build is served from
-      # another origin through CORS, as on a separate web server.
+      # server serves the Wasm build at /app/ and the new client at /app2/ under its own policy, as the image does; the
+      # JS build is served from another origin through CORS, as on a separate web server.
       - name: Install FFmpeg
         uses: ./.github/actions/apt-install
         with:
@@ -131,6 +140,8 @@ jobs:
             build/playwright/bin/python scripts/web-fuzz.py --channel chrome $served \
               --dist "ui/build/dist/$target/productionExecutable" --out "build/web-fuzz/$target" || status=1
           done
+          build/playwright/bin/python scripts/web-fuzz.py --channel chrome --served-at /app2/ \
+            --dist web/dist --out build/web-fuzz/web || status=1
           exit "$status"
       # A restored older distribution would otherwise be saved again under the new key, and the entry would grow.
       - name: Keep only the current Kotlin/Native distribution

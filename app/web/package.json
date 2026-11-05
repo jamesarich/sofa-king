@@ -1,0 +1,21 @@
+{
+  "name": "sofaking-web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The Sofa King web client: plain TypeScript and hls.js on core's JS library",
+  "scripts": {
+    "build": "tsc --noEmit && node build.mjs",
+    "dev": "node build.mjs --serve",
+    "typecheck": "tsc --noEmit",
+    "test": "node build.mjs --test"
+  },
+  "dependencies": {
+    "hls.js": "1.7.4"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

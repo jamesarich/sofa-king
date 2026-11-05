@@ -42,7 +42,7 @@ internal fun requestBodyLimit(method: HttpMethod, path: String?): Long = when {
  */
 internal fun accessLogged(path: String?): Boolean = path == null || !(
     path.startsWith("/media/") || path.startsWith("/logos/") || path.startsWith("/artwork/") ||
-        path.startsWith("/output/stream/") || path.startsWith("$WEB_APP_PATH/") ||
+        path.startsWith("/output/stream/") || isWebAppPath(path) ||
         path.startsWith("/auto/") ||
         path == "/healthz" || path == "/readyz"
     )
@@ -77,6 +77,7 @@ fun Application.backendModule(
     routing {
         healthRoutes(store, clock, runtime)
         config?.takeIf { it.servesWebApp() }?.webDirectory?.let { webAppRoutes(it) }
+        config?.takeIf { it.servesWeb2App() }?.web2Directory?.let { webAppRoutes(it, WEB2_APP_PATH) }
         if (runtime != null) {
             liveRoutes(runtime)
             adminRoutes(runtime, clock, revision, hdhr.enabled)
@@ -164,6 +165,6 @@ internal val ApplicationCall.routedPath: String? get() = attributes.getOrNull(Ro
  * never are.
  */
 internal fun compressible(path: String?): Boolean = path != null && path != EVENT_STREAM_PATH && (
-    path.startsWith("/api/") || path == "/admin" || path.startsWith("/admin/") || path.startsWith("$WEB_APP_PATH/") ||
+    path.startsWith("/api/") || path == "/admin" || path.startsWith("/admin/") || isWebAppPath(path) ||
         path == "/output/playlist.m3u" || path == "/output/guide.xml" || path == "/lineup.json"
     )

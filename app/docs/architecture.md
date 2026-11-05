@@ -6,8 +6,9 @@ Sofa King is a Kotlin Multiplatform project. One Compose Multiplatform UI on Mat
 
 | Module | What it holds | Targets |
 | --- | --- | --- |
-| `core` | Models, the server API and the server connection, repository, playback sessions, lineup cache, settings store and the ViewModels (`LineupViewModel`, `LibraryViewModel`, `RecordingsViewModel`). No Compose. The Swift facade (`SofaKingTv`) lives in `appleHostMain`, and `core` builds a static `SofaKingCore` framework for iOS and tvOS. | Android, JVM, iOS, macOS, tvOS, watchOS, Linux, js, wasmJs |
+| `core` | Models, the server API and the server connection, repository, playback sessions, lineup cache, settings store and the ViewModels (`LineupViewModel`, `LibraryViewModel`, `RecordingsViewModel`). No Compose. The Swift facade (`SofaKingTv`) lives in `appleHostMain`, and `core` builds a static `SofaKingCore` framework for iOS and tvOS. | Android, JVM, iOS, macOS, tvOS, watchOS, Linux, js (also an ES module library, `SofaKingWeb` in `jsMain`), wasmJs |
 | `ui` | Every screen, the app shell, the guide and player logic, the app graph, and the desktop, web and iOS entry points | Android, JVM, iOS, js, wasmJs |
+| `web` | The new web client in plain TypeScript, played through hls.js and built with esbuild (`npm run build`), on `core`'s JS library through the `SofaKingWeb` facade: calls are `Promise`s, flows are `watch(onChange)` and models are flat values. The server serves it at `/app2/` beside the Compose web app | Browsers |
 | `androidApp` | The Android application: manifest, launcher and TV banner, `SofaKingApplication` and `MainActivity` | Android |
 | `baselineprofile` | The Baseline Profile generator for `androidApp`, which [development](development.md#baseline-profile) runs on a device | Android |
 | `iosApp` | The SwiftUI host for the `SofaKingUi` framework, as an XcodeGen spec | iOS |

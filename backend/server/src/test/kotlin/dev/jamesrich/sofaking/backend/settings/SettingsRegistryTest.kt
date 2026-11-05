@@ -52,6 +52,7 @@ class SettingsRegistryTest {
         "recordingsDirectory" to listOf("SOFA_RECORDINGS_DIR"),
         "mediaDirectory" to listOf("SOFA_MEDIA_DIR"),
         "webDirectory" to listOf("SOFA_WEB_DIR"),
+        "web2Directory" to listOf("SOFA_WEB2_DIR"),
         "tmdb" to listOf("SOFA_TMDB_TOKEN", "SOFA_TMDB_LANGUAGE"),
         "maxTranscodes" to listOf("SOFA_MAX_TRANSCODES"),
         "videoEncoder" to listOf("SOFA_HWACCEL", "SOFA_HWACCEL_DEVICE"),
@@ -95,7 +96,9 @@ class SettingsRegistryTest {
     @Test fun `the server settings table in the docs lists exactly the registered settings`() {
         val table = Files.readAllLines(Path.of("..", "docs", "live-tv.md"))
             .filter { it.startsWith("| `SOFA_") }
-            .flatMap { row -> Regex("`(SOFA_[A-Z_]+)`").findAll(row.split('|')[1]).map { it.groupValues[1] }.toList() }
+            .flatMap { row ->
+                Regex("`(SOFA_[A-Z0-9_]+)`").findAll(row.split('|')[1]).map { it.groupValues[1] }.toList()
+            }
             .filter { !it.endsWith("_FILE") }
         assertEquals(Settings.all.map { it.name }.sorted(), table.sorted())
     }

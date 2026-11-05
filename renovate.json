@@ -9,7 +9,8 @@
     "gradle-wrapper",
     "dockerfile",
     "docker-compose",
-    "github-actions"
+    "github-actions",
+    "npm"
   ],
   "packageRules": [
     {
@@ -25,6 +26,17 @@
         "github-actions"
       ],
       "semanticCommitType": "ci"
+    },
+    {
+      "description": "The one npm manifest is the web client's: hls.js, esbuild, TypeScript and the Node typings, pinned exactly and updated together with package-lock.json",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchFileNames": [
+        "app/web/package.json"
+      ],
+      "rangeStrategy": "pin",
+      "groupName": "Web client npm packages"
     },
     {
       "description": "The 0.6.x-compat builds are a compatibility artifact, not newer releases",

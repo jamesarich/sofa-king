@@ -141,6 +141,7 @@ struct SettingsView: View {
                 // TMDB's terms ask apps that show its data to say so.
                 Text(strings.tmdbNotice)
                     .font(.caption).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("settings-about")
             }
         }
         .navigationTitle(strings.settingsTitle)

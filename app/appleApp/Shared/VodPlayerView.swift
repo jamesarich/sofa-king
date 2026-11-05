@@ -58,7 +58,7 @@ struct VodPlayerView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
     let request: VodRequest
-    @State private var player = AVPlayer()
+    @State private var player: AVPlayer = AppPlayer()
     @State private var stream: PlaybackStream?
     @State private var failure: String?
     @State private var replaced: Watch?
@@ -112,6 +112,13 @@ struct VodPlayerView: View {
                 actions: contextualActions,
                 itemsContext: "\(request.id)|\(stream.map { "\(ObjectIdentifier($0))" } ?? "")"
             ).ignoresSafeArea()
+            #if os(iOS)
+            PlayerChrome(
+                menus: trackMenus + [model.sleepMenu(endTitle: strings.sleepEndItem, endsAt: nil)],
+                actions: contextualActions,
+                close: { dismiss() }
+            )
+            #endif
             if let subtitleText {
                 Text(subtitleText)
                     .multilineTextAlignment(.center)
@@ -279,10 +286,12 @@ struct VodPlayerView: View {
         durationMs = s.itemDurationMs?.int64Value ?? 0
         let item = AVPlayerItem(url: url)
         item.externalMetadata = metadata()
+        #if os(tvOS)
         item.interstitialTimeRanges = breaks.map { b in
             let start = CMTime(value: b.startMs - s.offsetMs, timescale: 1000)
             return AVInterstitialTimeRange(timeRange: CMTimeRange(start: start, duration: CMTime(value: b.endMs - b.startMs, timescale: 1000)))
         }
+        #endif
         lastPositionMs = start
         // A stream the server is still converting is an HLS event playlist, which AVPlayer joins at its live edge, so
         // even a start at the stream's beginning seeks there.
@@ -674,17 +683,29 @@ private struct VodController: UIViewControllerRepresentable {
     /// The item and stream the items' handlers act on.
     let itemsContext: String
 
-    func makeCoordinator() -> TransportBarItems { TransportBarItems() }
+    final class Coordinator {
+        #if os(tvOS)
+        let items = TransportBarItems()
+        #endif
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
         controller.speeds = [1, 1.25, 1.5, 2].map { AVPlaybackSpeed(rate: $0, localizedName: "\($0.formatted())×") }
-        context.coordinator.apply(menus: menus, actions: actions, context: itemsContext, to: controller)
+        #if os(tvOS)
+        context.coordinator.items.apply(menus: menus, actions: actions, context: itemsContext, to: controller)
+        #else
+        controller.configureForPhone()
+        #endif
         return controller
     }
 
     func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
-        context.coordinator.apply(menus: menus, actions: actions, context: itemsContext, to: controller)
+        #if os(tvOS)
+        context.coordinator.items.apply(menus: menus, actions: actions, context: itemsContext, to: controller)
+        #endif
     }
 }

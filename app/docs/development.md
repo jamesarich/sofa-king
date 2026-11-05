@@ -75,17 +75,25 @@ SOFAKING_DESKTOP_MONKEY_SEED=1234 python3 scripts/desktop-monkey.py --out build/
 
 ### Apple TV remote tests
 
-`tvosApp/SofaKingTVUITests` drives the Apple TV app with the Siri Remote (`XCUIRemote`) in a tvOS simulator, against the same fixture server, and checks what the remote did through the server's API. `testPlayerTransportMenu` plays Sofa Sports from the list, presses Record in the player's transport bar until the DVR holds the recording, switches to Movies through Channels › All channels, and leaves with Menu, which must release the session. `testTabs` moves along the tab bar, into each tab and back. `testStartOnDvr` opens DVR, goes on to Settings and ends the app, whose next start must reopen DVR, then moves along the tab bar. `testKeyboardWithRandomKeys` presses 120 random arrows, Select and Play/Pause on the Server address keyboard, which reopens whenever it closes (`SOFAKING_KEYBOARD_KEYS` sets how many), and `testPlayPauseOnSettingsFields` presses Play/Pause on each of Settings' text fields. Each fails if the app stops. `testWalkWithRandomKeys` presses 200 weighted random buttons (`SOFAKING_WALK_KEYS` sets how many), brings the app back when Menu leaves it, fails if the app stops, and checks that the session is released once the app is in the background. A failure's message holds what had focus and the element tree. CI's `apple-tv` job runs them after building the Apple TV host, with shorter walks on a pull request: 60 keys on the keyboard and 100 in `testWalkWithRandomKeys`. On a Mac, with the server's distribution built and FFmpeg installed, start the fixture server and pass its address to the test runner; without it the tests skip:
+`appleApp/SofaKingTVUITests` drives the Apple TV app with the Siri Remote (`XCUIRemote`) in a tvOS simulator, against the same fixture server, and checks what the remote did through the server's API. `testPlayerTransportMenu` plays Sofa Sports from the list, presses Record in the player's transport bar until the DVR holds the recording, switches to Movies through Channels › All channels, and leaves with Menu, which must release the session. `testTabs` moves along the tab bar, into each tab and back. `testStartOnDvr` opens DVR, goes on to Settings and ends the app, whose next start must reopen DVR, then moves along the tab bar. `testKeyboardWithRandomKeys` presses 120 random arrows, Select and Play/Pause on the Server address keyboard, which reopens whenever it closes (`SOFAKING_KEYBOARD_KEYS` sets how many), and `testPlayPauseOnSettingsFields` presses Play/Pause on each of Settings' text fields. Each fails if the app stops. `testWalkWithRandomKeys` presses 200 weighted random buttons (`SOFAKING_WALK_KEYS` sets how many), brings the app back when Menu leaves it, fails if the app stops, and checks that the session is released once the app is in the background. A failure's message holds what had focus and the element tree. CI's `apple-tv` job runs them after building the Apple TV host, with shorter walks on a pull request: 60 keys on the keyboard and 100 in `testWalkWithRandomKeys`. On a Mac, with the server's distribution built and FFmpeg installed, start the fixture server and pass its address to the test runner; without it the tests skip:
 
 ```sh
 python3 scripts/fixture_server.py --out build/tvos-ui &
 set -a; . build/tvos-ui/server.env; set +a
-cd tvosApp && xcodegen
+cd appleApp && xcodegen
 TEST_RUNNER_SOFAKING_SERVER=$SOFAKING_SERVER TEST_RUNNER_SOFAKING_TOKEN=$SOFAKING_TOKEN TEST_RUNNER_SOFAKING_WALK_SEED=1234 \
   xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -destination 'platform=tvOS Simulator,name=Apple TV' CODE_SIGNING_ALLOWED=NO test
 ```
 
 ### iOS touch tests
+
+`appleApp/SofaKingUITests` drives the SwiftUI iPhone app by touch in a simulator, in portrait, with the same four tests, launch arguments (`-serverUrl`, `-apiToken`, `-muted YES`) and environment variables as the Compose host's below, through accessibility identifiers the views carry (`channel-list`, `channel-<name>`, `player-close`, `settings-about`). `testPlayChannel` taps Sofa Sports in the channel list and checks the session opens and is released behind the home screen, `testOpenAbout` scrolls Settings to its About section, `testWalkWithRandomTouches` makes the weighted random touches, and `testBreakScreen` watches a real channel. CI's `apple` job runs them after the Compose host's, with the same walk lengths. The Compose host stays until the SwiftUI app replaces it in the releases:
+
+```sh
+cd appleApp && xcodegen
+TEST_RUNNER_SOFAKING_SERVER=$SOFAKING_SERVER TEST_RUNNER_SOFAKING_TOKEN=$SOFAKING_TOKEN xcodebuild -project SofaKing.xcodeproj -scheme SofaKing \
+  -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO test
+```
 
 `iosApp/SofaKingUITests` drives the iOS app by touch in an iPhone simulator. The debug host takes `-serverUrl`, `-apiToken` and `-muted YES` as launch arguments, so a test saves its server and mutes the player without typing. `testPlayChannel` plays Sofa Sports from the guide against the fixture server and checks that the session opens, and that it is released once the app is behind the home screen; `testOpenAbout` scrolls Settings to About, whose version line reads a resource file, and checks that the app keeps running; `testWalkWithRandomTouches` makes 150 weighted random touches against the same server (taps anywhere and on buttons, swipes across the middle of the screen, the back swipe from the left edge and long presses), seeded so `SOFAKING_WALK_SEED` replays a walk, brings the app back when a touch leaves it, fails if the app stops, and checks that the session is released behind the home screen. CI's `apple` job runs all three after building the iOS host, with a 60-touch walk on a pull request (`SOFAKING_WALK_STEPS`, 150 by default). `testBreakScreen` watches a real channel on the server the simulator is already paired with, for `SOFAKING_BREAK_MINUTES` (10 by default), and logs each time the break screen comes and goes with a screenshot at each edge; it runs only when `SOFAKING_BREAK_CHANNEL` names the channel:
 
@@ -137,12 +145,13 @@ The constraints are in [AGENTS.md](../AGENTS.md), the code's layout in [architec
 | Android TV, Google TV, phones | `./gradlew :androidApp:assembleRelease`, then sideload `androidApp/build/outputs/apk/release/androidApp-release.apk` | `adb` |
 | Desktop | `./gradlew :ui:run`; `:ui:packageDistributionForCurrentOS` builds a `.deb`, `.dmg` or `.msi` under `ui/build/compose/binaries/main/` | VLC 3 installed for playback |
 | Web | `cd web && npm ci && npm run dev` after `./gradlew :core:jsBrowserProductionLibraryDistribution`; see [web app](#web-app) | The page's origin allowed by the server (`SOFA_CORS_ORIGINS=http://localhost:8000`); HLS streams |
-| iOS | On a Mac: `cd iosApp && xcodegen && open SofaKing.xcodeproj`, then run the SofaKing scheme | Xcode, XcodeGen; HLS streams |
-| Apple TV | On a Mac: `cd tvosApp && xcodegen && open SofaKingTV.xcodeproj`, then run the SofaKingTV scheme | Xcode, XcodeGen; HLS streams |
+| iPhone, iPad | On a Mac: `cd appleApp && xcodegen && open SofaKing.xcodeproj`, then run the SofaKing scheme | Xcode, XcodeGen; HLS streams |
+| Apple TV | The same project: run the SofaKingTV scheme | Xcode, XcodeGen; HLS streams |
+| iOS, Compose host | On a Mac: `cd iosApp && xcodegen && open SofaKing.xcodeproj`, then run the SofaKing scheme | Xcode, XcodeGen; HLS streams |
 
-The iOS framework links only on macOS. Every other target, including the iOS klibs, builds on Linux.
+The iOS and tvOS frameworks link only on macOS. Every other target, including the iOS klibs, builds on Linux.
 
-Both Swift hosts take their version from the catalog's `sofaking` through `tools/version-xcconfig.sh`, declare the Entertainment App Store category and no non-exempt encryption in `project.yml`. Each has an `Assets.xcassets` with the app icon (`AppIcon.appiconset` on iOS; the layered `AppIcon.brandassets` with Top Shelf images on tvOS), the amber accent color and the launch color, which `project.yml` names through `ASSETCATALOG_COMPILER_APPICON_NAME` and `ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME`.
+The Swift hosts take their version from the catalog's `sofaking` through `tools/version-xcconfig.sh`, declare the Entertainment App Store category and no non-exempt encryption in `project.yml`. Each has an `Assets.xcassets` with the app icon (`AppIcon.appiconset` on iOS; the layered `AppIcon.brandassets` with Top Shelf images on tvOS), the amber accent color and the launch color, which `project.yml` names through `ASSETCATALOG_COMPILER_APPICON_NAME` and `ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME`.
 
 ## Test on a TV
 

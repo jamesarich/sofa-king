@@ -11,22 +11,33 @@ import java.time.Duration
 /** The channel a template renders for. */
 internal class ChannelScope(val id: String, val vars: Map<String, String>)
 
+/** Where a request paged by `cursorPath` starts: the channel it begins at and how many channels are listed. */
+internal class PageCursor(val channel: String, val channels: Int)
+
 /** Runs a manifest's requests for one provider: templates, paging, decoding, and sharing an answer within its TTL. */
 internal class ManifestFetcher(private val context: ProviderContext, private val service: String) {
-    fun scope(loaded: Loaded, channel: ChannelScope? = null, page: Int? = null) = TemplateScope(
-        context.options,
-        loaded.manifest.defaults,
-        context.clock,
-        { context.deviceId() },
-        page,
-        channel?.id,
-        channel?.vars.orEmpty(),
-    )
+    fun scope(loaded: Loaded, channel: ChannelScope? = null, page: Int? = null, cursor: PageCursor? = null) =
+        TemplateScope(
+            context.options,
+            loaded.manifest.defaults,
+            context.clock,
+            { context.deviceId() },
+            page,
+            channel?.id,
+            channel?.vars.orEmpty(),
+            cursor?.channel,
+            cursor?.channels,
+        )
 
     /** The items request [name] answers with, or null when it is optional and failed. */
-    suspend fun items(loaded: Loaded, name: String, channel: ChannelScope?): List<JsonElement>? {
+    suspend fun items(
+        loaded: Loaded,
+        name: String,
+        channel: ChannelScope?,
+        cursor: PageCursor? = null,
+    ): List<JsonElement>? {
         val request = loaded.manifest.requests.getValue(name)
-        val run: suspend () -> List<JsonElement> = { fetch(loaded, name, request, channel) }
+        val run: suspend () -> List<JsonElement> = { fetch(loaded, name, request, channel, cursor) }
         val call: suspend () -> List<JsonElement> = if (request.cacheSeconds > 0 && channel == null) {
             { context.cached("request:$name:${loaded.hash}", Duration.ofSeconds(request.cacheSeconds), run) }
         } else {
@@ -40,13 +51,15 @@ internal class ManifestFetcher(private val context: ProviderContext, private val
         name: String,
         request: ManifestRequest,
         channel: ChannelScope?,
+        cursor: PageCursor?,
     ): List<JsonElement> {
         val paging = request.paging
         val items = ArrayList<JsonElement>()
         var total = 1
         var fetched = 0
         while (fetched < total && fetched < (paging?.maxPages ?: 1)) {
-            val document = send(loaded, name, request, scope(loaded, channel, paging?.let { it.start + fetched }))
+            val page = paging?.let { it.start + fetched }
+            val document = send(loaded, name, request, scope(loaded, channel, page, cursor))
             items += (if (document is JsonArray) document else document.at(request.items)).array
             fetched++
             if (fetched == 1 && paging?.count != null && paging.size != null) {

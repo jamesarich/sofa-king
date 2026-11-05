@@ -1,6 +1,12 @@
-package dev.jamesrich.sofaking.backend.providers
+package dev.jamesrich.sofaking.backend.providers.manifest
 
 import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
+import dev.jamesrich.sofaking.backend.providers.Canned
+import dev.jamesrich.sofaking.backend.providers.ProviderContext
+import dev.jamesrich.sofaking.backend.providers.ProviderFailure
+import dev.jamesrich.sofaking.backend.providers.ProviderFixture
+import dev.jamesrich.sofaking.backend.providers.ProviderScope
+import dev.jamesrich.sofaking.backend.providers.providerTest
 import dev.jamesrich.sofaking.backend.store.providerState
 import java.time.Duration
 import kotlin.test.Test
@@ -10,26 +16,19 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class VizioClientTest {
+class VizioManifestTest {
     private fun ProviderFixture.vizio() {
         json("/api/channels", ProviderFixture.resource("vizio-channels.json").replace("BASE", base))
         json("/api/airings/", ProviderFixture.resource("vizio-airings.json"))
     }
 
+    private fun ProviderScope.vizio() = manifestClient("vizio", "vizio", mapOf("apiBase" to "${fixture.base}/api"))
+
     @Test fun `lists clear channels, skips token-gated ones and fills both macro encodings`() = providerTest(
         "sofa-vizio-",
     ) {
         fixture.vizio()
-        val client =
-            VizioClient(
-                ProviderFixture.context(
-                    "vizio",
-                    mapOf("apiBase" to "${fixture.base}/api"),
-                    http,
-                    store,
-                    clock,
-                ),
-            )
+        val client = vizio()
         val channels = client.channels()
         assertEquals(
             listOf("93FoxNewsNow", "93cnnnw"),
@@ -65,21 +64,19 @@ class VizioClientTest {
         }.let { assertFalse(it.transient) }
     }
 
+    @Test fun `a FEATURED slot is tagged featured`() = providerTest("sofa-vizio-") {
+        val channels = ProviderFixture.resource("vizio-channels.json").replace("BASE", fixture.base)
+            .replace("\"93cnnnw\"", "\"FEATURED-1\"")
+        fixture.json("/api/channels", channels)
+        assertEquals(listOf("us", "featured"), vizio().channels()[1].tags)
+    }
+
     @Test fun `guide takes one bulk airings call and maps stations to channels`() = providerTest("sofa-vizio-") {
         fixture.vizio()
-        val client =
-            VizioClient(
-                ProviderFixture.context(
-                    "vizio",
-                    mapOf("apiBase" to "${fixture.base}/api"),
-                    http,
-                    store,
-                    clock,
-                ),
-            )
-        assertTrue(client.guide(emptySet()).programs.isEmpty())
+        val client = vizio()
+        assertTrue(checkNotNull(client.guide(emptySet())).programs.isEmpty())
         assertEquals(0, fixture.hits("/api/airings/"), "nothing mapped, nothing fetched")
-        val guide = client.guide(setOf("93FoxNewsNow"))
+        val guide = checkNotNull(client.guide(setOf("93FoxNewsNow")))
         assertEquals(2, guide.channels.size)
         assertEquals(1, fixture.hits("/api/airings/"))
         val query = fixture.lastQuery["/api/airings/"]!!
@@ -124,8 +121,8 @@ class VizioClientTest {
                 Canned(ProviderFixture.resource("vizio-airings.json"))
             }
         }
-        val client = VizioClient(context("vizio", mapOf("apiBase" to "${fixture.base}/api")))
-        val programs = client.guide(setOf("93FoxNewsNow", "93cnnnw")).programs
+        val client = vizio()
+        val programs = checkNotNull(client.guide(setOf("93FoxNewsNow", "93cnnnw"))).programs
         assertEquals(2, fixture.hits("/api/airings/"))
         assertTrue(fixture.lastQuery["/api/airings/"]!!.contains("startChannel=93cnnnw&channelCount=2"))
         assertEquals(
@@ -138,11 +135,8 @@ class VizioClientTest {
     @Test fun `guide maps the airing's sub-title and season and episode numbers`() = providerTest("sofa-vizio-") {
         fixture.vizio()
         fixture.json("/api/airings/", ProviderFixture.resource("vizio-airings-episode.json"))
-        val client =
-            VizioClient(
-                context("vizio", mapOf("apiBase" to "${fixture.base}/api")),
-            )
-        val (episode, special) = client.guide(setOf("93FoxNewsNow")).programs
+        val client = vizio()
+        val (episode, special) = checkNotNull(client.guide(setOf("93FoxNewsNow"))).programs
         assertEquals("Sample Series", episode.title)
         assertEquals("The Sample Episode", episode.subTitle)
         assertEquals("Something happens.", episode.description)

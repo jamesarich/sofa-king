@@ -26,10 +26,6 @@ class ManifestClient(
     private val manifests: ProviderManifests,
     override val service: String,
 ) : ProviderClient {
-    private class Listed(val channel: ProviderChannel, val vars: Map<String, String>, val raw: JsonElement) {
-        val scope get() = ChannelScope(channel.id, vars)
-    }
-
     private val fetcher = ManifestFetcher(context, service)
 
     @Volatile private var listKey: String? = null
@@ -45,7 +41,11 @@ class ManifestClient(
         val loaded = loaded()
         val guide = loaded.manifest.guide ?: return null
         val channels = listed(loaded)
-        val programs = channels.filter { it.channel.id in wanted }.flatMap { programs(loaded, guide, it) }
+        val programs = if (guide.mode == "keyed") {
+            KeyedGuide(fetcher, loaded).programs(guide, channels, wanted)
+        } else {
+            channels.filter { it.channel.id in wanted }.flatMap { programs(loaded, guide, it) }
+        }
         return ParsedGuide(channels.map { it.channel.toGuideChannel() }, programs)
     }
 
@@ -61,23 +61,6 @@ class ManifestClient(
             fetcher.items(loaded, requireNotNull(guide.request), entry.scope).orEmpty()
         }
         return items.mapNotNull { program(entry.channel.id, it, guide.map) }
-    }
-
-    private fun program(channelId: String, item: JsonElement, map: ManifestProgramMap): GuideProgram? {
-        val title = map.title.text(item) ?: return null
-        val start = map.start.instant(item) ?: return null
-        val end = map.end.instant(item)?.takeIf { it > start } ?: return null
-        return GuideProgram(
-            channelId,
-            start,
-            end,
-            title,
-            map.description.text(item),
-            subTitle = map.subTitle.text(item),
-            icon = map.icon.text(item),
-            categories = listOfNotNull(map.category.text(item)),
-            rating = map.rating?.spec?.read(item) as? ProgramRating,
-        )
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
@@ -145,7 +128,7 @@ class ManifestClient(
             c.map.number.text(item),
             c.map.logo.text(item),
             c.map.group.text(item),
-            c.map.tags,
+            c.map.tags + c.map.tagsWhen.filter { it.condition.passes(item) }.map { it.tag },
         )
         val join = c.join
         if (join != null) {

@@ -243,7 +243,6 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
 
         fun client(service: String, context: ProviderContext): ProviderClient = when (service) {
             "whale" -> WhaleClient(context)
-            "vizio" -> VizioClient(context)
             "lg" -> LgClient(context)
             "ballysports" -> BallySportsClient(context)
             "adultswim" -> AdultSwimClient(context)

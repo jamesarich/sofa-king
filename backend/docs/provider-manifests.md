@@ -51,7 +51,7 @@ Each entry of `requests`:
 | `headers` | `{}` | Templates |
 | `body` | None | A template; `POST` only |
 | `contentType` | `application/json` | Of the body |
-| `paging` | None | `start` (first `${page}`, default 1), `maxPages`, `count` and `size` (paths in the first answer; more pages follow while `count` exceeds `size`) and `defaultSize` |
+| `paging` | None | `start` (first `${page}`, default 1), `maxPages`, `count` and `size` (paths in the first answer; more pages follow while `count` exceeds `size`) and `defaultSize`; or `cursorPath` and `maxPages` for a [keyed guide](#guide-keyed) |
 | `decode` | `[]` | Steps from the response body to JSON, in order |
 | `items` | `""` | Path of the array of items in the answer; empty for the whole answer. An answer that is itself an array is the items whatever the path says |
 | `optional` | `false` | A failure reads as no answer instead of failing the import |
@@ -66,14 +66,14 @@ Decode steps are `base64`, `zlib`, `gzip`, `jsonArrayAfter:<key>` (the first arr
 | `from` | | The request that lists the channels |
 | `static` | | Channel items written in the manifest, instead of `from`; exactly one of the two |
 | `filter` | `[]` | Items that fail any filter are skipped |
-| `map` | Required | `id` and `name` (required), `logo`, `group`, `number`, and `tags` (literal strings) |
+| `map` | Required | `id` and `name` (required), `logo`, `group`, `number`, `tags` (literal strings) and `tagsWhen` (`{"tag": "featured", "when": <a filter>}` adds the tag to a channel whose item passes the filter) |
 | `vars` | `{}` | Named values kept per channel, for `${channel.vars.NAME}` |
 | `join` | None | Looks up each channel in another request's items: `request`, `key` (path in the item), `on` (a template for the channel), `vars` and `set` (`logo`, `name`, `group` or `number`) to take from the match |
 | `sortBy` | None | A path to a number in the item; channels list in ascending order of it, items without one last |
 | `distinctBy` | None | `id` keeps the first channel of an id |
 | `requireNonEmpty` | `false` | An empty list fails the import as a service fault |
 
-A filter is `path`, `op`, and `value` for `eq` and `neq`; `default` stands in for a missing value. The ops are `eq`, `neq`, `truthy` (JSON `true`, the text "true" or a number other than zero), `falsy`, `http` (an HTTP or HTTPS URL) and `nonEmpty`.
+A filter is `path`, `op`, and `value` for `eq`, `neq` and `startsWith`; `default` stands in for a missing value, and `anyOf` (a list of paths) replaces `path` with the first of them that has a value. The ops are `eq`, `neq`, `startsWith` (ignoring case), `truthy` (JSON `true`, the text "true" or a number other than zero), `falsy`, `http` (an HTTP or HTTPS URL) and `nonEmpty`; `truthy` and `falsy` take a `path` only.
 
 A field reads a value from an item. A string is a `path`; an object combines these, applied in this order:
 
@@ -87,17 +87,21 @@ A field reads a value from an item. A string is a `path`; an object combines the
 | `dropIf` | Reads as nothing when equal to this, ignoring case |
 | `unlessEquals` | Reads as nothing when equal to the value at this path |
 | `as` | `epochSeconds` or `iso`: reads a time |
+| `sentenceCase` | Lowercases, then capitalizes the first letter |
 | `usRating` | Reads a content rating and its system |
 
 `guide`:
 
 | Key | Meaning |
 | --- | --- |
-| `mode` | `inline`: each channel item carries its programs at `programs`. `perChannel`: `request` runs once per wanted channel |
+| `mode` | `inline`: each channel item carries its programs at `programs`. `perChannel`: `request` runs once per wanted channel. `keyed`: `request` runs once and each item names its channel |
 | `requireVar` | A channel variable that must be set for a wanted channel, else the guide fails as a service fault |
-| `map` | `title`, `start`, `end` (required; `end` after `start`), `description`, `subTitle`, `icon`, `category`, `rating`, as fields over a program item |
+| `key`, `keyVar` | `keyed` only: the path in a program item that names its channel, matched to the channel variable `keyVar` (to the channel id when there is none) |
+| `map` | `title`, `start`, `end` (required; `end` after `start`), `description`, `subTitle`, `icon`, `category`, `rating`, `season` and `episode` (positive numbers become episode numbers), as fields over a program item |
 
 The guide lists every channel and holds programs only for the channels the lineup wants.
+
+<a id="guide-keyed"></a>A `keyed` guide whose request pages by `cursorPath` runs again for as long as a wanted channel has no programs yet, up to `maxPages`. Each run starts at the first such channel (`${cursor}` is its id and `${channels.count}` the number of channels listed), and `cursorPath` is the path in a program item of the station it belongs to. A station keeps the programs of the first run that carried it. A request paged by `cursorPath` is not cached.
 
 `resolve`:
 
@@ -120,6 +124,7 @@ A template is text with `${name}` substitutions; bracketed ad macros are left fo
 | --- | --- |
 | `${option}` | The source file's option of that name, else the manifest's `defaults`; the name must be a default or a `catalog` option |
 | `${page}` | The page of a paged request |
+| `${cursor}`, `${channels.count}` | In a request paged by `cursorPath`: the channel the run starts at, and the number of channels listed |
 | `${channel.id}` | The channel's id |
 | `${channel.vars.NAME}` | A variable of the channel, in a per-channel guide request, `join.on` and `resolve` |
 | `${device.id}` | The provider's random per-install device id |

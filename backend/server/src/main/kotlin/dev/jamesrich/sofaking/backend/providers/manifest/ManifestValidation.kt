@@ -8,6 +8,27 @@ private val SERVICE_NAME = Regex("[a-z][a-z0-9-]*")
 /** What is wrong with the manifest; empty when it can be used. */
 fun ProviderManifest.validate(): List<String> = ManifestChecks(this).run()
 
+private fun filterErrors(where: String, filter: ManifestFilter): List<String> = buildList {
+    if (filter.op !in FILTER_OPS) add("$where: unknown op ${filter.op}")
+    if (filter.op in setOf("eq", "neq", "startsWith") && filter.value == null) add("$where: ${filter.op} needs a value")
+    if (filter.anyOf != null && (filter.path.isNotEmpty() || filter.op in setOf("truthy", "falsy"))) {
+        add("$where: anyOf replaces path and reads text, not truthy or falsy")
+    }
+}
+
+private fun keyedErrors(g: ManifestGuide, requests: Map<String, ManifestRequest>, channelVars: Set<String>) =
+    buildList {
+        val request = g.request?.let { requests[it] }
+        if (request == null) {
+            add("guide: keyed needs a request that exists")
+        } else if (request.optional) {
+            add("guide.request: cannot be optional")
+        }
+        if (g.key == null) add("guide: keyed needs key")
+        if (g.programs != null) add("guide: keyed takes no programs")
+        g.keyVar?.let { if (it !in channelVars) add("guide.keyVar: no channel variable $it") }
+    }
+
 private class ManifestChecks(private val m: ProviderManifest) {
     private val errors = ArrayList<String>()
     private val optionKeys = m.defaults.keys + m.catalog?.options?.map { it.key }.orEmpty()
@@ -26,7 +47,7 @@ private class ManifestChecks(private val m: ProviderManifest) {
             }
         }
         headers("headers", m.headers, null)
-        val guideRequest = m.guide?.request
+        val guideRequest = m.guide?.let { g -> g.request.takeIf { g.mode == "perChannel" } }
         m.requests.forEach { (name, request) ->
             request(name, request, channelVars.takeIf { name == guideRequest })
         }
@@ -36,14 +57,26 @@ private class ManifestChecks(private val m: ProviderManifest) {
         return errors
     }
 
-    private fun template(where: String, text: String, channel: Set<String>?, page: Boolean = false) {
-        val names = TemplateNames(optionKeys, channel, page)
+    private fun template(
+        where: String,
+        text: String,
+        channel: Set<String>?,
+        page: Boolean = false,
+        cursor: Boolean = false,
+    ) {
+        val names = TemplateNames(optionKeys, channel, page, cursor)
         ManifestTemplate.references(text).forEach { name ->
             ManifestTemplate.problem(name, names)?.let { errors += "$where: $it" }
         }
     }
 
-    private fun headers(where: String, headers: Map<String, String>, channel: Set<String>?, page: Boolean = false) {
+    private fun headers(
+        where: String,
+        headers: Map<String, String>,
+        channel: Set<String>?,
+        page: Boolean = false,
+        cursor: Boolean = false,
+    ) {
         headers.forEach { (key, value) ->
             if (key.lowercase() in CREDENTIAL_HEADERS) {
                 val reference = ManifestTemplate.references(value).singleOrNull()
@@ -51,20 +84,22 @@ private class ManifestChecks(private val m: ProviderManifest) {
                     errors += "$where: $key must be a \${option} the household sets, never a literal value"
                 }
             }
-            template("$where.$key", value, channel, page)
+            template("$where.$key", value, channel, page, cursor)
         }
     }
 
     private fun request(name: String, r: ManifestRequest, channel: Set<String>?) {
         val where = "requests.$name"
         val paged = r.paging != null
+        val cursor = r.paging?.cursorPath != null
         if (r.method !in setOf("GET", "POST")) errors += "$where: method ${r.method} is not GET or POST"
         if (r.method == "GET" && r.body != null) errors += "$where: a GET has no body"
         if (r.cacheSeconds < 0) errors += "$where: cacheSeconds must not be negative"
         if (r.cacheSeconds > 0 && channel != null) errors += "$where: a per-channel request cannot be cached"
-        template("$where.url", r.url, channel, paged)
-        r.body?.let { template("$where.body", it, channel, paged) }
-        headers("$where.headers", r.headers, channel, paged)
+        template("$where.url", r.url, channel, paged, cursor)
+        r.body?.let { template("$where.body", it, channel, paged, cursor) }
+        headers("$where.headers", r.headers, channel, paged, cursor)
+        if (cursor && r.cacheSeconds > 0) errors += "$where: a request paged by cursorPath cannot be cached"
         r.decode.filterNot(::knownStep).forEach { errors += "$where: unknown decode step $it" }
         r.paging?.let { paging ->
             if (paging.maxPages < 1 || paging.start < 0) errors += "$where: paging needs maxPages of at least 1"
@@ -90,12 +125,8 @@ private class ManifestChecks(private val m: ProviderManifest) {
     }
 
     private fun channelMap(c: ManifestChannels) {
-        c.filter.forEach { filter ->
-            if (filter.op !in FILTER_OPS) errors += "channels.filter: unknown op ${filter.op}"
-            if (filter.op in setOf("eq", "neq") && filter.value == null) {
-                errors += "channels.filter: ${filter.op} needs a value"
-            }
-        }
+        c.filter.forEach { errors += filterErrors("channels.filter", it) }
+        c.map.tagsWhen.forEach { errors += filterErrors("channels.map.tagsWhen", it.condition) }
         field("channels.map.id", c.map.id)
         field("channels.map.name", c.map.name)
         listOf("logo" to c.map.logo, "group" to c.map.group, "number" to c.map.number).forEach { (key, value) ->
@@ -134,14 +165,16 @@ private class ManifestChecks(private val m: ProviderManifest) {
                 }
             }
 
-            else -> errors += "guide: mode ${g.mode} is not inline or perChannel"
+            "keyed" -> errors += keyedErrors(g, m.requests, channelVars)
+
+            else -> errors += "guide: mode ${g.mode} is not inline, perChannel or keyed"
         }
         g.requireVar?.let { if (it !in channelVars) errors += "guide.requireVar: no channel variable $it" }
         val p = g.map
         field("guide.map.title", p.title)
         field("guide.map.start", p.start)
         field("guide.map.end", p.end)
-        listOf(p.description, p.subTitle, p.icon, p.category, p.rating).forEach {
+        listOf(p.description, p.subTitle, p.icon, p.category, p.rating, p.season, p.episode).forEach {
             it?.let { f -> field("guide.map", f) }
         }
     }

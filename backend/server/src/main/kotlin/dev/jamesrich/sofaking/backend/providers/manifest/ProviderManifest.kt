@@ -67,6 +67,7 @@ data class ManifestPaging(
     val count: String? = null,
     val size: String? = null,
     val defaultSize: Long = 0,
+    val cursorPath: String? = null,
 )
 
 @Serializable
@@ -83,7 +84,17 @@ data class ManifestChannels(
 )
 
 @Serializable
-data class ManifestFilter(val path: String, val op: String, val value: String? = null, val default: String? = null)
+data class ManifestFilter(
+    val path: String = "",
+    val op: String,
+    val value: String? = null,
+    val default: String? = null,
+    val anyOf: List<String>? = null,
+)
+
+/** Adds [tag] to a channel whose item passes [condition]. */
+@Serializable
+data class ManifestTagWhen(val tag: String, @SerialName("when") val condition: ManifestFilter)
 
 @Serializable
 data class ManifestChannelMap(
@@ -92,6 +103,7 @@ data class ManifestChannelMap(
     val logo: Field? = null,
     val group: Field? = null,
     val tags: List<String> = emptyList(),
+    val tagsWhen: List<ManifestTagWhen> = emptyList(),
     val number: Field? = null,
 )
 
@@ -111,6 +123,8 @@ data class ManifestGuide(
     val programs: String? = null,
     val request: String? = null,
     val requireVar: String? = null,
+    val key: String? = null,
+    val keyVar: String? = null,
     val map: ManifestProgramMap,
 )
 
@@ -124,6 +138,8 @@ data class ManifestProgramMap(
     val icon: Field? = null,
     val category: Field? = null,
     val rating: Field? = null,
+    val season: Field? = null,
+    val episode: Field? = null,
 )
 
 @Serializable
@@ -152,6 +168,7 @@ data class FieldSpec(
     @SerialName("as") val asType: String? = null,
     val http: Boolean = false,
     val usRating: Boolean = false,
+    val sentenceCase: Boolean = false,
     val dropIf: String? = null,
     val unlessEquals: String? = null,
 )

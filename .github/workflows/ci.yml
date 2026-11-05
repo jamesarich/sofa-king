@@ -102,7 +102,7 @@ jobs:
           ./gradlew --continue
           spotlessCheck detekt
           :core:allTests :ui:jvmTest :ui:testAndroidHostTest
-          :core:compileTestKotlinLinuxX64 :core:compileKotlinLinuxArm64 :ui:compileTestKotlinIosSimulatorArm64
+          :core:compileTestKotlinLinuxX64 :core:compileKotlinLinuxArm64
           :androidApp:lintDebug :androidApp:assembleRelease :androidApp:testDebugScreenshotTestDefaultTestSuite
       # The web app's build runs on its own: beside the screenshot tests the web builds ran the runner out of memory,
       # and GitHub stopped it with "The runner has received a shutdown signal".
@@ -189,28 +189,20 @@ jobs:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ steps.kotlin.outputs.version }}
           restore-keys: konan-${{ runner.os }}-
-      # The device targets cannot run tests here, so they only compile. The UI's iOS tests run only for main: linking
-      # their test binary takes about five minutes, and the check job already compiles them for every pull request.
-      # The data layer's watchOS tests run only for main too, since watchOS has no code of its own; pull requests
-      # compile them.
+      # The device targets cannot run tests here, so they only compile. The data layer's watchOS tests run only for
+      # main, since watchOS has no code of its own; pull requests compile them.
       - name: Test Apple targets, compile the device targets and link the iOS framework
         run: >-
           ./gradlew --continue
           :core:iosSimulatorArm64Test :core:macosArm64Test :core:tvosSimulatorArm64Test
-          ${{ github.event_name != 'pull_request' && ':core:watchosSimulatorArm64Test :ui:iosSimulatorArm64Test' || ':core:compileTestKotlinWatchosSimulatorArm64' }}
+          ${{ github.event_name != 'pull_request' && ':core:watchosSimulatorArm64Test' || ':core:compileTestKotlinWatchosSimulatorArm64' }}
           :core:compileKotlinIosArm64 :core:compileKotlinTvosArm64 :core:compileKotlinWatchosArm64
-          :ui:compileKotlinIosArm64
-          :ui:linkDebugFrameworkIosSimulatorArm64 :core:linkDebugFrameworkIosSimulatorArm64
+          :core:linkDebugFrameworkIosSimulatorArm64
       # The SwiftUI host compiles against the framework linked above; its pre-build script reuses that Gradle work.
       - name: Install XcodeGen
         run: brew install xcodegen
-      - name: Build the iOS host
-        working-directory: app/iosApp
-        run: >-
-          xcodegen && xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug
-          -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO -quiet build
       # The SwiftUI iPhone and iPad app, on core's framework, from the project it shares with the Apple TV app.
-      - name: Build the SwiftUI iOS app
+      - name: Build the iOS app
         working-directory: app/appleApp
         run: >-
           xcodegen && xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug
@@ -243,7 +235,7 @@ jobs:
           print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".iOS-" in runtime for d in devices[runtime] if d["name"].startswith("iPhone")))')
           # Booted before the tests, so the first launch does not race the simulator's own start on a busy runner.
           xcrun simctl bootstatus "$device" -b
-          cd iosApp
+          cd appleApp
           # Built for the tests first. Now and then xcodebuild sees no simulators at all just after a boot and fails
           # before building anything, so that, and only that, is tried again.
           for attempt in 1 2 3; do
@@ -264,37 +256,12 @@ jobs:
           ps -axm -o rss=,comm= | head -8 || true
           xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug -destination "id=$device" \
             CODE_SIGNING_ALLOWED=NO -resultBundlePath "../$out/TouchTests.xcresult" test-without-building
-      # The same touches against the SwiftUI app, on its own fixture server and a freshly booted simulator.
-      - name: Test the SwiftUI iOS app by touch
-        run: |
-          out=build/ios-ui/swiftui
-          mkdir -p "$out"
-          python3 scripts/fixture_server.py --out "$out" > "$out/fixture.log" 2>&1 &
-          fixture=$!
-          trap 'kill "$fixture"' EXIT
-          until [ -f "$out/server.env" ]; do
-            kill -0 "$fixture" 2>/dev/null || { cat "$out/fixture.log"; exit 1; }
-            sleep 1
-          done
-          set -a; . "$out/server.env"; set +a
-          export TEST_RUNNER_SOFAKING_SERVER="$SOFAKING_SERVER" TEST_RUNNER_SOFAKING_TOKEN="$SOFAKING_TOKEN"
-          # A pull request walks 60 touches; main walks the full 150.
-          if [ "${{ github.event_name }}" = pull_request ]; then export TEST_RUNNER_SOFAKING_WALK_STEPS=60; fi
-          # The newest iOS runtime's first iPhone.
-          device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
-          devices = json.load(sys.stdin)["devices"]
-          print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".iOS-" in runtime for d in devices[runtime] if d["name"].startswith("iPhone")))')
-          xcrun simctl bootstatus "$device" -b
-          cd appleApp
-          xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug -destination "id=$device" \
-            CODE_SIGNING_ALLOWED=NO -resultBundlePath "../$out/TouchTests.xcresult" test
       # A failure's screenshots, as PNG files beside the result bundle in the artifact.
       - name: Export the touch tests' screenshots
         if: failure()
         run: |
-          for result in build/ios-ui/TouchTests.xcresult build/ios-ui/swiftui/TouchTests.xcresult; do
-            [ ! -d "$result" ] || xcrun xcresulttool export attachments --path "$result" --output-path "$(dirname "$result")/attachments"
-          done
+          result=build/ios-ui/TouchTests.xcresult
+          [ ! -d "$result" ] || xcrun xcresulttool export attachments --path "$result" --output-path "$(dirname "$result")/attachments"
       # A simulator app's crash report, with its stack, lands on the host rather than in the result bundle.
       - name: Collect the app's crash reports
         if: failure()

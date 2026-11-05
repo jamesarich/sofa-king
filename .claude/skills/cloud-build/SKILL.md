@@ -30,7 +30,7 @@ App change, from `app/`, the tasks of the code you touched (CI's Linux job runs 
 
 ```sh
 ./gradlew --max-workers=2 spotlessCheck detekt :core:jvmTest :ui:jvmTest --tests '<class>'
-./gradlew --max-workers=2 :core:compileTestKotlinLinuxX64 :ui:compileTestKotlinIosSimulatorArm64   # common code
+./gradlew --max-workers=2 :core:compileTestKotlinLinuxX64                                         # common code
 ./gradlew --max-workers=2 :androidApp:testDebugScreenshotTestDefaultTestSuite                      # a visible change
 ```
 
@@ -47,7 +47,7 @@ The detekt CLI lacks the Compose rules, so the Gradle `detekt` task still has th
 
 ## What only CI checks
 
-- Swift, the iOS and tvOS hosts, XCUITest walks and Apple simulator tests: macOS only. A Kotlin rename changes its Objective-C facade (`<File>Kt`), so grep `app/appleApp` (the SwiftUI iPhone, iPad and Apple TV apps) and `app/iosApp` (the Compose iOS host, which still ships until the SwiftUI iPhone app replaces it) for the old name.
+- Swift, the iPhone, iPad and Apple TV apps, XCUITest walks and Apple simulator tests: macOS only. A Kotlin rename changes its Objective-C facade (`<File>Kt`), so grep `app/appleApp` (the SwiftUI iPhone, iPad and Apple TV apps) for the old name.
 - `:core:jsBrowserProductionLibraryDistribution` and `core`'s Wasm browser tests: slow, and Kotlin's karma fork downloads from `codeload.github.com`, which the container cannot reach.
 - The API fuzz (`python3 scripts/api-fuzz.py`) and the smoke scripts need a built distribution; run them when you change a route or the OpenAPI document.
 

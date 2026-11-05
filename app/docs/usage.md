@@ -88,7 +88,7 @@ OK on a song opens Now playing: the cover over a blurred copy of itself tinted w
 | Previous | Restarts the song once a few seconds in, else goes back a song |
 | Repeat | Album again after its last song, then one song over and over, then off |
 | Lyrics | Appears when the server has them; replaces the cover. Synced lyrics light the sung line and keep it near the top; plain lyrics show as written |
-| Visualizer | A MilkDrop-style picture behind Now playing, where the app can hear its output (Android, Android TV, desktop, web, iOS except songs the server converts to HLS). The first look is the one shown last; a new one comes with each song and every 45 seconds: a few made for Sofa King, then over a thousand classic presets, shuffled. Each look's name fades in over the picture for a few seconds. Next look skips, and Full screen hides the controls and adds the song's title and artist to that fade; a key, click, tap or Back brings the controls back |
+| Visualizer | A MilkDrop-style picture behind Now playing, where the app can hear its output (Android, Android TV, desktop and web). The first look is the one shown last; a new one comes with each song and every 45 seconds: a few made for Sofa King, then over a thousand classic presets, shuffled. Each look's name fades in over the picture for a few seconds. Next look skips, and Full screen hides the controls and adds the song's title and artist to that fade; a key, click, tap or Back brings the controls back |
 
 Back leaves Now playing and the music plays on, also in the background and on a locked screen (with controls in the notification and on the lock screen on Android and iOS). Away from a TV a bar under the pages shows Play or Pause and Next, and a click opens Now playing. On a TV a button with the song's title sits beside Settings in the Library and DVR headers. Google TV's Now playing card and the media keys work anywhere.
 
@@ -266,7 +266,7 @@ On Android, caption timing shifts captions against the picture so live captions 
 
 ## iPhone and iPad
 
-The SwiftUI iPhone and iPad app shares its screens with the Apple TV app and works as the other apps do, apart from these differences. The Compose iOS app is still built beside it.
+The SwiftUI iPhone and iPad app shares its screens with the Apple TV app and works as the other apps do, apart from these differences.
 
 - **Live.** The Live tab lists the channels with what is on now, under All, Favorites and Recent, with Search and, on a server that offers it, On later. Tap a channel to watch it full screen; hold it for Details and the favorite toggle. There is no guide grid, 24-hour window or preview.
 - **Live player.** It is the system player: its scrubber, captions, AirPlay and Picture in Picture, which also starts when you leave the app, and Control Center and the lock screen show the program on now. The chevron at the top left closes it. The button at the top right opens the menu the Apple TV keeps in its transport bar: Record, the favorite toggle, the channels, Multiview, Sleep timer and, while the program is being recorded, Watch from start. In portrait the channel list sits under the picture, and a tap tunes another channel. Show picture over the break screen is a button over the picture.
@@ -315,7 +315,7 @@ Settings opens from the header's Settings button on a TV and from the navigation
 | Captions | Smooth live captions | On | Android only. Holds roll-up text until each line is complete, so captions appear a line at a time |
 | Captions | Caption style | System | System follows Android's caption preferences, or white on black in a browser; Large, high contrast overrides them |
 | Captions | Default caption timing | As broadcast | Android only. The timing for channels without their own; steps and range as in [Captions](#captions) |
-| Captions | Open system caption settings | | On Android, opens the system's captioning preferences; on iOS, the app's page in Settings. |
+| Captions | Open system caption settings | | On Android, opens the system's captioning preferences. |
 | Playback | Night listening | Off | Android and desktops. Evens out the sound for watching quietly: quiet speech comes up and explosions come down. On Android it applies at once, through the system's dynamics processing; on a desktop libVLC's compressor applies from the next channel or item opened. Audio passed through to a receiver plays as it is |
 | Playback | Test surround sound | | Android and desktops. Play sounds a tone from each speaker of a 5.1 setup in turn (front left, center, front right, surround right, surround left, then the subwoofer) and names the one that should sound, so a swapped or silent speaker shows. The app builds the tone and decodes it like any multichannel sound, so it goes out as multichannel PCM, also to a receiver set to pass audio through; the stream card's Audio out line shows what a channel does |
 | Playback | Match frame rate | Off | Android only. Switches the display to the stream's frame rate while it plays, through the window's preferred display mode, so 29.97 fps video plays at 59.94 Hz and 25 fps at 50 Hz. Some TVs show a black screen for a moment at each switch, and a pause the box sends during the switch is ignored for 4 seconds so playback does not stop; the launcher's rate returns when the app leaves the player |

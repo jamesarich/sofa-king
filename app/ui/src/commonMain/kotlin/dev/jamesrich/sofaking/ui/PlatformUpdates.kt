@@ -6,7 +6,7 @@ import dev.jamesrich.sofaking.data.UpdateInstaller
 
 /**
  * What Get the update opens for a published [latest] build: the Android package on Android, the release page on a
- * desktop or in a browser, or null where no package is published (iOS), so Settings says so instead.
+ * desktop or in a browser, or null where no package is published, so Settings says so instead.
  */
 internal expect fun updateDownloadUrl(latest: PublishedBuild): String?
 

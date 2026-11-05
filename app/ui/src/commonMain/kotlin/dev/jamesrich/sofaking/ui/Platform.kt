@@ -7,7 +7,7 @@ import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 
 /**
- * Back on every platform: the remote's or system Back on Android, the swipe on iOS, Escape on desktops and the
+ * Back on every platform: the remote's or system Back on Android, Escape on desktops and the
  * web. While [enabled], [onBack] takes it; otherwise it goes on to the host (on Android, finishing the activity).
  */
 @Composable
@@ -28,8 +28,8 @@ internal expect fun rememberIsTelevision(): Boolean
 internal expect fun rememberSystem24HourClock(): Boolean
 
 /**
- * True where the platform moves focus on the arrow keys itself (Android maps the D-pad); Compose on the desktop, the
- * web and iOS moves it only on Tab, so the app moves it there ([arrowKeysMoveFocus]).
+ * True where the platform moves focus on the arrow keys itself (Android maps the D-pad); Compose on the desktop and the
+ * web moves it only on Tab, so the app moves it there ([arrowKeysMoveFocus]).
  */
 internal expect val platformMovesFocusOnArrows: Boolean
 

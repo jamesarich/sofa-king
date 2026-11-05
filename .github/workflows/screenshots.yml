@@ -236,11 +236,12 @@ jobs:
       - name: Build the iOS and Apple TV apps
         working-directory: app
         run: |
-          ./gradlew --console=plain :ui:linkDebugFrameworkIosSimulatorArm64 :core:linkDebugFrameworkTvosSimulatorArm64
-          (cd iosApp && xcodegen && xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' -derivedDataPath ../build/xcode CODE_SIGNING_ALLOWED=NO -quiet build)
-          (cd appleApp && xcodegen && xcodebuild -project SofaKing.xcodeproj -scheme SofaKingTV -configuration Debug \
-            -destination 'generic/platform=tvOS Simulator' -derivedDataPath ../build/xcode CODE_SIGNING_ALLOWED=NO -quiet build)
+          ./gradlew --console=plain :core:linkDebugFrameworkIosSimulatorArm64 :core:linkDebugFrameworkTvosSimulatorArm64
+          cd appleApp && xcodegen
+          xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath ../build/xcode CODE_SIGNING_ALLOWED=NO -quiet build
+          xcodebuild -project SofaKing.xcodeproj -scheme SofaKingTV -configuration Debug \
+            -destination 'generic/platform=tvOS Simulator' -derivedDataPath ../build/xcode CODE_SIGNING_ALLOWED=NO -quiet build
       # One simulator at a time, booted for its run: the newest runtime's device whose name starts with each prefix, a
       # Pro or a 4K before the others.
       - name: Take the screenshots

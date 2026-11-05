@@ -82,7 +82,7 @@ python3 scripts/fixture_server.py --out build/tvos-ui &
 set -a; . build/tvos-ui/server.env; set +a
 cd appleApp && xcodegen
 TEST_RUNNER_SOFAKING_SERVER=$SOFAKING_SERVER TEST_RUNNER_SOFAKING_TOKEN=$SOFAKING_TOKEN TEST_RUNNER_SOFAKING_WALK_SEED=1234 \
-  xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -destination 'platform=tvOS Simulator,name=Apple TV' CODE_SIGNING_ALLOWED=NO test
+  xcodebuild -project SofaKing.xcodeproj -scheme SofaKingTV -destination 'platform=tvOS Simulator,name=Apple TV' CODE_SIGNING_ALLOWED=NO test
 ```
 
 ### iOS touch tests

@@ -355,7 +355,7 @@ jobs:
       - name: Build the Apple TV host
         working-directory: app/appleApp
         run: >-
-          xcodegen && xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -configuration Debug
+          xcodegen && xcodebuild -project SofaKing.xcodeproj -scheme SofaKingTV -configuration Debug
           -destination 'generic/platform=tvOS Simulator' CODE_SIGNING_ALLOWED=NO -quiet build
       # The remote tests drive the Apple TV app against the server's installed distribution serving fixture channels,
       # which FFmpeg makes.
@@ -388,7 +388,7 @@ jobs:
           devices = json.load(sys.stdin)["devices"]
           print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".tvOS-" in runtime for d in devices[runtime]))')
           cd appleApp
-          xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -configuration Debug -destination "id=$device" \
+          xcodebuild -project SofaKing.xcodeproj -scheme SofaKingTV -configuration Debug -destination "id=$device" \
             CODE_SIGNING_ALLOWED=NO -resultBundlePath "../build/tvos-ui/RemoteTests.xcresult" test
       # A failure's screenshots, as PNG files beside the result bundle in the artifact.
       - name: Export the remote tests' screenshots

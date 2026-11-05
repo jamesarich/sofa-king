@@ -74,6 +74,13 @@ Every platform's app against the same server, playing a showcase lineup of the B
   <img src="docs/images/desktop-movie.webp" width="49%" alt="A movie's page in the desktop app">
 </p>
 
+**Web**
+
+<p>
+  <img src="docs/images/web-library.webp" width="49%" alt="The Library tab in a browser">
+  <img src="docs/images/web-show.webp" width="49%" alt="A show's page in a browser">
+</p>
+
 **iPhone and iPad**
 
 <p>

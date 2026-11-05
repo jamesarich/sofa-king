@@ -7,6 +7,8 @@ Android phone and tablet; the TV is always dark). Android's status bar is in dem
 
 Platforms and what each needs besides FFmpeg and the server's distribution (`./gradlew :server:installDist` in backend/):
 
+- web: Playwright for Python and the web app's build (`--app web/dist`, from `npm run build` in app/web), which the server
+  serves at /app/, in Google Chrome (`--channel chrome`) or Playwright's own Chromium. It shows the Library tab and a show's page.
 - desktop: the desktop app (`--app` the launcher `:ui:createDistributable` writes) with VLC 3, Xvfb, Openbox, xdotool
   and ImageMagick; it runs on a display of its own, so nothing shows on yours. Java takes keys only from a window a
   window manager has focused, hence Openbox.
@@ -20,6 +22,7 @@ Platforms and what each needs besides FFmpeg and the server's distribution (`./g
 """
 import argparse
 import contextlib
+import json
 import os
 from pathlib import Path
 import re
@@ -68,6 +71,41 @@ class App:
 
 def wait_for_session(base, seconds=60):
     wait_for('a playback session', lambda: [s for s in request(base, '/api/v1/admin/sessions') if not s['external']], seconds)
+
+
+# Web
+
+
+def web(args, out):
+    """The hls.js client the server serves at /app/, in Playwright's browser, paired by the settings the page reads from
+    local storage. It shows the Library tab and a show's page."""
+    from playwright.sync_api import sync_playwright
+
+    width, height = args.size
+    with showcase_server(out, SOFA_WEB_DIR=str(Path(args.app).resolve())) as base, sync_playwright() as playwright:
+        browser = playwright.chromium.launch(channel=args.channel, args=['--mute-audio', '--autoplay-policy=no-user-gesture-required'])
+        context = browser.new_context(viewport={'width': width, 'height': height}, device_scale_factor=args.scale)
+        page = context.new_page()
+        page.on('pageerror', lambda error: print(f'page error: {error}', file=sys.stderr))
+        settings = {'backend_url': {'t': 's', 'v': base}, 'api_token': {'t': 's', 'v': TOKEN}}
+        page.add_init_script(f'localStorage.getItem("sofaking.preferences") || localStorage.setItem("sofaking.settings", {json.dumps(json.dumps(settings))})')
+
+        def settled():
+            # The posters load lazily, so the picture waits for every one that is on the page.
+            page.wait_for_function('[...document.images].every((image) => image.complete)')
+            page.wait_for_timeout(1000)
+
+        page.goto(f'{base}/app/#/library')
+        page.wait_for_selector('.shelf .card')
+        settled()
+        page.screenshot(path=str(picture(out, args, 'library')))
+        page.click('.chip:has-text("TV Shows")')
+        page.click(f'.card:has-text("{showcase.SHOW["title"]}")')
+        page.wait_for_selector('h1')
+        settled()
+        page.screenshot(path=str(picture(out, args, 'show')))
+        context.close()
+        browser.close()
 
 
 # Desktop
@@ -431,8 +469,8 @@ def tour(base, start, out, channel=True):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument('platform', choices=['desktop', 'android-tv', 'android-phone', 'android-tablet', 'ios', 'tvos', 'admin'])
-    parser.add_argument('--app', help='the build to run: the desktop launcher, the APK or the iOS .app folder')
+    parser.add_argument('platform', choices=['web', 'desktop', 'android-tv', 'android-phone', 'android-tablet', 'ios', 'tvos', 'admin'])
+    parser.add_argument('--app', help='the build to run: the web build folder, the desktop launcher, the APK or the iOS .app folder')
     parser.add_argument('--out', required=True)
     parser.add_argument('--channel', help='the browser Playwright runs by channel, such as chrome')
     parser.add_argument('--size', default='1280x720', type=lambda s: tuple(map(int, s.split('x'))), help='window size in points')
@@ -442,13 +480,13 @@ def main():
     parser.add_argument('--name', help='the files\' prefix in place of the platform, such as ipad')
     args = parser.parse_args()
     args.name = args.name or args.platform
-    if args.appearance == 'light' and args.platform in ('android-tv', 'ios', 'tvos', 'admin'):
+    if args.appearance == 'light' and args.platform in ('web', 'android-tv', 'ios', 'tvos', 'admin'):
         parser.error('only the desktop, Android phone and tablet apps have a light appearance here')
     args.suffix = '-light' if args.appearance == 'light' else ''
     args.appearance = args.appearance.upper()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    driver = {'admin': admin, 'desktop': desktop, 'ios': apple, 'tvos': apple}.get(args.platform, android)
+    driver = {'web': web, 'admin': admin, 'desktop': desktop, 'ios': apple, 'tvos': apple}.get(args.platform, android)
     driver(args, out)
 
 

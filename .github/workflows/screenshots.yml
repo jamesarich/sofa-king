@@ -1,7 +1,7 @@
 name: Screenshots
 
-# The documentation's screenshots, from every platform a runner can show headlessly: the Linux desktop app on a
-# virtual display, the Android phone, tablet and TV apps in emulators, and the iPhone, iPad and Apple TV
+# The documentation's screenshots, from every platform a runner can show headlessly: the web app in Chrome and the Linux
+# desktop app on a virtual display, the Android phone, tablet and TV apps in emulators, and the iPhone, iPad and Apple TV
 # apps in simulators, each against the server's installed distribution serving the showcase lineup (Blender's open movies
 # as live channels and libraries, app/scripts/showcase.py), plus the server's admin portal in Chrome. Each platform's
 # pictures upload as one artifact; the images job converts the ones app/scripts/doc-images.json names to the WebP files
@@ -65,7 +65,7 @@ jobs:
         run: python3 -c 'import showcase; showcase.prepare()'
 
   linux:
-    name: Desktop
+    name: Web and desktop
     needs: showcase
     runs-on: ubuntu-26.04
     timeout-minutes: 60
@@ -98,9 +98,22 @@ jobs:
       - name: Build the server distribution
         working-directory: backend
         run: ./gradlew --console=plain :server:installDist
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/web/package-lock.json
+      - name: Build the web app
+        working-directory: app
+        run: |
+          ./gradlew --console=plain :core:jsBrowserProductionLibraryDistribution
+          cd web && npm ci && npm run build
       - name: Build the desktop app
         working-directory: app
         run: ./gradlew --console=plain :ui:createDistributable
+      - name: Take the web screenshots
+        working-directory: app
+        run: python3 scripts/screenshots.py web --app web/dist --channel chrome --out build/screenshots/web
       - name: Take the desktop screenshots
         working-directory: app
         run: python3 scripts/screenshots.py desktop --app "ui/build/compose/binaries/main/app/Sofa King/bin/Sofa King" --out build/screenshots/desktop

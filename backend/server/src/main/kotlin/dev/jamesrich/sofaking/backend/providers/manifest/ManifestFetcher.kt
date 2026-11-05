@@ -63,7 +63,7 @@ internal class ManifestFetcher(private val context: ProviderContext, private val
         while (fetched < total && fetched < (paging?.maxPages ?: 1)) {
             val page = paging?.let { it.start + fetched }
             val document = send(loaded, name, request, scope(loaded, channel, page, cursor))
-            items += (if (document is JsonArray) document else document.at(request.items)).array
+            items += if (document is JsonArray) document else document.itemsAt(request.items)
             fetched++
             if (fetched == 1 && paging?.count != null && paging.size != null) {
                 val size = document.at(paging.size).long ?: paging.defaultSize

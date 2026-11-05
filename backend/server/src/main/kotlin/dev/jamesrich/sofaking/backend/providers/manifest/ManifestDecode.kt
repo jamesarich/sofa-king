@@ -34,6 +34,7 @@ internal fun decodeBody(body: ByteArray, steps: List<String>, what: String): Jso
 
 /** The JSON a step that ends the chain makes of [bytes]; null for a step that only transforms them. */
 private fun finalStep(step: String, bytes: ByteArray, what: String): JsonElement? = when {
+    step == "base64" && bytes.isJson() -> parse(bytes)
     step == "nextData" -> nextData(bytes.toString(Charsets.UTF_8), what)
     step.startsWith(JSON_ARRAY_AFTER) -> arrayAfter(bytes, step.removePrefix(JSON_ARRAY_AFTER), what)
     else -> null
@@ -41,6 +42,8 @@ private fun finalStep(step: String, bytes: ByteArray, what: String): JsonElement
 
 private fun arrayAfter(bytes: ByteArray, key: String, what: String): JsonElement =
     jsonArrayAfter(bytes.toString(Charsets.UTF_8), key) ?: throw ProviderFailure("$what has no $key array")
+
+private fun ByteArray.isJson() = toString(Charsets.UTF_8).trimStart().firstOrNull() in setOf('{', '[')
 
 private fun parse(bytes: ByteArray): JsonElement = try {
     lenientJson.parseToJsonElement(bytes.toString(Charsets.UTF_8))

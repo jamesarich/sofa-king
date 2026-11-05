@@ -1,5 +1,13 @@
-package dev.jamesrich.sofaking.backend.providers
+package dev.jamesrich.sofaking.backend.providers.manifest
 
+import dev.jamesrich.sofaking.backend.providers.BROWSER_USER_AGENT
+import dev.jamesrich.sofaking.backend.providers.ProviderContext
+import dev.jamesrich.sofaking.backend.providers.ProviderFailure
+import dev.jamesrich.sofaking.backend.providers.ProviderFixture
+import dev.jamesrich.sofaking.backend.providers.ProviderScope
+import dev.jamesrich.sofaking.backend.providers.get
+import dev.jamesrich.sofaking.backend.providers.providerTest
+import dev.jamesrich.sofaking.backend.providers.string
 import dev.jamesrich.sofaking.backend.store.providerState
 import java.net.URLEncoder
 import java.time.Duration
@@ -11,11 +19,13 @@ import kotlin.test.assertNull
 
 private const val SCHEDULE_LIST = "/api/v1.0/schedulelist"
 
-class LgClientTest {
+private fun lgDecode(text: String) = decodeBody(text.toByteArray(), listOf("base64", "zlib"), "LG schedulelist")
+
+class LgManifestTest {
     /** The client over the fixture's schedule list: the real base64-of-zlib shape, rebuilt for this server. */
-    private fun ProviderScope.lg(): LgClient {
+    private fun ProviderScope.lg(): ManifestClient {
         // The fixture has a BASE placeholder inside; rebuild it for this server's address.
-        val json = LgClient.decode(ProviderFixture.resource("lg-schedulelist.b64")).toString()
+        val json = lgDecode(ProviderFixture.resource("lg-schedulelist.b64")).toString()
             .replace("BASE", fixture.base)
         val deflated = java.io.ByteArrayOutputStream().also { out ->
             java.util.zip.DeflaterOutputStream(out).use { it.write(json.toByteArray()) }
@@ -25,7 +35,7 @@ class LgClientTest {
             java.util.Base64.getEncoder().encodeToString(deflated),
             "text/plain;charset=UTF-8",
         )
-        return LgClient(context("lg", mapOf("apiBase" to "${fixture.base}/api/v1.0")))
+        return manifestClient("lg", "lg", mapOf("apiBase" to "${fixture.base}/api/v1.0"))
     }
 
     @Test fun `decodes the base64 zlib schedulelist into channels, with the device headers`() = providerTest(
@@ -54,7 +64,7 @@ class LgClientTest {
     @Test fun `the guide comes from the same schedulelist`() = providerTest("sofa-lg-") {
         val client = lg()
         client.channels()
-        val guide = client.guide(setOf("foxlivenow_foxlivenow_US"))
+        val guide = checkNotNull(client.guide(setOf("foxlivenow_foxlivenow_US")))
         assertEquals(2, guide.channels.size)
         assertEquals(
             listOf("2026-10-10T22:00:00Z", "2026-10-11T02:00:00Z"),
@@ -84,10 +94,10 @@ class LgClientTest {
     }
 
     @Test fun `plain JSON and malformed documents are handled`() {
-        assertEquals("x", LgClient.decode("""{"categories":[],"a":"x"}""")["a"].string)
-        assertFailsWith<ProviderFailure> { LgClient.decode("not base64 at all!!") }
+        assertEquals("x", lgDecode("""{"categories":[],"a":"x"}""")["a"].string)
+        assertFailsWith<ProviderFailure> { lgDecode("not base64 at all!!") }
         assertFailsWith<ProviderFailure> {
-            LgClient.decode(java.util.Base64.getEncoder().encodeToString("plain bytes".toByteArray()))
+            lgDecode(java.util.Base64.getEncoder().encodeToString("plain bytes".toByteArray()))
         }
     }
 }

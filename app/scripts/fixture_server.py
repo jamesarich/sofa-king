@@ -49,6 +49,11 @@ DELIMITER = b'\x00\x00\x00\x01\x09'
 PIECE = 188 * 64
 # How many segments a live HLS playlist lists.
 LIVE_WINDOW = 5
+# The first channel's playlist carries a standard ad mark (EXT-X-DATERANGE of the app's ad class) for BREAK_SECONDS at the
+# start of every BREAK_EVERY seconds of wall clock, on the program date time clock it also carries.
+BREAK_EVERY = 240
+BREAK_SECONDS = 30
+AD_CLASS = 'dev.jamesrich.sofaking.ad'
 # The fixture show's episodes: a cold open, then the theme they share, then the rest and the credits they share, in
 # seconds. The server reads the first 30% of an episode for its intro and its last tenth for its credits, and makes scrub
 # thumbnails for five minutes or more from keyframes, which the episodes carry every 2 seconds (-g 20 at 10 fps).
@@ -71,6 +76,11 @@ SONG_SECONDS = 15
 EPISODE_SECONDS = 20
 
 
+def iso(seconds):
+    """[seconds] since the epoch as the ISO 8601 UTC time HLS tags carry."""
+    return datetime.fromtimestamp(seconds, timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+
+
 class Upstream(http.server.SimpleHTTPRequestHandler):
     """Serves the fixture files, and /endless/<n>.ts as a live MPEG-TS stream that repeats one clip until the reader goes,
     at the clip's own pace as a broadcast arrives (a whole clip at once overflows the server's buffer for a new reader),
@@ -80,6 +90,8 @@ class Upstream(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith('/live/'):
             return self.live()
+        if self.path.split('?')[0] == '/live.m3u8':
+            return self.marked()
         if not self.path.startswith('/endless/'):
             return super().do_GET()
         # FFmpeg loops the clip with its timestamps carried on, as a broadcast's keep rising; the clip's own bytes
@@ -118,6 +130,26 @@ class Upstream(http.server.SimpleHTTPRequestHandler):
                 lines.append('#EXT-X-DISCONTINUITY')
             lines += [f'#EXTINF:{seconds:.3f},', f'/live-{Path(self.path).stem}/{name}']
         body = ('\n'.join(lines) + '\n').encode()
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/vnd.apple.mpegurl')
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Cache-Control', 'no-cache')
+        self.end_headers()
+        self.wfile.write(body)
+
+    def marked(self):
+        """/live.m3u8 (the first channel) with an EXT-X-PROGRAM-DATE-TIME of now before its first segment and, while its
+        segments overlap a break, the break's EXT-X-DATERANGE ad mark with its DURATION."""
+        lines = (Path(self.directory) / 'live.m3u8').read_text().splitlines()
+        length = sum(float(line[len('#EXTINF:'):].split(',')[0]) for line in lines if line.startswith('#EXTINF:'))
+        now = time.time()
+        begin = int(now / BREAK_EVERY) * BREAK_EVERY
+        tags = [f'#EXT-X-PROGRAM-DATE-TIME:{iso(now)}']
+        if now < begin + BREAK_SECONDS and now + length > begin:
+            tags.append(f'#EXT-X-DATERANGE:ID="fixture-ad-{begin}",CLASS="{AD_CLASS}",START-DATE="{iso(begin)}",'
+                        f'DURATION={BREAK_SECONDS}')
+        first = next(i for i, line in enumerate(lines) if line.startswith('#EXTINF:'))
+        body = ('\n'.join(lines[:first] + tags + lines[first:]) + '\n').encode()
         self.send_response(200)
         self.send_header('Content-Type', 'application/vnd.apple.mpegurl')
         self.send_header('Content-Length', str(len(body)))

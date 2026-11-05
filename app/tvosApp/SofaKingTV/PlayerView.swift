@@ -19,6 +19,7 @@ struct PlayerView: View {
     @State private var failure: String?
     @State private var replaced: Watch?
     @State private var itemObservers: [AnyCancellable] = []
+    @State private var breakMarks: BreakMarkCollector?
     @State private var reconnect: Task<Void, Never>?
     @State private var attempts = 0
     /// False once the player has left: a tune or reconnect still running then must not play or open anything.
@@ -252,7 +253,7 @@ struct PlayerView: View {
         return [UIAction(title: "Show picture", image: UIImage(systemName: "eye")) { _ in breakDismissed = true }]
     }
 
-    /// Asks the server every second whether an ad is playing, while Settings covers them.
+    /// Reads the stream's ad marks twice a second while Settings covers them.
     private func watchAdBreaks() async {
         adBreak = nil
         breakDismissed = false
@@ -260,21 +261,11 @@ struct PlayerView: View {
         // Rides out a reading that loses the break for a moment, and keeps Show picture until the break is over.
         let watch = BreakWatch()
         while !Task.isCancelled {
-            var wait: Duration = .seconds(1)
-            var found: AdBreakNow?
-            // With nothing loaded past the picture the picture is stalled, and the server can't place it.
-            let ahead = loadedAheadMs()
-            if let ahead {
-                do {
-                    found = try await model.core.adBreak(aheadMs: ahead)
-                } catch {
-                    // A server from before the break screen: ask again in a while.
-                    wait = .seconds(15)
-                }
-            }
-            adBreak = ahead == nil ? watch.stalled() : watch.shown(found: found)
+            let found = breakMarks?.breakNow(on: player)
+            // With nothing loaded past the picture the picture is stalled, and the held break stays as it is.
+            adBreak = found == nil && loadedAheadMs() == nil ? watch.stalled() : watch.shown(found: found)
             if watch.over { breakDismissed = false }
-            try? await Task.sleep(for: wait)
+            try? await Task.sleep(for: .milliseconds(500))
         }
     }
 
@@ -428,6 +419,10 @@ struct PlayerView: View {
                 attempts = 0
             },
         ] + StreamCaptions.follow(item, on: player, model: model)
+        if breakMarks?.follows(item) != true {
+            breakMarks?.detach()
+            breakMarks = BreakMarkCollector(item: item, core: model.core)
+        }
         if item !== player.currentItem { player.replaceCurrentItem(with: item) }
         player.play()
     }

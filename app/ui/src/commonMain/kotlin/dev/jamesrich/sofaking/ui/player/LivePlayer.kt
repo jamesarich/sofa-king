@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.IntSize
 import dev.jamesrich.sofaking.data.AdBreakNow
+import dev.jamesrich.sofaking.data.LiveSessions
 import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackStream
@@ -194,22 +195,16 @@ interface PlayerTimeline {
     fun setSpeed(rate: Float) = Unit
 
     /**
-     * The ad break playing now, read by the engine itself from the marks the server adds to a live playlist (`AdRun`);
-     * null outside one. Only engines with [readsAdMarks] answer.
+     * The ad break playing now, read by the engine itself from the standard `EXT-X-DATERANGE` marks in the live
+     * playlist (`AdDateRange`); null outside one, and where the engine cannot read them.
      */
     fun adBreak(): AdBreakNow? = null
 
-    /**
-     * True where the engine reads the playlist's ad marks itself (Media3); the others have the server place
-     * the picture by [loadedAheadMs].
-     */
-    val readsAdMarks: Boolean get() = false
+    /** Hands the engine the live session, for the one engine that still asks the server for its breaks (the web's). */
+    fun useSessions(sessions: LiveSessions) = Unit
 
-    /**
-     * How much of a live stream the engine has loaded past the picture, for the server to place the picture among
-     * the ads; null when it cannot say.
-     */
-    val loadedAheadMs: Long? get() = null
+    /** True while a live picture has nothing left to play, its buffer dry; a stalled picture holds a break up. */
+    val pictureStalled: Boolean get() = false
 }
 
 /**

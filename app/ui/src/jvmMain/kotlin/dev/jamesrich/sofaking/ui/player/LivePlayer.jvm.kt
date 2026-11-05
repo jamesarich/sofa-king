@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.asComposeImageBitmap
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.data.AdBreakNow
 import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.runCatchingCancellable
@@ -121,7 +122,7 @@ internal class VlcLivePlayer(
             // libVLC is a system install on desktops; without it every tune fails with a clear code. A missing library
             // is a LinkageError, and vlcj throws its own exceptions for one that loads but does not start.
             try {
-                runCatchingCancellable(::open).onFailure(::unavailable)
+                runCatchingCancellable(::open).onFailure(unavailable)
             } catch (e: LinkageError) {
                 unavailable(e)
             }
@@ -137,7 +138,7 @@ internal class VlcLivePlayer(
         commands.player = vlc
     }
 
-    private fun unavailable(failure: Throwable) = log.w(failure) { "libVLC not found; playback is unavailable" }
+    private val unavailable: (Throwable) -> Unit = { log.w(it) { "libVLC not found; playback is unavailable" } }
 
     override val bufferedMs: Long get() = 0L
 
@@ -177,6 +178,7 @@ internal class VlcLivePlayer(
         val url = stream?.url ?: return
         mutableStatus.update { it.copy(state = PlaybackState.BUFFERING) }
         val start = playWhenReady
+        breakMarks.follow(url.takeIf { stream?.seekable == false })
         val opening = commands.generation.incrementAndGet()
         commands.execute {
             if (player == null) {
@@ -194,6 +196,7 @@ internal class VlcLivePlayer(
     }
 
     override fun stop() {
+        breakMarks.follow(null)
         commands.generation.incrementAndGet()
         commands.command { vlc.controls().stop() }
         hasFrame = false
@@ -220,11 +223,10 @@ internal class VlcLivePlayer(
 
     override val durationMs: Long? get() = player?.status()?.length()?.takeIf { isSeekable && it > 0L }
 
-    /**
-     * libVLC reports no buffer depth, but it holds a live HLS stream its live delay behind the newest segment, which
-     * it fetches as soon as the playlist lists it; that delay stands in for what it has loaded past the picture.
-     */
-    override val loadedAheadMs: Long? get() = if (stream?.seekable == false) VLC_LIVE_DELAY_MS else null
+    private val breakMarks = VlcBreakMarks(VLC_LIVE_DELAY_MS)
+
+    /** libVLC reports no playlist, so the marks come from [VlcBreakMarks]; the break placement is 15 s approximate. */
+    override fun adBreak(): AdBreakNow? = if (stream?.seekable == false) breakMarks.adBreak() else null
 
     override fun seekTo(positionMs: Long) {
         if (!isSeekable) return
@@ -275,6 +277,7 @@ internal class VlcLivePlayer(
     }
 
     override fun release() {
+        breakMarks.release()
         // After the player is released no frame can arrive, so the bitmaps go on the same thread, after it.
         commands.execute {
             tap.release()

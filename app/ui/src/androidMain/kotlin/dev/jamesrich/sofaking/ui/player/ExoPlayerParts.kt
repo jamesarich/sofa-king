@@ -124,7 +124,7 @@ internal class ExoTimeline(private val exo: ExoPlayer) : PlayerTimeline {
 
     override val durationMs: Long? get() = exo.duration.takeIf { isSeekable && it != C.TIME_UNSET }
 
-    override val readsAdMarks: Boolean get() = true
+    override val pictureStalled: Boolean get() = !seekableItem && exo.playbackState == Player.STATE_BUFFERING
 
     private val adMarks = AdMarks()
     private val breakMarks = BreakMarks()

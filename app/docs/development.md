@@ -97,11 +97,25 @@ TEST_RUNNER_SOFAKING_BREAK_CHANNEL='CSI' xcodebuild -project SofaKing.xcodeproj 
 
 ### Web key fuzz
 
-[`scripts/web-fuzz.py`](../scripts/web-fuzz.py) serves a production web build to a headless browser through [Playwright for Python](https://playwright.dev/python/), with the page paired to the same fixture server, and presses 400 random keys 150 ms apart, weighted as `AppKeyFuzzTest` weighs the remote's. It fails when the page keeps the focus on its body (the app then takes no keys until a click), on an uncaught error, a console error, a failed request (but the 404 for a new device's preferences and the 410 for a released session's media), a crashed page, or two blank screens in a row; the summary also counts the sessions left open after the page closed. The script answers the update check's request to api.github.com itself, with a snapshot no newer than any build, so the run never reaches the live API. The Linux CI job runs it on both web builds in Google Chrome, which plays the fixture's H.264 where Playwright's own Chromium does not, and uploads the console, server log, keys and last screen when it fails. Locally, with the server's distribution, FFmpeg, Playwright and a web build:
+[`scripts/web-fuzz.py`](../scripts/web-fuzz.py) serves a production web build to a headless browser through [Playwright for Python](https://playwright.dev/python/), with the page paired to the same fixture server, and presses 400 random keys 150 ms apart, weighted as `AppKeyFuzzTest` weighs the remote's. It fails when the page keeps the focus on its body (the app then takes no keys until a click), on an uncaught error, a console error, a failed request (but the 404 for a new device's preferences and the 410 for a released session's media), a crashed page, or two blank screens in a row; the summary also counts the sessions left open after the page closed. The script answers the update check's request to api.github.com itself, with a snapshot no newer than any build, so the run never reaches the live API. The Linux CI job runs it on both Compose web builds and on the new client at `/app2/` (which also gets Tab and Backspace) in Google Chrome, which plays the fixture's H.264 where Playwright's own Chromium does not, and uploads the console, server log, keys and last screen when it fails. Locally, with the server's distribution, FFmpeg, Playwright and a web build:
 
 ```sh
 SOFAKING_WEB_FUZZ_SEED=1234 python3 scripts/web-fuzz.py --channel chrome --dist ui/build/dist/wasmJs/productionExecutable --out build/web-fuzz
+python3 scripts/web-fuzz.py --channel chrome --served-at /app2/ --dist web/dist --out build/web-fuzz/web
 ```
+
+`--served-at` has the server serve the build at `/app/` (`SOFA_WEB_DIR`) or `/app2/` (`SOFA_WEB2_DIR`); without it a static server on another origin does, through CORS.
+
+### Web client
+
+`web/` is the new web client: TypeScript and hls.js, bundled by esbuild, on `core`'s JS library. Build the library first, then the app; the Node version CI uses is in [dependencies](dependencies.md#node):
+
+```sh
+./gradlew :core:jsBrowserProductionLibraryDistribution
+cd web && npm ci && npm run build && npm test
+```
+
+`npm run build` type-checks and writes `web/dist` with hashed bundle names; `npm test` compiles `src/**/*.test.ts` and runs them with `node --test`. `npm run dev` serves a watched build at `http://localhost:8000/`; it is another origin than the server, so start the server with `SOFA_CORS_ORIGINS=http://localhost:8000`. The library is `core/build/dist/js/productionLibrary/sofa-king-core.mjs` with its `.d.mts`, which esbuild and `tsc` resolve as `@sofaking/core`. A new call for the page goes in `core/src/jsMain` (`@JsExport`, `Promise`s, no `Long`) and then in `web/src`.
 
 ## Android Studio
 
@@ -123,6 +137,7 @@ The constraints are in [AGENTS.md](../AGENTS.md), the code's layout in [architec
 | --- | --- | --- |
 | Android TV, Google TV, phones | `./gradlew :androidApp:assembleRelease`, then sideload `androidApp/build/outputs/apk/release/androidApp-release.apk` | `adb` |
 | Desktop | `./gradlew :ui:run`; `:ui:packageDistributionForCurrentOS` builds a `.deb`, `.dmg` or `.msi` under `ui/build/compose/binaries/main/` | VLC 3 installed for playback |
+| Web client | `cd web && npm ci && npm run dev` after `./gradlew :core:jsBrowserProductionLibraryDistribution`; see [web client](#web-client) | The page's origin allowed by the server (`SOFA_CORS_ORIGINS=http://localhost:8000`); HLS streams |
 | Web | `./gradlew :ui:wasmJsBrowserDevelopmentRun`; `:ui:wasmJsBrowserDistribution` writes `ui/build/dist/wasmJs/productionExecutable` (`js` tasks build the JS fallback) | The page's origin allowed by the server, as [getting started](getting-started.md#web) describes; HLS streams |
 | iOS | On a Mac: `cd iosApp && xcodegen && open SofaKing.xcodeproj`, then run the SofaKing scheme | Xcode, XcodeGen; HLS streams |
 | Apple TV | On a Mac: `cd tvosApp && xcodegen && open SofaKingTV.xcodeproj`, then run the SofaKingTV scheme | Xcode, XcodeGen; HLS streams |
@@ -249,7 +264,7 @@ The snapshot job prints the APK's signer and fails when the release key is set b
 
 ## CI and snapshots
 
-[CONTRIBUTING](../../CONTRIBUTING.md#ci) describes the CI jobs and the snapshot release. With the `APT_SIGNING_KEY` secret (an armored GPG secret key without a passphrase) the snapshot is also a flat apt repository: `Packages`, a `Release` signed as `InRelease` and `Release.gpg`, and the public key as `sofa-king-archive-keyring.gpg`, beside the `.deb`.
+[CONTRIBUTING](../../CONTRIBUTING.md#ci) describes the CI jobs and the snapshot release, which adds the new web client as `sofa-king-snapshot-web.zip`. With the `APT_SIGNING_KEY` secret (an armored GPG secret key without a passphrase) the snapshot is also a flat apt repository: `Packages`, a `Release` signed as `InRelease` and `Release.gpg`, and the public key as `sofa-king-archive-keyring.gpg`, beside the `.deb`.
 
 The app version is `sofaking` in [the version catalog](../../gradle/libs.versions.toml). Snapshots build every package with `-Psofaking.versionCode` (the build number) and `-Psofaking.versionSuffix` (`-dev.BUILD+COMMIT`, the build number and the short commit), which [`.github/version.sh`](../../.github/version.sh) prints. The build number is the count of commits behind the build, so it grows with every merge to `main`, and the server image built from the same commit carries the same version. A rerun on a commit already published takes one more than the published build, so it still installs over it. Android's `versionName` and the About row of every snapshot build append the suffix. Only the catalog version is compiled in; the suffix is written to `files/version-suffix.txt` among the UI module's Compose resources and read at runtime, so a snapshot reuses the compile outputs the CI run just cached. The desktop packages carry the catalog version too: a snapshot's `.deb` is 0.1.0 plus the suffix and its MSI is 0.1.BUILD, so each installs over the last. jpackage refuses a macOS version whose first number is 0, so the macOS app is built as 1.1.0 and its `Info.plist` repeats `CFBundleShortVersionString` as 0.1.0; macOS reads the later key, so Finder and About This Mac show 0.1.0, with 1.1.BUILD as the build version.
 

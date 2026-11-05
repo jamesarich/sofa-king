@@ -105,6 +105,74 @@ class WebAppRoutesTest {
         assertTrue(response.headers["Content-Security-Policy"].orEmpty().contains("wasm-unsafe-eval"))
     }
 
+    private fun bundle2(): Path = Files.createTempDirectory("sofa-web2-").apply {
+        resolve("index.html").writeText("<!doctype html><title>Sofa King client</title>")
+        resolve("app-3FJ2K9QX.js").writeText("console.log('client')")
+        resolve("app-3FJ2K9QX.js.gz").writeBytes(gzip("console.log('client')"))
+        resolve("sw.js").writeText("self.skipWaiting()")
+    }
+
+    private fun withBoth(web2: Path?, block: suspend ApplicationTestBuilder.() -> Unit) = testApplication {
+        val dir = Files.createTempDirectory("sofa-web-data-")
+        val store = openStore(dir)
+        try {
+            val config = ServerConfig(
+                "127.0.0.1",
+                8080,
+                dir,
+                apiToken = apiToken,
+                webDirectory = bundle(),
+                web2Directory = web2,
+            )
+            application { backendModule(store, MutableClock(), apiToken = apiToken, config = config) }
+            client = createClient { followRedirects = false }
+            block()
+        } finally {
+            store.close()
+        }
+    }
+
+    @Test fun `the new client is served beside the app at its own path`() = withBoth(bundle2()) {
+        assertEquals("/app2/", client.get("/app2").headers[HttpHeaders.Location])
+        val page = client.get("/app2/")
+        assertEquals(HttpStatusCode.OK, page.status)
+        assertTrue(page.bodyAsText().contains("Sofa King client"))
+        assertEquals("no-cache", page.headers[HttpHeaders.CacheControl])
+        assertEquals("nosniff", page.headers["X-Content-Type-Options"])
+        // The app keeps its own bundle and the root still opens it.
+        assertTrue(client.get("/app/").bodyAsText().contains("<title>Sofa King</title>"))
+        assertEquals("/app/", client.get("/").headers[HttpHeaders.Location])
+    }
+
+    @Test fun `the new client sends the policy hls js needs and caches its hashed files for good`() = withBoth(
+        bundle2(),
+    ) {
+        val policy = client.get("/app2/").headers["Content-Security-Policy"].orEmpty()
+        assertTrue("script-src 'self' " in policy, policy)
+        assertTrue("worker-src 'self' blob:" in policy, policy)
+        // hls.js's caption tracks are <track> elements with the empty `data:,WEBVTT` as their source.
+        assertTrue("media-src 'self' blob: data:;" in policy, policy)
+
+        val script = client.get("/app2/app-3FJ2K9QX.js") { header(HttpHeaders.AcceptEncoding, "gzip") }
+        assertEquals(HttpStatusCode.OK, script.status)
+        assertEquals("gzip", script.headers[HttpHeaders.ContentEncoding])
+        assertTrue(script.headers[HttpHeaders.CacheControl].orEmpty().contains("max-age=31536000"))
+        // The service worker keeps its name, so it revalidates.
+        assertEquals("no-cache", client.get("/app2/sw.js").headers[HttpHeaders.CacheControl])
+    }
+
+    @Test fun `without a bundle for the new client there is no app2`() = withBoth(null) {
+        assertEquals(HttpStatusCode.NotFound, client.get("/app2/").status)
+        assertEquals(HttpStatusCode.NotFound, client.get("/app2").status)
+        assertEquals(HttpStatusCode.OK, client.get("/app/").status)
+    }
+
+    @Test fun `a folder without a page serves no new client`() = withBoth(
+        Files.createTempDirectory("sofa-web2-empty-"),
+    ) {
+        assertEquals(HttpStatusCode.NotFound, client.get("/app2/").status)
+    }
+
     private fun gzip(text: String): ByteArray = java.io.ByteArrayOutputStream().also { bytes ->
         java.util.zip.GZIPOutputStream(bytes).use { it.write(text.encodeToByteArray()) }
     }.toByteArray()

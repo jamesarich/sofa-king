@@ -4,9 +4,11 @@ distribution serving fixture channels; fail when the app takes no keys, or on an
 console logged, a failed request, a crashed page or a blank screen.
 
 Needs Playwright for Python, FFmpeg and the server's distribution (`./gradlew :server:installDist` in backend/), and
-the web build: `./gradlew :ui:wasmJsBrowserDistribution` or `:ui:jsBrowserDistribution`. Writes the console, the server
-log, the keys and the last screen to --out. With --served the server serves the build at /app/, as the image does;
-otherwise a static server on another origin does, through SOFA_CORS_ORIGINS.
+the web build: `./gradlew :ui:wasmJsBrowserDistribution` or `:ui:jsBrowserDistribution`, or the new client's, `npm ci &&
+npm run build` in app/web after `./gradlew :core:jsBrowserProductionLibraryDistribution`. Writes the console, the
+server log, the keys and the last screen to --out. With --served-at (or --served, which is /app/) the server serves the
+build there, as the image does, the new client at /app2/; otherwise a static server on another origin does, through
+SOFA_CORS_ORIGINS.
 """
 import argparse
 import functools
@@ -28,6 +30,14 @@ KEYS = [
     ('ArrowUp', 12), ('ArrowDown', 14), ('ArrowLeft', 10), ('ArrowRight', 12), ('Enter', 10), ('Escape', 6),
     ('PageUp', 2), ('PageDown', 2), ('Space', 1),
 ]
+# What the DOM client takes beyond the remote's keys: Tab through its controls, Backspace back.
+DOM_KEYS = [('Tab', 4), ('Backspace', 3)]
+# True when the focus is on an element and not the body, or a video is playing; the Compose apps focus their canvas.
+FOCUS_TAKEN = """(() => {
+    const active = document.activeElement;
+    if (active && active !== document.body) return true;
+    return [...document.querySelectorAll('video')].some((video) => !video.paused && !video.ended);
+})()"""
 # A screenshot this small is one color: the app drew nothing.
 BLANK_BYTES = 4000
 # A failed request logs a console error without its address, so requests are checked by their responses instead. A
@@ -64,13 +74,17 @@ def main():
     parser.add_argument('--seed', type=int, default=int(os.environ.get('SOFAKING_WEB_FUZZ_SEED') or time.time()))
     parser.add_argument('--channel', help="a browser Playwright runs by channel, such as chrome, which plays H.264")
     parser.add_argument('--served', action='store_true', help='have the server serve the build at /app/ (SOFA_WEB_DIR)')
+    parser.add_argument('--served-at', choices=['/app/', '/app2/'],
+                        help='have the server serve the build at /app/ (SOFA_WEB_DIR) or the new client at /app2/ (SOFA_WEB2_DIR)')
     args = parser.parse_args()
+    served_at = args.served_at or ('/app/' if args.served else None)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     print(f'Seed {args.seed}, {args.keys} keys, {args.dist}', flush=True)
 
-    if args.served:
-        page_url, env = None, {'SOFA_WEB_DIR': str(Path(args.dist).resolve())}
+    if served_at:
+        variable = 'SOFA_WEB2_DIR' if served_at == '/app2/' else 'SOFA_WEB_DIR'
+        page_url, env = None, {variable: str(Path(args.dist).resolve())}
     else:
         static = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Static, directory=args.dist))
         threading.Thread(target=static.serve_forever, daemon=True).start()
@@ -80,7 +94,7 @@ def main():
     errors, console = [], []
     pressed = []
     with serve(out, **env) as base, sync_playwright() as playwright:
-        page_url = page_url or f'{base}/app/'
+        page_url = page_url or f'{base}{served_at}'
         browser = playwright.chromium.launch(channel=args.channel)
         page = browser.new_page(viewport={'width': 1280, 'height': 720})
         page.on('pageerror', lambda error: errors.append(f'page error: {error}'))
@@ -110,12 +124,13 @@ def main():
             errors.append('the app never asked the server for its channels')
         # The guide draws once the lineup is in.
         time.sleep(5)
-        # Keys go to the focused element, and the page opens with its body focused, so the app must take focus itself.
-        if not errors and page.evaluate('document.activeElement === document.body'):
+        # Keys go to the focused element, and the page opens with its body focused, so the app must take focus itself:
+        # a control inside it, or a video that is playing.
+        if not errors and page.evaluate(FOCUS_TAKEN) is False:
             errors.append('the app took no keys: the page body kept the focus')
 
         rng = random.Random(args.seed)
-        names, weights = zip(*KEYS)
+        names, weights = zip(*(KEYS + (DOM_KEYS if served_at == '/app2/' else [])))
         blank = 0
         for index, key in enumerate(rng.choices(names, weights, k=args.keys)):
             if errors:

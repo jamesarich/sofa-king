@@ -34,7 +34,15 @@ kotlin {
     linuxArm64()
     // Tests run on Node; browsers get the same klibs through the ui module's web apps. Mocha's 2-second default failed
     // a 90 ms test on a busy CI runner, where the first logged stack trace waits for its source maps.
-    js { nodejs { testTask { useMocha { timeout = "30s" } } } }
+    // The `web` app in app/web imports the js target as an ES module library (`SofaKingWeb`, exported in jsMain); its
+    // tests run on Node, so the browser test task stays off.
+    js {
+        browser { testTask { enabled = false } }
+        nodejs { testTask { useMocha { timeout = "30s" } } }
+        binaries.library()
+        useEsModules()
+        generateTypeScriptDefinitions()
+    }
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs { nodejs { testTask { useMocha { timeout = "30s" } } } }
 
@@ -94,6 +102,9 @@ kotlin {
         }
         linuxMain.dependencies {
             implementation(libs.ktor.client.curl)
+        }
+        jsMain {
+            languageSettings.optIn("kotlin.js.ExperimentalJsExport")
         }
         webMain.dependencies {
             implementation(libs.ktor.client.js)

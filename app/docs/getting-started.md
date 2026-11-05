@@ -63,6 +63,8 @@ On macOS and Windows, install VLC 3 first, then `sofa-king-snapshot-macos-arm64.
 
 The Sofa King server serves the web app: open `http://SERVER_HOST:9193/app/` in a browser, or the server's address alone. Settings fills in the page's origin as the server address, so pair as [connect to the server](#3-connect-to-the-server) describes, or choose Open the web app on the admin portal's [Devices page](../../backend/docs/admin.md#devices), which opens it already paired. This copy comes with the server and updates when it does, so Settings checks GitHub for no newer build.
 
+A preview of the new web client, which plays through hls.js instead of the browser's native HLS and so plays in Firefox too, is at `http://SERVER_HOST:9193/app2/`; it shares the saved server and token with `/app/`, takes the same `#pair=` link, and shows the guide, live TV, the libraries and Settings.
+
 To host the files elsewhere (`sofa-king-snapshot-web-wasm.zip`, or `sofa-king-snapshot-web-js.zip` for browsers without WebAssembly GC), see [serve the web app](../../backend/docs/deploy.md#serve-the-web-app), which covers the reverse proxy, CORS and HTTPS. The browser saves the address in localStorage for the page's origin, so each origin keeps its own settings. The web app plays HLS channels only.
 
 ### iOS and Apple TV

@@ -1,5 +1,8 @@
 package dev.jamesrich.sofaking.ui.player
 
+import co.touchlab.kermit.LogWriter
+import co.touchlab.kermit.Logger
+import co.touchlab.kermit.Severity
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
 import kotlinx.coroutines.CoroutineStart
@@ -11,6 +14,7 @@ import java.util.concurrent.CountDownLatch
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /** The desktop player where libVLC is missing: looking for it never holds the thread that made the player. */
 class VlcLivePlayerTest {
@@ -53,5 +57,27 @@ class VlcLivePlayerTest {
         } finally {
             player.release()
         }
+    }
+
+    @Test
+    fun `the failure handler exists when the first command runs during construction`() {
+        val inline = object : VlcCommands() {
+            override fun execute(task: () -> Unit) = task()
+        }
+        val reported = mutableListOf<String>()
+        val writer = object : LogWriter() {
+            override fun log(severity: Severity, message: String, tag: String, throwable: Throwable?) {
+                reported += message
+            }
+        }
+        val before = Logger.config.logWriterList
+        Logger.setLogWriters(writer)
+        try {
+            val player = VlcLivePlayer(CaptionSync(), inline) { throw UnsatisfiedLinkError("no libvlc") }
+            player.release()
+        } finally {
+            Logger.setLogWriters(*before.toTypedArray())
+        }
+        assertTrue(reported.any { "libVLC not found" in it }, "logged: $reported")
     }
 }

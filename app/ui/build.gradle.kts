@@ -52,12 +52,6 @@ kotlin {
         withHostTest { isIncludeAndroidResources = true }
     }
     jvm()
-    listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
-        target.binaries.framework {
-            baseName = "SofaKingUi"
-            isStatic = true
-        }
-    }
 
     compilerOptions {
         optIn.add("androidx.compose.material3.ExperimentalMaterial3ExpressiveApi")
@@ -124,8 +118,7 @@ kotlin {
 
 // The snapshot suffix, `-dev.BUILD+COMMIT` or empty, read by the About row at runtime, which trims it. A custom resource
 // directory replaces the source set's default one, so the common resources are synced beside the generated file. The
-// file ends in a newline so it is never empty: Compose's iOS reader throws on an empty resource (it pins element 0 of
-// the empty array), which stopped the app on opening About in every build without a suffix.
+// file ends in a newline so it is never empty.
 val versionSuffixResources = layout.buildDirectory.dir("generated/versionSuffix")
 val generateVersionSuffix = tasks.register("generateVersionSuffix") {
     // Locals, so the action captures values rather than this script, which the configuration cache cannot store.

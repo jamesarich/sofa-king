@@ -206,7 +206,7 @@ interface PlayerTimeline {
 /**
  * The app's one live player, shared by the guide preview and the full screen so OK on the previewed channel
  * continues its stream. Each platform plays the server's HLS or MPEG-TS with its own engine: Media3 on Android,
- * libVLC on desktops, AVPlayer on iOS, a video element on the web. Items are tagged with their channel id and
+ * libVLC on desktops. Items are tagged with their channel id and
  * opened with the descriptor's MIME type, never sniffed.
  */
 interface LivePlayer :

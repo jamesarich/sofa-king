@@ -14,10 +14,9 @@ Platforms and what each needs besides FFmpeg and the server's distribution (`./g
   which it installs over any earlier one; the settings go in with `run-as`, which only a debug build allows.
 - admin: the server's admin portal (Home, Channels, DVR, Devices, Library and Settings) in Playwright's browser at
   1440x900, dark then light, with three recordings scheduled; needs no app. Writes admin-<page>[-light].png.
-- ios, tvos: one booted simulator (`xcrun simctl`) and the app the Debug build writes (`--app`, a `.app` folder). The
-  simulators take no keys from a script, so these show the guide or channel list, a channel playing (iOS only: Apple
-  TV asks before a link opens the app) and the Library tab. The iOS app runs in landscape on a simulator that boots
-  upright, so its pictures are turned or cropped to the app.
+- ios, tvos: one booted simulator (`xcrun simctl`) and the SwiftUI app the Debug build of `appleApp` writes (`--app`, a
+  `.app` folder). The simulators take no keys from a script, so these show the guide or channel list, a channel playing
+  (iOS only: Apple TV asks before a link opens the app) and the Library tab.
 """
 import argparse
 import contextlib
@@ -261,8 +260,8 @@ def simctl(*args, data=None, timeout=120):
 
 
 def apple(args, out):
-    """The simulator shares the host's network, so the server's own address works. The iOS app keeps its settings in a
-    DataStore file in Application Support, the Apple TV app in its user defaults."""
+    """The simulator shares the host's network, so the server's own address works. The iPhone and iPad app keeps its
+    settings in a DataStore file in Application Support, the Apple TV app in its user defaults."""
     tv = args.platform == 'tvos'
     bundle = PACKAGE + ('.tv' if tv else '')
     simctl('install', 'booted', args.app, timeout=300)
@@ -286,16 +285,6 @@ def apple(args, out):
             def shoot(name):
                 path = picture(out, args, name)
                 simctl('io', 'booted', 'screenshot', str(path))
-                if tv:
-                    return
-                # The simulator stands upright and the app lies across it: an iPhone's picture is turned a quarter,
-                # an iPad's shows the app across its width between black bands.
-                size = subprocess.run(['sips', '-g', 'pixelWidth', '-g', 'pixelHeight', str(path)], capture_output=True, text=True, check=True).stdout
-                width, height = map(int, re.findall(r'pixel(?:Width|Height): (\d+)', size))
-                if args.name == 'iphone':
-                    subprocess.run(['sips', '-r', '270', str(path)], capture_output=True, check=True)
-                elif height > width:
-                    subprocess.run(['sips', '-c', str(width * width // height), str(width), str(path)], capture_output=True, check=True)
 
             try:
                 # Nothing has focus on a touch screen, and the Apple TV's channel list has no preview.

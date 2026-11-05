@@ -64,7 +64,7 @@ internal fun PlayPauseControl(
     ControlIcon(item.icon, item.label, item.onClick, modifier = modifier, primary = primary)
 }
 
-/** Switches the window's full screen, as F does; nothing where the app cannot switch it (Android and iOS). */
+/** Switches the window's full screen, as F does; nothing where the app cannot switch it (Android). */
 @Composable
 internal fun FullScreenControl() {
     val fullScreen = LocalWindowFullScreen.current ?: return

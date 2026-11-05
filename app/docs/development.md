@@ -13,7 +13,7 @@ Use JDK 21, the Android SDK with API 37.1 and the checked-in Gradle wrapper. The
 `:core:allTests` runs the data layer's tests on the JVM, Android, Linux, js and wasm (on Node); Apple targets run theirs only on a Mac. The UI's common tests run on the JVM and as Android host tests. Before a change to common code, also compile the Native tests, which reject what the JVM accepts (commas or parentheses in backtick test names, JVM-only APIs):
 
 ```sh
-./gradlew :core:compileTestKotlinLinuxX64 :core:compileKotlinLinuxArm64 :ui:compileTestKotlinIosSimulatorArm64
+./gradlew :core:compileTestKotlinLinuxX64 :core:compileKotlinLinuxArm64
 ```
 
 Unit tests cover the API client, catalog and guide mapping, the server connection's bootstrap backoff and server changes, the playback session lifecycle, cache, settings, the Apple TV's settings storage and its move out of Caches (`tvosTest`, which only macOS runs), captions, remote-control key mapping, the launch and focus decisions, channel re-resolution, the preview's rest timers and network cancellation. Server interactions run against Ktor's `MockEngine` in common code on every target, and against MockWebServer on the JVM where a real socket matters, so no server is needed. Screen tests in `ui`'s `jvmTest` drive the composables with Compose's ui-test (`runSkikoComposeUiTest`), pressing keys and finding nodes by semantics on a virtual clock. `RenderSmokeTest` draws the guide, settings, the settings lock page, the player's info bar and its channel list headless at TV size and writes them to `ui/build/screenshots`.
@@ -87,18 +87,12 @@ TEST_RUNNER_SOFAKING_SERVER=$SOFAKING_SERVER TEST_RUNNER_SOFAKING_TOKEN=$SOFAKIN
 
 ### iOS touch tests
 
-`appleApp/SofaKingUITests` drives the SwiftUI iPhone app by touch in a simulator, in portrait, with the same four tests, launch arguments (`-serverUrl`, `-apiToken`, `-muted YES`) and environment variables as the Compose host's below, through accessibility identifiers the views carry (`channel-list`, `channel-<name>`, `player-close`, `settings-about`). `testPlayChannel` taps Sofa Sports in the channel list and checks the session opens and is released behind the home screen, `testOpenAbout` scrolls Settings to its About section, `testWalkWithRandomTouches` makes the weighted random touches, and `testBreakScreen` watches a real channel. CI's `apple` job runs them after the Compose host's, with the same walk lengths. The Compose host stays until the SwiftUI app replaces it in the releases:
+`appleApp/SofaKingUITests` drives the SwiftUI iPhone app by touch in a simulator, in portrait, against the fixture server (`scripts/fixture_server.py`). The debug app takes `-serverUrl`, `-apiToken` and `-muted YES` as launch arguments, so a test saves its server and mutes the player without typing, and the views carry accessibility identifiers (`channel-list`, `channel-<name>`, `player-close`, `settings-about`). `testPlayChannel` taps Sofa Sports in the channel list and checks that the session opens and is released once the app is behind the home screen; `testOpenAbout` scrolls Settings to its About section, whose version line reads a resource file, and checks that the app keeps running; `testWalkWithRandomTouches` makes 150 weighted random touches against the same server (taps anywhere and on buttons, swipes across the middle of the screen, the back swipe from the left edge and long presses), seeded so `SOFAKING_WALK_SEED` replays a walk, brings the app back when a touch leaves it, fails if the app stops, and checks that the session is released behind the home screen. CI's `apple` job runs all three after building the app, with a 60-touch walk on a pull request (`SOFAKING_WALK_STEPS`, 150 by default). `testBreakScreen` watches a real channel on the server the simulator is already paired with, for `SOFAKING_BREAK_MINUTES` (10 by default), and logs each time the break screen comes and goes with a screenshot at each edge; it runs only when `SOFAKING_BREAK_CHANNEL` names the channel:
 
 ```sh
 cd appleApp && xcodegen
 TEST_RUNNER_SOFAKING_SERVER=$SOFAKING_SERVER TEST_RUNNER_SOFAKING_TOKEN=$SOFAKING_TOKEN xcodebuild -project SofaKing.xcodeproj -scheme SofaKing \
   -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO test
-```
-
-`iosApp/SofaKingUITests` drives the iOS app by touch in an iPhone simulator. The debug host takes `-serverUrl`, `-apiToken` and `-muted YES` as launch arguments, so a test saves its server and mutes the player without typing. `testPlayChannel` plays Sofa Sports from the guide against the fixture server and checks that the session opens, and that it is released once the app is behind the home screen; `testOpenAbout` scrolls Settings to About, whose version line reads a resource file, and checks that the app keeps running; `testWalkWithRandomTouches` makes 150 weighted random touches against the same server (taps anywhere and on buttons, swipes across the middle of the screen, the back swipe from the left edge and long presses), seeded so `SOFAKING_WALK_SEED` replays a walk, brings the app back when a touch leaves it, fails if the app stops, and checks that the session is released behind the home screen. CI's `apple` job runs all three after building the iOS host, with a 60-touch walk on a pull request (`SOFAKING_WALK_STEPS`, 150 by default). `testBreakScreen` watches a real channel on the server the simulator is already paired with, for `SOFAKING_BREAK_MINUTES` (10 by default), and logs each time the break screen comes and goes with a screenshot at each edge; it runs only when `SOFAKING_BREAK_CHANNEL` names the channel:
-
-```sh
-cd iosApp && xcodegen
 TEST_RUNNER_SOFAKING_BREAK_CHANNEL='CSI' xcodebuild -project SofaKing.xcodeproj -scheme SofaKing \
   -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO -only-testing:SofaKingUITests/TouchTests/testBreakScreen test
 ```
@@ -147,11 +141,10 @@ The constraints are in [AGENTS.md](../AGENTS.md), the code's layout in [architec
 | Web | `cd web && npm ci && npm run dev` after `./gradlew :core:jsBrowserProductionLibraryDistribution`; see [web app](#web-app) | The page's origin allowed by the server (`SOFA_CORS_ORIGINS=http://localhost:8000`); HLS streams |
 | iPhone, iPad | On a Mac: `cd appleApp && xcodegen && open SofaKing.xcodeproj`, then run the SofaKing scheme | Xcode, XcodeGen; HLS streams |
 | Apple TV | The same project: run the SofaKingTV scheme | Xcode, XcodeGen; HLS streams |
-| iOS, Compose host | On a Mac: `cd iosApp && xcodegen && open SofaKing.xcodeproj`, then run the SofaKing scheme | Xcode, XcodeGen; HLS streams |
 
-The iOS and tvOS frameworks link only on macOS. Every other target, including the iOS klibs, builds on Linux.
+The iOS and tvOS frameworks link only on macOS. Every other target, including `core`'s iOS klibs, builds on Linux.
 
-The Swift hosts take their version from the catalog's `sofaking` through `tools/version-xcconfig.sh`, declare the Entertainment App Store category and no non-exempt encryption in `project.yml`. Each has an `Assets.xcassets` with the app icon (`AppIcon.appiconset` on iOS; the layered `AppIcon.brandassets` with Top Shelf images on tvOS), the amber accent color and the launch color, which `project.yml` names through `ASSETCATALOG_COMPILER_APPICON_NAME` and `ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME`.
+The Swift apps take their version from the catalog's `sofaking` through `tools/version-xcconfig.sh`, declare the Entertainment App Store category and no non-exempt encryption in `project.yml`. Each has an `Assets.xcassets` with the app icon (`AppIcon.appiconset` on iOS; the layered `AppIcon.brandassets` with Top Shelf images on tvOS), the amber accent color and the launch color, which `project.yml` names through `ASSETCATALOG_COMPILER_APPICON_NAME` and `ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME`.
 
 ## Test on a TV
 

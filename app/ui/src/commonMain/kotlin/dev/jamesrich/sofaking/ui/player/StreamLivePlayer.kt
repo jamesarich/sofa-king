@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * What the desktop, iOS and web players share: the [stream] they hold for the next [prepare], the status and error
+ * What the desktop players share: the [stream] they hold for the next [prepare], the status and error
  * flows, and the live-resume rule for an engine that cannot seek a live relay, where rejoining the edge after a long
  * pause is reopening the stream. Android's player keeps its item and live window in Media3 instead.
  */

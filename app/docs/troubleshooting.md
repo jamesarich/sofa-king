@@ -69,7 +69,7 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | Captions run behind the speech | Live captions are typed after the words are spoken. On Android, show them earlier with the [caption timing](usage.md#captions). |
 | Captions run ahead of the speech | Some relays carry captions early. On Android, show them later with the [caption timing](usage.md#captions). |
 | Captions appear letter by letter | On Android, turn on Settings → Captions → Smooth live captions. |
-| The caption style setting changes nothing | On a desktop and on iOS the player draws captions itself, and in a browser so does the browser's video element when the app falls back to it. [Captions](usage.md#captions) lists where the style applies. |
+| The caption style setting changes nothing | On a desktop the player draws captions itself, and in a browser so does the browser's video element when the app falls back to it. [Captions](usage.md#captions) lists where the style applies. |
 
 ## Desktop, iOS and web
 

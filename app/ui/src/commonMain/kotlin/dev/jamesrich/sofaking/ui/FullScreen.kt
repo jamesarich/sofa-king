@@ -7,7 +7,7 @@ import androidx.compose.ui.input.key.Key
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 
 /**
- * The window's full screen, or null where the app cannot switch it (Android and iOS, whose players fill the screen).
+ * The window's full screen, or null where the app cannot switch it (Android, whose player fills the screen).
  */
 val LocalWindowFullScreen = staticCompositionLocalOf<WindowFullScreen?> { null }
 

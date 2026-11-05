@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import dev.jamesrich.sofaking.ui.player.MediaSessionHandle
 
 /**
- * Opens the platform's own caption settings (Android's captioning preferences, the app's page in iOS Settings),
+ * Opens the platform's own caption settings (Android's captioning preferences),
  * or null where there is no such page, so Settings leaves the row out.
  */
 @Composable
@@ -60,7 +60,7 @@ internal expect fun MatchDisplayFrameRate(player: dev.jamesrich.sofaking.ui.play
 
 /**
  * Keeps the sound of [session] playing while the app is in the background, as the platform asks: a media playback
- * service with its notification on Android; the audio background mode in the iOS app's Info.plist; nothing on a
+ * service with its notification on Android; nothing on a
  * desktop or in a browser. Null lets it stop.
  */
 @Composable
